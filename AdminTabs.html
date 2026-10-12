@@ -1,0 +1,95 @@
+<style>
+:root:root{--abg:#F8E1DD;--wbg:#FBEFCF;--wfg:#9A6A00;--okbg:#DDE4F6}
+@media(prefers-color-scheme:dark){:root:root{--abg:#3C1F1B;--wbg:#3A2F12;--wfg:#E8C26A;--okbg:#1F2D54}}
+#card>h2{display:none}
+#app .top{position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0 10px;border-bottom:1px solid var(--line);margin-bottom:8px}
+@media(min-width:840px){#app .top{top:57px}}
+#app .top h1{margin:6px 0 8px}
+#card h1{margin:16px 0 4px}
+.tabs2{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:12px 0;overflow-x:auto}
+.tabs2 button{font:inherit;font-weight:600;background:none;border:0;border-bottom:3px solid transparent;color:var(--mute);padding:10px 12px;min-height:44px;white-space:nowrap;cursor:pointer}
+.tabs2 button[aria-selected=true]{color:var(--g);border-bottom-color:var(--g)}
+.kv{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:15px}
+.kv span:first-child{color:var(--mute)}
+.chip{font-size:12px;font-weight:600;border-radius:999px;padding:3px 10px;white-space:nowrap}
+.chip.ok{background:var(--okbg);color:var(--g)}.chip.bad{background:var(--abg);color:var(--a)}.chip.mid{background:var(--wbg);color:var(--wfg)}
+.gm{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.gm .sc{font-weight:800;font-variant-numeric:tabular-nums}
+li.p{padding:12px 14px}
+</style>
+<script>
+(function(){
+  var prev=window.renderCard,MD=null,tab='subs';
+  // Закреплённая шапка списка: заголовок, поиск, фильтры, «Добавить».
+  var app=$('app'),top=document.createElement('div');
+  top.className='top';
+  app.insertBefore(top,app.firstChild);
+  [app.querySelector('h1'),$('q'),app.querySelector('.row2'),$('add')].forEach(function(n){if(n)top.appendChild(n)});
+
+  function mk(cls,html){var d=document.createElement('div');d.className=cls||'';if(html)d.innerHTML=html;return d}
+  function fd(s){return s?s.slice(8,10)+'.'+s.slice(5,7):''}
+  function chip(c,t){return'<span class="chip '+c+'">'+esc(t)+'</span>'}
+
+  function drawGames(pg){
+    var p=D.players[cardI],ev={},played=0,goals=0,games=[],fees=[];
+    MD.events.forEach(function(e){ev[e.id]=e});
+    MD.parts.forEach(function(x){
+      if(x.p!==p.id)return;
+      var e=ev[x.e];if(!e)return;
+      if(e.type==='Игра'||e.type==='Товарищеская'){
+        if(x.played===1){played++;goals+=x.goals;games.push({e:e,x:x})}
+      }
+      if(e.type==='Чемпионат'||e.type==='Фестиваль'||e.type==='Турнир'||e.type==='Кубок'||(e.type==='Товарищеская'&&x.paid!==-1))fees.push({e:e,x:x});
+    });
+    games.sort(function(a,b){return a.e.date<b.e.date?-1:1});
+    var h='<div class="tiles" style="grid-template-columns:1fr 1fr"><div class="tile"><b>'+played+'</b><span>сыграно матчей</span></div><div class="tile"><b>'+goals+'</b><span>голов забито</span></div></div>';
+    h+='<h2>Взносы</h2>'+(fees.length?fees.map(function(f){
+      var e=f.e,x=f.x,name=e.type==='Товарищеская'?'Товарищеская '+fd(e.date):e.name+(e.date?' '+fd(e.date):''),c;
+      if(x.paid===1)c=chip('ok',e.fee>0?'оплачено '+money(x.sum||e.fee):'оплачено');
+      else if(e.fee>0){var debt=Math.max(e.fee-(x.sum||0),0);c=x.sum>0?chip('mid','частично, долг '+money(debt)):chip('bad','долг '+money(debt))}
+      else c=chip('bad','не оплачено');
+      return'<div class="res gm"><span>'+esc(name)+'<span class="sub"> · '+esc(e.team)+'</span></span>'+c+'</div>';
+    }).join(''):'<p class="sub">Взносов нет.</p>');
+    h+='<h2>Сыгранные матчи</h2>'+(games.length?games.map(function(g){
+      var e=g.e,par=ev[e.parent],sc=(typeof e.gf==='number'&&typeof e.ga==='number')?e.gf+':'+e.ga:'';
+      return'<div class="res gm"><span>'+esc(fd(e.date))+' · '+esc(e.opp||'соперник не указан')+'<span class="sub"> · '+esc(par?par.name:e.name)+(g.x.goals?' · голов: '+g.x.goals:'')+'</span></span><span class="sc">'+esc(sc)+'</span></div>';
+    }).join(''):'<p class="sub">Сыгранных матчей пока нет.</p>');
+    pg.innerHTML=h;
+  }
+  function loadGames(pg){
+    if(MD){drawGames(pg);return}
+    pg.innerHTML='<p class="sub">Загрузка…</p>';
+    run('appMatchesData',[pin],function(d){MD=d;drawGames(pg)},function(m){pg.innerHTML='<p class="err">'+esc(m)+'</p>'});
+  }
+
+  function organize(){
+    var cb=$('cbody'),kids=[].slice.call(cb.children),eq=[],sb=[],cur=eq,p=D.players[cardI];
+    kids.forEach(function(n){if(n.tagName==='H2'&&n.textContent==='Абонемент')cur=sb;cur.push(n)});
+    if(sb.length&&sb[0].tagName==='H2')sb.shift().remove();
+    var main=mk('pane','<div class="kv"><span>Номер</span><span>'+esc(p.id)+'</span></div>'
+      +'<div class="kv"><span>Группа</span><span>'+esc(p.group)+'</span></div>'
+      +'<div class="kv"><span>Доп. программы</span><span>'+esc(p.extras.length?p.extras.join(', '):'—')+'</span></div>'
+      +'<div class="kv"><span>Статус</span><span>'+chip(p.status==='Активен'?'ok':'mid',p.status)+'</span></div>'
+      +'<p class="sub">Чтобы изменить группу или статус, нажмите «Изменить данные игрока» выше.</p>');
+    var ps=mk('pane'),pe=mk('pane'),pg=mk('pane');
+    sb.forEach(function(n){ps.appendChild(n)});
+    eq.forEach(function(n){pe.appendChild(n)});
+    var T=[['subs','Абонемент',ps],['eq','Экипировка',pe],['main','Основное',main],['games','Матчи',pg]];
+    var bar=mk('tabs2');bar.setAttribute('role','tablist');
+    T.forEach(function(t){
+      var b=document.createElement('button');b.dataset.t=t[0];b.textContent=t[1];b.setAttribute('role','tab');
+      b.onclick=function(){sel(t[0])};bar.appendChild(b);
+    });
+    cb.appendChild(bar);T.forEach(function(t){cb.appendChild(t[2])});
+    function sel(k){
+      tab=k;
+      T.forEach(function(t){t[2].hidden=t[0]!==k});
+      [].forEach.call(bar.children,function(b){b.setAttribute('aria-selected',String(b.dataset.t===k))});
+      if(k==='games')loadGames(pg);
+    }
+    sel(tab);
+  }
+
+  window.renderCard=function(c){prev(c);organize()};
+})();
+</script>

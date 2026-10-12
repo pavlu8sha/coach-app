@@ -1,0 +1,42 @@
+<style>
+.tg{font:inherit;font-weight:600;color:var(--g);background:none;border:1px solid var(--line);border-radius:999px;padding:8px 14px;min-height:40px;cursor:pointer;margin-top:8px}
+.tg[aria-pressed=true]{background:var(--okbg,#DDE4F6);border-color:var(--g)}
+li.p{display:flex;justify-content:space-between;align-items:center;gap:10px}
+li.p .l{min-width:0}
+</style>
+<script>
+(function(){
+  var PAY=null,only=false;
+  function chip(c,t){return'<span class="chip '+c+'">'+esc(t)+'</span>'}
+  // Кнопка «Только не оплатившие» в закреплённой шапке.
+  var add=$('add'),b=document.createElement('button');
+  b.className='tg';b.id='dbt';b.setAttribute('aria-pressed','false');b.textContent='Только не оплатившие';
+  add.parentNode.insertBefore(b,add);
+  b.onclick=function(){only=!only;b.setAttribute('aria-pressed',String(only));window.list()};
+  function badge(p){
+    if(p.status!=='Активен')return chip('mid',p.status);
+    var s=PAY&&PAY.map[p.id];
+    return s==='paid'?chip('ok','Оплачено'):s==='partial'?chip('mid','Частично'):s==='none'?chip('bad','Не оплачено'):'';
+  }
+  window.list=function(){
+    var q=$('q').value.trim().toLowerCase(),st=$('st').value,g=$('fg').value;
+    var a=D.players.filter(function(p){
+      if(st&&p.status!=st)return false;
+      if(g&&p.group!=g&&p.extras.indexOf(g)<0)return false;
+      if(only&&!(p.status==='Активен'&&PAY&&PAY.map[p.id]&&PAY.map[p.id]!=='paid'))return false;
+      return !q||(p.name+' '+p.id+' '+p.group+' '+p.extras.join(' ')).toLowerCase().indexOf(q)>=0;
+    });
+    $('count').textContent='Найдено: '+a.length+(a.length>80?' (показаны первые 80, уточните поиск)':'')
+      +(PAY?(PAY.found?' · оплата за '+PAY.month:' · листа оплат за '+PAY.month+' нет'):'');
+    $('list').innerHTML=a.slice(0,80).map(function(p){
+      return'<li class="p" data-i="'+D.players.indexOf(p)+'"><div class="l"><b>'+esc(p.name)+'</b><div class="sub">'+esc(p.id+' / '+p.group+(p.extras.length?' + '+p.extras.join(', '):''))+'</div></div>'+badge(p)+'</li>';
+    }).join('');
+  };
+  $('q').oninput=function(){window.list()};
+  // Подтягиваем статусы оплаты за текущий месяц после загрузки списка игроков.
+  function refresh(){run('appPaySummary',[pin,''],function(r){PAY=r;if(window.D)window.list()},function(){})}
+  $('cback').addEventListener('click',refresh);
+  function boot(){if(!window.pin)return false;refresh();return true}
+  if(!boot()){var t=setInterval(function(){if(boot())clearInterval(t)},100)}
+})();
+</script>

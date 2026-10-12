@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Игроки</title>
+<style>
+:root{--bg:#F4F6F3;--card:#fff;--ink:#15211A;--mute:#5B6B61;--line:#DCE3DD;--g:#1E6B3C;--gi:#fff;--a:#B23A2B}
+@media(prefers-color-scheme:dark){:root{--bg:#0F1712;--card:#17221B;--ink:#E8F0EA;--mute:#93A69A;--line:#26362C;--g:#4FAE74;--gi:#0B1410;--a:#E8806F}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:40px}
+.wrap{max-width:560px;margin:0 auto;padding:0 16px}
+h1{font-size:22px;margin:16px 0 4px}h2{font-size:17px;margin:20px 0 6px}
+input,select{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:44px;width:100%}
+label{display:block;margin:12px 0 4px;color:var(--mute);font-size:14px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.row2>div{min-width:0}.row2 input{min-width:0;max-width:100%}
+button{font:inherit;cursor:pointer}
+.btn{width:100%;min-height:48px;border:0;border-radius:12px;background:var(--g);color:var(--gi);font-weight:800;font-size:16px;margin-top:12px}
+.btn.sec{background:none;color:var(--g);border:1px solid var(--line)}
+.btn:disabled{opacity:.5}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.seg button{min-height:46px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--mute);font-weight:700}
+.seg button[aria-pressed=true]{background:var(--g);border-color:var(--g);color:var(--gi)}
+ul{list-style:none;margin:8px 0;padding:0}
+li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:8px;cursor:pointer}
+.sub{color:var(--mute);font-size:13px}
+.ok{color:var(--g)}
+.ext{display:flex;flex-wrap:wrap;gap:8px}
+.ext label{display:flex;gap:6px;align-items:center;margin:0;padding:6px 10px;border:1px solid var(--line);border-radius:999px;color:var(--ink);font-size:14px}
+.ext input{width:auto;min-height:0}
+.err{color:var(--a)}.msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:8px}
+.res,.prog{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin:8px 0;font-size:14px}
+.prh{display:flex;justify-content:space-between;gap:8px;font-weight:700}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
+.tile b{display:block;font-size:17px}.tile span{color:var(--mute);font-size:12px}
+</style>
+</head>
+<body>
+<div id="login" class="wrap" hidden>
+  <h1>Игроки</h1><p>Введите код администратора</p>
+  <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err"></p><button class="btn" id="go">Войти</button>
+</div>
+<div id="app" class="wrap" hidden>
+  <h1>Игроки</h1>
+  <input id="q" placeholder="Поиск: ФИ, ID, группа" style="margin-top:8px">
+  <div class="row2"><select id="fg" aria-label="Группа"></select><select id="st" aria-label="Статус"></select></div>
+  <button class="btn" id="add">+ Добавить игрока</button>
+  <div class="msg" id="msg" role="status"></div>
+  <div class="sub" id="count"></div>
+  <ul id="list"></ul>
+</div>
+<div id="card" class="wrap" hidden>
+  <h1 id="ctitle"></h1><div class="sub" id="cinfo"></div>
+  <button class="btn sec" id="cedit">Изменить данные игрока</button>
+  <label>Способ оплаты (для всех платежей ниже)</label>
+  <div class="seg" id="meth"><button data-m="Наличные" aria-pressed="false">Наличные</button><button data-m="Перевод" aria-pressed="false">Перевод</button></div>
+  <div class="row2">
+    <div><label>Дата оплаты</label><input type="date" id="pdt"></div>
+    <div><label>Комментарий</label><input id="pcm" placeholder="необязательно"></div>
+  </div>
+  <div class="msg" id="pmsg" role="status"></div>
+  <div id="cbody"></div>
+  <button class="btn sec" id="cback">К списку игроков</button>
+</div>
+<div id="form" class="wrap" hidden>
+  <h1 id="ftitle"></h1>
+  <div id="rowfun" hidden><label>Из воронки новых игроков (необязательно)</label><select id="ffun"></select></div>
+  <label>ФИ (как в листах месяца)</label><input id="fname">
+  <label>Основная группа</label><select id="fgrp"></select>
+  <div id="rowstat"><label>Статус</label><select id="fstat"></select></div>
+  <div id="rowdate"><label id="fdl"></label><input type="date" id="fdate"></div>
+  <label>Доп. программы</label><div class="ext" id="fext"></div>
+  <div class="msg err" id="fmsg"></div><div id="warn"></div>
+  <button class="btn" id="save">Сохранить</button>
+  <button class="btn sec" id="cancel">Отмена</button>
+</div>
+<script>
+var pin='',D=null,cur=null,force=false,flash='',gSel='',sSel='Активен',cardI=-1,FUN=[];
+var cardReq=0,cardPid='',pflash='',method='',ITEMS=[];
+function $(i){return document.getElementById(i)}
+function run(fn,args,ok,fail){var r=google.script.run.withSuccessHandler(ok).withFailureHandler(function(e){fail(e&&e.message?e.message:String(e))});r[fn].apply(r,args)}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function today(){var d=new Date(),z=function(n){return(n<10?'0':'')+n};return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())}
+function money(n){return String(Math.round(n*100)/100).replace('.',',')+' ₾'}
+function setMsg(id,t,bad){$(id).textContent=t||'';if(bad!==undefined)$(id).className='msg'+(bad?' err':'')}
+function showLogin(t){$('app').hidden=true;$('form').hidden=true;$('card').hidden=true;$('login').hidden=false;$('lerr').textContent=t||''}
+function statuses(){var s=D.statuses.slice();D.players.forEach(function(p){if(p.status&&s.indexOf(p.status)<0)s.push(p.status)});return s}
+function allGroups(){var g=D.groups.slice();D.players.forEach(function(p){p.extras.forEach(function(x){if(g.indexOf(x)<0)g.push(x)})});return g}
+function opt(v,t){return'<option value="'+esc(v)+'">'+esc(t===undefined?v:t)+'</option>'}
+function fillFilters(){
+  $('fg').innerHTML=opt('','Все группы')+allGroups().map(function(g){return opt(g)}).join('');
+  $('fg').value=gSel;
+  $('st').innerHTML=opt('Активен','Активные')+statuses().filter(function(x){return x!='Активен'}).map(function(x){return opt(x)}).join('')+opt('','Все');
+  $('st').value=sSel;
+}
+function load(){
+  setMsg('msg','Загрузка…',false);
+  run('appAdminInit',[pin],function(d){
+    D=d;$('login').hidden=true;$('form').hidden=true;$('card').hidden=true;$('app').hidden=false;
+    fillFilters();setMsg('msg',flash,false);flash='';list();
+  },function(m){if(/код (администратора|доступа)/.test(m))showLogin('Неверный код доступа');else{$('app').hidden=false;setMsg('msg',m,true)}});
+}
+function list(){
+  var q=$('q').value.trim().toLowerCase(),st=$('st').value,g=$('fg').value;
+  var a=D.players.filter(function(p){
+    if(st&&p.status!=st)return false;
+    if(g&&p.group!=g&&p.extras.indexOf(g)<0)return false;
+    return !q||(p.name+' '+p.id+' '+p.group+' '+p.extras.join(' ')).toLowerCase().indexOf(q)>=0;
+  });
+  $('count').textContent='Найдено: '+a.length+(a.length>80?' (показаны первые 80, уточните поиск)':'');
+  $('list').innerHTML=a.slice(0,80).map(function(p){
+    return'<li class="p" data-i="'+D.players.indexOf(p)+'"><b>'+esc(p.name)+'</b><div class="sub">'+esc(p.id+' / '+p.group+(p.extras.length?' + '+p.extras.join(', '):'')+(p.status!='Активен'?' / '+p.status:''))+'</div></li>';
+  }).join('');
+}
+
+// ---------- Карточка игрока ----------
+function setMethod(m){method=m;[].forEach.call($('meth').children,function(x){x.setAttribute('aria-pressed',String(x.dataset.m==m))})}
+function boxMsg(box,m){var el=box.querySelector('.pm');if(el)el.textContent=m}
+function chipOf(st,it,debt){
+  return st=='paid'?'<span class="ok">'+(it&&it.disc?'скидка':'оплачено')+'</span>'
+    :st=='partial'?'<span class="err">частично, долг '+money(debt)+'</span>'
+    :'<span class="err">не платил</span>';
+}
+// Одна карточка оплаты для любого вида. Поля: kind, title, chip, info, paid, debt, amount, type, discOK, + данные вида
+function card(it){
+  it.k=ITEMS.length;ITEMS.push(it);
+  var f='';
+  if(!it.paid){
+    if(it.amount)f+='<label>Сумма, ₾</label><input type="number" min="0" step="1" class="pa" value="'+(it.debt>0?it.debt:'')+'" data-debt="'+(it.debt>0?it.debt:0)+'">';
+    if(it.type)f+='<div class="pt" hidden><label>Сумма меньше остатка. Что это?</label><select class="ptype"><option value="">Выберите…</option><option value="Скидка">Скидка по договорённости (оплата принята)</option><option value="Частичный">Частичный платёж (останется долг)</option></select></div>';
+    f+='<button class="btn pay">Внести оплату</button>';
+    if(it.discOK)f+='<button class="btn sec dc">Считать оплаченным (скидка)</button>';
+    f+='<div class="msg err pm"></div>';
+  }
+  return'<div class="prog" data-k="'+it.k+'"><div class="prh"><span>'+esc(it.title)+'</span>'+(it.chip||'')+'</div>'+(it.info?'<div class="sub">'+it.info+'</div>':'')+f+'</div>';
+}
+function subCard(i){
+  return card({kind:'sub',title:i.month+', '+i.group,chip:chipOf(i.st,i,i.debt),
+    info:'Внесено '+money(i.paid)+' из '+money(i.tariff)+(i.method?' · '+esc(i.method):''),
+    paid:i.st=='paid',debt:i.debt,amount:true,type:true,discOK:i.st=='partial'&&!i.disc,month:i.month,group:i.group});
+}
+function errp(m){return'<p class="sub err">'+esc(m)+'</p>'}
+// Получает все данные карточки (pk) и строит её; AdminTabs потом раскладывает блоки по вкладкам
+function renderCard(pk){
+  ITEMS=[];
+  lastSub=pk.sub||null;
+  var h='';
+  if(pk.eqErr)h+='<h2>Экипировка</h2>'+errp(pk.eqErr);
+  else{
+    var c=pk.eq,t=c.totals;
+    h+='<div class="tiles"><div class="tile"><b>'+money(t.sum)+'</b><span>заказано</span></div><div class="tile"><b>'+money(t.paid)+'</b><span>оплачено</span></div><div class="tile"><b'+(t.debt>0?' class="err"':'')+'>'+money(t.debt)+'</b><span>долг</span></div></div>';
+    if(!c.orders.length)h+='<p class="sub">Заказов экипировки нет.</p>';
+    c.orders.forEach(function(o){
+      h+=card({kind:'eq',row:o.row,title:(o.kit||'Комплект не указан')+(o.inst?' (рассрочка)':''),
+        chip:o.debt>0?'<span class="err">долг '+money(o.debt)+'</span>':'<span class="ok">оплачено</span>',
+        info:'Сумма '+money(o.sum)+', оплачено '+money(o.paid)+'. Размер: '+esc(o.size||'не указан')+'; надпись: '+esc(o.inscr||'—')+'; номер: '+esc(o.num||'—'),
+        paid:!(o.debt>0),debt:o.debt,amount:true});
+    });
+    h+='<h2>История оплат</h2>'+(c.payments.length?c.payments.map(function(p){return'<div class="res">'+esc(p.date)+': <b>'+esc(p.amount)+'</b> ('+esc(p.what)+(p.comment?', '+esc(p.comment):'')+')</div>'}).join(''):'<p class="sub">Платежей через приложение пока нет. Оплаты, внесённые раньше, учтены в столбце «Оплачено» файла экипировки.</p>');
+  }
+  h+='<h2>Абонемент</h2>';
+  if(pk.subErr)h+=errp(pk.subErr);
+  else{
+    var s=pk.sub;
+    h+=s.items.length?s.items.map(subCard).join(''):'<p class="sub">В файле оплат этого игрока пока нет (если он должен быть, проверьте написание ФИ в файле оплат).</p>';
+    h+='<button class="btn sec sn">Внести оплату за другой месяц или группу</button><div class="snf" hidden></div>';
+    h+='<h2>История платежей по абонементу</h2>'+(s.hist.length?s.hist.map(function(x){
+      return'<div class="res">'+esc(x.date)+': <b>'+esc(x.amount)+'</b> ('+esc(x.month+', '+x.group+', '+x.type+(x.method?', '+x.method:''))+(x.comment?', '+esc(x.comment):'')+')</div>';
+    }).join(''):'<p class="sub">Платежей через приложение пока нет. Суммы, внесённые раньше, видны в списке выше.</p>');
+  }
+  h+='<h2>Индивидуальные и вратарские</h2>';
+  if(pk.indErr)h+=errp(pk.indErr);
+  else h+=pk.ind.length?pk.ind.map(function(x){
+    return card({kind:'ind',sid:x.id,name:x.name,label:x.label,title:x.label,
+      chip:x.paid?'<span class="ok">оплачено</span>':'<span class="err">'+(x.past?'долг ':'')+money(x.price)+'</span>',
+      info:x.paid?'':'Сумма фиксированная. Дата не сохраняется, комментарий сохраняется.',
+      paid:!!x.paid,debt:x.price});
+  }).join(''):'<p class="sub">Записей на индивидуальные нет.</p>';
+  h+='<h2>Дополнительные тренировки</h2>';
+  if(pk.extErr)h+=errp(pk.extErr);
+  else h+=pk.ext.length?pk.ext.map(function(x){
+    var priced=x.price>0;
+    return card({kind:'ext',sid:x.id,name:x.name,label:x.label,amount:!priced,title:x.label,
+      chip:x.paid?'<span class="ok">оплачено</span>':'<span class="err">'+(priced?money(x.price):'сумма не задана')+'</span>',
+      info:x.paid?'':(priced?'Дата не сохраняется, комментарий сохраняется.':'Введите сумму оплаты.'),
+      paid:!!x.paid,debt:priced?x.price:0});
+  }).join(''):'<p class="sub">Записей на дополнительные нет.</p>';
+  $('cbody').innerHTML=h;
+}
+function openCard(i){
+  var n=++cardReq;cardI=i;var p=D.players[i],pk={},left=4;
+  $('app').hidden=true;$('form').hidden=true;$('card').hidden=false;
+  $('ctitle').textContent=p.name;
+  $('cinfo').textContent=p.id+' / '+p.group+(p.extras.length?' + '+p.extras.join(', '):'')+' / '+p.status;
+  if(cardPid!=p.id){cardPid=p.id;setMethod('');$('pdt').value=today();$('pcm').value=''}
+  $('pmsg').textContent=pflash;pflash='';
+  $('cbody').innerHTML='<div class="sub">Загрузка…</div>';
+  function part(key,fn,args){
+    function settle(){if(--left===0&&n==cardReq)renderCard(pk)}
+    run(fn,args,function(r){pk[key]=r;settle()},function(m){pk[key+'Err']=m;settle()});
+  }
+  part('eq','appPlayerCard',[pin,p.id]);
+  part('sub','appPlayerSubs',[pin,p.id]);
+  part('ind','appIndOfPlayer',[pin,p.id]);
+  part('ext','appExtraOfPlayer',[pin,p.id]);
+}
+function payDone(r,txt,box,b){
+  if(r&&r.dryRun){b.disabled=false;boxMsg(box,'Пробный режим: в таблицу ничего не записано.');return}
+  $('pcm').value='';pflash=txt;openCard(cardI);
+}
+$('cbody').onclick=function(e){
+  var b=e.target.closest('button');if(!b)return;
+  if(b.classList.contains('sn')){
+    var f=b.nextElementSibling;
+    if(!f.innerHTML){
+      var SUB=pkSub();
+      if(SUB){
+        var gs=Object.keys(SUB.tariffs);
+        var t0=gs.length?SUB.tariffs[gs[0]]:165;
+        f.innerHTML=card({kind:'sub',picker:true,type:true,amount:true,title:'Другой месяц или группа',chip:'',
+          info:'<label>Месяц</label><select class="smo">'+SUB.months.map(function(m){return'<option>'+m+'</option>'}).join('')+'</select><label>Группа</label><select class="sgr">'+gs.map(function(g){return'<option>'+esc(g)+'</option>'}).join('')+'</select>',
+          paid:false,debt:t0});
+      }
+    }
+    f.hidden=!f.hidden;return;
+  }
+  var box=b.closest('.prog');if(!box)return;
+  var it=ITEMS[box.dataset.k];if(!it)return;
+  var pl=D.players[cardI],id=pl.id;
+  if(b.classList.contains('dc')){
+    if(!b.dataset.sure){b.dataset.sure=1;b.textContent='Точно принять как скидку?';return}
+    b.disabled=true;
+    run('appSubDiscount',[pin,it.month,it.group,id,$('pcm').value],function(r){payDone(r,'Принято как скидка.',box,b)},function(m){b.disabled=false;boxMsg(box,m)});
+    return;
+  }
+  if(b.classList.contains('pay')){
+    if(!method){boxMsg(box,'Выберите способ оплаты: наличные или перевод.');return}
+    var a=box.querySelector('.pa'),amt=a?Number(a.value):0,type='';
+    if(it.kind!='sub'&&!(amt>0)){boxMsg(box,'Введите сумму больше нуля.');return}
+    if(it.type){
+      type=box.querySelector('.ptype').value;
+      if(amt<Number(a.dataset.debt)&&!type){boxMsg(box,'Выберите тип: скидка или частичный платёж.');return}
+    }
+    var date=$('pdt').value,cm=$('pcm').value,fn,args,txt;
+    if(it.kind=='sub'){
+      var month=it.picker?box.querySelector('.smo').value:it.month,group=it.picker?box.querySelector('.sgr').value:it.group;
+      fn='appSubPay';args=[pin,month,group,id,amt,type,date,cm,method];
+      txt='Внесено: '+pl.name+', '+money(amt)+' (абонемент '+month+', '+group+', '+method+').';
+    }else if(it.kind=='eq'){
+      fn='appAddPayment';args=[pin,id,it.row,amt,date,cm,method];
+      txt='Внесено: '+pl.name+', '+money(amt)+' (экипировка, '+method+').';
+    }else if(it.kind=='ind'){
+      fn='appIndPay';args=[pin,it.sid,it.name,method,cm];
+      txt='Внесено: '+pl.name+', '+money(it.debt)+' ('+it.label+', '+method+').';
+    }else{
+      fn='appExtraPay';args=[pin,it.sid,it.name,method,it.amount?amt:'',cm];
+      txt='Внесено: '+pl.name+' ('+it.label+', '+method+').';
+    }
+    b.disabled=true;
+    run(fn,args,function(r){payDone(r,txt,box,b)},function(m){b.disabled=false;boxMsg(box,m)});
+  }
+};
+// Данные абонемента для выбора «другой месяц или группа»: берём из последней отрисовки
+var lastSub=null;
+function pkSub(){return lastSub}
+$('cbody').onchange=function(e){
+  if(!e.target.classList.contains('sgr'))return;
+  var SUB=pkSub();if(!SUB)return;
+  var box=e.target.closest('.prog'),a=box.querySelector('.pa'),t=SUB.tariffs[e.target.value];
+  a.value=t;a.dataset.debt=t;
+};
+$('cbody').oninput=function(e){
+  if(!e.target.classList.contains('pa'))return;
+  var pt=e.target.closest('.prog').querySelector('.pt');
+  if(pt)pt.hidden=Number(e.target.value)>=Number(e.target.dataset.debt);
+};
+$('meth').onclick=function(e){var b=e.target.closest('button');if(!b)return;setMethod(b.dataset.m)};
+function dl(){$('fdl').textContent=cur?'Дата окончания':'Дата начала';$('rowdate').hidden=!!cur&&$('fstat').value=='Активен'}
+function openForm(i){
+  cur=i<0?null:D.players[i];force=false;
+  $('app').hidden=true;$('card').hidden=true;$('form').hidden=false;setMsg('fmsg','');$('warn').innerHTML='';
+  $('ftitle').textContent=cur?'Игрок '+cur.id:'Новый игрок';
+  $('fname').value=cur?cur.name:'';
+  $('fgrp').innerHTML=D.groups.map(function(g){return opt(g)}).join('');
+  if(cur)$('fgrp').value=cur.group;
+  $('rowstat').hidden=!cur;
+  $('rowfun').hidden=true;$('ffun').innerHTML=opt('','— не из воронки —');
+  if(!cur)run('appFunnelCandidates',[pin],function(a){
+    if(cur||$('form').hidden)return;
+    FUN=a;if(!a.length)return;
+    $('ffun').innerHTML=opt('','— не из воронки —')+a.map(function(k){return opt(k.name,k.name+(k.group?' ('+k.group+')':''))}).join('');
+    $('rowfun').hidden=false;
+  },function(){});
+  $('fstat').innerHTML=statuses().map(function(s){return opt(s)}).join('');
+  if(cur)$('fstat').value=cur.status;
+  $('fext').innerHTML=allGroups().map(function(g){var on=cur&&cur.extras.indexOf(g)>=0;return'<label><input type="checkbox" value="'+esc(g)+'"'+(on?' checked':'')+'>'+esc(g)+'</label>'}).join('');
+  $('fdate').value=cur&&cur.status!='Активен'&&cur.end?cur.end:today();
+  dl();
+}
+function submit(){
+  var name=$('fname').value.trim();
+  if(!name){setMsg('fmsg','Введите ФИ',true);return}
+  var grp=$('fgrp').value;
+  var ext=[].map.call(document.querySelectorAll('#fext input:checked'),function(x){return x.value}).filter(function(g){return g!=grp});
+  $('save').disabled=true;setMsg('fmsg','Сохраняю…',false);
+  if(!cur)run('appAddPlayer',[pin,{name:name,group:grp,extras:ext,start:$('fdate').value,force:force,funnelName:$('ffun').value}],done,fail);
+  else{var c={name:name,group:grp,status:$('fstat').value,extras:ext};if(c.status!='Активен')c.end=$('fdate').value;run('appUpdatePlayer',[pin,cur.id,c],done,fail)}
+}
+function fail(m){$('save').disabled=false;setMsg('fmsg',friendly_(m),true)}
+function done(r){
+  $('save').disabled=false;setMsg('fmsg','');
+  if(r.ok===false&&r.similar){
+    $('warn').innerHTML='<div class="res"><p class="err">Похожие игроки уже есть:</p><ul>'+r.similar.map(function(s){return'<li>'+esc(s)+'</li>'}).join('')+'</ul><button class="btn sec" id="force">Всё равно добавить</button></div>';
+    $('force').onclick=function(){force=true;submit()};return;
+  }
+  flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+(cur?(r.changed?'Изменено полей: '+r.changed+'.'+(r.renamed?' ФИ изменено только в реестре: в листах месяца и в файле оплат поправьте написание вручную.':''):'Изменений нет.'):'Добавлен '+r.id+'.'+(r.funnel===true?' Отмечено в воронке.':''));
+  load();
+}
+$('list').onclick=function(e){var li=e.target.closest('li.p');if(li)openCard(Number(li.dataset.i))};
+$('cedit').onclick=function(){openForm(cardI)};
+$('cback').onclick=function(){cardReq++;$('card').hidden=true;$('app').hidden=false};
+$('add').onclick=function(){openForm(-1)};
+$('cancel').onclick=function(){$('form').hidden=true;if(cur)openCard(cardI);else $('app').hidden=false};
+$('save').onclick=submit;
+$('ffun').onchange=function(){
+  var v=this.value,k=FUN.filter(function(x){return x.name==v})[0];
+  if(!k)return;
+  $('fname').value=k.name;
+  if(D.groups.indexOf(k.group)>=0)$('fgrp').value=k.group;
+};
+$('fstat').onchange=dl;
+$('q').oninput=list;
+$('st').onchange=function(){sSel=this.value;list()};
+$('fg').onchange=function(){gSel=this.value;list()};
+$('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;try{localStorage.setItem('apin',pin)}catch(e){}load()};
+try{pin=localStorage.getItem('apin')||''}catch(e){}
+if(pin)load();else showLogin('');
+</script>
+</body>
+</html>

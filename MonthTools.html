@@ -1,0 +1,57 @@
+<script>
+(function(){
+  var KIND=window.KS_KIND,root=document.getElementById('app'),role='';
+  if(!KIND||!root)return;
+  var fn=KIND=='pay'?'appCreatePayMonth':'appCreateAttMonth';
+  var box=document.createElement('details');
+  box.hidden=true;
+  box.style.cssText='margin:16px 0;background:var(--card,#fff);border:1px solid var(--line,#DCE3DD);border-radius:12px;padding:10px 14px;color:var(--ink,#15211A)';
+  box.innerHTML='<summary style="cursor:pointer;font-weight:700">Создать лист месяца</summary>'
+    +'<p style="color:var(--mute,#5B6B61);font-size:13px;margin:8px 0">'+(KIND=='pay'
+      ?'Копия последнего месяца с пустыми оплатами. Дети со статусом не «Активен» не переносятся.'
+      :'Копия «ШАБЛОНА МЕСЯЦА» плюс блоки из прошлого месяца, которых нет в шаблоне (например, weekends). В блоки вписываются активные игроки с этой основной группой, недостающие строки добавляются. Остальные (доп. программы) впишутся при первой отметке.')+'</p>'
+    +'<select class="mm" style="width:100%;min-height:44px;font:inherit;border-radius:10px;border:1px solid var(--line,#DCE3DD);padding:8px 12px;background:var(--card,#fff);color:var(--ink,#15211A)"></select>'
+    +'<button class="mb" style="width:100%;min-height:46px;margin-top:10px;border:0;border-radius:12px;background:var(--g,#1E6B3C);color:var(--gi,#fff);font:800 15px system-ui,-apple-system,sans-serif;cursor:pointer">Создать лист</button>'
+    +'<div class="mr" style="margin-top:8px;font-size:14px"></div>';
+  root.appendChild(box);
+  var sel=box.querySelector('.mm'),btn=box.querySelector('.mb'),res=box.querySelector('.mr');
+  function vis(){var tr=false;try{tr=localStorage.getItem('ksmode')=='trainer'}catch(e){}box.hidden=(role!='admin')||tr}
+  setInterval(function(){
+    if(typeof pin!='undefined'&&pin&&!role)run('appWho',[pin],function(r){role=r;vis()},function(){});
+    vis();
+  },1500);
+  function months(){
+    run('appMonthOptions',[pin,KIND],function(o){
+      sel.innerHTML=o.map(function(m){return'<option>'+m+'</option>'}).join('');
+      if(!o.length)res.textContent='Нет месяцев для создания.';
+    },function(m){res.textContent=m});
+  }
+  box.addEventListener('toggle',function(){if(box.open)months()});
+  function text(r){
+    var t=r.dryRun?'Пробный режим: лист не создан. Было бы сделано: ':'Лист '+r.month+' создан. ';
+    if(r.groups){
+      var ad=r.groups.filter(function(g){return g.added>0}),fl=r.groups.filter(function(g){return g.failed}),cp=r.groups.filter(function(g){return g.copied});
+      t+='Игроков вписано в блоки групп: '+r.groups.reduce(function(a,g){return a+g.placed},0)+'.';
+      if(cp.length)t+=' Блоки скопированы из прошлого месяца: '+cp.map(function(g){return g.name}).join(', ')+'.';
+      if(ad.length)t+=' Добавлено строк: '+ad.map(function(g){return g.name+' (+'+g.added+')'}).join(', ')+'.';
+      if(fl.length)t+=' Не удалось добавить строки: '+fl.map(function(g){return g.name}).join(', ')+'. Добавьте их в шаблоне.';
+      if(r.missing&&r.missing.length)t+=' Нет блока для групп: '+r.missing.join(', ')+' (игроки не вписаны).';
+    }else{
+      t+='Скопировано с '+r.from+', детей в списках: '+r.kept+', оплат очищено: '+r.cleared+'.';
+      if(r.removed.length)t+=' Не перенесены (не активны): '+r.removed.join(', ')+'.';
+    }
+    return t;
+  }
+  sel.onchange=function(){delete btn.dataset.sure;btn.textContent='Создать лист'};
+  btn.onclick=function(){
+    if(!sel.value)return;
+    if(!btn.dataset.sure){btn.dataset.sure=1;btn.textContent='Точно создать лист '+sel.value+'?';return}
+    delete btn.dataset.sure;btn.textContent='Создать лист';
+    btn.disabled=true;res.textContent='Создаю…';
+    run(fn,[pin,sel.value],function(r){
+      btn.disabled=false;res.textContent=text(r);
+      if(!r.dryRun){months();if(KIND=='pay'&&typeof load=='function')load()}
+    },function(m){btn.disabled=false;res.textContent=m});
+  };
+})();
+</script>

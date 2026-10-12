@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Экипировка</title>
+<style>
+:root{--bg:#F4F6F3;--card:#fff;--ink:#15211A;--mute:#5B6B61;--line:#DCE3DD;--g:#1E6B3C;--gi:#fff;--a:#B23A2B}
+@media(prefers-color-scheme:dark){:root{--bg:#0F1712;--card:#17221B;--ink:#E8F0EA;--mute:#93A69A;--line:#26362C;--g:#4FAE74;--gi:#0B1410;--a:#E8806F}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:40px}
+.wrap{max-width:560px;margin:0 auto;padding:0 16px}
+h1{font-size:22px;margin:16px 0 10px}
+input,select{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:44px;width:100%}
+label{display:block;margin:12px 0 4px;color:var(--mute);font-size:14px}
+.chk{display:flex;gap:8px;align-items:center}.chk input{width:auto;min-height:0}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+button{font:inherit;cursor:pointer}
+.btn{width:100%;min-height:48px;border:0;border-radius:12px;background:var(--g);color:var(--gi);font-weight:800;font-size:16px;margin-top:12px}
+.btn.sec{background:none;color:var(--g);border:1px solid var(--line)}
+.btn:disabled{opacity:.5}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:8px}.acts .btn{min-height:42px;font-size:14px;margin-top:8px}
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:12px 0}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
+.tile b{display:block;font-size:18px}.tile span{color:var(--mute);font-size:12px}
+details{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:8px}
+summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:none}
+.top{display:flex;justify-content:space-between;gap:8px;font-weight:700}
+.sub{color:var(--mute);font-size:13px}
+.ok{color:var(--g)}.err{color:var(--a)}
+.ord{border-top:1px solid var(--line);margin-top:8px;padding-top:8px;font-size:14px}
+.msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:8px}
+</style>
+</head>
+<body>
+<datalist id="plist"></datalist>
+<div id="login" class="wrap" hidden>
+  <h1>Экипировка</h1><p>Введите код администратора</p>
+  <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err"></p><button class="btn" id="go">Войти</button>
+</div>
+<div id="app" class="wrap" hidden>
+  <h1>Экипировка</h1>
+  <input id="q" placeholder="Поиск: ФИ или ID">
+  <div class="row2">
+    <select id="fs" aria-label="Показать">
+      <option value="all">Все игроки</option><option value="ordered">Заказали форму</option><option value="not">Не заказывали</option>
+      <option value="paid">Оплачено полностью</option><option value="debt">Есть долг</option><option value="zero">Ничего не оплачено</option>
+      <option value="unl">Заказы без привязки</option>
+    </select>
+    <select id="fg" aria-label="Группа"></select>
+  </div>
+  <button class="btn" id="new">+ Новый заказ</button>
+  <div class="tiles" id="sum"></div>
+  <div class="msg" id="msg" role="status"></div>
+  <div id="list"></div>
+</div>
+<div id="form" class="wrap" hidden>
+  <h1>Новый заказ</h1>
+  <label>Игрок (введите ФИ или ID и выберите из списка)</label>
+  <input id="fpl" list="plist" autocomplete="off">
+  <label>Комплект</label><select id="fkit"></select>
+  <label>Сумма заказа, ₾</label><input id="fsum" type="number" min="0" step="1">
+  <label>Размер (например, 140 или майка - 164, шорты - M)</label><input id="fsize">
+  <label>Надпись</label><input id="finscr">
+  <label>Номер (несколько вариантов через /)</label><input id="fnum">
+  <label class="chk"><input type="checkbox" id="finst"> Рассрочка</label>
+  <label>Оплачено сейчас, ₾</label><input id="fpaid" type="number" min="0" step="1" value="0">
+  <div id="fmrow" hidden><label>Способ оплаты</label><select id="fmt"><option value="">Выберите…</option><option>Наличные</option><option>Перевод</option></select></div>
+  <label>Дата заказа</label><input id="fdate" type="date">
+  <div class="msg err" id="fmsg"></div>
+  <button class="btn" id="fsave">Добавить заказ</button>
+  <button class="btn sec" id="fcancel">Отмена</button>
+</div>
+<script>
+var pin='',P=[],O=[],UNL=[],PR={},flash='';
+function $(i){return document.getElementById(i)}
+function run(fn,args,ok,fail){var r=google.script.run.withSuccessHandler(ok).withFailureHandler(function(e){fail(e&&e.message?e.message:String(e))});r[fn].apply(r,args)}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function money(n){return String(Math.round(n*100)/100).replace('.',',')+' ₾'}
+function nn(s){return String(s).trim().toLowerCase()}
+function today(){var d=new Date(),z=function(n){return(n<10?'0':'')+n};return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())}
+function setMsg(t,bad){$('msg').textContent=t||'';$('msg').className='msg'+(bad?' err':'')}
+function fmsg(t,bad){$('fmsg').textContent=t||'';$('fmsg').className='msg'+(bad?' err':'')}
+function showLogin(t){$('app').hidden=true;$('form').hidden=true;$('login').hidden=false;$('lerr').textContent=t||''}
+function fail(m){if(m.indexOf('код администратора')>=0)showLogin('Неверный код администратора');else{$('login').hidden=true;$('app').hidden=false;setMsg(m,true)}}
+function load(){
+  setMsg('Загрузка…');
+  var got=0,pd=null,rd=null,failed=false;
+  function bad(m){if(failed)return;failed=true;fail(m)}
+  function done(){
+    if(failed||++got<2)return;
+    P=pd.players;
+    $('plist').innerHTML=P.filter(function(p){return p.status=='Активен'}).map(function(p){return'<option value="'+esc(p.name+' ('+p.id+')')+'">'}).join('');
+    O=rd.orders;UNL=rd.unl;PR=rd.prices;
+    $('login').hidden=true;$('form').hidden=true;$('app').hidden=false;
+    fillGroups();show();
+  }
+  run('appAdminInit',[pin],function(d){pd=d;done()},bad);
+  run('appEquipOrders',[pin],function(r){rd=r;done()},bad);
+}
+function fillGroups(){
+  var g=[],v=$('fg').value;
+  P.forEach(function(p){[p.group].concat(p.extras).forEach(function(x){if(x&&g.indexOf(x)<0)g.push(x)})});
+  $('fg').innerHTML='<option value="">Все группы</option>'+g.map(function(x){return'<option>'+esc(x)+'</option>'}).join('');
+  $('fg').value=v;
+}
+function rows(){
+  var by={};
+  O.forEach(function(o){if(!o.kit&&!o.sum)return;(by[o.id]=by[o.id]||[]).push(o)});
+  return P.filter(function(p){return p.status=='Активен'||by[p.id]}).map(function(p){
+    var os=by[p.id]||[],s=0,pd=0;os.forEach(function(o){s+=o.sum;pd+=o.paid});
+    return{p:p,os:os,sum:s,paid:pd,debt:Math.max(s-pd,0)};
+  });
+}
+var F={all:function(){return true},ordered:function(r){return r.os.length>0},not:function(r){return!r.os.length},
+  paid:function(r){return r.os.length>0&&r.sum>0&&r.debt==0},debt:function(r){return r.debt>0},zero:function(r){return r.sum>0&&r.paid==0}};
+function tile(t,v,bad){return'<div class="tile"><b'+(bad?' class="err"':'')+'>'+v+'</b><span>'+t+'</span></div>'}
+function relForm(label,withUnlink,row){
+  return'<div class="acts"><button class="btn sec rl">'+label+'</button>'+(withUnlink?'<button class="btn sec ul" data-row="'+row+'">Отвязать</button>':'<span></span>')+'</div>'
+    +'<div class="rlf" hidden><input class="rpl" list="plist" placeholder="Игрок: ФИ или ID" autocomplete="off" style="margin-top:8px">'
+    +'<label class="chk"><input type="checkbox" class="rfix" checked> Привести ФИ в заказе к написанию из реестра</label>'
+    +'<button class="btn rok" data-row="'+row+'">Сохранить привязку</button><div class="msg err rm"></div></div>';
+}
+function payForm(o){
+  return'<button class="btn pay" style="margin-top:8px">Принять оплату</button>'
+    +'<div class="pf" hidden><label>Сумма, ₾ (долг '+money(o.debt)+')</label><input class="pam" type="number" min="0" step="1" value="'+o.debt+'">'
+    +'<label>Способ оплаты</label><select class="pmt"><option value="">Выберите…</option><option>Наличные</option><option>Перевод</option></select>'
+    +'<label>Дата</label><input class="pdt" type="date" value="'+today()+'">'
+    +'<label>Комментарий</label><input class="pcm">'
+    +'<button class="btn pok" data-row="'+o.row+'" data-id="'+esc(o.id)+'">Внести оплату</button><div class="msg err pm"></div></div>';
+}
+function payOrder(b,ord){
+  var pm=ord.querySelector('.pm'),amt=Number(ord.querySelector('.pam').value),mt=ord.querySelector('.pmt').value;
+  if(!(amt>0)){pm.textContent='Введите сумму больше нуля';return}
+  if(!mt){pm.textContent='Выберите способ оплаты';return}
+  b.disabled=true;pm.textContent='Сохраняю…';
+  run('appAddPayment',[pin,b.dataset.id,Number(b.dataset.row),amt,ord.querySelector('.pdt').value,ord.querySelector('.pcm').value.trim(),mt],function(r){
+    flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+'Оплата принята: '+money(amt)+' ('+mt+'). ';
+    load();
+  },function(m){b.disabled=false;pm.textContent=m});
+}
+function orderHtml(o,p,linked){
+  return'<div class="ord"><b>'+esc(o.kit||'Комплект не указан')+'</b>'+(o.inst?' (рассрочка)':'')
+    +(p&&nn(o.oname)!=nn(p.name)?'<div class="sub err">В файле заказа записано: '+esc(o.oname)+'</div>':'')
+    +'<div class="sub">Размер: '+esc(o.size||'не указан')+'; надпись: '+esc(o.inscr||'—')+'; номер: '+esc(o.num||'—')+'</div>'
+    +'<div>Сумма '+money(o.sum)+', оплачено '+money(o.paid)+', долг '+money(o.debt)+'</div>'
+    +(linked&&o.debt>0?payForm(o):'')
+    +'<button class="btn sec ed" style="margin-top:8px">Изменить заказ</button>'
+    +'<div class="edf" hidden><label>Комплект</label><select class="ekit">'+Object.keys(PR).map(function(k){return'<option'+(k==o.kit?' selected':'')+'>'+esc(k)+'</option>'}).join('')+'</select>'
+    +'<label>Размер</label><input class="esize" value="'+esc(o.size||'')+'">'
+    +'<label>Надпись</label><input class="einscr" value="'+esc(o.inscr||'')+'">'
+    +'<label>Номер</label><input class="enum" value="'+esc(o.num||'')+'">'
+    +'<label class="chk"><input type="checkbox" class="einst"'+(o.inst?' checked':'')+'> Рассрочка</label>'
+    +'<button class="btn eok" data-row="'+o.row+'">Сохранить заказ</button><div class="msg err em"></div></div>'
+    +relForm(linked?'Сменить игрока':'Привязать к игроку',linked,o.row)+'</div>';
+}
+function card(r){
+  var b=!r.os.length?'<span class="sub">не заказывал</span>':(r.debt>0?'<span class="err">долг '+money(r.debt)+'</span>':'<span class="ok">оплачено</span>');
+  var kits=r.os.map(function(o){return o.kit||'без комплекта'}).join(', ');
+  return'<details><summary><div class="top"><span>'+esc(r.p.name)+'</span>'+b+'</div><div class="sub">'+esc(r.p.group+(kits?' / '+kits:''))+'</div></summary>'
+    +(r.os.map(function(o){return orderHtml(o,r.p,true)}).join('')||'<div class="ord sub">Заказов нет.</div>')+'</details>';
+}
+function ucard(o){
+  return'<details open><summary><div class="top"><span>'+esc(o.oname)+'</span><span class="err">не привязан</span></div><div class="sub">строка '+o.row+', '+esc(o.kit||'без комплекта')+'</div></summary>'+orderHtml(o,null,false)+'</details>';
+}
+function show(){
+  var q=nn($('q').value),g=$('fg').value,fv=$('fs').value;
+  if(fv=='unl'){
+    var u=UNL.filter(function(o){return!q||nn(o.oname).indexOf(q)>=0});
+    var S0=0;u.forEach(function(o){S0+=o.sum});
+    $('sum').innerHTML=tile('заказов без привязки',u.length)+tile('на сумму',money(S0));
+    setMsg(flash+(u.length?'Выберите игрока и нажмите «Привязать к игроку».':'Все заказы привязаны.'));flash='';
+    $('list').innerHTML=u.map(ucard).join('');return;
+  }
+  var f=F[fv];
+  var a=rows().filter(function(r){
+    if(!f(r))return false;
+    if(g&&r.p.group!=g&&r.p.extras.indexOf(g)<0)return false;
+    return !q||(r.p.name+' '+r.p.id).toLowerCase().indexOf(q)>=0;
+  });
+  var S=0,Pd=0,Dt=0;a.forEach(function(r){S+=r.sum;Pd+=r.paid;Dt+=r.debt});
+  $('sum').innerHTML=tile('игроков в списке',a.length)+tile('заказано',money(S))+tile('оплачено',money(Pd))+tile('долг',money(Dt),Dt>0);
+  setMsg(flash+(UNL.length?'Заказов без привязки: '+UNL.length+' (фильтр «Заказы без привязки»).':''));flash='';
+  $('list').innerHTML=a.slice(0,150).map(card).join('')+(a.length>150?'<p class="sub">Показаны первые 150, уточните поиск.</p>':'');
+}
+function pid(v){var m=/\((KS-\d+)\)\s*$/.exec(v.trim());if(m)return m[1];var f=P.filter(function(p){return p.name==v.trim()})[0];return f?f.id:''}
+function relink(row,id,fix,btn){
+  btn.disabled=true;
+  run('appRelink',[pin,Number(row),id,fix],function(r){
+    flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+(id?'Заказ привязан.':'Заказ отвязан.')+(r.moved?' Платежей перенесено: '+r.moved+'.':'')+' ';
+    load();
+  },function(m){
+    btn.disabled=false;var rm=btn.closest('.ord')&&btn.closest('.ord').querySelector('.rm');
+    if(rm&&!btn.classList.contains('ul'))rm.textContent=m;else setMsg(m,true);
+  });
+}
+$('list').onclick=function(e){
+  var b=e.target.closest('button');if(!b)return;
+  var ord=b.closest('.ord');
+  if(b.classList.contains('pay')){var pf=ord.querySelector('.pf');pf.hidden=!pf.hidden;return}
+  if(b.classList.contains('pok')){payOrder(b,ord);return}
+  if(b.classList.contains('rl')){var f=ord.querySelector('.rlf');f.hidden=!f.hidden;return}
+  if(b.classList.contains('ul')){
+    if(!b.dataset.sure){b.dataset.sure=1;b.textContent='Точно отвязать?';return}
+    relink(b.dataset.row,'',false,b);return;
+  }
+  if(b.classList.contains('rok')){
+    var id=pid(ord.querySelector('.rpl').value);
+    if(!id){ord.querySelector('.rm').textContent='Выберите игрока из списка';return}
+    relink(b.dataset.row,id,ord.querySelector('.rfix').checked,b);
+  }
+  if(b.classList.contains('ed')){var ef=ord.querySelector('.edf');ef.hidden=!ef.hidden;return}
+  if(b.classList.contains('eok')){
+    var ed=ord.querySelector('.em');b.disabled=true;ed.textContent='Сохраняю…';
+    run('appEditOrder',[pin,Number(b.dataset.row),{kit:ord.querySelector('.ekit').value,size:ord.querySelector('.esize').value,inscr:ord.querySelector('.einscr').value,num:ord.querySelector('.enum').value,inst:ord.querySelector('.einst').checked}],
+      function(r){flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+'Заказ изменён. ';load()},
+      function(m){b.disabled=false;ed.textContent=m});
+    return;
+  }
+};
+function openForm(){
+  $('app').hidden=true;$('form').hidden=false;fmsg('');
+  $('fkit').innerHTML=Object.keys(PR).map(function(k){return'<option>'+esc(k)+'</option>'}).join('');
+  ['fpl','fsize','finscr','fnum'].forEach(function(i){$(i).value=''});
+  $('finst').checked=false;$('fpaid').value=0;$('fmt').value='';$('fmrow').hidden=true;$('fdate').value=today();$('fsum').value=PR[$('fkit').value]||'';
+}
+function submit(){
+  var id=pid($('fpl').value);
+  if(!id){fmsg('Выберите игрока из списка',true);return}
+  var o={id:id,kit:$('fkit').value,sum:Number($('fsum').value),size:$('fsize').value.trim(),inscr:$('finscr').value.trim(),num:$('fnum').value.trim(),inst:$('finst').checked,paid:Number($('fpaid').value)||0,date:$('fdate').value,method:$('fmt').value};
+  if(o.paid>0&&!o.method){fmsg('Выберите способ оплаты: наличные или перевод',true);return}
+  $('fsave').disabled=true;fmsg('Сохраняю…');
+  run('appAddOrder',[pin,o],function(r){
+    $('fsave').disabled=false;
+    flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+'Заказ добавлен (строка '+r.row+'). ';
+    load();
+  },function(m){$('fsave').disabled=false;fmsg(m,true)});
+}
+$('q').oninput=show;$('fs').onchange=show;$('fg').onchange=show;
+$('new').onclick=openForm;
+$('fcancel').onclick=function(){$('form').hidden=true;$('app').hidden=false};
+$('fkit').onchange=function(){$('fsum').value=PR[this.value]||''};
+$('fpaid').oninput=function(){$('fmrow').hidden=!(Number(this.value)>0)};
+$('fsave').onclick=submit;
+$('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;try{localStorage.setItem('apin',pin)}catch(e){}load()};
+try{pin=localStorage.getItem('apin')||''}catch(e){}
+if(pin)load();else showLogin('');
+</script>
+</body>
+</html>

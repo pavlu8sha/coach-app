@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Сборы</title>
+<style>
+:root{--bg:#F4F6F3;--card:#fff;--ink:#15211A;--mute:#5B6B61;--line:#DCE3DD;--g:#1E6B3C;--gi:#fff;--a:#B23A2B;--w:#B7791F}
+@media(prefers-color-scheme:dark){:root{--bg:#0F1712;--card:#17221B;--ink:#E8F0EA;--mute:#93A69A;--line:#26362C;--g:#4FAE74;--gi:#0B1410;--a:#E8806F;--w:#E3B15A}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:40px}
+.wrap{max-width:560px;margin:0 auto;padding:0 16px}
+h1{font-size:22px;margin:16px 0 4px}
+input,select{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:44px;width:100%}
+label{display:block;margin:12px 0 4px;color:var(--mute);font-size:14px}
+.chk{display:flex;gap:8px;align-items:center}.chk input{width:auto;min-height:0}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+button{font:inherit;cursor:pointer}
+.btn{width:100%;min-height:48px;border:0;border-radius:12px;background:var(--g);color:var(--gi);font-weight:800;font-size:16px;margin-top:12px}
+.btn.sec{background:none;color:var(--g);border:1px solid var(--line)}
+.btn:disabled{opacity:.5}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:8px}.acts .btn{min-height:42px;font-size:14px;margin-top:8px}
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:12px 0}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
+.tile b{display:block;font-size:18px}.tile span{color:var(--mute);font-size:12px}
+details{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:8px}
+summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:none}
+.top{display:flex;justify-content:space-between;gap:8px;font-weight:700}
+.sub{color:var(--mute);font-size:13px}
+.ok{color:var(--g)}.err{color:var(--a)}.warn{color:var(--w)}
+.ord{border-top:1px solid var(--line);margin-top:8px;padding-top:8px;font-size:14px}
+.tr{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;margin-top:8px}
+.h{display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:3px 0}
+.h button{border:1px solid var(--line);background:none;color:var(--a);border-radius:8px;padding:2px 8px;font-size:12px}
+.msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:8px}
+.msg.err{color:var(--a)}
+</style>
+</head>
+<body>
+<datalist id="plist"></datalist>
+<div id="login" class="wrap" hidden>
+  <h1>Сборы</h1><p>Введите код администратора</p>
+  <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err"></p><button class="btn" id="go">Войти</button>
+</div>
+<div id="app" class="wrap" hidden>
+  <h1 id="ttl">Сборы</h1>
+  <div class="sub" id="cinfo"></div>
+  <div class="acts" style="margin-top:8px">
+    <button class="btn sec" id="campedit">Изменить сбор</button>
+    <button class="btn sec" id="campnew">+ Новый сбор</button>
+  </div>
+  <select id="csel" hidden style="margin-top:8px"></select>
+  <div class="tiles" id="sum"></div>
+  <div class="row2">
+    <select id="fs" aria-label="Показать">
+      <option value="act">Участвуют</option><option value="none">Без брони</option><option value="booked">Только бронь</option>
+      <option value="partial">Частично оплачено</option><option value="paid">Оплачено полностью</option>
+      <option value="debt">Должники (есть долг)</option><option value="late">Просрочка</option>
+      <option value="cancelled">Отказались</option><option value="all">Все</option>
+    </select>
+    <input id="q" placeholder="Поиск по ФИ">
+  </div>
+  <button class="btn" id="new">+ Записать на сбор</button>
+  <button class="btn sec" id="tarb">Тарифы сбора</button>
+  <div id="tarbox" hidden>
+    <h1 style="font-size:18px;margin:12px 0 4px">Тарифы сбора</h1>
+    <div class="sub">Тариф нельзя переименовать, если по нему уже записаны участники. Чтобы убрать тариф, снимите «Активен»: строки не удаляются.</div>
+    <div id="tarrows"></div>
+    <button class="btn sec" id="taradd">+ Тариф</button>
+    <button class="btn" id="tarsave">Сохранить тарифы</button>
+    <button class="btn sec" id="tarcancel">Закрыть</button>
+    <div class="msg err" id="tarmsg"></div>
+  </div>
+  <div class="msg" id="msg" role="status"></div>
+  <div id="list"></div>
+</div>
+<div id="campf" class="wrap" hidden>
+  <h1 id="cftitle">Новый сбор</h1>
+  <label>Название</label><input id="cfn" placeholder="например, Winter Camp 2027">
+  <label>Место</label><input id="cfp">
+  <div class="row2">
+    <div><label>Начало</label><input type="date" id="cfs"></div>
+    <div><label>Конец</label><input type="date" id="cfe"></div>
+  </div>
+  <label>Бронь, ₾ (0, если бронь не нужна)</label><input id="cfd" type="number" min="0" step="1">
+  <div class="row2">
+    <div><label>Срок брони</label><input type="date" id="cfdb"></div>
+    <div><label>Срок полной оплаты</label><input type="date" id="cfpb"></div>
+  </div>
+  <label class="chk"><input type="checkbox" id="cfa" checked> Активен (виден в списке записи)</label>
+  <div class="msg err" id="cfmsg"></div>
+  <button class="btn" id="cfsave">Сохранить сбор</button>
+  <button class="btn sec" id="cfcancel">Отмена</button>
+</div>
+<div id="form" class="wrap" hidden>
+  <h1>Запись на сбор</h1>
+  <label class="chk"><input type="checkbox" id="fguest"> Гость (из другой академии, не из реестра)</label>
+  <div id="fpb"><label>Игрок (введите ФИ или ID и выберите из списка)</label><input id="fpl" list="plist" autocomplete="off"></div>
+  <div id="fgb" hidden>
+    <label>ФИ гостя</label><input id="fgn" autocomplete="off">
+    <label>Академия / контакт</label><input id="fgi" autocomplete="off">
+  </div>
+  <label>Тариф</label><select id="ftar"></select>
+  <label>Сумма, ₾</label><input id="fsum" type="number" min="0" step="1">
+  <label>Размер футболки</label><input id="fsize">
+  <label>Комментарий</label><input id="fcm">
+  <div class="msg err" id="fmsg"></div>
+  <button class="btn" id="fsave">Записать</button>
+  <button class="btn sec" id="fcancel">Отмена</button>
+</div>
+<script>
+var pin='',P=[],D=null,campId='',flash='';
+function $(i){return document.getElementById(i)}
+function run(fn,args,ok,fail){var r=google.script.run.withSuccessHandler(ok).withFailureHandler(function(e){fail(e&&e.message?e.message:String(e))});r[fn].apply(r,args)}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function money(n){return String(Math.round((Number(n)||0)*100)/100).replace('.',',')+' ₾'}
+function nn(s){return String(s||'').trim().toLowerCase()}
+function today(){var d=new Date(),z=function(n){return(n<10?'0':'')+n};return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())}
+function fd(s){var m=/^(\d{4})-(\d\d)-(\d\d)/.exec(String(s||''));return m?m[3]+'.'+m[2]+'.'+m[1]:(s||'')}
+function pick(o,ks){for(var i=0;i<ks.length;i++)if(o&&o[ks[i]]!=null&&o[ks[i]]!=='')return o[ks[i]];return ''}
+function setMsg(t,bad){$('msg').textContent=t||'';$('msg').className='msg'+(bad?' err':'')}
+function fmsg(t,bad){$('fmsg').textContent=t||'';$('fmsg').className='msg'+(bad?' err':'')}
+function showLogin(t){$('app').hidden=true;$('form').hidden=true;$('campf').hidden=true;$('login').hidden=false;$('lerr').textContent=t||''}
+function fail(m){if(/код (администратора|доступа)/.test(m))showLogin('Неверный код доступа');else{$('login').hidden=true;$('app').hidden=false;setMsg(m,true)}}
+function load(){
+  setMsg('Загрузка…');
+  var got=0,pd=null,cd=null,failed=false;
+  function bad(m){if(failed)return;failed=true;fail(m)}
+  function done(){
+    if(failed||++got<2)return;
+    P=pd.players;D=cd;
+    campId=(D.camp&&D.camp.id)||campId;
+    $('plist').innerHTML=P.filter(function(p){return p.status=='Активен'}).map(function(p){return'<option value="'+esc(p.name+' ('+p.id+')')+'">'}).join('');
+    $('login').hidden=true;$('form').hidden=true;$('campf').hidden=true;$('app').hidden=false;
+    show();
+  }
+  run('appAdminInit',[pin],function(d){pd=d;done()},bad);
+  run('appCampData',[pin,campId||''],function(r){cd=r;done()},bad);
+}
+function campHead(){
+  var c=D.camp||{};
+  $('ttl').textContent=pick(c,['name','title'])||'Сборы';
+  var s=pick(c,['start','from','dateFrom']),e=pick(c,['end','to','dateTo']),pl=pick(c,['place','location']);
+  var dep=pick(c,['deposit']),dd=pick(c,['depositBy']),fd2=pick(c,['payBy']);
+  var t=[];
+  if(s||e)t.push(fd(s)+' — '+fd(e));if(pl)t.push(pl);
+  if(dep!=='')t.push('бронь '+money(dep)+(dd?' до '+fd(dd):''));
+  if(fd2)t.push('оплата до '+fd(fd2));
+  $('cinfo').textContent=t.join(' · ');
+  $('campedit').hidden=!D.camp;
+  var cs=D.camps||[];
+  $('csel').hidden=cs.length<2;
+  if(cs.length>1){$('csel').innerHTML=cs.map(function(x){var id=x.id||x,nm=x.name||x;return'<option value="'+esc(id)+'">'+esc(nm)+'</option>'}).join('');$('csel').value=campId}
+}
+function deposit(){var c=D.camp||{};var v=Number(pick(c,['deposit','dep','book','booking']));return v>0?v:500}
+// ---------- Сбор: создание и изменение ----------
+function openCampForm(isNew){
+  var c=isNew?{}:(D.camp||{});
+  $('cftitle').textContent=isNew?'Новый сбор':'Изменить сбор';
+  $('cfn').value=c.name||'';
+  $('cfp').value=c.place||'';
+  $('cfs').value=c.start||'';
+  $('cfe').value=c.end||'';
+  $('cfd').value=c.deposit!=null?c.deposit:'';
+  $('cfdb').value=c.depositBy||'';
+  $('cfpb').value=c.payBy||'';
+  $('cfa').checked=isNew?true:c.active!==false;
+  $('cfmsg').textContent='';
+  $('campf').dataset.id=isNew?'':(c.id||'');
+  $('app').hidden=true;$('campf').hidden=false;
+}
+$('campnew').onclick=function(){openCampForm(true)};
+$('campedit').onclick=function(){openCampForm(false)};
+$('cfcancel').onclick=function(){$('campf').hidden=true;$('app').hidden=false};
+$('cfsave').onclick=function(){
+  var o={id:$('campf').dataset.id,name:$('cfn').value,place:$('cfp').value,start:$('cfs').value,end:$('cfe').value,
+    deposit:$('cfd').value,depositBy:$('cfdb').value,payBy:$('cfpb').value,active:$('cfa').checked};
+  $('cfsave').disabled=true;$('cfmsg').textContent='Сохраняю…';
+  run('appCampSave',[pin,o],function(r){
+    $('cfsave').disabled=false;$('campf').hidden=true;$('app').hidden=false;
+    if(r&&r.id)campId=r.id;
+    reload(dry(r)+'Сбор сохранён. ');
+  },function(m){$('cfsave').disabled=false;$('cfmsg').textContent=m});
+};
+// ---------- Список и статусы ----------
+var ST={none:['нет брони','err'],booked:['бронь внесена','warn'],partial:['частично','warn'],paid:['оплачено','ok'],cancelled:['отказ','sub']};
+var FL={act:function(p){return p.st!='cancelled'},all:function(){return true},none:function(p){return p.st=='none'},booked:function(p){return p.st=='booked'},
+  partial:function(p){return p.st=='partial'},paid:function(p){return p.st=='paid'},cancelled:function(p){return p.st=='cancelled'},
+  debt:function(p){return p.st!='cancelled'&&p.debt>0},
+  late:function(p){return p.st!='cancelled'&&(p.lateDep||p.lateFull)}};
+function tile(t,v,bad){return'<div class="tile"><b'+(bad?' class="err"':'')+'>'+v+'</b><span>'+t+'</span></div>'}
+function card(p){
+  var s=ST[p.st]||ST.none,late=p.lateFull?'просрочена оплата':(p.lateDep?'просрочена бронь':'');
+  var h=(p.hist||[]).map(function(x){
+    var neg=x.amount<0;
+    return'<div class="h"><span class="'+(neg||x.reversed?'sub':'')+'">'+fd(x.date)+' · '+esc(x.type)+' · '+esc(x.method||'')+(x.comment?' · '+esc(x.comment):'')+(x.reversed?' (отменён)':'')+'</span>'
+      +'<span><b class="'+(neg?'err':'')+'">'+money(x.amount)+'</b>'+(x.canCancel&&!x.reversed?' <button class="cx" data-row="'+x.row+'">Отменить</button>':'')+'</span></div>';
+  }).join('')||'<div class="sub">Платежей нет.</div>';
+  var tar=(D.tariffs||[]).filter(function(t){return t.active||pick(t,['name'])==p.tariff}).map(function(t){var n=pick(t,['name','tariff','title']);return'<option'+(n==p.tariff?' selected':'')+'>'+esc(n)+'</option>'}).join('');
+  var can=p.st!='cancelled';
+  return'<details><summary><div class="top"><span>'+esc(p.name)+(p.guest?' <span class="sub">(гость)</span>':'')+'</span><span class="'+s[1]+'">'+s[0]+'</span></div>'
+    +'<div class="sub">'+esc(p.tariff||'тариф не выбран')+' · '+money(p.paid)+' из '+money(p.sum)+(p.debt>0&&can?' · долг '+money(p.debt):'')+(late&&can?' · <span class="err">'+late+'</span>':'')+'</div></summary>'
+    +'<div class="ord"><div class="sub">'+esc(p.grp||'')+(p.size?' · футболка '+esc(p.size):'')+(p.comment?' · '+esc(p.comment):'')+'</div>'
+    +(can&&p.debt>0?'<button class="btn pay">Принять оплату</button>'
+      +'<div class="pf" hidden><label>Тип</label><select class="ptp"><option>Бронь</option><option>Оплата</option></select>'
+      +'<label>Сумма, ₾ (долг '+money(p.debt)+')</label><input class="pam" type="number" min="0" step="1">'
+      +'<label>Способ оплаты</label><select class="pmt"><option value="">Выберите…</option><option>Наличные</option><option>Перевод</option></select>'
+      +'<label>Дата</label><input class="pdt" type="date" value="'+today()+'">'
+      +'<label>Комментарий</label><input class="pcm">'
+      +'<button class="btn pok" data-id="'+esc(p.id)+'" data-debt="'+p.debt+'">Внести</button><div class="msg err pm"></div></div>':'')
+    +'</div><div class="ord"><b>Платежи</b>'+h+'</div>'
+    +'<div class="ord"><button class="btn sec ed" style="margin-top:0">Изменить запись</button>'
+    +'<div class="ef" hidden><label>Тариф</label><select class="etar">'+tar+'</select>'
+    +'<label>Сумма, ₾</label><input class="esum" type="number" min="0" step="1" value="'+p.sum+'">'
+    +'<label>Размер футболки</label><input class="esz" value="'+esc(p.size||'')+'">'
+    +'<label>Комментарий</label><input class="ecm" value="'+esc(p.comment||'')+'">'
+    +'<div class="acts"><button class="btn esave" data-id="'+esc(p.id)+'">Сохранить</button>'
+    +(can?'<button class="btn sec erej" data-id="'+esc(p.id)+'" data-st="Отказ">Отказ от участия</button>':'<button class="btn sec erej" data-id="'+esc(p.id)+'" data-st="Записан">Вернуть в список</button>')+'</div>'
+    +'<div class="msg err em"></div></div></div></details>';
+}
+function show(){
+  campHead();
+  var q=nn($('q').value),f=FL[$('fs').value]||FL.act;
+  var all=D.parts||[];
+  var a=all.filter(function(p){return f(p)&&(!q||nn(p.name).indexOf(q)>=0)});
+  var t=D.totals||{};
+  $('sum').innerHTML=tile('записано',t.n||0)+tile('сумма по тарифам',money(t.sum))+tile('внесено',money(t.paid))+tile('долг',money(t.debt),t.debt>0);
+  var bt=t.byTariff||{},bs=Object.keys(bt).map(function(k){var v=bt[k];return esc(k)+': '+(typeof v=='object'?(v.n!=null?v.n:JSON.stringify(v)):v)}).join(' · ');
+  var late=all.filter(FL.late).length,debtors=all.filter(FL.debt).length;
+  setMsg(flash+(bs?'По тарифам — '+bs+'. ':'')+(debtors?'Должников: '+debtors+'. ':'')+(late?'Просрочек: '+late+'.':''));flash='';
+  $('list').innerHTML=a.map(card).join('')||'<p class="sub">Участников нет.</p>';
+}
+function reload(m){flash=m||'';load()}
+function dry(r){return r&&r.dryRun?'Пробный режим: в таблицу ничего не записано. ':''}
+// ---------- Тарифы ----------
+function tarRow(t){
+  var on=t.row?!!t.active:true;
+  return'<div class="tr" data-row="'+(t.row||'')+'"><div class="row2"><input class="tn" placeholder="Название" value="'+esc(t.name||'')+'"><input class="tp" type="number" min="0" step="1" placeholder="Цена, ₾" value="'+(t.price!=null?esc(t.price):'')+'"></div><label class="chk"><input type="checkbox" class="ta"'+(on?' checked':'')+'> Активен</label></div>';
+}
+function openTar(){
+  $('tarrows').innerHTML=(D.tariffs||[]).map(tarRow).join('');
+  $('tarmsg').textContent='';
+  $('tarbox').hidden=false;
+}
+$('tarb').onclick=function(){if($('tarbox').hidden)openTar();else $('tarbox').hidden=true};
+$('taradd').onclick=function(){$('tarrows').insertAdjacentHTML('beforeend',tarRow({}))};
+$('tarcancel').onclick=function(){$('tarbox').hidden=true};
+$('tarsave').onclick=function(){
+  var rows=[].map.call(document.querySelectorAll('#tarrows .tr'),function(x){
+    return{row:Number(x.dataset.row)||0,name:x.querySelector('.tn').value.trim(),price:x.querySelector('.tp').value,active:x.querySelector('.ta').checked};
+  }).filter(function(r){return r.row||r.name});
+  if(!rows.length){$('tarmsg').textContent='Добавьте хотя бы один тариф';return}
+  $('tarsave').disabled=true;$('tarmsg').textContent='Сохраняю…';
+  run('appCampTariffSave',[pin,campId,rows],function(r){$('tarsave').disabled=false;$('tarbox').hidden=true;reload(dry(r)+'Тарифы сохранены. ')},function(m){$('tarsave').disabled=false;$('tarmsg').textContent=m});
+};
+// ---------- Участники ----------
+$('list').onclick=function(e){
+  var b=e.target.closest('button');if(!b)return;
+  var ord=b.closest('.ord'),box=b.closest('details');
+  if(b.classList.contains('pay')){var pf=ord.querySelector('.pf');pf.hidden=!pf.hidden;
+    var tp=pf.querySelector('.ptp'),am=pf.querySelector('.pam'),debt=Number(pf.querySelector('.pok').dataset.debt);
+    tp.onchange=function(){am.value=tp.value=='Бронь'?Math.min(deposit(),debt):debt};tp.onchange();return}
+  if(b.classList.contains('pok')){
+    var pm=ord.querySelector('.pm'),amt=Number(ord.querySelector('.pam').value),mt=ord.querySelector('.pmt').value,tp2=ord.querySelector('.ptp').value;
+    if(!(amt>0)){pm.textContent='Введите сумму больше нуля';return}
+    if(!mt){pm.textContent='Выберите способ оплаты';return}
+    b.disabled=true;pm.textContent='Сохраняю…';
+    run('appCampPay',[pin,b.dataset.id,amt,tp2,ord.querySelector('.pdt').value,ord.querySelector('.pcm').value.trim(),mt],function(r){reload(dry(r)+tp2+' принята: '+money(amt)+' ('+mt+'). ')},function(m){b.disabled=false;pm.textContent=m});return}
+  if(b.classList.contains('cx')){
+    if(!b.dataset.sure){b.dataset.sure=1;b.textContent='Точно отменить?';return}
+    b.disabled=true;
+    run('appCampCancel',[pin,Number(b.dataset.row)],function(r){reload(dry(r)+'Платёж отменён. ')},function(m){b.disabled=false;setMsg(m,true)});return}
+  if(b.classList.contains('ed')){var ef=ord.querySelector('.ef');ef.hidden=!ef.hidden;return}
+  if(b.classList.contains('esave')||b.classList.contains('erej')){
+    var em=ord.querySelector('.em'),c={tariff:ord.querySelector('.etar').value,sum:Number(ord.querySelector('.esum').value),size:ord.querySelector('.esz').value.trim(),comment:ord.querySelector('.ecm').value.trim()};
+    if(b.classList.contains('erej')){
+      if(!b.dataset.sure){b.dataset.sure=1;b.textContent='Точно?';return}
+      c.status=b.dataset.st}
+    b.disabled=true;em.textContent='Сохраняю…';
+    run('appCampUpdate',[pin,b.dataset.id,c],function(r){reload(dry(r)+'Запись обновлена. ')},function(m){b.disabled=false;em.textContent=m})}
+};
+function pid(v){var m=/\((KS-\d+)\)\s*$/.exec(v.trim());if(m)return m[1];var f=P.filter(function(p){return p.name==v.trim()})[0];return f?f.id:''}
+function tarSum(){var n=$('ftar').value,t=(D.tariffs||[]).filter(function(x){return pick(x,['name','tariff','title'])==n})[0];$('fsum').value=t?pick(t,['price','sum','cost']):''}
+function openForm(){
+  $('app').hidden=true;$('form').hidden=false;fmsg('');
+  $('ftar').innerHTML=(D.tariffs||[]).filter(function(t){return t.active}).map(function(t){return'<option>'+esc(pick(t,['name','tariff','title']))+'</option>'}).join('');
+  ['fpl','fgn','fgi','fsize','fcm'].forEach(function(i){$(i).value=''});
+  $('fguest').checked=false;guestToggle();tarSum();
+}
+function guestToggle(){var g=$('fguest').checked;$('fpb').hidden=g;$('fgb').hidden=!g}
+function submit(){
+  var g=$('fguest').checked,o={camp:campId,tariff:$('ftar').value,sum:Number($('fsum').value),size:$('fsize').value.trim(),comment:$('fcm').value.trim()};
+  if(g){o.guest=true;o.guestName=$('fgn').value.trim();o.guestInfo=$('fgi').value.trim();if(!o.guestName){fmsg('Введите ФИ гостя',true);return}}
+  else{o.pid=pid($('fpl').value);if(!o.pid){fmsg('Выберите игрока из списка',true);return}}
+  if(!(o.sum>=0)||$('fsum').value===''){fmsg('Укажите сумму',true);return}
+  $('fsave').disabled=true;fmsg('Сохраняю…');
+  run('appCampAdd',[pin,o],function(r){$('fsave').disabled=false;reload(dry(r)+'Участник записан. ')},function(m){$('fsave').disabled=false;fmsg(m,true)});
+}
+$('q').oninput=show;$('fs').onchange=show;
+$('csel').onchange=function(){campId=this.value;load()};
+$('new').onclick=openForm;
+$('fcancel').onclick=function(){$('form').hidden=true;$('app').hidden=false};
+$('fguest').onchange=guestToggle;$('ftar').onchange=tarSum;$('fsave').onclick=submit;
+$('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;try{localStorage.setItem('apin',pin)}catch(e){}load()};
+try{pin=localStorage.getItem('apin')||''}catch(e){}
+if(pin)load();else showLogin('');
+</script>
+</body>
+</html>

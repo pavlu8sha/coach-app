@@ -1,0 +1,63 @@
+<script>
+(function(){
+  var _og=openGame,_list=list;
+  function hint(){
+    var s=0;[].forEach.call($('pb').querySelectorAll('.gl'),function(i){s+=Number(i.value)||0});
+    var gf=$('ggf')?$('ggf').value:'';
+    if($('ghint'))$('ghint').textContent='Голов у игроков: '+s+(gf!==''?' из '+gf:'');
+  }
+  openGame=function(id){
+    _og(id);
+    var e=ev(id),mine={};
+    parts(id).forEach(function(p){mine[p.p]=p});
+    var v=function(x){return x===null||x===undefined?'':x};
+    var h='<label>Соперник</label><input id="gopp" value="'+esc(e.opp||'')+'">'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><label>Забито</label><input type="number" min="0" id="ggf" value="'+v(e.gf)+'"></div>'
+      +'<div><label>Пропущено</label><input type="number" min="0" id="gga" value="'+v(e.ga)+'"></div></div>';
+    if(e.team=='U9')h+='<label>Сторона</label><select id="gside"><option value="">Не выбрана (команда указывается у каждого игрока)</option><option'+(e.side=='U9-A'?' selected':'')+'>U9-A</option><option'+(e.side=='U9-B'?' selected':'')+'>U9-B</option></select>';
+    h+='<div class="sub" id="ghint" style="margin-top:8px"></div><h2>Кто играл и голы</h2>';
+    $('pb').insertAdjacentHTML('afterbegin',h);
+    [].forEach.call($('pb').querySelectorAll('.row'),function(r){
+      var m=mine[r.dataset.p],i=document.createElement('input');
+      i.type='number';i.min=0;i.className='gl';i.placeholder='голы';i.value=m&&m.goals?m.goals:'';
+      i.style.cssText='width:68px;min-height:40px;padding:6px 8px';
+      r.insertBefore(i,r.querySelector('select.ft'));
+    });
+    hint();
+  };
+  $('pb').addEventListener('input',function(e){
+    if(e.target.classList.contains('gl')&&Number(e.target.value)>0)e.target.closest('.row').querySelector('.pl').checked=true;
+    hint();
+  });
+  $('pb').addEventListener('change',function(e){
+    if(!e.target.classList.contains('pl')||e.target.checked)return;
+    var g=e.target.closest('.row').querySelector('.gl');
+    if(g&&g.value){g.value='';hint()}
+  });
+  // Кнопку «Сохранить отметки» перехватываем раньше прежнего обработчика.
+  $('pb').addEventListener('click',function(e){
+    var b=e.target.closest('button');
+    if(!b||b.id!='sv')return;
+    e.stopPropagation();
+    var marks=[].map.call($('pb').querySelectorAll('.row'),function(r){
+      var s=r.querySelector('select.ft');
+      return{id:r.dataset.p,name:r.dataset.n,played:r.querySelector('.pl').checked,goals:Number(r.querySelector('.gl').value)||0,ft:s?s.value:''};
+    });
+    var res={opp:$('gopp').value,gf:$('ggf').value,ga:$('gga').value,side:$('gside')?$('gside').value:''};
+    b.disabled=true;setMsg('pm','Сохраняю…');
+    run('appSaveGame2',[pin,cur.id,marks,res],function(r){
+        flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'Игра сохранена. ')+(r.legacy?r.legacy+' ':'')
+        +(r.gf!==''&&r.gf!==null&&r.goalsSum>r.gf?'Внимание: голов у игроков ('+r.goalsSum+') больше забитых ('+r.gf+'). ':'');
+      load();
+    },function(m){b.disabled=false;setMsg('pm',m,true)});
+  },true);
+  list=function(){
+    _list();
+    [].forEach.call($('list').querySelectorAll('button.gm'),function(b){
+      var e=ev(b.dataset.id);
+      if(e&&e.gf!==null&&e.gf!==undefined&&e.ga!==null&&e.ga!==undefined)b.textContent+=', счёт '+e.gf+':'+e.ga+(e.opp?' ('+e.opp+')':'');
+    });
+  };
+  if(D)list();
+})();
+</script>

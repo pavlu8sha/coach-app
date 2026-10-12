@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Новые игроки</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:40px}
+.wrap{max-width:560px;margin:0 auto;padding:0 16px}
+h1{font-size:22px;margin:16px 0 8px}h2{font-size:17px;margin:20px 0 8px}
+input,select{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:44px;width:100%}
+label{display:block;margin:10px 0 4px;color:var(--mute);font-size:14px}
+button{font:inherit;cursor:pointer}
+.btn{width:100%;min-height:46px;border:0;border-radius:12px;background:var(--g);color:var(--gi);font-weight:800;font-size:15px;margin-top:10px}
+.btn.sec{background:none;color:var(--g);border:1px solid var(--line)}
+.btn:disabled{opacity:.5}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
+.tile b{display:block;font-size:18px}.tile span{color:var(--mute);font-size:12px}
+.fn{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+.fr{margin:6px 0}.fr .t{display:flex;justify-content:space-between;gap:8px;font-size:14px}
+.bar{height:6px;border-radius:3px;background:var(--line);margin-top:4px;overflow:hidden}.bar i{display:block;height:100%;background:var(--g)}
+details{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:8px}
+summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:none}
+.top{display:flex;justify-content:space-between;gap:8px;font-weight:700}
+.sub{color:var(--mute);font-size:13px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.st{border:1px solid var(--line);background:var(--card);color:var(--mute);border-radius:999px;min-height:36px;padding:0 12px;font-size:13px;font-weight:600}
+.st[aria-pressed=true]{background:var(--g);border-color:var(--g);color:var(--gi)}
+.st:disabled{opacity:.7;cursor:default}
+.warn li{padding:4px 0;font-size:14px}
+ul{margin:6px 0 0;padding-left:18px}
+.err{color:var(--a,#B23A2B)}.msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:8px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div id="login" class="wrap" hidden>
+  <h1>Новые игроки</h1><p>Введите код администратора</p>
+  <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err"></p><button class="btn" id="go">Войти</button>
+</div>
+<div id="app" class="wrap" hidden>
+  <h1>Новые игроки</h1>
+  <select id="sh" aria-label="Лист"></select>
+  <div class="msg" id="msg" role="status"></div>
+  <div class="tiles" id="tiles"></div>
+  <div class="fn" id="fn"></div>
+  <div id="stuck"></div>
+  <h2>Дети</h2>
+  <div class="row2"><input id="q" placeholder="Поиск по имени"><select id="fg" aria-label="Группа"></select></div>
+  <div id="addbox" hidden>
+    <button class="btn sec" id="addb">+ Добавить ребёнка</button>
+    <div id="addf" hidden>
+      <label>Имя ребёнка</label><input id="an">
+      <label>Группа</label><input id="ag" list="gl" placeholder="например, U9">
+      <button class="btn" id="asave">Добавить</button>
+    </div>
+  </div>
+  <datalist id="gl"></datalist>
+  <div id="list" style="margin-top:10px"></div>
+  <p class="sub">Чтобы зарегистрировать ребёнка в клубе: «Игроки» → «+ Добавить игрока» → выберите его из воронки.</p>
+</div>
+<script>
+var pin='',D=null,opened={};
+function $(i){return document.getElementById(i)}
+function run(fn,args,ok,fail){var r=google.script.run.withSuccessHandler(ok).withFailureHandler(function(e){fail(e&&e.message?e.message:String(e))});r[fn].apply(r,args)}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function setMsg(t,bad){$('msg').textContent=t||'';$('msg').className='msg'+(bad?' err':'')}
+function showLogin(t){$('app').hidden=true;$('login').hidden=false;$('lerr').textContent=t||''}
+function fail(m){if(/Неверный код/.test(m))showLogin('Неверный код администратора');else{$('login').hidden=true;$('app').hidden=false;setMsg(m,true)}}
+var Q=[],qb=false;
+function enq(job){Q.push(job);if(!qb)nextQ()}
+function nextQ(){var j=Q.shift();if(!j){qb=false;return}qb=true;j(nextQ)}
+function load(sheet){
+  setMsg('Загрузка…');
+  run('appFunnelData',[pin,sheet||''],function(d){
+    D=d;$('login').hidden=true;$('app').hidden=false;setMsg('');
+    $('sh').innerHTML=d.sheets.map(function(s){return'<option value="'+esc(s.name)+'">'+esc(s.name)+(s.active?'':' (архив)')+'</option>'}).join('');
+    $('sh').value=d.sheet;
+    var g=$('fg').value;
+    $('fg').innerHTML='<option value="">Все группы</option>'+d.groups.map(function(x){return'<option>'+esc(x)+'</option>'}).join('');
+    $('fg').value=g;
+    $('gl').innerHTML=d.groups.map(function(x){return'<option value="'+esc(x)+'">'}).join('');
+    $('addbox').hidden=!d.editable;
+    paintAll();
+  },fail);
+}
+function recount(){
+  D.counts=D.steps.map(function(s,i){return D.kids.filter(function(k){return k.flags[i]}).length});
+  var a=D.steps.indexOf('Пришли на пробное'),b=D.steps.indexOf('Оплатили абонемент');
+  D.stuck=(a>=0&&b>=0)?D.kids.filter(function(k){return k.flags[a]&&!k.flags[b]}).map(function(k){return k.name}):[];
+}
+function paintAll(){
+  var n=D.kids.length,iPaid=D.steps.indexOf('Оплатили абонемент'),iCame=D.steps.indexOf('Пришли на пробное');
+  $('tiles').innerHTML='<div class="tile"><b>'+n+'</b><span>детей</span></div>'
+    +'<div class="tile"><b>'+(iCame>=0?D.counts[iCame]:'—')+'</b><span>пришли на пробное</span></div>'
+    +'<div class="tile"><b>'+(iPaid>=0?D.counts[iPaid]:'—')+'</b><span>оплатили абонемент</span></div>';
+  $('fn').innerHTML=D.steps.map(function(s,i){
+    var c=D.counts[i],w=n?Math.round(c*100/n):0;
+    return'<div class="fr"><div class="t"><span>'+esc(s)+'</span><b>'+c+' из '+n+'</b></div><div class="bar"><i style="width:'+w+'%"></i></div></div>';
+  }).join('')||'<p class="sub">В листе нет шагов.</p>';
+  $('stuck').innerHTML=D.stuck.length
+    ?'<details'+(opened.__stuck?' open':'')+'><summary><div class="top"><span>Пришли на пробное, но не оплатили абонемент</span><span>'+D.stuck.length+'</span></div></summary><ul class="warn">'+D.stuck.map(function(x){return'<li>'+esc(x)+'</li>'}).join('')+'</ul></details>':'';
+  paintList();
+}
+function paintList(){
+  var q=$('q').value.trim().toLowerCase(),g=$('fg').value;
+  var a=D.kids.map(function(k,i){return{k:k,i:i}}).filter(function(o){
+    return(!g||o.k.group==g)&&(!q||o.k.name.toLowerCase().indexOf(q)>=0);
+  });
+  $('list').innerHTML=a.map(function(o){
+    var k=o.k,done=k.flags.filter(Boolean).length;
+    return'<details data-k="'+o.i+'"'+(opened[k.name]?' open':'')+'><summary><div class="top"><span>'+esc(k.name)+'</span><span class="sub">'+esc(k.group||'без группы')+' · '+done+'/'+D.steps.length+'</span></div></summary>'
+      +'<div class="chips">'+D.steps.map(function(s,si){return'<button class="st" data-k="'+o.i+'" data-s="'+si+'" aria-pressed="'+(k.flags[si]?'true':'false')+'"'+(D.editable?'':' disabled')+'>'+esc(s)+'</button>'}).join('')+'</div>'
+      +(D.editable?'<label>Группа</label><input class="gi" data-k="'+o.i+'" list="gl" value="'+esc(k.group)+'">':'')+'</details>';
+  }).join('')||'<p class="sub">Никого не найдено.</p>';
+}
+$('list').addEventListener('toggle',function(e){var d=e.target,k=D.kids[d.dataset.k];if(k)opened[k.name]=d.open},true);
+$('stuck').addEventListener('toggle',function(e){opened.__stuck=e.target.open},true);
+$('list').onclick=function(e){
+  var b=e.target.closest('.st');if(!b||!D.editable)return;
+  var k=D.kids[b.dataset.k],s=Number(b.dataset.s),nv=!k.flags[s];
+  k.flags[s]=nv;recount();paintAll();setMsg('Сохраняю…');
+  var sn=D.sheet;
+  enq(function(done){
+    run('appFunnelSet',[pin,sn,k.col,k.name,s,nv],function(){setMsg('');done()},function(m){
+      k.flags[s]=!nv;recount();paintAll();setMsg(m,true);done();
+    });
+  });
+};
+$('list').onchange=function(e){
+  var t=e.target;if(!t.classList.contains('gi'))return;
+  var k=D.kids[t.dataset.k],old=k.group,v=t.value.trim();
+  k.group=v;setMsg('Сохраняю…');
+  run('appFunnelGroup',[pin,D.sheet,k.col,k.name,v],function(){setMsg('');load(D.sheet)},function(m){k.group=old;t.value=old;setMsg(m,true)});
+};
+$('addb').onclick=function(){$('addf').hidden=!$('addf').hidden};
+$('asave').onclick=function(){
+  var n=$('an').value.trim();if(!n){setMsg('Введите имя ребёнка',true);return}
+  var b=this;b.disabled=true;setMsg('Сохраняю…');
+  run('appFunnelAdd',[pin,n,$('ag').value.trim(),D.sheet],function(){b.disabled=false;$('an').value='';$('ag').value='';$('addf').hidden=true;load(D.sheet);setMsg('Добавлен: '+n)},function(m){b.disabled=false;setMsg(m,true)});
+};
+$('sh').onchange=function(){load(this.value)};
+$('q').oninput=paintList;
+$('fg').onchange=paintList;
+$('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;try{localStorage.setItem('apin',pin)}catch(e){}load()};
+try{pin=localStorage.getItem('apin')||''}catch(e){}
+if(pin)load();else showLogin('');
+</script>
+</body>
+</html>

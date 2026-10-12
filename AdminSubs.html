@@ -1,0 +1,111 @@
+<script>
+(function(){
+  var orig=window.renderCard,SUB=null;
+  function chip(i){return i.st=='paid'?'<span class="ok">'+(i.disc?'скидка':'оплачено')+'</span>':i.st=='partial'?'<span class="err">частично, долг '+money(i.debt)+'</span>':'<span class="err">не платил</span>'}
+  function form(debt,extra,cls){
+    return extra+'<label>Сумма, ₾</label><input type="number" min="0" step="1" class="sa" value="'+debt+'" data-debt="'+debt+'">'
+      +'<div class="st2" hidden><label>Сумма меньше остатка. Что это?</label><select class="sty"><option value="">Выберите…</option><option value="Скидка">Скидка по договорённости (оплата принята)</option><option value="Частичный">Частичный платёж (останется долг)</option></select></div>'
+      +'<label>Способ оплаты</label><select class="smt"><option value="">Выберите…</option><option>Наличные</option><option>Перевод</option></select>'
+      +'<label>Дата</label><input type="date" class="sdt" value="'+today()+'"><label>Комментарий</label><input class="scm">'
+      +'<button class="btn '+cls+'">Внести оплату</button><div class="msg err sm"></div>';
+  }
+  function item(i,n){
+    var act=i.st!='paid'?'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button class="btn sec sb" data-n="'+n+'">Принять оплату</button>'
+      +(i.st=='partial'&&!i.disc?'<button class="btn sec sd" data-n="'+n+'">Считать оплаченным (скидка)</button>':'<span></span>')+'</div><div class="sf" hidden></div>':'';
+    return'<div class="res"><div style="display:flex;justify-content:space-between;gap:8px"><b>'+esc(i.month+', '+i.group)+'</b>'+chip(i)+'</div><div class="sub">Внесено '+money(i.paid)+' из '+money(i.tariff)+(i.method?' · '+esc(i.method):'')+'</div>'+act+'</div>';
+  }
+  function paint(){
+    var h=SUB.items.length?SUB.items.map(item).join(''):'<p class="sub">В файле оплат этого игрока пока нет (если он должен быть, проверьте написание ФИ в файле оплат).</p>';
+    h+='<button class="btn sec sn">Внести оплату за другой месяц или группу</button><div class="snf" hidden></div>';
+    h+='<h2>История платежей по абонементу</h2>'+(SUB.hist.length?SUB.hist.map(function(x){
+      return'<div class="res">'+esc(x.date)+': <b>'+esc(x.amount)+'</b> ('+esc(x.month+', '+x.group+', '+x.type+(x.method?', '+x.method:''))+(x.comment?', '+esc(x.comment):'')+')</div>';
+    }).join(''):'<p class="sub">Платежей через приложение пока нет. Суммы, внесённые раньше, видны в списке выше.</p>');
+    $('subs').innerHTML=h;
+  }
+  var IND2=[],EX2=[];
+  function btns(i,cls){return'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px"><button class="btn sec '+cls+'" data-i="'+i+'" data-m="Наличные">Наличные</button><button class="btn sec '+cls+'" data-i="'+i+'" data-m="Перевод">Перевод</button></div>'}
+  function paintInd(){
+    var el=$('inds');if(!el)return;
+    el.innerHTML=IND2.length?IND2.map(function(x,i){
+      var st=x.paid?'<span class="ok">оплачено</span>':'<span class="err">'+(x.past?'долг ':'')+money(x.price)+'</span>';
+      return'<div class="res"><div style="display:flex;justify-content:space-between;gap:8px"><b>'+esc(x.label)+'</b>'+st+'</div>'+(x.paid?'':btns(i,'ipc'))+'</div>';
+    }).join(''):'<p class="sub">Записей на индивидуальные нет.</p>';
+  }
+  function paintEx(){
+    var el=$('exs');if(!el)return;
+    el.innerHTML=EX2.length?EX2.map(function(x,i){
+      var st=x.paid?'<span class="ok">оплачено</span>':'<span class="err">'+(x.price>0?money(x.price):'сумма не задана')+'</span>';
+      var act=x.paid?'':(x.price>0?btns(i,'xpc'):'<div class="sub">Задайте сумму на экране «Дополнительные» → «Изменить».</div>');
+      return'<div class="res"><div style="display:flex;justify-content:space-between;gap:8px"><b>'+esc(x.label)+'</b>'+st+'</div>'+act+'</div>';
+    }).join(''):'<p class="sub">Записей на дополнительные нет.</p>';
+  }
+  function loadInd(){
+    var id=D.players[cardI].id;
+    run('appIndOfPlayer',[pin,id],function(r){if(D.players[cardI].id==id){IND2=r;paintInd()}},function(m){var el=$('inds');if(el)el.innerHTML='<p class="err">'+esc(m)+'</p>'});
+  }
+  function loadEx(){
+    var id=D.players[cardI].id;
+    run('appExtraOfPlayer',[pin,id],function(r){if(D.players[cardI].id==id){EX2=r;paintEx()}},function(m){var el=$('exs');if(el)el.innerHTML='<p class="err">'+esc(m)+'</p>'});
+  }
+  window.renderCard=function(c){
+    orig(c);
+    SUB=null;IND2=[];EX2=[];
+    [].slice.call($('cbody').querySelectorAll('h2')).forEach(function(h){
+      if(h.textContent=='Абонемент'){var n=h.nextElementSibling;if(n)n.remove();h.remove()}
+    });
+    $('cbody').insertAdjacentHTML('beforeend','<h2>Абонемент</h2><div id="subs"><p class="sub">Загрузка…</p></div><h2>Индивидуальные и вратарские</h2><div id="inds"><p class="sub">Загрузка…</p></div><h2>Дополнительные тренировки</h2><div id="exs"><p class="sub">Загрузка…</p></div>');
+    var sid=D.players[cardI].id;
+    run('appPlayerSubs',[pin,sid],function(r){if(D.players[cardI].id==sid){SUB=r;paint()}},function(m){var el=$('subs');if(el&&D.players[cardI].id==sid)el.innerHTML='<p class="err">'+esc(m)+'</p>'});
+    loadInd();loadEx();
+  };
+  $('cbody').addEventListener('click',function(e){
+    var b=e.target.closest('.ipc,.xpc');if(!b)return;
+    var isX=b.classList.contains('xpc'),x=(isX?EX2:IND2)[b.dataset.i];if(!x)return;
+    b.disabled=true;
+    run(isX?'appExtraPay':'appIndPay',isX?[pin,x.id,x.name,b.dataset.m,'']:[pin,x.id,x.name,b.dataset.m],
+      function(){isX?loadEx():loadInd()},
+      function(m){b.disabled=false;note(b.closest('.res'),m)});
+  });
+  function note(box,m){var el=box.querySelector('.sm');if(!el){el=document.createElement('div');el.className='msg err sm';box.appendChild(el)}el.textContent=m}
+  function after(r,box){if(r.dryRun){note(box,'Пробный режим: в таблицу ничего не записано.');return}openCard(cardI)}
+  $('cbody').addEventListener('click',function(e){
+    var b=e.target.closest('button');if(!b||!SUB)return;
+    var box=b.closest('.res')||b.parentNode,id=D.players[cardI].id;
+    if(b.classList.contains('sb')){
+      var f=box.querySelector('.sf'),i=SUB.items[b.dataset.n];
+      if(!f.innerHTML){f.innerHTML=form(i.debt,'','sg');f.dataset.n=b.dataset.n}
+      f.hidden=!f.hidden;return;
+    }
+    if(b.classList.contains('sd')){
+      if(!b.dataset.sure){b.dataset.sure=1;b.textContent='Точно принять как скидку?';return}
+      var i2=SUB.items[b.dataset.n];b.disabled=true;
+      run('appSubDiscount',[pin,i2.month,i2.group,id,''],function(r){after(r,box)},function(m){b.disabled=false;note(box,m)});return;
+    }
+    if(b.classList.contains('sn')){
+      var f2=b.nextElementSibling,gs=Object.keys(SUB.tariffs);
+      if(!f2.innerHTML)f2.innerHTML=form(gs.length?SUB.tariffs[gs[0]]:165,
+        '<label>Месяц</label><select class="smo">'+SUB.months.map(function(m){return'<option>'+m+'</option>'}).join('')+'</select><label>Группа</label><select class="sgr">'+gs.map(function(g){return'<option>'+esc(g)+'</option>'}).join('')+'</select>','sg2');
+      f2.hidden=!f2.hidden;return;
+    }
+    if(b.classList.contains('sg')||b.classList.contains('sg2')){
+      var f3=b.closest('.sf')||b.closest('.snf'),a=f3.querySelector('.sa'),amt=Number(a.value),debt=Number(a.dataset.debt),type=f3.querySelector('.sty').value,month,group;
+      if(b.classList.contains('sg')){var it=SUB.items[f3.dataset.n];month=it.month;group=it.group}
+      else{month=f3.querySelector('.smo').value;group=f3.querySelector('.sgr').value}
+      var mt=f3.querySelector('.smt').value;
+      if(!mt){note(f3,'Выберите способ оплаты');return}
+      if(amt<debt&&!type){note(f3,'Выберите тип: скидка или частичный платёж');return}
+      b.disabled=true;
+      run('appSubPay',[pin,month,group,id,amt,type,f3.querySelector('.sdt').value,f3.querySelector('.scm').value,mt],function(r){b.disabled=false;after(r,f3)},function(m){b.disabled=false;note(f3,m)});
+    }
+  });
+  $('cbody').addEventListener('input',function(e){
+    if(!e.target.classList.contains('sa'))return;
+    e.target.closest('.sf,.snf').querySelector('.st2').hidden=Number(e.target.value)>=Number(e.target.dataset.debt);
+  });
+  $('cbody').addEventListener('change',function(e){
+    if(!e.target.classList.contains('sgr')||!SUB)return;
+    var a=e.target.closest('.snf').querySelector('.sa'),t=SUB.tariffs[e.target.value];
+    a.value=t;a.dataset.debt=t;
+  });
+})();
+</script>

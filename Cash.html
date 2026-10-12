@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Приём оплат</title>
+<style>
+:root{--bg:#F4F6F3;--card:#fff;--ink:#15211A;--mute:#5B6B61;--line:#DCE3DD;--g:#1E6B3C;--gi:#fff;--a:#B23A2B}
+@media(prefers-color-scheme:dark){:root{--bg:#0F1712;--card:#17221B;--ink:#E8F0EA;--mute:#93A69A;--line:#26362C;--g:#4FAE74;--gi:#0B1410;--a:#E8806F}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:40px}
+.wrap{max-width:560px;margin:0 auto;padding:0 16px}
+h1{font-size:22px;margin:16px 0 6px}h2{font-size:17px;margin:20px 0 6px}
+input,select{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:44px;width:100%}
+label{display:block;margin:10px 0 4px;color:var(--mute);font-size:14px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.row2>div{min-width:0}.row2 input,.row2 select{min-width:0;max-width:100%}
+button{font:inherit;cursor:pointer}
+.btn{width:100%;min-height:46px;border:0;border-radius:12px;background:var(--g);color:var(--gi);font-weight:800;font-size:15px;margin-top:10px}
+.btn:disabled{opacity:.5}
+.btn.sec{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.seg button{min-height:46px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--mute);font-weight:700}
+.seg button[aria-pressed=true]{background:var(--g);border-color:var(--g);color:var(--gi)}
+.prog,.res{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin:10px 0;font-size:14px}
+.prh{display:flex;justify-content:space-between;gap:8px;font-size:16px}
+.sub{color:var(--mute);font-size:13px}
+.ok{color:var(--g)}.err{color:var(--a)}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
+.tile b{display:block;font-size:16px}.tile span{color:var(--mute);font-size:12px}
+.msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:8px}
+</style>
+</head>
+<body>
+<div id="login" class="wrap" hidden>
+  <h1>Приём оплат</h1><p>Введите код администратора</p>
+  <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err"></p><button class="btn" id="go">Войти</button>
+</div>
+<div id="app" class="wrap" hidden>
+  <h1>Приём оплат</h1>
+  <label>Игрок (введите ФИ и выберите из списка)</label>
+  <input id="pl" list="plist" autocomplete="off"><datalist id="plist"></datalist>
+  <div class="row2">
+    <div><label>Месяц абонемента</label><select id="mon"></select></div>
+    <div><label>Дата оплаты</label><input type="date" id="dt"></div>
+  </div>
+  <label>Способ оплаты</label>
+  <div class="seg" id="meth"><button data-m="Наличные" aria-pressed="false">Наличные</button><button data-m="Перевод" aria-pressed="false">Перевод</button></div>
+  <label>Комментарий</label><input id="cm" placeholder="необязательно">
+  <div class="msg" id="msg" role="status"></div>
+  <div id="progs"></div>
+  <h2>Внесено сегодня</h2>
+  <div class="tiles" id="tot"></div>
+  <div id="feed"></div>
+</div>
+<script>
+var pin='',P=[],O=[],SUB=null,cur='',method='',eqErr='',IND=[],EXT=[];
+function $(i){return document.getElementById(i)}
+function run(fn,args,ok,fail){var r=google.script.run.withSuccessHandler(ok).withFailureHandler(function(e){fail(e&&e.message?e.message:String(e))});r[fn].apply(r,args)}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function money(n){return String(Math.round(n*100)/100).replace('.',',')+' ₾'}
+function nn(s){return String(s).trim().toLowerCase()}
+function today(){var d=new Date(),z=function(n){return(n<10?'0':'')+n};return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())}
+function setMsg(t,bad){$('msg').textContent=t||'';$('msg').className='msg'+(bad?' err':'')}
+function showLogin(t){$('app').hidden=true;$('login').hidden=false;$('lerr').textContent=t||''}
+function fail(m){m=friendly_(m);if(/уже оплачен/.test(m)&&cur){$('login').hidden=true;$('app').hidden=false;setMsg(m,true);loadPlayer(cur,true);return}if(/код (администратора|доступа)/.test(m))showLogin('Неверный код доступа');else{$('login').hidden=true;$('app').hidden=false;setMsg(m,true)}}
+function pid(v){var m=/\((KS-\d+)\)\s*$/.exec(v.trim());return m?m[1]:''}
+function defMonth(ms){
+  var d=new Date(),t=new Date(d.getFullYear(),d.getMonth()+(d.getDate()>=22?1:0),1);
+  var k=('0'+(t.getMonth()+1)).slice(-2)+'.'+String(t.getFullYear()).slice(-2);
+  return ms.indexOf(k)>=0?k:ms[0];
+}
+function orders(cb){
+  run('appEquipOrders',[pin],function(r){O=r.orders;eqErr='';cb&&cb()},function(m){O=[];eqErr=m;cb&&cb()});
+}
+function load(){
+  $('dt').value=today();
+  run('appAdminInit',[pin],function(d){
+    P=d.players;$('login').hidden=true;$('app').hidden=false;
+    $('plist').innerHTML=P.filter(function(p){return p.status=='Активен'}).map(function(p){return'<option value="'+esc(p.name+' ('+p.id+')')+'">'}).join('');
+  },fail);
+  feed();orders();
+}
+function feed(){
+  run('appTodayPayments',[pin],function(r){
+    var t=r.totals,sum=t['Наличные']+t['Перевод']+t.other;
+    $('tot').innerHTML='<div class="tile"><b>'+money(t['Наличные'])+'</b><span>наличные</span></div><div class="tile"><b>'+money(t['Перевод'])+'</b><span>перевод</span></div><div class="tile"><b>'+money(sum)+'</b><span>всего</span></div>';
+    $('feed').innerHTML=r.items.length?r.items.map(function(x){
+      var tag=x.neg?' <span class="sub">(отмена)</span>':(x.reversed?' <span class="sub">(отменён)</span>':'');
+      var btn=x.canCancel?'<button class="btn sec cnl" data-src="'+x.src+'" data-row="'+x.row+'">Отменить платёж</button>':'';
+      return'<div class="res"><b>'+esc(x.name)+'</b> '+money(x.amount)+tag+'<div class="sub">'+esc(x.what+(x.kind?', '+x.kind:'')+(x.method?', '+x.method:''))+'</div>'+btn+'</div>';
+    }).join(''):'<p class="sub">Сегодня платежей через приложение пока нет.</p>';
+  },function(m){$('feed').innerHTML='<p class="err">'+esc(m)+'</p>'});
+}
+var reqN=0;
+function loadPlayer(id,keep){
+  var n=++reqN;
+  if(!keep){setMsg('Загрузка…');IND=[];EXT=[]}
+  run('appPlayerSubs',[pin,id],function(r){
+    if(n!=reqN)return;
+    SUB=r;cur=id;if(!keep)setMsg('');
+    var old=$('mon').value;
+    $('mon').innerHTML=r.months.map(function(m){return'<option>'+m+'</option>'}).join('');
+    if(!r.months.length){setMsg('В файле оплат нет листов месяцев.',true);return}
+    $('mon').value=r.months.indexOf(old)>=0?old:defMonth(r.months);
+    run('appIndOfPlayer',[pin,id],function(x){if(n==reqN&&cur==id){IND=x;paint(true)}},function(){});
+    loadExt(n);
+    paint();
+  },function(m){if(n==reqN)fail(m)});
+}
+function paint(keepInputs){
+  var saved={};
+  if(keepInputs)[].forEach.call($('progs').querySelectorAll('.prog[data-g]'),function(bx){
+    var a=bx.querySelector('.pa'),t=bx.querySelector('.ptype');
+    if(a&&a.value!==a.defaultValue)saved[bx.dataset.g]={a:a.value,t:t?t.value:''};
+  });
+  var M=$('mon').value,gs=Object.keys(SUB.tariffs),h='<h2>Абонемент, '+esc(M)+'</h2>';
+  if(!gs.length)h+='<p class="sub err">У игрока нет групп для абонемента.</p>';
+  h+=gs.map(function(g){
+    var it=SUB.items.filter(function(i){return i.month==M&&nn(i.group)==nn(g)})[0],T=SUB.tariffs[g];
+    var paid=it?it.paid:0,st=it?it.st:'unpaid',debt=it?it.debt:T;
+    var chip=st=='paid'?'<span class="ok">'+(it.disc?'скидка':'оплачено')+'</span>':st=='partial'?'<span class="err">частично, долг '+money(debt)+'</span>':'<span class="err">не платил</span>';
+    var f=st=='paid'?'':'<label>Сумма, ₾</label><input type="number" min="1" step="1" class="pa" value="'+debt+'" data-debt="'+debt+'">'
+      +'<div class="pt" hidden><label>Сумма меньше остатка. Что это?</label><select class="ptype"><option value="">Выберите…</option><option value="Скидка">Скидка по договорённости (оплата принята)</option><option value="Частичный">Частичный платёж (останется долг)</option></select></div>'
+      +'<button class="btn pay">Внести оплату</button>';
+    return'<div class="prog" data-g="'+esc(g)+'"><div class="prh"><b>'+esc(g)+'</b>'+chip+'</div><div class="sub">внесено '+money(paid)+' из '+money(T)+(it?'':'; в листе месяца пока нет, будет добавлен')+'</div>'+f+'</div>';
+  }).join('');
+  h+='<h2>Экипировка</h2>';
+  var eo=O.filter(function(o){return o.id==cur&&(o.kit||o.sum)});
+  if(eqErr)h+='<p class="sub err">'+esc(eqErr)+'</p>';
+  else if(!eo.length)h+='<p class="sub">Заказов экипировки нет.</p>';
+  h+=eo.map(function(o){
+    var chip=o.debt>0?'<span class="err">долг '+money(o.debt)+'</span>':'<span class="ok">оплачено</span>';
+    var f=o.debt>0?'<label>Сумма, ₾</label><input type="number" min="1" step="1" class="ea" value="'+o.debt+'">'
+      +'<button class="btn epay" data-row="'+o.row+'">Внести оплату</button>':'';
+    return'<div class="prog"><div class="prh"><b>'+esc(o.kit||'Комплект не указан')+'</b>'+chip+'</div><div class="sub">сумма '+money(o.sum)+', оплачено '+money(o.paid)+(o.size?', размер '+esc(o.size):'')+'</div>'+f+'</div>';
+  }).join('');
+  h+='<h2>Индивидуальные и вратарские</h2>';
+  if(!IND.length)h+='<p class="sub">Записей на индивидуальные нет.</p>';
+  h+=IND.map(function(x,i){
+    var chip=x.paid?'<span class="ok">оплачено</span>':'<span class="err">'+(x.past?'долг ':'')+money(x.price)+'</span>';
+    var f=x.paid?'':'<button class="btn ipay" data-i="'+i+'">Внести оплату</button>';
+    return'<div class="prog"><div class="prh"><b>'+esc(x.label)+'</b>'+chip+'</div>'+f+'</div>';
+  }).join('');
+  h+='<h2>Дополнительные тренировки</h2>';
+  if(!EXT.length)h+='<p class="sub">Записей на дополнительные нет.</p>';
+  h+=EXT.map(function(x,i){
+    var chip=x.paid?'<span class="ok">оплачено</span>':'<span class="err">'+(x.price>0?money(x.price):'сумма не задана')+'</span>';
+    var f=x.paid?'':(x.price>0?'':'<label>Сумма, ₾</label><input id="xa'+i+'" type="number" inputmode="numeric" min="1" step="1">')+'<button class="btn xpay" data-i="'+i+'">Внести оплату</button>';
+    return'<div class="prog"><div class="prh"><b>'+esc(x.label)+'</b>'+chip+'</div>'+f+'</div>';
+  }).join('');
+  $('progs').innerHTML=h;
+  [].forEach.call($('progs').querySelectorAll('.prog[data-g]'),function(bx){
+    var k=saved[bx.dataset.g],a=bx.querySelector('.pa');
+    if(k&&a){a.value=k.a;bx.querySelector('.ptype').value=k.t;bx.querySelector('.pt').hidden=Number(a.value)>=Number(a.dataset.debt)}
+  });
+}
+$('pl').oninput=function(){var id=pid(this.value);if(id&&id!=cur)loadPlayer(id);if(!this.value){reqN++;cur='';SUB=null;$('progs').innerHTML=''}};
+$('mon').onchange=function(){if(SUB)paint()};
+$('meth').onclick=function(e){var b=e.target.closest('button');if(!b)return;method=b.dataset.m;[].forEach.call(this.children,function(x){x.setAttribute('aria-pressed',x==b)})};
+$('progs').oninput=function(e){
+  if(!e.target.classList.contains('pa'))return;
+  e.target.closest('.prog').querySelector('.pt').hidden=Number(e.target.value)>=Number(e.target.dataset.debt);
+};
+function done(r,text){
+  if(r.dryRun){setMsg('Пробный режим: в таблицу ничего не записано.');return}
+  setMsg(text);$('cm').value='';orders(function(){if(SUB)paint()});loadPlayer(cur,true);feed();
+}
+$('progs').onclick=function(e){
+  var b=e.target.closest('button');if(!b)return;
+  var pl=P.filter(function(p){return p.id==cur})[0],who=pl?pl.name:'';
+  if(b.classList.contains('pay')){
+    var box=b.closest('.prog'),a=box.querySelector('.pa'),amt=Number(a.value),type=box.querySelector('.ptype').value,g=box.dataset.g,M=$('mon').value;
+    if(!method){setMsg('Выберите способ оплаты: наличные или перевод.',true);return}
+    if(amt<Number(a.dataset.debt)&&!type){setMsg('Выберите тип: скидка или частичный платёж.',true);return}
+    b.disabled=true;setMsg('Сохраняю…');
+    run('appSubPay',[pin,M,g,cur,amt,type,$('dt').value,$('cm').value,method],function(r){b.disabled=false;done(r,'Внесено: '+who+', '+money(amt)+' (абонемент '+M+', '+g+', '+method+').')},function(m){b.disabled=false;setMsg(m,true)});
+  }else if(b.classList.contains('epay')){
+    var amt2=Number(b.closest('.prog').querySelector('.ea').value);
+    if(!(amt2>0)){setMsg('Введите сумму больше нуля.',true);return}
+    if(!method){setMsg('Выберите способ оплаты: наличные или перевод.',true);return}
+    b.disabled=true;setMsg('Сохраняю…');
+    run('appAddPayment',[pin,cur,Number(b.dataset.row),amt2,$('dt').value,$('cm').value,method],function(r){b.disabled=false;done(r,'Внесено: '+who+', '+money(amt2)+' (экипировка, '+method+').')},function(m){b.disabled=false;setMsg(m,true)});
+  }
+};
+$('progs').addEventListener('click',function(e){
+  var b=e.target.closest('.ipay');if(!b)return;
+  var x=IND[b.dataset.i],pl=P.filter(function(p){return p.id==cur})[0],who=pl?pl.name:'',id=cur;
+  if(!method){setMsg('Выберите способ оплаты: наличные или перевод.',true);return}
+  b.disabled=true;setMsg('Сохраняю…');
+  run('appIndPay',[pin,x.id,x.name,method],function(){
+    setMsg('Внесено: '+who+', '+money(x.price)+' ('+x.label+', '+method+').');feed();
+    run('appIndOfPlayer',[pin,id],function(r){if(cur==id){IND=r;paint(true)}},function(){});
+  },function(m){b.disabled=false;setMsg(m,true)});
+});
+function loadExt(n){
+  var id=cur;
+  run('appExtraOfPlayer',[pin,id],function(r){if(cur==id&&(n===undefined||n==reqN)){EXT=r;paint(true)}},function(){});
+}
+$('progs').addEventListener('click',function(e){
+  var b=e.target.closest('.xpay');if(!b)return;
+  var i=b.getAttribute('data-i'),x=EXT[i],pl=P.filter(function(p){return p.id==cur})[0],who=pl?pl.name:'';
+  if(!x)return;
+  if(!method){setMsg('Выберите способ оплаты: наличные или перевод.',true);return}
+  var am='';
+  if(!(x.price>0)){
+    var inp=document.getElementById('xa'+i);
+    am=inp?inp.value:'';
+    if(!am){setMsg('Введите сумму оплаты.',true);return}
+  }
+  b.disabled=true;setMsg('Сохраняю…');
+  run('appExtraPay',[pin,x.id,x.name,method,am],function(){
+    setMsg('Внесено: '+who+' ('+x.label+', '+method+').');feed();loadExt();
+  },function(m){b.disabled=false;setMsg(m,true)});
+});
+$('feed').onclick=function(e){
+  var b=e.target.closest('.cnl');if(!b)return;
+  if(!b.dataset.sure){b.dataset.sure=1;b.textContent='Точно отменить?';return}
+  b.disabled=true;setMsg('Отменяю…');
+  run('appCancelPayment',[pin,b.dataset.src,Number(b.dataset.row)],function(r){
+    if(r.dryRun){b.disabled=false;setMsg('Пробный режим: в таблицу ничего не записано.');return}
+    setMsg('Платёж отменён.');feed();orders(function(){if(SUB)paint()});if(cur)loadPlayer(cur,true);
+  },function(m){b.disabled=false;setMsg(m,true)});
+};
+$('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;try{localStorage.setItem('apin',pin)}catch(e){}load()};
+try{pin=localStorage.getItem('apin')||''}catch(e){}
+if(pin)load();else showLogin('');
+</script>
+</body>
+</html>

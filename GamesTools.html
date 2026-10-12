@@ -1,0 +1,144 @@
+<script>
+(function(){
+  var PL=null,curOpen=null;
+  function pid(v){var m=/\((KS-\d+)\)\s*$/.exec(v.trim());return m?m[1]:''}
+  function players(cb){
+    if(PL)return cb();
+    run('appMatchPlayers',[pin],function(d){PL=d.players.filter(function(p){return p.status=='Активен'});cb()},function(m){setMsg('pm',m,true)});
+  }
+  function done(r,text){flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':text+' ');load()}
+  // Список: кнопка «Новое событие» и «Добавить игру» в карточках турниров.
+  var _list=list;
+  list=function(){
+    _list();
+    if(!$('newev')){var b=document.createElement('button');b.className='btn sec';b.id='newev';b.textContent='+ Новое событие';$('tm').insertAdjacentElement('afterend',b);b.onclick=openNew}
+    [].forEach.call($('list').querySelectorAll('details'),function(d){
+      var did=d.dataset.id;if(!did||d.querySelector('.addg'))return;
+      var e=ev(did);
+      if(e.type!='Чемпионат'&&e.type!='Фестиваль'&&e.type!='Турнир')return;
+      var b2=document.createElement('button');b2.className='btn sec addg';b2.dataset.id=e.id;b2.textContent='+ Добавить игру';d.appendChild(b2);
+    });
+  };
+  $('back').onclick=function(){list()};
+  $('list').addEventListener('click',function(e){
+    var b=e.target.closest('button');if(!b)return;
+    if(b.classList.contains('addg')){
+      var f=b.nextElementSibling;
+      if(!f||!f.classList.contains('gform')){
+        f=document.createElement('div');f.className='gform';f.hidden=true;
+        f.innerHTML='<label>Дата игры</label><input type="date" class="gd" value="'+today()+'"><button class="btn addgo" data-id="'+b.dataset.id+'">Добавить</button><div class="msg err gx"></div>';
+        b.insertAdjacentElement('afterend',f);
+      }
+      f.hidden=!f.hidden;return;
+    }
+    if(b.classList.contains('addgo')){
+      var box=b.closest('.gform');b.disabled=true;
+      run('appAddEvent',[pin,{type:'Игра',parent:b.dataset.id,date:box.querySelector('.gd').value}],function(r){done(r,'Игра добавлена.')},function(m){b.disabled=false;box.querySelector('.gx').textContent=m});
+    }
+  });
+  // Форма нового события.
+  var NAMES={'Товарищеская':'Товарищеская игра','Чемпионат':'Championship 1','Фестиваль':'Festival','Кубок':'Кубок'};
+  function teams(){var t=[];D.events.forEach(function(e){if(t.indexOf(e.team)<0)t.push(e.team)});return t}
+  function copyOpts(){
+    var tm=$('nt').value.trim();
+    var evs=D.events.filter(function(e){return e.team==tm&&e.type!='Игра'&&parts(e.id).length}).sort(function(a,b){return(b.date||'').localeCompare(a.date||'')});
+    $('nc').innerHTML='<option value="">Не копировать</option>'+evs.map(function(e){return'<option value="'+e.id+'">'+esc(e.name+(e.date?' '+fd(e.date):'')+' ('+parts(e.id).length+' игроков)')+'</option>'}).join('');
+    if(evs.length)$('nc').value=evs[0].id;
+  }
+  function typeChanged(edited){
+    var t=$('ntype').value;
+    if(!edited)$('nn').value=NAMES[t];
+    $('nd').hidden=(t=='Чемпионат'||t=='Фестиваль');
+    if($('nf'))$('nf').placeholder=t=='Чемпионат'?'по умолчанию '+($('nt').value.trim()=='U13-A'?300:200):'не задан';
+  }
+  function openNew(){
+    panel('Новое событие','Состав можно скопировать из прошлого события команды.');
+    $('pb').innerHTML='<datalist id="tl">'+teams().map(function(x){return'<option value="'+esc(x)+'">'}).join('')+'</datalist>'
+      +'<label>Команда</label><input id="nt" list="tl" value="'+esc(team)+'">'
+      +'<label>Тип</label><select id="ntype"><option>Товарищеская</option><option>Чемпионат</option><option>Фестиваль</option><option>Кубок</option></select>'
+      +'<label>Название</label><input id="nn">'
+      +'<div id="nd"><label>Дата</label><input type="date" id="ndt" value="'+today()+'"></div>'
+      +(D.role=='admin'?'<label>Взнос, ₾ (необязательно)</label><input type="number" min="0" step="1" id="nf">':'')
+      +'<label>Состав</label><select id="nc"></select>'
+      +'<button class="btn" id="ncreate">Создать</button><div class="msg err" id="nx"></div>';
+    var edited=false;
+    typeChanged(false);copyOpts();
+    $('nn').oninput=function(){edited=true};
+    $('ntype').onchange=function(){typeChanged(edited)};
+    $('nt').onchange=function(){copyOpts();typeChanged(edited)};
+    $('ncreate').onclick=function(){
+      var t=$('ntype').value,b=this;b.disabled=true;
+      run('appAddEvent',[pin,{type:t,team:$('nt').value,name:$('nn').value,date:$('nd').hidden?'':$('ndt').value,fee:$('nf')?$('nf').value:'',copyFrom:$('nc').value}],
+        function(r){done(r,'Событие создано'+(r.copied?', в составе игроков: '+r.copied:'')+'.')},
+        function(m){b.disabled=false;$('nx').textContent=m});
+    };
+  }
+  // Панели взносов и отметок: «Добавить игрока в состав».
+  function reopen(r,text){
+    run('appMatchesData',[pin],function(dd){
+      D=dd;
+      if(curOpen.k=='fee')openFee(curOpen.id);else openGame(curOpen.id);
+      setMsg('pm',r.dryRun?'Пробный режим: в таблицу ничего не записано.':text);
+    },fail);
+  }
+  function pickUI(eid){
+    var e=ev(eid)||{},keys=['team','group','grp','squad'],tf='',all=false,q='',sel={};
+    if(PL&&PL[0])keys.forEach(function(k){if(!tf&&PL[0][k]!==undefined)tf=k});
+    var box=$('apbox');
+    box.innerHTML='<input id="pq" placeholder="Поиск по фамилии" autocomplete="off">'
+      +'<label style="display:flex;gap:10px;align-items:center;padding:10px 0"><input type="checkbox" id="pall" style="width:22px;height:22px;min-height:0"><span>Показать всех игроков клуба</span></label>'
+      +'<div id="pl" style="max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:0 10px"></div>'
+      +'<div style="display:flex;gap:8px;margin-top:10px"><button class="btn sec" id="psa">Выбрать всех в списке</button><button class="btn" id="pgo">Добавить (0)</button></div>'
+      +'<div class="msg err" id="pgx"></div>';
+    function shown(){
+      return PL.filter(function(p){
+        var inTeam=all||!tf||String(p[tf]||'').indexOf(e.team)===0;
+        return inTeam&&p.name.toLowerCase().indexOf(q)>=0;
+      }).sort(function(a,b){return a.name.localeCompare(b.name)});
+    }
+    function cnt(){var n=Object.keys(sel).filter(function(k){return sel[k]}).length;$('pgo').textContent='Добавить ('+n+')';return n}
+    function draw(){
+      var l=shown();
+      $('pl').innerHTML=l.map(function(p){
+        return'<label style="display:flex;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)"><input type="checkbox" data-id="'+p.id+'"'+(sel[p.id]?' checked':'')+' style="width:22px;height:22px;min-height:0;flex:none"><span>'+esc(p.name)+(tf&&p[tf]?' <small style="color:var(--mute)">'+esc(p[tf])+'</small>':'')+'</span></label>';
+      }).join('')||'<div style="padding:14px 0;color:var(--mute)">Никого не найдено. Включите «Показать всех игроков клуба».</div>';
+      cnt();
+    }
+    $('pq').oninput=function(){q=this.value.trim().toLowerCase();draw()};
+    $('pall').onchange=function(){all=this.checked;draw()};
+    $('pl').onchange=function(ev2){var c=ev2.target;if(c.dataset&&c.dataset.id){sel[c.dataset.id]=c.checked;cnt()}};
+    $('psa').onclick=function(){shown().forEach(function(p){sel[p.id]=true});draw()};
+    $('pgo').onclick=function(){
+      var ids=Object.keys(sel).filter(function(k){return sel[k]});
+      if(!ids.length){$('pgx').textContent='Отметьте хотя бы одного игрока';return}
+      var b=this;b.disabled=true;
+      run('appAddParticipants',[pin,eid,ids],function(r){reopen(r,'Добавлено в состав: '+r.added+'.'+(r.pulled?' Оплата подтянута: '+r.pulled+'.':''))},function(m){b.disabled=false;$('pgx').textContent=m});
+    };
+    draw();
+  }
+  function addPlayerUI(eid){
+    var d=document.createElement('div');
+    d.innerHTML='<h2>Добавить игроков в состав</h2>'
+      +'<button class="btn" id="apm">Выбрать из списка</button><div id="apbox" hidden></div>'
+      +'<h2>Или по имени</h2>'
+      +'<input id="ap" list="apl" autocomplete="off" placeholder="ФИ игрока"><datalist id="apl"></datalist><button class="btn sec" id="apb">Добавить в состав</button><div class="msg err" id="apx"></div>';
+    $('pb').appendChild(d);
+    players(function(){$('apl').innerHTML=PL.map(function(p){return'<option value="'+esc(p.name+' ('+p.id+')')+'">'}).join('')});
+    $('apm').onclick=function(){
+      var box=$('apbox');
+      if(!box.hidden){box.hidden=true;return}
+      players(function(){box.hidden=false;pickUI(eid)});
+    };
+    $('apb').onclick=function(){
+      var id=pid($('ap').value);
+      if(!id){$('apx').textContent='Выберите игрока из списка';return}
+      var b=this;b.disabled=true;
+      run('appAddParticipant',[pin,eid,id],function(r){reopen(r,'Игрок добавлен в состав.'+(r.pulled?' Оплата подтянута: '+r.pulled+'.':''))},function(m){b.disabled=false;$('apx').textContent=m});
+    };
+  }
+  var _of=openFee,_og=openGame;
+  openFee=function(id){_of(id);curOpen={k:'fee',id:id};addPlayerUI(id)};
+  openGame=function(id){_og(id);curOpen={k:'game',id:id};var e=ev(id);addPlayerUI(e.parent||id)};
+  if(D)list();
+})();
+</script>
