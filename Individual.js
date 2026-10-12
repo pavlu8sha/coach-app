@@ -53,6 +53,7 @@ function appIndPay(pin, id, name, method, comment) {
     var ev = indFind_(id), p = indPlayer_(ev, name);
     if (!p) throw new Error('Игрок не записан');
     if (p.paid) throw new Error('Уже оплачено');
+    indPayFileWrite_(ev.date, p.name, IND_PRICE); // сначала файл оплат: если там не получилось, оплата не отмечается
     indSS_().getSheetByName(ev.sheet).getRange(p.row, 4).setValue(true);
     indLog_('Оплата', ev, p.name, IND_PRICE, method || 'Наличные', comment || '');
     return { ok: true };
@@ -65,6 +66,7 @@ function appIndUnpay(pin, id, name) {
     var ev = indFind_(id), p = indPlayer_(ev, name);
     if (!p) throw new Error('Игрок не записан');
     if (!p.paid) throw new Error('Оплаты нет');
+    indPayFileClear_(ev.date, p.name);
     indSS_().getSheetByName(ev.sheet).getRange(p.row, 4).setValue(false);
     indLog_('Отмена', ev, p.name, -IND_PRICE, indLastPayMethod_(ev.id, p.name), 'отмена оплаты, строка ' + p.row);
     return { ok: true };
