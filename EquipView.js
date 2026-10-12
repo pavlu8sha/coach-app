@@ -29,7 +29,7 @@ function addOrderCore_(o) {
     for (c = 1; c < 12; c++) { if (String(rows[i][c]).trim() !== '') empty = false; }
     if (empty && String(rows[i][0]).trim() !== '' && !isNaN(Number(rows[i][0]))) row = EQ_FIRST + i;
   }
-  if (!row) throw new Error('В файле экипировки нет свободных пронумерованных строк. Добавьте их перед строкой итогов.');
+  if (!row) row = newOrderRow_(sh); // свободных строк нет: вставляем новую перед итогами
   var dateStr = o.date || today_();
   if (!CONFIG.DRY_RUN) {
     // Столбцы B:J одной записью (дата, ФИ, комплект, размер, надпись, номер, рассрочка, сумма, оплачено)
@@ -49,4 +49,31 @@ function addOrderCore_(o) {
     logChange_(o.id, p.name, 'новый заказ экипировки', '', o.kit + ', ' + sum + ' ₾, строка ' + row);
   }
   return { ok: true, dryRun: CONFIG.DRY_RUN, row: row };
+}
+// Новая строка заказа перед строкой итогов: вставляем строку и расширяем формулы итогов (SUM по столбцам I, J, K).
+// Если строка итогов не похожа на ожидаемую, останавливаемся, ничего не меняя.
+function newOrderRow_(sh) {
+  var vals = sh.getRange(EQ_FIRST, 1, EQ_ROWS, 12).getValues(), tot = 0, maxNum = 0, i, c, empty;
+  for (i = 0; i < vals.length && !tot; i++) {
+    empty = true;
+    for (c = 1; c < 8; c++) { if (String(vals[i][c]).trim() !== '') empty = false; }
+    if (empty && String(vals[i][8]).trim() !== '') tot = EQ_FIRST + i;
+  }
+  if (!tot) throw new Error('В файле экипировки не найдена строка итогов. Добавьте строку заказа вручную.');
+  for (i = 0; i < tot - EQ_FIRST; i++) {
+    if (String(vals[i][0]).trim() !== '' && !isNaN(Number(vals[i][0]))) maxNum = Math.max(maxNum, Number(vals[i][0]));
+  }
+  var ok = true;
+  var fixed = sh.getRange(tot, 9, 1, 3).getFormulas()[0].map(function (s) {
+    var m = /^=SUM\(([A-Z])4:([A-Z])(\d+)\)$/.exec(String(s));
+    if (!m || m[1] !== m[2] || Number(m[3]) !== tot - 1) { ok = false; return s; }
+    return '=SUM(' + m[1] + '4:' + m[2] + tot + ')';
+  });
+  if (!ok) throw new Error('Строка итогов в файле экипировки изменена. Добавьте строку заказа вручную.');
+  if (!CONFIG.DRY_RUN) {
+    sh.insertRowBefore(tot);
+    sh.getRange(tot + 1, 9, 1, 3).setFormulas([fixed]);
+    sh.getRange(tot, 1).setValue(maxNum + 1);
+  }
+  return tot;
 }
