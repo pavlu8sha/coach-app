@@ -34,7 +34,8 @@ function indPayReconcile() {
     for (var i = b.hdr + 2; i < b.end; i++) {
       var name = String(b.vals[i][1]).trim();
       if (!name) continue;
-      sheetRows.push({ row: i + 1, name: name, text: String(b.vals[i][2]).trim(), amt: b.vals[i][3], used: false });
+      var dv = b.vals[i][2], text = dv instanceof Date ? Utilities.formatDate(dv, Session.getScriptTimeZone(), 'dd.MM.yyyy') : String(dv).trim();
+      sheetRows.push({ row: i + 1, name: name, text: text, amt: b.vals[i][3], used: false });
     }
     list.sort(function (x, y) { return x.date.split('.').reverse().join('').localeCompare(y.date.split('.').reverse().join('')) || x.name.localeCompare(y.name); });
     list.forEach(function (e) {
