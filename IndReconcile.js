@@ -2,27 +2,26 @@
  *  Ничего не записывает. Запускается вручную из редактора Apps Script (функция indPayReconcile), результат в журнале (Просмотр → Журнал). */
 
 function indPayReconcile() {
-  var out = [], log = dbRead_(IND_LOG);
-  if (!log || log.getLastRow() < 2) { Logger.log('Журнал индивидуальных оплат пуст'); return; }
-  var rows = log.getRange(2, 1, log.getLastRow() - 1, 7).getValues(), net = {}, nameOf = {}, unparsed = 0;
-  // Чистая сумма по каждому игроку и занятию: оплата минус отмена. Больше 0 = оплачено.
-  rows.forEach(function (r) {
-    var type = String(r[5]);
-    if (type !== 'Оплата' && type !== 'Отмена') return;
-    var m = /\|(\d{4})-(\d{2})-(\d{2}) (\d{2}:\d{2})( gk)?$/.exec(String(r[1])), amt = Number(r[3]) || 0;
-    if (!m) { unparsed++; return; }
-    var dateStr = m[3] + '.' + m[2] + '.' + m[1], key = norm(r[2]) + '|' + dateStr;
-    net[key] = (net[key] || 0) + amt;
-    nameOf[key] = String(r[2]).trim();
+  // Оплаты берём из листов занятий (галочка «оплатил» у игрока): там история всех занятий, журнал IND_LOG начат позже
+  var net = {}, nameOf = {}, evs = indParseRaw_();
+  evs.forEach(function (e) {
+    var p = e.date.split('-'), dateStr = p[2] + '.' + p[1] + '.' + p[0];
+    e.players.forEach(function (pl) {
+      if (!pl.paid) return;
+      var key = norm(pl.name) + '|' + dateStr;
+      net[key] = (net[key] || 0) + IND_PRICE;
+      nameOf[key] = pl.name;
+    });
   });
-  var paid = Object.keys(net).filter(function (k) { return net[k] > 0; });
+  var out = [];
+  out.push('Оплаченных занятий (галочка на листах занятий): ' + Object.keys(net).length);
+  var paid = Object.keys(net);
   var byMonth = {};
   paid.forEach(function (k) {
     var ds = k.split('|')[1], p = ds.split('.'), month = p[1] + '.' + p[2].slice(2);
     (byMonth[month] = byMonth[month] || []).push({ name: nameOf[k], date: ds, key: k });
   });
   var file = payFile_(), tot = { ok: 0, weak: 0, missing: 0, extra: 0 };
-  out.push('Оплат в журнале приложения (чистых, > 0): ' + paid.length + (unparsed ? '. Записей без даты занятия: ' + unparsed : ''));
   Object.keys(byMonth).sort(function (a, b) { return revMonth_(a).localeCompare(revMonth_(b)); }).forEach(function (month) {
     var sh = file.getSheetByName(month), list = byMonth[month];
     out.push('');
