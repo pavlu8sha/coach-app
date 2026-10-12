@@ -51,6 +51,10 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
     </select>
     <select id="fg" aria-label="Группа"></select>
   </div>
+  <select id="fl" aria-label="Локация" style="margin-top:8px">
+    <option value="">Все локации: сначала красный парк</option><option value="red">Только красный парк</option>
+    <option value="oth">Только ортачала и исани</option><option value="none">Без локации в реестре</option>
+  </select>
   <button class="btn" id="new">+ Новый заказ</button>
   <div class="tiles" id="sum"></div>
   <p class="sub" id="fileSum"></p>
@@ -107,6 +111,9 @@ function fillGroups(){
   $('fg').innerHTML='<option value="">Все группы</option>'+g.map(function(x){return'<option>'+esc(x)+'</option>'}).join('');
   $('fg').value=v;
 }
+// Локация из реестра: красный парк, ортачала + исани (одна категория), остальные
+function locBucket(l){var s=nn(l||'');if(!s)return'none';if(/красн/.test(s))return'red';if(/ортач|исан/.test(s))return'oth';return'rest'}
+var LOC_ORD={red:0,oth:1,rest:2,none:3};
 function rows(){
   var by={};
   O.forEach(function(o){if(!o.kit&&!o.sum)return;(by[o.id]=by[o.id]||[]).push(o)});
@@ -179,12 +186,16 @@ function show(){
     setMsg(flash+(u.length?'Выберите игрока и нажмите «Привязать к игроку».':'Все заказы привязаны.'));flash='';
     $('list').innerHTML=u.map(ucard).join('');return;
   }
-  var f=F[fv];
+  var f=F[fv],lv=$('fl').value;
   var a=rows().filter(function(r){
     if(!f(r))return false;
+    if(lv&&locBucket(r.p.loc)!=lv)return false;
     if(g&&r.p.group!=g&&r.p.extras.indexOf(g)<0)return false;
     return !q||(r.p.name+' '+r.p.id).toLowerCase().indexOf(q)>=0;
   });
+  // Порядок: сначала красный парк, потом ортачала и исани, затем остальные; внутри категории по реестру
+  a=a.map(function(r,i){return{r:r,i:i}}).sort(function(x,y){
+    return (LOC_ORD[locBucket(x.r.p.loc)]-LOC_ORD[locBucket(y.r.p.loc)])||(x.i-y.i)}).map(function(x){return x.r});
   var S=0,Pd=0,Dt=0;a.forEach(function(r){S+=r.sum;Pd+=r.paid;Dt+=r.debt});
   $('sum').innerHTML=tile('игроков в списке',a.length)+tile('заказано',money(S))+tile('оплачено',money(Pd))+tile('долг',money(Dt),Dt>0);
   setMsg(flash+(UNL.length?'Заказов без привязки: '+UNL.length+' (фильтр «Заказы без привязки»).':''));flash='';
@@ -243,7 +254,7 @@ function submit(){
     load();
   },function(m){$('fsave').disabled=false;fmsg(m,true)});
 }
-$('q').oninput=show;$('fs').onchange=show;$('fg').onchange=show;
+$('q').oninput=show;$('fs').onchange=show;$('fg').onchange=show;$('fl').onchange=show;
 $('new').onclick=openForm;
 $('fcancel').onclick=function(){$('form').hidden=true;$('app').hidden=false};
 $('fkit').onchange=function(){$('fsum').value=PR[this.value]||''};
