@@ -11,6 +11,9 @@ function equipSyncLocations_(sh) {
   var out = ids.map(function (r) { return [locOf[String(r[0]).trim()] || '']; });
   sh.getRange(3, EQ_LOC_COL).setValue('Локация');
   sh.getRange(EQ_FIRST, EQ_LOC_COL, EQ_ROWS, 1).setValues(out);
+  // оформление как у остальных ячеек колонки: по центру, без жирного (новая строка его не наследует)
+  var lc = sh.getRange(EQ_FIRST, EQ_LOC_COL, EQ_ROWS, 1);
+  lc.setHorizontalAlignment('center').setFontWeight('normal');
   return out.filter(function (r) { return r[0] !== ''; }).length;
 }
 
