@@ -174,7 +174,7 @@ function orderHtml(o,p,linked){
     +relForm(linked?'Сменить игрока':'Привязать к игроку',linked,o.row)+'</div>';
 }
 function card(r){
-  var b=!r.os.length?'<span class="sub">не заказывал</span>':(r.debt>0?'<span class="err">долг '+money(r.debt)+'</span>':'<span class="ok">оплачено</span>');
+  var b=!r.os.length?'<span class="sub">не заказывал</span>':(r.sum<=0?'<span class="err">сумма не указана</span>':(r.debt>0?'<span class="err">долг '+money(r.debt)+'</span>':'<span class="ok">оплачено</span>'));
   var kits=r.os.map(function(o){return o.kit||'без комплекта'}).join(', ');
   return'<details><summary><div class="top"><span>'+esc(r.p.name)+'</span>'+b+'</div><div class="sub">'+esc(r.p.group+(kits?' / '+kits:''))+'</div></summary>'
     +(r.os.map(function(o){return orderHtml(o,r.p,true)}).join('')||'<div class="ord sub">Заказов нет.</div>')+'</details>';
@@ -188,8 +188,9 @@ function show(){
   var PM={};P.forEach(function(p){PM[p.id]=p});
   DUP={};O.forEach(function(o){var p=PM[o.id];if(!p||!String(o.num||'').trim())return;var k=baseGroup(p.group)+'|'+nn(o.num);(DUP[k]=DUP[k]||{})[o.id]=1});
   var AS=0,AP=0,AD=0,AA=O.concat(UNL),NP=0;
+  var UA=0,UP=0,UD=0;UNL.forEach(function(o){UA+=o.sum;UP+=o.paid;UD+=o.debt});
   AA.forEach(function(o){AS+=o.sum;AP+=o.paid;AD+=o.debt;if(missOf(o).length||isDup(o,PM[o.id]))NP++});
-  $('fileSum').textContent='Весь файл: заказов '+AA.length+', заказано '+money(AS)+', оплачено '+money(AP)+', долг '+money(AD)+'; заказов с незаполненными данными или повтором номера: '+NP+'. Фильтры ниже этот итог не меняют.';
+  $('fileSum').textContent='Весь файл: заказов '+AA.length+', заказано '+money(AS)+', оплачено '+money(AP)+', долг '+money(AD)+'. Из них без привязки к игроку ('+UNL.length+' заказ., '+money(UA)+') в списке игроков не показываются: плашки выше считают только игроков. Заказов с незаполненными данными или повтором номера: '+NP+'. Фильтры итог не меняют.';
   if(fv=='unl'){
     var u=UNL.filter(function(o){return!q||nn(o.oname).indexOf(q)>=0});
     var S0=0;u.forEach(function(o){S0+=o.sum});
