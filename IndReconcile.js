@@ -21,7 +21,7 @@ function indPayReconcile() {
     var ds = k.split('|')[1], p = ds.split('.'), month = p[1] + '.' + p[2].slice(2);
     (byMonth[month] = byMonth[month] || []).push({ name: nameOf[k], date: ds, key: k });
   });
-  var file = payFile_(), tot = { ok: 0, weak: 0, missing: 0, extra: 0 }, skippedMonths = 0, skippedRows = 0;
+  var file = payFile_(), tot = { ok: 0, weak: 0, missing: 0, extra: 0, amt: 0 }, skippedMonths = 0, skippedRows = 0;
   Object.keys(byMonth).sort(function (a, b) { return revMonth_(a).localeCompare(revMonth_(b)); }).forEach(function (month) {
     var sh = file.getSheetByName(month), list = byMonth[month];
     out.push('');
@@ -49,7 +49,10 @@ function indPayReconcile() {
         if (kind === 'strong' && !hit) hit = s;
         if (kind === 'weak' && !weak) weak = s;
       });
-      if (hit) { hit.used = true; tot.ok++; }
+      if (hit) {
+        hit.used = true; tot.ok++;
+        if (indAmount_(hit.amt) !== IND_PRICE) { tot.amt++; out.push('  СУММА В ТАБЛИЦЕ НЕ ' + IND_PRICE + ' ₾ (строка ' + hit.row + '): ' + e.name + ', ' + e.date + ', в таблице: ' + (String(hit.amt).trim() || 'пусто')); }
+      }
       else if (weak) { weak.used = true; tot.weak++; out.push('  БЕЗ ДАТЫ В ТАБЛИЦЕ (проверьте строку ' + weak.row + '): ' + e.name + ', ' + e.date); }
       else { tot.missing++; out.push('  НЕТ В ТАБЛИЦЕ: ' + e.name + ', ' + e.date); }
     });
@@ -59,7 +62,7 @@ function indPayReconcile() {
   });
   out.push('');
   out.push('Пропущено месяцев без листа в файле оплат: ' + skippedMonths + ' (оплат: ' + skippedRows + ')');
-  out.push('ИТОГО: совпало ' + tot.ok + ', совпало без даты ' + tot.weak + ', нет в таблице ' + tot.missing + ', лишних в таблице ' + tot.extra);
+  out.push('ИТОГО: совпало ' + tot.ok + ', совпало без даты ' + tot.weak + ', с неверной суммой ' + tot.amt + ', нет в таблице ' + tot.missing + ', лишних в таблице ' + tot.extra);
   Logger.log(out.join('\n'));
 }
 
