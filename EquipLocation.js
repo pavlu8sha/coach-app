@@ -26,3 +26,23 @@ function appSyncEquipLocations(pin) {
     if (!CONFIG.DRY_RUN) lock.releaseLock();
   }
 }
+
+// Группа для номеров: u7-a и u7-b считаются одной группой «u7»
+function baseGroup_(g) { return String(g || '').trim().replace(/\s*-\s*[a-zа-яё]$/i, ''); }
+
+// Ищет другого игрока той же группы с таким же номером. Возвращает ФИ или ''. row — строку заказа не сравниваем.
+function equipNumClash_(sh, id, num, row) {
+  num = String(num || '').trim().toLowerCase();
+  if (!num) return '';
+  var groupOf = {};
+  readRegistry_().players.forEach(function (p) { groupOf[p.id] = baseGroup_(p.group); });
+  var myG = groupOf[id];
+  if (!myG) return '';
+  var vals = sh.getRange(EQ_FIRST, 1, EQ_ROWS, 12).getValues(), hit = '';
+  vals.forEach(function (r, i) {
+    var rr = EQ_FIRST + i, oid = String(r[11]).trim();
+    if (rr === row || !oid || oid === id || hit) return;
+    if (String(r[6]).trim().toLowerCase() === num && groupOf[oid] === myG) hit = String(r[2]).trim() || oid;
+  });
+  return hit;
+}
