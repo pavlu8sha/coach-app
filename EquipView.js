@@ -38,6 +38,7 @@ function addOrderCore_(o) {
     rg.setNumberFormats(nf);
     rg.setValues([[serialOf(dateStr), p.name, o.kit, String(o.size || ''), String(o.inscr || ''), String(o.num || ''), o.inst ? 'Да' : '', sum, paid]]);
     sh.getRange(row, 12).setValue(o.id);
+    equipSyncLocations_(sh);
     var k = sh.getRange(row, 11);
     // формула долга: копируем из строки выше (текст формулы из кода в таблице с нашим языком не всегда читается)
     var above = sh.getRange(row - 1, 11);

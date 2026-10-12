@@ -56,6 +56,7 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
     <option value="oth">Только ортачала и исани</option><option value="none">Без локации в реестре</option>
   </select>
   <button class="btn" id="new">+ Новый заказ</button>
+  <button class="btn sec" id="locsync">Локации в таблице</button>
   <div class="tiles" id="sum"></div>
   <p class="sub" id="fileSum"></p>
   <div class="msg" id="msg" role="status"></div>
@@ -256,6 +257,7 @@ function submit(){
 }
 $('q').oninput=show;$('fs').onchange=show;$('fg').onchange=show;$('fl').onchange=show;
 $('new').onclick=openForm;
+$('locsync').onclick=function(){setMsg('Записываю локации в таблицу…');run('appSyncEquipLocations',[pin],function(r){setMsg('Локации записаны в таблицу экипировки: '+r.filled+' заказов.')},function(m){setMsg(m,true)})};
 $('fcancel').onclick=function(){$('form').hidden=true;$('app').hidden=false};
 $('fkit').onchange=function(){$('fsum').value=PR[this.value]||''};
 $('fpaid').oninput=function(){$('fmrow').hidden=!(Number(this.value)>0)};

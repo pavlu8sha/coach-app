@@ -57,6 +57,7 @@ function relinkCore_(row, newId, fix) {
   var moved = 0;
   if (!CONFIG.DRY_RUN) {
     sh.getRange(row, 12).setValue(newId || '');
+    equipSyncLocations_(sh);
     if (np && fix && orderName !== np.name) {
       sh.getRange(row, 3).setValue(np.name);
       logChange_(np.id, np.name, 'ФИ в заказе экипировки', orderName, np.name);
