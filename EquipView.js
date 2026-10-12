@@ -39,7 +39,10 @@ function addOrderCore_(o) {
     rg.setValues([[serialOf(dateStr), p.name, o.kit, String(o.size || ''), String(o.inscr || ''), String(o.num || ''), o.inst ? 'Да' : '', sum, paid]]);
     sh.getRange(row, 12).setValue(o.id);
     var k = sh.getRange(row, 11);
-    k.setFormula('=IF(I' + row + '="","",MAX(I' + row + '-J' + row + ',0))'); // долг строки: всегда своя формула
+    // формула долга: копируем из строки выше (текст формулы из кода в таблице с нашим языком не всегда читается)
+    var above = sh.getRange(row - 1, 11);
+    if (above.getFormula()) above.copyTo(k, SpreadsheetApp.CopyPasteType.PASTE_FORMULA, false);
+    else k.setFormula('=IF(I' + row + '="","",MAX(I' + row + '-J' + row + ',0))');
     if (paid > 0) {
       var ps = dbSheet_(PAY_SHEET, PAY_HEAD);
       var r2 = ps.getLastRow() + 1;
