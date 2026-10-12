@@ -39,7 +39,7 @@ function addOrderCore_(o) {
     rg.setValues([[serialOf(dateStr), p.name, o.kit, String(o.size || ''), String(o.inscr || ''), String(o.num || ''), o.inst ? 'Да' : '', sum, paid]]);
     sh.getRange(row, 12).setValue(o.id);
     var k = sh.getRange(row, 11);
-    if (!k.getFormula()) k.setFormula('=IF(I' + row + '="","",MAX(I' + row + '-J' + row + ',0))');
+    k.setFormula('=IF(I' + row + '="","",MAX(I' + row + '-J' + row + ',0))'); // долг строки: всегда своя формула
     if (paid > 0) {
       var ps = dbSheet_(PAY_SHEET, PAY_HEAD);
       var r2 = ps.getLastRow() + 1;
@@ -74,6 +74,19 @@ function newOrderRow_(sh) {
     sh.insertRowBefore(tot);
     sh.getRange(tot + 1, 9, 1, 3).setFormulas([fixed]);
     sh.getRange(tot, 1).setValue(maxNum + 1);
+    // оформление как у строки выше (шрифт, цвета, границы)
+    sh.getRange(tot - 1, 1, 1, 12).copyTo(sh.getRange(tot, 1, 1, 12), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+    // условное форматирование (зелёный/красный по оплате): расширяем диапазон, который заканчивается строкой выше
+    var rules = sh.getConditionalFormatRules();
+    sh.setConditionalFormatRules(rules.map(function (rule) {
+      var changed = false;
+      var nr = rule.getRanges().map(function (r) {
+        if (r.getLastRow() !== tot - 1) return r;
+        changed = true;
+        return sh.getRange(r.getRow(), r.getColumn(), r.getNumRows() + 1, r.getNumColumns());
+      });
+      return changed ? rule.copy().setRanges(nr).build() : rule;
+    }));
   }
   return tot;
 }
