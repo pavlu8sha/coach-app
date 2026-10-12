@@ -34,7 +34,11 @@ function indPayReconcile() {
     for (var i = b.hdr + 2; i < b.end; i++) {
       var name = String(b.vals[i][1]).trim();
       if (!name) continue;
-      var dv = b.vals[i][2], text = dv instanceof Date ? Utilities.formatDate(dv, Session.getScriptTimeZone(), 'dd.MM.yyyy') : String(dv).trim();
+      var text = dateText_(b.vals[i][2]);
+      if (!text) { // дата может стоять в объединённой ячейке (на несколько строк): берём значение верхней левой ячейки
+        var mr = sh.getRange(i + 1, 3).getMergedRanges();
+        if (mr.length) text = dateText_(mr[0].getCell(1, 1).getValue());
+      }
       sheetRows.push({ row: i + 1, name: name, text: text, amt: b.vals[i][3], used: false });
     }
     list.sort(function (x, y) { return x.date.split('.').reverse().join('').localeCompare(y.date.split('.').reverse().join('')) || x.name.localeCompare(y.name); });
@@ -67,4 +71,8 @@ function dayMatch_(text, dateStr) {
   var m = /(\d{1,2})\s*[-–]\s*(\d{1,2})\.(\d{1,2})\.(\d{4})/.exec(text);
   if (m && +m[4] === yr && +m[3] === mon && day >= +m[1] && day <= +m[2]) return 'strong';
   return null;
+}
+
+function dateText_(v) {
+  return v instanceof Date ? Utilities.formatDate(v, Session.getScriptTimeZone(), 'dd.MM.yyyy') : String(v).trim();
 }
