@@ -114,7 +114,7 @@ function fillGroups(){
   $('fg').value=v;
 }
 // Локация из реестра: красный парк, ортачала + исани (одна категория), остальные
-function locBucket(l){var s=nn(l||'');if(!s)return'none';if(/красн/.test(s))return'red';if(/ортач|исан/.test(s))return'oth';return'rest'}
+function locBucket(l){var s=nn(l||'');if(!s)return'none';if(/красн|krasn/.test(s))return'red';if(/ортач|исан|ortach|isan/.test(s))return'oth';return'rest'}
 var LOC_ORD={red:0,oth:1,rest:2,none:3};
 // Обязательные данные заказа (для любого комплекта): размер, номер, надпись. Номер уникален внутри группы (u7-a и u7-b — это u7).
 function baseGroup(g){return String(g||'').trim().replace(/\s*-\s*[a-zа-яё]$/i,'')}
