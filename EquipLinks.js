@@ -102,8 +102,9 @@ function editOrderCore_(row, o) {
   }
   var after = [kit || before[0], String(o.size || '').trim(), String(o.inscr || '').trim(), String(o.num || '').trim(), o.inst ? 'Да' : ''];
   if (!CONFIG.DRY_RUN) {
-    sh.getRange(row, 5, 1, 3).setNumberFormat('@'); // размер, надпись, номер хранятся как текст
-    sh.getRange(row, 4, 1, 5).setValues([after]);
+    // Пишем по одной ячейке: многоколоночная запись диапазона в Sheets даёт ошибку «выберите элемент в одном столбце»
+    [5, 6, 7].forEach(function (col) { sh.getRange(row, col).setNumberFormat('@'); }); // размер, надпись, номер хранятся как текст
+    for (var ci = 0; ci < after.length; ci++) { sh.getRange(row, 4 + ci).setValue(after[ci]); }
     if (newSum !== null) sh.getRange(row, 9).setValue(newSum);
     cacheDropBig_('eq_v1');
     var what = before.join(' | ') + (newSum !== null ? ' | сумма ' + oldSum : '');
