@@ -78,6 +78,9 @@ function createPayMonthCore_(month) {
       });
       if (dcells.length) sh.getRangeList(dcells).clearContent();
       if (ncells.length) sh.getRangeList(ncells).clearContent();
+      // Блок «Индивидуальные / Вратарские» разбор листа пропускает, поэтому чистим его отдельно: новый месяц начинается пустым
+      var bcells = indBlockCells_(sh);
+      if (bcells.length) sh.getRangeList(bcells).clearContent();
       var MN = ['ЯНВАРЬ', 'ФЕВРАЛЬ', 'МАРТ', 'АПРЕЛЬ', 'МАЙ', 'ИЮНЬ', 'ИЮЛЬ', 'АВГУСТ', 'СЕНТЯБРЬ', 'ОКТЯБРЬ', 'НОЯБРЬ', 'ДЕКАБРЬ'];
       var a1 = String(sh.getRange('A1').getValue());
       if (a1.indexOf('ОПЛАТЫ') >= 0) {

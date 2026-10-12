@@ -85,3 +85,34 @@ function indAmount_(v) {
   if (typeof v === 'number') return v;
   return Number(String(v).replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
 }
+
+// Ячейки B:D строк блока «Индивидуальные / Вратарские», где что-то записано (для очистки листа)
+function indBlockCells_(sh) {
+  var b;
+  try { b = indBlock_(sh); } catch (e) { return []; }
+  var cells = [];
+  for (var i = b.hdr + 2; i < b.end; i++) {
+    for (var c = 1; c < 4; c++) {
+      if (String(b.vals[i][c]).trim() !== '') cells.push(String.fromCharCode(66 + c - 1) + (i + 1));
+    }
+  }
+  return cells;
+}
+
+// Вручную из редактора: показать, что будет очищено на листе месяца (ничего не меняет)
+function indBlockClearPreview(month) {
+  var sh = payFile_().getSheetByName(month);
+  if (!sh) { Logger.log('Нет листа ' + month); return; }
+  var n = indBlockCells_(sh).length;
+  Logger.log('Лист ' + month + ': в блоке «' + IND_BLOCK_NAME + '» заполнено ячеек: ' + n + '. Очистка: indBlockClearDo(\'' + month + '\')');
+}
+
+// Вручную из редактора: очистить блок на листе месяца (только B:D блока, колонка A и остальной лист не трогаются)
+function indBlockClearDo(month) {
+  var sh = payFile_().getSheetByName(month);
+  if (!sh) throw new Error('Нет листа ' + month);
+  var cells = indBlockCells_(sh);
+  if (cells.length) sh.getRangeList(cells).clearContent();
+  monthInvalidate_(month);
+  Logger.log('Лист ' + month + ': очищено ячеек блока: ' + cells.length);
+}
