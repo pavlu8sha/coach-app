@@ -31,6 +31,10 @@ function indPayFileWrite_(dateStr, name, amount) {
   var sh = payFile_().getSheetByName(month);
   if (!sh) throw new Error('Нет листа ' + month + ' в файле оплат. Оплата не внесена.');
   var b = indBlock_(sh), row = 0, i;
+  // Предоплата: строка этого игрока с суммой и без даты уже стоит в таблице. Заполняем её датой занятия, а не добавляем дубль.
+  for (i = b.hdr + 2; i < b.end && !row; i++) {
+    if (norm(b.vals[i][1]) === norm(name) && indAmount_(b.vals[i][3]) > 0 && indRowDate_(sh, i + 1) === '') row = i + 1;
+  }
   for (i = b.hdr + 2; i < b.end && !row; i++) {
     if (String(b.vals[i][1]).trim() === '') row = i + 1; // свободная строка блока (1-based)
   }
@@ -64,4 +68,20 @@ function indPayFileClear_(dateStr, name) {
   }
   monthInvalidate_(month);
   return { cleared: cleared, month: month };
+}
+
+// Дата строки таблицы с учётом объединённых ячеек
+function indRowDate_(sh, row) {
+  var t = dateText_(sh.getRange(row, 3).getValue());
+  if (!t) {
+    var mr = sh.getRange(row, 3).getMergedRanges();
+    if (mr.length) t = dateText_(mr[0].getCell(1, 1).getValue());
+  }
+  return t;
+}
+
+// Сумма из ячейки: число или текст вида «50,00 ₾»
+function indAmount_(v) {
+  if (typeof v === 'number') return v;
+  return Number(String(v).replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
 }
