@@ -21,12 +21,12 @@ function indPayReconcile() {
     var ds = k.split('|')[1], p = ds.split('.'), month = p[1] + '.' + p[2].slice(2);
     (byMonth[month] = byMonth[month] || []).push({ name: nameOf[k], date: ds, key: k });
   });
-  var file = payFile_(), tot = { ok: 0, weak: 0, missing: 0, extra: 0 };
+  var file = payFile_(), tot = { ok: 0, weak: 0, missing: 0, extra: 0 }, skippedMonths = 0, skippedRows = 0;
   Object.keys(byMonth).sort(function (a, b) { return revMonth_(a).localeCompare(revMonth_(b)); }).forEach(function (month) {
     var sh = file.getSheetByName(month), list = byMonth[month];
     out.push('');
     out.push('== Лист ' + month + ' (' + list.length + ' оплат из приложения)');
-    if (!sh) { list.forEach(function (e) { tot.missing++; out.push('  НЕТ ЛИСТА: ' + e.name + ', ' + e.date); }); return; }
+    if (!sh) { skippedMonths++; skippedRows += list.length; return; } // в файле оплат нет листа за этот месяц: история до него не сверяется
     var b;
     try { b = indBlock_(sh); } catch (err) { out.push('  ' + err.message); return; }
     var sheetRows = [];
@@ -58,6 +58,7 @@ function indPayReconcile() {
     });
   });
   out.push('');
+  out.push('Пропущено месяцев без листа в файле оплат: ' + skippedMonths + ' (оплат: ' + skippedRows + ')');
   out.push('ИТОГО: совпало ' + tot.ok + ', совпало без даты ' + tot.weak + ', нет в таблице ' + tot.missing + ', лишних в таблице ' + tot.extra);
   Logger.log(out.join('\n'));
 }
