@@ -17,19 +17,6 @@ function equipSyncLocations_(sh) {
   return out.filter(function (r) { return r[0] !== ''; }).length;
 }
 
-// Кнопка «Локации в таблице» на странице экипировки
-function appSyncEquipLocations(pin) {
-  checkAdmin_(pin);
-  var lock = LockService.getScriptLock();
-  if (!CONFIG.DRY_RUN) lock.waitLock(20000);
-  try {
-    var n = equipSyncLocations_(equipSheet_());
-    return { ok: true, dryRun: CONFIG.DRY_RUN, filled: n };
-  } finally {
-    if (!CONFIG.DRY_RUN) lock.releaseLock();
-  }
-}
-
 // Группа для номеров: u7-a и u7-b считаются одной группой «u7»
 function baseGroup_(g) { return String(g || '').trim().replace(/\s*-\s*[a-zа-яё]$/i, ''); }
 
