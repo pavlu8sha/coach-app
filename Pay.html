@@ -48,8 +48,6 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
   <div class="row2"><select id="mon" aria-label="Месяц"></select>
     <select id="fs" aria-label="Показать"><option value="all">Все</option><option value="debt">Только должники</option></select></div>
   <input id="q" placeholder="Поиск по ФИ" style="margin-top:8px">
-  <label>Способ оплаты</label>
-  <div class="seg" id="meth"><button data-m="Наличные" aria-pressed="false">Наличные</button><button data-m="Перевод" aria-pressed="false">Перевод</button></div>
   <div class="row2">
     <div><label>Дата оплаты</label><input type="date" id="dt"></div>
     <div><label>Комментарий</label><input id="cm" placeholder="необязательно"></div>
@@ -113,7 +111,8 @@ function show(){
 }
 // Форма строки: сумма и тип (если сумма меньше остатка). Способ, дата и комментарий — общие сверху.
 function form(r){
-  return'<label>Сумма, ₾</label><input type="number" min="1" step="1" class="pa" value="'+r.debt+'" data-debt="'+r.debt+'">'
+  return'<label>Способ оплаты</label><div class="seg pmseg"><button class="pmb" data-m="Наличные" aria-pressed="false">Наличные</button><button class="pmb" data-m="Перевод" aria-pressed="false">Перевод</button></div>'
+    +'<label>Сумма, ₾</label><input type="number" min="1" step="1" class="pa" value="'+r.debt+'" data-debt="'+r.debt+'">'
     +'<div class="pt" hidden><label>Сумма меньше остатка. Что это?</label><select class="ptype"><option value="">Выберите…</option><option value="Скидка">Скидка по договорённости (оплата принята)</option><option value="Частичный">Частичный платёж (останется долг)</option></select></div>'
     +'<button class="btn go2">Внести оплату</button><div class="msg err pm"></div>';
 }
@@ -141,6 +140,7 @@ $('list').onclick=function(e){
   if(b.classList.contains('go2')){
     var f2=b.closest('.pf'),g3=D.groups[f2.dataset.g],r3=g3.rows[f2.dataset.r];
     var amt=Number(f2.querySelector('.pa').value),type=f2.querySelector('.ptype').value,pm=f2.querySelector('.pm');
+    var pmb=f2.querySelector('.pmb[aria-pressed=true]'),method=pmb?pmb.dataset.m:'';
     if(!method){pm.textContent='Выберите способ оплаты';return}
     if(amt<r3.debt&&!type){pm.textContent='Выберите тип: скидка или частичный платёж';return}
     b.disabled=true;
@@ -153,7 +153,7 @@ $('list').oninput=function(e){
   var pt=e.target.closest('.pf').querySelector('.pt');
   pt.hidden=Number(e.target.value)>=Number(e.target.dataset.debt);
 };
-$('meth').onclick=function(e){var b=e.target.closest('button');if(!b)return;method=b.dataset.m;[].forEach.call(this.children,function(x){x.setAttribute('aria-pressed',x==b)})};
+$('list').addEventListener('click',function(e){var b=e.target.closest('.pmb');if(!b)return;[].forEach.call(b.parentNode.children,function(x){x.setAttribute('aria-pressed',x==b)})});
 $('mon').onchange=loadMonth;$('fs').onchange=show;$('q').oninput=show;
 $('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;try{localStorage.setItem('apin',pin)}catch(e){}load()};
 try{pin=localStorage.getItem('apin')||''}catch(e){}
