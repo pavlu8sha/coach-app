@@ -16,7 +16,6 @@ function appAddPayment(pin, id, row, amount, dateStr, comment, method) {
     var sum = Math.round((Number(eq.getRange(row, 9).getValue()) || 0) * 100) / 100;
     var paid = Math.round((Number(eq.getRange(row, 10).getValue()) || 0) * 100) / 100;
     var left = Math.round((sum - paid) * 100) / 100;
-    return { ok: true, dryRun: CONFIG.DRY_RUN, paid: newPaid, debt: Math.max(Math.round((left - amount) * 100) / 100, 0) };
     var name = String(eq.getRange(row, 3).getValue()).trim(), kit = String(eq.getRange(row, 4).getValue()).trim();
     var newPaid = Math.round((paid + amount) * 100) / 100;
     if (!CONFIG.DRY_RUN) {
