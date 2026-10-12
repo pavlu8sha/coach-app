@@ -53,6 +53,7 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
   </div>
   <button class="btn" id="new">+ Новый заказ</button>
   <div class="tiles" id="sum"></div>
+  <p class="sub" id="fileSum"></p>
   <div class="msg" id="msg" role="status"></div>
   <div id="list"></div>
 </div>
@@ -167,6 +168,10 @@ function ucard(o){
 }
 function show(){
   var q=nn($('q').value),g=$('fg').value,fv=$('fs').value;
+  // Итог по всему файлу экипировки (все заказы, и с привязкой, и без): совпадает с итогами в таблице
+  var AS=0,AP=0,AD=0,AA=O.concat(UNL);
+  AA.forEach(function(o){AS+=o.sum;AP+=o.paid;AD+=o.debt});
+  $('fileSum').textContent='Весь файл: заказов '+AA.length+', заказано '+money(AS)+', оплачено '+money(AP)+', долг '+money(AD)+'. Фильтры ниже этот итог не меняют.';
   if(fv=='unl'){
     var u=UNL.filter(function(o){return!q||nn(o.oname).indexOf(q)>=0});
     var S0=0;u.forEach(function(o){S0+=o.sum});

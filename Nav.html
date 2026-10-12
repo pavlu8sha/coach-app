@@ -11,6 +11,8 @@ input:focus,select:focus,button:focus-visible,a:focus-visible{outline:3px solid 
 .res,.prog,.tile,details,li.p,.card{border-radius:14px!important;box-shadow:var(--sh)}
 #ksnav{position:fixed;left:0;right:0;bottom:0;z-index:50;display:flex;background:var(--card);border-top:1px solid var(--line);height:calc(var(--navh) + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom)}
 #ksnav[hidden],#ksmore[hidden],#ksblock[hidden],#kstoast[hidden]{display:none}
+/* До входа по коду не показываем ни меню, ни вкладки страницы: только форму входа */
+html:not([data-ok]) #ksnav,html:not([data-ok]) [data-gate]{display:none!important}
 .kst{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:0;background:none;color:var(--mute);text-decoration:none;font:600 11px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer;min-width:0}
 .kst.on{color:var(--g)}
 #ksmore{position:fixed;right:12px;bottom:calc(var(--navh) + 10px + env(safe-area-inset-bottom));width:min(300px,calc(100vw - 24px));z-index:55;background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.18);padding:6px;display:flex;flex-direction:column}
@@ -90,6 +92,7 @@ img,table,select,input,textarea{max-width:100%}
   function show(){
     var tr=asTrainer(),main=tr?['att','games','stats']:['att','admin','pay','games'],more=tr?[]:['stats','equip','camp','ind','funnel'];
     var moreOn=more.indexOf(PAGE)>=0,sh='';
+    document.documentElement.setAttribute('data-ok','1');
     nav.innerHTML=main.map(function(k){return link(k,'kst')}).join('')+'<button class="kst'+(moreOn?' on':'')+'" id="ksmb">'+svg('more')+'<span>Ещё</span></button>';
     more.forEach(function(k){sh+=link(k,'ksi')});
     if(role=='admin')sh+='<div class="ksmode"><button data-m="admin"'+(tr?'':' class="on"')+'>Админ</button><button data-m="trainer"'+(tr?' class="on"':'')+'>Тренер</button></div>';

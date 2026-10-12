@@ -51,7 +51,8 @@ function tabsHtml_(url, page) {
     return '<a target="_top" href="' + url + '?page=' + t[1] + '" style="padding:7px 14px;border-radius:10px;text-decoration:none;font:600 14px system-ui,-apple-system,sans-serif;border:1px solid var(--line,#DCE3DD);'
       + (on ? 'background:var(--ink,#15211A);color:var(--bg,#F4F6F3)' : 'background:var(--card,#fff);color:var(--ink,#15211A)') + '">' + t[0] + '</a>';
   }).join('');
-  return '<div style="display:flex;flex-wrap:wrap;gap:8px;padding:10px 16px 0;max-width:592px;margin:0 auto;box-sizing:border-box;width:100%">' + h + '</div>';
+  // data-gate: вкладки показываются только после входа по коду (см. Nav.html)
+  return '<div data-gate style="display:flex;flex-wrap:wrap;gap:8px;padding:10px 16px 0;max-width:592px;margin:0 auto;box-sizing:border-box;width:100%">' + h + '</div>';
 }
 
 function doGet(e) {
