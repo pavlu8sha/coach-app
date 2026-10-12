@@ -118,19 +118,19 @@ function locBucket(l){var s=nn(l||'');if(!s)return'none';if(/красн/.test(s)
 var LOC_ORD={red:0,oth:1,rest:2,none:3};
 // Обязательные данные заказа (для любого комплекта): размер, номер, надпись. Номер уникален внутри группы (u7-a и u7-b — это u7).
 function baseGroup(g){return String(g||'').trim().replace(/\s*-\s*[a-zа-яё]$/i,'')}
-function missOf(o){var m=[];if(!String(o.size||'').trim())m.push('размер');if(!String(o.num||'').trim())m.push('номер');if(!String(o.inscr||'').trim())m.push('надпись');return m}
+function missOf(o){var m=[];if(!o.kit)m.push('комплект');if(!(o.sum>0))m.push('сумма');if(!String(o.size||'').trim())m.push('размер');if(!String(o.num||'').trim())m.push('номер');if(!String(o.inscr||'').trim())m.push('надпись');return m}
 var DUP={};
 function isDup(o,p){if(!p||!String(o.num||'').trim())return false;return Object.keys(DUP[baseGroup(p.group)+'|'+nn(o.num)]||{}).length>1}
 function rows(){
   var by={};
-  O.forEach(function(o){if(!o.kit&&!o.sum)return;(by[o.id]=by[o.id]||[]).push(o)});
+  O.forEach(function(o){if(!o.id)return;(by[o.id]=by[o.id]||[]).push(o)});
   return P.filter(function(p){return p.status=='Активен'||by[p.id]}).map(function(p){
     var os=by[p.id]||[],s=0,pd=0;os.forEach(function(o){s+=o.sum;pd+=o.paid});
     return{p:p,os:os,sum:s,paid:pd,debt:Math.max(s-pd,0)};
   });
 }
 var F={all:function(){return true},ordered:function(r){return r.os.length>0},not:function(r){return!r.os.length},
-  paid:function(r){return r.os.length>0&&r.sum>0&&r.debt==0},debt:function(r){return r.debt>0},zero:function(r){return r.sum>0&&r.paid==0},miss:function(r){return r.os.some(function(o){return o.kit&&(missOf(o).length||isDup(o,r.p))})}};
+  paid:function(r){return r.os.length>0&&r.sum>0&&r.debt==0},debt:function(r){return r.debt>0},zero:function(r){return r.sum>0&&r.paid==0},miss:function(r){return r.os.some(function(o){return missOf(o).length||isDup(o,r.p)})}};
 function tile(t,v,bad){return'<div class="tile"><b'+(bad?' class="err"':'')+'>'+v+'</b><span>'+t+'</span></div>'}
 function relForm(label,withUnlink,row){
   return'<div class="acts"><button class="btn sec rl">'+label+'</button>'+(withUnlink?'<button class="btn sec ul" data-row="'+row+'">Отвязать</button>':'<span></span>')+'</div>'
@@ -157,7 +157,7 @@ function payOrder(b,ord){
   },function(m){b.disabled=false;pm.textContent=m});
 }
 function orderHtml(o,p,linked){
-  var prob=[];if(o.kit){var mi=missOf(o);if(mi.length)prob.push('не заполнено: '+mi.join(', '));if(isDup(o,p))prob.push('номер '+o.num+' повторяется в группе '+baseGroup(p.group))}
+  var prob=[];var mi=missOf(o);if(mi.length)prob.push('не заполнено: '+mi.join(', '));if(isDup(o,p))prob.push('номер '+o.num+' повторяется в группе '+baseGroup(p.group));
   return'<div class="ord"><b>'+esc(o.kit||'Комплект не указан')+'</b>'+(o.inst?' (рассрочка)':'')
     +(prob.length?'<div class="sub err">'+esc(prob.join('; '))+'</div>':'')
     +(p&&nn(o.oname)!=nn(p.name)?'<div class="sub err">В файле заказа записано: '+esc(o.oname)+'</div>':'')
@@ -165,7 +165,7 @@ function orderHtml(o,p,linked){
     +'<div>Сумма '+money(o.sum)+', оплачено '+money(o.paid)+', долг '+money(o.debt)+'</div>'
     +(linked&&o.debt>0?payForm(o):'')
     +'<button class="btn sec ed" style="margin-top:8px">Изменить заказ</button>'
-    +'<div class="edf" hidden><label>Комплект</label><select class="ekit">'+Object.keys(PR).map(function(k){return'<option'+(k==o.kit?' selected':'')+'>'+esc(k)+'</option>'}).join('')+'</select>'
+    +'<div class="edf" hidden><label>Комплект</label><select class="ekit">'+(o.kit?'':'<option value="" selected>Не выбран</option>')+Object.keys(PR).map(function(k){return'<option'+(k==o.kit?' selected':'')+'>'+esc(k)+'</option>'}).join('')+'</select>'
     +'<label>Размер</label><input class="esize" value="'+esc(o.size||'')+'">'
     +'<label>Надпись</label><input class="einscr" value="'+esc(o.inscr||'')+'">'
     +'<label>Номер</label><input class="enum" value="'+esc(o.num||'')+'">'
@@ -186,9 +186,9 @@ function show(){
   var q=nn($('q').value),g=$('fg').value,fv=$('fs').value;
   // Итог по всему файлу экипировки (все заказы, и с привязкой, и без): совпадает с итогами в таблице
   var PM={};P.forEach(function(p){PM[p.id]=p});
-  DUP={};O.forEach(function(o){var p=PM[o.id];if(!p||!o.kit||!String(o.num||'').trim())return;var k=baseGroup(p.group)+'|'+nn(o.num);(DUP[k]=DUP[k]||{})[o.id]=1});
+  DUP={};O.forEach(function(o){var p=PM[o.id];if(!p||!String(o.num||'').trim())return;var k=baseGroup(p.group)+'|'+nn(o.num);(DUP[k]=DUP[k]||{})[o.id]=1});
   var AS=0,AP=0,AD=0,AA=O.concat(UNL),NP=0;
-  AA.forEach(function(o){AS+=o.sum;AP+=o.paid;AD+=o.debt;if(o.kit&&(missOf(o).length||isDup(o,PM[o.id])))NP++});
+  AA.forEach(function(o){AS+=o.sum;AP+=o.paid;AD+=o.debt;if(missOf(o).length||isDup(o,PM[o.id]))NP++});
   $('fileSum').textContent='Весь файл: заказов '+AA.length+', заказано '+money(AS)+', оплачено '+money(AP)+', долг '+money(AD)+'; заказов с незаполненными данными или повтором номера: '+NP+'. Фильтры ниже этот итог не меняют.';
   if(fv=='unl'){
     var u=UNL.filter(function(o){return!q||nn(o.oname).indexOf(q)>=0});
