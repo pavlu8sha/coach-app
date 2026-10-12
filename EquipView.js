@@ -22,7 +22,7 @@ function addOrderCore_(o) {
   if (method && PAY_METHODS.indexOf(method) < 0) throw new Error('Неизвестный способ оплаты');
   var p = readRegistry_().players.filter(function (x) { return x.id === o.id; })[0];
   if (!p) throw new Error('Игрок не найден: ' + o.id);
-  if (!String(o.size || '').trim() || !String(o.num || '').trim() || !String(o.inscr || '').trim()) throw new Error('Для заказа укажите размер, номер и надпись');
+  if (!String(o.size || '').trim() || !String(o.num || '').trim() || (inscrNeeded_(o.kit) && !String(o.inscr || '').trim())) throw new Error('Для заказа укажите размер, номер и надпись');
   var sh = equipSheet_();
   var clash = equipNumClash_(sh, o.id, o.num, 0);
   if (clash) throw new Error('Номер ' + o.num + ' уже у игрока «' + clash + '» в этой группе. Выберите другой номер.');

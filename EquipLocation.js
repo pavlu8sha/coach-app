@@ -46,3 +46,6 @@ function equipNumClash_(sh, id, num, row) {
   });
   return hit;
 }
+
+// Надпись нужна на всех комплектах, кроме тренировочного
+function inscrNeeded_(kit) { return String(kit || '').trim().toLowerCase() !== 'тренировочная'; }

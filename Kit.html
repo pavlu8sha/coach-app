@@ -118,7 +118,7 @@ function locBucket(l){var s=nn(l||'');if(!s)return'none';if(/красн/.test(s)
 var LOC_ORD={red:0,oth:1,rest:2,none:3};
 // Обязательные данные заказа (для любого комплекта): размер, номер, надпись. Номер уникален внутри группы (u7-a и u7-b — это u7).
 function baseGroup(g){return String(g||'').trim().replace(/\s*-\s*[a-zа-яё]$/i,'')}
-function missOf(o){var m=[];if(!o.kit)m.push('комплект');if(!(o.sum>0))m.push('сумма');if(!String(o.size||'').trim())m.push('размер');if(!String(o.num||'').trim())m.push('номер');if(!String(o.inscr||'').trim())m.push('надпись');return m}
+function missOf(o){var m=[];if(!o.kit)m.push('комплект');if(!(o.sum>0))m.push('сумма');if(!String(o.size||'').trim())m.push('размер');if(!String(o.num||'').trim())m.push('номер');if(nn(o.kit)!=='тренировочная'&&!String(o.inscr||'').trim())m.push('надпись');return m}
 var DUP={};
 function isDup(o,p){if(!p||!String(o.num||'').trim())return false;return Object.keys(DUP[baseGroup(p.group)+'|'+nn(o.num)]||{}).length>1}
 function rows(){
