@@ -190,6 +190,8 @@ function addPlayerCore_(p) {
     var r = last + 1, sh = reg.sh;
     if (r > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), r - sh.getMaxRows());
     sh.getRange(r, 1, 1, row.length).setValues([row]);
+    // оформление как у строки выше (цвета, рамки, шрифт); значения не трогаем
+    if (r > 4) sh.getRange(r - 1, 1, 1, row.length).copyTo(sh.getRange(r, 1, 1, row.length), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
     sh.getRange(r, 6).setNumberFormat('dd.MM.yyyy');
     logChange_(id, name, 'добавлен', '', p.group + (extras.length ? ' + ' + extras.join(', ') : ''));
     regInvalidate_();
