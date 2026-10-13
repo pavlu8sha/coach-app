@@ -66,7 +66,7 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
   <h1>Новый заказ</h1>
   <label>Игрок (введите ФИ или ID и выберите из списка)</label>
   <input id="fpl" list="plist" autocomplete="off">
-  <label>Комплект</label><select id="fkit"></select><div class="msg" id="fbundle"></div>
+  <label>Позиции заказа</label><div id="fkits" class="kits"></div><div class="msg" id="fbundle"></div>
   <label>Сумма заказа, ₾</label><input id="fsum" type="number" min="0" step="1">
   <label>Размер</label><select id="fsizeSel" hidden></select><input id="fsize" placeholder="например, 140 или майка - 164, шорты - M">
   <label>Надпись</label><input id="finscr">
@@ -80,7 +80,7 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
   <button class="btn sec" id="fcancel">Отмена</button>
 </div>
 <script>
-var pin='',P=[],O=[],UNL=[],PR={},SZ={},flash='',BUNDLE='Полный комплект (скидка 15%)';
+var pin='',P=[],O=[],UNL=[],PR={},SZ={},flash='';
 function $(i){return document.getElementById(i)}
 function run(fn,args,ok,fail){var r=google.script.run.withSuccessHandler(ok).withFailureHandler(function(e){fail(e&&e.message?e.message:String(e))});r[fn].apply(r,args)}
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
@@ -247,55 +247,43 @@ $('list').onclick=function(e){
     return;
   }
 };
-// Полный комплект: игровая, тренировочная, костюм и дождевик. Со скидкой 15% (525 ₾ от 620 ₾), в рассрочку — без скидки.
-var BUNDLE_KEYS=[/игров/i,/тренировоч/i,/костюм/i,/дождевик/i];
-function bundleFull(){
-  var names=Object.keys(PR),sum=0;
-  for(var i=0;i<BUNDLE_KEYS.length;i++){
-    var f=names.filter(function(n){return BUNDLE_KEYS[i].test(n)})[0];
-    if(!f)return null;
-    sum+=PR[f];
-  }
-  return sum;
-}
-function bundleDisc(full){return Math.floor(full*0.85/5)*5}
-function kitOptions(){
-  var names=Object.keys(PR),full=bundleFull(),opts=names.map(function(k){return'<option>'+esc(k)+'</option>'});
-  if(full)opts.push('<option>'+esc(BUNDLE)+'</option>');
-  $('fkit').innerHTML=opts.join('');
-}
-// Костюм и дождевик со скидкой 15%, если у игрока уже есть игровая и тренировочная (носки и гетры не в счёт)
+// Скидка 15% на сумму заказа: если у игрока уже есть игровая и тренировочная (или в заказе все четыре основные позиции).
+// Носки и гетры в расчёт не входят. При рассрочке скидка не применяется. Сумма округляется до 5 ₾.
+var CORE=[/игров/i,/тренировоч/i,/костюм/i,/дождевик/i];
 var DISC_ITEM=/костюм|дождевик/i;
 function playerHasBase(id){
   var has=function(re){return O.some(function(o){return o.id===id&&re.test(o.kit||'')})};
   return has(/полный комплект/i)||(has(/игров/i)&&has(/тренировоч/i));
 }
+function r5(n){return Math.round(n/5)*5}
+function selKits(){return[].map.call(document.querySelectorAll('#fkits input:checked'),function(i){return i.value})}
+function kitsBox(){
+  $('fkits').innerHTML=Object.keys(PR).map(function(k){
+    return'<label class="kit"><input type="checkbox" value="'+esc(k)+'"> '+esc(k)+' — '+PR[k]+' ₾</label>';
+  }).join('');
+  [].forEach.call(document.querySelectorAll('#fkits input'),function(i){i.onchange=refreshSum});
+}
 function refreshSum(){
-  var k=$('fkit').value,full=bundleFull(),id=pid($('fpl').value);
-  if(k!==BUNDLE&&DISC_ITEM.test(k)&&id&&playerHasBase(id)){
-    var price=PR[k]||0,disc=Math.round(price*0.85);
-    $('fsum').value=$('finst').checked?price:disc;
-    $('fbundle').textContent=$('finst').checked?'Рассрочка: скидка не применяется, '+price+' ₾':'Скидка 15% (есть игровая и тренировочная): '+disc+' ₾ вместо '+price+' ₾';
-    refreshSizes();return;
-  }
-  if(k===BUNDLE&&full){
-    var disc=bundleDisc(full);
-    $('fsum').value=$('finst').checked?full:disc;
-    $('fbundle').textContent=$('finst').checked?'Рассрочка: скидка не применяется, '+full+' ₾':'Скидка 15%: '+disc+' ₾ вместо '+full+' ₾';
-  }else{
-    $('fsum').value=PR[k]||'';
-    $('fbundle').textContent='';
-  }
+  var ks=selKits(),base=0;
+  ks.forEach(function(k){base+=PR[k]||0});
+  var id=pid($('fpl').value),inst=$('finst').checked;
+  var bundleAll=CORE.every(function(re){return ks.some(function(k){return re.test(k)})});
+  var hasDisc=ks.some(function(k){return DISC_ITEM.test(k)});
+  var eligible=!!id&&((playerHasBase(id)&&hasDisc)||bundleAll);
+  var disc=!inst&&eligible&&ks.length>0;
+  var sum=disc?r5(base*0.85):base;
+  $('fsum').value=ks.length?sum:'';
+  $('fbundle').textContent=!ks.length?'':(disc?'Скидка 15% на заказ: '+sum+' ₾ вместо '+base+' ₾':(inst&&eligible?'Рассрочка: скидка не применяется, '+base+' ₾':''));
   refreshSizes();
 }
 function refreshSizes(){
-  var k=$('fkit').value,list=k===BUNDLE?[]:(SZ[k]||[]);
+  var ks=selKits(),list=ks.length===1?(SZ[ks[0]]||[]):[];
   $('fsizeSel').hidden=!list.length;$('fsize').hidden=!!list.length;
   if(list.length)$('fsizeSel').innerHTML=list.map(function(v){return'<option>'+esc(v)+'</option>'}).join('');
 }
 function openForm(){
   $('app').hidden=true;$('form').hidden=false;fmsg('');
-  kitOptions();
+  kitsBox();
   ['fpl','fsize','finscr','fnum'].forEach(function(i){$(i).value=''});
   $('finst').checked=false;$('fpaid').value=0;$('fmt').value='';$('fmrow').hidden=true;$('fdate').value=today();
   refreshSum();
@@ -303,7 +291,8 @@ function openForm(){
 function submit(){
   var id=pid($('fpl').value);
   if(!id){fmsg('Выберите игрока из списка',true);return}
-  var kit=$('fkit').value;
+  if(!selKits().length){fmsg('Отметьте хотя бы одну позицию',true);return}
+  var kit=selKits().join(' + ');
   var o={id:id,kit:kit,sum:Number($('fsum').value),size:(!$('fsizeSel').hidden?$('fsizeSel').value:$('fsize').value.trim()),inscr:$('finscr').value.trim(),num:$('fnum').value.trim(),inst:$('finst').checked,paid:Number($('fpaid').value)||0,date:$('fdate').value,method:$('fmt').value};
   if(o.paid>0&&!o.method){fmsg('Выберите способ оплаты: наличные или перевод',true);return}
   $('fsave').disabled=true;fmsg('Сохраняю…');
@@ -316,7 +305,6 @@ function submit(){
 $('q').oninput=show;$('fs').onchange=show;$('fg').onchange=show;$('fl').onchange=show;
 $('new').onclick=openForm;
 $('fcancel').onclick=function(){$('form').hidden=true;$('app').hidden=false};
-$('fkit').onchange=refreshSum;
 $('finst').onchange=refreshSum;
 $('fpl').oninput=refreshSum;
 $('fpl').onchange=refreshSum;
