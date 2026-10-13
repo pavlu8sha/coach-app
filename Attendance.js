@@ -171,6 +171,7 @@ function saveAttendanceCore_(group, dateStr, marks) {
 
   var fcol = sheet.getRange(block.firstRow, dateCol, n, 1).getFormulas(); // формулы колонки даты одним запросом
   var writes = []; // {row, col, value, isDate}
+  var addedRows = []; // строки, куда добавлено новое имя (им нужен формат как у соседних)
   marks.forEach(function (m) {
     var row = rowByName[norm(m.name)], added = false;
     if (!row) {
@@ -189,6 +190,7 @@ function saveAttendanceCore_(group, dateStr, marks) {
       free.shift();
       rowByName[norm(m.name)] = row;
       writes.push({ row: row, col: 2, value: m.name });
+      addedRows.push(row);
     }
     writes.push({ row: row, col: dateCol, value: !!m.present });
     report.results.push({ name: m.name, result: added ? 'добавлен в лист и записан' : 'записан' });
@@ -201,6 +203,11 @@ function saveAttendanceCore_(group, dateStr, marks) {
   if (!CONFIG.DRY_RUN) {
     var byCol = {};
     writes.forEach(function (w) { (byCol[w.col] = byCol[w.col] || []).push(w); });
+    addedRows.forEach(function (r) {
+      // шрифт и оформление имени — как у соседней строки блока
+      var ref = r > block.firstRow ? r - 1 : r + 1;
+      sheet.getRange(ref, 2).copyTo(sheet.getRange(r, 2), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+    });
     Object.keys(byCol).forEach(function (col) {
       var ws = byCol[col].sort(function (a, b) { return a.row - b.row; }), i = 0;
       while (i < ws.length) {
