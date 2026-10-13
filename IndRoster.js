@@ -187,10 +187,12 @@ function indAdmAppend_(date, time, gk, theme) {
 // Старое занятие с оплатами, которых нет в файле оплат, не переносится (расхождение).
 function indMigratePlan_() {
   indDropSheetCache_(); // старые листы кэшируются на час: читаем свежие данные
+  var tz = Session.getScriptTimeZone(), today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
   var old = indParseRaw_(), adm = indParseAdm_(), plan = [];
   old.forEach(function (ev) {
     var unpaid = ev.players.filter(function (p) { return !p.paid; });
-    if (!unpaid.length) return;
+    // будущие занятия переносим всегда, даже без записей: иначе они остаются только для чтения
+    if (!unpaid.length && ev.date < today) return;
     var done = adm.some(function (a) { return a.date === ev.date && a.time === ev.time && a.goalkeepers === ev.goalkeepers; });
     if (done) return;
     var fileP = indPfPlayers_(ev.date, {}, ev.goalkeepers);
