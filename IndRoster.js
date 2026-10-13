@@ -164,3 +164,58 @@ function indAdmAppend_(date, time, gk, theme) {
     Utilities.formatDate(new Date(), tz, 'dd.MM.yyyy HH:mm')]]);
   return { row: r, id: indAdmId_(date, time, gk) };
 }
+
+// ===== Перенос неоплаченных записей старых занятий в новую модель (разово) =====
+// Строки в файле оплат для записанных уже есть (их ведёт файл оплат), перенос создаёт занятие в AdminApp.
+// Старое занятие с оплатами, которых нет в файле оплат, не переносится (расхождение).
+function indMigratePlan_() {
+  var old = indParseRaw_(), adm = indParseAdm_(), plan = [];
+  old.forEach(function (ev) {
+    var unpaid = ev.players.filter(function (p) { return !p.paid; });
+    if (!unpaid.length) return;
+    var done = adm.some(function (a) { return a.date === ev.date && a.time === ev.time && a.goalkeepers === ev.goalkeepers; });
+    if (done) return;
+    var fileP = indPfPlayers_(ev.date, {});
+    var inFile = function (name) { return fileP.some(function (f) { return norm(f.name) === norm(name); }); };
+    var mism = ev.players.filter(function (p) {
+      return p.paid && !fileP.some(function (f) { return norm(f.name) === norm(p.name) && f.paid; });
+    }).map(function (p) { return p.name; });
+    plan.push({
+      ev: ev, unpaid: unpaid, mism: mism,
+      toEnroll: unpaid.filter(function (p) { return !inFile(p.name); })
+    });
+  });
+  return plan;
+}
+
+// Только отчёт в журнал, ничего не пишет
+function indMigrateReport() {
+  indMigratePlan_().forEach(function (x) {
+    Logger.log(x.ev.id + ' | неоплаченных: ' + x.unpaid.map(function (p) { return p.name; }).join(', ') +
+      ' | в файле оплат нет: ' + (x.toEnroll.map(function (p) { return p.name; }).join(', ') || 'нет') +
+      (x.mism.length ? ' | РАСХОЖДЕНИЕ, не перенесётся: ' + x.mism.join(', ') : ''));
+  });
+}
+
+// Переносит: создаёт занятие в AdminApp и дописывает в файл оплат недостающие строки (без сумм)
+function indMigrateApply() {
+  return indLocked_(function () {
+    var done = 0;
+    indMigratePlan_().forEach(function (x) {
+      if (x.mism.length) { Logger.log('Пропущено ' + x.ev.id + ': расхождение оплат'); return; }
+      indAdmAppend_(x.ev.date, x.ev.time, x.ev.goalkeepers, x.ev.theme);
+      x.toEnroll.forEach(function (p) { indPfEnroll_(x.ev.date, p.name); });
+      indLog_('Перенос', { id: indAdmId_(x.ev.date, x.ev.time, x.ev.goalkeepers) }, '', 0, '', 'из старой таблицы, неоплаченных: ' + x.unpaid.length);
+      done++;
+    });
+    Logger.log('Перенесено занятий: ' + done);
+    return done;
+  });
+}
+
+// Старое занятие, перенесённое в новую модель, не дублирует новое в общем списке
+function indDropMigrated_(old, adm) {
+  return old.filter(function (o) {
+    return !adm.some(function (a) { return a.date === o.date && a.time === o.time && a.goalkeepers === o.goalkeepers; });
+  });
+}

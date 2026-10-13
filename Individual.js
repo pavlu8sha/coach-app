@@ -118,7 +118,7 @@ function indParse_(fresh) {
     var c = cacheGetBig_('ind_v1');
     if (c) return c;
   }
-  var evs = indParseRaw_().concat(indParseAdm_());
+  var adm = indParseAdm_(), evs = indDropMigrated_(indParseRaw_(), adm).concat(adm);
   cachePutBig_('ind_v1', evs, 60);
   return evs;
 }
@@ -545,7 +545,8 @@ function indParseForDate_(date) {
   var old = indParseRaw_(function (name) {
     return name.split('/').some(function (t) { return keys.indexOf(t.trim()) >= 0; });
   }).filter(function (e) { return e.date === date; });
-  return old.concat(indParseAdm_(date));
+  var adm = indParseAdm_(date);
+  return indDropMigrated_(old, adm).concat(adm);
 }
 
 // Для записи: всегда свежее чтение этого занятия (новые — из AdminApp и файла оплат, старые — из старой таблицы)
