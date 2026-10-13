@@ -57,21 +57,24 @@ function indRegGroups_() {
 }
 
 // Дата строки файла оплат покрывает занятие: точная дата «дд.мм.гггг» или диапазон «дд-дд.мм.гггг» (пара суббота/воскресенье)
-function indDateCovers_(cell, want) {
+function indDateCovers_(cell, want, gk) {
   if (!cell) return false;
-  if (cell === want) return true;
-  var m = /^(\d{1,2})\s*[-\u2013]\s*(\d{1,2})\.(\d{2})\.(\d{4})$/.exec(cell);
+  var c = String(cell).trim(), isGk = /\s*вр$/i.test(c);
+  if (isGk) c = c.replace(/\s*вр$/i, '').trim();
+  if (isGk !== !!gk) return false; // строка вратарского занятия помечена «вр», индивидуального — нет
+  if (c === want) return true;
+  var m = /^(\d{1,2})\s*[-\u2013]\s*(\d{1,2})\.(\d{2})\.(\d{4})$/.exec(c);
   if (!m) return false;
   var w = want.split('.');
   return w[1] === m[3] && w[2] === m[4] && +w[0] >= +m[1] && +w[0] <= +m[2];
 }
 
 // Игроки занятия из файла оплат. cache — объект на один проход, чтобы не читать лист месяца дважды
-function indPfPlayers_(date, cache) {
+function indPfPlayers_(date, cache, gk) {
   var month = indMonthSheet_(date);
   if (!cache[month]) cache[month] = indPfRows_(month) || [];
   var want = indDmy_(date), grp = cache.groups || (cache.groups = indRegGroups_());
-  return cache[month].filter(function (r) { return indDateCovers_(r.date, want); }).map(function (r) {
+  return cache[month].filter(function (r) { return indDateCovers_(r.date, want, gk); }).map(function (r) {
     return { name: r.name, group: grp[norm(r.name)] || 'гость', paid: r.amount > 0, amount: r.amount, pfRow: r.row, pfMonth: month };
   });
 }
@@ -81,7 +84,7 @@ function indParseAdm_(filterDate) {
   var rows = indAdmRows_().filter(function (e) { return !filterDate || e.date === filterDate; });
   var cache = {};
   return rows.map(function (e) {
-    var players = indPfPlayers_(e.date, cache);
+    var players = indPfPlayers_(e.date, cache, e.gk);
     return {
       src: 'adm', sheet: IND_ADM, row: e.row, id: e.id,
       date: e.date, time: e.time, goalkeepers: e.gk, theme: e.theme,
@@ -91,10 +94,10 @@ function indParseAdm_(filterDate) {
 }
 
 // Строка игрока на дату в блоке листа месяца: номер строки (с 1) или 0
-function indPfFind_(sh, b, date, name) {
+function indPfFind_(sh, b, date, name, gk) {
   var want = indDmy_(date), low = norm(name);
   for (var i = b.hdr + 2; i < b.end; i++) {
-    if (norm(b.vals[i][1]) === low && indDateCovers_(b.dates[i], want)) return i + 1;
+    if (norm(b.vals[i][1]) === low && indDateCovers_(b.dates[i], want, gk)) return i + 1;
   }
   return 0;
 }
@@ -110,7 +113,7 @@ function indPfRenumber_(sh) {
 }
 
 // Записать игрока на занятие. Предоплата без даты (есть сумма) занимает эту строку, иначе — свободная или новая строка.
-function indPfEnroll_(date, name) {
+function indPfEnroll_(date, name, gk) {
   if (CONFIG.DRY_RUN) return { dryRun: true };
   var month = indMonthSheet_(date), sh = payFile_().getSheetByName(month);
   if (!sh) throw new Error('Нет листа ' + month + ' в файле оплат. Запись не внесена.');
@@ -118,7 +121,7 @@ function indPfEnroll_(date, name) {
   for (i = b.hdr + 2; i < b.end; i++) {
     if (norm(b.vals[i][1]) !== low) continue;
     var d = b.dates[i];
-    if (indDateCovers_(d, want)) throw new Error('Уже записан на это занятие');
+    if (indDateCovers_(d, want, gk)) throw new Error('Уже записан на это занятие');
     if (!d && !pre && indAmount_(b.vals[i][3]) > 0) pre = i + 1;
   }
   if (pre) row = pre;
@@ -131,9 +134,10 @@ function indPfEnroll_(date, name) {
     sh.getRange(row, 1).setValue(b.end - b.hdr - 1);
   }
   sh.getRange(row, 2).setValue(String(name).trim());
-  sh.getRange(row, 3).setNumberFormat('@').setValue(want);
+  var txt = want + (gk ? ' вр' : '');
+  sh.getRange(row, 3).setNumberFormat('@').setValue(txt);
   SpreadsheetApp.flush();
-  if (dateText_(sh.getRange(row, 3).getValue()) !== want) {
+  if (dateText_(sh.getRange(row, 3).getValue()) !== txt) {
     throw new Error('Дата не записалась в строку ' + row + ' файла оплат. Проверьте, нет ли объединения ячеек.');
   }
   monthInvalidate_(month);
@@ -141,11 +145,11 @@ function indPfEnroll_(date, name) {
 }
 
 // Снять игрока с занятия: строка удаляется целиком (только если не оплачено)
-function indPfUnenroll_(date, name) {
+function indPfUnenroll_(date, name, gk) {
   if (CONFIG.DRY_RUN) return { dryRun: true };
   var month = indMonthSheet_(date), sh = payFile_().getSheetByName(month);
   if (!sh) return { removed: 0 };
-  var b = indBlock_(sh), row = indPfFind_(sh, b, date, name);
+  var b = indBlock_(sh), row = indPfFind_(sh, b, date, name, gk);
   if (!row) return { removed: 0 };
   if (indAmount_(b.vals[row - 1][3]) > 0) throw new Error('Сначала отмените оплату');
   sh.deleteRow(row);
@@ -155,11 +159,11 @@ function indPfUnenroll_(date, name) {
 }
 
 // Поставить сумму оплаты (amount) или очистить её (amount = '') у записанного игрока; строка остаётся
-function indPfSetAmount_(date, name, amount) {
+function indPfSetAmount_(date, name, amount, gk) {
   if (CONFIG.DRY_RUN) return { dryRun: true };
   var month = indMonthSheet_(date), sh = payFile_().getSheetByName(month);
   if (!sh) throw new Error('Нет листа ' + month + ' в файле оплат. Оплата не внесена.');
-  var b = indBlock_(sh), row = indPfFind_(sh, b, date, name);
+  var b = indBlock_(sh), row = indPfFind_(sh, b, date, name, gk);
   if (!row) throw new Error('Игрок не записан');
   if (amount === '') sh.getRange(row, 4).clearContent();
   else sh.getRange(row, 4).setNumberFormat('#,##0.00 "₾"').setValue(amount);
@@ -189,7 +193,7 @@ function indMigratePlan_() {
     if (!unpaid.length) return;
     var done = adm.some(function (a) { return a.date === ev.date && a.time === ev.time && a.goalkeepers === ev.goalkeepers; });
     if (done) return;
-    var fileP = indPfPlayers_(ev.date, {});
+    var fileP = indPfPlayers_(ev.date, {}, ev.goalkeepers);
     var inFile = function (name) { return fileP.some(function (f) { return norm(f.name) === norm(name); }); };
     var mism = ev.players.filter(function (p) {
       return p.paid && !fileP.some(function (f) { return norm(f.name) === norm(p.name) && f.paid; });
@@ -218,7 +222,7 @@ function indMigrateApply() {
     indMigratePlan_().forEach(function (x) {
       if (x.mism.length) { Logger.log('Пропущено ' + x.ev.id + ': расхождение оплат'); return; }
       indAdmAppend_(x.ev.date, x.ev.time, x.ev.goalkeepers, x.ev.theme);
-      x.toEnroll.forEach(function (p) { indPfEnroll_(x.ev.date, p.name); });
+      x.toEnroll.forEach(function (p) { indPfEnroll_(x.ev.date, p.name, x.ev.goalkeepers); });
       indLog_('Перенос', { id: indAdmId_(x.ev.date, x.ev.time, x.ev.goalkeepers) }, '', 0, '', 'из старой таблицы, неоплаченных: ' + x.unpaid.length);
       done++;
     });

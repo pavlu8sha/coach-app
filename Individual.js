@@ -56,7 +56,7 @@ function appIndPay(pin, id, name, method, comment) {
     var p = indPlayer_(ev, name);
     if (!p) throw new Error('Игрок не записан');
     if (p.paid) throw new Error('Уже оплачено');
-    indPfSetAmount_(ev.date, p.name, IND_PRICE);
+    indPfSetAmount_(ev.date, p.name, IND_PRICE, ev.goalkeepers);
     indLog_('Оплата', ev, p.name, IND_PRICE, method || 'Наличные', comment || '');
     return { ok: true };
   });
@@ -71,7 +71,7 @@ function appIndUnpay(pin, id, name) {
     var p = indPlayer_(ev, name);
     if (!p) throw new Error('Игрок не записан');
     if (!p.paid) throw new Error('Оплаты нет');
-    indPfSetAmount_(ev.date, p.name, '');
+    indPfSetAmount_(ev.date, p.name, '', ev.goalkeepers);
     indLog_('Отмена', ev, p.name, -IND_PRICE, indLastPayMethod_(ev.id, p.name), 'отмена оплаты');
     return { ok: true };
   });
@@ -86,7 +86,7 @@ function appIndRemove(pin, id, name) {
     var p = indPlayer_(ev, name);
     if (!p) throw new Error('Игрок не записан');
     if (p.paid) throw new Error('Сначала отмените оплату');
-    indPfUnenroll_(ev.date, p.name);
+    indPfUnenroll_(ev.date, p.name, ev.goalkeepers);
     indLog_('Снят', ev, p.name, 0, '', '');
     return { ok: true };
   });
@@ -219,7 +219,7 @@ function appIndData(pin) {
 function indPutPlayer_(ev, name, group) {
   indNotOld_(ev);
   if (indPlayer_(ev, name)) throw new Error('Уже записан на это занятие');
-  indPfEnroll_(ev.date, name);
+  indPfEnroll_(ev.date, name, ev.goalkeepers);
   indLog_('Запись', ev, name, 0, '', group || 'гость');
 }
 
@@ -321,7 +321,7 @@ function indCreateEvent_(date, time, gk, theme) {
   var perm = 0, skipped = 0, slot = indSlotKey_(date, gk);
   indPermList_().filter(function (x) { return x.active && x.slot === slot; }).forEach(function (x) {
     try {
-      indPfEnroll_(date, x.name);
+      indPfEnroll_(date, x.name, gk);
       indLog_('Запись', { id: indAdmId_(date, hh, gk) }, x.name, 0, '', 'постоянный');
       perm++;
     } catch (e) { skipped++; }
@@ -346,8 +346,8 @@ function appIndEventEdit(pin, id, date, time, theme) {
     });
     if (dateChanged) { // записанные переходят на новую дату: строки в файле оплат перезаписываются
       ev.players.forEach(function (p) {
-        indPfUnenroll_(ev.date, p.name);
-        indPfEnroll_(date, p.name);
+        indPfUnenroll_(ev.date, p.name, ev.goalkeepers);
+        indPfEnroll_(date, p.name, ev.goalkeepers);
       });
     }
     var sh = dbSheet_(IND_EVT, IND_EVT_HEAD), newId = indAdmId_(date, hh, ev.goalkeepers);
@@ -374,7 +374,7 @@ function appIndEventDelete(pin, id) {
     indNotOld_(ev);
     if (ev.players.some(function (p) { return p.paid; }))
       throw new Error('Есть оплаты: сначала отмените оплату у игроков');
-    ev.players.forEach(function (p) { indPfUnenroll_(ev.date, p.name); });
+    ev.players.forEach(function (p) { indPfUnenroll_(ev.date, p.name, ev.goalkeepers); });
     dbSheet_(IND_EVT, IND_EVT_HEAD).deleteRow(ev.row);
     indLog_('Удалено', ev, '', 0, '', 'игроки: ' + ev.players.map(function (p) { return p.name; }).join(', '));
     return { ok: true };
