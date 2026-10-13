@@ -112,14 +112,31 @@ function appPayMonth(pin, month) {
     g.rows.forEach(function (r) {
       if (!r.name) { free++; return; }
       var p = byName[norm(r.name)];
+      // выбывший игрок без оплаты за месяц в списке не нужен
+      if (p && p.status !== 'Активен' && !(r.paid > 0)) return;
+      var paid = p && norm(p.group) === norm(g.name) ? effPaid_(mg, g.name, r.name, p) : r.paid;
       var disc = !!flags[month + '|' + norm(g.name) + '|' + norm(r.name)];
-      var s = subState_(T, r.paid, disc);
-      rows.push({ name: r.name, id: p ? p.id : '', paid: r.paid, st: s.st, debt: s.debt, disc: disc && r.paid > 0 && r.paid < T,
+      var s = subState_(T, paid, disc);
+      rows.push({ name: r.name, id: p ? p.id : '', paid: paid, st: s.st, debt: s.debt, disc: disc && paid > 0 && paid < T,
         method: flags['m|' + month + '|' + norm(g.name) + '|' + norm(r.name)] || '' });
     });
     return { name: g.name, tariff: T, rows: rows, free: free };
   });
   return { month: month, groups: groups };
+}
+
+// Оплата игрока за месяц в его основной группе. Если в основной группе ничего не внесено,
+// а игрок переведён из другой группы (и она не его доп. программа) — берём оплату из той группы.
+function effPaid_(mg, gn, name, p) {
+  var own = 0, moved = 0, extras = (p.extras || []).map(norm);
+  mg.forEach(function (g) {
+    g.rows.forEach(function (r) {
+      if (norm(r.name) !== norm(name)) return;
+      if (norm(g.name) === norm(gn)) own = Math.max(own, r.paid || 0);
+      else if (r.paid > 0 && extras.indexOf(norm(g.name)) < 0) moved = Math.max(moved, r.paid);
+    });
+  });
+  return own > 0 ? own : moved;
 }
 
 // Принять уже внесённую неполную сумму как «скидку по договорённости».

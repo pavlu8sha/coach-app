@@ -24,7 +24,8 @@ function appDebtors(pin, month) {
       try { T = tariff_(gn); } catch (e) { return; }
       if (!T) return;
       var key = norm(gn) + '|' + norm(p.name);
-      var paid = paidOf[key] || 0, disc = !!flags[m + '|' + norm(gn) + '|' + norm(p.name)];
+      var paid = norm(gn) === norm(p.group) ? effPaid_(mg, gn, p.name, p) : (paidOf[key] || 0);
+      var disc = !!flags[m + '|' + norm(gn) + '|' + norm(p.name)];
       var s = subState_(T, paid, disc);
       if (s.st === 'paid') return;
       (byGroup[gn] = byGroup[gn] || { name: gn, tariff: T, items: [] }).items.push(
