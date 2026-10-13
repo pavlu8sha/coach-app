@@ -81,8 +81,9 @@ function gnParseTrainings_(rows) {
     var r = rows[i];
     if (!String(r[0] || '').trim()) continue;
     var h = Number(String(r[8] || '0').replace(',', '.')) || 0;
-    out.push({ date: String(r[0]).trim(), trainer: String(r[2] || '').trim(),
-      group: String(r[4] || '').trim() || String(r[5] || '').trim(),   // группа, а если пусто — тип тренировки
+    out.push({ date: String(r[0]).trim(), trainer: String(r[2] || '').trim(), location: String(r[3] || '').trim(),
+      group: String(r[4] || '').trim() || String(r[5] || '').trim(), type: String(r[5] || '').trim(),
+      start: String(r[6] || '').trim(), end: String(r[7] || '').trim(),
       hours: Math.round(h * 100) / 100,                                 // таблица хранит часы с погрешностью вида 0,9999…
       held: String(r[9] || '').trim() === 'Да' });
   }
@@ -209,4 +210,55 @@ function appTrainingOptions(pin) {
     return out;
   }
   return { trainers: col(0), locations: col(1), groups: col(2), types: col(3) };
+}
+
+// ---- Расписание на день (устойчивое, из уже внесённых тренировок) ----
+
+function gnWeekday_(date) {
+  var p = String(date).split('.');
+  return new Date(+p[2], +p[1] - 1, +p[0]).getDay();
+}
+
+// Для каждого дня недели, времени и группы берём самого частого тренера
+function gnDefaultSchedule_(trainings) {
+  var cnt = {}, best = {};
+  trainings.forEach(function (t) {
+    if (!t.held || !t.start || !t.group) return;
+    var k = [gnWeekday_(t.date), t.start, t.end, t.group].join('|');
+    cnt[k] = cnt[k] || {};
+    cnt[k][t.trainer] = (cnt[k][t.trainer] || 0) + 1;
+  });
+  Object.keys(cnt).forEach(function (k) {
+    var parts = k.split('|'), trainer = '', n = 0;
+    Object.keys(cnt[k]).forEach(function (tr) { if (cnt[k][tr] > n) { n = cnt[k][tr]; trainer = tr; } });
+    var f = null;
+    trainings.some(function (t) { if (t.group === parts[3] && t.start === parts[1] && gnWeekday_(t.date) === +parts[0]) { f = t; return true; } return false; });
+    best[k] = { wd: +parts[0], start: parts[1], end: parts[2], group: parts[3], trainer: trainer, location: f ? f.location : '', type: f ? f.type : '', n: n };
+  });
+  return Object.keys(best).map(function (k) { return best[k]; }).sort(function (a, b) {
+    return (a.wd * 10000 + +a.start.replace(':', '')) - (b.wd * 10000 + +b.start.replace(':', ''));
+  });
+}
+
+// Тренировки на выбранную дату по устойчивому расписанию и уже внесённые
+function appDailySchedule(pin, date) {
+  checkAdmin_(pin);
+  if (!/^\d{2}\.\d{2}\.\d{4}$/.test(String(date || ''))) throw new Error('Дата в формате дд.мм.гггг');
+  var all = gnParseTrainings_(gnTrainingsRows_());
+  var wd = gnWeekday_(date);
+  var done = {};
+  all.forEach(function (t) { if (t.date === date) done[t.group + '|' + t.start] = t; });
+  return gnDefaultSchedule_(all).filter(function (x) { return x.wd === wd; }).map(function (x) {
+    var d = done[x.group + '|' + x.start];
+    return { start: x.start, end: x.end, group: x.group, trainer: x.trainer, location: x.location, type: x.type,
+      status: d ? (d.held ? 'done' : 'no') : 'open' };
+  });
+}
+
+// Подтверждение тренировки: «да» — записываем в 1Cf4, «нет» — ничего не пишем
+function appConfirmDaily(pin, o) {
+  checkAdmin_(pin);
+  if (!o.held) return { ok: true, skipped: true };
+  return appTrainingAdd(pin, { date: o.date, trainer: o.trainer, location: o.location, group: o.group,
+    type: o.type, start: o.start, end: o.end, held: true });
 }
