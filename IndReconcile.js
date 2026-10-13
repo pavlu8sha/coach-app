@@ -38,6 +38,7 @@ function indPayReconcile() {
         var mr = sh.getRange(i + 1, 3).getMergedRanges();
         if (mr.length) text = dateText_(mr[0].getCell(1, 1).getValue());
       }
+      text = String(text).replace(/\s*вр$/i, ''); // метка вратарского занятия в дате не мешает сверке
       sheetRows.push({ row: i + 1, name: name, text: text, amt: b.vals[i][3], used: false });
     }
     list.sort(function (x, y) { return x.date.split('.').reverse().join('').localeCompare(y.date.split('.').reverse().join('')) || x.name.localeCompare(y.name); });
