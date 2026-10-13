@@ -66,29 +66,6 @@
     }
   };
 
-  // Форма нового заказа: позиции из каталога, цена и поля подставляются сами.
-  var dl=document.createElement('datalist');dl.id='szl';document.body.appendChild(dl);
-  $('fsize').setAttribute('list','szl');
-  function apply(){
-    var it=active().filter(function(x){return x.name==$('fkit').value})[0];
-    if(!it)return;
-    $('fsum').value=it.price;
-    dl.innerHTML=sizesOf(it.sizes).map(function(s){return'<option value="'+esc(s)+'">'}).join('');
-    $('fsize').placeholder=it.sizes?'например, '+sizesOf(it.sizes)[0]:'';
-    [['finscr',it.inscr],['fnum',it.num]].forEach(function(p){
-      $(p[0]).hidden=!p[1];$(p[0]).previousElementSibling.hidden=!p[1];if(!p[1])$(p[0]).value='';
-    });
-  }
-  function newOrder(){
-    loadCat(function(){
-      $('app').hidden=true;pn.hidden=true;$('form').hidden=false;fmsg('');
-      $('fkit').innerHTML=active().map(function(x){return'<option>'+esc(x.name)+'</option>'}).join('');
-      ['fpl','fsize','finscr','fnum'].forEach(function(i){$(i).value=''});
-      $('finst').checked=false;$('fpaid').value=0;$('fdate').value=today();apply();
-    });
-  }
-  $('new').onclick=newOrder;
-  $('fkit').onchange=apply;
   $('fcancel').onclick=function(){$('form').hidden=true;pn.hidden=true;$('app').hidden=false};
 })();
 </script>
