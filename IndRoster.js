@@ -56,12 +56,22 @@ function indRegGroups_() {
   return map;
 }
 
+// Дата строки файла оплат покрывает занятие: точная дата «дд.мм.гггг» или диапазон «дд-дд.мм.гггг» (пара суббота/воскресенье)
+function indDateCovers_(cell, want) {
+  if (!cell) return false;
+  if (cell === want) return true;
+  var m = /^(\d{1,2})\s*[-\u2013]\s*(\d{1,2})\.(\d{2})\.(\d{4})$/.exec(cell);
+  if (!m) return false;
+  var w = want.split('.');
+  return w[1] === m[3] && w[2] === m[4] && +w[0] >= +m[1] && +w[0] <= +m[2];
+}
+
 // Игроки занятия из файла оплат. cache — объект на один проход, чтобы не читать лист месяца дважды
 function indPfPlayers_(date, cache) {
   var month = indMonthSheet_(date);
   if (!cache[month]) cache[month] = indPfRows_(month) || [];
   var want = indDmy_(date), grp = cache.groups || (cache.groups = indRegGroups_());
-  return cache[month].filter(function (r) { return r.date === want; }).map(function (r) {
+  return cache[month].filter(function (r) { return indDateCovers_(r.date, want); }).map(function (r) {
     return { name: r.name, group: grp[norm(r.name)] || 'гость', paid: r.amount > 0, amount: r.amount, pfRow: r.row, pfMonth: month };
   });
 }
@@ -84,7 +94,7 @@ function indParseAdm_(filterDate) {
 function indPfFind_(sh, b, date, name) {
   var want = indDmy_(date), low = norm(name);
   for (var i = b.hdr + 2; i < b.end; i++) {
-    if (norm(b.vals[i][1]) === low && b.dates[i] === want) return i + 1;
+    if (norm(b.vals[i][1]) === low && indDateCovers_(b.dates[i], want)) return i + 1;
   }
   return 0;
 }
@@ -108,7 +118,7 @@ function indPfEnroll_(date, name) {
   for (i = b.hdr + 2; i < b.end; i++) {
     if (norm(b.vals[i][1]) !== low) continue;
     var d = b.dates[i];
-    if (d === want) throw new Error('Уже записан на это занятие');
+    if (indDateCovers_(d, want)) throw new Error('Уже записан на это занятие');
     if (!d && !pre && indAmount_(b.vals[i][3]) > 0) pre = i + 1;
   }
   if (pre) row = pre;
