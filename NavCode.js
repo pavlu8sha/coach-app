@@ -28,7 +28,8 @@ var PAGES_ = {
   admin: ['Admin', 'Игроки'], stats: ['Stats', 'Статистика'], equip: ['Kit', 'Экипировка'],
   pay: ['Pay', 'Оплаты'], cash: ['Cash', 'Приём оплат', 'pay'], debt: ['Debt', 'Должники', 'pay'],
   games: ['Games', 'Матчи'], camp: ['Camp', 'Сборы'], ind: ['Ind', 'Индивидуальные'],
-  extra: ['ExtraPage', 'Дополнительные', 'ind'], funnel: ['FunnelPage', 'Новые игроки']
+  extra: ['ExtraPage', 'Дополнительные', 'ind'], funnel: ['FunnelPage', 'Новые игроки'],
+  accounting: ['AccountPage', 'Учёт']
 };
 // Дополнительные HTML-вставки (скрипты), подключаемые к странице
 var PAGE_EXTRAS_ = {

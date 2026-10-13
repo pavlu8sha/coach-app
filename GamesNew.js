@@ -158,3 +158,25 @@ function appTrainingAdd(pin, o) {
   logChange_('', '', 'тренировка (раздел Игры)', '', o.date + ' ' + o.trainer + ' ' + (o.group || ''));
   return { ok: true, row: r, hours: hours };
 }
+
+// ---- Страница «Учёт» (только админ): месяцы, тренировки месяца ----
+
+// Месяцы, по которым есть игры или тренировки, по возрастанию
+function appAccountMonths(pin) {
+  checkAdmin_(pin);
+  var set = {};
+  gnParseGames_(gnValues_('Игры')).matches.forEach(function (m) { set[gnMonthOf_(m.date)] = 1; });
+  gnTrainingsRows_().slice(1).forEach(function (r) { if (/^\d{2}\.\d{2}\.\d{4}$/.test(r[0])) set[gnMonthOf_(r[0])] = 1; });
+  return Object.keys(set).filter(Boolean).sort(function (a, b) {
+    var x = a.split('.'), y = b.split('.');
+    return (x[1] + x[0]) < (y[1] + y[0]) ? -1 : ((x[1] + x[0]) > (y[1] + y[0]) ? 1 : 0);
+  });
+}
+
+// Тренировки месяца для таблицы на странице
+function appTrainingsList(pin, month) {
+  checkAdmin_(pin);
+  return gnParseTrainings_(gnTrainingsRows_()).filter(function (t) {
+    return !month || gnMonthOf_(t.date) === month;
+  });
+}
