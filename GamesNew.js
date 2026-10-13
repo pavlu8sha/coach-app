@@ -122,20 +122,20 @@ function appGamesData(pin, month) {
   };
 }
 
-// ---- Тренировки в AdminApp (лист «Тренировки») ----
+// ---- Тренировки в таблице 1Cf4 (лист «Тренировки») ----
 
 var GN_TR_HEAD = ['Дата', 'День недели', 'Тренер', 'Локация', 'Группа', 'Тип тренировки', 'Начало', 'Конец', 'Часы', 'Проведено'];
 var GN_WEEKDAYS = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
 
-// Лист создаётся при первом обращении (dbSheet_ создаёт его с заголовками)
-function gnTrainingsSheet_() { return dbSheet_('Тренировки', GN_TR_HEAD); }
-
-// Все строки листа «Тренировки» из AdminApp (с заголовком), для статистики
-function gnTrainingsRows_() {
-  var sh = adminSS_().getSheetByName('Тренировки');
-  if (!sh || sh.getLastRow() < 2) return [GN_TR_HEAD];
-  return [GN_TR_HEAD].concat(sh.getDataRange().getValues().slice(1).map(function (r) { return r.map(gnStr_); }));
+// Лист «Тренировки» в таблице 1Cf4 (он уже существует)
+function gnTrainingsSheet_() {
+  var sh = SpreadsheetApp.openById(GN_FILE_ID).getSheetByName('Тренировки');
+  if (!sh) throw new Error('В таблице 1Cf4 нет листа «Тренировки»');
+  return sh;
 }
+
+// Все строки листа «Тренировки» (с заголовком), для статистики
+function gnTrainingsRows_() { return gnValues_('Тренировки'); }
 
 // Часы из времени начала и конца: «17:00» и «18:30» → 1.5
 function gnHours_(start, end) {
@@ -157,16 +157,4 @@ function appTrainingAdd(pin, o) {
     String(o.group || ''), String(o.type || ''), String(o.start || ''), String(o.end || ''), String(hours).replace('.', ','), o.held === false ? 'Нет' : 'Да']]);
   logChange_('', '', 'тренировка (раздел Игры)', '', o.date + ' ' + o.trainer + ' ' + (o.group || ''));
   return { ok: true, row: r, hours: hours };
-}
-
-// Разовый перенос тренировок из таблицы 1Cf4 в AdminApp. Работает, только если лист пуст.
-function gnTrainingsImportOnce() {
-  var sh = gnTrainingsSheet_();
-  if (sh.getLastRow() > 1) throw new Error('Лист «Тренировки» уже заполнен, перенос не выполнен');
-  var src = gnValues_('Тренировки').slice(1).filter(function (r) { return String(r[0]).trim(); });
-  if (!src.length) return 0;
-  if (CONFIG.DRY_RUN) { Logger.log('DRY_RUN: к переносу ' + src.length + ' тренировок'); return src.length; }
-  sh.getRange(2, 1, src.length, 10).setNumberFormat('@').setValues(src.map(function (r) { return r.slice(0, 10); }));
-  logChange_('', '', 'перенос тренировок из таблицы Games', '', src.length + ' строк');
-  return src.length;
 }
