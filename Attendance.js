@@ -134,6 +134,32 @@ function saveAttendanceCore_(group, dateStr, marks) {
   }
   if (dateCol < 0) return failAll('в шапке блока нет свободной колонки для даты');
 
+  // Не хватает свободных строк — вставляем их внутрь блока (перед последней строкой),
+  // чтобы итоговые формулы группы их захватили. Формат и формулы берём со строки выше.
+  var nowN = block.lastRow - block.firstRow + 1;
+  var nowNames = sheet.getRange(block.firstRow, 2, nowN, 1).getValues().map(function (r) { return norm(r[0]); });
+  var nowFree = nowNames.filter(function (x) { return x === ''; }).length;
+  var nowSet = {};
+  nowNames.forEach(function (x) { if (x) nowSet[x] = true; });
+  var missing = marks.filter(function (m) { return !nowSet[norm(m.name)]; }).length;
+  var extra = missing - nowFree;
+  if (extra > 0 && !CONFIG.DRY_RUN) {
+    var insAt = block.lastRow, lastCol = sheet.getLastColumn(), src = insAt - 1;
+    sheet.insertRowsBefore(insAt, extra);
+    sheet.getRange(src, 1, 1, lastCol).copyTo(sheet.getRange(insAt, 1, extra, lastCol), SpreadsheetApp.CopyPasteType.PASTE_NORMAL, false);
+    sheet.getRange(insAt, 2, extra, 1).clearContent();
+    sheet.getRange(insAt, CONFIG.FIRST_DATE_COL, extra, CONFIG.LAST_DATE_COL - CONFIG.FIRST_DATE_COL + 1).clearContent();
+    var srcNum = Number(sheet.getRange(src, 1).getValue());
+    if (srcNum) {
+      var nums = [];
+      for (var k = 0; k < extra; k++) nums.push([srcNum + k + 1]);
+      sheet.getRange(insAt, 1, extra, 1).setValues(nums);
+    }
+    block.lastRow += extra;
+    delete _blockMemo[sheet.getSheetId() + '|' + norm(group)];
+    SpreadsheetApp.flush();
+  }
+
   // Строки детей и свободные строки блока
   var n = block.lastRow - block.firstRow + 1;
   var names = sheet.getRange(block.firstRow, 2, n, 1).getValues();
