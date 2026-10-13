@@ -169,6 +169,7 @@ function indAdmAppend_(date, time, gk, theme) {
 // Строки в файле оплат для записанных уже есть (их ведёт файл оплат), перенос создаёт занятие в AdminApp.
 // Старое занятие с оплатами, которых нет в файле оплат, не переносится (расхождение).
 function indMigratePlan_() {
+  indDropSheetCache_(); // старые листы кэшируются на час: читаем свежие данные
   var old = indParseRaw_(), adm = indParseAdm_(), plan = [];
   old.forEach(function (ev) {
     var unpaid = ev.players.filter(function (p) { return !p.paid; });
