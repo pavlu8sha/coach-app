@@ -126,12 +126,22 @@ function indPfEnroll_(date, name, gk) {
   }
   if (pre) row = pre;
   // Свободные строки внутри групп не используем: их дата может быть объединённой ячейкой (диапазон дат группы).
-  // Новая строка всегда в конце блока.
+  // Новая строка вставляется сразу после последней строки того же дня (с нумерацией по порядку),
+  // а если такого дня в блоке нет, то после последней заполненной строки блока.
   if (!row) {
-    sh.insertRowBefore(b.end + 1);
-    row = b.end + 1;
-    sh.getRange(row - 1, 1, 1, 4).copyTo(sh.getRange(row, 1, 1, 4), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
-    sh.getRange(row, 1).setValue(b.end - b.hdr - 1);
+    var anchor = -1, sameDay = false;
+    // Вратари идут за всеми строками дня, индивидуальные — за индивидуальными строками дня
+    for (i = b.hdr + 2; i < b.end; i++) {
+      var base = String(b.dates[i]).replace(/\s*вр$/i, '').trim();
+      if (base && (gk || !/вр$/i.test(String(b.dates[i]))) && indDateCovers_(base, want, false)) { anchor = i; sameDay = true; }
+    }
+    if (anchor < 0) for (i = b.hdr + 2; i < b.end; i++) if (String(b.vals[i][1]).trim() !== '') anchor = i;
+    var at = anchor >= 0 ? anchor + 2 : b.hdr + 3; // номер строки в листе, куда вставляем
+    sh.insertRowBefore(at);
+    row = at;
+    if (anchor >= 0) sh.getRange(anchor + 1, 1, 1, 4).copyTo(sh.getRange(row, 1, 1, 4), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+    var prevNum = sameDay ? parseInt(String(b.vals[anchor][0]).trim(), 10) : 0;
+    sh.getRange(row, 1).setValue(prevNum > 0 ? prevNum + 1 : 1);
   }
   sh.getRange(row, 2).setValue(String(name).trim());
   var txt = want + (gk ? ' вр' : '');
