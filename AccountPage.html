@@ -29,6 +29,15 @@ th{color:var(--mute);font-weight:600}
 .err{color:var(--a)}
 label{font-size:13px;color:var(--mute);display:flex;gap:8px;align-items:center;margin-top:8px}
 label input{width:auto;min-height:0}
+.top{display:flex;justify-content:space-between;gap:8px;font-weight:700}
+.bar{height:6px;border-radius:3px;background:var(--n);margin-top:8px;overflow:hidden}.bar i{display:block;height:100%;background:var(--g)}
+.sub{color:var(--mute);font-size:13px;margin-top:8px}
+details{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-top:8px}
+summary{cursor:pointer;list-style:none}
+summary::-webkit-details-marker{display:none}
+ul{list-style:none;margin:6px 0 0;padding:0}
+li{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px solid var(--line);font-size:14px}
+li small{color:var(--mute)}
 </style>
 </head>
 <body>
@@ -66,7 +75,7 @@ label input{width:auto;min-height:0}
   </div>
 
   <div id="pane-gm" hidden><div class="scroll"><table id="gm-table"></table></div></div>
-  <div id="pane-st" hidden><div class="scroll"><table id="st-table"></table></div></div>
+  <div id="pane-st" hidden><div id="st-table"></div></div>
 </div>
 <script>
 var pin='',reqN=0,MN=['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
@@ -112,10 +121,22 @@ function drawGm(){
   $('gm-table').innerHTML='<tr><th>Дата</th><th>Команда</th><th>Счёт</th><th>Голы</th><th>Сотрудники</th></tr>'+(rows||'<tr><td colspan="5">Нет игр</td></tr>');
 }
 function drawSt(){
-  var rows=cache.stats.map(function(s){
-    return'<tr><td>'+esc(s.trainer)+'</td><td>'+s.trainings+'</td><td>'+String(s.hours).replace('.',',')+'</td><td>'+s.asTrainer+'</td><td>'+s.asOperator+'</td><td>'+s.parts+'</td><td>'+(s.pct===null?'—':s.pct+'%')+'</td></tr>';
+  var box=$('st-table');
+  if(!cache.stats.length){box.innerHTML='<div class="sub">Нет данных за месяц</div>';return}
+  box.innerHTML=cache.stats.map(function(s){
+    var pct=s.pct===null?'—':s.pct+'%';
+    var bar=s.pct===null?0:s.pct;
+    var tr=s.tr.map(function(t){return'<li><span>'+esc(t.date)+' · '+esc(t.group||'—')+'</span><b>'+String(t.hours).replace('.',',')+' ч</b></li>'}).join('')||'<li><span>Нет тренировок</span></li>';
+    var gm=s.gm.map(function(g){
+      var score=g.tech?'техническая победа':(g.gf===null?'—':g.gf+':'+g.ga);
+      return'<li><span>'+esc(g.date)+' · '+esc(g.team)+' — '+esc(g.opp)+'<br><small>'+esc(g.role)+(g.reg?'':', регламент не выполнен')+'</small></span><b>'+score+'</b></li>';
+    }).join('')||'<li><span>Нет игр</span></li>';
+    return'<details><summary><div class="top"><span>'+esc(s.trainer)+'</span><span>'+pct+'</span></div>'
+      +'<div class="bar"><i style="width:'+bar+'%"></i></div>'
+      +'<div class="sub">Тренировок: '+s.trainings+' ('+String(s.hours).replace('.',',')+' ч) · игр как тренер: '+s.asTrainer+' · как оператор: '+s.asOperator+' · участий: '+s.parts+'</div></summary>'
+      +'<div class="sub"><b>Тренировки</b></div><ul>'+tr+'</ul>'
+      +'<div class="sub"><b>Игры</b></div><ul>'+gm+'</ul></details>';
   }).join('');
-  $('st-table').innerHTML='<tr><th>Тренер</th><th>Тренировок</th><th>Часов</th><th>Игр как тренер</th><th>Игр как оператор</th><th>Участий</th><th>Регламент</th></tr>'+(rows||'<tr><td colspan="7">Нет данных</td></tr>');
 }
 function showTab(t){
   tab=t;

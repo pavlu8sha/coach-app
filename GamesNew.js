@@ -86,13 +86,20 @@ function gnParseTrainings_(rows) {
   return out;
 }
 
+// Сравнение дат «dd.MM.yyyy»
+function gnSortDate_(a, b) {
+  var x = a.split('.'), y = b.split('.');
+  return (x[2] + x[1] + x[0]) < (y[2] + y[1] + y[0]) ? -1 : ((x[2] + x[1] + x[0]) > (y[2] + y[1] + y[0]) ? 1 : 0);
+}
+
 // Статистика по тренерам за месяц (месяц «MM.yyyy»; пусто — все месяцы)
 function gnStats_(games, trainings, month) {
   var st = {};
-  function row(name) { return st[name] = st[name] || { trainer: name, trainings: 0, hours: 0, asTrainer: 0, asOperator: 0, parts: 0, reg: 0 }; }
+  function row(name) { return st[name] = st[name] || { trainer: name, trainings: 0, hours: 0, asTrainer: 0, asOperator: 0, parts: 0, reg: 0, tr: [], gm: [] }; }
   trainings.forEach(function (t) {
     if (!t.held || (month && gnMonthOf_(t.date) !== month)) return;
     var x = row(t.trainer); x.trainings++; x.hours += t.hours;
+    x.tr.push({ date: t.date, group: t.group, hours: t.hours });
   });
   games.forEach(function (m) {
     if (month && gnMonthOf_(m.date) !== month) return;
@@ -100,12 +107,15 @@ function gnStats_(games, trainings, month) {
       var x = row(s.name); x.parts++;
       if (/тренер/i.test(s.role)) x.asTrainer++; else if (/оператор/i.test(s.role)) x.asOperator++;
       if (s.reg) x.reg++;
+      x.gm.push({ date: m.date, team: m.team, opp: m.opp, tech: m.tech, gf: m.gf, ga: m.ga, role: s.role, reg: s.reg });
     });
   });
   return Object.keys(st).sort().map(function (k) {
     var x = st[k];
     x.hours = Math.round(x.hours * 100) / 100;
     x.pct = x.parts ? Math.round(x.reg / x.parts * 100) : null;
+    x.tr.sort(function (a, b) { return gnSortDate_(a.date, b.date); });
+    x.gm.sort(function (a, b) { return gnSortDate_(a.date, b.date); });
     return x;
   });
 }
