@@ -66,9 +66,9 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
   <h1>Новый заказ</h1>
   <label>Игрок (введите ФИ или ID и выберите из списка)</label>
   <input id="fpl" list="plist" autocomplete="off">
-  <label>Комплект</label><select id="fkit"></select>
+  <label>Комплект</label><select id="fkit"></select><div class="msg" id="fbundle"></div>
   <label>Сумма заказа, ₾</label><input id="fsum" type="number" min="0" step="1">
-  <label>Размер (например, 140 или майка - 164, шорты - M)</label><input id="fsize">
+  <label>Размер</label><select id="fsizeSel" hidden></select><input id="fsize" placeholder="например, 140 или майка - 164, шорты - M">
   <label>Надпись</label><input id="finscr">
   <label>Номер (несколько вариантов через /)</label><input id="fnum">
   <label class="chk"><input type="checkbox" id="finst"> Рассрочка</label>
@@ -80,7 +80,7 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
   <button class="btn sec" id="fcancel">Отмена</button>
 </div>
 <script>
-var pin='',P=[],O=[],UNL=[],PR={},flash='';
+var pin='',P=[],O=[],UNL=[],PR={},SZ={},flash='',BUNDLE='Полный комплект (скидка 15%)';
 function $(i){return document.getElementById(i)}
 function run(fn,args,ok,fail){var r=google.script.run.withSuccessHandler(ok).withFailureHandler(function(e){fail(e&&e.message?e.message:String(e))});r[fn].apply(r,args)}
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
@@ -99,7 +99,7 @@ function load(){
     if(failed||++got<2)return;
     P=pd.players;
     $('plist').innerHTML=P.filter(function(p){return p.status=='Активен'}).map(function(p){return'<option value="'+esc(p.name+' ('+p.id+')')+'">'}).join('');
-    O=rd.orders;UNL=rd.unl;PR=rd.prices;
+    O=rd.orders;UNL=rd.unl;PR=rd.prices;SZ=rd.sizes||{};
     $('login').hidden=true;$('form').hidden=true;$('app').hidden=false;
     fillGroups();show();
   }
@@ -247,16 +247,52 @@ $('list').onclick=function(e){
     return;
   }
 };
+// Полный комплект: игровая, тренировочная, костюм и дождевик. Со скидкой 15% (525 ₾ от 620 ₾), в рассрочку — без скидки.
+var BUNDLE_KEYS=[/игров/i,/тренировоч/i,/костюм/i,/дождевик/i];
+function bundleFull(){
+  var names=Object.keys(PR),sum=0;
+  for(var i=0;i<BUNDLE_KEYS.length;i++){
+    var f=names.filter(function(n){return BUNDLE_KEYS[i].test(n)})[0];
+    if(!f)return null;
+    sum+=PR[f];
+  }
+  return sum;
+}
+function bundleDisc(full){return Math.floor(full*0.85/5)*5}
+function kitOptions(){
+  var names=Object.keys(PR),full=bundleFull(),opts=names.map(function(k){return'<option>'+esc(k)+'</option>'});
+  if(full)opts.push('<option>'+esc(BUNDLE)+'</option>');
+  $('fkit').innerHTML=opts.join('');
+}
+function refreshSum(){
+  var k=$('fkit').value,full=bundleFull();
+  if(k===BUNDLE&&full){
+    var disc=bundleDisc(full);
+    $('fsum').value=$('finst').checked?full:disc;
+    $('fbundle').textContent=$('finst').checked?'Рассрочка: скидка не применяется, '+full+' ₾':'Скидка 15%: '+disc+' ₾ вместо '+full+' ₾';
+  }else{
+    $('fsum').value=PR[k]||'';
+    $('fbundle').textContent='';
+  }
+  refreshSizes();
+}
+function refreshSizes(){
+  var k=$('fkit').value,list=k===BUNDLE?[]:(SZ[k]||[]);
+  $('fsizeSel').hidden=!list.length;$('fsize').hidden=!!list.length;
+  if(list.length)$('fsizeSel').innerHTML=list.map(function(v){return'<option>'+esc(v)+'</option>'}).join('');
+}
 function openForm(){
   $('app').hidden=true;$('form').hidden=false;fmsg('');
-  $('fkit').innerHTML=Object.keys(PR).map(function(k){return'<option>'+esc(k)+'</option>'}).join('');
+  kitOptions();
   ['fpl','fsize','finscr','fnum'].forEach(function(i){$(i).value=''});
-  $('finst').checked=false;$('fpaid').value=0;$('fmt').value='';$('fmrow').hidden=true;$('fdate').value=today();$('fsum').value=PR[$('fkit').value]||'';
+  $('finst').checked=false;$('fpaid').value=0;$('fmt').value='';$('fmrow').hidden=true;$('fdate').value=today();
+  refreshSum();
 }
 function submit(){
   var id=pid($('fpl').value);
   if(!id){fmsg('Выберите игрока из списка',true);return}
-  var o={id:id,kit:$('fkit').value,sum:Number($('fsum').value),size:$('fsize').value.trim(),inscr:$('finscr').value.trim(),num:$('fnum').value.trim(),inst:$('finst').checked,paid:Number($('fpaid').value)||0,date:$('fdate').value,method:$('fmt').value};
+  var kit=$('fkit').value;
+  var o={id:id,kit:kit,sum:Number($('fsum').value),size:(!$('fsizeSel').hidden?$('fsizeSel').value:$('fsize').value.trim()),inscr:$('finscr').value.trim(),num:$('fnum').value.trim(),inst:$('finst').checked,paid:Number($('fpaid').value)||0,date:$('fdate').value,method:$('fmt').value};
   if(o.paid>0&&!o.method){fmsg('Выберите способ оплаты: наличные или перевод',true);return}
   $('fsave').disabled=true;fmsg('Сохраняю…');
   run('appAddOrder',[pin,o],function(r){
@@ -268,7 +304,8 @@ function submit(){
 $('q').oninput=show;$('fs').onchange=show;$('fg').onchange=show;$('fl').onchange=show;
 $('new').onclick=openForm;
 $('fcancel').onclick=function(){$('form').hidden=true;$('app').hidden=false};
-$('fkit').onchange=function(){$('fsum').value=PR[this.value]||''};
+$('fkit').onchange=refreshSum;
+$('finst').onchange=refreshSum;
 $('fpaid').oninput=function(){$('fmrow').hidden=!(Number(this.value)>0)};
 $('fsave').onclick=submit;
 $('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;try{localStorage.setItem('kspin',pin)}catch(e){}load()};

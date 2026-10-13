@@ -7,11 +7,21 @@ function kitPrices_() {
   return n ? m : KIT_PRICES;
 }
 
+// Размеры каждой позиции каталога (через запятую в таблице) — для выпадающего списка в форме
+function kitSizes_() {
+  var m = {};
+  catalog_(true).forEach(function (x) {
+    m[x.name] = String(x.sizes || '').split(',').map(function (v) { return v.trim(); }).filter(Boolean);
+  });
+  return m;
+}
+
 function appEquipOrders(pin) {
   checkAdmin_(pin);
   var data = cacheGetBig_('eq_v1');
   if (!data) { data = equipOrdersLive_(); cachePutBig_('eq_v1', data, 60); }
   data.prices = kitPrices_();
+  data.sizes = kitSizes_();
   return data;
 }
 
