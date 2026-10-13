@@ -264,8 +264,20 @@ function kitOptions(){
   if(full)opts.push('<option>'+esc(BUNDLE)+'</option>');
   $('fkit').innerHTML=opts.join('');
 }
+// Костюм и дождевик со скидкой 15%, если у игрока уже есть игровая и тренировочная (носки и гетры не в счёт)
+var DISC_ITEM=/костюм|дождевик/i;
+function playerHasBase(id){
+  var has=function(re){return O.some(function(o){return o.id===id&&re.test(o.kit||'')})};
+  return has(/полный комплект/i)||(has(/игров/i)&&has(/тренировоч/i));
+}
 function refreshSum(){
-  var k=$('fkit').value,full=bundleFull();
+  var k=$('fkit').value,full=bundleFull(),id=pid($('fpl').value);
+  if(k!==BUNDLE&&DISC_ITEM.test(k)&&id&&playerHasBase(id)){
+    var price=PR[k]||0,disc=Math.round(price*0.85);
+    $('fsum').value=$('finst').checked?price:disc;
+    $('fbundle').textContent=$('finst').checked?'Рассрочка: скидка не применяется, '+price+' ₾':'Скидка 15% (есть игровая и тренировочная): '+disc+' ₾ вместо '+price+' ₾';
+    refreshSizes();return;
+  }
   if(k===BUNDLE&&full){
     var disc=bundleDisc(full);
     $('fsum').value=$('finst').checked?full:disc;
@@ -306,6 +318,8 @@ $('new').onclick=openForm;
 $('fcancel').onclick=function(){$('form').hidden=true;$('app').hidden=false};
 $('fkit').onchange=refreshSum;
 $('finst').onchange=refreshSum;
+$('fpl').oninput=refreshSum;
+$('fpl').onchange=refreshSum;
 $('fpaid').oninput=function(){$('fmrow').hidden=!(Number(this.value)>0)};
 $('fsave').onclick=submit;
 $('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;try{localStorage.setItem('kspin',pin)}catch(e){}load()};
