@@ -130,10 +130,10 @@ function showResult(rep){
   if(bad.length)h+='<p class="err">Не удалось записать:</p><ul>'+bad.map(function(r){return'<li style="display:block;padding:6px 10px"><b>'+esc(r.name)+'</b><br>'+esc(r.result.replace('НЕ записано: ',''))+'</li>'}).join('')+'</ul>';
   $('res').innerHTML='<div class="res">'+h+'</div>';window.scrollTo(0,document.body.scrollHeight);
 }
-$('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;try{localStorage.setItem('pin',pin)}catch(e){}loadGroups()};
+$('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;try{localStorage.setItem('kspin',pin)}catch(e){}loadGroups()};
 $('dt').value=today();
 var wantG=loadState();
-try{pin=localStorage.getItem('pin')||''}catch(e){}
+try{pin=localStorage.getItem('kspin')||''}catch(e){}
 if(pin)loadGroups(wantG);else showLogin('');
 </script>
 </body>

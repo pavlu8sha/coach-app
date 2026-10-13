@@ -181,8 +181,8 @@ $('nadd').onclick=function(){
   busy=true;msg('Создаю…');
   run('appIndAddEvent',[pin,$('nd').value,$('nt').value,$('nk').value=='1',$('nth').value.trim()],function(r){flash=r.exists?'Такое занятие уже есть':'Занятие создано';$('newev').open=false;load()},fail);
 };
-$('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;sl('apin',pin);sl('kspin',pin);load()};
-pin=gl('kspin')||gl('apin')||gl('pin');
+$('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;sl('kspin',pin);sl('kspin',pin);load()};
+pin=gl('kspin')||gl('kspin')||gl('kspin');
 if(pin)load();else showLogin('');
 </script>
 </body>

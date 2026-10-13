@@ -225,8 +225,8 @@ $('feed').onclick=function(e){
     setMsg('Платёж отменён.');feed();orders(function(){if(SUB)paint()});if(cur)loadPlayer(cur,true);
   },function(m){b.disabled=false;setMsg(m,true)});
 };
-$('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;try{localStorage.setItem('apin',pin)}catch(e){}load()};
-try{pin=localStorage.getItem('apin')||''}catch(e){}
+$('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;try{localStorage.setItem('kspin',pin)}catch(e){}load()};
+try{pin=localStorage.getItem('kspin')||''}catch(e){}
 if(pin)load();else showLogin('');
 </script>
 </body>

@@ -211,8 +211,8 @@ $('ext').onclick=function(e){
 $('mon').onchange=function(){load(true)};
 $('grp').onchange=function(){show()};
 $('tpl').oninput=function(){try{localStorage.setItem('debtTpl',this.value)}catch(e){}};
-$('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;try{localStorage.setItem('apin',pin)}catch(e){}load()};
-try{pin=localStorage.getItem('apin')||''}catch(e){}
+$('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;try{localStorage.setItem('kspin',pin)}catch(e){}load()};
+try{pin=localStorage.getItem('kspin')||''}catch(e){}
 try{$('tpl').value=localStorage.getItem('debtTpl')||DEF}catch(e){$('tpl').value=DEF}
 if(pin)load();else showLogin('');
 </script>

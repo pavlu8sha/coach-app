@@ -151,8 +151,8 @@ $('nadd').onclick=function(){
   busy=true;msg('Создаю…');
   run('appExtraAddEvent',[pin,$('nd').value,$('na').value],function(r){msg(r.exists?'Тренировка на эту дату уже есть':'Тренировка создана');$('newev').open=false;$('na').value='';load()},fail);
 };
-$('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;sl('apin',pin);sl('kspin',pin);load()};
-pin=gl('kspin')||gl('apin')||gl('pin');
+$('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;sl('kspin',pin);sl('kspin',pin);load()};
+pin=gl('kspin')||gl('kspin')||gl('kspin');
 if(pin)load();else showLogin('');
 </script>
 </body>

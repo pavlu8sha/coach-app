@@ -61,7 +61,6 @@ img,table,select,input,textarea{max-width:100%}
 <script>
 (function(){
   var URL='__URL__',PAGE='__PAGE__';
-  var ALL=['kspin','pin','apin','spin','lpin'],PAGES=['pin','apin','spin','lpin'];
   var ICON={
     att:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
     admin:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
@@ -90,6 +89,10 @@ img,table,select,input,textarea{max-width:100%}
     return'<a class="'+cls+(k==PAGE?' on':'')+'" target="_top" href="'+href+'">'+(cls=='kst'?svg(k)+'<span>'+it[0]+'</span>':it[0])+'</a>';
   }
   function show(){
+    if(!role){ // без проверенного кода меню не показываем
+      document.documentElement.removeAttribute('data-ok');
+      nav.hidden=true;sheet.hidden=true;blk.hidden=true;document.getElementById('ksadm').hidden=true;return;
+    }
     var tr=asTrainer(),main=tr?['att','games','stats']:['att','admin','pay','games'],more=tr?[]:['stats','equip','camp','ind','funnel'];
     var moreOn=more.indexOf(PAGE)>=0,sh='';
     document.documentElement.setAttribute('data-ok','1');
@@ -106,11 +109,11 @@ img,table,select,input,textarea{max-width:100%}
     sheet.hidden=true;say('Обновляю данные…');
     google.script.run.withSuccessHandler(function(){say('Данные обновлены. Откройте раздел заново, чтобы увидеть свежие.')})
       .withFailureHandler(function(e){say(e&&e.message?e.message:'Не удалось обновить',true)})
-      .appRefreshData(get('kspin')||get('apin')||get('pin'));
+      .appRefreshData(get('kspin')||get('kspin')||get('kspin'));
   }
   function setMode(m){set('ksmode',m);show()}
   function logout(){
-    ALL.concat(['ksmode','ksrole']).forEach(function(k){try{localStorage.removeItem(k)}catch(e){}});
+    ['kspin','ksmode','ksrole'].forEach(function(k){try{localStorage.removeItem(k)}catch(e){}});
     try{window.top.location.href=URL}catch(e){location.reload()}
   }
   nav.addEventListener('click',function(e){if(e.target.closest('#ksmb'))sheet.hidden=!sheet.hidden});
@@ -139,24 +142,18 @@ img,table,select,input,textarea{max-width:100%}
       say(t,el.classList.contains('err'));
     });
   }).observe(document.body,{subtree:true,childList:true,characterData:true});
+  // Проверка кода на сервере: роль не берётся из сохранённых значений, меню появляется только после ответа сервера
   function check(){
-    var sig=ALL.map(get).join('|');
-    if(sig==last)return;last=sig;
-    var codes=[];
-    ALL.forEach(function(k){var v=get(k);if(v&&codes.indexOf(v)<0)codes.push(v)});
-    var n=codes.length,best='',bestCode='';
-    function fin(){
-      if(--n>0||!best)return;
-      role=best;set('ksrole',best);set('kspin',bestCode);PAGES.forEach(function(k){set(k,bestCode)});show();
-    }
-    codes.forEach(function(c){
-      google.script.run.withSuccessHandler(function(r){
-        if(r=='admin'||(r=='trainer'&&best!='admin')){best=r;bestCode=c}
-        fin();
-      }).withFailureHandler(fin).appWho(c);
-    });
+    var c=get('kspin');
+    if(c===last)return;last=c;
+    if(!c){role='';show();return}
+    google.script.run.withSuccessHandler(function(r){
+      if(get('kspin')!==c)return; // код сменили, пока шла проверка
+      if(r=='admin'||r=='trainer'){role=r;set('ksrole',r)}
+      else{role='';try{localStorage.removeItem('kspin')}catch(e){}}
+      show();
+    }).withFailureHandler(function(){}).appWho(c);
   }
-  role=get('ksrole');if(role)show();
   check();setInterval(check,2000);
 })();
 function friendly_(m) {

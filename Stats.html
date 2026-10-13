@@ -85,8 +85,8 @@ function render(d){
   }).join('');
 }
 $('mon').onchange=load;
-$('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;try{localStorage.setItem('spin',pin)}catch(e){}init()};
-try{pin=localStorage.getItem('spin')||''}catch(e){}
+$('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;try{localStorage.setItem('kspin',pin)}catch(e){}init()};
+try{pin=localStorage.getItem('kspin')||''}catch(e){}
 if(pin)init();else showLogin('');
 </script>
 </body>
