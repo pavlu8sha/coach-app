@@ -54,3 +54,70 @@ function gnResult_(m) {
   if (m.gf === null || m.ga === null) return '';
   return m.gf > m.ga ? 'W' : (m.gf === m.ga ? 'D' : 'L');
 }
+
+// ---- Тренировки и статистика за месяц (только чтение) ----
+
+// Таблица 1Cf4: листы «Игры» и «Тренировки». Пока только чтение; запись будет в AdminApp.
+var GN_FILE_ID = '1Cf4jRMEh8078EcMuzcrpUnPyB1g9_XdDzulxSOC3vC4';
+
+function gnStr_(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'dd.MM.yyyy');
+  return v === null || v === undefined ? '' : String(v);
+}
+
+function gnValues_(name) {
+  var sh = SpreadsheetApp.openById(GN_FILE_ID).getSheetByName(name);
+  if (!sh) throw new Error('В таблице нет листа «' + name + '»');
+  return sh.getDataRange().getValues().map(function (r) { return r.map(gnStr_); });
+}
+
+// Месяц в формате «MM.yyyy» из даты «dd.MM.yyyy»
+function gnMonthOf_(date) { return String(date).slice(3, 10); }
+
+// Тренировки: строка — дата, день, тренер (C), локация, группа, тип, начало, конец, часы (I), проведено (J)
+function gnParseTrainings_(rows) {
+  var out = [];
+  for (var i = 1; i < rows.length; i++) {
+    var r = rows[i];
+    if (!String(r[0] || '').trim()) continue;
+    out.push({ date: String(r[0]).trim(), trainer: String(r[2] || '').trim(),
+      hours: Number(String(r[8] || '0').replace(',', '.')) || 0, held: String(r[9] || '').trim() === 'Да' });
+  }
+  return out;
+}
+
+// Статистика по тренерам за месяц (месяц «MM.yyyy»; пусто — все месяцы)
+function gnStats_(games, trainings, month) {
+  var st = {};
+  function row(name) { return st[name] = st[name] || { trainer: name, trainings: 0, hours: 0, asTrainer: 0, asOperator: 0, parts: 0, reg: 0 }; }
+  trainings.forEach(function (t) {
+    if (!t.held || (month && gnMonthOf_(t.date) !== month)) return;
+    var x = row(t.trainer); x.trainings++; x.hours += t.hours;
+  });
+  games.forEach(function (m) {
+    if (month && gnMonthOf_(m.date) !== month) return;
+    m.staff.forEach(function (s) {
+      var x = row(s.name); x.parts++;
+      if (/тренер/i.test(s.role)) x.asTrainer++; else if (/оператор/i.test(s.role)) x.asOperator++;
+      if (s.reg) x.reg++;
+    });
+  });
+  return Object.keys(st).sort().map(function (k) {
+    var x = st[k];
+    x.hours = Math.round(x.hours * 100) / 100;
+    x.pct = x.parts ? Math.round(x.reg / x.parts * 100) : null;
+    return x;
+  });
+}
+
+// Для админа: игры и статистика за месяц
+function appGamesData(pin, month) {
+  checkAdmin_(pin);
+  var games = gnParseGames_(gnValues_('Игры')).matches;
+  var trainings = gnParseTrainings_(gnValues_('Тренировки'));
+  var m = month || '';
+  return {
+    games: games.filter(function (g) { return !m || gnMonthOf_(g.date) === m; }),
+    stats: gnStats_(games, trainings, m)
+  };
+}
