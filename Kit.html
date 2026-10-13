@@ -251,7 +251,7 @@ $('list').onclick=function(e){
 // Скидка 15% на сумму заказа: если у игрока уже есть игровая и тренировочная (или в заказе все четыре основные позиции).
 // Носки и гетры в расчёт не входят. При рассрочке скидка не применяется. Сумма округляется до 5 ₾.
 var CORE=[/игров/i,/тренировоч/i,/костюм/i,/дождевик/i];
-var DISC_ITEM=/костюм|дождевик/i;
+var COSTUME=/костюм/i,RAIN=/дождевик/i;
 function playerHasBase(id){
   var has=function(re){return O.some(function(o){return o.id===id&&re.test(o.kit||'')})};
   return has(/полный комплект/i)||(has(/игров/i)&&has(/тренировоч/i));
@@ -270,7 +270,7 @@ function refreshSum(){
   ks.forEach(function(k){base+=PR[k]||0});
   var id=pid($('fpl').value),inst=$('finst').checked;
   var bundleAll=CORE.every(function(re){return ks.some(function(k){return re.test(k)})});
-  var hasDisc=ks.some(function(k){return DISC_ITEM.test(k)});
+  var hasDisc=ks.some(function(k){return COSTUME.test(k)})&&ks.some(function(k){return RAIN.test(k)});
   var eligible=!!id&&((playerHasBase(id)&&hasDisc)||bundleAll);
   var disc=!inst&&eligible&&ks.length>0;
   var prior=id&&disc?playerBaseSum(id):0;
