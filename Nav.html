@@ -77,9 +77,6 @@ img,table,select,input,textarea{max-width:100%}
   document.documentElement.setAttribute('data-page',PAGE);
   function get(k){try{return localStorage.getItem(k)||''}catch(e){return''}}
   function set(k,v){try{localStorage.setItem(k,v)}catch(e){}}
-  // Единый код: подставляем его во все разделы до того, как страница прочитает свой.
-  var shared=get('kspin');
-  if(shared)PAGES.forEach(function(k){set(k,shared)});
   var nav=document.getElementById('ksnav'),sheet=document.getElementById('ksmore'),blk=document.getElementById('ksblock'),toast=document.getElementById('kstoast'),last='',role='',tt;
   document.getElementById('ksgo').href=URL;
   function asTrainer(){return role!='admin'||get('ksmode')=='trainer'}
