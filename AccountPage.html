@@ -55,6 +55,7 @@ li small{color:var(--mute)}
     <button data-t="tr" class="on">Тренировки</button>
     <button data-t="gm">Игры</button>
     <button data-t="st">Статистика</button>
+    <button data-t="dy">Расписание</button>
   </div>
   <div class="msg" id="msg" role="status"></div>
 
@@ -75,6 +76,11 @@ li small{color:var(--mute)}
       <button class="btn" id="a-save">Добавить тренировку</button>
     </div>
     <div class="scroll"><table id="tr-table"></table></div>
+  </div>
+
+  <div id="pane-dy" hidden>
+    <input id="dy-date" placeholder="дд.мм.гггг" inputmode="numeric" aria-label="Дата">
+    <div id="dy-list"></div>
   </div>
 
   <div id="pane-gm" hidden><div class="scroll"><table id="gm-table"></table></div></div>
@@ -169,8 +175,39 @@ function drawSt(){
 function showTab(t){
   tab=t;
   document.querySelectorAll('.tabs button').forEach(function(b){b.className=b.getAttribute('data-t')===t?'on':''});
-  $('pane-tr').hidden=t!=='tr';$('pane-gm').hidden=t!=='gm';$('pane-st').hidden=t!=='st';
+  $('pane-tr').hidden=t!=='tr';$('pane-gm').hidden=t!=='gm';$('pane-st').hidden=t!=='st';$('pane-dy').hidden=t!=='dy';
+  if(t==='dy')loadDay();
 }
+var dayHeld={};
+function todayStr(){var d=new Date();return('0'+d.getDate()).slice(-2)+'.'+('0'+(d.getMonth()+1)).slice(-2)+'.'+d.getFullYear()}
+function loadDay(){
+  if(!$('dy-date').value)$('dy-date').value=todayStr();
+  var date=$('dy-date').value.trim();
+  $('dy-list').innerHTML='<div class="sub">Загружаю…</div>';
+  run('appDailySchedule',[pin,date],function(items){
+    if(!items.length){$('dy-list').innerHTML='<div class="sub">На этот день по расписанию ничего нет</div>';return}
+    $('dy-list').innerHTML=items.map(function(x,i){
+      var st=x.status==='done'?'<span class="chip on">проведена</span>':(dayHeld[date+'|'+x.group+'|'+x.start]===false||x.status==='no'?'<span class="chip">не проводилась</span>':'');
+      var btns=x.status==='open'&&dayHeld[date+'|'+x.group+'|'+x.start]===undefined
+        ?'<div class="grid2"><button class="btn" data-y="'+i+'">Да</button><button class="btn" data-n="'+i+'" style="background:var(--card);color:var(--ink);border:1px solid var(--line)">Нет</button></div>':'';
+      return'<div class="card"><div class="top"><span>'+esc(x.start)+'–'+esc(x.end)+' · '+esc(x.group)+'</span>'+st+'</div>'
+        +'<div class="sub">'+esc(x.location)+' · '+esc(x.type)+'</div>'
+        +'<select id="dy-tr'+i+'" aria-label="Тренер">'+cache.trainers.map(function(t){return'<option'+(t===x.trainer?' selected':'')+'>'+esc(t)+'</option>'}).join('')+'</select>'
+        +btns+'</div>';
+    }).join('');
+    items.forEach(function(x,i){
+      var y=document.querySelector('[data-y="'+i+'"]'),n=document.querySelector('[data-n="'+i+'"]');
+      if(y)y.onclick=function(){
+        setMsg('Сохраняю…');
+        run('appConfirmDaily',[pin,{held:true,date:date,trainer:$('dy-tr'+i).value,location:x.location,group:x.group,type:x.type,start:x.start,end:x.end}],
+          function(){dayHeld[date+'|'+x.group+'|'+x.start]=true;setMsg('Записано');loadDay()},function(e){setMsg(e,true)});
+      };
+      if(n)n.onclick=function(){dayHeld[date+'|'+x.group+'|'+x.start]=false;loadDay()};
+    });
+    setMsg('');
+  },function(e){setMsg(e,true)});
+}
+$('dy-date').onchange=loadDay;
 function addTraining(){
   var o={date:$('a-date').value.trim(),trainer:$('a-trainer').value.trim(),group:$('a-group').value.trim(),
     location:$('a-loc').value.trim(),type:$('a-type').value.trim(),start:$('a-start').value.trim(),end:$('a-end').value.trim(),held:$('a-held').checked};
