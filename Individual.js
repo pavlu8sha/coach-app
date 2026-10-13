@@ -47,39 +47,46 @@ function indPlayer_(ev, name) {
   return null;
 }
 
+// Оплата: сумма 50 ₾ в строке игрока файла оплат (игрок должен быть записан)
 function appIndPay(pin, id, name, method, comment) {
   checkAdmin_(pin);
   return indLocked_(function () {
-    var ev = indFind_(id), p = indPlayer_(ev, name);
+    var ev = indFind_(id);
+    indNotOld_(ev);
+    var p = indPlayer_(ev, name);
     if (!p) throw new Error('Игрок не записан');
     if (p.paid) throw new Error('Уже оплачено');
-    indPayFileWrite_(ev.date, p.name, IND_PRICE); // сначала файл оплат: если там не получилось, оплата не отмечается
-    indSS_().getSheetByName(ev.sheet).getRange(p.row, 4).setValue(true);
+    indPfSetAmount_(ev.date, p.name, IND_PRICE);
     indLog_('Оплата', ev, p.name, IND_PRICE, method || 'Наличные', comment || '');
     return { ok: true };
   });
 }
 
+// Отмена оплаты: сумма очищается, строка игрока остаётся
 function appIndUnpay(pin, id, name) {
   checkAdmin_(pin);
   return indLocked_(function () {
-    var ev = indFind_(id), p = indPlayer_(ev, name);
+    var ev = indFind_(id);
+    indNotOld_(ev);
+    var p = indPlayer_(ev, name);
     if (!p) throw new Error('Игрок не записан');
     if (!p.paid) throw new Error('Оплаты нет');
-    indPayFileClear_(ev.date, p.name);
-    indSS_().getSheetByName(ev.sheet).getRange(p.row, 4).setValue(false);
-    indLog_('Отмена', ev, p.name, -IND_PRICE, indLastPayMethod_(ev.id, p.name), 'отмена оплаты, строка ' + p.row);
+    indPfSetAmount_(ev.date, p.name, '');
+    indLog_('Отмена', ev, p.name, -IND_PRICE, indLastPayMethod_(ev.id, p.name), 'отмена оплаты');
     return { ok: true };
   });
 }
 
+// Отмена записи: строка игрока удаляется из файла оплат
 function appIndRemove(pin, id, name) {
   checkAdmin_(pin);
   return indLocked_(function () {
-    var ev = indFind_(id), p = indPlayer_(ev, name);
+    var ev = indFind_(id);
+    indNotOld_(ev);
+    var p = indPlayer_(ev, name);
     if (!p) throw new Error('Игрок не записан');
     if (p.paid) throw new Error('Сначала отмените оплату');
-    indSS_().getSheetByName(ev.sheet).getRange(p.row, 2, 1, 3).setValues([['', '', false]]);
+    indPfUnenroll_(ev.date, p.name);
     indLog_('Снят', ev, p.name, 0, '', '');
     return { ok: true };
   });
@@ -88,8 +95,8 @@ function appIndRemove(pin, id, name) {
 // Тест ЗАПИСИ — запускать только на копии
 function indWriteTest() {
   var pin = prop_('APP_ADMIN_PIN');
-  var evs = indParse_().filter(function (e) { return e.players.length < e.cap; });
-  if (!evs.length) { Logger.log('Нет занятия со свободными местами'); return; }
+  var evs = indParse_().filter(indAdmIsNew_);
+  if (!evs.length) { Logger.log('Нет новых занятий (лист ИНДИВИДУАЛЬНЫЕ ЗАНЯТИЯ)'); return; }
   var e = evs[0], nm = 'ТЕСТ Гость';
   Logger.log('Занятие: ' + e.id);
   appIndAdd(pin, e.id, nm, 'гость');          Logger.log('1. записан');
@@ -111,7 +118,7 @@ function indParse_(fresh) {
     var c = cacheGetBig_('ind_v1');
     if (c) return c;
   }
-  var evs = indParseRaw_();
+  var evs = indParseRaw_().concat(indParseAdm_());
   cachePutBig_('ind_v1', evs, 60);
   return evs;
 }
@@ -208,19 +215,11 @@ function appIndData(pin) {
 }
 
 // Вписывает игрока в блок занятия (вызывать внутри блокировки)
+// Запись игрока: строка с датой занятия в файле оплат (без лимита мест; лимита в таблице нет)
 function indPutPlayer_(ev, name, group) {
+  indNotOld_(ev);
   if (indPlayer_(ev, name)) throw new Error('Уже записан на это занятие');
-  if (ev.players.length >= ev.cap) throw new Error('Лимит: максимум ' + ev.cap + ' человек');
-  var sh = indSS_().getSheetByName(ev.sheet), row;
-  if (ev.empty.length) {
-    row = ev.empty[0];
-  } else {
-    sh.insertRowAfter(ev.last);
-    row = ev.last + 1;
-    sh.getRange(ev.last, 1, 1, 4).copyTo(sh.getRange(row, 1, 1, 4));
-    sh.getRange(row, 1).setValue(ev.slots + 1);
-  }
-  sh.getRange(row, 2, 1, 3).setValues([[name, group || 'гость', false]]);
+  indPfEnroll_(ev.date, name);
   indLog_('Запись', ev, name, 0, '', group || 'гость');
 }
 
@@ -254,13 +253,13 @@ function appIndPermAdd(pin, name, group, slot) {
     if (sh) sh.appendRow([name, group || 'гость', slot, true, Utilities.formatDate(new Date(), tz, 'dd.MM.yyyy HH:mm')]);
     var today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
     var ids = indParse_(true).filter(function (e) {
-      return e.date >= today && indSlotKey_(e.date, e.goalkeepers) === slot;
+      return indAdmIsNew_(e) && e.date >= today && indSlotKey_(e.date, e.goalkeepers) === slot;
     }).map(function (e) { return e.id; });
     var n = 0;
     ids.forEach(function (id) {
       try {
         var ev = indFind_(id);
-        if (!indPlayer_(ev, name) && ev.players.length < ev.cap) { indPutPlayer_(ev, name, group || 'гость'); n++; }
+        if (!indPlayer_(ev, name)) { indPutPlayer_(ev, name, group || 'гость'); n++; }
       } catch (e) {}
     });
     return { ok: true, applied: n };
@@ -307,7 +306,7 @@ function indInstallTrigger() {
   Logger.log('Триггер создан: вторник, около 9:00');
 }
 
-// Создаёт блок занятия, сразу вписывает постоянных. Если занятие уже есть — ничего не делает.
+// Создаёт занятие (строка в AdminApp), сразу записывает постоянных в файл оплат. Если занятие уже есть — ничего не делает.
 function indCreateEvent_(date, time, gk, theme) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{1,2}:\d{2}$/.test(time)) throw new Error('Неверная дата или время');
   if (CONFIG.DRY_RUN) { Logger.log('DRY_RUN: занятие не создано ' + date + ' ' + time); return { dryRun: true }; }
@@ -316,61 +315,44 @@ function indCreateEvent_(date, time, gk, theme) {
   var evs = indParse_(true);
   for (var i = 0; i < evs.length; i++)
     if (evs[i].date === date && evs[i].time === hh && evs[i].goalkeepers === gk) return { ok: true, exists: true };
-    if (!gk && !String(theme || '').trim()) theme = indAutoTheme_(date, evs);
-  var ss = indSS_(), p = date.split('-');
-  var head = hh + ' ' + p[2] + '.' + p[1] + '.' + p[0] + (gk ? ' вратари' : '');
-  var dt = Date.UTC(+p[0], +p[1] - 1, +p[2]), wd = new Date(dt).getUTCDay();
-  function dm(ms) { return Utilities.formatDate(new Date(ms), 'UTC', 'dd.MM'); }
-  var key = p[2] + '.' + p[1], keys = [key], pair = key;
-  if (wd === 6) { pair = key + '/' + dm(dt + 86400000); keys.push(dm(dt + 86400000)); }
-  if (wd === 0) { pair = dm(dt - 86400000) + '/' + key; keys.push(dm(dt - 86400000)); }
-  var sh = null;
-  ss.getSheets().forEach(function (s) {
-    if (sh) return;
-    var toks = s.getName().split('/').map(function (x) { return x.trim(); });
-    if (keys.some(function (k) { return toks.indexOf(k) >= 0; })) sh = s;
+  if (!gk && !String(theme || '').trim()) theme = indAutoTheme_(date, evs);
+  theme = String(theme || '').trim() || (gk ? 'Вратари' : '');
+  indAdmAppend_(date, hh, gk, theme);
+  var perm = 0, skipped = 0, slot = indSlotKey_(date, gk);
+  indPermList_().filter(function (x) { return x.active && x.slot === slot; }).forEach(function (x) {
+    try {
+      indPfEnroll_(date, x.name);
+      indLog_('Запись', { id: indAdmId_(date, hh, gk) }, x.name, 0, '', 'постоянный');
+      perm++;
+    } catch (e) { skipped++; }
   });
-  if (!sh) sh = ss.insertSheet(pair, 0);
-  _indDirty[sh.getName()] = 1;
-  var cap = gk ? 7 : 6;
-  var top = sh.getLastRow() ? sh.getLastRow() + 2 : 1;
-  sh.getRange(top, 1).setNumberFormat('@').setValue(head);
-  sh.getRange(top + 1, 1).setValue(theme || (gk ? 'Вратари' : ''));
-  sh.getRange(top, 1, 1, 4).merge();
-  sh.getRange(top + 1, 1, 1, 4).merge();
-  sh.getRange(top + 2, 1, 1, 4).setValues([['№', 'ФИ ребенка', 'Group', 'Paid']]).setFontWeight('bold');
-  var rows = [];
-  for (var k = 1; k <= cap; k++) rows.push([k, '', '', false]);
-  sh.getRange(top + 3, 1, cap, 4).setValues(rows);
-  sh.getRange(top + 3, 4, cap, 1).insertCheckboxes();
-  indFormatBlock_(sh, top, cap + 3);
-  var slot = indSlotKey_(date, gk);
-  var perms = indPermList_().filter(function (x) { return x.active && x.slot === slot; }).slice(0, cap);
-  if (perms.length) {
-    sh.getRange(top + 3, 2, perms.length, 3).setValues(perms.map(function (x) { return [x.name, x.group || 'гость', false]; }));
-    var evId = sh.getName() + '|' + date + ' ' + hh + (gk ? ' gk' : '');
-    perms.forEach(function (x) { indLog_('Запись', { id: evId }, x.name, 0, '', 'постоянный'); });
-  }
-  return { ok: true, exists: false, perm: perms.length };
+  return { ok: true, exists: false, perm: perm, skipped: skipped };
 }
 
-// Изменить дату, время, тему занятия (тип и лист не меняются)
+// Изменить дату, время, тему занятия (только новые занятия). Дата меняется, если нет оплат: записанные переносятся
 function appIndEventEdit(pin, id, date, time, theme) {
   checkAdmin_(pin);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{1,2}:\d{2}$/.test(time)) throw new Error('Неверная дата или время');
   return indLocked_(function () {
     var ev = indFind_(id);
+    indNotOld_(ev);
     var hh = ('0' + time.split(':')[0]).slice(-2) + ':' + time.split(':')[1];
+    var dateChanged = date !== ev.date;
+    if (dateChanged && ev.players.some(function (p) { return p.paid; }))
+      throw new Error('Есть оплаты: сначала отмените оплату, потом меняйте дату');
     indParse_(true).forEach(function (e) {
       if (e.id !== ev.id && e.date === date && e.time === hh && e.goalkeepers === ev.goalkeepers)
         throw new Error('Такое занятие уже есть');
     });
-    var p = date.split('-');
-    var sh = indSS_().getSheetByName(ev.sheet);
-    sh.getRange(ev.row, 1).setNumberFormat('@')
-      .setValue(hh + ' ' + p[2] + '.' + p[1] + '.' + p[0] + (ev.goalkeepers ? ' вратари' : ''));
-    sh.getRange(ev.row + 1, 1).setValue(String(theme || '').trim());
-    var newId = ev.sheet + '|' + date + ' ' + hh + (ev.goalkeepers ? ' gk' : '');
+    if (dateChanged) { // записанные переходят на новую дату: строки в файле оплат перезаписываются
+      ev.players.forEach(function (p) {
+        indPfUnenroll_(ev.date, p.name);
+        indPfEnroll_(date, p.name);
+      });
+    }
+    var sh = dbSheet_(IND_EVT, IND_EVT_HEAD), newId = indAdmId_(date, hh, ev.goalkeepers);
+    sh.getRange(ev.row, 1, 1, 3).setNumberFormat('@');
+    sh.getRange(ev.row, 1, 1, 5).setValues([[newId, date, hh, ev.goalkeepers, String(theme || '').trim()]]);
     if (newId !== ev.id) { // переносим отметки «кто был» на новый ID занятия
       var ms = adminSS_().getSheetByName(IND_ATT);
       if (ms && ms.getLastRow() > 1) {
@@ -384,18 +366,16 @@ function appIndEventEdit(pin, id, date, time, theme) {
   });
 }
 
-// Удалить занятие целиком (только если нет оплаченных игроков)
+// Удалить занятие целиком (только новые и только если нет оплат). Записанные снимаются из файла оплат
 function appIndEventDelete(pin, id) {
   checkAdmin_(pin);
   return indLocked_(function () {
     var ev = indFind_(id);
+    indNotOld_(ev);
     if (ev.players.some(function (p) { return p.paid; }))
       throw new Error('Есть оплаты: сначала отмените оплату у игроков');
-    var sh = indSS_().getSheetByName(ev.sheet);
-    var start = ev.row, end = ev.last;
-    if (end + 1 <= sh.getMaxRows() && String(sh.getRange(end + 1, 1).getValue()).trim() === '') end++;
-    else if (start > 1 && String(sh.getRange(start - 1, 1).getValue()).trim() === '') start--;
-    sh.deleteRows(start, end - start + 1);
+    ev.players.forEach(function (p) { indPfUnenroll_(ev.date, p.name); });
+    dbSheet_(IND_EVT, IND_EVT_HEAD).deleteRow(ev.row);
     indLog_('Удалено', ev, '', 0, '', 'игроки: ' + ev.players.map(function (p) { return p.name; }).join(', '));
     return { ok: true };
   });
@@ -413,6 +393,7 @@ function indFormatBlock_(sh, top, n) {
 // Разово привести к этому виду все занятия таблицы (можно не запускать: нужные блоки уже оформлены)
 function indFormatAll() {
   indParse_(true).forEach(function (ev) {
+    if (indAdmIsNew_(ev)) return; // новые занятия — строки листа AdminApp, оформление блока не нужно
     indFormatBlock_(indSS_().getSheetByName(ev.sheet), ev.row, ev.last - ev.row + 1);
   });
   Logger.log('Оформлено блоков: ' + indParse_(true).length);
@@ -561,15 +542,16 @@ function indParseForDate_(date) {
   var p = date.split('-'), dt = Date.UTC(+p[0], +p[1] - 1, +p[2]);
   function dm(ms) { return Utilities.formatDate(new Date(ms), 'UTC', 'dd.MM'); }
   var keys = [dm(dt), dm(dt - 86400000), dm(dt + 86400000)];
-  return indParseRaw_(function (name) {
+  var old = indParseRaw_(function (name) {
     return name.split('/').some(function (t) { return keys.indexOf(t.trim()) >= 0; });
   }).filter(function (e) { return e.date === date; });
+  return old.concat(indParseAdm_(date));
 }
 
-// Для записи: всегда свежее чтение листа этого занятия
+// Для записи: всегда свежее чтение этого занятия (новые — из AdminApp и файла оплат, старые — из старой таблицы)
 function indFind_(id) {
   var sn = String(id).split('|')[0];
-  var evs = indParseRaw_(function (n) { return n === sn; });
+  var evs = sn === IND_ADM ? indParseAdm_() : indParseRaw_(function (n) { return n === sn; });
   for (var i = 0; i < evs.length; i++) {
     if (evs[i].id === id) { _indDirty[evs[i].sheet] = 1; return evs[i]; }
   }

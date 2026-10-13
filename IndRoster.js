@@ -1,0 +1,166 @@
+/** Новые индивидуальные / вратарские занятия (шаги 1–2 плана IND_PAYFILE_PLAN.md).
+ *  Занятия — лист «ИНДИВИДУАЛЬНЫЕ ЗАНЯТИЯ» в AdminApp.
+ *  Записи и оплаты — строки блока «Индивидуальные / Вратарские» на листе месяца файла оплат:
+ *  записан = строка с датой занятия и пустой суммой; оплата = сумма 50 ₾ в той же строке;
+ *  отмена записи = строка удаляется; отмена оплаты = сумма очищается.
+ *  Старые занятия (старая таблица) только читаются — здесь с ними ничего не пишется. */
+
+var IND_EVT = 'ИНДИВИДУАЛЬНЫЕ ЗАНЯТИЯ';
+var IND_EVT_HEAD = ['ID', 'Дата', 'Время', 'Вратари', 'Тема', 'Создано'];
+var IND_ADM = 'ADM'; // префикс ID новых занятий (лист в AdminApp, а не старая таблица)
+
+function indAdmId_(date, time, gk) { return IND_ADM + '|' + date + ' ' + time + (gk ? ' gk' : ''); }
+function indAdmIsNew_(ev) { return ev && ev.src === 'adm'; }
+function indNotOld_(ev) {
+  if (!indAdmIsNew_(ev)) throw new Error('Старое занятие: старая таблица только для чтения. Записи и оплаты вносятся для новых занятий.');
+}
+
+// «гггг-мм-дд» -> «дд.мм.гггг» (как в файле оплат)
+function indDmy_(date) { var p = String(date).split('-'); return p[2] + '.' + p[1] + '.' + p[0]; }
+
+function indTxt_(v, fmt) {
+  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), fmt);
+  return String(v == null ? '' : v).trim();
+}
+
+// Занятия из листа AdminApp (без игроков)
+function indAdmRows_() {
+  var sh = dbRead_(IND_EVT);
+  if (!sh || sh.getLastRow() < 2) return [];
+  return sh.getRange(2, 1, sh.getLastRow() - 1, 5).getValues().map(function (r, i) {
+    return {
+      row: i + 2, id: String(r[0]).trim(), date: indTxt_(r[1], 'yyyy-MM-dd'), time: indTxt_(r[2], 'HH:mm'),
+      gk: r[3] === true || String(r[3]).toUpperCase() === 'TRUE', theme: String(r[4] || '').trim()
+    };
+  }).filter(function (e) { return e.id && e.date; });
+}
+
+// Строки блока «Индивидуальные / Вратарские» на листе месяца: {row, name, date(дд.мм.гггг), amount}
+// Возвращает null, если листа месяца нет в файле оплат
+function indPfRows_(month) {
+  var sh = payFile_().getSheetByName(month);
+  if (!sh) return null;
+  var b = indBlock_(sh), out = [];
+  for (var i = b.hdr + 2; i < b.end; i++) {
+    var name = String(b.vals[i][1]).trim();
+    if (!name) continue;
+    out.push({ row: i + 1, name: name, date: dateText_(b.vals[i][2]), amount: indAmount_(b.vals[i][3]) });
+  }
+  return out;
+}
+
+// Карта «норм. имя -> группа» из реестра (для показа группы игрока)
+function indRegGroups_() {
+  var map = {};
+  regData_().players.forEach(function (p) { map[norm(p.name)] = p.group || 'гость'; });
+  return map;
+}
+
+// Игроки занятия из файла оплат. cache — объект на один проход, чтобы не читать лист месяца дважды
+function indPfPlayers_(date, cache) {
+  var month = indMonthSheet_(date);
+  if (!cache[month]) cache[month] = indPfRows_(month) || [];
+  var want = indDmy_(date), grp = cache.groups || (cache.groups = indRegGroups_());
+  return cache[month].filter(function (r) { return r.date === want; }).map(function (r) {
+    return { name: r.name, group: grp[norm(r.name)] || 'гость', paid: r.amount > 0, amount: r.amount, pfRow: r.row, pfMonth: month };
+  });
+}
+
+// Новые занятия целиком (с игроками из файла оплат). filterDate — только эта дата.
+function indParseAdm_(filterDate) {
+  var rows = indAdmRows_().filter(function (e) { return !filterDate || e.date === filterDate; });
+  var cache = {};
+  return rows.map(function (e) {
+    var players = indPfPlayers_(e.date, cache);
+    return {
+      src: 'adm', sheet: IND_ADM, row: e.row, id: e.id,
+      date: e.date, time: e.time, goalkeepers: e.gk, theme: e.theme,
+      cap: e.gk ? 7 : 6, slots: players.length, players: players, empty: [], last: e.row
+    };
+  });
+}
+
+// Строка игрока на дату в блоке листа месяца: номер строки (с 1) или 0
+function indPfFind_(sh, b, date, name) {
+  var want = indDmy_(date), low = norm(name);
+  for (var i = b.hdr + 2; i < b.end; i++) {
+    if (norm(b.vals[i][1]) === low && dateText_(b.vals[i][2]) === want) return i + 1;
+  }
+  return 0;
+}
+
+// Нумерация № в блоке заново (после удаления строки)
+function indPfRenumber_(sh) {
+  var b = indBlock_(sh), k = 1, out = [];
+  for (var i = b.hdr + 2; i < b.end; i++) {
+    var a = String(b.vals[i][0]).trim();
+    if (a !== '' && !isNaN(Number(a))) out.push([k++]); else out.push([b.vals[i][0]]);
+  }
+  if (out.length) sh.getRange(b.hdr + 3, 1, out.length, 1).setValues(out);
+}
+
+// Записать игрока на занятие. Предоплата без даты (есть сумма) занимает эту строку, иначе — свободная или новая строка.
+function indPfEnroll_(date, name) {
+  if (CONFIG.DRY_RUN) return { dryRun: true };
+  var month = indMonthSheet_(date), sh = payFile_().getSheetByName(month);
+  if (!sh) throw new Error('Нет листа ' + month + ' в файле оплат. Запись не внесена.');
+  var b = indBlock_(sh), want = indDmy_(date), low = norm(name), pre = 0, row = 0, i;
+  for (i = b.hdr + 2; i < b.end; i++) {
+    if (norm(b.vals[i][1]) !== low) continue;
+    var d = dateText_(b.vals[i][2]);
+    if (d === want) throw new Error('Уже записан на это занятие');
+    if (!d && !pre && indAmount_(b.vals[i][3]) > 0) pre = i + 1;
+  }
+  if (pre) row = pre;
+  for (i = b.hdr + 2; i < b.end && !row; i++) {
+    if (String(b.vals[i][1]).trim() === '') row = i + 1; // свободная строка блока
+  }
+  if (!row) {
+    sh.insertRowBefore(b.end + 1);
+    row = b.end + 1;
+    sh.getRange(row - 1, 1, 1, 4).copyTo(sh.getRange(row, 1, 1, 4), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+    sh.getRange(row, 1).setValue(b.end - b.hdr - 1);
+  }
+  sh.getRange(row, 2).setValue(String(name).trim());
+  sh.getRange(row, 3).setNumberFormat('@').setValue(want);
+  monthInvalidate_(month);
+  return { row: row, month: month };
+}
+
+// Снять игрока с занятия: строка удаляется целиком (только если не оплачено)
+function indPfUnenroll_(date, name) {
+  if (CONFIG.DRY_RUN) return { dryRun: true };
+  var month = indMonthSheet_(date), sh = payFile_().getSheetByName(month);
+  if (!sh) return { removed: 0 };
+  var b = indBlock_(sh), row = indPfFind_(sh, b, date, name);
+  if (!row) return { removed: 0 };
+  if (indAmount_(b.vals[row - 1][3]) > 0) throw new Error('Сначала отмените оплату');
+  sh.deleteRow(row);
+  indPfRenumber_(sh);
+  monthInvalidate_(month);
+  return { removed: 1 };
+}
+
+// Поставить сумму оплаты (amount) или очистить её (amount = '') у записанного игрока; строка остаётся
+function indPfSetAmount_(date, name, amount) {
+  if (CONFIG.DRY_RUN) return { dryRun: true };
+  var month = indMonthSheet_(date), sh = payFile_().getSheetByName(month);
+  if (!sh) throw new Error('Нет листа ' + month + ' в файле оплат. Оплата не внесена.');
+  var b = indBlock_(sh), row = indPfFind_(sh, b, date, name);
+  if (!row) throw new Error('Игрок не записан');
+  if (amount === '') sh.getRange(row, 4).clearContent();
+  else sh.getRange(row, 4).setNumberFormat('#,##0.00 "₾"').setValue(amount);
+  monthInvalidate_(month);
+  return { row: row, month: month };
+}
+
+// Создать строку нового занятия на листе AdminApp
+function indAdmAppend_(date, time, gk, theme) {
+  var sh = dbSheet_(IND_EVT, IND_EVT_HEAD);
+  if (!sh) return null;
+  var r = sh.getLastRow() + 1, tz = Session.getScriptTimeZone();
+  sh.getRange(r, 1, 1, 3).setNumberFormat('@');
+  sh.getRange(r, 1, 1, 6).setValues([[indAdmId_(date, time, gk), date, time, !!gk, theme || '',
+    Utilities.formatDate(new Date(), tz, 'dd.MM.yyyy HH:mm')]]);
+  return { row: r, id: indAdmId_(date, time, gk) };
+}
