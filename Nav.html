@@ -90,7 +90,7 @@ img,table,select,input,textarea{max-width:100%}
     return'<a class="'+cls+(k==PAGE?' on':'')+'" target="_top" href="'+href+'">'+(cls=='kst'?svg(k)+'<span>'+it[0]+'</span>':it[0])+'</a>';
   }
   function show(){
-    var tr=asTrainer(),main=tr?['att','games','stats']:['att','admin','pay','games'],more=tr?['funnel']:['stats','equip','camp','ind','funnel'];
+    var tr=asTrainer(),main=tr?['att','games','stats']:['att','admin','pay','games'],more=tr?[]:['stats','equip','camp','ind','funnel'];
     var moreOn=more.indexOf(PAGE)>=0,sh='';
     document.documentElement.setAttribute('data-ok','1');
     nav.innerHTML=main.map(function(k){return link(k,'kst')}).join('')+'<button class="kst'+(moreOn?' on':'')+'" id="ksmb">'+svg('more')+'<span>Ещё</span></button>';
