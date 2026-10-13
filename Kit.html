@@ -257,6 +257,7 @@ function playerHasBase(id){
   return has(/полный комплект/i)||(has(/игров/i)&&has(/тренировоч/i));
 }
 function r5(n){return Math.round(n/5)*5}
+function playerBaseSum(id){return O.filter(function(o){return o.id===id&&/игров|тренировоч|полный/i.test(o.kit||'')}).reduce(function(s,o){return s+(Number(o.sum)||0)},0)}
 function selKits(){return[].map.call(document.querySelectorAll('#fkits input:checked'),function(i){return i.value})}
 function kitsBox(){
   $('fkits').innerHTML=Object.keys(PR).map(function(k){
@@ -272,9 +273,11 @@ function refreshSum(){
   var hasDisc=ks.some(function(k){return DISC_ITEM.test(k)});
   var eligible=!!id&&((playerHasBase(id)&&hasDisc)||bundleAll);
   var disc=!inst&&eligible&&ks.length>0;
-  var sum=disc?r5(base*0.85):base;
+  var prior=id&&disc?playerBaseSum(id):0;
+  var target=disc?r5((prior+base)*0.85):0;
+  var sum=disc?Math.max(target-prior,0):base;
   $('fsum').value=ks.length?sum:'';
-  $('fbundle').textContent=!ks.length?'':(disc?'Скидка 15% на заказ: '+sum+' ₾ вместо '+base+' ₾':(inst&&eligible?'Рассрочка: скидка не применяется, '+base+' ₾':''));
+  $('fbundle').textContent=!ks.length?'':(disc?(prior?'Скидка 15% на общую сумму '+(prior+base)+' ₾ → '+target+' ₾ (уже оплачено '+prior+' ₾), к доплате '+sum+' ₾':'Скидка 15% на заказ: '+sum+' ₾ вместо '+base+' ₾'):(inst&&eligible?'Рассрочка: скидка не применяется, '+base+' ₾':''));
   refreshSizes();
 }
 function refreshSizes(){
