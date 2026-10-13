@@ -62,14 +62,14 @@ li small{color:var(--mute)}
   <div id="pane-tr">
     <div class="card" id="add-box">
       <div class="grid2">
-        <input id="a-date" placeholder="дд.мм.гггг" inputmode="numeric" aria-label="Дата">
+        <input id="a-date" type="date" aria-label="Дата">
         <select id="a-trainer" aria-label="Тренер"></select>
         <select id="a-group" aria-label="Группа"></select>
         <select id="a-loc" aria-label="Локация"></select>
         <select id="a-type" aria-label="Тип"></select>
         <div class="grid2">
-          <input id="a-start" placeholder="17:00" aria-label="Начало">
-          <input id="a-end" placeholder="18:30" aria-label="Конец">
+          <input id="a-start" type="time" aria-label="Начало">
+          <input id="a-end" type="time" aria-label="Конец">
         </div>
       </div>
       <label><input type="checkbox" id="a-held" checked> Проведено</label>
@@ -79,7 +79,7 @@ li small{color:var(--mute)}
   </div>
 
   <div id="pane-dy" hidden>
-    <input id="dy-date" placeholder="дд.мм.гггг" inputmode="numeric" aria-label="Дата">
+    <input id="dy-date" type="date" aria-label="Дата">
     <div id="dy-list"></div>
   </div>
 
@@ -179,37 +179,42 @@ function showTab(t){
   if(t==='dy')loadDay();
 }
 var dayHeld={};
-function todayStr(){var d=new Date();return('0'+d.getDate()).slice(-2)+'.'+('0'+(d.getMonth()+1)).slice(-2)+'.'+d.getFullYear()}
+function todayIso(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)}
+function toDmy(v){var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v||''));return m?m[3]+'.'+m[2]+'.'+m[1]:String(v||'')}
 function loadDay(){
-  if(!$('dy-date').value)$('dy-date').value=todayStr();
-  var date=$('dy-date').value.trim();
+  if(!$('dy-date').value)$('dy-date').value=todayIso();
+  var iso=$('dy-date').value,date=toDmy(iso);
   $('dy-list').innerHTML='<div class="sub">Загружаю…</div>';
   run('appDailySchedule',[pin,date],function(items){
-    if(!items.length){$('dy-list').innerHTML='<div class="sub">На этот день по расписанию ничего нет</div>';return}
+    if(!items.length){$('dy-list').innerHTML='<div class="sub">На этот день тренировок по расписанию нет</div>';return}
     $('dy-list').innerHTML=items.map(function(x,i){
-      var st=x.status==='done'?'<span class="chip on">проведена</span>':(dayHeld[date+'|'+x.group+'|'+x.start]===false||x.status==='no'?'<span class="chip">не проводилась</span>':'');
-      var btns=x.status==='open'&&dayHeld[date+'|'+x.group+'|'+x.start]===undefined
+      var key=date+'|'+x.group+'|'+x.start;
+      var mark=x.status==='done'?'<span class="chip on">записана</span>':(dayHeld[key]===false?'<span class="chip">не проводилась</span>':'');
+      var sel=x.trainers.map(function(tr,j){
+        return'<select data-s="'+i+'" data-j="'+j+'" aria-label="Тренер">'+cache.trainers.map(function(t){return'<option'+(t===tr?' selected':'')+'>'+esc(t)+'</option>'}).join('')+'</select>';
+      }).join('');
+      var btns=x.status==='open'&&dayHeld[key]===undefined
         ?'<div class="grid2"><button class="btn" data-y="'+i+'">Да</button><button class="btn" data-n="'+i+'" style="background:var(--card);color:var(--ink);border:1px solid var(--line)">Нет</button></div>':'';
-      return'<div class="card"><div class="top"><span>'+esc(x.start)+'–'+esc(x.end)+' · '+esc(x.group)+'</span>'+st+'</div>'
-        +'<div class="sub">'+esc(x.location)+' · '+esc(x.type)+'</div>'
-        +'<select id="dy-tr'+i+'" aria-label="Тренер">'+cache.trainers.map(function(t){return'<option'+(t===x.trainer?' selected':'')+'>'+esc(t)+'</option>'}).join('')+'</select>'
-        +btns+'</div>';
+      return'<div class="card"><div class="top"><span>'+esc(x.start)+'–'+esc(x.end)+' · '+esc(x.group)+'</span>'+mark+'</div>'
+        +'<div class="sub">'+esc(x.loc)+' · '+esc(x.type)+'</div>'+sel+btns+'</div>';
     }).join('');
     items.forEach(function(x,i){
+      var key=date+'|'+x.group+'|'+x.start;
       var y=document.querySelector('[data-y="'+i+'"]'),n=document.querySelector('[data-n="'+i+'"]');
       if(y)y.onclick=function(){
+        var trs=[].map.call(document.querySelectorAll('select[data-s="'+i+'"]'),function(el){return el.value});
         setMsg('Сохраняю…');
-        run('appConfirmDaily',[pin,{held:true,date:date,trainer:$('dy-tr'+i).value,location:x.location,group:x.group,type:x.type,start:x.start,end:x.end}],
-          function(){dayHeld[date+'|'+x.group+'|'+x.start]=true;setMsg('Записано');loadDay()},function(e){setMsg(e,true)});
+        run('appConfirmDaily',[pin,{date:date,loc:x.loc,group:x.group,type:x.type,start:x.start,end:x.end,trainers:trs}],
+          function(){dayHeld[key]=true;setMsg('Записано');loadDay()},function(e){setMsg(e,true)});
       };
-      if(n)n.onclick=function(){dayHeld[date+'|'+x.group+'|'+x.start]=false;loadDay()};
+      if(n)n.onclick=function(){dayHeld[key]=false;loadDay()};
     });
     setMsg('');
   },function(e){setMsg(e,true)});
 }
 $('dy-date').onchange=loadDay;
 function addTraining(){
-  var o={date:$('a-date').value.trim(),trainer:$('a-trainer').value.trim(),group:$('a-group').value.trim(),
+  var o={date:toDmy($('a-date').value.trim()),trainer:$('a-trainer').value.trim(),group:$('a-group').value.trim(),
     location:$('a-loc').value.trim(),type:$('a-type').value.trim(),start:$('a-start').value.trim(),end:$('a-end').value.trim(),held:$('a-held').checked};
   setMsg('Сохраняю…');
   run('appTrainingAdd',[pin,o],function(){setMsg('Тренировка добавлена');$('a-trainer').value='';$('a-group').value='';load()},function(e){setMsg(e,true)});
