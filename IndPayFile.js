@@ -21,7 +21,17 @@ function indBlock_(sh) {
     a = String(vals[i][0]).trim();
     if (a !== '' && a !== '№' && isNaN(Number(a))) { end = i; break; }
   }
-  return { hdr: hdr, end: end, vals: vals };
+  // Дата группы стоит только в первой строке группы (ячейки объединены). Строки группы берут её дату;
+  // группа начинается со строки с № «1».
+  var dates = [], cur = '';
+  for (i = 0; i < vals.length; i++) dates[i] = '';
+  for (i = hdr + 2; i < end; i++) {
+    var c = dateText_(vals[i][2]), n = String(vals[i][0]).trim();
+    if (n === '1') cur = c;
+    else if (c) cur = c;
+    dates[i] = cur;
+  }
+  return { hdr: hdr, end: end, vals: vals, dates: dates };
 }
 
 // Дата строки таблицы с учётом объединённых ячеек

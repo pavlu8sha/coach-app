@@ -44,7 +44,7 @@ function indPfRows_(month) {
   for (var i = b.hdr + 2; i < b.end; i++) {
     var name = String(b.vals[i][1]).trim();
     if (!name) continue;
-    out.push({ row: i + 1, name: name, date: dateText_(b.vals[i][2]), amount: indAmount_(b.vals[i][3]) });
+    out.push({ row: i + 1, name: name, date: b.dates[i], amount: indAmount_(b.vals[i][3]) });
   }
   return out;
 }
@@ -84,7 +84,7 @@ function indParseAdm_(filterDate) {
 function indPfFind_(sh, b, date, name) {
   var want = indDmy_(date), low = norm(name);
   for (var i = b.hdr + 2; i < b.end; i++) {
-    if (norm(b.vals[i][1]) === low && dateText_(b.vals[i][2]) === want) return i + 1;
+    if (norm(b.vals[i][1]) === low && b.dates[i] === want) return i + 1;
   }
   return 0;
 }
@@ -107,7 +107,7 @@ function indPfEnroll_(date, name) {
   var b = indBlock_(sh), want = indDmy_(date), low = norm(name), pre = 0, row = 0, i;
   for (i = b.hdr + 2; i < b.end; i++) {
     if (norm(b.vals[i][1]) !== low) continue;
-    var d = dateText_(b.vals[i][2]);
+    var d = b.dates[i];
     if (d === want) throw new Error('Уже записан на это занятие');
     if (!d && !pre && indAmount_(b.vals[i][3]) > 0) pre = i + 1;
   }
