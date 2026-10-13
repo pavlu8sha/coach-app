@@ -114,10 +114,59 @@ function gnStats_(games, trainings, month) {
 function appGamesData(pin, month) {
   checkAdmin_(pin);
   var games = gnParseGames_(gnValues_('Игры')).matches;
-  var trainings = gnParseTrainings_(gnValues_('Тренировки'));
+  var trainings = gnParseTrainings_(gnTrainingsRows_());
   var m = month || '';
   return {
     games: games.filter(function (g) { return !m || gnMonthOf_(g.date) === m; }),
     stats: gnStats_(games, trainings, m)
   };
+}
+
+// ---- Тренировки в AdminApp (лист «Тренировки») ----
+
+var GN_TR_HEAD = ['Дата', 'День недели', 'Тренер', 'Локация', 'Группа', 'Тип тренировки', 'Начало', 'Конец', 'Часы', 'Проведено'];
+var GN_WEEKDAYS = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
+
+// Лист создаётся при первом обращении (dbSheet_ создаёт его с заголовками)
+function gnTrainingsSheet_() { return dbSheet_('Тренировки', GN_TR_HEAD); }
+
+// Все строки листа «Тренировки» из AdminApp (с заголовком), для статистики
+function gnTrainingsRows_() {
+  var sh = adminSS_().getSheetByName('Тренировки');
+  if (!sh || sh.getLastRow() < 2) return [GN_TR_HEAD];
+  return [GN_TR_HEAD].concat(sh.getDataRange().getValues().slice(1).map(function (r) { return r.map(gnStr_); }));
+}
+
+// Часы из времени начала и конца: «17:00» и «18:30» → 1.5
+function gnHours_(start, end) {
+  var a = /^(\d{1,2}):(\d{2})$/.exec(String(start || '')), b = /^(\d{1,2}):(\d{2})$/.exec(String(end || ''));
+  if (!a || !b) return 0;
+  return Math.round(((+b[1] * 60 + +b[2]) - (+a[1] * 60 + +a[2])) / 6) / 10;
+}
+
+// Добавить тренировку (только админ). Дата в формате «dd.MM.yyyy».
+function appTrainingAdd(pin, o) {
+  checkAdmin_(pin);
+  if (!/^\d{2}\.\d{2}\.\d{4}$/.test(String(o.date || ''))) throw new Error('Дата в формате дд.мм.гггг');
+  if (!String(o.trainer || '').trim()) throw new Error('Укажите тренера');
+  var p = o.date.split('.'), wd = GN_WEEKDAYS[new Date(+p[2], +p[1] - 1, +p[0]).getDay()];
+  var hours = gnHours_(o.start, o.end);
+  if (CONFIG.DRY_RUN) return { dryRun: true, hours: hours };
+  var sh = gnTrainingsSheet_(), r = sh.getLastRow() + 1;
+  sh.getRange(r, 1, 1, 10).setNumberFormat('@').setValues([[o.date, wd, String(o.trainer).trim(), String(o.location || ''),
+    String(o.group || ''), String(o.type || ''), String(o.start || ''), String(o.end || ''), String(hours).replace('.', ','), o.held === false ? 'Нет' : 'Да']]);
+  logChange_('', '', 'тренировка (раздел Игры)', '', o.date + ' ' + o.trainer + ' ' + (o.group || ''));
+  return { ok: true, row: r, hours: hours };
+}
+
+// Разовый перенос тренировок из таблицы 1Cf4 в AdminApp. Работает, только если лист пуст.
+function gnTrainingsImportOnce() {
+  var sh = gnTrainingsSheet_();
+  if (sh.getLastRow() > 1) throw new Error('Лист «Тренировки» уже заполнен, перенос не выполнен');
+  var src = gnValues_('Тренировки').slice(1).filter(function (r) { return String(r[0]).trim(); });
+  if (!src.length) return 0;
+  if (CONFIG.DRY_RUN) { Logger.log('DRY_RUN: к переносу ' + src.length + ' тренировок'); return src.length; }
+  sh.getRange(2, 1, src.length, 10).setNumberFormat('@').setValues(src.map(function (r) { return r.slice(0, 10); }));
+  logChange_('', '', 'перенос тренировок из таблицы Games', '', src.length + ' строк');
+  return src.length;
 }
