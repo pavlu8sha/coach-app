@@ -29,6 +29,9 @@ th{color:var(--mute);font-weight:600}
 .err{color:var(--a)}
 label{font-size:13px;color:var(--mute);display:flex;gap:8px;align-items:center;margin-top:8px}
 label input{width:auto;min-height:0}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chips button{min-height:36px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--ink);padding:4px 12px}
+.chips button.on{background:var(--g);color:var(--gi);border-color:var(--g)}
 .top{display:flex;justify-content:space-between;gap:8px;font-weight:700}
 .bar{height:6px;border-radius:3px;background:var(--n);margin-top:8px;overflow:hidden}.bar i{display:block;height:100%;background:var(--g)}
 .sub{color:var(--mute);font-size:13px;margin-top:8px}
@@ -59,10 +62,10 @@ li small{color:var(--mute)}
     <div class="card" id="add-box">
       <div class="grid2">
         <input id="a-date" placeholder="дд.мм.гггг" inputmode="numeric" aria-label="Дата">
-        <input id="a-trainer" placeholder="Тренер" aria-label="Тренер">
-        <input id="a-group" placeholder="Группа" aria-label="Группа">
-        <input id="a-loc" placeholder="Локация" aria-label="Локация">
-        <input id="a-type" placeholder="Тип тренировки" aria-label="Тип">
+        <select id="a-trainer" aria-label="Тренер"></select>
+        <select id="a-group" aria-label="Группа"></select>
+        <select id="a-loc" aria-label="Локация"></select>
+        <select id="a-type" aria-label="Тип"></select>
         <div class="grid2">
           <input id="a-start" placeholder="17:00" aria-label="Начало">
           <input id="a-end" placeholder="18:30" aria-label="Конец">
@@ -75,11 +78,12 @@ li small{color:var(--mute)}
   </div>
 
   <div id="pane-gm" hidden><div class="scroll"><table id="gm-table"></table></div></div>
-  <div id="pane-st" hidden><div id="st-table"></div></div>
+  <div id="pane-st" hidden><div class="chips" id="chips"></div>
+  <div id="st-table"></div></div>
 </div>
 <script>
 var pin='',reqN=0,MN=['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
-var tab='tr',cache={months:[],trainings:[],games:[],stats:[]};
+var tab='tr',trFilter='',cache={months:[],trainings:[],games:[],stats:[],trainers:[]};
 function $(i){return document.getElementById(i)}
 function run(fn,args,ok,fail){var r=google.script.run.withSuccessHandler(ok).withFailureHandler(function(e){fail(e&&e.message?e.message:String(e))});r[fn].apply(r,args)}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
@@ -89,7 +93,21 @@ function setMsg(t,bad){$('msg').textContent=t||'';$('msg').className='msg'+(bad?
 function showLogin(t){$('app').hidden=true;$('login').hidden=false;$('lerr').textContent=t||''}
 function fail(m){if(String(m).indexOf('код доступа')>=0)showLogin('Неверный код доступа');else{$('login').hidden=true;$('app').hidden=false;setMsg(m,true)}}
 
+function fillOpts(id,list,empty){
+  $(id).innerHTML=(empty?'<option value="">'+empty+'</option>':'')+list.map(function(v){return'<option value="'+esc(v)+'">'+esc(v)+'</option>'}).join('');
+}
+function loadOptions(){
+  run('appTrainingOptions',[pin],function(o){
+    fillOpts('a-trainer',o.trainers,'Выберите тренера');
+    fillOpts('a-loc',o.locations,'Локация');
+    fillOpts('a-group',o.groups,'Группа');
+    fillOpts('a-type',o.types,'Тип тренировки');
+    cache.trainers=o.trainers;
+    drawChips();
+  },function(){});
+}
 function init(){
+  loadOptions();
   run('appAccountMonths',[pin],function(ms){
     $('login').hidden=true;$('app').hidden=false;
     cache.months=ms;
@@ -121,10 +139,19 @@ function drawGm(){
   }).join('');
   $('gm-table').innerHTML='<tr><th>Дата</th><th>Команда</th><th>Счёт</th><th>Голы</th><th>Сотрудники</th></tr>'+(rows||'<tr><td colspan="5">Нет игр</td></tr>');
 }
+function drawChips(){
+  $('chips').innerHTML=cache.trainers.map(function(t){
+    return'<button class="chip'+(trFilter===t?' on':'')+'" data-tr="'+esc(t)+'">'+esc(t)+'</button>';
+  }).join('');
+  document.querySelectorAll('#chips button').forEach(function(b){
+    b.onclick=function(){var t=b.getAttribute('data-tr');trFilter=trFilter===t?'':t;drawChips();drawSt()};
+  });
+}
 function drawSt(){
   var box=$('st-table');
-  if(!cache.stats.length){box.innerHTML='<div class="sub">Нет данных за месяц</div>';return}
-  box.innerHTML=cache.stats.map(function(s){
+  var list=cache.stats.filter(function(s){return !trFilter||s.trainer===trFilter});
+  if(!list.length){box.innerHTML='<div class="sub">Нет данных за месяц</div>';return}
+  box.innerHTML=list.map(function(s){
     var pct=s.pct===null?'—':s.pct+'%';
     var bar=s.pct===null?0:s.pct;
     var tr=s.tr.map(function(t){return'<li><span>'+esc(t.date)+' · '+esc(t.group||'—')+'</span><b>'+fmtH(t.hours)+' ч</b></li>'}).join('')||'<li><span>Нет тренировок</span></li>';

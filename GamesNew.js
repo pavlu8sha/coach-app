@@ -193,3 +193,20 @@ function appTrainingsList(pin, month) {
     return !month || gnMonthOf_(t.date) === month;
   });
 }
+
+// ---- Справочники для форм (только чтение) ----
+
+// Колонки листа «Справочники»: A тренеры, B локации, C группы, D типы тренировок
+function appTrainingOptions(pin) {
+  checkAdmin_(pin);
+  var rows = gnValues_('Справочники');
+  function col(i) {
+    var seen = {}, out = [];
+    rows.slice(1).forEach(function (r) {
+      var v = String(r[i] || '').trim();
+      if (v && !seen[v]) { seen[v] = 1; out.push(v); }
+    });
+    return out;
+  }
+  return { trainers: col(0), locations: col(1), groups: col(2), types: col(3) };
+}
