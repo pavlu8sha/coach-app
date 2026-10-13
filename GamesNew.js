@@ -212,53 +212,87 @@ function appTrainingOptions(pin) {
   return { trainers: col(0), locations: col(1), groups: col(2), types: col(3) };
 }
 
-// ---- Расписание на день (устойчивое, из уже внесённых тренировок) ----
-
+// День недели (0 — вс) из даты «дд.мм.гггг»
 function gnWeekday_(date) {
   var p = String(date).split('.');
   return new Date(+p[2], +p[1] - 1, +p[0]).getDay();
 }
 
-// Для каждого дня недели, времени и группы берём самого частого тренера
-function gnDefaultSchedule_(trainings) {
-  var cnt = {}, best = {};
-  trainings.forEach(function (t) {
-    if (!t.held || !t.start || !t.group) return;
-    var k = [gnWeekday_(t.date), t.start, t.end, t.group].join('|');
-    cnt[k] = cnt[k] || {};
-    cnt[k][t.trainer] = (cnt[k][t.trainer] || 0) + 1;
-  });
-  Object.keys(cnt).forEach(function (k) {
-    var parts = k.split('|'), trainer = '', n = 0;
-    Object.keys(cnt[k]).forEach(function (tr) { if (cnt[k][tr] > n) { n = cnt[k][tr]; trainer = tr; } });
-    var f = null;
-    trainings.some(function (t) { if (t.group === parts[3] && t.start === parts[1] && gnWeekday_(t.date) === +parts[0]) { f = t; return true; } return false; });
-    best[k] = { wd: +parts[0], start: parts[1], end: parts[2], group: parts[3], trainer: trainer, location: f ? f.location : '', type: f ? f.type : '', n: n };
-  });
-  return Object.keys(best).map(function (k) { return best[k]; }).sort(function (a, b) {
-    return (a.wd * 10000 + +a.start.replace(':', '')) - (b.wd * 10000 + +b.start.replace(':', ''));
-  });
+// ---- Расписание сезона 2026-2027 (источник для дневного расписания) ----
+// wd: 0 — вс, 1 — пн, … 6 — сб. Каждая тренировка с двумя тренерами записывается двумя строками.
+var GN_SEASON = [
+  [1,'Красный парк','16:00','17:00','U7-А/В','Групповая',['Дима','Руслан']],
+  [1,'Красный парк','16:45','18:00','U9-А/В','Групповая',['Дима','Руслан']],
+  [1,'Красный парк','17:45','19:00','U11','Групповая',['Паша','Руслан']],
+  [2,'Красный парк','15:45','17:15','U13-B/C','Групповая',['Соприк','Цотне']],
+  [2,'Красный парк','17:00','18:30','U10-A/В','Групповая',['Паша','Цотне']],
+  [2,'Красный парк','18:15','20:00','U13-A','Групповая',['Соприк','Паша']],
+  [3,'Красный парк','16:00','16:45','U7-А/В','Групповая',['Дима','Руслан']],
+  [3,'Красный парк','16:30','17:45','U9-А/В','Групповая',['Дима','Руслан']],
+  [3,'Красный парк','17:30','19:00','U11','Групповая',['Паша','Руслан']],
+  [4,'Красный парк','15:45','17:00','U13-B/C','Групповая',['Соприк','Цотне']],
+  [4,'Красный парк','16:45','18:00','U10-A/В','Групповая',['Паша','Цотне']],
+  [4,'Красный парк','17:45','19:00','U13-A','Групповая',['Соприк','Паша']],
+  [5,'Красный парк','16:00','16:45','U7-А/В','Групповая',['Дима','Руслан']],
+  [5,'Красный парк','16:30','17:45','U9-А/В','Групповая',['Дима','Руслан']],
+  [5,'Красный парк','17:30','19:00','U11','Групповая',['Паша','Руслан']],
+  [6,'Красный парк','16:00','17:00','Weekends','Групповая',['Руслан','Цотне']],
+  [6,'Красный парк','16:45','18:00','U13-B','Групповая',['Соприк','Цотне']],
+  [6,'Красный парк','17:45','19:00','U13-C','Групповая',['Цотне','Соприк']],
+  [6,'Красный парк','19:00','20:00','Индивидуальные','Индивидуальная',['Гио','Соприк']],
+  [0,'Красный парк','16:00','17:00','Weekends','Групповая',['Руслан','Цотне']],
+  [0,'Красный парк','16:45','18:00','U10-A/В','Групповая',['Паша','Цотне']],
+  [0,'Красный парк','18:00','19:00','Индивидуальные','Индивидуальная',['Гио','Паша']],
+  [0,'Красный парк','19:00','20:00','Вратари','Вратарская',['Антон','Гио']],
+  [1,'Чиковани','18:00','19:30','U13-A','Групповая',['Соприк']],
+  [1,'Исани','16:30','17:30','Исани U7','Групповая',['Гио']],
+  [3,'Исани','16:30','17:30','Исани U7','Групповая',['Гио']],
+  [5,'Исани','16:30','17:30','Исани U7','Групповая',['Гио']],
+  [2,'Ортачала','15:00','15:50','Ortachala U9','Групповая',['Гио']],
+  [2,'Ортачала','15:50','17:00','Ortachala U12','Групповая',['Гио']],
+  [4,'Ортачала','15:00','15:50','Ortachala U9','Групповая',['Гио']],
+  [4,'Ортачала','15:50','17:00','Ortachala U12','Групповая',['Гио']],
+  [6,'Ортачала','10:00','10:50','Ortachala U9','Групповая',['Гио']],
+  [6,'Ортачала','10:50','12:00','Ortachala U12','Групповая',['Гио']]
+].map(function (x) { return { wd: x[0], loc: x[1], start: x[2], end: x[3], group: x[4], type: x[5], trainers: x[6] }; });
+
+// Дата из календаря «гггг-мм-дд» или текст «дд.мм.гггг» → «дд.мм.гггг»
+function gnDmy_(v) {
+  var s = String(v || '').trim();
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  return m ? m[3] + '.' + m[2] + '.' + m[1] : s;
 }
 
-// Тренировки на выбранную дату по устойчивому расписанию и уже внесённые
+// Тренировки на выбранную дату по расписанию сезона; статус — из уже внесённых строк
 function appDailySchedule(pin, date) {
   checkAdmin_(pin);
-  if (!/^\d{2}\.\d{2}\.\d{4}$/.test(String(date || ''))) throw new Error('Дата в формате дд.мм.гггг');
-  var all = gnParseTrainings_(gnTrainingsRows_());
+  date = gnDmy_(date);
+  if (!/^\d{2}\.\d{2}\.\d{4}$/.test(date)) throw new Error('Дата в формате дд.мм.гггг');
   var wd = gnWeekday_(date);
   var done = {};
-  all.forEach(function (t) { if (t.date === date) done[t.group + '|' + t.start] = t; });
-  return gnDefaultSchedule_(all).filter(function (x) { return x.wd === wd; }).map(function (x) {
-    var d = done[x.group + '|' + x.start];
-    return { start: x.start, end: x.end, group: x.group, trainer: x.trainer, location: x.location, type: x.type,
-      status: d ? (d.held ? 'done' : 'no') : 'open' };
+  gnParseTrainings_(gnTrainingsRows_()).forEach(function (t) {
+    if (t.date === date && t.held) done[t.group + '|' + t.start] = true;
+  });
+  return GN_SEASON.filter(function (x) { return x.wd === wd; }).map(function (x) {
+    return { loc: x.loc, start: x.start, end: x.end, group: x.group, type: x.type, trainers: x.trainers,
+      status: done[x.group + '|' + x.start] ? 'done' : 'open' };
   });
 }
 
-// Подтверждение тренировки: «да» — записываем в 1Cf4, «нет» — ничего не пишем
+// Подтверждение «да»: по одной строке на каждого тренера; уже записанную тренировку не дублируем
 function appConfirmDaily(pin, o) {
   checkAdmin_(pin);
-  if (!o.held) return { ok: true, skipped: true };
-  return appTrainingAdd(pin, { date: o.date, trainer: o.trainer, location: o.location, group: o.group,
-    type: o.type, start: o.start, end: o.end, held: true });
+  var date = gnDmy_(o.date);
+  var dup = gnParseTrainings_(gnTrainingsRows_()).some(function (t) {
+    return t.date === date && t.held && t.group === o.group && t.start === o.start;
+  });
+  if (dup) return { ok: true, exists: true };
+  var n = 0;
+  (o.trainers || []).forEach(function (tr) {
+    if (!String(tr || '').trim()) return;
+    appTrainingAdd(pin, { date: date, trainer: tr, location: o.loc, group: o.group, type: o.type,
+      start: o.start, end: o.end, held: true });
+    n++;
+  });
+  return { ok: true, written: n };
 }
