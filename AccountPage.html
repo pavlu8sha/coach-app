@@ -84,6 +84,7 @@ function $(i){return document.getElementById(i)}
 function run(fn,args,ok,fail){var r=google.script.run.withSuccessHandler(ok).withFailureHandler(function(e){fail(e&&e.message?e.message:String(e))});r[fn].apply(r,args)}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function monLabel(m){var a=m.split('.');return(MN[Number(a[0])-1]||m)+' 20'+a[1]}
+function fmtH(n){return String(Math.round(Number(n||0)*100)/100).replace('.',',')}
 function setMsg(t,bad){$('msg').textContent=t||'';$('msg').className='msg'+(bad?' err':'')}
 function showLogin(t){$('app').hidden=true;$('login').hidden=false;$('lerr').textContent=t||''}
 function fail(m){if(String(m).indexOf('код доступа')>=0)showLogin('Неверный код доступа');else{$('login').hidden=true;$('app').hidden=false;setMsg(m,true)}}
@@ -107,7 +108,7 @@ function load(){
 }
 function drawTr(){
   var rows=cache.trainings.map(function(t){
-    return'<tr><td>'+esc(t.date)+'</td><td>'+esc(t.trainer)+'</td><td>'+esc(t.group)+'</td><td>'+(t.held?'да':'нет')+'</td><td>'+String(t.hours).replace('.',',')+'</td></tr>';
+    return'<tr><td>'+esc(t.date)+'</td><td>'+esc(t.trainer)+'</td><td>'+esc(t.group)+'</td><td>'+(t.held?'да':'нет')+'</td><td>'+fmtH(t.hours)+'</td></tr>';
   }).join('');
   $('tr-table').innerHTML='<tr><th>Дата</th><th>Тренер</th><th>Группа</th><th>Проведено</th><th>Часы</th></tr>'+(rows||'<tr><td colspan="5">Нет тренировок</td></tr>');
 }
@@ -126,14 +127,14 @@ function drawSt(){
   box.innerHTML=cache.stats.map(function(s){
     var pct=s.pct===null?'—':s.pct+'%';
     var bar=s.pct===null?0:s.pct;
-    var tr=s.tr.map(function(t){return'<li><span>'+esc(t.date)+' · '+esc(t.group||'—')+'</span><b>'+String(t.hours).replace('.',',')+' ч</b></li>'}).join('')||'<li><span>Нет тренировок</span></li>';
+    var tr=s.tr.map(function(t){return'<li><span>'+esc(t.date)+' · '+esc(t.group||'—')+'</span><b>'+fmtH(t.hours)+' ч</b></li>'}).join('')||'<li><span>Нет тренировок</span></li>';
     var gm=s.gm.map(function(g){
       var score=g.tech?'техническая победа':(g.gf===null?'—':g.gf+':'+g.ga);
       return'<li><span>'+esc(g.date)+' · '+esc(g.team)+' — '+esc(g.opp)+'<br><small>'+esc(g.role)+(g.reg?'':', регламент не выполнен')+'</small></span><b>'+score+'</b></li>';
     }).join('')||'<li><span>Нет игр</span></li>';
     return'<details><summary><div class="top"><span>'+esc(s.trainer)+'</span><span>'+pct+'</span></div>'
       +'<div class="bar"><i style="width:'+bar+'%"></i></div>'
-      +'<div class="sub">Тренировок: '+s.trainings+' ('+String(s.hours).replace('.',',')+' ч) · игр как тренер: '+s.asTrainer+' · как оператор: '+s.asOperator+' · участий: '+s.parts+'</div></summary>'
+      +'<div class="sub">Тренировок: '+s.trainings+' ('+fmtH(s.hours)+' ч) · игр как тренер: '+s.asTrainer+' · как оператор: '+s.asOperator+' · участий: '+s.parts+'</div></summary>'
       +'<div class="sub"><b>Тренировки</b></div><ul>'+tr+'</ul>'
       +'<div class="sub"><b>Игры</b></div><ul>'+gm+'</ul></details>';
   }).join('');

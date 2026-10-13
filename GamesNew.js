@@ -80,8 +80,11 @@ function gnParseTrainings_(rows) {
   for (var i = 1; i < rows.length; i++) {
     var r = rows[i];
     if (!String(r[0] || '').trim()) continue;
+    var h = Number(String(r[8] || '0').replace(',', '.')) || 0;
     out.push({ date: String(r[0]).trim(), trainer: String(r[2] || '').trim(),
-      hours: Number(String(r[8] || '0').replace(',', '.')) || 0, held: String(r[9] || '').trim() === 'Да' });
+      group: String(r[4] || '').trim() || String(r[5] || '').trim(),   // группа, а если пусто — тип тренировки
+      hours: Math.round(h * 100) / 100,                                 // таблица хранит часы с погрешностью вида 0,9999…
+      held: String(r[9] || '').trim() === 'Да' });
   }
   return out;
 }
