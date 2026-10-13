@@ -122,9 +122,8 @@ function indPfEnroll_(date, name) {
     if (!d && !pre && indAmount_(b.vals[i][3]) > 0) pre = i + 1;
   }
   if (pre) row = pre;
-  for (i = b.hdr + 2; i < b.end && !row; i++) {
-    if (String(b.vals[i][1]).trim() === '') row = i + 1; // свободная строка блока
-  }
+  // Свободные строки внутри групп не используем: их дата может быть объединённой ячейкой (диапазон дат группы).
+  // Новая строка всегда в конце блока.
   if (!row) {
     sh.insertRowBefore(b.end + 1);
     row = b.end + 1;
@@ -133,6 +132,10 @@ function indPfEnroll_(date, name) {
   }
   sh.getRange(row, 2).setValue(String(name).trim());
   sh.getRange(row, 3).setNumberFormat('@').setValue(want);
+  SpreadsheetApp.flush();
+  if (dateText_(sh.getRange(row, 3).getValue()) !== want) {
+    throw new Error('Дата не записалась в строку ' + row + ' файла оплат. Проверьте, нет ли объединения ячеек.');
+  }
   monthInvalidate_(month);
   return { row: row, month: month };
 }
