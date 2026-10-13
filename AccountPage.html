@@ -20,6 +20,9 @@ button{font:inherit;cursor:pointer}
 .tabs button.on{background:var(--g);color:var(--gi);border-color:var(--g)}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;min-width:0}
 .grid2>*{min-width:0}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.pair>*{min-width:0;width:100%}
+input[type=date],input[type=time]{-webkit-appearance:none;appearance:none;display:block;width:100%;min-width:0;box-sizing:border-box}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-top:8px}
 table{width:100%;border-collapse:collapse;font-size:14px}
 th,td{text-align:left;padding:6px 4px;border-top:1px solid var(--line);vertical-align:top}
@@ -61,13 +64,17 @@ li small{color:var(--mute)}
 
   <div id="pane-tr">
     <div class="card" id="add-box">
-      <div class="grid2">
+      <div class="pair">
         <input id="a-date" type="date" aria-label="Дата">
         <select id="a-trainer" aria-label="Тренер"></select>
+      </div>
+      <div class="pair">
         <select id="a-group" aria-label="Группа"></select>
         <select id="a-loc" aria-label="Локация"></select>
+      </div>
+      <div class="pair">
         <select id="a-type" aria-label="Тип"></select>
-        <div class="grid2">
+        <div class="pair">
           <input id="a-start" type="time" aria-label="Начало">
           <input id="a-end" type="time" aria-label="Конец">
         </div>
