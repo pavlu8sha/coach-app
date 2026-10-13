@@ -111,7 +111,7 @@ function fillOpts(id,list,empty){
 }
 function loadOptions(){
   run('appTrainingOptions',[pin],function(o){
-    fillOpts('a-trainer',o.trainers,'Выберите тренера');
+    fillOpts('a-trainer',o.trainers,'Тренер');
     fillOpts('a-loc',o.locations,'Локация');
     fillOpts('a-group',o.groups,'Группа');
     fillOpts('a-type',o.types,'Тип тренировки');
