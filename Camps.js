@@ -262,12 +262,15 @@ function appCampList(pin, campId) {
   var gen = keys.map(function (k) {
     return { key: k, players: groups[k].sort(function (a, b) { return a.name.localeCompare(b.name); }).map(function (p) {
       var booked = camp.deposit > 0 && r2_(paidOf[p.id] || 0) >= camp.deposit;
-      return { name: p.name.trim(), text: p.name.trim() + ' - ' + campSuffix_(p.tariff) + (booked ? ', бронь внесена' : '') };
+      return { name: p.name.trim(), booked: booked, text: p.name.trim() + ' - ' + campSuffix_(p.tariff) + (booked ? ', бронь внесена' : '') };
     }) };
   });
+  // Отказавшиеся по этому сбору (только явный статус «Отказ») убираются из сохранённого текста.
+  var cancelled = {};
+  all.parts.forEach(function (p) { if (p.camp === camp.id && p.status === 'Отказ') cancelled[p.name.trim().toLowerCase()] = true; });
   // Сохранённый (и отредактированный в приложении) текст важнее: новые записавшиеся дописываются в него.
   var saved = campListLoad_(camp.id);
-  var text = saved ? campListMerge_(saved, gen) : campListRender_(gen);
+  var text = saved ? campListMerge_(saved, gen, cancelled) : campListRender_(gen);
   if (text !== saved) campListSave_(camp.id, text);
   return { text: text, count: count };
 }
@@ -279,7 +282,7 @@ function campListRender_(gen) {
 }
 
 // Разбор сохранённого текста: строка «N. …» — игрок, любая другая непустая строка — заголовок группы.
-function campListMerge_(saved, gen) {
+function campListMerge_(saved, gen, cancelled) {
   var blocks = [], cur = null;
   String(saved).split('\n').forEach(function (l) {
     var t = l.trim();
@@ -294,6 +297,20 @@ function campListMerge_(saved, gen) {
     }
   });
   var nameKey = function (s) { var k = s.indexOf(' - '); return (k < 0 ? s : s.slice(0, k)).trim().toLowerCase(); };
+  var genBy = {};
+  gen.forEach(function (g) { g.players.forEach(function (p) { genBy[p.name.toLowerCase()] = p; }); });
+  var bookMark = /, бронь внесена$/;
+  // Отказавшиеся убираются; у остальных игроков из списка обновляется только отметка о брони, остальные правки сохраняются.
+  blocks.forEach(function (b) {
+    b.items = b.items.filter(function (s) { return !cancelled[nameKey(s)]; });
+    b.items = b.items.map(function (s) {
+      var gp = genBy[nameKey(s)];
+      if (!gp) return s;
+      if (gp.booked && !bookMark.test(s)) return s + ', бронь внесена';
+      if (!gp.booked && bookMark.test(s)) return s.replace(bookMark, '');
+      return s;
+    });
+  });
   var have = {};
   blocks.forEach(function (b) { b.items.forEach(function (s) { have[nameKey(s)] = true; }); });
   gen.forEach(function (g) {
