@@ -53,6 +53,7 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
     </select>
     <select id="fg" aria-label="Группа"></select>
   </div>
+  <details id="fk" style="margin-top:8px"><summary>Товар: все</summary><div id="fkf" class="kits"></div></details>
   <select id="fl" aria-label="Локация" style="margin-top:8px">
     <option value="">Все локации: сначала красный парк</option><option value="red">Только красный парк</option>
     <option value="oth">Только ортачала и исани</option><option value="none">Без локации в реестре</option>
@@ -200,8 +201,16 @@ function show(){
     $('list').innerHTML=u.map(ucard).join('');return;
   }
   var f=F[fv],lv=$('fl').value;
+  if(!$('fkf').dataset.init&&Object.keys(PR).length){
+    $('fkf').innerHTML=Object.keys(PR).map(function(k){return'<label class="kit"><input type="checkbox" class="fkc" value="'+esc(k)+'"> '+esc(k)+'</label>'}).join('');
+    $('fkf').dataset.init='1';
+    $('fkf').onchange=function(){show()};
+  }
+  var kits=[].map.call(document.querySelectorAll('.fkc:checked'),function(c){return c.value});
+  $('fk').querySelector('summary').textContent=kits.length?'Товар: выбрано '+kits.length:'Товар: все';
   var a=rows().filter(function(r){
     if(!f(r))return false;
+    if(kits.length&&!r.os.some(function(o){return kitsOf(o.kit).some(function(k){return kits.indexOf(k)>=0})}))return false;
     if(lv&&locBucket(r.p.loc)!=lv)return false;
     if(g&&r.p.group!=g&&r.p.extras.indexOf(g)<0)return false;
     return !q||(r.p.name+' '+r.p.id).toLowerCase().indexOf(q)>=0;

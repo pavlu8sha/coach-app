@@ -514,3 +514,34 @@ function appExtraOfPlayer(pin, id) {
   });
   return res;
 }
+// Отметки «написал(а)» по неоплаченным тренировкам: лист AdminApp «ОТМЕТКИ СООБЩЕНИЙ» (событие, игрок).
+var WROTE_SHEET = 'ОТМЕТКИ СООБЩЕНИЙ', WROTE_HEAD = ['Событие', 'Игрок'];
+
+function appWroteList(pin) {
+  checkAdmin_(pin);
+  var sh = dbRead_(WROTE_SHEET);
+  if (!sh) return [];
+  var n = sh.getLastRow() - 1;
+  if (n < 1) return [];
+  return sh.getRange(2, 1, n, 2).getValues()
+    .filter(function (r) { return String(r[0]) && String(r[1]); })
+    .map(function (r) { return String(r[0]) + '|' + String(r[1]); });
+}
+
+// keys: список «событие|игрок», которые отмечены сейчас; лист перезаписывается целиком
+function appWroteSet(pin, keys) {
+  checkAdmin_(pin);
+  if (CONFIG.DRY_RUN) return { ok: true, dryRun: true };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var sh = dbSheet_(WROTE_SHEET, WROTE_HEAD);
+    var n = Math.max(sh.getLastRow() - 1, 1);
+    sh.getRange(2, 1, n, 2).clearContent();
+    var rows = (keys || []).map(function (k) { var i = String(k).indexOf('|'); return [String(k).slice(0, i), String(k).slice(i + 1)]; });
+    if (rows.length) sh.getRange(2, 1, rows.length, 2).setValues(rows);
+    return { ok: true, count: rows.length };
+  } finally {
+    lock.releaseLock();
+  }
+}

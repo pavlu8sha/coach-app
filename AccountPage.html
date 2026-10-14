@@ -146,7 +146,7 @@ function drawTr(){
 function drawGm(){
   var rows=cache.games.map(function(g){
     var staff=g.staff.map(function(s){return esc(s.name)+' ('+esc(s.role)+(s.reg?'':', регламент не выполнен')+')'}).join('<br>');
-    var score=g.tech?'техническая победа':(g.gf===null?'—':g.gf+':'+g.ga);
+    var score=g.tech?'техническая победа':(typeof g.gf==='number'&&typeof g.ga==='number'?g.gf+':'+g.ga:'нет счёта');
     var goals=g.goals.map(function(x){return esc(x.name)+(x.n>1?' ×'+x.n:'')}).join(', ')||'—';
     return'<tr><td>'+esc(g.date)+'</td><td>'+esc(g.team)+'<br>'+esc(g.opp)+'</td><td>'+score+'</td><td>'+goals+'</td><td>'+staff+'</td></tr>';
   }).join('');
@@ -169,7 +169,7 @@ function drawSt(){
     var bar=s.pct===null?0:s.pct;
     var tr=s.tr.map(function(t){return'<li><span>'+esc(t.date)+' · '+esc(t.group||'—')+'</span><b>'+fmtH(t.hours)+' ч</b></li>'}).join('')||'<li><span>Нет тренировок</span></li>';
     var gm=s.gm.map(function(g){
-      var score=g.tech?'техническая победа':(g.gf===null?'—':g.gf+':'+g.ga);
+      var score=g.tech?'техническая победа':(typeof g.gf==='number'&&typeof g.ga==='number'?g.gf+':'+g.ga:'нет счёта');
       return'<li><span>'+esc(g.date)+' · '+esc(g.team)+' — '+esc(g.opp)+'<br><small>'+esc(g.role)+(g.reg?'':', регламент не выполнен')+'</small></span><b>'+score+'</b></li>';
     }).join('')||'<li><span>Нет игр</span></li>';
     return'<details><summary><div class="top"><span>'+esc(s.trainer)+'</span><span>'+pct+'</span></div>'

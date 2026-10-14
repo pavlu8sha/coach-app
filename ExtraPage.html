@@ -19,6 +19,8 @@ button{font:inherit;cursor:pointer}
 .sm.bad{color:var(--a,#C0392B)}
 .sm.armed{background:var(--a,#C0392B);color:#fff;border-color:transparent}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.row2>*{min-width:0;max-width:100%;box-sizing:border-box}
+input[type=date]{-webkit-appearance:none;appearance:none;width:100%;min-width:0;max-width:100%;display:block;box-sizing:border-box}
 details{background:var(--card);border:1px solid var(--line);border-radius:14px;margin:0 0 10px;padding:0 14px}
 summary{cursor:pointer;padding:12px 0;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;list-style:none}
 summary::-webkit-details-marker{display:none}
@@ -79,7 +81,7 @@ function today(){var d=new Date(),z=function(n){return(n<10?'0':'')+n};return d.
 function fail(m){busy=false;if(/Неверный код/.test(m))showLogin('Неверный код администратора');else{showApp();msg(m,true)}}
 function load(){
   msg('Загрузка…');
-  run('appExtraData',[pin],function(r){D=r;busy=false;armed='';showApp();msg('');render()},fail);
+  run('appExtraData',[pin],function(r){D=r;busy=false;armed='';showApp();msg('');render();loadWrote()},fail);
   if(!PL.length)run('appIndPlayers',[pin],function(r){PL=r;$('dl').innerHTML=r.map(function(p){return'<option value="'+esc(p.name)+'">'+esc(p.group)+'</option>'}).join('')},function(){});
 }
 function renderDebts(){
@@ -102,7 +104,9 @@ var MSG_DEF='Добрый день\nУ вас не оплачена тренир
 function ddmm(d){var p=d.split('-');return p[2]+'.'+p[1]}
 function msgEvents(){return D.events.filter(function(e){return e.players.some(function(p){return!p.paid})})}
 function curEv(){return D.events.filter(function(e){return e.id===$('mev').value})[0]}
-function wroteMap(){try{return JSON.parse(localStorage.getItem('extraWrote')||'{}')}catch(x){return{}}}
+var wroteSrv={};
+function wroteMap(){return wroteSrv}
+function loadWrote(){run('appWroteList',[pin],function(list){wroteSrv={};list.forEach(function(k){wroteSrv[k]=1});renderMsgList()},function(m){msg(m,true)})}
 function copyTxt(t){var a=document.createElement('textarea');a.value=t;a.style.position='fixed';a.style.opacity='0';document.body.appendChild(a);a.select();var ok=false;try{ok=document.execCommand('copy')}catch(x){}document.body.removeChild(a);return ok}
 function renderMsgList(){
   var e=curEv(),wrote=wroteMap();
@@ -143,7 +147,7 @@ $('mpsave').onclick=function(){
 $('mlist').onchange=function(ev){
   var c=ev.target;if(!c.dataset||!c.dataset.w)return;
   var m=wroteMap();if(c.checked)m[c.dataset.w]=1;else delete m[c.dataset.w];
-  try{localStorage.setItem('extraWrote',JSON.stringify(m))}catch(x){}
+  run('appWroteSet',[pin,Object.keys(m).filter(function(k){return m[k]})],function(){},function(e){msg(e,true)});
 };
 function render(){
   renderDebts();fillMsg();
