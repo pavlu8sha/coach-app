@@ -107,9 +107,15 @@ function editOrderCore_(row, o) {
   var kit = String(o.kit || '').trim();
   var newSum = null;
   if (kit && (kit !== before[0] || !(Number(oldSum) > 0))) { // сменился комплект или сумма ещё не стоит: берём цену из каталога
-    var item = catalog_(true).filter(function (x) { return x.name === kit; })[0];
-    if (!item) throw new Error('Выберите позицию из каталога');
-    newSum = item.price; // комплект сменился: сумма заказа по новой цене из каталога
+    // Заказ может содержать несколько комплектов («A + B»): сумма — сумма цен каждого из них
+    var cat = catalog_(true), total = 0;
+    kit.split(' + ').forEach(function (part) {
+      var name = part.trim();
+      var item = cat.filter(function (x) { return x.name === name; })[0];
+      if (!item) throw new Error('Выберите позицию из каталога: ' + name);
+      total += Number(item.price) || 0;
+    });
+    newSum = total; // комплект сменился: сумма заказа по новым ценам из каталога
   }
   var after = [kit || before[0], String(o.size || '').trim(), String(o.inscr || '').trim(), String(o.num || '').trim(), o.inst ? 'Да' : ''];
   if (!after[1] || (inscrNeeded_(after[0]) && !after[2]) || !after[3]) throw new Error('Для заказа укажите размер, надпись и номер');
