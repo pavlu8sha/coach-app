@@ -24,12 +24,13 @@ li.p .l{min-width:0}
       if(st&&p.status!=st)return false;
       if(g&&p.group!=g&&p.extras.indexOf(g)<0)return false;
       if(only&&!(p.status==='Активен'&&PAY&&PAY.map[p.id]&&PAY.map[p.id]!=='paid'))return false;
+      if(ySel.length&&ySel.indexOf(yearOf(p.birth))<0)return false;
       return !q||(p.name+' '+p.id+' '+p.group+' '+p.extras.join(' ')).toLowerCase().indexOf(q)>=0;
     });
     $('count').textContent='Найдено: '+a.length+(a.length>80?' (показаны первые 80, уточните поиск)':'')
       +(PAY?(PAY.found?' · оплата за '+PAY.month:' · листа оплат за '+PAY.month+' нет'):'');
     $('list').innerHTML=a.slice(0,80).map(function(p){
-      return'<li class="p" data-i="'+D.players.indexOf(p)+'"><div class="l"><b>'+esc(p.name)+'</b><div class="sub">'+esc(p.id+' / '+p.group+(p.extras.length?' + '+p.extras.join(', '):''))+'</div></div>'+badge(p)+'</li>';
+      return'<li class="p" data-i="'+D.players.indexOf(p)+'"><div class="l"><b>'+esc(p.name)+'</b><div class="sub">'+esc(p.id+' / '+p.group+(p.extras.length?' + '+p.extras.join(', '):'')+' / '+(p.birth?'р. '+p.birth:'без даты'))+'</div></div>'+badge(p)+'</li>';
     }).join('');
   };
   $('q').oninput=function(){window.list()};
