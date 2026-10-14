@@ -244,6 +244,8 @@ function appCampList(pin, campId) {
   checkAdmin_(pin);
   var all = campAll_(), camp = campFind_(all, campId);
   if (!camp) return { text: '', count: 0 };
+  var paidOf = {};
+  all.pays.forEach(function (y) { paidOf[y.part] = (paidOf[y.part] || 0) + y.amount; });
   var groups = {}, count = 0;
   all.parts.forEach(function (p) {
     if (p.camp !== camp.id || p.status === 'Отказ') return;
@@ -259,7 +261,8 @@ function appCampList(pin, campId) {
   });
   var blocks = keys.map(function (k) {
     var lines = groups[k].sort(function (a, b) { return a.name.localeCompare(b.name); }).map(function (p, i) {
-      return (i + 1) + '. ' + p.name.trim() + ' - ' + campSuffix_(p.tariff);
+      var booked = camp.deposit > 0 && r2_(paidOf[p.id] || 0) >= camp.deposit;
+      return (i + 1) + '. ' + p.name.trim() + ' - ' + campSuffix_(p.tariff) + (booked ? ', бронь внесена' : '');
     });
     return k + '\n' + lines.join('\n');
   });
