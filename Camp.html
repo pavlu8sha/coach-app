@@ -64,6 +64,8 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
     <input id="q" placeholder="Поиск по ФИ">
   </div>
   <button class="btn" id="new">+ Записать на сбор</button>
+  <button class="btn sec" id="listb">Список для отправки</button>
+  <div id="listbox" hidden><textarea id="listtxt" rows="14" style="width:100%;font-size:14px" readonly></textarea><button class="btn sec" id="listcopy">Копировать</button></div>
   <button class="btn sec" id="tarb">Тарифы сбора</button>
   <div id="tarbox" hidden>
     <h1 style="font-size:18px;margin:12px 0 4px">Тарифы сбора</h1>
@@ -245,6 +247,8 @@ function openTar(){
   $('tarmsg').textContent='';
   $('tarbox').hidden=false;
 }
+$('listb').onclick=function(){run('appCampList',[pin,campId||''],function(r){$('listtxt').value=r.text||'Никто не записан';$('listbox').hidden=false},fail)};
+$('listcopy').onclick=function(){var t=$('listtxt');t.select();try{navigator.clipboard.writeText(t.value)}catch(e){document.execCommand('copy')}};
 $('tarb').onclick=function(){if($('tarbox').hidden)openTar();else $('tarbox').hidden=true};
 $('taradd').onclick=function(){$('tarrows').insertAdjacentHTML('beforeend',tarRow({}))};
 $('tarcancel').onclick=function(){$('tarbox').hidden=true};

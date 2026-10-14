@@ -225,6 +225,47 @@ function appCampCancel(pin, row) {
 }
 
 // Проверка: создаёт листы сборов (если их нет) и показывает, что прочитано.
+// Список для отправки: записавшиеся (без отказов), по группам. Группа без «-A/-B/-C» объединяется (U7-A и U7-B → U7).
+// Суффикс по тарифу: футболист / 1+1 / 1+2. Индивидуальные и вратарские сюда не входят (это не сборы).
+var CAMP_LIST_ORDER_ = ['U7', 'U9', 'U10', 'U11', 'U13', 'weekends', 'Ortachala U9', 'Ortachala U12', 'Isani'];
+function campSuffix_(tariff) {
+  var t = String(tariff || '').toLowerCase();
+  if (/футбол/.test(t)) return 'футболист';
+  if (/2 родител/.test(t)) return '1+2';
+  if (/родител/.test(t)) return '1+1';
+  return String(tariff || '').trim();
+}
+function campGroupKey_(g) {
+  var s = String(g || '').trim();
+  var m = /^(U\d+)(-[A-Za-zА-Яа-я]{1,2})?$/.exec(s);
+  return m ? m[1].toUpperCase() : s;
+}
+function appCampList(pin, campId) {
+  checkAdmin_(pin);
+  var all = campAll_(), camp = campFind_(all, campId);
+  if (!camp) return { text: '', count: 0 };
+  var groups = {}, count = 0;
+  all.parts.forEach(function (p) {
+    if (p.camp !== camp.id || p.status === 'Отказ') return;
+    var key = campGroupKey_(p.grp) || 'Без группы';
+    (groups[key] = groups[key] || []).push(p);
+    count++;
+  });
+  var keys = Object.keys(groups).sort(function (a, b) {
+    var ia = CAMP_LIST_ORDER_.indexOf(a), ib = CAMP_LIST_ORDER_.indexOf(b);
+    if (ia < 0) ia = 999;
+    if (ib < 0) ib = 999;
+    return ia !== ib ? ia - ib : a.localeCompare(b);
+  });
+  var blocks = keys.map(function (k) {
+    var lines = groups[k].sort(function (a, b) { return a.name.localeCompare(b.name); }).map(function (p, i) {
+      return (i + 1) + '. ' + p.name.trim() + ' - ' + campSuffix_(p.tariff);
+    });
+    return k + '\n' + lines.join('\n');
+  });
+  return { text: blocks.join('\n\n'), count: count };
+}
+
 function campsTest() {
   var all = campAll_();
   Logger.log('Сборов: ' + all.camps.length + ', тарифов: ' + all.tariffs.length + ', участников: ' + all.parts.length + ', платежей: ' + all.pays.length);
