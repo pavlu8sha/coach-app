@@ -19,11 +19,12 @@ function gnGoals_(s) {
   }).filter(Boolean);
 }
 
-// Счёт: «3:6» → [3, 6]; «технарь» → техническая победа (счёта нет, засчитываем 3:0 только в статистике побед)
+// Счёт: «3:6» → [3, 6]; «1:2 (пен.)» → [1, 2] (пояснение в скобках не учитывается);
+// «технарь» → техническая победа (счёта нет, засчитываем 3:0 только в статистике побед)
 function gnScore_(s) {
   var t = String(s || '').trim();
   if (/технар|техническ/i.test(t)) return { tech: true, gf: null, ga: null };
-  var m = /^(\d+)\s*[:\-]\s*(\d+)$/.exec(t);
+  var m = /^(\d+)\s*[:\-]\s*(\d+)$/.exec(t.replace(/\(.*?\)/g, '').trim());
   return m ? { tech: false, gf: Number(m[1]), ga: Number(m[2]) } : { tech: false, gf: null, ga: null };
 }
 
