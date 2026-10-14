@@ -12,9 +12,12 @@ function appAddOrder(pin, o) {
 }
 
 function addOrderCore_(o) {
-  var item = catalog_(true).filter(function (x) { return x.name === o.kit; })[0];
-  if (!item) throw new Error('Выберите позицию из каталога');
-  var sum = Number(o.sum) || item.price, paid = Number(o.paid) || 0;
+  // Комплект может быть из нескольких позиций через « + »: каждая должна быть в каталоге
+  var cat = catalog_(true), parts = String(o.kit || '').split(' + ').map(function (x) { return x.trim(); }).filter(Boolean);
+  var items = parts.map(function (name) { return cat.filter(function (x) { return x.name === name; })[0]; });
+  if (!parts.length || items.some(function (x) { return !x; })) throw new Error('Выберите позицию из каталога');
+  var catSum = items.reduce(function (s, x) { return s + Number(x.price || 0); }, 0);
+  var sum = Number(o.sum) || catSum, paid = Number(o.paid) || 0;
   if (sum <= 0) throw new Error('Введите сумму заказа');
   if (paid < 0 || paid > sum) throw new Error('Оплачено сейчас: от 0 до суммы заказа');
   var method = String(o.method || '').trim();
