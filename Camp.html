@@ -56,18 +56,17 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
   <select id="csel" hidden style="margin-top:8px"></select>
   <div class="tiles" id="sum"></div>
   <div class="row2">
-    <div><label>Показать</label>
-    <select id="fs">
+    <select id="fs" aria-label="Показать">
       <option value="act">Участвуют</option><option value="none">Без брони</option><option value="booked">Только бронь</option>
       <option value="partial">Частично оплачено</option><option value="paid">Оплачено полностью</option>
       <option value="debt">Должники (есть долг)</option><option value="late">Просрочка</option>
       <option value="cancelled">Отказались</option><option value="all">Все</option>
-    </select></div>
-    <div><label>Поиск</label><input id="q" placeholder="Поиск по ФИ"></div>
+    </select>
+    <input id="q" placeholder="Поиск по ФИ">
   </div>
   <button class="btn" id="new">+ Записать на сбор</button>
   <button class="btn sec" id="listb">Список для отправки</button>
-  <div id="listbox" hidden><textarea id="listtxt" rows="14" readonly></textarea><button class="btn" id="listcopy">Скопировать текст</button></div>
+  <div id="listbox" hidden><textarea id="listtxt" rows="14" readonly></textarea><button class="btn sec" id="listcopy">Копировать</button></div>
   <button class="btn sec" id="tarb">Тарифы сбора</button>
   <div id="tarbox" hidden>
     <h1 style="font-size:18px;margin:12px 0 4px">Тарифы сбора</h1>
@@ -250,7 +249,7 @@ function openTar(){
   $('tarbox').hidden=false;
 }
 $('listb').onclick=function(){run('appCampList',[pin,campId||''],function(r){$('listtxt').value=r.text||'Никто не записан';$('listbox').hidden=false},fail)};
-$('listcopy').onclick=function(){var t=$('listtxt'),b=this;t.select();var flash=function(){var old=b.textContent;b.textContent='Скопировано';setTimeout(function(){b.textContent=old},1800)};try{navigator.clipboard.writeText(t.value).then(flash,function(){document.execCommand('copy');flash()})}catch(e){document.execCommand('copy');flash()}};
+$('listcopy').onclick=function(){var t=$('listtxt');t.select();try{navigator.clipboard.writeText(t.value)}catch(e){document.execCommand('copy')}};
 $('tarb').onclick=function(){if($('tarbox').hidden)openTar();else $('tarbox').hidden=true};
 $('taradd').onclick=function(){$('tarrows').insertAdjacentHTML('beforeend',tarRow({}))};
 $('tarcancel').onclick=function(){$('tarbox').hidden=true};
