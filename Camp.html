@@ -260,10 +260,24 @@ function campRichHtml(txt){
     return'<div>'+esc(m[1])+'<b>'+esc(name)+'</b>'+esc(rest)+'</div>';
   }).join('');
 }
+// Копирование через выделение скрытого блока: буфер получает и HTML (жирный), и обычный текст.
+function campCopyRich(txt){
+  var box=document.createElement('div'),ok=false;
+  box.contentEditable='true';
+  box.style.cssText='position:fixed;left:-9999px;top:0;width:1px;overflow:hidden;';
+  box.innerHTML=campRichHtml(txt);
+  document.body.appendChild(box);
+  var sel=window.getSelection(),r=document.createRange();
+  r.selectNodeContents(box);sel.removeAllRanges();sel.addRange(r);
+  try{ok=document.execCommand('copy')}catch(e){}
+  sel.removeAllRanges();document.body.removeChild(box);
+  return ok;
+}
 $('listcopy').onclick=function(){
   var t=$('listtxt'),b=this,txt=t.value;
   var flash=function(){var old=b.textContent;b.textContent='Скопировано';setTimeout(function(){b.textContent=old},1800)};
   var fallback=function(){t.select();try{document.execCommand('copy');flash()}catch(e){}};
+  if(campCopyRich(txt)){flash();return}
   try{
     if(window.ClipboardItem&&navigator.clipboard&&navigator.clipboard.write){
       var item=new ClipboardItem({'text/html':new Blob([campRichHtml(txt)],{type:'text/html'}),'text/plain':new Blob([txt],{type:'text/plain'})});
