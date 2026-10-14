@@ -254,10 +254,10 @@ var COSTUME=/костюм/i,RAIN=/дождевик/i;
 // Базовый набор (игровая + тренировочная) есть в уже заказанном или в текущем заказе
 function playerCovers(id,ks){
   var kits=O.filter(function(o){return o.id===id}).map(function(o){return o.kit||''}).concat(ks).join(' + ');
-  return /полный комплект/i.test(kits)||(/игров/i.test(kits)&&/тренировоч/i.test(kits));
+  return /полный комплект/i.test(kits)||(/игров|вратар/i.test(kits)&&/тренировоч/i.test(kits));
 }
 function r5(n){return Math.round(n/5)*5}
-function playerBaseSum(id){return O.filter(function(o){return o.id===id&&/игров|тренировоч|полный/i.test(o.kit||'')}).reduce(function(s,o){return s+(Number(o.sum)||0)},0)}
+function playerBaseSum(id){return O.filter(function(o){return o.id===id&&/игров|вратар|тренировоч|полный/i.test(o.kit||'')}).reduce(function(s,o){return s+(Number(o.sum)||0)},0)}
 function selKits(){return[].map.call(document.querySelectorAll('#fkits input:checked'),function(i){return i.value})}
 function kitsBox(){
   $('fkits').innerHTML=Object.keys(PR).map(function(k){
