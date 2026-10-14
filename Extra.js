@@ -239,17 +239,26 @@ function appSetExtraPlace(pin, id, place) {
   if (CONFIG.DRY_RUN) return { ok: true, dryRun: true };
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
-  try {
-    var sh = dbSheet_(EXTRA_PLACES, ['ID тренировки', 'Место', 'Изменено']), row = 0;
-    if (sh.getLastRow() > 1) {
-      var ids = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
-      for (var i = 0; i < ids.length; i++) if (String(ids[i][0]) === String(id)) { row = i + 2; break; }
-    }
-    var target = row || sh.getLastRow() + 1;
-    sh.getRange(target, 1, 1, 3).setValues([[String(id), p, new Date()]]);
-    cacheDropBig_('xpl_v1');
-  } finally { lock.releaseLock(); }
+  try { extraPlaceSet_(id, p); } finally { lock.releaseLock(); }
   return { ok: true, dryRun: false };
+}
+// Записать место; oldId — прежний ID, если тренировка перенесена на другую дату. place undefined — только переименовать.
+function extraPlaceSet_(id, place, oldId) {
+  var sh = dbSheet_(EXTRA_PLACES, ['ID тренировки', 'Место', 'Изменено']);
+  if (!sh) return;
+  var from = oldId || id, row = 0;
+  if (sh.getLastRow() > 1) {
+    var ids = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
+    for (var i = 0; i < ids.length; i++) if (String(ids[i][0]) === String(from)) { row = i + 2; break; }
+  }
+  var val = place;
+  if (val === undefined) {
+    if (!row) return;
+    val = String(sh.getRange(row, 2).getValue() || '');
+  }
+  var target = row || sh.getLastRow() + 1;
+  sh.getRange(target, 1, 1, 3).setValues([[String(id), val, new Date()]]);
+  cacheDropBig_('xpl_v1');
 }
 
 // fromId — прежний ID, если тренировка перенесена на другую дату
@@ -363,9 +372,11 @@ function extraRenameId_(sheetName, col, oldId, newId) {
 }
 
 // Изменить дату и/или сумму тренировки
-function appExtraEventEdit(pin, id, date, amount) {
+function appExtraEventEdit(pin, id, date, amount, place) {
   checkAdmin_(pin);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Неверная дата');
+  var pl = place === undefined ? undefined : String(place).replace(/\s+/g, ' ').trim();
+  if (pl && pl.length > 60) throw new Error('Слишком длинное место');
   var amt = extraAmt_(amount), p0 = date.split('-');
   if (extraDate_(p0[2] + '.' + p0[1]) !== date) throw new Error('Дата вне допустимого диапазона: не дальше 60 дней вперёд и не старше ~10 месяцев');
   return extraLocked_(function () {
@@ -381,6 +392,7 @@ function appExtraEventEdit(pin, id, date, amount) {
     }
     var price = amt !== null ? amt : (extraPrices_()[id] || 0);
     if (price > 0 || newId !== id) extraPriceSet_(newId, date, price, id);
+    extraPlaceSet_(newId, pl, id);
     extraLog_('Изменено', { id: newId }, '', 0, '', 'было: ' + ev.id + (amt !== null ? '; сумма ' + amt : ''));
     return { ok: true };
   });

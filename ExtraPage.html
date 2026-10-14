@@ -152,7 +152,7 @@ function render(){
     var paid=e.players.filter(function(p){return p.paid}).length,dk='d'+e.id;
     h+='<details data-id="'+esc(e.id)+'"'+(open[e.id]?' open':'')+'><summary><b>'+dl(e.date)+'</b><span>'+(e.price?money(e.price):'без суммы')+'</span><span class="cnt">оплатили '+paid+' из '+e.players.length+'</span></summary>';
     if(editing==e.id){
-      h+='<div class="add" style="border-top:0;padding-top:0"><div class="row2"><input type="date" id="ed'+i+'" value="'+e.date+'"><input type="number" min="0" step="1" id="ea'+i+'" value="'+(e.price||'')+'" placeholder="Сумма, ₾"></div><div class="acts"><button class="sm" data-a="esave" data-e="'+i+'">Сохранить</button><button class="sm" data-a="ecancel">Отмена</button></div></div>';
+      h+='<div class="add" style="border-top:0;padding-top:0"><div class="row2"><input type="date" id="ed'+i+'" value="'+e.date+'"><input type="number" min="0" step="1" id="ea'+i+'" value="'+(e.price||'')+'" placeholder="Сумма, ₾"></div><input id="ep'+i+'" value="'+esc(e.place||'')+'" placeholder="Место, например Исани" style="margin-bottom:8px"><div class="acts"><button class="sm" data-a="esave" data-e="'+i+'">Сохранить</button><button class="sm" data-a="ecancel">Отмена</button></div></div>';
     }else{
       h+='<div class="acts" style="margin:0 0 8px"><button class="sm" data-a="eedit" data-e="'+i+'">Изменить дату и сумму</button><button class="sm bad'+(armed==dk?' armed':'')+'" data-a="edel" data-e="'+i+'">'+(armed==dk?'Точно удалить?':'Удалить тренировку')+'</button></div>';
     }
@@ -192,7 +192,7 @@ $('list').onclick=function(ev){
   else if(a=='esave'){
     var i=b.dataset.e,d=$('ed'+i).value;
     if(!d){msg('Укажите дату',true);return}
-    editing='';go('appExtraEventEdit',[pin,e.id,d,$('ea'+i).value],'Тренировка изменена');
+    editing='';go('appExtraEventEdit',[pin,e.id,d,$('ea'+i).value,$('ep'+i).value],'Тренировка изменена');
   }else if(a=='edel'){
     var k='d'+e.id;if(armed!=k){armed=k;render();return}
     armed='';go('appExtraEventDelete',[pin,e.id],'Тренировка удалена');
