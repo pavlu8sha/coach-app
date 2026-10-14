@@ -66,7 +66,7 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
   </div>
   <button class="btn" id="new">+ Записать на сбор</button>
   <button class="btn sec" id="listb">Список для отправки</button>
-  <div id="listbox" hidden><textarea id="listtxt" rows="14" readonly></textarea><button class="btn sec" id="listcopy">Копировать</button></div>
+  <div id="listbox" hidden><textarea id="listtxt" rows="14"></textarea><button class="btn sec" id="listsave">Сохранить список</button><button class="btn sec" id="listcopy">Копировать</button></div>
   <button class="btn sec" id="tarb">Тарифы сбора</button>
   <div id="tarbox" hidden>
     <h1 style="font-size:18px;margin:12px 0 4px">Тарифы сбора</h1>
@@ -276,16 +276,24 @@ function campCopyRich(txt){
 $('listcopy').onclick=function(){
   var t=$('listtxt'),b=this,txt=t.value;
   var flash=function(){var old=b.textContent;b.textContent='Скопировано';setTimeout(function(){b.textContent=old},1800)};
-  var fallback=function(){t.select();try{document.execCommand('copy');flash()}catch(e){}};
-  if(campCopyRich(txt)){flash();return}
+  var plain=function(){t.select();try{document.execCommand('copy');flash()}catch(e){}};
+  var fallback=function(){if(campCopyRich(txt)){flash();return}plain()};
   try{
     if(window.ClipboardItem&&navigator.clipboard&&navigator.clipboard.write){
       var item=new ClipboardItem({'text/html':new Blob([campRichHtml(txt)],{type:'text/html'}),'text/plain':new Blob([txt],{type:'text/plain'})});
-      navigator.clipboard.write([item]).then(flash,function(){navigator.clipboard.writeText(txt).then(flash,fallback)});
+      navigator.clipboard.write([item]).then(flash,fallback);
       return;
     }
-    navigator.clipboard.writeText(txt).then(flash,fallback);
+    fallback();
   }catch(e){fallback()}
+};
+$('listsave').onclick=function(){
+  var b=this;
+  b.disabled=true;
+  run('appSaveCampList',[pin,campId||'',$('listtxt').value],function(r){
+    b.disabled=false;
+    $('msg').textContent=r&&r.dryRun?'Пробный режим: в таблицу ничего не записано.':'Список сохранён';
+  },function(m){b.disabled=false;$('msg').textContent=m});
 };
 $('tarb').onclick=function(){if($('tarbox').hidden)openTar();else $('tarbox').hidden=true};
 $('taradd').onclick=function(){$('tarrows').insertAdjacentHTML('beforeend',tarRow({}))};

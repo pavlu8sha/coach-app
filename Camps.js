@@ -259,14 +259,84 @@ function appCampList(pin, campId) {
     if (ib < 0) ib = 999;
     return ia !== ib ? ia - ib : a.localeCompare(b);
   });
-  var blocks = keys.map(function (k) {
-    var lines = groups[k].sort(function (a, b) { return a.name.localeCompare(b.name); }).map(function (p, i) {
+  var gen = keys.map(function (k) {
+    return { key: k, players: groups[k].sort(function (a, b) { return a.name.localeCompare(b.name); }).map(function (p) {
       var booked = camp.deposit > 0 && r2_(paidOf[p.id] || 0) >= camp.deposit;
-      return (i + 1) + '. ' + p.name.trim() + ' - ' + campSuffix_(p.tariff) + (booked ? ', бронь внесена' : '');
-    });
-    return k + '\n' + lines.join('\n');
+      return { name: p.name.trim(), text: p.name.trim() + ' - ' + campSuffix_(p.tariff) + (booked ? ', бронь внесена' : '') };
+    }) };
   });
-  return { text: blocks.join('\n\n'), count: count };
+  // Сохранённый (и отредактированный в приложении) текст важнее: новые записавшиеся дописываются в него.
+  var saved = campListLoad_(camp.id);
+  var text = saved ? campListMerge_(saved, gen) : campListRender_(gen);
+  if (text !== saved) campListSave_(camp.id, text);
+  return { text: text, count: count };
+}
+
+function campListRender_(gen) {
+  return gen.map(function (b) {
+    return b.key + '\n' + b.players.map(function (p, i) { return (i + 1) + '. ' + p.text; }).join('\n');
+  }).join('\n\n');
+}
+
+// Разбор сохранённого текста: строка «N. …» — игрок, любая другая непустая строка — заголовок группы.
+function campListMerge_(saved, gen) {
+  var blocks = [], cur = null;
+  String(saved).split('\n').forEach(function (l) {
+    var t = l.trim();
+    if (!t) return;
+    var m = /^\d+\.\s+(.*)$/.exec(t);
+    if (m) {
+      if (!cur) { cur = { key: '', items: [] }; blocks.push(cur); }
+      cur.items.push(m[1]);
+    } else {
+      cur = { key: t, items: [] };
+      blocks.push(cur);
+    }
+  });
+  var nameKey = function (s) { var k = s.indexOf(' - '); return (k < 0 ? s : s.slice(0, k)).trim().toLowerCase(); };
+  var have = {};
+  blocks.forEach(function (b) { b.items.forEach(function (s) { have[nameKey(s)] = true; }); });
+  gen.forEach(function (g) {
+    var missing = g.players.filter(function (p) { return !have[p.name.toLowerCase()]; });
+    if (!missing.length) return;
+    var b = blocks.filter(function (x) { return x.key.toLowerCase() === g.key.toLowerCase(); })[0];
+    if (!b) { b = { key: g.key, items: [] }; blocks.push(b); }
+    missing.forEach(function (p) { b.items.push(p.text); have[p.name.toLowerCase()] = true; });
+  });
+  return blocks.map(function (b) {
+    return (b.key ? b.key + '\n' : '') + b.items.map(function (s, i) { return (i + 1) + '. ' + s; }).join('\n');
+  }).join('\n\n');
+}
+
+var CAMP_LIST_SHEET = 'СПИСОК ДЛЯ ОТПРАВКИ';
+function campListLoad_(campId) {
+  var sh = campSS_().getSheetByName(CAMP_LIST_SHEET);
+  if (!sh || sh.getLastRow() < 2) return '';
+  var v = sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues();
+  for (var i = 0; i < v.length; i++) if (String(v[i][0]) === String(campId)) return String(v[i][1]);
+  return '';
+}
+function campListSave_(campId, text) {
+  if (CONFIG.DRY_RUN) return;
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var sh = campSheet_(CAMP_LIST_SHEET, ['ID сбора', 'Текст списка', 'Изменено']);
+    var last = sh.getLastRow(), row = 0;
+    if (last > 1) {
+      var ids = sh.getRange(2, 1, last - 1, 1).getValues();
+      for (var i = 0; i < ids.length; i++) if (String(ids[i][0]) === String(campId)) { row = i + 2; break; }
+    }
+    var r = row || last + 1;
+    sh.getRange(r, 1, 1, 3).setValues([[String(campId), text, new Date()]]);
+  } finally { lock.releaseLock(); }
+}
+// Текст, который отредактировали в приложении, сохраняется как есть.
+function appSaveCampList(pin, campId, text) {
+  checkAdmin_(pin);
+  if (!campId) throw new Error('Сначала выберите сбор');
+  campListSave_(campId, String(text || ''));
+  return { ok: true, dryRun: CONFIG.DRY_RUN };
 }
 
 function campsTest() {
