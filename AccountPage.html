@@ -188,7 +188,7 @@ function showTab(t){
 var dayHeld={};
 function todayIso(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)}
 function toDmy(v){var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v||''));return m?m[3]+'.'+m[2]+'.'+m[1]:String(v||'')}
-var dyItems=[],dyTr={},dyDate='';
+var dyItems=[],dyTr={},dyDate='',dyAddOpen={};
 // Сохраняем выбор тренеров из выпадающих списков перед перерисовкой
 function dySync(){
   dyItems.forEach(function(x,i){
@@ -201,7 +201,8 @@ function dyPaint(){
     var key=dyDate+'|'+x.group+'|'+x.start;
     var mark=x.status==='done'?'<span class="chip on">записана</span>':(dayHeld[key]===false?'<span class="chip">не проводилась</span>':'');
     var trs=dyTr[i]||x.trainers;
-    var sel=trs.map(function(tr,j){
+    var isDone=x.status==='done';
+    var sel=isDone?'':trs.map(function(tr,j){
       return'<select data-s="'+i+'" data-j="'+j+'" aria-label="Тренер">'+cache.trainers.map(function(t){return'<option'+(t===tr?' selected':'')+'>'+esc(t)+'</option>'}).join('')+'</select>';
     }).join('');
     var can=x.status==='open'&&dayHeld[key]===undefined;
@@ -209,11 +210,19 @@ function dyPaint(){
       +(trs.length<3?'<button class="btn" style="background:var(--card);color:var(--ink);border:1px solid var(--line)" data-add="'+i+'">+ тренер</button>':'')
       +(trs.length>2?'<button class="btn" style="background:var(--card);color:var(--ink);border:1px solid var(--line)" data-rm="'+i+'">− тренер</button>':'')
       +'</div>':'';
+    var rec=x.recorded||[];
+    var recLine=isDone?'<div class="sub">Записаны: '+esc(rec.join(', '))+'</div>':'';
+    var addBlock='';
+    if(isDone&&rec.length<3){
+      addBlock=dyAddOpen[i]
+        ?'<select data-addsel="'+i+'" aria-label="Тренер">'+cache.trainers.filter(function(t){return rec.indexOf(t)<0}).map(function(t){return'<option>'+esc(t)+'</option>'}).join('')+'</select><div class="grid2" style="margin-top:6px"><button class="btn" data-addok="'+i+'">Добавить</button><button class="btn" data-addno="'+i+'" style="background:var(--card);color:var(--ink);border:1px solid var(--line)">Отмена</button></div>'
+        :'<div style="margin-top:6px"><button class="btn" data-addopen="'+i+'" style="background:var(--card);color:var(--ink);border:1px solid var(--line)">+ тренер</button></div>';
+    }
     var btns=can
       ?'<div class="grid2"><button class="btn" data-y="'+i+'">Да</button><button class="btn" data-n="'+i+'" style="background:var(--card);color:var(--ink);border:1px solid var(--line)">Нет</button></div>'
       :'';
     return'<div class="card"><div class="top"><span>'+esc(x.start)+'–'+esc(x.end)+' · '+esc(x.group)+'</span>'+mark+'</div>'
-      +'<div class="sub">'+esc(x.loc)+' · '+esc(x.type)+'</div>'+sel+tb+btns+'</div>';
+      +'<div class="sub">'+esc(x.loc)+' · '+esc(x.type)+'</div>'+sel+recLine+tb+btns+addBlock+'</div>';
   }).join('');
   dyItems.forEach(function(x,i){
     var key=dyDate+'|'+x.group+'|'+x.start;
@@ -238,6 +247,15 @@ function dyPaint(){
         function(){dayHeld[key]=true;setMsg('Записано');loadDay()},function(e){setMsg(e,true)});
     };
     if(n)n.onclick=function(){dayHeld[key]=false;loadDay()};
+    var ao=document.querySelector('[data-addopen="'+i+'"]'),an=document.querySelector('[data-addno="'+i+'"]'),aok=document.querySelector('[data-addok="'+i+'"]');
+    if(ao)ao.onclick=function(){dyAddOpen[i]=true;dyPaint()};
+    if(an)an.onclick=function(){dyAddOpen[i]=false;dyPaint()};
+    if(aok)aok.onclick=function(){
+      var s=document.querySelector('select[data-addsel="'+i+'"]');
+      setMsg('Сохраняю…');
+      run('appAddTrainerDaily',[pin,{date:dyDate,loc:x.loc,group:x.group,type:x.type,start:x.start,end:x.end,trainer:s?s.value:''}],
+        function(){dyAddOpen[i]=false;setMsg('Записано');loadDay()},function(e){setMsg(e,true)});
+    };
   });
 }
 function loadDay(){
@@ -246,7 +264,7 @@ function loadDay(){
   $('dy-list').innerHTML='<div class="sub">Загружаю…</div>';
   run('appDailySchedule',[pin,date],function(items){
     if(!items.length){$('dy-list').innerHTML='<div class="sub">На этот день тренировок по расписанию нет</div>';return}
-    dyItems=items;dyDate=date;dyTr={};
+    dyItems=items;dyDate=date;dyTr={};dyAddOpen={};
     items.forEach(function(x,i){dyTr[i]=x.trainers.slice()});
     dyPaint();
     setMsg('');

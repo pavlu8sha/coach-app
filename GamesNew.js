@@ -272,12 +272,27 @@ function appDailySchedule(pin, date) {
   var wd = gnWeekday_(date);
   var done = {};
   gnParseTrainings_(gnTrainingsRows_()).forEach(function (t) {
-    if (t.date === date && t.held) done[t.group + '|' + t.start] = true;
+    if (t.date === date && t.held) { var k = t.group + '|' + t.start; (done[k] = done[k] || []).push(t.trainer); }
   });
   return GN_SEASON.filter(function (x) { return x.wd === wd; }).map(function (x) {
+    var rec = done[x.group + '|' + x.start] || [];
     return { loc: x.loc, start: x.start, end: x.end, group: x.group, type: x.type, trainers: x.trainers,
-      status: done[x.group + '|' + x.start] ? 'done' : 'open' };
+      status: rec.length ? 'done' : 'open', recorded: rec };
   });
+}
+
+// Добавить тренера к уже записанной тренировке: пишется только он; повтора не будет
+function appAddTrainerDaily(pin, o) {
+  checkAdmin_(pin);
+  var date = gnDmy_(o.date), tr = String(o.trainer || '').trim();
+  if (!tr) throw new Error('Выберите тренера');
+  var already = gnParseTrainings_(gnTrainingsRows_()).some(function (t) {
+    return t.date === date && t.held && t.group === o.group && t.start === o.start && t.trainer === tr;
+  });
+  if (already) return { ok: true, exists: true };
+  appTrainingAdd(pin, { date: date, trainer: tr, location: o.loc, group: o.group, type: o.type,
+    start: o.start, end: o.end, held: true });
+  return { ok: true, written: 1 };
 }
 
 // Подтверждение «да»: по одной строке на каждого тренера; уже записанную тренировку не дублируем
