@@ -123,7 +123,7 @@ function paint(keepInputs){
     var it=SUB.items.filter(function(i){return i.month==M&&nn(i.group)==nn(g)})[0],T=SUB.tariffs[g];
     var paid=it?it.paid:0,st=it?it.st:'unpaid',debt=it?it.debt:T;
     var chip=st=='paid'?'<span class="ok">'+(it.disc?'скидка':'оплачено')+'</span>':st=='partial'?'<span class="err">частично, долг '+money(debt)+'</span>':'<span class="err">не платил</span>';
-    var f=st=='paid'?'':'<label>Сумма, ₾</label><input type="number" min="1" step="1" class="pa" value="'+debt+'" data-debt="'+debt+'">'
+    var f='<label>Сумма, ₾</label><input type="number" min="1" step="1" class="pa" value="'+(st=='paid'?'':debt)+'" data-debt="'+(st=='paid'?0:debt)+'">'
       +'<div class="pt" hidden><label>Сумма меньше остатка. Что это?</label><select class="ptype"><option value="">Выберите…</option><option value="Скидка">Скидка по договорённости (оплата принята)</option><option value="Частичный">Частичный платёж (останется долг)</option></select></div>'
       +'<button class="btn pay">Внести оплату</button>';
     return'<div class="prog" data-g="'+esc(g)+'"><div class="prh"><b>'+esc(g)+'</b>'+chip+'</div><div class="sub">внесено '+money(paid)+' из '+money(T)+(it?'':'; в листе месяца пока нет, будет добавлен')+'</div>'+f+'</div>';
