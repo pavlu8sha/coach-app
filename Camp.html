@@ -248,7 +248,7 @@ function openTar(){
   $('tarmsg').textContent='';
   $('tarbox').hidden=false;
 }
-$('listb').onclick=function(){run('appCampList',[pin,campId||''],function(r){$('listtxt').value=r.text||'Никто не записан';$('listbox').hidden=false},fail)};
+$('listb').onclick=function(){run('appCampList',[pin,campId||''],function(r){$('listtxt').value=r.text||'Никто не записан';$('listbox').hidden=false;$('msg').textContent=r.removed&&r.removed.length?'Убраны из списка (отказались): '+r.removed.join(', '):''},fail)};
 // Версия для вставки с форматированием: названия групп и имена игроков жирным.
 function campRichHtml(txt){
   return txt.split('\n').map(function(l){

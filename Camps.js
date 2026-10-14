@@ -270,9 +270,17 @@ function appCampList(pin, campId) {
   all.parts.forEach(function (p) { if (p.camp === camp.id && p.status === 'Отказ') cancelled[p.name.trim().toLowerCase()] = true; });
   // Сохранённый (и отредактированный в приложении) текст важнее: новые записавшиеся дописываются в него.
   var saved = campListLoad_(camp.id);
+  // Имена, которые будут убраны из сохранённого текста как отказавшиеся — чтобы админ видел, кого убрали.
+  var removed = [];
+  if (saved) String(saved).split('\n').forEach(function (l) {
+    var m = /^\d+\.\s+(.*)$/.exec(l.trim());
+    if (!m) return;
+    var nm = m[1].split(' - ')[0].trim();
+    if (cancelled[nm.toLowerCase()]) removed.push(nm);
+  });
   var text = saved ? campListMerge_(saved, gen, cancelled) : campListRender_(gen);
   if (text !== saved) campListSave_(camp.id, text);
-  return { text: text, count: count };
+  return { text: text, count: count, removed: removed };
 }
 
 function campListRender_(gen) {
