@@ -252,7 +252,7 @@ $('listb').onclick=function(){run('appCampList',[pin,campId||''],function(r){$('
 // Версия для вставки с форматированием: названия групп и имена игроков жирным.
 function campRichHtml(txt){
   return txt.split('\n').map(function(l){
-    if(!l.trim())return'<div><br></div>';
+    if(!l.trim())return'<div>&nbsp;</div>';
     var m=/^(\d+\. )(.*)$/.exec(l);
     if(!m)return'<div><b>'+esc(l)+'</b></div>';
     var body=m[2],k=body.indexOf(' - ');
