@@ -265,7 +265,7 @@ function appExtraData(pin) {
   evs.sort(function (a, b) { return b.date.localeCompare(a.date); });
   return {
     events: evs.slice(0, 60).map(function (e) {
-      return { id: e.id, date: e.date, price: prices[e.id] || 0,
+      return { id: e.id, date: e.date, price: prices[e.id] || 0, place: e.sheet,
         players: e.players.map(function (p) { return { name: p.name, group: p.group, paid: p.paid }; }) };
     }),
     debts: extraDebts_(evs, prices)

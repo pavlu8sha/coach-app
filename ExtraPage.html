@@ -44,6 +44,14 @@ summary::-webkit-details-marker{display:none}
   <details id="debt"><summary><b>Должники</b><span class="cnt" id="dcnt"></span></summary>
     <div id="dlist"></div>
   </details>
+  <details id="msgx" open><summary><b>Сообщение по неоплаченным</b></summary>
+    <label>Тренировка</label><select id="mev"></select>
+    <label>Текст сообщения ({место} и {дата} подставятся сами)</label>
+    <textarea id="mtpl" rows="3"></textarea>
+    <button class="btn" id="mcopy">Скопировать текст</button>
+    <div class="sub" style="margin-top:12px">Отметьте, кому уже написали</div>
+    <div id="mlist"></div>
+  </details>
   <details id="newev"><summary><b>+ Новая тренировка</b></summary>
     <div class="row2"><input type="date" id="nd" aria-label="Дата"><input type="number" min="0" step="1" id="na" placeholder="Сумма, ₾" aria-label="Сумма"></div>
     <div style="padding-bottom:14px"><button class="btn" id="nadd">Создать тренировку</button></div>
@@ -85,8 +93,44 @@ function renderDebts(){
   $('dlist').innerHTML=h||'<p class="th">Долгов нет</p>';
   $('dcnt').textContent=D.debts.length?D.debts.length+' · '+(tot?money(tot):n+' трен.'):'нет';
 }
+// Сообщение по неоплаченным тренировкам: место и дата подставляются из выбранной тренировки.
+var MSG_DEF='Добрый день\nУ вас не оплачена тренировка на {место} {дата}';
+function ddmm(d){var p=d.split('-');return p[2]+'.'+p[1]}
+function msgEvents(){return D.events.filter(function(e){return e.players.some(function(p){return!p.paid})})}
+function curEv(){return D.events.filter(function(e){return e.id===$('mev').value})[0]}
+function wroteMap(){try{return JSON.parse(localStorage.getItem('extraWrote')||'{}')}catch(x){return{}}}
+function copyTxt(t){var a=document.createElement('textarea');a.value=t;a.style.position='fixed';a.style.opacity='0';document.body.appendChild(a);a.select();var ok=false;try{ok=document.execCommand('copy')}catch(x){}document.body.removeChild(a);return ok}
+function renderMsgList(){
+  var e=curEv(),wrote=wroteMap();
+  if(!e){$('mlist').innerHTML='';return}
+  $('mlist').innerHTML=e.players.filter(function(p){return!p.paid}).map(function(p){
+    var k=e.id+'|'+p.name;
+    return'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line)"><span>'+esc(p.name)+' <span class="gr">'+esc(p.group)+'</span></span><span class="gr"><input type="checkbox" data-w="'+esc(k)+'"'+(wrote[k]?' checked':'')+'> написал(а)</span></div>';
+  }).join('');
+}
+function fillMsg(){
+  var evs=msgEvents(),sel=$('mev'),prev=sel.value;
+  sel.innerHTML=evs.map(function(e){return'<option value="'+esc(e.id)+'">'+esc(e.place+' · '+dl(e.date))+'</option>'}).join('')||'<option value="">Нет неоплаченных</option>';
+  if(prev&&evs.some(function(e){return e.id===prev}))sel.value=prev;
+  if(!$('mtpl').dataset.init){$('mtpl').value=gl('extraMsgTpl')||MSG_DEF;$('mtpl').dataset.init='1'}
+  renderMsgList();
+}
+$('mev').onchange=function(){renderMsgList()};
+$('mtpl').oninput=function(){try{localStorage.setItem('extraMsgTpl',this.value)}catch(x){}};
+$('mcopy').onclick=function(){
+  var e=curEv();if(!e)return;
+  var t=$('mtpl').value.replace(/\{место\}/g,e.place).replace(/\{дата\}/g,ddmm(e.date)),b=this;
+  var flash=function(){var old=b.textContent;b.textContent='Скопировано';setTimeout(function(){b.textContent=old},1800)};
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(flash,function(){if(copyTxt(t))flash()})}
+  else if(copyTxt(t))flash();
+};
+$('mlist').onchange=function(ev){
+  var c=ev.target;if(!c.dataset||!c.dataset.w)return;
+  var m=wroteMap();if(c.checked)m[c.dataset.w]=1;else delete m[c.dataset.w];
+  try{localStorage.setItem('extraWrote',JSON.stringify(m))}catch(x){}
+};
 function render(){
-  renderDebts();
+  renderDebts();fillMsg();
   var h='';
   D.events.forEach(function(e,i){
     var paid=e.players.filter(function(p){return p.paid}).length,dk='d'+e.id;
