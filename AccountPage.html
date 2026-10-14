@@ -188,34 +188,67 @@ function showTab(t){
 var dayHeld={};
 function todayIso(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)}
 function toDmy(v){var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v||''));return m?m[3]+'.'+m[2]+'.'+m[1]:String(v||'')}
+var dyItems=[],dyTr={},dyDate='';
+// Сохраняем выбор тренеров из выпадающих списков перед перерисовкой
+function dySync(){
+  dyItems.forEach(function(x,i){
+    var els=document.querySelectorAll('select[data-s="'+i+'"]');
+    if(els.length) dyTr[i]=[].map.call(els,function(el){return el.value});
+  });
+}
+function dyPaint(){
+  $('dy-list').innerHTML=dyItems.map(function(x,i){
+    var key=dyDate+'|'+x.group+'|'+x.start;
+    var mark=x.status==='done'?'<span class="chip on">записана</span>':(dayHeld[key]===false?'<span class="chip">не проводилась</span>':'');
+    var trs=dyTr[i]||x.trainers;
+    var sel=trs.map(function(tr,j){
+      return'<select data-s="'+i+'" data-j="'+j+'" aria-label="Тренер">'+cache.trainers.map(function(t){return'<option'+(t===tr?' selected':'')+'>'+esc(t)+'</option>'}).join('')+'</select>';
+    }).join('');
+    var can=x.status==='open'&&dayHeld[key]===undefined;
+    var tb=can?'<div class="grid2" style="margin-top:6px">'
+      +(trs.length<3?'<button class="btn" style="background:var(--card);color:var(--ink);border:1px solid var(--line)" data-add="'+i+'">+ тренер</button>':'')
+      +(trs.length>2?'<button class="btn" style="background:var(--card);color:var(--ink);border:1px solid var(--line)" data-rm="'+i+'">− тренер</button>':'')
+      +'</div>':'';
+    var btns=can
+      ?'<div class="grid2"><button class="btn" data-y="'+i+'">Да</button><button class="btn" data-n="'+i+'" style="background:var(--card);color:var(--ink);border:1px solid var(--line)">Нет</button></div>'
+      :'';
+    return'<div class="card"><div class="top"><span>'+esc(x.start)+'–'+esc(x.end)+' · '+esc(x.group)+'</span>'+mark+'</div>'
+      +'<div class="sub">'+esc(x.loc)+' · '+esc(x.type)+'</div>'+sel+tb+btns+'</div>';
+  }).join('');
+  dyItems.forEach(function(x,i){
+    var key=dyDate+'|'+x.group+'|'+x.start;
+    var y=document.querySelector('[data-y="'+i+'"]'),n=document.querySelector('[data-n="'+i+'"]');
+    var add=document.querySelector('[data-add="'+i+'"]'),rm=document.querySelector('[data-rm="'+i+'"]');
+    if(add)add.onclick=function(){
+      dySync();
+      var cur=dyTr[i]||x.trainers.slice();
+      var pick=cache.trainers.filter(function(t){return cur.indexOf(t)<0})[0]||cache.trainers[0]||'';
+      dyTr[i]=cur.concat([pick]);
+      dyPaint();
+    };
+    if(rm)rm.onclick=function(){
+      dySync();
+      dyTr[i]=(dyTr[i]||x.trainers).slice(0,-1);
+      dyPaint();
+    };
+    if(y)y.onclick=function(){
+      var trs=[].map.call(document.querySelectorAll('select[data-s="'+i+'"]'),function(el){return el.value});
+      setMsg('Сохраняю…');
+      run('appConfirmDaily',[pin,{date:dyDate,loc:x.loc,group:x.group,type:x.type,start:x.start,end:x.end,trainers:trs}],
+        function(){dayHeld[key]=true;setMsg('Записано');loadDay()},function(e){setMsg(e,true)});
+    };
+    if(n)n.onclick=function(){dayHeld[key]=false;loadDay()};
+  });
+}
 function loadDay(){
   if(!$('dy-date').value)$('dy-date').value=todayIso();
   var iso=$('dy-date').value,date=toDmy(iso);
   $('dy-list').innerHTML='<div class="sub">Загружаю…</div>';
   run('appDailySchedule',[pin,date],function(items){
     if(!items.length){$('dy-list').innerHTML='<div class="sub">На этот день тренировок по расписанию нет</div>';return}
-    $('dy-list').innerHTML=items.map(function(x,i){
-      var key=date+'|'+x.group+'|'+x.start;
-      var mark=x.status==='done'?'<span class="chip on">записана</span>':(dayHeld[key]===false?'<span class="chip">не проводилась</span>':'');
-      var sel=x.trainers.map(function(tr,j){
-        return'<select data-s="'+i+'" data-j="'+j+'" aria-label="Тренер">'+cache.trainers.map(function(t){return'<option'+(t===tr?' selected':'')+'>'+esc(t)+'</option>'}).join('')+'</select>';
-      }).join('');
-      var btns=x.status==='open'&&dayHeld[key]===undefined
-        ?'<div class="grid2"><button class="btn" data-y="'+i+'">Да</button><button class="btn" data-n="'+i+'" style="background:var(--card);color:var(--ink);border:1px solid var(--line)">Нет</button></div>':'';
-      return'<div class="card"><div class="top"><span>'+esc(x.start)+'–'+esc(x.end)+' · '+esc(x.group)+'</span>'+mark+'</div>'
-        +'<div class="sub">'+esc(x.loc)+' · '+esc(x.type)+'</div>'+sel+btns+'</div>';
-    }).join('');
-    items.forEach(function(x,i){
-      var key=date+'|'+x.group+'|'+x.start;
-      var y=document.querySelector('[data-y="'+i+'"]'),n=document.querySelector('[data-n="'+i+'"]');
-      if(y)y.onclick=function(){
-        var trs=[].map.call(document.querySelectorAll('select[data-s="'+i+'"]'),function(el){return el.value});
-        setMsg('Сохраняю…');
-        run('appConfirmDaily',[pin,{date:date,loc:x.loc,group:x.group,type:x.type,start:x.start,end:x.end,trainers:trs}],
-          function(){dayHeld[key]=true;setMsg('Записано');loadDay()},function(e){setMsg(e,true)});
-      };
-      if(n)n.onclick=function(){dayHeld[key]=false;loadDay()};
-    });
+    dyItems=items;dyDate=date;dyTr={};
+    items.forEach(function(x,i){dyTr[i]=x.trainers.slice()});
+    dyPaint();
     setMsg('');
   },function(e){setMsg(e,true)});
 }
