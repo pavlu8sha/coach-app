@@ -202,7 +202,8 @@ function dyPaint(){
     var mark=x.status==='done'?'<span class="chip on">записана</span>':(dayHeld[key]===false?'<span class="chip">не проводилась</span>':'');
     var trs=dyTr[i]||x.trainers;
     var isDone=x.status==='done';
-    var sel=isDone?'':trs.map(function(tr,j){
+    var rec=x.recorded||[];
+    var sel=(isDone?rec:trs).map(function(tr,j){
       return'<select data-s="'+i+'" data-j="'+j+'" aria-label="Тренер">'+cache.trainers.map(function(t){return'<option'+(t===tr?' selected':'')+'>'+esc(t)+'</option>'}).join('')+'</select>';
     }).join('');
     var can=x.status==='open'&&dayHeld[key]===undefined;
@@ -210,8 +211,8 @@ function dyPaint(){
       +(trs.length<3?'<button class="btn" style="background:var(--card);color:var(--ink);border:1px solid var(--line)" data-add="'+i+'">+ тренер</button>':'')
       +(trs.length>2?'<button class="btn" style="background:var(--card);color:var(--ink);border:1px solid var(--line)" data-rm="'+i+'">− тренер</button>':'')
       +'</div>':'';
-    var rec=x.recorded||[];
-    var recLine=isDone?'<div class="sub">Записаны: '+esc(rec.join(', '))+'</div>':'';
+    var recLine='';
+    var saveBlock=isDone?'<div class="grid2" style="margin-top:6px"><button class="btn" data-save="'+i+'">Сохранить тренеров</button></div>':'';
     var addBlock='';
     if(isDone&&rec.length<3){
       addBlock=dyAddOpen[i]
@@ -222,7 +223,7 @@ function dyPaint(){
       ?'<div class="grid2"><button class="btn" data-y="'+i+'">Да</button><button class="btn" data-n="'+i+'" style="background:var(--card);color:var(--ink);border:1px solid var(--line)">Нет</button></div>'
       :'';
     return'<div class="card"><div class="top"><span>'+esc(x.start)+'–'+esc(x.end)+' · '+esc(x.group)+'</span>'+mark+'</div>'
-      +'<div class="sub">'+esc(x.loc)+' · '+esc(x.type)+'</div>'+sel+recLine+tb+btns+addBlock+'</div>';
+      +'<div class="sub">'+esc(x.loc)+' · '+esc(x.type)+'</div>'+sel+recLine+tb+btns+saveBlock+addBlock+'</div>';
   }).join('');
   dyItems.forEach(function(x,i){
     var key=dyDate+'|'+x.group+'|'+x.start;
@@ -247,6 +248,13 @@ function dyPaint(){
         function(){dayHeld[key]=true;setMsg('Записано');loadDay()},function(e){setMsg(e,true)});
     };
     if(n)n.onclick=function(){dayHeld[key]=false;loadDay()};
+    var sv=document.querySelector('[data-save="'+i+'"]');
+    if(sv)sv.onclick=function(){
+      var trs2=[].map.call(document.querySelectorAll('select[data-s="'+i+'"]'),function(el){return el.value});
+      setMsg('Сохраняю…');
+      run('appTrainingReplaceTrainers',[pin,{date:dyDate,group:x.group,start:x.start,trainers:trs2}],
+        function(){setMsg('Сохранено');loadDay()},function(e){setMsg(e,true)});
+    };
     var ao=document.querySelector('[data-addopen="'+i+'"]'),an=document.querySelector('[data-addno="'+i+'"]'),aok=document.querySelector('[data-addok="'+i+'"]');
     if(ao)ao.onclick=function(){dyAddOpen[i]=true;dyPaint()};
     if(an)an.onclick=function(){dyAddOpen[i]=false;dyPaint()};

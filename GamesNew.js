@@ -295,6 +295,26 @@ function appAddTrainerDaily(pin, o) {
   return { ok: true, written: 1 };
 }
 
+// Замена тренеров у записанной тренировки: меняются имена в её строках по порядку;
+// количество тренеров не меняется (добавление делается отдельной кнопкой)
+function appTrainingReplaceTrainers(pin, o) {
+  checkAdmin_(pin);
+  var date = gnDmy_(o.date), names = (o.trainers || []).map(function (x) { return String(x || '').trim(); });
+  if (!names.length || names.some(function (x) { return !x; })) throw new Error('Выберите тренеров');
+  if (names.some(function (x, i) { return names.indexOf(x) !== i; })) throw new Error('Тренер выбран дважды');
+  var sh = gnTrainingsSheet_(), vals = sh.getDataRange().getValues(), rowsNo = [];
+  for (var i = 1; i < vals.length; i++) {
+    var r = vals[i];
+    if (String(r[0]).trim() === date && String(r[9] || '').trim() === 'Да' &&
+        (String(r[4] || '').trim() || String(r[5] || '').trim()) === o.group && String(r[6] || '').trim() === o.start) rowsNo.push(i + 1);
+  }
+  if (rowsNo.length !== names.length) throw new Error('В записи тренеров: ' + rowsNo.length + ', выбрано: ' + names.length + '. Количество меняется кнопкой «+ тренер».');
+  if (CONFIG.DRY_RUN) return { ok: true, dryRun: true };
+  rowsNo.forEach(function (rowNo, k) { sh.getRange(rowNo, 3).setValue(names[k]); });
+  logChange_('', '', 'замена тренеров (раздел Игры)', date + ' ' + o.group + ' ' + o.start, names.join(', '));
+  return { ok: true, changed: rowsNo.length };
+}
+
 // Подтверждение «да»: по одной строке на каждого тренера; уже записанную тренировку не дублируем
 function appConfirmDaily(pin, o) {
   checkAdmin_(pin);
