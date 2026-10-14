@@ -48,6 +48,8 @@ summary::-webkit-details-marker{display:none}
   </details>
   <details id="msgx" open><summary><b>Сообщение по неоплаченным</b></summary>
     <label>Тренировка</label><select id="mev"></select>
+    <label>Место тренировки</label>
+    <div class="row2"><input id="mplace" placeholder="например, Исани"><button class="btn sec" id="mpsave">Сохранить место</button></div>
     <label>Текст сообщения ({место} и {дата} подставятся сами)</label>
     <textarea id="mtpl" rows="3"></textarea>
     <button class="btn" id="mcopy">Скопировать текст</button>
@@ -104,6 +106,7 @@ function wroteMap(){try{return JSON.parse(localStorage.getItem('extraWrote')||'{
 function copyTxt(t){var a=document.createElement('textarea');a.value=t;a.style.position='fixed';a.style.opacity='0';document.body.appendChild(a);a.select();var ok=false;try{ok=document.execCommand('copy')}catch(x){}document.body.removeChild(a);return ok}
 function renderMsgList(){
   var e=curEv(),wrote=wroteMap();
+  $('mplace').value=e?e.place:'';
   if(!e){$('mlist').innerHTML='';return}
   $('mlist').innerHTML=e.players.filter(function(p){return!p.paid}).map(function(p){
     var k=e.id+'|'+p.name;
@@ -112,7 +115,7 @@ function renderMsgList(){
 }
 function fillMsg(){
   var evs=msgEvents(),sel=$('mev'),prev=sel.value;
-  sel.innerHTML=evs.map(function(e){return'<option value="'+esc(e.id)+'">'+esc(e.place+' · '+dl(e.date))+'</option>'}).join('')||'<option value="">Нет неоплаченных</option>';
+  sel.innerHTML=evs.map(function(e){return'<option value="'+esc(e.id)+'">'+esc(dl(e.date)+(e.place?' · '+e.place:' · место не указано'))+'</option>'}).join('')||'<option value="">Нет неоплаченных</option>';
   if(prev&&evs.some(function(e){return e.id===prev}))sel.value=prev;
   if(!$('mtpl').dataset.init){$('mtpl').value=gl('extraMsgTpl')||MSG_DEF;$('mtpl').dataset.init='1'}
   renderMsgList();
@@ -121,10 +124,21 @@ $('mev').onchange=function(){renderMsgList()};
 $('mtpl').oninput=function(){try{localStorage.setItem('extraMsgTpl',this.value)}catch(x){}};
 $('mcopy').onclick=function(){
   var e=curEv();if(!e)return;
+  if(!e.place){msg('Сначала укажите место тренировки',true);return}
   var t=$('mtpl').value.replace(/\{место\}/g,e.place).replace(/\{дата\}/g,ddmm(e.date)),b=this;
   var flash=function(){var old=b.textContent;b.textContent='Скопировано';setTimeout(function(){b.textContent=old},1800)};
   if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(flash,function(){if(copyTxt(t))flash()})}
   else if(copyTxt(t))flash();
+};
+$('mpsave').onclick=function(){
+  var e=curEv();if(!e)return;
+  var v=$('mplace').value.trim(),b=this;
+  b.disabled=true;
+  run('appSetExtraPlace',[pin,e.id,v],function(r){
+    b.disabled=false;
+    if(r&&r.dryRun){msg('Пробный режим: в таблицу ничего не записано.');return}
+    e.place=v;fillMsg();msg('Место сохранено');
+  },function(m){b.disabled=false;msg(m,true)});
 };
 $('mlist').onchange=function(ev){
   var c=ev.target;if(!c.dataset||!c.dataset.w)return;

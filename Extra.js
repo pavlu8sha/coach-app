@@ -219,6 +219,39 @@ function extraPrices_() {
   return map;
 }
 
+// Место тренировки, введённое в приложении (лист «МЕСТА ТРЕНИРОВОК» в админ-файле). Ключ — ID тренировки.
+var EXTRA_PLACES = 'МЕСТА ТРЕНИРОВОК';
+function extraPlaces_() {
+  var hit = cacheGetBig_('xpl_v1');
+  if (hit) return hit;
+  var map = {}, sh = adminSS_().getSheetByName(EXTRA_PLACES);
+  if (sh && sh.getLastRow() > 1) {
+    sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues().forEach(function (r) { if (r[0]) map[String(r[0])] = String(r[1] || ''); });
+  }
+  cachePutBig_('xpl_v1', map, 3600);
+  return map;
+}
+function appSetExtraPlace(pin, id, place) {
+  checkAdmin_(pin);
+  var p = String(place || '').replace(/\s+/g, ' ').trim();
+  if (!id) throw new Error('Тренировка не выбрана');
+  if (p.length > 60) throw new Error('Слишком длинное место');
+  if (CONFIG.DRY_RUN) return { ok: true, dryRun: true };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var sh = dbSheet_(EXTRA_PLACES, ['ID тренировки', 'Место', 'Изменено']), row = 0;
+    if (sh.getLastRow() > 1) {
+      var ids = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
+      for (var i = 0; i < ids.length; i++) if (String(ids[i][0]) === String(id)) { row = i + 2; break; }
+    }
+    var target = row || sh.getLastRow() + 1;
+    sh.getRange(target, 1, 1, 3).setValues([[String(id), p, new Date()]]);
+    cacheDropBig_('xpl_v1');
+  } finally { lock.releaseLock(); }
+  return { ok: true, dryRun: false };
+}
+
 // fromId — прежний ID, если тренировка перенесена на другую дату
 function extraPriceSet_(id, date, amount, fromId) {
   var sh = dbSheet_(EXTRA_PRICES, EXTRA_PRICES_HEAD);
@@ -261,11 +294,11 @@ function extraDebts_(evs, prices) {
 
 function appExtraData(pin) {
   checkAdmin_(pin);
-  var evs = extraParse_(), prices = extraPrices_();
+  var evs = extraParse_(), prices = extraPrices_(), places = extraPlaces_();
   evs.sort(function (a, b) { return b.date.localeCompare(a.date); });
   return {
     events: evs.slice(0, 60).map(function (e) {
-      return { id: e.id, date: e.date, price: prices[e.id] || 0, place: e.sheet,
+      return { id: e.id, date: e.date, price: prices[e.id] || 0, place: places[e.id] || '',
         players: e.players.map(function (p) { return { name: p.name, group: p.group, paid: p.paid }; }) };
     }),
     debts: extraDebts_(evs, prices)
