@@ -156,6 +156,7 @@ function payOrder(b,ord){
     load();
   },function(m){b.disabled=false;pm.textContent=m});
 }
+function kitsOf(k){return String(k||'').split(' + ').map(function(x){return x.trim()}).filter(Boolean)}
 function orderHtml(o,p,linked){
   var prob=[];var mi=missOf(o);if(mi.length)prob.push('не заполнено: '+mi.join(', '));if(isDup(o,p))prob.push('номер '+o.num+' повторяется в группе '+baseGroup(p.group));
   return'<div class="ord"><b>'+esc(o.kit||'Комплект не указан')+'</b>'+(o.inst?' (рассрочка)':'')
@@ -165,7 +166,7 @@ function orderHtml(o,p,linked){
     +'<div>Сумма '+money(o.sum)+', оплачено '+money(o.paid)+', долг '+money(o.debt)+'</div>'
     +(linked&&o.debt>0?payForm(o):'')
     +'<button class="btn sec ed" style="margin-top:8px">Изменить заказ</button>'
-    +'<div class="edf" hidden><label>Комплект</label><select class="ekit">'+(o.kit?'':'<option value="" selected>Не выбран</option>')+Object.keys(PR).map(function(k){return'<option'+(k==o.kit?' selected':'')+'>'+esc(k)+'</option>'}).join('')+'</select>'
+    +'<div class="edf" hidden><label>Комплект</label><div class="ekits">'+Object.keys(PR).map(function(k){return'<label class="kit"><input type="checkbox" class="ekit" value="'+esc(k)+'"'+(kitsOf(o.kit).indexOf(k)>=0?' checked':'')+'> '+esc(k)+'</label>'}).join('')+'</div>'
     +'<label>Размер</label><input class="esize" value="'+esc(o.size||'')+'">'
     +'<label>Надпись</label><input class="einscr" value="'+esc(o.inscr||'')+'">'
     +'<label>Номер</label><input class="enum" value="'+esc(o.num||'')+'">'
@@ -242,7 +243,9 @@ $('list').onclick=function(e){
   if(b.classList.contains('ed')){var ef=ord.querySelector('.edf');ef.hidden=!ef.hidden;return}
   if(b.classList.contains('eok')){
     var ed=ord.querySelector('.em');b.disabled=true;ed.textContent='Сохраняю…';
-    run('appEditOrder',[pin,Number(b.dataset.row),{kit:ord.querySelector('.ekit').value,size:ord.querySelector('.esize').value,inscr:ord.querySelector('.einscr').value,num:ord.querySelector('.enum').value,inst:ord.querySelector('.einst').checked}],
+    var ekits=Array.from(ord.querySelectorAll('.ekit:checked')).map(function(c){return c.value});
+    if(!ekits.length){ed.textContent='Отметьте хотя бы один комплект';b.disabled=false;return}
+    run('appEditOrder',[pin,Number(b.dataset.row),{kit:ekits.join(' + '),size:ord.querySelector('.esize').value,inscr:ord.querySelector('.einscr').value,num:ord.querySelector('.enum').value,inst:ord.querySelector('.einst').checked}],
       function(r){flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+'Заказ изменён. ';load()},
       function(m){b.disabled=false;ed.textContent=m});
     return;
