@@ -249,7 +249,30 @@ function openTar(){
   $('tarbox').hidden=false;
 }
 $('listb').onclick=function(){run('appCampList',[pin,campId||''],function(r){$('listtxt').value=r.text||'Никто не записан';$('listbox').hidden=false},fail)};
-$('listcopy').onclick=function(){var t=$('listtxt');t.select();try{navigator.clipboard.writeText(t.value)}catch(e){document.execCommand('copy')}};
+// Версия для вставки с форматированием: названия групп и имена игроков жирным.
+function campRichHtml(txt){
+  return txt.split('\n').map(function(l){
+    if(!l.trim())return'<div><br></div>';
+    var m=/^(\d+\. )(.*)$/.exec(l);
+    if(!m)return'<div><b>'+esc(l)+'</b></div>';
+    var body=m[2],k=body.indexOf(' - ');
+    var name=k<0?body:body.slice(0,k),rest=k<0?'':body.slice(k);
+    return'<div>'+esc(m[1])+'<b>'+esc(name)+'</b>'+esc(rest)+'</div>';
+  }).join('');
+}
+$('listcopy').onclick=function(){
+  var t=$('listtxt'),b=this,txt=t.value;
+  var flash=function(){var old=b.textContent;b.textContent='Скопировано';setTimeout(function(){b.textContent=old},1800)};
+  var fallback=function(){t.select();try{document.execCommand('copy');flash()}catch(e){}};
+  try{
+    if(window.ClipboardItem&&navigator.clipboard&&navigator.clipboard.write){
+      var item=new ClipboardItem({'text/html':new Blob([campRichHtml(txt)],{type:'text/html'}),'text/plain':new Blob([txt],{type:'text/plain'})});
+      navigator.clipboard.write([item]).then(flash,function(){navigator.clipboard.writeText(txt).then(flash,fallback)});
+      return;
+    }
+    navigator.clipboard.writeText(txt).then(flash,fallback);
+  }catch(e){fallback()}
+};
 $('tarb').onclick=function(){if($('tarbox').hidden)openTar();else $('tarbox').hidden=true};
 $('taradd').onclick=function(){$('tarrows').insertAdjacentHTML('beforeend',tarRow({}))};
 $('tarcancel').onclick=function(){$('tarbox').hidden=true};
