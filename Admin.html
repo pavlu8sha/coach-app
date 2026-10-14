@@ -148,7 +148,7 @@ function errp(m){return'<p class="sub err">'+esc(m)+'</p>'}
 function renderCard(pk){
   ITEMS=[];
   lastSub=pk.sub||null;
-  var h=pk.eq&&pk.eq.birth?'<div class="sub">Дата рождения: '+esc(pk.eq.birth)+'</div>':'';
+  var h='';
   if(pk.eqErr)h+='<h2>Экипировка</h2>'+errp(pk.eqErr);
   else{
     var c=pk.eq,t=c.totals;

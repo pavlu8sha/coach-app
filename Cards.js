@@ -17,37 +17,8 @@ function eqRows_() {
   return out;
 }
 
-// Даты рождения из колонки C групповых блоков листов месяцев файла оплат (блок «Индивидуальные» пропускается).
-// Ключ — имя игрока в нижнем регистре; берётся самая свежая запись. Кэш на час.
-var BIRTH_CACHE_KEY = 'birth_v1';
-function birthByName_() {
-  var hit = cacheGetBig_(BIRTH_CACHE_KEY);
-  if (hit) return hit;
-  var map = {};
-  payMonths_().slice().reverse().forEach(function (m) {
-    var sh = payFile_().getSheetByName(m);
-    if (!sh || sh.getLastRow() < 1) return;
-    var data = sh.getRange(1, 1, sh.getLastRow(), 3).getDisplayValues(), cur = null, i, a;
-    for (i = 0; i < data.length; i++) {
-      a = String(data[i][0]).trim();
-      if (a === '№') {
-        cur = (i > 0 && !skipGroup_(data[i - 1][0])) ? true : null;
-        continue;
-      }
-      if (!cur || a === '') continue;
-      if (isNaN(Number(a))) { cur = null; continue; }
-      var name = norm(data[i][1]), dt = String(data[i][2]).trim();
-      if (name && /^\d{2}\.\d{2}\.\d{4}$/.test(dt) && !map[name]) map[name] = dt;
-    }
-  });
-  cachePutBig_(BIRTH_CACHE_KEY, map, 3600);
-  return map;
-}
-
 function appPlayerCard(pin, id) {
   checkAdmin_(pin);
-  var me = regData_().players.filter(function (p) { return p.id === id; })[0];
-  var birth = me ? (birthByName_()[norm(me.name)] || '') : '';
   var orders = eqRows_().filter(function (o) { return o.id === id; }).map(function (o) {
     o.debt = Math.max(o.sum - o.paid, 0);
     return o;
@@ -60,5 +31,5 @@ function appPlayerCard(pin, id) {
   }
   var t = { sum: 0, paid: 0, debt: 0 };
   orders.forEach(function (o) { t.sum += o.sum; t.paid += o.paid; t.debt += o.debt; });
-  return { orders: orders, payments: pays.reverse(), totals: t, birth: birth };
+  return { orders: orders, payments: pays.reverse(), totals: t };
 }
