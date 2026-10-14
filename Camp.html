@@ -12,7 +12,8 @@
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:40px}
 .wrap{max-width:560px;margin:0 auto;padding:0 16px}
 h1{font-size:22px;margin:16px 0 4px}
-input,select{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:44px;width:100%}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:44px;width:100%}
+textarea{min-height:120px;resize:vertical}
 label{display:block;margin:12px 0 4px;color:var(--mute);font-size:14px}
 .chk{display:flex;gap:8px;align-items:center}.chk input{width:auto;min-height:0}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
@@ -55,17 +56,18 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
   <select id="csel" hidden style="margin-top:8px"></select>
   <div class="tiles" id="sum"></div>
   <div class="row2">
-    <select id="fs" aria-label="Показать">
+    <div><label>Показать</label>
+    <select id="fs">
       <option value="act">Участвуют</option><option value="none">Без брони</option><option value="booked">Только бронь</option>
       <option value="partial">Частично оплачено</option><option value="paid">Оплачено полностью</option>
       <option value="debt">Должники (есть долг)</option><option value="late">Просрочка</option>
       <option value="cancelled">Отказались</option><option value="all">Все</option>
-    </select>
-    <input id="q" placeholder="Поиск по ФИ">
+    </select></div>
+    <div><label>Поиск</label><input id="q" placeholder="Поиск по ФИ"></div>
   </div>
   <button class="btn" id="new">+ Записать на сбор</button>
   <button class="btn sec" id="listb">Список для отправки</button>
-  <div id="listbox" hidden><textarea id="listtxt" rows="14" style="width:100%;font-size:14px" readonly></textarea><button class="btn sec" id="listcopy">Копировать</button></div>
+  <div id="listbox" hidden><textarea id="listtxt" rows="14" readonly></textarea><button class="btn" id="listcopy">Скопировать текст</button></div>
   <button class="btn sec" id="tarb">Тарифы сбора</button>
   <div id="tarbox" hidden>
     <h1 style="font-size:18px;margin:12px 0 4px">Тарифы сбора</h1>
@@ -248,7 +250,7 @@ function openTar(){
   $('tarbox').hidden=false;
 }
 $('listb').onclick=function(){run('appCampList',[pin,campId||''],function(r){$('listtxt').value=r.text||'Никто не записан';$('listbox').hidden=false},fail)};
-$('listcopy').onclick=function(){var t=$('listtxt');t.select();try{navigator.clipboard.writeText(t.value)}catch(e){document.execCommand('copy')}};
+$('listcopy').onclick=function(){var t=$('listtxt'),b=this;t.select();var flash=function(){var old=b.textContent;b.textContent='Скопировано';setTimeout(function(){b.textContent=old},1800)};try{navigator.clipboard.writeText(t.value).then(flash,function(){document.execCommand('copy');flash()})}catch(e){document.execCommand('copy');flash()}};
 $('tarb').onclick=function(){if($('tarbox').hidden)openTar();else $('tarbox').hidden=true};
 $('taradd').onclick=function(){$('tarrows').insertAdjacentHTML('beforeend',tarRow({}))};
 $('tarcancel').onclick=function(){$('tarbox').hidden=true};
