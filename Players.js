@@ -143,13 +143,63 @@ function logChange_(id, name, field, was, now) {
 
 function appAdminInit(pin) {
   checkAdmin_(pin);
-  var d = regData_();
+  var d = regData_(), bd = birthById_();
   return {
     groups: d.l.groups, statuses: d.l.statuses,
     players: d.players.map(function (p) {
-      return { id: p.id, name: p.name, group: p.group, loc: p.loc, status: p.status, start: p.start, end: p.end, extras: p.extras };
+      return { id: p.id, name: p.name, group: p.group, loc: p.loc, status: p.status, start: p.start, end: p.end, extras: p.extras, birth: bd[p.id] || '' };
     })
   };
+}
+
+// Даты рождения: вручную заданные (лист «ДАТЫ РОЖДЕНИЯ» в админ-файле) важнее дат из файла оплат.
+var BIRTH_SHEET = 'ДАТЫ РОЖДЕНИЯ';
+var BIRTH_HEAD = ['ID игрока', 'ФИ', 'Дата рождения', 'Изменено'];
+function birthOverrides_() {
+  var hit = cacheGetBig_('bo_v1');
+  if (hit) return hit;
+  var map = {}, sh = dbRead_(BIRTH_SHEET);
+  if (sh && sh.getLastRow() > 1) {
+    sh.getRange(2, 1, sh.getLastRow() - 1, 3).getDisplayValues().forEach(function (r) {
+      var id = String(r[0]).trim(), dt = String(r[2]).trim();
+      if (id && /^\d{2}\.\d{2}\.\d{4}$/.test(dt)) map[id] = dt;
+    });
+  }
+  cachePutBig_('bo_v1', map, 3600);
+  return map;
+}
+// Карта «ID игрока → дата рождения dd.mm.yyyy» для всех игроков реестра.
+function birthById_() {
+  var ov = birthOverrides_(), fromFile = birthByName_(), out = {};
+  regData_().players.forEach(function (p) {
+    out[p.id] = ov[p.id] || fromFile[norm(p.name)] || '';
+  });
+  return out;
+}
+// Записать дату рождения вручную: date в формате dd.mm.yyyy.
+function appSetBirth(pin, id, date) {
+  checkAdmin_(pin);
+  var d = String(date || '').trim();
+  if (!/^\d{2}\.\d{2}\.\d{4}$/.test(d)) throw new Error('Дата в формате дд.мм.гггг');
+  var p = regData_().players.filter(function (x) { return x.id === id; })[0];
+  if (!p) throw new Error('Игрок не найден: ' + id);
+  var was = birthById_()[id] || '';
+  if (CONFIG.DRY_RUN) return { ok: true, dryRun: true };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var sh = dbSheet_(BIRTH_SHEET, BIRTH_HEAD), row = 0;
+    if (sh.getLastRow() > 1) {
+      var ids = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getDisplayValues();
+      for (var i = 0; i < ids.length; i++) if (String(ids[i][0]).trim() === id) { row = i + 2; break; }
+    }
+    var target = row || sh.getLastRow() + 1;
+    sh.getRange(target, 3).setNumberFormat('@'); // как текст, чтобы таблица не переписала дату по своей локали
+    sh.getRange(target, 1, 1, 4).setValues([[id, p.name, d, new Date()]]);
+    logChange_(id, p.name, 'Дата рождения', was, d);
+    cacheDropBig_('bo_v1'); cacheDropBig_('birth_v1');
+  } finally { lock.releaseLock(); }
+  return { ok: true, dryRun: false };
 }
 
 function appAddPlayer(pin, p) {

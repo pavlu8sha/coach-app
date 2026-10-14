@@ -18,6 +18,9 @@ label{display:block;margin:12px 0 4px;color:var(--mute);font-size:14px}
 .row2>div{min-width:0}.row2 input{min-width:0;max-width:100%}
 input[type=date]{-webkit-appearance:none;appearance:none;width:0;min-width:100%;max-width:100%;display:block;box-sizing:border-box}
 button{font:inherit;cursor:pointer}
+.ychips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.ychips button{border:1px solid var(--line);background:var(--card);color:var(--mute);border-radius:999px;padding:6px 12px;font-weight:700;font-size:14px}
+.ychips button[aria-pressed=true]{background:var(--g);border-color:var(--g);color:var(--gi)}
 .btn{width:100%;min-height:48px;border:0;border-radius:12px;background:var(--g);color:var(--gi);font-weight:800;font-size:16px;margin-top:12px}
 .btn.sec{background:none;color:var(--g);border:1px solid var(--line)}
 .btn:disabled{opacity:.5}
@@ -48,6 +51,7 @@ li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padd
   <h1>Игроки</h1>
   <input id="q" placeholder="Поиск: ФИ, ID, группа" style="margin-top:8px">
   <div class="row2"><select id="fg" aria-label="Группа"></select><select id="st" aria-label="Статус"></select></div>
+  <label>Год рождения (можно несколько)</label><div class="ychips" id="fyear"></div>
   <button class="btn" id="add">+ Добавить игрока</button>
   <div class="msg" id="msg" role="status"></div>
   <div class="sub" id="count"></div>
@@ -55,6 +59,8 @@ li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padd
 </div>
 <div id="card" class="wrap" hidden>
   <h1 id="ctitle"></h1><div class="sub" id="cinfo"></div><div class="sub" id="cbirth"></div>
+  <button class="btn sec" id="bopen" hidden>Указать дату рождения</button>
+  <div id="bform" class="row2" hidden><input type="date" id="bdt" aria-label="Дата рождения"><button class="btn" id="bsave">Сохранить дату</button></div>
   <button class="btn sec" id="cedit">Изменить данные игрока</button>
   <label>Способ оплаты (для всех платежей ниже)</label>
   <div class="seg" id="meth"><button data-m="Наличные" aria-pressed="false">Наличные</button><button data-m="Перевод" aria-pressed="false">Перевод</button></div>
@@ -80,7 +86,7 @@ li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padd
 </div>
 <script>
 var pin='',D=null,cur=null,force=false,flash='',gSel='',sSel='Активен',cardI=-1,FUN=[];
-var cardReq=0,cardPid='',pflash='',method='',ITEMS=[];
+var cardReq=0,cardPid='',pflash='',method='',ITEMS=[],ySel=[];
 function $(i){return document.getElementById(i)}
 function run(fn,args,ok,fail){var r=google.script.run.withSuccessHandler(ok).withFailureHandler(function(e){fail(e&&e.message?e.message:String(e))});r[fn].apply(r,args)}
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
@@ -101,19 +107,35 @@ function load(){
   setMsg('msg','Загрузка…',false);
   run('appAdminInit',[pin],function(d){
     D=d;$('login').hidden=true;$('form').hidden=true;$('card').hidden=true;$('app').hidden=false;
-    fillFilters();setMsg('msg',flash,false);flash='';list();
+    fillFilters();fillYears();setMsg('msg',flash,false);flash='';list();
   },function(m){if(/код (администратора|доступа)/.test(m))showLogin('Неверный код доступа');else{$('app').hidden=false;setMsg('msg',m,true)}});
 }
+function yearOf(b){return b?b.slice(6):'none'}
+function chip(v,t){return'<button type="button" data-y="'+esc(v)+'" aria-pressed="'+(ySel.indexOf(v)>=0)+'">'+esc(t)+'</button>'}
+function fillYears(){
+  var ys={},none=false;
+  D.players.forEach(function(p){if(p.birth)ys[yearOf(p.birth)]=1;else none=true});
+  var years=Object.keys(ys).sort().reverse();
+  ySel=ySel.filter(function(y){return y==='none'?none:years.indexOf(y)>=0});
+  $('fyear').innerHTML=years.map(function(y){return chip(y,y)}).join('')+(none?chip('none','без даты'):'');
+}
+$('fyear').onclick=function(e){
+  var b=e.target.closest('button');if(!b)return;
+  var v=b.dataset.y,i=ySel.indexOf(v);
+  if(i>=0)ySel.splice(i,1);else ySel.push(v);
+  fillYears();list();
+};
 function list(){
   var q=$('q').value.trim().toLowerCase(),st=$('st').value,g=$('fg').value;
   var a=D.players.filter(function(p){
     if(st&&p.status!=st)return false;
     if(g&&p.group!=g&&p.extras.indexOf(g)<0)return false;
+    if(ySel.length&&ySel.indexOf(yearOf(p.birth))<0)return false;
     return !q||(p.name+' '+p.id+' '+p.group+' '+p.extras.join(' ')).toLowerCase().indexOf(q)>=0;
   });
   $('count').textContent='Найдено: '+a.length+(a.length>80?' (показаны первые 80, уточните поиск)':'');
   $('list').innerHTML=a.slice(0,80).map(function(p){
-    return'<li class="p" data-i="'+D.players.indexOf(p)+'"><b>'+esc(p.name)+'</b><div class="sub">'+esc(p.id+' / '+p.group+(p.extras.length?' + '+p.extras.join(', '):'')+(p.status!='Активен'?' / '+p.status:''))+'</div></li>';
+    return'<li class="p" data-i="'+D.players.indexOf(p)+'"><b>'+esc(p.name)+'</b><div class="sub">'+esc(p.id+' / '+p.group+(p.extras.length?' + '+p.extras.join(', '):'')+(p.status!='Активен'?' / '+p.status:'')+' / '+(p.birth?'р. '+p.birth:'без даты'))+'</div></li>';
   }).join('');
 }
 
@@ -148,7 +170,6 @@ function errp(m){return'<p class="sub err">'+esc(m)+'</p>'}
 function renderCard(pk){
   ITEMS=[];
   lastSub=pk.sub||null;
-  $('cbirth').textContent=pk.eq&&pk.eq.birth?'Дата рождения: '+pk.eq.birth:'';
   var h='';
   if(pk.eqErr)h+='<h2>Экипировка</h2>'+errp(pk.eqErr);
   else{
@@ -197,7 +218,9 @@ function openCard(i){
   $('app').hidden=true;$('form').hidden=true;$('card').hidden=false;
   $('ctitle').textContent=p.name;
   $('cinfo').textContent=p.id+' / '+p.group+(p.extras.length?' + '+p.extras.join(', '):'')+' / '+p.status;
-  $('cbirth').textContent='';
+  $('cbirth').textContent=p.birth?'Дата рождения: '+p.birth:'Дата рождения не указана';
+  $('bopen').textContent=p.birth?'Изменить дату рождения':'Указать дату рождения';
+  $('bopen').hidden=false;$('bform').hidden=true;
   if(cardPid!=p.id){cardPid=p.id;setMethod('');$('pdt').value=today();$('pcm').value=''}
   $('pmsg').textContent=pflash;pflash='';
   $('cbody').innerHTML='<div class="sub">Загрузка…</div>';
@@ -210,6 +233,23 @@ function openCard(i){
   part('ind','appIndOfPlayer',[pin,p.id]);
   part('ext','appExtraOfPlayer',[pin,p.id]);
 }
+$('bopen').onclick=function(){
+  var p=D.players[cardI],b=p.birth;
+  $('bdt').value=b?b.slice(6)+'-'+b.slice(3,5)+'-'+b.slice(0,2):'';
+  $('bform').hidden=!$('bform').hidden;
+};
+$('bsave').onclick=function(){
+  var v=$('bdt').value,p=D.players[cardI],btn=this;
+  if(!v){setMsg('pmsg','Выберите дату',true);return}
+  var d=v.slice(8,10)+'.'+v.slice(5,7)+'.'+v.slice(0,4);
+  btn.disabled=true;
+  run('appSetBirth',[pin,p.id,d],function(r){
+    btn.disabled=false;
+    if(r&&r.dryRun){setMsg('pmsg','Пробный режим: в таблицу ничего не записано.',false);return}
+    p.birth=d;fillYears();list();
+    pflash='Дата рождения сохранена';openCard(cardI);
+  },function(m){btn.disabled=false;setMsg('pmsg',m,true)});
+};
 function payDone(r,txt,box,b){
   if(r&&r.dryRun){b.disabled=false;boxMsg(box,'Пробный режим: в таблицу ничего не записано.');return}
   $('pcm').value='';pflash=txt;openCard(cardI);

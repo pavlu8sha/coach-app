@@ -46,8 +46,7 @@ function birthByName_() {
 
 function appPlayerCard(pin, id) {
   checkAdmin_(pin);
-  var me = regData_().players.filter(function (p) { return p.id === id; })[0];
-  var birth = me ? (birthByName_()[norm(me.name)] || '') : '';
+  var birth = birthById_()[id] || '';
   var orders = eqRows_().filter(function (o) { return o.id === id; }).map(function (o) {
     o.debt = Math.max(o.sum - o.paid, 0);
     return o;
