@@ -1,9 +1,9 @@
-/** Каталог экипировки: позиции хранятся на листе «КАТАЛОГ ЭКИПИРОВКИ» в таблице приложения. */
+/** Каталог экипировки: позиции хранятся на листе «КАТАЛОГ ЭКИПИРОВКИ» в таблице AdminApp (ADMIN_ID). */
 
 var CAT_SHEET = 'КАТАЛОГ ЭКИПИРОВКИ';
 
 function catSheet_() {
-  var ss = SpreadsheetApp.getActive(), sh = ss.getSheetByName(CAT_SHEET);
+  var ss = adminSS_(), sh = ss.getSheetByName(CAT_SHEET);
   if (sh) return sh;
   if (CONFIG.DRY_RUN) return null;
   sh = ss.insertSheet(CAT_SHEET);
