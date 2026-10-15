@@ -84,23 +84,32 @@ function load(opts) {
     'ЖУРНАЛ ПОСЕЩАЕМОСТИ': new FakeSheet('ЖУРНАЛ ПОСЕЩАЕМОСТИ', journal(opts.journal), 3),
   };
   if (opts.noJournal) delete sheets['ЖУРНАЛ ПОСЕЩАЕМОСТИ'];
-  const ss = { getSheetByName: n => sheets[n] || null, getSpreadsheetTimeZone: () => 'Asia/Tbilisi' };
+  const ss = { getSheetByName: n => sheets[n] || null, getSpreadsheetTimeZone: () => 'Asia/Tbilisi', getSheets: () => Object.values(sheets) };
+  const stubs = {
+    attSS_: () => ss,
+    sheetOf_: n => ss.getSheetByName(n),
+    readRegistry_: () => ({ players: opts.players.map(p => ({ id: p[0], name: p[1], group: p[2], status: p[3] || 'Активен', loc: 'Красный парк' })) }),
+    checkPin_() {}, indIsGroup_: () => false, extraIsGroup_: () => false,
+    // для renameSweep_: остальные файлы в тесте пустые
+    adminSS_: () => ({ getSheetByName: () => null }), partsSheet_: () => null, equipSheet_: () => null,
+    payFile_: () => ({ getSheets: () => [] }), extraParseRaw_: () => [], logChange_() {},
+    SUB_SHEET: 'АБОНЕМЕНТЫ', PAY_SHEET: 'ОПЛАТЫ', EXTRA_LOG: 'x', EXTRA_ATT: 'x', IND_LOG: 'x',
+  };
   const ctx = {
     console,
     SpreadsheetApp: { flush() {}, CopyPasteType: { PASTE_NORMAL: 0, PASTE_FORMAT: 1 } },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
     Utilities: { formatDate: () => '' },
     Logger: { log() {} },
-    attSS_: () => ss,
-    sheetOf_: n => ss.getSheetByName(n),
-    readRegistry_: () => ({ players: opts.players.map(p => ({ id: p[0], name: p[1], group: p[2], status: p[3] || 'Активен', loc: 'Красный парк' })) }),
-    checkPin_() {}, indIsGroup_: () => false, extraIsGroup_: () => false,
+    PropertiesService: { getScriptProperties: () => ({ getProperties: () => ({}), getProperty: () => null }) },
+    ...stubs,
   };
   vm.createContext(ctx);
-  for (const f of opts.files || ['Attendance.js', 'WebApp.js']) {
+  for (const f of opts.files || ['Attendance.js', 'WebApp.js', 'MonthsAtt.js', 'MonthsCode.js', 'Players.js']) {
     const src = typeof f === 'string' ? fs.readFileSync(path.join(ROOT, f), 'utf8') : f.src;
     vm.runInContext(src, ctx, { filename: typeof f === 'string' ? f : f.name });
   }
+  Object.assign(ctx, stubs); // функции из файлов (attSS_, readRegistry_ …) заменяем имитацией
   return { ctx, sheets };
 }
 
@@ -321,4 +330,38 @@ test('журнал не записался: лист записан, ошибк�
   save(env, {});
   assert.equal(env.sheets['ЖУРНАЛ ПОСЕЩАЕМОСТИ'].data.length - 3, 3);
   assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': 'a', 'KS-2': 'a', 'KS-3': 'a' });
+});
+
+// ---------- Ветка settings-and-fixes ----------
+
+test('вставка строк при нехватке места: блок перенумерован 1..N без повторов', () => {
+  const kids = KIDS.concat([['KS-4', 'New Kid', G], ['KS-5', 'Other Kid', G]]);
+  const env = load({ month: monthSheet(G, KIDS.map(k => k[1]), 0), players: kids });
+  const rep = save(env, { 'KS-4': true });
+  assert.ok(rep.results.every(r => !r.result.startsWith('НЕ')), JSON.stringify(rep.results));
+  const sh = env.sheets['10.26'];
+  assert.deepEqual([6, 7, 8, 9, 10].map(r => sh.cell(r, 1)), [1, 2, 3, 4, 5]);
+  assert.equal(sh.cell(11, 1), 'ИТОГ ГРУППЫ');
+  assert.deepEqual([6, 7, 8, 9, 10].map(r => sh.cell(r, 2)).sort(), ['Bagulin Misha', 'Kotov Rodion', 'New Kid', 'Other Kid', 'Zubkov Stepan']);
+});
+
+test('переименование игрока доходит до листов месяцев посещаемости', () => {
+  const env = fresh();
+  env.ctx.renameSweep_('KS-2', 'Kotov Rodion', 'Kotov Rodion Jr');
+  const sh = env.sheets['10.26'];
+  assert.deepEqual([6, 7, 8].map(r => sh.cell(r, 2)), ['Bagulin Misha', 'Kotov Rodion Jr', 'Zubkov Stepan']);
+});
+
+test('attJournalCheck: находит расхождение лист/журнал и день с галочками без журнала, ничего не пишет', () => {
+  const env = load({
+    month: monthSheet(G, KIDS.map(k => k[1]), 2, { 7: [true, false, false], 9: [true, true, false] }), players: KIDS,
+    journal: [jr('KS-1', 'Bagulin Misha', 'Присутствовал'), jr('KS-2', 'Kotov Rodion', 'Присутствовал')],
+  });
+  const before = snapshot(env);
+  const r = env.ctx.attJournalCheck('10.26');
+  assert.equal(r.diff, 1);          // KS-2: журнал «Присутствовал», лист «Отсутствовал»
+  assert.equal(r.bare, 1);          // 09.10: галочки есть, журнала нет
+  assert.ok(r.lines.some(l => /РАСХОЖДЕНИЕ: U10-A, 07\.10\.2026, Kotov Rodion/.test(l)));
+  assert.ok(r.lines.some(l => /БЕЗ ЖУРНАЛА: U10-A, 09\.10\.2026/.test(l)));
+  assert.equal(snapshot(env), before);
 });

@@ -343,6 +343,19 @@ function renameSweep_(id, oldName, newName) {
     });
     bump('Оплаты ' + sh.getName(), n);
   });
+  // Листы месяцев посещаемости: имя в колонке B внутри блоков групп. Раньше они не переименовывались,
+  // и отметки ученика после переименования в реестре переставали записываться (проверка похожих имён).
+  attSS_().getSheets().forEach(function (sh) {
+    if (!isMonth_(sh.getName()) || sh.getLastRow() < 2) return;
+    var na = 0;
+    attBlocks_(sh).forEach(function (b) {
+      if (!b.slots) return;
+      sh.getRange(b.first, 2, b.slots, 1).getValues().forEach(function (r, i) {
+        if (norm(r[0]) === o) { sh.getRange(b.first + i, 2).setValue(newName); na++; }
+      });
+    });
+    bump('Посещаемость ' + sh.getName(), na);
+  });
   // Листы дополнительных тренировок: имя в колонке B
   var nd = 0;
   extraParseRaw_(function () { return true; }).forEach(function (e) {
