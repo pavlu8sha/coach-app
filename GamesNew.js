@@ -452,6 +452,11 @@ function gnSyncGame_(eventId) {
     what = 'обновлена';
   } else {
     var r = sh.getLastRow() + 1;
+    // Игры в листе объединены по две строки (A–E). Значения во второй строке объединения Google Sheets молча отбрасывает,
+    // поэтому новую запись пишем в первую строку после объединения
+    for (var mg = sh.getRange(r, 1).getMergedRanges()[0]; mg && mg.getRow() < r; mg = sh.getRange(r, 1).getMergedRanges()[0]) {
+      r = mg.getLastRow() + 1;
+    }
     sh.getRange(r, 1, 1, 5).setNumberFormat('@').setValues([[date, team, opp, score, goals]]);
     // Проверяем, что строка действительно записана: иначе ошибка видна пользователю, а не только «добавлена» в журнале
     SpreadsheetApp.flush();
