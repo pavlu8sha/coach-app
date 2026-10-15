@@ -12,7 +12,7 @@ function selfTest() {
     }
   }
   var props = PropertiesService.getScriptProperties();
-  ['APP_PIN', 'APP_ADMIN_PIN', 'EQUIP_ID', 'PAY_ID', 'GAMES_ID', 'ADMIN_ID', 'IND_ID', 'EXTRA_ID', 'FUNNEL_ID'].forEach(function (k) {
+  ['APP_PIN', 'APP_ADMIN_PIN', 'ATT_ID', 'EQUIP_ID', 'PAY_ID', 'GAMES_ID', 'ADMIN_ID', 'IND_ID', 'EXTRA_ID', 'FUNNEL_ID'].forEach(function (k) {
     check('свойство ' + k, function () { if (!props.getProperty(k)) throw new Error('не задано'); });
   });
   var ss = SpreadsheetApp.getActive();
@@ -29,6 +29,15 @@ function selfTest() {
       if (!sh) throw new Error('листа нет в AdminApp');
       return (sh.getLastRow() - 1) + ' строк';
     });
+  });
+  // Часть функций (список месяцев статистики, создание листа месяца) работает с привязанной таблицей,
+  // остальные — с ATT_ID. Если это разные файлы, данные разъедутся.
+  check('ATT_ID = привязанная таблица', function () {
+    if (prop_('ATT_ID') !== ss.getId()) throw new Error('ATT_ID указывает на другой файл, чем таблица, к которой привязан скрипт');
+  });
+  check('файл «Игры / Тренировки»', function () {
+    var f = SpreadsheetApp.openById(gnFileId_());
+    return f.getName() + (prop_('GN_ID') ? '' : ' (свойство GN_ID не задано, используется файл по умолчанию)');
   });
   check('реестр игроков', function () { return regData_().players.length + ' игроков'; });
   check('файл оплат', function () { return payMonths_().length + ' месяцев'; });

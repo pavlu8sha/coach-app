@@ -132,7 +132,15 @@ function nextId_(players) {
     var m = /(\d+)$/.exec(p.id);
     if (m) max = Math.max(max, Number(m[1]));
   });
-  return 'KS-' + ('0000' + (max + 1)).slice(-4);
+  return padId_('KS-', max + 1, 4);
+}
+
+// ID вида «префикс + номер» с ведущими нулями до width знаков. Номер длиннее не обрезается
+// (раньше ('000' + 1000).slice(-3) давало «000», и ID шли по кругу).
+function padId_(prefix, n, width) {
+  var s = String(n);
+  while (s.length < width) s = '0' + s;
+  return prefix + s;
 }
 
 function logChange_(id, name, field, was, now) {

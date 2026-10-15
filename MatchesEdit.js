@@ -45,7 +45,7 @@ function addEventCore_(o, isAdmin) {
   var rows = ms.getLastRow() > 1 ? ms.getRange(2, 1, ms.getLastRow() - 1, 7).getValues() : [];
   var team = String(o.team || '').trim(), name = String(o.name || '').trim(), parent = '', fee = '', max = 0;
   rows.forEach(function (r) { var m = /(\d+)$/.exec(String(r[0])); if (m) max = Math.max(max, Number(m[1])); });
-  var id = 'E-' + ('000' + (max + 1)).slice(-3);
+  var id = padId_('E-', max + 1, 3);
   if (o.type === 'Игра') {
     var par = rows.filter(function (r) { return String(r[0]) === String(o.parent); })[0];
     if (!par) throw new Error('Не найден турнир для игры');

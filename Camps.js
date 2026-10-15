@@ -137,7 +137,7 @@ function appCampAdd(pin, o) {
       throw new Error(name + ' уже записан(а) на этот сбор');
     }
     fresh.parts.forEach(function (x) { var m = /(\d+)$/.exec(x.id); if (m) max = Math.max(max, Number(m[1])); });
-    var id = 'CP-' + ('0000' + (max + 1)).slice(-4);
+    var id = padId_('CP-', max + 1, 4);
     if (!CONFIG.DRY_RUN) {
       var ps = campSheets_().ps, r = ps.getLastRow() + 1;
       ps.getRange(r, 1, 1, 12).setValues([[id, camp.id, pid, name, grp, t.name, sum, String(o.size || '').trim(), String(o.comment || '').trim(), 'Записан', serialOf(today_()), guest]]);
@@ -467,7 +467,7 @@ function appCampSave(pin, o) {
       if (c.id === id) cur = c;
     });
     if (id && !cur) throw new Error('Сбор не найден: обновите страницу');
-    if (!cur) id = 'CMP-' + ('0000' + (max + 1)).slice(-4);
+    if (!cur) id = padId_('CMP-', max + 1, 4);
     if (!CONFIG.DRY_RUN) {
       var cs = campSheets_().cs, r = 0;
       if (cur) {

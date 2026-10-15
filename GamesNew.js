@@ -58,8 +58,10 @@ function gnResult_(m) {
 
 // ---- Тренировки и статистика за месяц (только чтение) ----
 
-// Таблица 1Cf4: листы «Игры» и «Тренировки». Пока только чтение; запись будет в AdminApp.
-var GN_FILE_ID = '1Cf4jRMEh8078EcMuzcrpUnPyB1g9_XdDzulxSOC3vC4';
+// Таблица 1Cf4: листы «Игры» и «Тренировки». ID берётся из свойства GN_ID (чтобы на копии работать с копией),
+// без свойства — прежний файл.
+var GN_FILE_ID_DEFAULT = '1Cf4jRMEh8078EcMuzcrpUnPyB1g9_XdDzulxSOC3vC4';
+function gnFileId_() { return prop_('GN_ID') || GN_FILE_ID_DEFAULT; }
 
 function gnStr_(v) {
   if (v instanceof Date) {
@@ -72,7 +74,7 @@ function gnStr_(v) {
 }
 
 function gnValues_(name) {
-  var sh = SpreadsheetApp.openById(GN_FILE_ID).getSheetByName(name);
+  var sh = SpreadsheetApp.openById(gnFileId_()).getSheetByName(name);
   if (!sh) throw new Error('В таблице нет листа «' + name + '»');
   // Берём отображаемые значения: время в таблице не превращается в дату и не сдвигается по часовому поясу
   return sh.getDataRange().getDisplayValues().map(function (r) { return r.map(gnStr_); });
@@ -169,7 +171,7 @@ function gnNextGameRow_(sh, row) {
 
 // Заменяет весь состав игры. rows — [[имя, роль, 'Да'|'Нет'], ...]. Строки игры — от её начала до следующей игры.
 function gnSetGameStaff_(date, team, opp, rows) {
-  var sh = SpreadsheetApp.openById(GN_FILE_ID).getSheetByName('Игры');
+  var sh = SpreadsheetApp.openById(gnFileId_()).getSheetByName('Игры');
   if (!sh) throw new Error('в таблице 1Cf4 нет листа «Игры»');
   var row = gnFindGameRow_(sh, date, team, opp);
   if (!row) throw new Error('игра ' + date + ' ' + team + ' ' + opp + ' не найдена в «Игры»');
@@ -227,7 +229,7 @@ var GN_WEEKDAYS = ['воскресенье', 'понедельник', 'втор
 
 // Лист «Тренировки» в таблице 1Cf4 (он уже существует)
 function gnTrainingsSheet_() {
-  var sh = SpreadsheetApp.openById(GN_FILE_ID).getSheetByName('Тренировки');
+  var sh = SpreadsheetApp.openById(gnFileId_()).getSheetByName('Тренировки');
   if (!sh) throw new Error('В таблице 1Cf4 нет листа «Тренировки»');
   return sh;
 }
@@ -538,7 +540,7 @@ function gnSyncGame_(eventId) {
     .filter(function (r) { return String(r[0]) === String(eventId) && Number(r[10]) > 0; })
     .map(function (r) { return String(r[2]).trim() + (Number(r[10]) > 1 ? ' - ' + Number(r[10]) : ''); }).join(', ');
 
-  var sh = SpreadsheetApp.openById(GN_FILE_ID).getSheetByName('Игры');
+  var sh = SpreadsheetApp.openById(gnFileId_()).getSheetByName('Игры');
   if (!sh) throw new Error('в таблице 1Cf4 нет листа «Игры»');
   var vals = sh.getDataRange().getValues(), at = 0;
   for (var i = 1; i < vals.length; i++) {
