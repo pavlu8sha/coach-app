@@ -92,6 +92,7 @@ function gnParseTrainings_(rows) {
       group: String(r[4] || '').trim() || String(r[5] || '').trim(), type: String(r[5] || '').trim(),
       start: String(r[6] || '').trim(), end: String(r[7] || '').trim(),
       hours: Math.round(h * 100) / 100,                                 // таблица хранит часы с погрешностью вида 0,9999…
+      groupCell: String(r[4] || '').trim(),                              // группа как она записана в таблице (может быть пустой)
       held: String(r[9] || '').trim() === 'Да' });
   }
   return out;
@@ -277,16 +278,24 @@ function appDailySchedule(pin, date) {
   if (!/^\d{2}\.\d{2}\.\d{4}$/.test(date)) throw new Error('Дата в формате дд.мм.гггг');
   var wd = gnWeekday_(date);
   var held = gnParseTrainings_(gnTrainingsRows_()).filter(function (t) { return t.date === date && t.held; });
-  var consumed = {}, items = GN_SEASON.filter(function (x) { return x.wd === wd; }).map(function (x) {
+  // Локации, где за дату есть записи без группы (например, Ортачала): их план заменяют сами записи
+  var recLoc = {};
+  held.forEach(function (t) { if (!t.groupCell) recLoc[t.location] = true; });
+  var consumed = {}, items = [];
+  GN_SEASON.filter(function (x) { return x.wd === wd; }).forEach(function (x) {
     // Если по группе за дату уже есть записи, показываем их время и тренеров из таблицы, а не из плана
     var rows = held.filter(function (t) { return t.group === x.group; });
-    if (!rows.length) return { loc: x.loc, start: x.start, end: x.end, group: x.group, type: x.type, trainers: x.trainers,
-      status: 'open', recorded: [] };
+    if (!rows.length) {
+      if (recLoc[x.loc]) return; // план этой локации показан записями таблицы ниже, без дублей
+      items.push({ loc: x.loc, start: x.start, end: x.end, group: x.group, type: x.type, trainers: x.trainers,
+        status: 'open', recorded: [] });
+      return;
+    }
     var st = rows[0].start;
     consumed[x.group + '|' + st] = true;
-    return { loc: rows[0].location || x.loc, start: st, end: rows[0].end, group: x.group, type: rows[0].type || x.type,
+    items.push({ loc: rows[0].location || x.loc, start: st, end: rows[0].end, group: x.group, type: rows[0].type || x.type,
       trainers: x.trainers, status: 'done',
-      recorded: rows.filter(function (t) { return t.start === st; }).map(function (t) { return t.trainer; }) };
+      recorded: rows.filter(function (t) { return t.start === st; }).map(function (t) { return t.trainer; }) });
   });
   // Записи дня, которых нет в плане (другая группа или другое время)
   var extra = {};
