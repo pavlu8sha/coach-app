@@ -69,7 +69,7 @@ li small{color:var(--mute)}
         <select id="a-trainer" aria-label="Тренер"></select>
       </div>
       <div id="a-tr-extra"></div>
-      <div class="grid2" style="margin-top:6px">
+      <div class="grid2" style="margin:10px 0 12px">
         <button class="btn" type="button" id="a-tr-add" style="margin-top:0;min-height:40px;font-size:14px;background:var(--card);color:var(--ink);border:1px solid var(--line)">+ тренер</button>
         <button class="btn" type="button" id="a-tr-rm" style="margin-top:0;min-height:40px;font-size:14px;background:var(--card);color:var(--ink);border:1px solid var(--line)">− тренер</button>
       </div>
@@ -105,7 +105,7 @@ var tab='tr',trFilter='',cache={months:[],trainings:[],games:[],stats:[],trainer
 function $(i){return document.getElementById(i)}
 function run(fn,args,ok,fail){var r=google.script.run.withSuccessHandler(ok).withFailureHandler(function(e){fail(e&&e.message?e.message:String(e))});r[fn].apply(r,args)}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
-function monLabel(m){var a=m.split('.');return(MN[Number(a[0])-1]||m)+' 20'+a[1]}
+function monLabel(m){var a=m.split('.');var y=a[1]&&a[1].length===2?'20'+a[1]:(a[1]||'');return(MN[Number(a[0])-1]||m)+' '+y}
 function fmtH(n){return String(Math.round(Number(n||0)*100)/100).replace('.',',')}
 function setMsg(t,bad){$('msg').textContent=t||'';$('msg').className='msg'+(bad?' err':'')}
 function showLogin(t){$('app').hidden=true;$('login').hidden=false;$('lerr').textContent=t||''}
@@ -289,7 +289,7 @@ function trExtraAdd(){
   var n=document.querySelectorAll('.a-tr-x').length;
   if(n>=2)return;
   var s=document.createElement('select');s.className='a-tr-x';s.setAttribute('aria-label','Тренер');
-  s.innerHTML=$('a-trainer').innerHTML;s.value='';
+  s.innerHTML=$('a-trainer').innerHTML;s.value='';s.style.cssText='display:block;width:100%;margin-bottom:8px';
   $('a-tr-extra').appendChild(s);
 }
 function trExtraRm(){
