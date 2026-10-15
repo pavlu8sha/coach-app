@@ -89,16 +89,21 @@ function appRoster(pin, group, dateStr) {
     rowsByName[k] = (rowsByName[k] || 0) + 1;
     if (v) anyPresent = true;
   });
-  // Ячейки отметок — чекбоксы: «ещё не отмечали» и «все отсутствовали» в листе выглядят одинаково (FALSE).
-  // Если галочек нет, смотрим журнал: приложение пишет туда каждую сохранённую отметку, включая «Отсутствовал».
-  if (!anyPresent && !journalHasDay_(group, dateStr)) return roster;
+  // Ячейки отметок — чекбоксы: «ещё не отмечали» и «отсутствовал» в листе выглядят одинаково (FALSE).
+  // Если в колонке есть хотя бы одна галочка, день отмечен: берём все значения листа (как раньше, и для ручных отметок).
+  // Если галочек нет, отметку «не был» ставим только тем, у кого есть своя запись в журнале за эту группу и дату
+  // (сопоставление по ID). Без записи ученик остаётся неотмеченным.
+  var saved = anyPresent ? null : journalDay_(group, dateStr);
+  if (!anyPresent && !Object.keys(saved).length) return roster;
   var inRoster = {};
   roster.forEach(function (p) { var k = norm(p.name); inRoster[k] = (inRoster[k] || 0) + 1; });
   roster.forEach(function (p) {
     var k = norm(p.name);
     // Одинаковые ФИ: в листе нет ID, поэтому чья отметка — не определить. Не подставляем, тренер отметит заново.
     if (inRoster[k] > 1 || rowsByName[k] > 1) return;
-    if (byName.hasOwnProperty(k)) p.mark = byName[k] ? 'p' : 'a';
+    if (!byName.hasOwnProperty(k)) return;
+    if (saved && !saved.hasOwnProperty(String(p.id))) return;
+    p.mark = byName[k] ? 'p' : 'a'; // значение берём из листа: если галочку потом сняли вручную, лист главнее журнала
   });
   return roster;
 }

@@ -83,6 +83,7 @@ function load(opts) {
     'РЕЕСТР ИГРОКОВ': new FakeSheet('РЕЕСТР ИГРОКОВ', registry(opts.players), 2),
     'ЖУРНАЛ ПОСЕЩАЕМОСТИ': new FakeSheet('ЖУРНАЛ ПОСЕЩАЕМОСТИ', journal(opts.journal), 3),
   };
+  if (opts.noJournal) delete sheets['ЖУРНАЛ ПОСЕЩАЕМОСТИ'];
   const ss = { getSheetByName: n => sheets[n] || null, getSpreadsheetTimeZone: () => 'Asia/Tbilisi' };
   const ctx = {
     console,
@@ -249,4 +250,75 @@ test('похожее написание (опечатка) по-прежнему
   const r1 = rep.results.find(r => r.name === 'Bagilin Misha');
   assert.match(r1.result, /похожее имя/);
   assert.equal(env.sheets['10.26'].cell(8, 2), ''); // дубль строки не создан
+});
+
+// ---------- Рецензия 15.10: восстановление по журналу для каждого ученика ----------
+
+const JDAY = '07.10.2026';
+const jr = (id, name, status, group = G, date = JDAY) => ['ATT-x', date, id, name, group, '', status, '', '', 'Приложение'];
+const allFalse = (extra = {}) => load({ month: monthSheet(G, KIDS.map(k => k[1]), 2, { 7: [false, false, false] }), players: KIDS, ...extra });
+
+test('Р1. все отсутствовали, журнал есть по всем: восстанавливаются все', () => {
+  const env = allFalse({ journal: [jr('KS-1', 'Bagulin Misha', 'Отсутствовал'), jr('KS-2', 'Kotov Rodion', 'Отсутствовал'), jr('KS-3', 'Zubkov Stepan', 'Отсутствовал')] });
+  assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': 'a', 'KS-2': 'a', 'KS-3': 'a' });
+});
+
+test('Р2. сохранена часть, TRUE нет: восстанавливаются только ученики с записью в журнале', () => {
+  const env = allFalse({ journal: [jr('KS-1', 'Bagulin Misha', 'Отсутствовал'), jr('KS-2', 'Kotov Rodion', 'Отсутствовал')] });
+  assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': 'a', 'KS-2': 'a', 'KS-3': '' });
+});
+
+test('Р3. записи журнала другой группы или другой даты (по тем же ID) не влияют', () => {
+  const env = allFalse({ journal: [jr('KS-1', 'Bagulin Misha', 'Отсутствовал', 'U10-B'), jr('KS-2', 'Kotov Rodion', 'Отсутствовал', G, '08.10.2026')] });
+  assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': '', 'KS-2': '', 'KS-3': '' });
+});
+
+test('Р4. исторические ручные отметки с хотя бы одной TRUE и без журнала: прежнее поведение', () => {
+  const env = load({ month: monthSheet(G, KIDS.map(k => k[1]), 2, { 7: [false, true, false] }), players: KIDS });
+  assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': 'a', 'KS-2': 'p', 'KS-3': 'a' });
+});
+
+test('Р5. журнала нет или он пуст: ложных отметок нет, ошибки нет', () => {
+  const none = allFalse({ noJournal: true });
+  assert.deepEqual(marksOf(none.ctx.appRoster('pin', G, DAY)), { 'KS-1': '', 'KS-2': '', 'KS-3': '' });
+  const empty = allFalse({ journal: [] });
+  assert.deepEqual(marksOf(empty.ctx.appRoster('pin', G, DAY)), { 'KS-1': '', 'KS-2': '', 'KS-3': '' });
+});
+
+test('Р6. у ученика нет своей записи: состояние не выводится из чужих (в т. ч. записи с тем же ФИ и другим ID)', () => {
+  const env = allFalse({ journal: [jr('KS-1', 'Bagulin Misha', 'Отсутствовал'), jr('KS-99', 'Zubkov Stepan', 'Отсутствовал')] });
+  assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': 'a', 'KS-2': '', 'KS-3': '' });
+});
+
+test('журнал «Присутствовал», а в листе галочку сняли вручную: лист главнее, «не был»', () => {
+  const env = allFalse({ journal: [jr('KS-1', 'Bagulin Misha', 'Присутствовал')] });
+  assert.equal(marksOf(env.ctx.appRoster('pin', G, DAY))['KS-1'], 'a');
+});
+
+test('ученик в двух группах в один день: журнал ведётся по каждой группе отдельно', () => {
+  const G2 = 'U10-B';
+  const kids = [['KS-1', 'Bagulin Misha', G, 'Активен'], ['KS-2', 'Kotov Rodion', G], ['KS-5', 'Amodeo Nolan', G2]];
+  const month = monthSheet(G, ['Bagulin Misha', 'Kotov Rodion'])
+    .concat([[''], [G2], ['№', 'ФИ ребёнка']], monthSheet(G2, ['Amodeo Nolan', 'Bagulin Misha']).slice(5));
+  const reg = kids.map(k => k.slice());
+  const env = load({ month, players: reg });
+  env.ctx.appSave('pin', G, DAY, [{ id: 'KS-1', name: 'Bagulin Misha', present: true }, { id: 'KS-2', name: 'Kotov Rodion', present: true }]);
+  env.ctx.appSave('pin', G2, DAY, [{ id: 'KS-5', name: 'Amodeo Nolan', present: false }, { id: 'KS-1', name: 'Bagulin Misha', present: false }]);
+  const j = env.sheets['ЖУРНАЛ ПОСЕЩАЕМОСТИ'].data.slice(3).map(r => r[2] + '|' + r[4] + '|' + r[6]).sort();
+  assert.deepEqual(j, ['KS-1|U10-A|Присутствовал', 'KS-1|U10-B|Отсутствовал', 'KS-2|U10-A|Присутствовал', 'KS-5|U10-B|Отсутствовал']);
+});
+
+// ---------- Рецензия 15.10: сбой записи журнала ----------
+
+test('журнал не записался: лист записан, ошибка прямо говорит об этом; повторное сохранение всё восстанавливает', () => {
+  const env = fresh({ noJournal: true });
+  assert.throws(() => save(env, {}), /записаны в лист 10\.26, но журнал посещаемости не обновлён/);
+  const sh = env.sheets['10.26'];
+  assert.equal(sh.cell(5, D), 46302);                                  // дата вписана в шапку
+  assert.deepEqual([6, 7, 8].map(r => sh.cell(r, D)), [false, false, false]);
+  assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': '', 'KS-2': '', 'KS-3': '' }); // без журнала не выдумываем
+  env.sheets['ЖУРНАЛ ПОСЕЩАЕМОСТИ'] = new FakeSheet('ЖУРНАЛ ПОСЕЩАЕМОСТИ', journal(), 3); // лист вернули
+  save(env, {});
+  assert.equal(env.sheets['ЖУРНАЛ ПОСЕЩАЕМОСТИ'].data.length - 3, 3);
+  assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': 'a', 'KS-2': 'a', 'KS-3': 'a' });
 });

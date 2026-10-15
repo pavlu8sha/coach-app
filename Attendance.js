@@ -241,7 +241,15 @@ function saveAttendanceCore_(group, dateStr, marks) {
   report.plannedCellWrites = writes.length;
   report.dateColumn = dateCol;
   report.dateWillBeAddedToHeader = writeDate;
-  logResults(report, marks);
+  // Лист уже записан. Если журнал не записался, говорим об этом прямо: повторное сохранение безопасно
+  // (в лист пишутся те же значения, строки журнала обновляются, а не дублируются).
+  try {
+    logResults(report, marks);
+  } catch (e) {
+    console.error('Журнал посещаемости не записан: ' + group + ' ' + dateStr + ': ' + e.message);
+    throw new Error('Отметки записаны в лист ' + d.sheet + ', но журнал посещаемости не обновлён (' + e.message +
+      '). Нажмите «Сохранить» ещё раз; если ошибка повторится, сообщите администратору.');
+  }
   return report;
 }
 
@@ -265,9 +273,10 @@ function logResults(report, marks) {
   var prefix = 'ATT-' + p[0] + p[1] + '-';
   var last = sh.getLastRow();
   var rows = last >= 4 ? sh.getRange(4, 1, last - 3, 10).getDisplayValues() : [];
+  // Строка журнала = дата + ID + группа: ученик с доп. программой может быть отмечен в двух группах в один день.
   var byKey = {}, maxSeq = 0;
   rows.forEach(function (r, i) {
-    byKey[r[1] + '|' + r[2]] = 4 + i;
+    byKey[r[1] + '|' + r[2] + '|' + norm(r[4])] = 4 + i;
     if (String(r[0]).indexOf(prefix) === 0) maxSeq = Math.max(maxSeq, Number(String(r[0]).slice(prefix.length)) || 0);
   });
   var locOf = {};
@@ -275,7 +284,7 @@ function logResults(report, marks) {
   var updates = [], toAdd = [];
   marks.forEach(function (m) {
     var status = m.present ? 'Присутствовал' : 'Отсутствовал';
-    var rowNum = byKey[dateCell + '|' + (m.id || '')];
+    var rowNum = byKey[dateCell + '|' + (m.id || '') + '|' + norm(report.group)];
     if (rowNum) updates.push({ row: rowNum, status: status });
     else toAdd.push(['', dateCell, m.id || '', m.name, report.group, locOf[m.id] || '', status, '', '', 'Приложение']);
   });
@@ -288,14 +297,20 @@ function logResults(report, marks) {
   updates.forEach(function (u) { sh.getRange(u.row, 7).setValue(u.status); });
   if (toAdd.length) sh.getRange(sh.getLastRow() + 1, 1, toAdd.length, 10).setValues(toAdd);
 }
-// Есть ли в журнале записи по группе за дату. Приложение пишет туда каждую сохранённую отметку,
-// включая «Отсутствовал», поэтому так отличаем «все отсутствовали» от «ещё не отмечали». Только читает.
-function journalHasDay_(group, dateStr) {
+// Записи журнала по группе за дату: { ID ученика: статус }. Приложение пишет туда каждую сохранённую отметку,
+// включая «Отсутствовал», поэтому так отличаем «отсутствовал» от «ещё не отмечали». Только читает.
+// Нет листа или он пуст — пустой объект (никаких выводов об отметках).
+function journalDay_(group, dateStr) {
+  var out = {};
   var sh = attSS_().getSheetByName(JOURNAL_SHEET_);
-  if (!sh) return false;
+  if (!sh) return out;
   var last = sh.getLastRow();
-  if (last < 4) return false;
+  if (last < 4) return out;
   var p = dateStr.split('-'), dateCell = p[2] + '.' + p[1] + '.' + p[0], g = norm(group);
-  var rows = sh.getRange(4, 2, last - 3, 4).getDisplayValues(); // B:E — дата, ID, ФИ, группа
-  return rows.some(function (r) { return r[0] === dateCell && norm(r[3]) === g; });
+  var rows = sh.getRange(4, 2, last - 3, 6).getDisplayValues(); // B:G — дата, ID, ФИ, группа, локация, статус
+  rows.forEach(function (r) {
+    var id = String(r[1]).trim();
+    if (id && r[0] === dateCell && norm(r[3]) === g) out[id] = r[5];
+  });
+  return out;
 }
