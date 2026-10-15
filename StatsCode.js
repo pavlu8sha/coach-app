@@ -1,6 +1,6 @@
 /** Статистика посещаемости: считает по листам месяцев, ничего не записывает. */
 
-var LOW_PCT = 50; // порог «низкой посещаемости», %
+// Порог «низкой посещаемости», %: настройка stats.lowPct (Settings.js), по умолчанию 50.
 
 // Статистику видят и тренеры, и администратор: подходит любой из двух кодов.
 function checkAny_(pin) { checkPin_(pin); }
@@ -58,5 +58,5 @@ function appStats(pin, month) {
     T.players += g.players; T.trainings += g.trainings; T.possible += g.possible; T.attended += g.attended;
   });
   T.pct = T.possible ? Math.round(T.attended * 1000 / T.possible) / 10 : null;
-  return { month: month, threshold: LOW_PCT, groups: groups, totals: T };
+  return { month: month, threshold: settingGet_('stats.lowPct'), groups: groups, totals: T };
 }

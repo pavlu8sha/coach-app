@@ -1,6 +1,6 @@
 /** Раздел «Матчи» (версия 3): создание событий и состав. */
 
-var EV_FEE = { 'default': 200, 'U13-A': 300 }; // взнос за чемпионат по умолчанию, ₾
+// Взнос за чемпионат по умолчанию: настройка matches.champFee (Settings.js): 200 ₾, U13-A — 300 ₾.
 var EV_TYPES = ['Чемпионат', 'Игра', 'Товарищеская', 'Фестиваль', 'Кубок'];
 
 // o: {type, team, name, date 'YYYY-MM-DD', fee, parent, copyFrom}
@@ -62,7 +62,7 @@ function addEventCore_(o, isAdmin) {
     if (isAdmin && o.fee !== '' && o.fee !== null && o.fee !== undefined) {
       fee = Number(o.fee);
       if (!(fee >= 0)) throw new Error('Взнос должен быть числом не меньше нуля');
-    } else if (o.type === 'Чемпионат') fee = EV_FEE[team] || EV_FEE['default'];
+    } else if (o.type === 'Чемпионат') fee = settingGet_('matches.champFee', team);
   }
   var copy = [];
   if (o.copyFrom && o.type !== 'Игра' && ps.getLastRow() > 1) {

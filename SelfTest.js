@@ -39,6 +39,11 @@ function selfTest() {
     var f = SpreadsheetApp.openById(gnFileId_());
     return f.getName() + (prop_('GN_ID') ? '' : ' (свойство GN_ID не задано, используется файл по умолчанию)');
   });
+  check('настройки', function () {
+    var bad = appSettings(prop_('APP_ADMIN_PIN')).items.filter(function (x) { return x.error; });
+    if (bad.length) throw new Error(bad.map(function (x) { return x.error; }).join('; ') + ' (используются значения по умолчанию)');
+    return 'лист ' + SETTINGS_SHEET + (dbRead_(SETTINGS_SHEET) ? '' : ' ещё не создан, всё по умолчанию');
+  });
   check('реестр игроков', function () { return regData_().players.length + ' игроков'; });
   check('файл оплат', function () { return payMonths_().length + ' месяцев'; });
   check('файл экипировки', function () { equipSheet_(); return 'лист открыт, L3 в порядке'; });

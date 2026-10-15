@@ -49,7 +49,7 @@
     var t=$('ntype').value;
     if(!edited)$('nn').value=NAMES[t];
     $('nd').hidden=(t=='Чемпионат'||t=='Фестиваль');
-    if($('nf'))$('nf').placeholder=t=='Чемпионат'?'по умолчанию '+($('nt').value.trim()=='U13-A'?300:200):'не задан';
+    if($('nf')){var cf=D.champFee,tm=$('nt').value.trim(),fv=cf?(cf.byTeam.hasOwnProperty(tm)?cf.byTeam[tm]:cf.def):'';$('nf').placeholder=t=='Чемпионат'&&fv!==''?'по умолчанию '+fv:'не задан';}
   }
   function openNew(){
     panel('Новое событие','Состав можно скопировать из прошлого события команды.');
