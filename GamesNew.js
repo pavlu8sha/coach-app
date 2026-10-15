@@ -453,7 +453,12 @@ function gnSyncGame_(eventId) {
   } else {
     var r = sh.getLastRow() + 1;
     sh.getRange(r, 1, 1, 5).setNumberFormat('@').setValues([[date, team, opp, score, goals]]);
-    what = 'добавлена';
+    // Проверяем, что строка действительно записана: иначе ошибка видна пользователю, а не только «добавлена» в журнале
+    SpreadsheetApp.flush();
+    if (String(sh.getRange(r, 1).getDisplayValue()).trim() !== date) {
+      throw new Error('строка ' + r + ' не записалась в лист «Игры» таблицы ' + sh.getParent().getId());
+    }
+    what = 'добавлена, строка ' + r + ', таблица ' + sh.getParent().getId();
   }
   logChange_('', '', 'игра (лист Игры)', '', date + ' ' + team + ' ' + opp + ' ' + (score || 'нет счёта') + ' (' + what + ')');
   return 'В «Игры» ' + what + '.';
