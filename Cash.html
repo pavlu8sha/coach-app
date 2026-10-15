@@ -57,7 +57,7 @@ button{font:inherit;cursor:pointer}
   <div id="feed"></div>
 </div>
 <script>
-var pin='',P=[],O=[],SUB=null,cur='',method='',eqErr='',IND=[],EXT=[];
+var pin='',P=[],O=[],SUB=null,cur='',method='',eqErr='',IND=[],EXT=[],FEED=[];
 function $(i){return document.getElementById(i)}
 function run(fn,args,ok,fail){var r=google.script.run.withSuccessHandler(ok).withFailureHandler(function(e){fail(e&&e.message?e.message:String(e))});r[fn].apply(r,args)}
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
@@ -88,9 +88,10 @@ function feed(){
   run('appTodayPayments',[pin],function(r){
     var t=r.totals,sum=t['Наличные']+t['Перевод']+t.other;
     $('tot').innerHTML='<div class="tile"><b>'+money(t['Наличные'])+'</b><span>наличные</span></div><div class="tile"><b>'+money(t['Перевод'])+'</b><span>перевод</span></div><div class="tile"><b>'+money(sum)+'</b><span>всего</span></div>';
-    $('feed').innerHTML=r.items.length?r.items.map(function(x){
+    FEED=r.items;
+    $('feed').innerHTML=r.items.length?r.items.map(function(x,i){
       var tag=x.neg?' <span class="sub">(отмена)</span>':(x.reversed?' <span class="sub">(отменён)</span>':'');
-      var btn=x.canCancel?'<button class="btn sec cnl" data-src="'+x.src+'" data-row="'+x.row+'">Отменить платёж</button>':'';
+      var btn=x.canCancel?'<button class="btn sec cnl" data-i="'+i+'" data-src="'+x.src+'" data-row="'+x.row+'">Отменить платёж</button>':'';
       return'<div class="res"><b>'+esc(x.name)+'</b> '+money(x.amount)+tag+'<div class="sub">'+esc(x.what+(x.kind?', '+x.kind:'')+(x.method?', '+x.method:''))+'</div>'+btn+'</div>';
     }).join(''):'<p class="sub">Сегодня платежей через приложение пока нет.</p>';
   },function(m){$('feed').innerHTML='<p class="err">'+esc(m)+'</p>'});
@@ -158,9 +159,18 @@ function paint(keepInputs){
     if(k&&a){a.value=k.a;bx.querySelector('.ptype').value=k.t;bx.querySelector('.pt').hidden=Number(a.value)>=Number(a.dataset.debt)}
   });
 }
-$('pl').oninput=function(){var id=pid(this.value);if(id&&id!=cur)loadPlayer(id);if(!this.value){reqN++;cur='';SUB=null;$('progs').innerHTML=''}};
+// Способ оплаты не переносится на другого игрока: при смене игрока выбор сбрасывается
+function resetMethod(){method='';[].forEach.call($('meth').children,function(x){x.setAttribute('aria-pressed','false')})}
+$('pl').oninput=function(){var id=pid(this.value);if(id&&id!=cur){resetMethod();loadPlayer(id)}if(!this.value){reqN++;cur='';SUB=null;$('progs').innerHTML='';resetMethod()}};
 $('mon').onchange=function(){if(SUB)paint()};
 $('meth').onclick=function(e){var b=e.target.closest('button');if(!b)return;method=b.dataset.m;[].forEach.call(this.children,function(x){x.setAttribute('aria-pressed',x==b)})};
+// Сводка для диалога подтверждения: общие строки экрана (способ, дата, комментарий)
+function payRows(who,amt,what,extra){
+  return [['Игрок',who],['Сумма',ksMoney(amt)],['За что',what]].concat(extra||[]).concat([['Способ',method],['Дата',ksDateIfNotToday($('dt').value)],['Комментарий',$('cm').value.trim()]]);
+}
+function typeRow(type,left){
+  return type=='Частичный'?['Тип','Частичный платёж, останется долг '+ksMoney(left)]:type=='Скидка'?['Тип','Скидка по договорённости, оплата принята']:null;
+}
 $('progs').oninput=function(e){
   if(!e.target.classList.contains('pa'))return;
   e.target.closest('.prog').querySelector('.pt').hidden=Number(e.target.value)>=Number(e.target.dataset.debt);
@@ -174,27 +184,47 @@ $('progs').onclick=function(e){
   var pl=P.filter(function(p){return p.id==cur})[0],who=pl?pl.name:'';
   if(b.classList.contains('pay')){
     var box=b.closest('.prog'),a=box.querySelector('.pa'),amt=Number(a.value),type=box.querySelector('.ptype').value,g=box.dataset.g,M=$('mon').value;
+    var left=Number(a.dataset.debt)||0,id=cur;
+    if(!(amt>0)){setMsg('Введите сумму больше нуля.',true);return}
     if(!method){setMsg('Выберите способ оплаты: наличные или перевод.',true);return}
-    if(amt<Number(a.dataset.debt)&&!type){setMsg('Выберите тип: скидка или частичный платёж.',true);return}
-    b.disabled=true;setMsg('Сохраняю…');
-    run('appSubPay',[pin,M,g,cur,amt,type,$('dt').value,$('cm').value,method],function(r){b.disabled=false;done(r,'Внесено: '+who+', '+money(amt)+' (абонемент '+M+', '+g+', '+method+').')},function(m){b.disabled=false;setMsg(m,true)});
+    if(amt<left&&!type){setMsg('Выберите тип: скидка или частичный платёж.',true);return}
+    // Переплата допускается сервером: предупреждаем, но не запрещаем
+    var it=SUB.items.filter(function(i){return i.month==M&&nn(i.group)==nn(g)})[0],T=SUB.tariffs[g],paidNow=it?it.paid:0,over=ksOverpay(amt,left),warn='';
+    if(over&&left>0)warn='Сумма больше остатка на '+ksMoney(over)+'. Вся сумма будет записана как оплата абонемента за '+M+': внесено будет '+ksMoney(paidNow+amt)+' из '+ksMoney(T)+'.';
+    else if(over)warn='Абонемент за '+M+' уже оплачен. Сумма '+ksMoney(amt)+' будет записана как дополнительная оплата: внесено будет '+ksMoney(paidNow+amt)+' из '+ksMoney(T)+'.';
+    var mt=method,dt=$('dt').value,cm=$('cm').value;
+    ksConfirm({title:'Подтвердить оплату?',ok:'Подтвердить оплату',warn:warn,
+      rows:payRows(who,amt,'Абонемент, '+M+', '+g,[typeRow(type,left-amt)]),
+      run:function(ok,bad){
+        run('appSubPay',[pin,M,g,id,amt,type,dt,cm,mt],function(r){ok();done(r,'Внесено: '+who+', '+money(amt)+' (абонемент '+M+', '+g+', '+mt+').')},bad);
+      }});
   }else if(b.classList.contains('epay')){
-    var amt2=Number(b.closest('.prog').querySelector('.ea').value);
+    var ord=O.filter(function(o){return o.id==cur&&String(o.row)==b.dataset.row})[0]||{};
+    var amt2=Number(b.closest('.prog').querySelector('.ea').value),id2=cur,row=Number(b.dataset.row);
     if(!(amt2>0)){setMsg('Введите сумму больше нуля.',true);return}
     if(!method){setMsg('Выберите способ оплаты: наличные или перевод.',true);return}
-    b.disabled=true;setMsg('Сохраняю…');
-    run('appAddPayment',[pin,cur,Number(b.dataset.row),amt2,$('dt').value,$('cm').value,method],function(r){b.disabled=false;done(r,'Внесено: '+who+', '+money(amt2)+' (экипировка, '+method+').')},function(m){b.disabled=false;setMsg(m,true)});
+    var over2=ksOverpay(amt2,ord.debt),mt2=method,dt2=$('dt').value,cm2=$('cm').value;
+    ksConfirm({title:'Подтвердить оплату?',ok:'Подтвердить оплату',
+      warn:over2?'Сумма больше остатка на '+ksMoney(over2)+'. Платёж будет записан полностью.':'',
+      rows:payRows(who,amt2,'Экипировка: '+(ord.kit||'комплект не указан')),
+      run:function(ok,bad){
+        run('appAddPayment',[pin,id2,row,amt2,dt2,cm2,mt2],function(r){ok();done(r,'Внесено: '+who+', '+money(amt2)+' (экипировка, '+mt2+').')},bad);
+      }});
   }
 };
 $('progs').addEventListener('click',function(e){
   var b=e.target.closest('.ipay');if(!b)return;
   var x=IND[b.dataset.i],pl=P.filter(function(p){return p.id==cur})[0],who=pl?pl.name:'',id=cur;
   if(!method){setMsg('Выберите способ оплаты: наличные или перевод.',true);return}
-  b.disabled=true;setMsg('Сохраняю…');
-  run('appIndPay',[pin,x.id,x.name,method],function(){
-    setMsg('Внесено: '+who+', '+money(x.price)+' ('+x.label+', '+method+').');feed();
-    run('appIndOfPlayer',[pin,id],function(r){if(cur==id){IND=r;paint(true)}},function(){});
-  },function(m){b.disabled=false;setMsg(m,true)});
+  var mt=method;
+  ksConfirm({title:'Подтвердить оплату?',ok:'Подтвердить оплату',
+    rows:[['Игрок',who],['Сумма',ksMoney(x.price)],['За что',x.label],['Способ',mt]],
+    run:function(ok,bad){
+      run('appIndPay',[pin,x.id,x.name,mt],function(){
+        ok();setMsg('Внесено: '+who+', '+money(x.price)+' ('+x.label+', '+mt+').');feed();
+        run('appIndOfPlayer',[pin,id],function(r){if(cur==id){IND=r;paint(true)}},function(){});
+      },bad);
+    }});
 });
 function loadExt(n){
   var id=cur;
@@ -209,21 +239,30 @@ $('progs').addEventListener('click',function(e){
   if(!(x.price>0)){
     var inp=document.getElementById('xa'+i);
     am=inp?inp.value:'';
-    if(!am){setMsg('Введите сумму оплаты.',true);return}
+    if(!(Number(am)>0)){setMsg('Введите сумму оплаты.',true);return}
   }
-  b.disabled=true;setMsg('Сохраняю…');
-  run('appExtraPay',[pin,x.id,x.name,method,am],function(){
-    setMsg('Внесено: '+who+' ('+x.label+', '+method+').');feed();loadExt();
-  },function(m){b.disabled=false;setMsg(m,true)});
+  var mt=method;
+  ksConfirm({title:'Подтвердить оплату?',ok:'Подтвердить оплату',
+    rows:[['Игрок',who],['Сумма',ksMoney(x.price>0?x.price:am)],['За что',x.label],['Способ',mt]],
+    run:function(ok,bad){
+      run('appExtraPay',[pin,x.id,x.name,mt,am],function(){
+        ok();setMsg('Внесено: '+who+' ('+x.label+', '+mt+').');feed();loadExt();
+      },bad);
+    }});
 });
 $('feed').onclick=function(e){
   var b=e.target.closest('.cnl');if(!b)return;
-  if(!b.dataset.sure){b.dataset.sure=1;b.textContent='Точно отменить?';return}
-  b.disabled=true;setMsg('Отменяю…');
-  run('appCancelPayment',[pin,b.dataset.src,Number(b.dataset.row)],function(r){
-    if(r.dryRun){b.disabled=false;setMsg('Пробный режим: в таблицу ничего не записано.');return}
-    setMsg('Платёж отменён.');feed();orders(function(){if(SUB)paint()});if(cur)loadPlayer(cur,true);
-  },function(m){b.disabled=false;setMsg(m,true)});
+  var x=FEED[b.dataset.i]||{};
+  ksConfirm({title:'Отменить платёж?',ok:'Отменить платёж',danger:true,
+    text:'В журнале появится запись об отмене, сумма платежа перестанет учитываться.',
+    rows:[['Игрок',x.name],['Сумма',x.amount!=null?ksMoney(x.amount):''],['За что',x.what],['Способ',x.method]],
+    run:function(ok,bad){
+      run('appCancelPayment',[pin,b.dataset.src,Number(b.dataset.row)],function(r){
+        ok();
+        if(r.dryRun){setMsg('Пробный режим: в таблицу ничего не записано.');return}
+        setMsg('Платёж отменён.');feed();orders(function(){if(SUB)paint()});if(cur)loadPlayer(cur,true);
+      },bad);
+    }});
 };
 $('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;try{localStorage.setItem('kspin',pin)}catch(e){}load()};
 try{pin=localStorage.getItem('kspin')||''}catch(e){}
