@@ -265,11 +265,21 @@ function appTrainingAdd(pin, o) {
   var p = o.date.split('.'), wd = GN_WEEKDAYS[new Date(+p[2], +p[1] - 1, +p[0]).getDay()];
   var hours = gnHours_(o.start, o.end);
   if (CONFIG.DRY_RUN) return { dryRun: true, hours: hours };
-  var sh = gnTrainingsSheet_(), r = gnInsertRowFor_(sh, o.date);
-  sh.getRange(r, 1, 1, 10).setNumberFormat('@').setValues([[o.date, wd, String(o.trainer).trim(), String(o.location || ''),
-    String(o.group || ''), String(o.type || ''), String(o.start || ''), String(o.end || ''), String(hours).replace('.', ','), o.held === false ? 'Нет' : 'Да']]);
-  logChange_('', '', 'тренировка (раздел Игры)', '', o.date + ' ' + o.trainer + ' ' + (o.group || ''));
-  return { ok: true, row: r, hours: hours };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    // Та же тренировка того же тренера за 15 секунд — повторное нажатие: вторую строку не пишем
+    var logText = o.date + ' ' + o.trainer + ' ' + (o.group || '');
+    if (isRecentDup_(dbRead_('ЖУРНАЛ ИЗМЕНЕНИЙ'), [[4, 'тренировка (раздел Игры)'], [6, logText]], 15))
+      throw new Error('Похоже на повтор: такая тренировка только что добавлена. Обновите страницу');
+    var sh = gnTrainingsSheet_(), r = gnInsertRowFor_(sh, o.date);
+    sh.getRange(r, 1, 1, 10).setNumberFormat('@').setValues([[o.date, wd, String(o.trainer).trim(), String(o.location || ''),
+      String(o.group || ''), String(o.type || ''), String(o.start || ''), String(o.end || ''), String(hours).replace('.', ','), o.held === false ? 'Нет' : 'Да']]);
+    logChange_('', '', 'тренировка (раздел Игры)', '', logText);
+    return { ok: true, row: r, hours: hours };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // ---- Страница «Учёт» (только админ): месяцы, тренировки месяца ----

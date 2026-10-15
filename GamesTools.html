@@ -74,10 +74,31 @@
     };
   }
   // Панели взносов и отметок: «Добавить игрока в состав».
+  // Несохранённый ввод панели (кто играл, голы, сторона U9, счёт, соперник, взнос) переживает перерисовку
+  function snap(){
+    var s={rows:{},f:{}};
+    [].forEach.call($('pb').querySelectorAll('.row[data-p]'),function(r){
+      var g=r.querySelector('.gl'),ft=r.querySelector('select.ft');
+      s.rows[r.dataset.p]={pl:r.querySelector('.pl').checked,gl:g?g.value:'',ft:ft?ft.value:''};
+    });
+    ['gopp','ggf','gga','gside','nfee'].forEach(function(i){var e=$(i);if(e)s.f[i]=e.value});
+    return s;
+  }
+  function restore(s){
+    [].forEach.call($('pb').querySelectorAll('.row[data-p]'),function(r){
+      var v=s.rows[r.dataset.p];if(!v)return;
+      var g=r.querySelector('.gl'),ft=r.querySelector('select.ft');
+      r.querySelector('.pl').checked=v.pl;if(g)g.value=v.gl;if(ft)ft.value=v.ft;
+    });
+    Object.keys(s.f).forEach(function(i){var e=$(i);if(e)e.value=s.f[i]});
+    var g0=$('pb').querySelector('.gl');if(g0)g0.dispatchEvent(new Event('input',{bubbles:true}));
+  }
   function reopen(r,text){
+    var s=snap();
     run('appMatchesData',[pin],function(dd){
       D=dd;
       if(curOpen.k=='fee')openFee(curOpen.id);else openGame(curOpen.id);
+      restore(s);
       setMsg('pm',r.dryRun?'Пробный режим: в таблицу ничего не записано.':text);
     },fail);
   }

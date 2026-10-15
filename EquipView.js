@@ -43,6 +43,8 @@ function addOrderCore_(o) {
   if (!row) row = newOrderRow_(sh); // свободных строк нет: вставляем новую перед итогами
   var dateStr = o.date || today_();
   if (!CONFIG.DRY_RUN) {
+    // Повтор того же заказа за 15 секунд не записываем (строка заказа в журнале отличается только номером строки)
+    if (recentOrderDup_(o.id, o.kit, sum)) throw new Error('Похоже на повтор: такой заказ только что добавлен. Обновите страницу');
     // Столбцы B:J одной записью (дата, ФИ, комплект, размер, надпись, номер, рассрочка, сумма, оплачено)
     var rg = sh.getRange(row, 2, 1, 9), nf = rg.getNumberFormats();
     nf[0][0] = 'dd.mm.yyyy'; nf[0][3] = '@'; nf[0][5] = '@';
@@ -64,6 +66,16 @@ function addOrderCore_(o) {
     logChange_(o.id, p.name, 'новый заказ экипировки', '', o.kit + ', ' + sum + ' ₾, строка ' + row);
   }
   return { ok: true, dryRun: CONFIG.DRY_RUN, row: row };
+}
+// Есть ли в журнале изменений за последние 15 секунд такой же новый заказ этого игрока (тот же комплект и сумма)
+function recentOrderDup_(id, kit, sum) {
+  var log = dbRead_('ЖУРНАЛ ИЗМЕНЕНИЙ');
+  if (!log || log.getLastRow() < 2) return false;
+  var last = log.getLastRow(), from = Math.max(2, last - 24), now = Date.now(), pre = kit + ', ' + sum + ' ₾';
+  return log.getRange(from, 1, last - from + 1, 6).getValues().some(function (r) {
+    return r[0] instanceof Date && now - r[0].getTime() <= 15000 && String(r[1]) === String(id)
+      && String(r[3]) === 'новый заказ экипировки' && String(r[5]).indexOf(pre) === 0;
+  });
 }
 // Новая строка заказа перед строкой итогов: вставляем строку и расширяем формулы итогов (SUM по столбцам I, J, K).
 // Если строка итогов не похожа на ожидаемую, останавливаемся, ничего не меняя.

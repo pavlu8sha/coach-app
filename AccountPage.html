@@ -291,26 +291,26 @@ function dyPaint(){
     };
     if(y)y.onclick=function(){
       var trs=[].map.call(document.querySelectorAll('select[data-s="'+i+'"]'),function(el){return el.value});
-      setMsg('Сохраняю…');
+      setMsg('Сохраняю…');ksBusy(y,true);if(n)n.disabled=true;
       run('appConfirmDaily',[pin,{date:dyDate,loc:x.loc,group:x.group,type:x.type,start:x.start,end:x.end,trainers:trs}],
-        function(){dayHeld[key]=true;setMsg('Записано');loadDay()},function(e){setMsg(e,true)});
+        function(){dayHeld[key]=true;setMsg('Записано');loadDay()},function(e){ksBusy(y,false);if(n)n.disabled=false;setMsg(e,true)});
     };
     if(n)n.onclick=function(){dayHeld[key]=false;loadDay()};
     var sv=document.querySelector('[data-save="'+i+'"]');
     if(sv)sv.onclick=function(){
       var trs2=[].map.call(document.querySelectorAll('select[data-s="'+i+'"]'),function(el){return el.value});
-      setMsg('Сохраняю…');
+      setMsg('Сохраняю…');ksBusy(sv,true);
       run('appTrainingReplaceTrainers',[pin,{date:dyDate,group:x.group,start:x.start,trainers:trs2}],
-        function(){setMsg('Сохранено');loadDay()},function(e){setMsg(e,true)});
+        function(){setMsg('Сохранено');loadDay()},function(e){ksBusy(sv,false);setMsg(e,true)});
     };
     var ao=document.querySelector('[data-addopen="'+i+'"]'),an=document.querySelector('[data-addno="'+i+'"]'),aok=document.querySelector('[data-addok="'+i+'"]');
     if(ao)ao.onclick=function(){dyAddOpen[i]=true;dyPaint()};
     if(an)an.onclick=function(){dyAddOpen[i]=false;dyPaint()};
     if(aok)aok.onclick=function(){
       var s=document.querySelector('select[data-addsel="'+i+'"]');
-      setMsg('Сохраняю…');
+      setMsg('Сохраняю…');ksBusy(aok,true);
       run('appAddTrainerDaily',[pin,{date:dyDate,loc:x.loc,group:x.group,type:x.type,start:x.start,end:x.end,trainer:s?s.value:''}],
-        function(){dyAddOpen[i]=false;setMsg('Записано');loadDay()},function(e){setMsg(e,true)});
+        function(){dyAddOpen[i]=false;setMsg('Записано');loadDay()},function(e){ksBusy(aok,false);setMsg(e,true)});
     };
   });
 }
@@ -347,16 +347,28 @@ function addTraining(){
   var trs=[$('a-trainer').value.trim()].concat(Array.prototype.map.call(document.querySelectorAll('.a-tr-x'),function(s){return s.value.trim()}));
   trs=trs.filter(function(t,i){return t&&trs.indexOf(t)===i});
   if(!trs.length){setMsg('Укажите тренера',true);return}
-  setMsg('Сохраняю…');
-  var k=0;
+  // Кнопка заблокирована, пока не записаны все тренеры (по одному вызову на тренера)
+  var btn=$('a-save');if(btn.disabled)return;
+  setMsg('Сохраняю…');ksBusy(btn,true,'Сохраняю…');
+  var k=0,done=[];
   (function next(){
     if(k>=trs.length){
+      ksBusy(btn,false);
       setMsg('Тренировка добавлена');$('a-trainer').value='';$('a-group').value='';
       Array.prototype.forEach.call(document.querySelectorAll('.a-tr-x'),function(s){s.remove()});
       load();return;
     }
-    var o=Object.assign({},base,{trainer:trs[k]});k++;
-    run('appTrainingAdd',[pin,o],next,function(e){setMsg(e,true)});
+    var t=trs[k],o=Object.assign({},base,{trainer:t});k++;
+    run('appTrainingAdd',[pin,o],function(){done.push(t);next()},function(e){
+      ksBusy(btn,false);
+      // Частичная запись: говорим, кто уже записан, а кто нет
+      setMsg((done.length?'Записано: '+done.join(', ')+'. ':'')+'Не записано: '+trs.slice(k-1).join(', ')+'. '+friendly_(e),true);
+      // Уже записанных тренеров убираем из формы, чтобы повторное нажатие их не задвоило
+      if(done.indexOf($('a-trainer').value.trim())>=0)$('a-trainer').value='';
+      Array.prototype.forEach.call(document.querySelectorAll('.a-tr-x'),function(s){if(done.indexOf(s.value.trim())>=0)s.remove()});
+      // Обновляем только таблицу: полная загрузка стёрла бы сообщение о частичной записи
+      if(done.length)run('appTrainingsList',[pin,$('mon').value],function(t){cache.trainings=t;drawTr()},function(){});
+    });
   })();
 }
 document.querySelectorAll('.tabs button').forEach(function(b){b.onclick=function(){showTab(b.getAttribute('data-t'))}});
