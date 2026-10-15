@@ -166,6 +166,21 @@ function gnHours_(start, end) {
   return Math.round(((+b[1] * 60 + +b[2]) - (+a[1] * 60 + +a[2])) / 6) / 10;
 }
 
+// Место для новой строки по дате: после последней записи той же или более ранней даты.
+// Пустые строки-разделители и строки без даты пропускаются. Возвращает номер строки (вставляет пустую, если нужно).
+function gnInsertRowFor_(sh, date) {
+  var key = gnDateKey_(date), last = sh.getLastRow(), pos = 0;
+  if (last > 1) {
+    sh.getRange(2, 1, last - 1, 1).getDisplayValues().forEach(function (v, i) {
+      var d = String(v[0]).trim();
+      if (/^\d{2}\.\d{2}\.\d{4}$/.test(d) && gnDateKey_(d) <= key) pos = i + 2;
+    });
+  }
+  var row = pos ? pos + 1 : 2;
+  if (row <= last) sh.insertRowBefore(row);
+  return row;
+}
+
 // Добавить тренировку (только админ). Дата в формате «dd.MM.yyyy».
 function appTrainingAdd(pin, o) {
   checkAdmin_(pin);
@@ -174,7 +189,7 @@ function appTrainingAdd(pin, o) {
   var p = o.date.split('.'), wd = GN_WEEKDAYS[new Date(+p[2], +p[1] - 1, +p[0]).getDay()];
   var hours = gnHours_(o.start, o.end);
   if (CONFIG.DRY_RUN) return { dryRun: true, hours: hours };
-  var sh = gnTrainingsSheet_(), r = sh.getLastRow() + 1;
+  var sh = gnTrainingsSheet_(), r = gnInsertRowFor_(sh, o.date);
   sh.getRange(r, 1, 1, 10).setNumberFormat('@').setValues([[o.date, wd, String(o.trainer).trim(), String(o.location || ''),
     String(o.group || ''), String(o.type || ''), String(o.start || ''), String(o.end || ''), String(hours).replace('.', ','), o.held === false ? 'Нет' : 'Да']]);
   logChange_('', '', 'тренировка (раздел Игры)', '', o.date + ' ' + o.trainer + ' ' + (o.group || ''));
