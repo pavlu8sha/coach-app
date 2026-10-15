@@ -286,7 +286,7 @@ $('cbody').onclick=function(e){
     if(!method){boxMsg(box,'Выберите способ оплаты: наличные или перевод.');return}
     var a=box.querySelector('.pa'),amt=a?Number(a.value):0,type='';
     // Сумму проверяем, только если у карточки есть поле суммы: у индивидуальных и дополнительных с ценой её нет
-    if(a&&it.kind!='sub'&&!(amt>0)){boxMsg(box,'Введите сумму больше нуля.');return}
+    if(a&&!(amt>0)){boxMsg(box,'Введите сумму больше нуля.');return}
     if(it.type){
       type=box.querySelector('.ptype').value;
       if(amt<Number(a.dataset.debt)&&!type){boxMsg(box,'Выберите тип: скидка или частичный платёж.');return}
@@ -297,7 +297,7 @@ $('cbody').onclick=function(e){
       fn='appSubPay';args=[pin,month,group,id,amt,type,date,cm,method];
       txt='Внесено: '+pl.name+', '+money(amt)+' (абонемент '+month+', '+group+', '+method+').';
       what='Абонемент, '+month+', '+group;left=Number(a.dataset.debt)||0;
-      if(type)extra.push(['Тип',type=='Частичный'?'Частичный платёж, останется долг '+ksMoney(left-amt):'Скидка по договорённости, оплата принята']);
+      if(type&&amt<left)extra.push(['Тип',type=='Частичный'?'Частичный платёж, останется долг '+ksMoney(left-amt):'Скидка по договорённости, оплата принята']);
       var over=ksOverpay(amt,left),pn=it.picker?0:(it.paidSum||0),T=it.picker?left:(it.tariff||left);
       if(over&&!it.picker)warn='Сумма больше остатка на '+ksMoney(over)+'. Вся сумма будет записана как оплата абонемента за '+month+': внесено будет '+ksMoney(pn+amt)+' из '+ksMoney(T)+'.';
       else if(over)warn='Сумма больше тарифа на '+ksMoney(over)+'. Если за этот месяц уже есть оплаты, итог будет ещё больше.';

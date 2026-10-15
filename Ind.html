@@ -70,6 +70,8 @@ function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;
 function gl(k){try{return localStorage.getItem(k)||''}catch(e){return''}}
 function sl(k,v){try{localStorage.setItem(k,v)}catch(e){}}
 function msg(t,bad){$('msg').textContent=t||'';$('msg').className='msg'+(bad?' err':'')}
+// Ошибка внутри диалога: снимаем занятость; неверный код — закрываем диалог и показываем вход
+function failIn(bad){return function(m){busy=false;if(/Неверный код/.test(m)){bad(m);var c=document.querySelector('#ksdlg .ks-cancel');if(c)c.click();fail(m);return}bad(m)}}
 function showLogin(t){$('app').hidden=true;$('login').hidden=false;$('lerr').textContent=t||''}
 function showApp(){$('login').hidden=true;$('app').hidden=false}
 function dl(d){var p=d.split('-'),w=['вс','пн','вт','ср','чт','пт','сб'][new Date(Date.UTC(+p[0],+p[1]-1,+p[2])).getUTCDay()];return w+' '+p[2]+'.'+p[1]}
@@ -127,12 +129,12 @@ $('list').onclick=function(ev){
     // Быстрая кнопка выбирает способ и открывает подтверждение; до подтверждения записи нет
     var mt=b.dataset.m;
     ksConfirm({title:'Подтвердить оплату?',ok:'Подтвердить оплату',rows:indRows(p.name,p.group,e,mt),
-      run:function(ok,bad){run('appIndPay',[pin,e.id,p.name,mt],function(){ok();flash='Оплата принята: '+p.name;load()},bad)}});
+      run:function(ok,bad){busy=true;run('appIndPay',[pin,e.id,p.name,mt],function(){ok();flash='Оплата принята: '+p.name;load()},failIn(bad))}});
   }else if(a=='unpay'){
     ksConfirm({title:'Отменить оплату?',ok:'Отменить оплату',danger:true,
       text:'Отметка об оплате будет снята, у игрока снова появится долг за это занятие.',
       rows:indRows(p.name,p.group,e,''),
-      run:function(ok,bad){run('appIndUnpay',[pin,e.id,p.name],function(){ok();flash='Оплата отменена: '+p.name;load()},bad)}});
+      run:function(ok,bad){busy=true;run('appIndUnpay',[pin,e.id,p.name],function(){ok();flash='Оплата отменена: '+p.name;load()},failIn(bad))}});
   }else if(a=='rm'){
     if(armed!=b.dataset.k){armed=b.dataset.k;render();return}
     armed='';
@@ -181,7 +183,7 @@ $('dlist').onclick=function(ev){
   var b=ev.target.closest('button');if(!b||busy||b.dataset.a!='dpay')return;
   var d=D.debts[b.dataset.i],e=d.events[b.dataset.j],mt=b.dataset.m;
   ksConfirm({title:'Подтвердить оплату?',ok:'Подтвердить оплату',rows:indRows(d.name,d.group,e,mt),
-    run:function(ok,bad){run('appIndPay',[pin,e.id,d.name,mt],function(){ok();flash='Оплата принята: '+d.name;load()},bad)}});
+    run:function(ok,bad){busy=true;run('appIndPay',[pin,e.id,d.name,mt],function(){ok();flash='Оплата принята: '+d.name;load()},failIn(bad))}});
 };
 // Сводка для диалога: игрок или гость, сумма занятия, занятие, способ
 function indRows(name,group,e,mt){

@@ -357,9 +357,10 @@ function submit(){
   };
   // Заказ без оплаты создаётся как раньше; с «Оплачено сейчас» — после подтверждения обеих операций
   if(!(o.paid>0)){send();return}
+  var osum=o.sum>0?o.sum:selKits().reduce(function(s,k){return s+(Number(PR[k])||0)},0);
   var dp=/^(\d{4})-(\d\d)-(\d\d)$/.exec(o.date||'');
   ksConfirm({title:'Создать заказ и принять оплату?',ok:'Создать заказ и принять оплату',
-    rows:[['Игрок',playerName(id)],['Заказ',kit+', сумма '+ksMoney(o.sum)],['Оплачено сейчас',ksMoney(o.paid)],['Останется',ksMoney(Math.max(o.sum-o.paid,0))],['Способ',o.method],['Дата заказа',dp?dp[3]+'.'+dp[2]+'.'+dp[1]:'']],
+    rows:[['Игрок',playerName(id)],['Заказ',kit+', сумма '+ksMoney(osum)],['Оплачено сейчас',ksMoney(o.paid)],['Останется',ksMoney(Math.max(osum-o.paid,0))],['Способ',o.method],['Дата заказа',dp?dp[3]+'.'+dp[2]+'.'+dp[1]:'']],
     run:send});
 }
 $('q').oninput=show;$('fs').onchange=show;$('fg').onchange=show;$('fl').onchange=show;

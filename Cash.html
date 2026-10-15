@@ -169,6 +169,7 @@ function payRows(who,amt,what,extra){
   return [['Игрок',who],['Сумма',ksMoney(amt)],['За что',what]].concat(extra||[]).concat([['Способ',method],['Дата',ksDateIfNotToday($('dt').value)],['Комментарий',$('cm').value.trim()]]);
 }
 function typeRow(type,left){
+  if(!(left>0))return null; // сумма не меньше остатка: тип не используется, сервер пишет «Оплата»
   return type=='Частичный'?['Тип','Частичный платёж, останется долг '+ksMoney(left)]:type=='Скидка'?['Тип','Скидка по договорённости, оплата принята']:null;
 }
 $('progs').oninput=function(e){
@@ -194,7 +195,7 @@ $('progs').onclick=function(e){
     else if(over)warn='Абонемент за '+M+' уже оплачен. Сумма '+ksMoney(amt)+' будет записана как дополнительная оплата: внесено будет '+ksMoney(paidNow+amt)+' из '+ksMoney(T)+'.';
     var mt=method,dt=$('dt').value,cm=$('cm').value;
     ksConfirm({title:'Подтвердить оплату?',ok:'Подтвердить оплату',warn:warn,
-      rows:payRows(who,amt,'Абонемент, '+M+', '+g,[typeRow(type,left-amt)]),
+      rows:payRows(who,amt,'Абонемент, '+M+', '+g,[amt<left?typeRow(type,left-amt):null]),
       run:function(ok,bad){
         run('appSubPay',[pin,M,g,id,amt,type,dt,cm,mt],function(r){ok();done(r,'Внесено: '+who+', '+money(amt)+' (абонемент '+M+', '+g+', '+mt+').')},bad);
       }});

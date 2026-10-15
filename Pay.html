@@ -152,7 +152,7 @@ $('list').onclick=function(e){
     ksConfirm({title:'Подтвердить оплату?',ok:'Подтвердить оплату',
       warn:over?'Сумма больше остатка на '+ksMoney(over)+'. Вся сумма будет записана как оплата абонемента за '+M3+': внесено будет '+ksMoney(r3.paid+amt)+' из '+ksMoney(g3.tariff)+'.':'',
       rows:[['Игрок',r3.name],['Сумма',ksMoney(amt)],['За что','Абонемент, '+M3+', '+g3.name],
-        ['Тип',type=='Частичный'?'Частичный платёж, останется долг '+ksMoney(r3.debt-amt):type=='Скидка'?'Скидка по договорённости, оплата принята':''],
+        ['Тип',amt>=r3.debt?'':type=='Частичный'?'Частичный платёж, останется долг '+ksMoney(r3.debt-amt):type=='Скидка'?'Скидка по договорённости, оплата принята':''],
         ['Способ',method],['Дата',ksDateIfNotToday(dt3)],['Комментарий',cm3.trim()]],
       run:function(ok,bad){run('appSubPay',[pin,M3,g3.name,r3.id,amt,type,dt3,cm3,method],function(x){ok();done(x,'Оплата внесена ('+x.kind+').')},bad)}});
   }

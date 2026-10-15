@@ -269,7 +269,8 @@ function appTrainingAdd(pin, o) {
   lock.waitLock(20000);
   try {
     // Та же тренировка того же тренера за 15 секунд — повторное нажатие: вторую строку не пишем
-    var logText = o.date + ' ' + o.trainer + ' ' + (o.group || '');
+    // Время начала в ключе: две тренировки одного тренера и группы в разное время — не повтор
+    var logText = o.date + ' ' + o.trainer + ' ' + (o.group || '') + (o.start ? ' ' + o.start : '');
     if (isRecentDup_(dbRead_('ЖУРНАЛ ИЗМЕНЕНИЙ'), [[4, 'тренировка (раздел Игры)'], [6, logText]], 15))
       throw new Error('Похоже на повтор: такая тренировка только что добавлена. Обновите страницу');
     var sh = gnTrainingsSheet_(), r = gnInsertRowFor_(sh, o.date);

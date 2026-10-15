@@ -40,11 +40,12 @@ function addOrderCore_(o) {
     for (c = 1; c < 12; c++) { if (String(rows[i][c]).trim() !== '') empty = false; }
     if (empty && String(rows[i][0]).trim() !== '' && !isNaN(Number(rows[i][0]))) row = EQ_FIRST + i;
   }
+  // Повтор того же заказа за 15 секунд не записываем (строка заказа в журнале отличается только номером строки).
+  // Проверяем до вставки строки, чтобы при отказе в таблице ничего не менялось
+  if (!CONFIG.DRY_RUN && recentOrderDup_(o.id, o.kit, sum)) throw new Error('Похоже на повтор: такой заказ только что добавлен. Обновите страницу');
   if (!row) row = newOrderRow_(sh); // свободных строк нет: вставляем новую перед итогами
   var dateStr = o.date || today_();
   if (!CONFIG.DRY_RUN) {
-    // Повтор того же заказа за 15 секунд не записываем (строка заказа в журнале отличается только номером строки)
-    if (recentOrderDup_(o.id, o.kit, sum)) throw new Error('Похоже на повтор: такой заказ только что добавлен. Обновите страницу');
     // Столбцы B:J одной записью (дата, ФИ, комплект, размер, надпись, номер, рассрочка, сумма, оплачено)
     var rg = sh.getRange(row, 2, 1, 9), nf = rg.getNumberFormats();
     nf[0][0] = 'dd.mm.yyyy'; nf[0][3] = '@'; nf[0][5] = '@';
