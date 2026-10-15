@@ -204,7 +204,7 @@ function card(p){
   }).join('')||'<div class="sub">Платежей нет.</div>';
   var tar=(D.tariffs||[]).filter(function(t){return t.active||pick(t,['name'])==p.tariff}).map(function(t){var n=pick(t,['name','tariff','title']);return'<option'+(n==p.tariff?' selected':'')+'>'+esc(n)+'</option>'}).join('');
   var can=p.st!='cancelled';
-  return'<details><summary><div class="top"><span>'+esc(p.name)+(p.guest?' <span class="sub">(гость)</span>':'')+'</span><span class="'+s[1]+'">'+s[0]+'</span></div>'
+  return'<details data-pid="'+esc(p.id)+'"><summary><div class="top"><span>'+esc(p.name)+(p.guest?' <span class="sub">(гость)</span>':'')+'</span><span class="'+s[1]+'">'+s[0]+'</span></div>'
     +'<div class="sub">'+esc(p.tariff||'тариф не выбран')+' · '+money(p.paid)+' из '+money(p.sum)+(p.debt>0&&can?' · долг '+money(p.debt):'')+(late&&can?' · <span class="err">'+late+'</span>':'')+'</div></summary>'
     +'<div class="ord"><div class="sub">'+esc(p.grp||'')+(p.size?' · футболка '+esc(p.size):'')+(p.comment?' · '+esc(p.comment):'')+'</div>'
     +(can&&p.debt>0?'<button class="btn pay">Принять оплату</button>'
@@ -237,6 +237,9 @@ function show(){
   $('list').innerHTML=a.map(card).join('')||'<p class="sub">Участников нет.</p>';
 }
 function reload(m){flash=m||'';load()}
+// Участник для сводки диалога: игрок из реестра или гость (у гостя в «группе» — академия или контакт)
+function part(id){return (D.parts||[]).filter(function(x){return x.id===id})[0]||{}}
+function whoRows(p){return p.guest?[['Гость',p.name],['Академия / контакт',p.grp]]:[['Игрок',p.name]]}
 function dry(r){return r&&r.dryRun?'Пробный режим: в таблицу ничего не записано. ':''}
 // ---------- Тарифы ----------
 function tarRow(t){
@@ -317,12 +320,21 @@ $('list').onclick=function(e){
     var pm=ord.querySelector('.pm'),amt=Number(ord.querySelector('.pam').value),mt=ord.querySelector('.pmt').value,tp2=ord.querySelector('.ptp').value;
     if(!(amt>0)){pm.textContent='Введите сумму больше нуля';return}
     if(!mt){pm.textContent='Выберите способ оплаты';return}
-    b.disabled=true;pm.textContent='Сохраняю…';
-    run('appCampPay',[pin,b.dataset.id,amt,tp2,ord.querySelector('.pdt').value,ord.querySelector('.pcm').value.trim(),mt],function(r){reload(dry(r)+tp2+' принята: '+money(amt)+' ('+mt+'). ')},function(m){b.disabled=false;pm.textContent=m});return}
+    pm.textContent='';
+    var pid0=b.dataset.id,dt=ord.querySelector('.pdt').value,cm=ord.querySelector('.pcm').value.trim(),pp=part(pid0),c=D.camp||{};
+    var over=ksOverpay(amt,Number(b.dataset.debt));
+    ksConfirm({title:'Подтвердить оплату?',ok:'Подтвердить оплату',
+      warn:over?'Сумма больше остатка на '+ksMoney(over)+'. Платёж будет записан полностью.':'',
+      rows:whoRows(pp).concat([['Сумма',ksMoney(amt)],['За что','Сбор '+(c.name||'')+': '+(tp2=='Бронь'?'бронь':'оплата')+(pp.tariff?', тариф «'+pp.tariff+'»':'')],['Способ',mt],['Дата',ksDateIfNotToday(dt)],['Комментарий',cm]]),
+      run:function(ok,bad){run('appCampPay',[pin,pid0,amt,tp2,dt,cm,mt],function(r){ok();reload(dry(r)+tp2+' принята: '+money(amt)+' ('+mt+'). ')},bad)}});
+    return}
   if(b.classList.contains('cx')){
-    if(!b.dataset.sure){b.dataset.sure=1;b.textContent='Точно отменить?';return}
-    b.disabled=true;
-    run('appCampCancel',[pin,Number(b.dataset.row)],function(r){reload(dry(r)+'Платёж отменён. ')},function(m){b.disabled=false;setMsg(m,true)});return}
+    var hp=part(box&&box.dataset.pid),hx=hp&&(hp.hist||[]).filter(function(x){return String(x.row)===b.dataset.row})[0];
+    ksConfirm({title:'Отменить платёж?',ok:'Отменить платёж',danger:true,
+      text:'В журнале сбора появится запись об отмене, сумма платежа перестанет учитываться.',
+      rows:(hp?whoRows(hp):[]).concat(hx?[['Сумма',ksMoney(hx.amount)],['Тип',hx.type],['Дата',fd(hx.date)],['Способ',hx.method]]:[]),
+      run:function(ok,bad){run('appCampCancel',[pin,Number(b.dataset.row)],function(r){ok();reload(dry(r)+'Платёж отменён. ')},bad)}});
+    return}
   if(b.classList.contains('ed')){var ef=ord.querySelector('.ef');ef.hidden=!ef.hidden;return}
   if(b.classList.contains('esave')||b.classList.contains('erej')){
     var em=ord.querySelector('.em'),c={tariff:ord.querySelector('.etar').value,sum:Number(ord.querySelector('.esum').value),size:ord.querySelector('.esz').value.trim(),comment:ord.querySelector('.ecm').value.trim()};

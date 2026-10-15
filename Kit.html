@@ -151,12 +151,21 @@ function payOrder(b,ord){
   var pm=ord.querySelector('.pm'),amt=Number(ord.querySelector('.pam').value),mt=ord.querySelector('.pmt').value;
   if(!(amt>0)){pm.textContent='Введите сумму больше нуля';return}
   if(!mt){pm.textContent='Выберите способ оплаты';return}
-  b.disabled=true;pm.textContent='Сохраняю…';
-  run('appAddPayment',[pin,b.dataset.id,Number(b.dataset.row),amt,ord.querySelector('.pdt').value,ord.querySelector('.pcm').value.trim(),mt],function(r){
-    flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+'Оплата принята: '+money(amt)+' ('+mt+'). ';
-    load();
-  },function(m){b.disabled=false;pm.textContent=m});
+  pm.textContent='';
+  var row=Number(b.dataset.row),id=b.dataset.id,dt=ord.querySelector('.pdt').value,cm=ord.querySelector('.pcm').value.trim();
+  var o=orderByRow(row)||{},pl=P.filter(function(x){return x.id==id})[0],over=ksOverpay(amt,o.debt);
+  ksConfirm({title:'Подтвердить оплату?',ok:'Подтвердить оплату',
+    warn:over?'Сумма больше остатка на '+ksMoney(over)+'. Платёж будет записан полностью.':'',
+    rows:[['Игрок',pl?pl.name:o.oname],['Сумма',ksMoney(amt)],['За что','Экипировка: '+(o.kit||'комплект не указан')],['Способ',mt],['Дата',ksDateIfNotToday(dt)],['Комментарий',cm]],
+    run:function(ok,bad){
+      run('appAddPayment',[pin,id,row,amt,dt,cm,mt],function(r){
+        ok();flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+'Оплата принята: '+money(amt)+' ('+mt+'). ';
+        load();
+      },bad);
+    }});
 }
+function orderByRow(row){return O.concat(UNL).filter(function(o){return Number(o.row)===Number(row)})[0]}
+function playerName(id){var p=P.filter(function(x){return x.id==id})[0];return p?p.name:''}
 function kitsOf(k){return String(k||'').split(' + ').map(function(x){return x.trim()}).filter(Boolean)}
 function orderHtml(o,p,linked){
   var prob=[];var mi=missOf(o);if(mi.length)prob.push('не заполнено: '+mi.join(', '));if(isDup(o,p))prob.push('номер '+o.num+' повторяется в группе '+baseGroup(p.group));
@@ -247,16 +256,44 @@ $('list').onclick=function(e){
   if(b.classList.contains('rok')){
     var id=pid(ord.querySelector('.rpl').value);
     if(!id){ord.querySelector('.rm').textContent='Выберите игрока из списка';return}
-    relink(b.dataset.row,id,ord.querySelector('.rfix').checked,b);
+    var fix=ord.querySelector('.rfix').checked,ro=orderByRow(b.dataset.row)||{};
+    // Привязка заказа с оплатами переносит платежи: подтверждаем (риск высокий)
+    if(ro.paid>0&&ro.id!==id){
+      ksConfirm({title:'Привязать заказ с оплатами?',ok:'Привязать заказ',
+        text:'Платежи по этому заказу будут перенесены к выбранному игроку.',
+        rows:[['Заказ',ro.kit||'комплект не указан'],['Сейчас',ro.id?playerName(ro.id)||ro.oname:'не привязан ('+ro.oname+')'],['Станет',playerName(id)],['Оплачено',ksMoney(ro.paid)]],
+        run:function(ok,bad){
+          run('appRelink',[pin,Number(b.dataset.row),id,fix],function(r){
+            ok();flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+'Заказ привязан.'+(r.moved?' Платежей перенесено: '+r.moved+'.':'')+' ';load();
+          },bad);
+        }});
+      return;
+    }
+    relink(b.dataset.row,id,fix,b);
   }
   if(b.classList.contains('ed')){var ef=ord.querySelector('.edf');ef.hidden=!ef.hidden;return}
   if(b.classList.contains('eok')){
-    var ed=ord.querySelector('.em');b.disabled=true;ed.textContent='Сохраняю…';
+    var ed=ord.querySelector('.em');
     var ekits=Array.from(ord.querySelectorAll('.ekit:checked')).map(function(c){return c.value});
-    if(!ekits.length){ed.textContent='Отметьте хотя бы один комплект';b.disabled=false;return}
-    run('appEditOrder',[pin,Number(b.dataset.row),{kit:ekits.join(' + '),size:ord.querySelector('.esize').value,inscr:ord.querySelector('.einscr').value,num:ord.querySelector('.enum').value,inst:ord.querySelector('.einst').checked}],
-      function(r){flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+'Заказ изменён. ';load()},
-      function(m){b.disabled=false;ed.textContent=m});
+    if(!ekits.length){ed.textContent='Отметьте хотя бы один комплект';return}
+    var eo=orderByRow(b.dataset.row)||{},nk=ekits.join(' + ');
+    var patch={kit:nk,size:ord.querySelector('.esize').value,inscr:ord.querySelector('.einscr').value,num:ord.querySelector('.enum').value,inst:ord.querySelector('.einst').checked};
+    var save=function(ok,bad){
+      b.disabled=true;ed.textContent='Сохраняю…';
+      run('appEditOrder',[pin,Number(b.dataset.row),patch],
+        function(r){if(ok)ok();flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+'Заказ изменён. ';load()},
+        function(m){b.disabled=false;ed.textContent=bad?'':m;if(bad)bad(m)});
+    };
+    // Сервер пересчитывает сумму по каталогу, если сменился комплект или сумма ещё не стоит
+    var ns=0;ekits.forEach(function(k){ns+=Number(PR[k])||0});
+    if((nk!==eo.kit||!(eo.sum>0))&&Math.round(ns*100)!==Math.round((eo.sum||0)*100)){
+      ksConfirm({title:'Изменить сумму заказа?',ok:'Сохранить заказ',
+        text:'Комплект изменился: сумма заказа будет пересчитана по ценам каталога.',
+        rows:[['Игрок',playerName(eo.id)||eo.oname],['Заказ',nk],['Было',ksMoney(eo.sum)],['Станет',ksMoney(ns)],['Оплачено',ksMoney(eo.paid)]],
+        run:save});
+      return;
+    }
+    save();
     return;
   }
 };
@@ -310,12 +347,20 @@ function submit(){
   var kit=selKits().join(' + ');
   var o={id:id,kit:kit,sum:Number($('fsum').value),size:(!$('fsizeSel').hidden?$('fsizeSel').value:$('fsize').value.trim()),inscr:$('finscr').value.trim(),num:$('fnum').value.trim(),inst:$('finst').checked,paid:Number($('fpaid').value)||0,date:$('fdate').value,method:$('fmt').value};
   if(o.paid>0&&!o.method){fmsg('Выберите способ оплаты: наличные или перевод',true);return}
-  $('fsave').disabled=true;fmsg('Сохраняю…');
-  run('appAddOrder',[pin,o],function(r){
-    $('fsave').disabled=false;
-    flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+'Заказ добавлен (строка '+r.row+'). ';
-    load();
-  },function(m){$('fsave').disabled=false;fmsg(m,true)});
+  var send=function(ok,bad){
+    $('fsave').disabled=true;fmsg('Сохраняю…');
+    run('appAddOrder',[pin,o],function(r){
+      if(ok)ok();$('fsave').disabled=false;
+      flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+'Заказ добавлен (строка '+r.row+'). ';
+      load();
+    },function(m){$('fsave').disabled=false;fmsg(bad?'':m,!bad);if(bad)bad(m)});
+  };
+  // Заказ без оплаты создаётся как раньше; с «Оплачено сейчас» — после подтверждения обеих операций
+  if(!(o.paid>0)){send();return}
+  var dp=/^(\d{4})-(\d\d)-(\d\d)$/.exec(o.date||'');
+  ksConfirm({title:'Создать заказ и принять оплату?',ok:'Создать заказ и принять оплату',
+    rows:[['Игрок',playerName(id)],['Заказ',kit+', сумма '+ksMoney(o.sum)],['Оплачено сейчас',ksMoney(o.paid)],['Останется',ksMoney(Math.max(o.sum-o.paid,0))],['Способ',o.method],['Дата заказа',dp?dp[3]+'.'+dp[2]+'.'+dp[1]:'']],
+    run:send});
 }
 $('q').oninput=show;$('fs').onchange=show;$('fg').onchange=show;$('fl').onchange=show;
 $('new').onclick=openForm;

@@ -163,7 +163,7 @@ function card(it){
 function subCard(i){
   return card({kind:'sub',title:i.month+', '+i.group,chip:chipOf(i.st,i,i.debt),
     info:'Внесено '+money(i.paid)+' из '+money(i.tariff)+(i.method?' · '+esc(i.method):''),
-    paid:i.st=='paid',debt:i.debt,amount:true,type:true,discOK:i.st=='partial'&&!i.disc,month:i.month,group:i.group});
+    paid:i.st=='paid',debt:i.debt,amount:true,type:true,discOK:i.st=='partial'&&!i.disc,month:i.month,group:i.group,paidSum:i.paid,tariff:i.tariff});
 }
 function errp(m){return'<p class="sub err">'+esc(m)+'</p>'}
 // Получает все данные карточки (pk) и строит её; AdminTabs потом раскладывает блоки по вкладкам
@@ -274,36 +274,51 @@ $('cbody').onclick=function(e){
   var it=ITEMS[box.dataset.k];if(!it)return;
   var pl=D.players[cardI],id=pl.id;
   if(b.classList.contains('dc')){
-    if(!b.dataset.sure){b.dataset.sure=1;b.textContent='Точно принять как скидку?';return}
-    b.disabled=true;
-    run('appSubDiscount',[pin,it.month,it.group,id,$('pcm').value],function(r){payDone(r,'Принято как скидка.',box,b)},function(m){b.disabled=false;boxMsg(box,m)});
+    var cmd=$('pcm').value;
+    // Скидка закрывает остаток без поступления денег
+    ksConfirm({title:'Подтвердить скидку?',ok:'Подтвердить скидку',
+      text:'Оплата будет отмечена как закрытая за счёт скидки. Денежное поступление не регистрируется.',
+      rows:[['Игрок',pl.name],['За что','Абонемент, '+it.month+', '+it.group],['Внесено',ksMoney(it.paidSum)+' из '+ksMoney(it.tariff)],['Скидка',ksMoney(it.debt)]],
+      run:function(ok,bad){run('appSubDiscount',[pin,it.month,it.group,id,cmd],function(r){ok();payDone(r,'Принято как скидка.',box,b)},bad)}});
     return;
   }
   if(b.classList.contains('pay')){
     if(!method){boxMsg(box,'Выберите способ оплаты: наличные или перевод.');return}
     var a=box.querySelector('.pa'),amt=a?Number(a.value):0,type='';
-    if(it.kind!='sub'&&!(amt>0)){boxMsg(box,'Введите сумму больше нуля.');return}
+    // Сумму проверяем, только если у карточки есть поле суммы: у индивидуальных и дополнительных с ценой её нет
+    if(a&&it.kind!='sub'&&!(amt>0)){boxMsg(box,'Введите сумму больше нуля.');return}
     if(it.type){
       type=box.querySelector('.ptype').value;
       if(amt<Number(a.dataset.debt)&&!type){boxMsg(box,'Выберите тип: скидка или частичный платёж.');return}
     }
-    var date=$('pdt').value,cm=$('pcm').value,fn,args,txt;
+    var date=$('pdt').value,cm=$('pcm').value,fn,args,txt,what,sum=amt,left=null,warn='',extra=[];
     if(it.kind=='sub'){
       var month=it.picker?box.querySelector('.smo').value:it.month,group=it.picker?box.querySelector('.sgr').value:it.group;
       fn='appSubPay';args=[pin,month,group,id,amt,type,date,cm,method];
       txt='Внесено: '+pl.name+', '+money(amt)+' (абонемент '+month+', '+group+', '+method+').';
+      what='Абонемент, '+month+', '+group;left=Number(a.dataset.debt)||0;
+      if(type)extra.push(['Тип',type=='Частичный'?'Частичный платёж, останется долг '+ksMoney(left-amt):'Скидка по договорённости, оплата принята']);
+      var over=ksOverpay(amt,left),pn=it.picker?0:(it.paidSum||0),T=it.picker?left:(it.tariff||left);
+      if(over&&!it.picker)warn='Сумма больше остатка на '+ksMoney(over)+'. Вся сумма будет записана как оплата абонемента за '+month+': внесено будет '+ksMoney(pn+amt)+' из '+ksMoney(T)+'.';
+      else if(over)warn='Сумма больше тарифа на '+ksMoney(over)+'. Если за этот месяц уже есть оплаты, итог будет ещё больше.';
     }else if(it.kind=='eq'){
       fn='appAddPayment';args=[pin,id,it.row,amt,date,cm,method];
       txt='Внесено: '+pl.name+', '+money(amt)+' (экипировка, '+method+').';
+      what='Экипировка: '+it.title;
+      var over2=ksOverpay(amt,it.debt);if(over2)warn='Сумма больше остатка на '+ksMoney(over2)+'. Платёж будет записан полностью.';
     }else if(it.kind=='ind'){
       fn='appIndPay';args=[pin,it.sid,it.name,method,cm];
       txt='Внесено: '+pl.name+', '+money(it.debt)+' ('+it.label+', '+method+').';
+      what=it.label;sum=it.debt;date='';
     }else{
       fn='appExtraPay';args=[pin,it.sid,it.name,method,it.amount?amt:'',cm];
       txt='Внесено: '+pl.name+' ('+it.label+', '+method+').';
+      what=it.label;sum=it.amount?amt:it.debt;date='';
     }
-    b.disabled=true;
-    run(fn,args,function(r){payDone(r,txt,box,b)},function(m){b.disabled=false;boxMsg(box,m)});
+    var mt=method;
+    ksConfirm({title:'Подтвердить оплату?',ok:'Подтвердить оплату',warn:warn,
+      rows:[['Игрок',pl.name],['Сумма',ksMoney(sum)],['За что',what]].concat(extra).concat([['Способ',mt],['Дата',ksDateIfNotToday(date)],['Комментарий',cm.trim()]]),
+      run:function(ok,bad){run(fn,args,function(r){ok();payDone(r,txt,box,b)},bad)}});
   }
 };
 // Данные абонемента для выбора «другой месяц или группа»: берём из последней отрисовки

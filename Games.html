@@ -127,21 +127,44 @@ $('pb').onclick=function(e){
     b.disabled=true;setMsg('pm','Сохраняю…');
     run('appSaveGame2',[pin,cur.id,marks],function(r){flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'Отметки сохранены. ');load()},function(m){b.disabled=false;setMsg('pm',m,true)});
   }else if(b.id=='sfee'){
-    var nv=$('nfee').value;
+    var nv=$('nfee').value,ev0=cur;
     if(nv===''){setMsg('pm','Введите сумму взноса',true);return}
-    b.disabled=true;setMsg('pm','Сохраняю…');
-    run('appSetEventFee',[pin,cur.id,Number(nv)],function(r){flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'Взнос сохранён. ');load()},function(m){b.disabled=false;setMsg('pm',m,true)});
+    var saveFee=function(ok,bad){
+      b.disabled=true;setMsg('pm','Сохраняю…');
+      run('appSetEventFee',[pin,ev0.id,Number(nv)],function(r){if(ok)ok();flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'Взнос сохранён. ');load()},function(m){b.disabled=false;setMsg('pm',bad?'':m,!bad);if(bad)bad(m)});
+    };
+    // Взнос меняется у события, где уже есть участники: долг каждого считается от взноса (риск средний)
+    var ps0=parts(ev0.id);
+    if(Number(nv)!==Number(ev0.fee||0)&&ps0.length){
+      ksConfirm({title:'Изменить взнос?',ok:'Изменить взнос',
+        text:'Долг каждого участника события будет считаться от нового взноса.',
+        rows:[['Событие',ev0.team+', '+ev0.name],['Было',ev0.fee?ksMoney(ev0.fee):'не задан'],['Станет',ksMoney(nv)],['Участников',String(ps0.length)],['Из них внесли',String(ps0.filter(function(x){return x.sum>0}).length)]],
+        run:saveFee});
+      return;
+    }
+    saveFee();
   }else if(b.classList.contains('fd')){
-    var pid2=b.closest('.pr').dataset.p;
-    if(!b.dataset.sure){b.dataset.sure=1;b.textContent='Точно засчитать?';return}
-    b.disabled=true;
-    run('appMatchDiscount',[pin,cur.id,pid2,''],function(r){flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'Засчитано как оплаченное. ');load()},function(m){b.disabled=false;setMsg('pm',m,true)});
+    var pid2=b.closest('.pr').dataset.p,pp=parts(cur.id).filter(function(x){return x.p===pid2})[0]||{},ev1=cur,fee1=Number(ev1.fee)||0,sum1=Number(pp.sum)||0;
+    var runD=function(ok,bad){run('appMatchDiscount',[pin,ev1.id,pid2,''],function(r){ok();flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'Засчитано как оплаченное. ');load()},bad)};
+    // Скидка не означает поступления денег; без единой оплаты это полное освобождение от взноса
+    if(sum1>0)ksConfirm({title:'Подтвердить скидку?',ok:'Подтвердить скидку',
+      text:'Оплата будет отмечена как закрытая за счёт скидки. Денежное поступление не регистрируется.',
+      rows:[['Игрок',pp.n],['За что','Взнос: '+ev1.name+', '+ev1.team],['Внесено',ksMoney(sum1)+(fee1?' из '+ksMoney(fee1):'')],['Скидка',fee1?ksMoney(Math.max(fee1-sum1,0)):'']],run:runD});
+    else ksConfirm({title:'Освободить от взноса?',ok:'Освободить от взноса',
+      text:'Взнос будет отмечен как оплаченный без поступления денег. По этому взносу ничего не внесено.',
+      rows:[['Игрок',pp.n],['Взнос',ev1.name+', '+ev1.team+(fee1?', '+ksMoney(fee1):'')]],run:runD});
   }else if(b.classList.contains('fb')){var f=b.nextElementSibling;f.hidden=!f.hidden}
   else if(b.classList.contains('fg')){
     var box=b.closest('.ff'),pid=b.closest('.pr').dataset.p,x=box.querySelector('.fx'),m=box.querySelector('.fm').value;
+    var amt=Number(box.querySelector('.fa').value),dt=box.querySelector('.fdt').value,ev2=cur,pq=parts(ev2.id).filter(function(y){return y.p===pid})[0]||{};
     if(!m){x.textContent='Выберите способ оплаты';return}
-    b.disabled=true;
-    run('appMatchFee',[pin,cur.id,pid,Number(box.querySelector('.fa').value),m,box.querySelector('.fdt').value,''],function(r){flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'Взнос внесён. ');load()},function(er){b.disabled=false;x.textContent=er});
+    if(!(amt>0)){x.textContent='Введите сумму больше нуля';return}
+    x.textContent='';
+    var left=ev2.fee?Math.max(ev2.fee-(pq.sum||0),0):null,over=left===null?0:ksOverpay(amt,left);
+    ksConfirm({title:'Подтвердить оплату?',ok:'Подтвердить оплату',
+      warn:over?'Сумма больше остатка на '+ksMoney(over)+'. Платёж будет записан полностью.':'',
+      rows:[['Игрок',pq.n],['Сумма',ksMoney(amt)],['За что','Взнос: '+ev2.name+', '+ev2.team],['Способ',m],['Дата',ksDateIfNotToday(dt)]],
+      run:function(ok,bad){run('appMatchFee',[pin,ev2.id,pid,amt,m,dt,''],function(r){ok();flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'Взнос внесён. ');load()},bad)}});
   }
 };
 $('back').onclick=list;
