@@ -419,6 +419,29 @@ function gnTeamRu_(s) {
 
 // Одна игра из «Матчи» → строка листа «Игры» (A дата, B команда, C соперник, D счёт, E голы).
 // Если строка с той же датой и командой уже есть — обновляются только непустые поля; иначе строка дописывается внизу.
+// Строка для новой игры в «Игры»: перед первой игрой с более поздней датой (как в «Тренировках»), иначе в конец.
+// Игры в листе объединены по вертикали (A–E): значения во второй строке объединения Google Sheets молча отбрасывает,
+// поэтому вставляем перед началом объединения, а в конце — после него.
+function gnGameRowFor_(sh, date) {
+  var key = gnDateKey_(date), last = sh.getLastRow(), r = last + 1;
+  if (last > 1) {
+    sh.getRange(2, 1, last - 1, 1).getDisplayValues().some(function (v, i) {
+      var d = String(v[0]).trim();
+      if (/^\d{2}\.\d{2}\.\d{4}$/.test(d) && gnDateKey_(d) > key) { r = i + 2; return true; }
+      return false;
+    });
+  }
+  if (r <= last) {
+    var up = sh.getRange(r, 1).getMergedRanges()[0];
+    if (up && up.getRow() < r) r = up.getRow();
+    sh.insertRowBefore(r);
+  } else {
+    var down = sh.getRange(r, 1).getMergedRanges()[0];
+    while (down && down.getRow() < r) { r = down.getLastRow() + 1; down = sh.getRange(r, 1).getMergedRanges()[0]; }
+  }
+  return r;
+}
+
 function gnSyncGame_(eventId) {
   var msh = sheetOf_('МАТЧИ');
   if (!msh) throw new Error('нет листа МАТЧИ');
@@ -451,12 +474,7 @@ function gnSyncGame_(eventId) {
     if (goals) sh.getRange(at, 5).setNumberFormat('@').setValue(goals);
     what = 'обновлена';
   } else {
-    var r = sh.getLastRow() + 1;
-    // Игры в листе объединены по две строки (A–E). Значения во второй строке объединения Google Sheets молча отбрасывает,
-    // поэтому новую запись пишем в первую строку после объединения
-    for (var mg = sh.getRange(r, 1).getMergedRanges()[0]; mg && mg.getRow() < r; mg = sh.getRange(r, 1).getMergedRanges()[0]) {
-      r = mg.getLastRow() + 1;
-    }
+    var r = gnGameRowFor_(sh, date);
     sh.getRange(r, 1, 1, 5).setNumberFormat('@').setValues([[date, team, opp, score, goals]]);
     // Проверяем, что строка действительно записана: иначе ошибка видна пользователю, а не только «добавлена» в журнале
     SpreadsheetApp.flush();
