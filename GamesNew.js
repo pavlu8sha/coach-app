@@ -182,6 +182,10 @@ function gnSetGameStaff_(date, team, opp, rows) {
   }
   sh.getRange(row, 6, Math.max(slots, need), 3).clearContent();
   if (need) sh.getRange(row, 6, need, 3).setValues(rows);
+  // Сотрудников два и больше — игра (A–E) объединяется по строкам; один или ноль — объединение снимается
+  var span = Math.max(slots, need);
+  sh.getRange(row, 1, span, 5).breakApart();
+  if (need >= 2) for (var c = 1; c <= 5; c++) sh.getRange(row, c, need, 1).merge();
   SpreadsheetApp.flush();
   var got = need ? sh.getRange(row, 6, need, 3).getDisplayValues() : [];
   for (var i = 0; i < need; i++) {
