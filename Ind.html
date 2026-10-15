@@ -123,12 +123,20 @@ $('list').onclick=function(ev){
   var b=ev.target.closest('button');if(!b||busy||!b.dataset.a)return;
   var a=b.dataset.a,e=D.events[b.dataset.e],p=e&&e.players[b.dataset.p];
   function go(fn,args,ok){busy=true;msg('Сохраняю…');run(fn,args,function(){flash=ok;load()},function(m){fail(m)})}
-  if(a=='pay')go('appIndPay',[pin,e.id,p.name,b.dataset.m],'Оплата принята: '+p.name);
-  else if(a=='unpay'||a=='rm'){
+  if(a=='pay'){
+    // Быстрая кнопка выбирает способ и открывает подтверждение; до подтверждения записи нет
+    var mt=b.dataset.m;
+    ksConfirm({title:'Подтвердить оплату?',ok:'Подтвердить оплату',rows:indRows(p.name,p.group,e,mt),
+      run:function(ok,bad){run('appIndPay',[pin,e.id,p.name,mt],function(){ok();flash='Оплата принята: '+p.name;load()},bad)}});
+  }else if(a=='unpay'){
+    ksConfirm({title:'Отменить оплату?',ok:'Отменить оплату',danger:true,
+      text:'Отметка об оплате будет снята, у игрока снова появится долг за это занятие.',
+      rows:indRows(p.name,p.group,e,''),
+      run:function(ok,bad){run('appIndUnpay',[pin,e.id,p.name],function(){ok();flash='Оплата отменена: '+p.name;load()},bad)}});
+  }else if(a=='rm'){
     if(armed!=b.dataset.k){armed=b.dataset.k;render();return}
     armed='';
-    if(a=='unpay')go('appIndUnpay',[pin,e.id,p.name],'Оплата отменена: '+p.name);
-    else go('appIndRemove',[pin,e.id,p.name],'Игрок снят: '+p.name);
+    go('appIndRemove',[pin,e.id,p.name],'Игрок снят: '+p.name);
   }else if(a=='add'){
     var nm=$('in'+b.dataset.e).value.trim();if(!nm){msg('Укажите имя игрока',true);return}
     var g='гость';PL.forEach(function(x){if(x.name.toLowerCase()==nm.toLowerCase()){g=x.group;nm=x.name}});
@@ -171,10 +179,15 @@ function renderDebts(){
 }
 $('dlist').onclick=function(ev){
   var b=ev.target.closest('button');if(!b||busy||b.dataset.a!='dpay')return;
-  var d=D.debts[b.dataset.i],e=d.events[b.dataset.j];
-  busy=true;msg('Сохраняю…');
-  run('appIndPay',[pin,e.id,d.name,b.dataset.m],function(){flash='Оплата принята: '+d.name;load()},fail);
+  var d=D.debts[b.dataset.i],e=d.events[b.dataset.j],mt=b.dataset.m;
+  ksConfirm({title:'Подтвердить оплату?',ok:'Подтвердить оплату',rows:indRows(d.name,d.group,e,mt),
+    run:function(ok,bad){run('appIndPay',[pin,e.id,d.name,mt],function(){ok();flash='Оплата принята: '+d.name;load()},bad)}});
 };
+// Сводка для диалога: игрок или гость, сумма занятия, занятие, способ
+function indRows(name,group,e,mt){
+  return [[group=='гость'?'Гость':'Игрок',name],['Сумма',ksMoney(D.price)],
+    ['За что',(e.gk?'Вратарская тренировка, ':'Индивидуальное занятие, ')+dl(e.date)+' '+e.time],['Способ',mt]];
+}
 $('nd').value=today();
 $('nadd').onclick=function(){
   if(busy)return;if(!$('nd').value||!$('nt').value){msg('Укажите дату и время',true);return}
