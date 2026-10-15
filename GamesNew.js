@@ -528,7 +528,9 @@ function gnSyncGame_(eventId) {
   if (!(ev[4] instanceof Date)) throw new Error('у игры не указана дата');
   var par = rows.filter(function (r) { return String(r[0]) === String(ev[6]); })[0] || [];
   var date = Utilities.formatDate(ev[4], tz, 'dd.MM.yyyy');
-  var team = gnTeamRu_(ev[1]);
+  // Для команды U9 конкретная группа (U9-A / U9-B) записана в колонке «Сторона»
+  var side = String(ev[10] || '').trim();
+  var team = /^U\d/.test(side) ? side : gnTeamRu_(ev[1]);
   var opp = String(ev[7] || par[7] || '').trim();
   var hasScore = ev[8] !== '' && ev[8] != null && ev[9] !== '' && ev[9] != null && !isNaN(Number(ev[8])) && !isNaN(Number(ev[9]));
   var score = hasScore ? Number(ev[8]) + ':' + Number(ev[9]) : '';
