@@ -74,7 +74,8 @@ function gnStr_(v) {
 function gnValues_(name) {
   var sh = SpreadsheetApp.openById(GN_FILE_ID).getSheetByName(name);
   if (!sh) throw new Error('В таблице нет листа «' + name + '»');
-  return sh.getDataRange().getValues().map(function (r) { return r.map(gnStr_); });
+  // Берём отображаемые значения: время в таблице не превращается в дату и не сдвигается по часовому поясу
+  return sh.getDataRange().getDisplayValues().map(function (r) { return r.map(gnStr_); });
 }
 
 // Месяц в формате «MM.yyyy» из даты «dd.MM.yyyy»
@@ -322,7 +323,7 @@ function appTrainingReplaceTrainers(pin, o) {
   var date = gnDmy_(o.date), names = (o.trainers || []).map(function (x) { return String(x || '').trim(); });
   if (!names.length || names.some(function (x) { return !x; })) throw new Error('Выберите тренеров');
   if (names.some(function (x, i) { return names.indexOf(x) !== i; })) throw new Error('Тренер выбран дважды');
-  var sh = gnTrainingsSheet_(), vals = sh.getDataRange().getValues(), rowsNo = [];
+  var sh = gnTrainingsSheet_(), vals = sh.getDataRange().getDisplayValues(), rowsNo = [];
   for (var i = 1; i < vals.length; i++) {
     var r = vals[i];
     if (gnStr_(r[0]).trim() === date && gnStr_(r[9]).trim() === 'Да' &&
@@ -338,7 +339,7 @@ function appTrainingReplaceTrainers(pin, o) {
 // Отмечает «Да» у заготовленной строки листа «Тренировки» (дата, группа, время и тренер совпадают, отметки ещё нет).
 // Возвращает true, если строка нашлась. Так отметка ложится на ту же строку, а не дописывается внизу листа.
 function gnMarkHeld_(date, group, start, trainer) {
-  var sh = gnTrainingsSheet_(), vals = sh.getDataRange().getValues(), tz = Session.getScriptTimeZone();
+  var sh = gnTrainingsSheet_(), vals = sh.getDataRange().getDisplayValues();
   var cell = function (v) { return gnStr_(v).trim(); };
   for (var i = 1; i < vals.length; i++) {
     var r = vals[i];
