@@ -4,8 +4,10 @@
  * Ничего не удаляет: недостающие колонки и строки только добавляются.
  */
 
+// Старый файл матчей больше не пишем: игры вносятся в таблицу 1Cf4 («Игры»).
+// Возврат к записи — вернуть проверку свойства GAMES_WRITE.
 function legacyEnabled_() {
-  return PropertiesService.getScriptProperties().getProperty('GAMES_WRITE') === 'yes';
+  return false;
 }
 
 // Цвета ячеек колонки: красная ячейка = игрока нет в этом турнире, её не трогаем.
@@ -33,6 +35,7 @@ function legacyWriteSets_(sh, sets) {
 
 // Вызывается после сохранения в приложении. Ошибка не ломает основное сохранение.
 function legacySafe_(eventId) {
+  if (!legacyEnabled_()) return '';
   var t0 = Date.now();
   try {
     var res = legacySync_(eventId, false);

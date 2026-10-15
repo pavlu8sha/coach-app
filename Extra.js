@@ -537,6 +537,8 @@ function appWroteSet(pin, keys) {
   try {
     var sh = dbSheet_(WROTE_SHEET, WROTE_HEAD);
     var n = Math.max(sh.getLastRow() - 1, 1);
+    // Текстовый формат до записи: иначе «11.10» Sheets превращает в дату, и отметка не совпадает при чтении
+    sh.getRange(2, 1, Math.max(sh.getMaxRows() - 1, n), 2).setNumberFormat('@');
     sh.getRange(2, 1, n, 2).clearContent();
     var rows = (keys || []).map(function (k) { var i = String(k).indexOf('|'); return [String(k).slice(0, i), String(k).slice(i + 1)]; });
     if (rows.length) sh.getRange(2, 1, rows.length, 2).setValues(rows);

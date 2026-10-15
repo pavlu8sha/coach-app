@@ -290,6 +290,7 @@ function appAddTrainerDaily(pin, o) {
     return t.date === date && t.held && t.group === o.group && t.start === o.start && t.trainer === tr;
   });
   if (already) return { ok: true, exists: true };
+  if (gnMarkHeld_(date, o.group, o.start, tr)) return { ok: true, written: 1 };
   appTrainingAdd(pin, { date: date, trainer: tr, location: o.loc, group: o.group, type: o.type,
     start: o.start, end: o.end, held: true });
   return { ok: true, written: 1 };
@@ -315,6 +316,23 @@ function appTrainingReplaceTrainers(pin, o) {
   return { ok: true, changed: rowsNo.length };
 }
 
+// Отмечает «Да» у заготовленной строки листа «Тренировки» (дата, группа, время и тренер совпадают, отметки ещё нет).
+// Возвращает true, если строка нашлась. Так отметка ложится на ту же строку, а не дописывается внизу листа.
+function gnMarkHeld_(date, group, start, trainer) {
+  var sh = gnTrainingsSheet_(), vals = sh.getDataRange().getValues(), tz = Session.getScriptTimeZone();
+  var cell = function (v) { return v instanceof Date ? Utilities.formatDate(v, tz, 'dd.MM.yyyy') : String(v || '').trim(); };
+  for (var i = 1; i < vals.length; i++) {
+    var r = vals[i];
+    if (cell(r[0]) === date && (cell(r[4]) || cell(r[5])) === group && cell(r[6]) === start &&
+        cell(r[2]) === trainer && cell(r[9]) !== 'Да') {
+      sh.getRange(i + 1, 10).setValue('Да');
+      logChange_('', '', 'тренировка (раздел Игры)', '', date + ' ' + trainer + ' ' + group + ' (отметка)');
+      return true;
+    }
+  }
+  return false;
+}
+
 // Подтверждение «да»: по одной строке на каждого тренера; уже записанную тренировку не дублируем
 function appConfirmDaily(pin, o) {
   checkAdmin_(pin);
@@ -326,6 +344,7 @@ function appConfirmDaily(pin, o) {
   var n = 0;
   (o.trainers || []).forEach(function (tr) {
     if (!String(tr || '').trim()) return;
+    if (gnMarkHeld_(date, o.group, o.start, String(tr).trim())) { n++; return; }
     appTrainingAdd(pin, { date: date, trainer: tr, location: o.loc, group: o.group, type: o.type,
       start: o.start, end: o.end, held: true });
     n++;

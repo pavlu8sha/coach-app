@@ -20,9 +20,14 @@ function equipSyncLocations_(sh) {
 // Группа для номеров: u7-a и u7-b считаются одной группой «u7»
 function baseGroup_(g) { return String(g || '').trim().replace(/\s*-\s*[a-zа-яё]$/i, ''); }
 
+// Номер игрока пишем через запятую («7,9»), а не «7/9»; при сравнении оба варианта равны
+function numNorm_(v) {
+  return String(v == null ? '' : v).trim().replace(/\s*\/\s*/g, ',').replace(/\s*,\s*/g, ',').toLowerCase();
+}
+
 // Ищет другого игрока той же группы с таким же номером. Возвращает ФИ или ''. row — строку заказа не сравниваем.
 function equipNumClash_(sh, id, num, row) {
-  num = String(num || '').trim().toLowerCase();
+  num = numNorm_(num);
   if (!num) return '';
   var groupOf = {};
   readRegistry_().players.forEach(function (p) { groupOf[p.id] = baseGroup_(p.group); });
@@ -32,7 +37,7 @@ function equipNumClash_(sh, id, num, row) {
   vals.forEach(function (r, i) {
     var rr = EQ_FIRST + i, oid = String(r[11]).trim();
     if (rr === row || !oid || oid === id || hit) return;
-    if (String(r[6]).trim().toLowerCase() === num && groupOf[oid] === myG) hit = String(r[2]).trim() || oid;
+    if (numNorm_(r[6]) === num && groupOf[oid] === myG) hit = String(r[2]).trim() || oid;
   });
   return hit;
 }

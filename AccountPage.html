@@ -68,6 +68,11 @@ li small{color:var(--mute)}
         <input id="a-date" type="date" aria-label="Дата">
         <select id="a-trainer" aria-label="Тренер"></select>
       </div>
+      <div id="a-tr-extra"></div>
+      <div class="grid2" style="margin-top:6px">
+        <button class="btn" type="button" id="a-tr-add" style="margin-top:0;min-height:40px;font-size:14px;background:var(--card);color:var(--ink);border:1px solid var(--line)">+ тренер</button>
+        <button class="btn" type="button" id="a-tr-rm" style="margin-top:0;min-height:40px;font-size:14px;background:var(--card);color:var(--ink);border:1px solid var(--line)">− тренер</button>
+      </div>
       <div class="pair">
         <select id="a-group" aria-label="Группа"></select>
         <select id="a-loc" aria-label="Локация"></select>
@@ -212,7 +217,7 @@ function dyPaint(){
       +(trs.length>2?'<button class="btn" style="background:var(--card);color:var(--ink);border:1px solid var(--line)" data-rm="'+i+'">− тренер</button>':'')
       +'</div>':'';
     var recLine='';
-    var saveBlock=isDone?'<div class="grid2" style="margin-top:6px"><button class="btn" data-save="'+i+'">Сохранить тренеров</button></div>':'';
+    var saveBlock=isDone?'<div style="margin-top:6px"><button class="btn" data-save="'+i+'" style="width:auto;min-height:36px;margin-top:0;padding:0 16px;font-size:14px">Сохранить тренеров</button></div>':'';
     var addBlock='';
     if(isDone&&rec.length<3){
       addBlock=dyAddOpen[i]
@@ -279,11 +284,37 @@ function loadDay(){
   },function(e){setMsg(e,true)});
 }
 $('dy-date').onchange=loadDay;
+// Дополнительные тренеры формы: до трёх в сумме, каждый — отдельной строкой тренировки
+function trExtraAdd(){
+  var n=document.querySelectorAll('.a-tr-x').length;
+  if(n>=2)return;
+  var s=document.createElement('select');s.className='a-tr-x';s.setAttribute('aria-label','Тренер');
+  s.innerHTML=$('a-trainer').innerHTML;s.value='';
+  $('a-tr-extra').appendChild(s);
+}
+function trExtraRm(){
+  var all=document.querySelectorAll('.a-tr-x');
+  if(all.length)all[all.length-1].remove();
+}
+$('a-tr-add').onclick=trExtraAdd;
+$('a-tr-rm').onclick=trExtraRm;
 function addTraining(){
-  var o={date:toDmy($('a-date').value.trim()),trainer:$('a-trainer').value.trim(),group:$('a-group').value.trim(),
+  var base={date:toDmy($('a-date').value.trim()),group:$('a-group').value.trim(),
     location:$('a-loc').value.trim(),type:$('a-type').value.trim(),start:$('a-start').value.trim(),end:$('a-end').value.trim(),held:$('a-held').checked};
+  var trs=[$('a-trainer').value.trim()].concat(Array.prototype.map.call(document.querySelectorAll('.a-tr-x'),function(s){return s.value.trim()}));
+  trs=trs.filter(function(t,i){return t&&trs.indexOf(t)===i});
+  if(!trs.length){setMsg('Укажите тренера',true);return}
   setMsg('Сохраняю…');
-  run('appTrainingAdd',[pin,o],function(){setMsg('Тренировка добавлена');$('a-trainer').value='';$('a-group').value='';load()},function(e){setMsg(e,true)});
+  var k=0;
+  (function next(){
+    if(k>=trs.length){
+      setMsg('Тренировка добавлена');$('a-trainer').value='';$('a-group').value='';
+      Array.prototype.forEach.call(document.querySelectorAll('.a-tr-x'),function(s){s.remove()});
+      load();return;
+    }
+    var o=Object.assign({},base,{trainer:trs[k]});k++;
+    run('appTrainingAdd',[pin,o],next,function(e){setMsg(e,true)});
+  })();
 }
 document.querySelectorAll('.tabs button').forEach(function(b){b.onclick=function(){showTab(b.getAttribute('data-t'))}});
 $('mon').onchange=load;
