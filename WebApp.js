@@ -80,17 +80,24 @@ function appRoster(pin, group, dateStr) {
   var n = block.lastRow - block.firstRow + 1;
   var names = sheet.getRange(block.firstRow, 2, n, 1).getValues();
   var vals = sheet.getRange(block.firstRow, col, n, 1).getValues();
-  var byName = {}, anyPresent = false;
+  var byName = {}, rowsByName = {}, anyPresent = false;
   names.forEach(function (r, i) {
     var k = norm(r[0]);
     if (!k) return;
     var v = vals[i][0] === true;
     byName[k] = v;
+    rowsByName[k] = (rowsByName[k] || 0) + 1;
     if (v) anyPresent = true;
   });
-  if (!anyPresent) return roster;
+  // Ячейки отметок — чекбоксы: «ещё не отмечали» и «все отсутствовали» в листе выглядят одинаково (FALSE).
+  // Если галочек нет, смотрим журнал: приложение пишет туда каждую сохранённую отметку, включая «Отсутствовал».
+  if (!anyPresent && !journalHasDay_(group, dateStr)) return roster;
+  var inRoster = {};
+  roster.forEach(function (p) { var k = norm(p.name); inRoster[k] = (inRoster[k] || 0) + 1; });
   roster.forEach(function (p) {
     var k = norm(p.name);
+    // Одинаковые ФИ: в листе нет ID, поэтому чья отметка — не определить. Не подставляем, тренер отметит заново.
+    if (inRoster[k] > 1 || rowsByName[k] > 1) return;
     if (byName.hasOwnProperty(k)) p.mark = byName[k] ? 'p' : 'a';
   });
   return roster;
@@ -117,7 +124,7 @@ function appSave(pin, group, dateStr, marks) {
       var similar = blockNames.filter(function (b) { return lev_(norm(b), key) <= lim; })[0];
       if (similar) {
         skippedMarks.push(m);
-        skipped.push({ name: m.name, result: 'НЕ записано: в листе есть похожее имя «' + similar + '», проверьте написание' });
+        skipped.push({ id: m.id, name: m.name, result: 'НЕ записано: в листе есть похожее имя «' + similar + '», проверьте написание' });
         return;
       }
     }

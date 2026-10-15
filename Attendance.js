@@ -110,10 +110,20 @@ function saveAttendanceCore_(group, dateStr, marks) {
   var report = { dryRun: CONFIG.DRY_RUN, sheet: d.sheet, group: group, date: dateStr, results: [] };
 
   function failAll(msg) {
-    marks.forEach(function (m) { report.results.push({ name: m.name, result: 'НЕ записано: ' + msg }); });
+    marks.forEach(function (m) { report.results.push({ id: m.id, name: m.name, result: 'НЕ записано: ' + msg }); });
     logResults(report, marks);
     return report;
   }
+
+  // Одинаковые ФИ: в листе месяца нет ID, строку ребёнка ищем по ФИ. Если два ребёнка с одним ФИ,
+  // отметки попали бы в одну строку и затёрли друг друга, поэтому такие отметки не пишем.
+  var markCount = {};
+  marks.forEach(function (m) { var k = norm(m.name); markCount[k] = (markCount[k] || 0) + 1; });
+  var dupMarks = marks.filter(function (m) { return markCount[norm(m.name)] > 1; });
+  marks = marks.filter(function (m) { return markCount[norm(m.name)] === 1; });
+  dupMarks.forEach(function (m) {
+    report.results.push({ id: m.id, name: m.name, result: 'НЕ записано: в группе несколько игроков с ФИ «' + m.name + '», отметьте их вручную в таблице' });
+  });
 
   var sheet = ss.getSheetByName(d.sheet);
   if (!sheet) return failAll('нет листа месяца ' + d.sheet);
@@ -163,27 +173,33 @@ function saveAttendanceCore_(group, dateStr, marks) {
   // Строки детей и свободные строки блока
   var n = block.lastRow - block.firstRow + 1;
   var names = sheet.getRange(block.firstRow, 2, n, 1).getValues();
-  var rowByName = {}, free = [];
+  var rowByName = {}, free = [], dupRow = {};
   names.forEach(function (r, i) {
-    if (String(r[0]).trim() === '') free.push(block.firstRow + i);
-    else rowByName[norm(r[0])] = block.firstRow + i;
+    if (String(r[0]).trim() === '') { free.push(block.firstRow + i); return; }
+    var k = norm(r[0]);
+    if (rowByName[k]) dupRow[k] = true;
+    else rowByName[k] = block.firstRow + i;
   });
 
   var fcol = sheet.getRange(block.firstRow, dateCol, n, 1).getFormulas(); // формулы колонки даты одним запросом
   var writes = []; // {row, col, value, isDate}
   var addedRows = []; // строки, куда добавлено новое имя (им нужен формат как у соседних)
   marks.forEach(function (m) {
+    if (dupRow[norm(m.name)]) {
+      report.results.push({ id: m.id, name: m.name, result: 'НЕ записано: в блоке ' + group + ' несколько строк с ФИ «' + m.name + '», отметьте вручную в таблице' });
+      return;
+    }
     var row = rowByName[norm(m.name)], added = false;
     if (!row) {
       if (!free.length) {
-        report.results.push({ name: m.name, result: 'НЕ записано: нет свободной строки в блоке ' + group });
+        report.results.push({ id: m.id, name: m.name, result: 'НЕ записано: нет свободной строки в блоке ' + group });
         return;
       }
       row = free[0];
       added = true;
     }
     if (fcol[row - block.firstRow][0]) {
-      report.results.push({ name: m.name, result: 'НЕ записано: в ячейке формула' });
+      report.results.push({ id: m.id, name: m.name, result: 'НЕ записано: в ячейке формула' });
       return;
     }
     if (added) {
@@ -193,7 +209,7 @@ function saveAttendanceCore_(group, dateStr, marks) {
       addedRows.push(row);
     }
     writes.push({ row: row, col: dateCol, value: !!m.present });
-    report.results.push({ name: m.name, result: added ? 'добавлен в лист и записан' : 'записан' });
+    report.results.push({ id: m.id, name: m.name, result: added ? 'добавлен в лист и записан' : 'записан' });
   });
 
   if (writeDate && writes.length) {
@@ -234,11 +250,13 @@ var JOURNAL_SHEET_ = 'ЖУРНАЛ ПОСЕЩАЕМОСТИ';
 
 function logResults(report, marks) {
   if (!marks.length) return;
-  var okNames = {};
+  // Сопоставляем отметку с результатом по ID ученика (по ФИ — только если ID нет).
+  function keyOf(x) { return x.id ? 'id:' + x.id : 'nm:' + norm(x.name); }
+  var okKeys = {};
   report.results.forEach(function (r) {
-    if (String(r.result).indexOf('НЕ записано') !== 0) okNames[norm(r.name)] = true;
+    if (String(r.result).indexOf('НЕ записано') !== 0) okKeys[keyOf(r)] = true;
   });
-  marks = marks.filter(function (m) { return okNames[norm(m.name)]; });
+  marks = marks.filter(function (m) { return okKeys[keyOf(m)]; });
   if (!marks.length) return;
   var sh = attSS_().getSheetByName(JOURNAL_SHEET_);
   if (!sh) throw new Error('Нет листа ' + JOURNAL_SHEET_ + ' в файле посещаемости');
@@ -269,4 +287,15 @@ function logResults(report, marks) {
   }
   updates.forEach(function (u) { sh.getRange(u.row, 7).setValue(u.status); });
   if (toAdd.length) sh.getRange(sh.getLastRow() + 1, 1, toAdd.length, 10).setValues(toAdd);
+}
+// Есть ли в журнале записи по группе за дату. Приложение пишет туда каждую сохранённую отметку,
+// включая «Отсутствовал», поэтому так отличаем «все отсутствовали» от «ещё не отмечали». Только читает.
+function journalHasDay_(group, dateStr) {
+  var sh = attSS_().getSheetByName(JOURNAL_SHEET_);
+  if (!sh) return false;
+  var last = sh.getLastRow();
+  if (last < 4) return false;
+  var p = dateStr.split('-'), dateCell = p[2] + '.' + p[1] + '.' + p[0], g = norm(group);
+  var rows = sh.getRange(4, 2, last - 3, 4).getDisplayValues(); // B:E — дата, ID, ФИ, группа
+  return rows.some(function (r) { return r[0] === dateCell && norm(r[3]) === g; });
 }
