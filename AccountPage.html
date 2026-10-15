@@ -138,6 +138,7 @@ function init(){
 }
 function load(){
   var n=++reqN,m=$('mon').value;
+  gmEdit=null;
   setMsg('Загружаю…');
   run('appTrainingsList',[pin,m],function(t){if(n!=reqN)return;cache.trainings=t;drawTr();setMsg('')},function(e){if(n==reqN)setMsg(e,true)});
   run('appGamesData',[pin,m],function(d){if(n!=reqN)return;cache.games=d.games;cache.stats=d.stats;drawGm();drawSt();setMsg('')},function(e){if(n==reqN)setMsg(e,true)});
@@ -148,15 +149,57 @@ function drawTr(){
   }).join('');
   $('tr-table').innerHTML='<tr><th>Дата</th><th>Тренер</th><th>Группа</th><th>Проведено</th><th>Часы</th></tr>'+(rows||'<tr><td colspan="5">Нет тренировок</td></tr>');
 }
+var GM_ROLES=['Тренер','Оператор'],gmEdit=null;
+var GM_BTN='margin-top:0;min-height:40px;font-size:14px;background:var(--card);color:var(--ink);border:1px solid var(--line)';
+function gmRead(){
+  // Переносим значения формы в gmEdit, чтобы не потерять ввод при добавлении/удалении строки
+  if(!gmEdit)return;
+  gmEdit.list=gmEdit.list.map(function(s,j){
+    var n=document.querySelector('[data-gmn="'+j+'"]'),r=document.querySelector('[data-gmr="'+j+'"]'),c=document.querySelector('[data-gmg="'+j+'"]');
+    return{name:n?n.value:s.name,role:r?r.value:s.role,reg:c?c.checked:s.reg};
+  });
+}
+function gmForm(){
+  var body=gmEdit.list.map(function(s,j){
+    var names=cache.trainers.slice();if(s.name&&names.indexOf(s.name)<0)names.push(s.name);
+    return'<div class="pair" style="margin-bottom:4px"><select data-gmn="'+j+'" aria-label="Сотрудник">'+names.map(function(t){return'<option'+(t===s.name?' selected':'')+'>'+esc(t)+'</option>'}).join('')+'</select>'+
+      '<select data-gmr="'+j+'" aria-label="Роль">'+GM_ROLES.map(function(r){return'<option'+(r===s.role?' selected':'')+'>'+r+'</option>'}).join('')+'</select></div>'+
+      '<div class="grid2" style="align-items:center"><label style="margin:0"><input type="checkbox" data-gmg="'+j+'"'+(s.reg?' checked':'')+'> Регламент выполнен</label>'+
+      '<button class="btn" type="button" data-gmdel="'+j+'" style="'+GM_BTN+'">Удалить</button></div>';
+  }).join('');
+  return'<div class="card">'+(body||'<div class="sub">Состав пуст</div>')+
+    '<div class="grid2" style="margin-top:10px"><button class="btn" type="button" data-gmadd="1" style="'+GM_BTN+'">+ сотрудник</button>'+
+    '<button class="btn" type="button" data-gmsave="1" style="margin-top:0;min-height:40px;font-size:14px">Сохранить</button></div>'+
+    '<button class="btn" type="button" data-gmcancel="1" style="'+GM_BTN+'">Отмена</button></div>';
+}
+function gmSave(){
+  gmRead();
+  var g=cache.games[gmEdit.i];
+  var staff=gmEdit.list.filter(function(s){return s.name});
+  setMsg('Сохраняю…');
+  run('appGameStaffSet',[pin,g.date,g.team,g.opp,staff],function(){gmEdit=null;load();setMsg('Состав сохранён')},function(e){setMsg(e,true)});
+}
 function drawGm(){
-  var rows=cache.games.map(function(g){
+  var rows=cache.games.map(function(g,i){
+    var editing=gmEdit&&gmEdit.i===i;
     var staff=g.staff.map(function(s){return esc(s.name)+' ('+esc(s.role)+(s.reg?'':', регламент не выполнен')+')'}).join('<br>');
+    if(!editing)staff+=(staff?'<br>':'')+'<button class="btn" type="button" data-gmedit="'+i+'" style="'+GM_BTN+';margin-top:6px">Изменить</button>';
     var score=g.tech?'техническая победа':(typeof g.gf==='number'&&typeof g.ga==='number'?g.gf+':'+g.ga:'нет счёта');
     var goals=g.goals.map(function(x){return esc(x.name)+(x.n>1?' ×'+x.n:'')}).join(', ')||'—';
-    return'<tr><td>'+esc(g.date)+'</td><td>'+esc(g.team)+'<br>'+esc(g.opp)+'</td><td>'+score+'</td><td>'+goals+'</td><td>'+staff+'</td></tr>';
+    var tr='<tr><td>'+esc(g.date)+'</td><td>'+esc(g.team)+'<br>'+esc(g.opp)+'</td><td>'+score+'</td><td>'+goals+'</td><td>'+staff+'</td></tr>';
+    return tr+(editing?'<tr><td colspan="5">'+gmForm()+'</td></tr>':'');
   }).join('');
   $('gm-table').innerHTML='<tr><th>Дата</th><th>Команда</th><th>Счёт</th><th>Голы</th><th>Сотрудники</th></tr>'+(rows||'<tr><td colspan="5">Нет игр</td></tr>');
 }
+$('gm-table').onclick=function(e){
+  var t=e.target;
+  if(!t||!t.hasAttribute)return;
+  if(t.hasAttribute('data-gmedit')){var i=+t.getAttribute('data-gmedit');gmEdit={i:i,list:cache.games[i].staff.map(function(s){return{name:s.name,role:s.role,reg:s.reg}})};drawGm();return}
+  if(t.hasAttribute('data-gmcancel')){gmEdit=null;drawGm();return}
+  if(t.hasAttribute('data-gmadd')){gmRead();gmEdit.list.push({name:cache.trainers[0]||'',role:'Тренер',reg:true});drawGm();return}
+  if(t.hasAttribute('data-gmdel')){gmRead();gmEdit.list.splice(+t.getAttribute('data-gmdel'),1);drawGm();return}
+  if(t.hasAttribute('data-gmsave'))gmSave();
+};
 function drawChips(){
   $('chips').innerHTML=cache.trainers.map(function(t){
     return'<button class="chip'+(trFilter===t?' on':'')+'" data-tr="'+esc(t)+'">'+esc(t)+'</button>';

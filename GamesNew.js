@@ -144,6 +144,78 @@ function appGamesData(pin, month) {
   };
 }
 
+// ---- Состав игры (тренер, оператор) в листе «Игры»: пишем только столбцы F–H (сотрудник, роль, регламент) ----
+
+var GN_ROLES = ['Тренер', 'Оператор'];
+
+// Строка начала игры (дата, команда, соперник) или 0
+function gnFindGameRow_(sh, date, team, opp) {
+  var vals = sh.getDataRange().getDisplayValues(), want = gnTeam_(team), o = String(opp || '').trim();
+  for (var i = 1; i < vals.length; i++) {
+    var r = vals[i];
+    if (String(r[0]).trim() === date && gnTeam_(r[1]) === want && String(r[2]).trim() === o) return i + 1;
+  }
+  return 0;
+}
+
+// Строка начала следующей игры после row (команда в столбце B есть только в первой строке игры) или 0
+function gnNextGameRow_(sh, row) {
+  var last = sh.getLastRow();
+  if (row >= last) return 0;
+  var v = sh.getRange(row + 1, 2, last - row, 1).getDisplayValues();
+  for (var i = 0; i < v.length; i++) if (String(v[i][0]).trim()) return row + 1 + i;
+  return 0;
+}
+
+// Заменяет весь состав игры. rows — [[имя, роль, 'Да'|'Нет'], ...]. Строки игры — от её начала до следующей игры.
+function gnSetGameStaff_(date, team, opp, rows) {
+  var sh = SpreadsheetApp.openById(GN_FILE_ID).getSheetByName('Игры');
+  if (!sh) throw new Error('в таблице 1Cf4 нет листа «Игры»');
+  var row = gnFindGameRow_(sh, date, team, opp);
+  if (!row) throw new Error('игра ' + date + ' ' + team + ' ' + opp + ' не найдена в «Игры»');
+  var next = gnNextGameRow_(sh, row);
+  var slots = (next || sh.getLastRow() + 1) - row, need = rows.length;
+  if (need > slots) {
+    // Вставляем строки перед следующей игрой (её начало объединения не трогаем) или в конец листа
+    if (next) sh.insertRowsBefore(next, need - slots);
+    else sh.insertRowsAfter(sh.getLastRow(), need - slots);
+  }
+  sh.getRange(row, 6, Math.max(slots, need), 3).clearContent();
+  if (need) sh.getRange(row, 6, need, 3).setValues(rows);
+  SpreadsheetApp.flush();
+  var got = need ? sh.getRange(row, 6, need, 3).getDisplayValues() : [];
+  for (var i = 0; i < need; i++) {
+    if (got[i][0] !== rows[i][0] || got[i][1] !== rows[i][1] || got[i][2] !== rows[i][2]) {
+      throw new Error('состав не записался в строку ' + (row + i) + ' листа «Игры»');
+    }
+  }
+  var what = need ? rows.map(function (r) { return r[0] + ' (' + r[1] + (r[2] === 'Да' ? '' : ', регламент не выполнен') + ')'; }).join('; ') : 'состав очищен';
+  logChange_('', '', 'состав игры ' + date + ' ' + gnTeam_(team) + ' ' + opp, '', what);
+  return { ok: true, row: row, staff: need };
+}
+
+// Для админа: записать состав игры из приложения. staff — [{name, role, reg}]
+function appGameStaffSet(pin, date, team, opp, staff) {
+  checkAdmin_(pin);
+  date = String(date || '').trim();
+  if (!/^\d{2}\.\d{2}\.\d{4}$/.test(date)) throw new Error('Неверная дата игры');
+  if (!Array.isArray(staff)) throw new Error('Нет данных о составе');
+  var rows = staff.map(function (s) {
+    var name = String((s && s.name) || '').trim(), role = String((s && s.role) || '').trim();
+    if (!name) throw new Error('Не выбран сотрудник');
+    if (GN_ROLES.indexOf(role) < 0) throw new Error('Неизвестная роль: ' + role);
+    return [name, role, s.reg ? 'Да' : 'Нет'];
+  });
+  if (CONFIG.DRY_RUN) return { ok: true, dryRun: true, staff: rows.length };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    return gnSetGameStaff_(date, String(team || ''), String(opp || ''), rows);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 // ---- Тренировки в таблице 1Cf4 (лист «Тренировки») ----
 
 var GN_TR_HEAD = ['Дата', 'День недели', 'Тренер', 'Локация', 'Группа', 'Тип тренировки', 'Начало', 'Конец', 'Часы', 'Проведено'];
