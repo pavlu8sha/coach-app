@@ -62,7 +62,12 @@ function gnResult_(m) {
 var GN_FILE_ID = '1Cf4jRMEh8078EcMuzcrpUnPyB1g9_XdDzulxSOC3vC4';
 
 function gnStr_(v) {
-  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'dd.MM.yyyy');
+  if (v instanceof Date) {
+    var tz = Session.getScriptTimeZone();
+    // Время без даты (ячейка с форматом времени) приходит с датой 30.12.1899: берём только часы и минуты
+    if (Utilities.formatDate(v, tz, 'yyyy') === '1899') return Utilities.formatDate(v, tz, 'HH:mm');
+    return Utilities.formatDate(v, tz, 'dd.MM.yyyy');
+  }
   return v === null || v === undefined ? '' : String(v);
 }
 
@@ -320,8 +325,8 @@ function appTrainingReplaceTrainers(pin, o) {
   var sh = gnTrainingsSheet_(), vals = sh.getDataRange().getValues(), rowsNo = [];
   for (var i = 1; i < vals.length; i++) {
     var r = vals[i];
-    if (String(r[0]).trim() === date && String(r[9] || '').trim() === 'Да' &&
-        (String(r[4] || '').trim() || String(r[5] || '').trim()) === o.group && String(r[6] || '').trim() === o.start) rowsNo.push(i + 1);
+    if (gnStr_(r[0]).trim() === date && gnStr_(r[9]).trim() === 'Да' &&
+        (gnStr_(r[4]).trim() || gnStr_(r[5]).trim()) === o.group && gnStr_(r[6]).trim() === o.start) rowsNo.push(i + 1);
   }
   if (rowsNo.length !== names.length) throw new Error('В записи тренеров: ' + rowsNo.length + ', выбрано: ' + names.length + '. Количество меняется кнопкой «+ тренер».');
   if (CONFIG.DRY_RUN) return { ok: true, dryRun: true };
@@ -334,7 +339,7 @@ function appTrainingReplaceTrainers(pin, o) {
 // Возвращает true, если строка нашлась. Так отметка ложится на ту же строку, а не дописывается внизу листа.
 function gnMarkHeld_(date, group, start, trainer) {
   var sh = gnTrainingsSheet_(), vals = sh.getDataRange().getValues(), tz = Session.getScriptTimeZone();
-  var cell = function (v) { return v instanceof Date ? Utilities.formatDate(v, tz, 'dd.MM.yyyy') : String(v || '').trim(); };
+  var cell = function (v) { return gnStr_(v).trim(); };
   for (var i = 1; i < vals.length; i++) {
     var r = vals[i];
     if (cell(r[0]) === date && (cell(r[4]) || cell(r[5])) === group && cell(r[6]) === start &&
