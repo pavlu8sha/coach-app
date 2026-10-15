@@ -270,15 +270,29 @@ function appDailySchedule(pin, date) {
   date = gnDmy_(date);
   if (!/^\d{2}\.\d{2}\.\d{4}$/.test(date)) throw new Error('Дата в формате дд.мм.гггг');
   var wd = gnWeekday_(date);
-  var done = {};
-  gnParseTrainings_(gnTrainingsRows_()).forEach(function (t) {
-    if (t.date === date && t.held) { var k = t.group + '|' + t.start; (done[k] = done[k] || []).push(t.trainer); }
+  var held = gnParseTrainings_(gnTrainingsRows_()).filter(function (t) { return t.date === date && t.held; });
+  var consumed = {}, items = GN_SEASON.filter(function (x) { return x.wd === wd; }).map(function (x) {
+    // Если по группе за дату уже есть записи, показываем их время и тренеров из таблицы, а не из плана
+    var rows = held.filter(function (t) { return t.group === x.group; });
+    if (!rows.length) return { loc: x.loc, start: x.start, end: x.end, group: x.group, type: x.type, trainers: x.trainers,
+      status: 'open', recorded: [] };
+    var st = rows[0].start;
+    consumed[x.group + '|' + st] = true;
+    return { loc: rows[0].location || x.loc, start: st, end: rows[0].end, group: x.group, type: rows[0].type || x.type,
+      trainers: x.trainers, status: 'done',
+      recorded: rows.filter(function (t) { return t.start === st; }).map(function (t) { return t.trainer; }) };
   });
-  return GN_SEASON.filter(function (x) { return x.wd === wd; }).map(function (x) {
-    var rec = done[x.group + '|' + x.start] || [];
-    return { loc: x.loc, start: x.start, end: x.end, group: x.group, type: x.type, trainers: x.trainers,
-      status: rec.length ? 'done' : 'open', recorded: rec };
+  // Записи дня, которых нет в плане (другая группа или другое время)
+  var extra = {};
+  held.forEach(function (t) {
+    var k = t.group + '|' + t.start;
+    if (consumed[k]) return;
+    if (!extra[k]) extra[k] = { loc: t.location, start: t.start, end: t.end, group: t.group, type: t.type, trainers: [],
+      status: 'done', recorded: [] };
+    extra[k].recorded.push(t.trainer);
   });
+  Object.keys(extra).forEach(function (k) { items.push(extra[k]); });
+  return items;
 }
 
 // Добавить тренера к уже записанной тренировке: пишется только он; повтора не будет
