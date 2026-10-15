@@ -272,21 +272,35 @@ function gnDmy_(v) {
 }
 
 // Тренировки на выбранную дату по расписанию сезона; статус — из уже внесённых строк
+function gnDateKey_(d) { return d.slice(6, 10) + d.slice(3, 5) + d.slice(0, 2); } // дд.мм.гггг → ггггммдд
+function gnMin_(hm) { var p = String(hm).split(':'); return Number(p[0]) * 60 + Number(p[1] || 0); }
+
+// Группа записи без группы: плана той же локации и дня недели с наибольшим пересечением по времени
+function gnGroupOf_(t, wd) {
+  var best = '', bestOv = 0, s = gnMin_(t.start), e = gnMin_(t.end);
+  GN_SEASON.forEach(function (x) {
+    if (x.wd !== wd || x.loc !== t.location) return;
+    var ov = Math.min(e, gnMin_(x.end)) - Math.max(s, gnMin_(x.start));
+    if (ov > bestOv) { bestOv = ov; best = x.group; }
+  });
+  return best || t.group;
+}
+
 function appDailySchedule(pin, date) {
   checkAdmin_(pin);
   date = gnDmy_(date);
   if (!/^\d{2}\.\d{2}\.\d{4}$/.test(date)) throw new Error('Дата в формате дд.мм.гггг');
   var wd = gnWeekday_(date);
   var held = gnParseTrainings_(gnTrainingsRows_()).filter(function (t) { return t.date === date && t.held; });
-  // Локации, где за дату есть записи без группы (например, Ортачала): их план заменяют сами записи
-  var recLoc = {};
-  held.forEach(function (t) { if (!t.groupCell) recLoc[t.location] = true; });
+  // Записи без группы в таблице (Исани, Ортачала): группа из плана той же локации по пересечению времени
+  held.forEach(function (t) { if (!t.groupCell) t.group = gnGroupOf_(t, wd); });
+  // Прошедший день: расписание только из таблицы, план не показываем
+  var past = gnDateKey_(date) < Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd');
   var consumed = {}, items = [];
-  GN_SEASON.filter(function (x) { return x.wd === wd; }).forEach(function (x) {
+  if (!past) GN_SEASON.filter(function (x) { return x.wd === wd; }).forEach(function (x) {
     // Если по группе за дату уже есть записи, показываем их время и тренеров из таблицы, а не из плана
     var rows = held.filter(function (t) { return t.group === x.group; });
     if (!rows.length) {
-      if (recLoc[x.loc]) return; // план этой локации показан записями таблицы ниже, без дублей
       items.push({ loc: x.loc, start: x.start, end: x.end, group: x.group, type: x.type, trainers: x.trainers,
         status: 'open', recorded: [] });
       return;
