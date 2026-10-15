@@ -351,3 +351,61 @@ function appConfirmDaily(pin, o) {
   });
   return { ok: true, written: n };
 }
+
+// ---- Игры в таблице 1Cf4 (лист «Игры»): запись из раздела «Матчи» ----
+
+// Латиница в названии команды → кириллица, как в выпадающем списке листа «Игры»: «U9-A» → «U9-А»
+function gnTeamRu_(s) {
+  return String(s || '').trim().replace(/A/g, 'А').replace(/B/g, 'В').replace(/C/g, 'С');
+}
+
+// Одна игра из «Матчи» → строка листа «Игры» (A дата, B команда, C соперник, D счёт, E голы).
+// Если строка с той же датой и командой уже есть — обновляются только непустые поля; иначе строка дописывается внизу.
+function gnSyncGame_(eventId) {
+  var msh = sheetOf_('МАТЧИ');
+  if (!msh) throw new Error('нет листа МАТЧИ');
+  var tz = msh.getParent().getSpreadsheetTimeZone();
+  var rows = msh.getDataRange().getValues().slice(1);
+  var ev = rows.filter(function (r) { return String(r[0]) === String(eventId); })[0];
+  if (!ev || String(ev[2]) !== 'Игра') return '';            // в «Игры» идут отдельные игры турнира
+  if (!(ev[4] instanceof Date)) throw new Error('у игры не указана дата');
+  var par = rows.filter(function (r) { return String(r[0]) === String(ev[6]); })[0] || [];
+  var date = Utilities.formatDate(ev[4], tz, 'dd.MM.yyyy');
+  var team = gnTeamRu_(ev[1]);
+  var opp = String(ev[7] || par[7] || '').trim();
+  var hasScore = ev[8] !== '' && ev[8] != null && ev[9] !== '' && ev[9] != null && !isNaN(Number(ev[8])) && !isNaN(Number(ev[9]));
+  var score = hasScore ? Number(ev[8]) + ':' + Number(ev[9]) : '';
+  var goals = partsSheet_().getDataRange().getValues().slice(1)
+    .filter(function (r) { return String(r[0]) === String(eventId) && Number(r[10]) > 0; })
+    .map(function (r) { return String(r[2]).trim() + (Number(r[10]) > 1 ? ' - ' + Number(r[10]) : ''); }).join(', ');
+
+  var sh = SpreadsheetApp.openById(GN_FILE_ID).getSheetByName('Игры');
+  if (!sh) throw new Error('в таблице 1Cf4 нет листа «Игры»');
+  var vals = sh.getDataRange().getValues(), at = 0;
+  for (var i = 1; i < vals.length; i++) {
+    var d = vals[i][0] instanceof Date ? Utilities.formatDate(vals[i][0], tz, 'dd.MM.yyyy') : String(vals[i][0]).trim();
+    if (d === date && gnTeam_(vals[i][1]) === gnTeam_(team)) { at = i + 1; break; }
+  }
+  var what;
+  if (at) {
+    if (opp) sh.getRange(at, 3).setNumberFormat('@').setValue(opp);
+    if (score) sh.getRange(at, 4).setNumberFormat('@').setValue(score);
+    if (goals) sh.getRange(at, 5).setNumberFormat('@').setValue(goals);
+    what = 'обновлена';
+  } else {
+    var r = sh.getLastRow() + 1;
+    sh.getRange(r, 1, 1, 5).setNumberFormat('@').setValues([[date, team, opp, score, goals]]);
+    what = 'добавлена';
+  }
+  logChange_('', '', 'игра (лист Игры)', '', date + ' ' + team + ' ' + opp + ' ' + (score || 'нет счёта') + ' (' + what + ')');
+  return 'В «Игры» ' + what + '.';
+}
+
+// Не прерывает основное сохранение: ошибка записывается в журнал и возвращается текстом
+function gnSyncGameSafe_(eventId) {
+  try { return gnSyncGame_(eventId); }
+  catch (e) {
+    try { logChange_('', '', 'игра (лист Игры): ошибка', '', e.message); } catch (x) {}
+    return 'В «Игры» не записано: ' + e.message + '.';
+  }
+}

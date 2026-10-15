@@ -23,7 +23,7 @@ function appMatchFee(pin, eventId, playerId, amount, method, dateStr, comment) {
       lock.releaseLock();
     }
   }
-  var lg = CONFIG.DRY_RUN ? '' : legacySafe_(eventId);
+  var lg = CONFIG.DRY_RUN ? '' : gnSyncGameSafe_(eventId);
   return { ok: true, dryRun: CONFIG.DRY_RUN, full: res.full, legacy: lg };
 }
 
@@ -70,7 +70,7 @@ function appMatchDiscount(pin, eventId, playerId, comment) {
       lock.releaseLock();
     }
   }
-  var lg = CONFIG.DRY_RUN ? '' : legacySafe_(eventId);
+  var lg = CONFIG.DRY_RUN ? '' : gnSyncGameSafe_(eventId);
   return { ok: true, dryRun: CONFIG.DRY_RUN, legacy: lg };
 }
 

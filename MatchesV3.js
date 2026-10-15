@@ -78,7 +78,7 @@ function appSaveGame2(pin, eventId, marks, res) {
       lock.releaseLock();
     }
   }
-  var lg = CONFIG.DRY_RUN ? '' : legacySafe_(eventId);
+  var lg = CONFIG.DRY_RUN ? '' : gnSyncGameSafe_(eventId);
   out.legacy = lg;
   return out;
 }

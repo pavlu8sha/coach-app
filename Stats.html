@@ -78,9 +78,9 @@ function render(d){
     var rows=g.list.slice().sort(function(a,b){return(a.pct===null?-1:a.pct)-(b.pct===null?-1:b.pct)}).map(function(x){
       return'<li'+(x.pct!==null&&x.pct<d.threshold?' class="low"':'')+'><span>'+esc(x.name)+'</span><b>'+x.attended+' из '+x.total+' ('+pt(x.pct)+')</b></li>';
     }).join('');
-    var ses=g.sessions.map(function(s){return'<span class="chip">'+s.day+': '+s.present+'/'+g.players+'</span>'}).join('');
+    var ses='<div class="sub">Тренировки по дням: число месяца и сколько пришло из игроков группы</div>'+g.sessions.map(function(s){return'<span class="chip">'+s.day+' число: '+s.present+' из '+g.players+'</span>'}).join('');
     return'<details><summary><div class="top"><span>'+esc(g.name)+'</span><span>'+pt(g.pct)+'</span></div><div class="bar"><i style="width:'+(g.pct||0)+'%"></i></div></summary>'
-      +'<div class="sub">Тренировок: '+g.trainings+', игроков: '+g.players+', было '+g.attended+' из '+g.possible+(low?', ниже '+d.threshold+'%: '+low:'')+'</div>'
+      +'<div class="sub">Тренировок: '+g.trainings+', игроков в группе: '+g.players+'. Отметок «был»: '+g.attended+' из '+g.possible+(low?'. Игроков с посещаемостью ниже '+d.threshold+'%: '+low:'')+'</div>'
       +'<div class="chips">'+ses+'</div><ul>'+rows+'</ul></details>';
   }).join('');
 }

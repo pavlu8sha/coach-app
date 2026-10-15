@@ -85,7 +85,8 @@ function addEventCore_(o, isAdmin) {
     logChange_('', '', 'новое событие матчей', '', id + ': ' + team + ', ' + o.type + ', ' + name + (o.date ? ', ' + o.date : ''));
     cacheDropBig_('md_v2');
   }
-  return { ok: true, dryRun: CONFIG.DRY_RUN, id: id, copied: copy.length };
+  var gsync = (!CONFIG.DRY_RUN && o.type === 'Игра') ? gnSyncGameSafe_(id) : '';
+  return { ok: true, dryRun: CONFIG.DRY_RUN, id: id, copied: copy.length, sync: gsync };
 }
 
 // Добавляет игрока в состав события или турнира.
