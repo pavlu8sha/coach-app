@@ -97,6 +97,34 @@ function appEditOrder(pin, row, o) {
   try { return editOrderCore_(row, o); } finally { lock.releaseLock(); }
 }
 
+// Удаление заказа: очищает строку (как свободная строка для нового заказа). Строку с оплатой не удаляем.
+function appDeleteOrder(pin, row) {
+  checkAdmin_(pin);
+  if (CONFIG.DRY_RUN) return deleteOrderCore_(row);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try { return deleteOrderCore_(row); } finally { lock.releaseLock(); }
+}
+
+function deleteOrderCore_(row) {
+  row = Number(row);
+  if (!(row >= EQ_FIRST && row < EQ_FIRST + EQ_ROWS)) throw new Error('Некорректная строка');
+  var sh = equipSheet_();
+  if (!String(sh.getRange(row, 3).getValue()).trim()) throw new Error('В этой строке нет заказа');
+  var paid = Number(sh.getRange(row, 10).getValue()) || 0;
+  if (paid > 0) throw new Error('По заказу есть оплата (' + paid + ' ₾). Сначала отмените оплату, потом удалите заказ');
+  if (!CONFIG.DRY_RUN) {
+    var id = String(sh.getRange(row, 12).getValue()).trim(), name = String(sh.getRange(row, 3).getValue()).trim();
+    var what = sh.getRange(row, 4, 1, 6).getDisplayValues()[0].join(' | ');
+    sh.getRange(row, 2, 1, 9).clearContent(); // B:J; формула долга в K остаётся
+    sh.getRange(row, 12).clearContent();      // ID игрока
+    equipSyncLocations_(sh);
+    cacheDropBig_('eq_v1');
+    logChange_(id, name, 'удаление заказа экипировки', what, '');
+  }
+  return { ok: true, dryRun: CONFIG.DRY_RUN, row: row };
+}
+
 // Скидка 15% как в форме нового заказа (Kit.html refreshSum): костюм + дождевик и у игрока базовый набор
 // (игровая/вратарская + тренировочная, или полный комплект), без рассрочки. Прежние заказы игрока учитываются как «уже оплачено».
 // Сумма округляется до 5 ₾; в заказе записывается доплата, как и при новом заказе.
