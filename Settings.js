@@ -36,29 +36,38 @@ var SETTINGS_SCHEMA = {
 
 // ---------- Чтение ----------
 
-var _settingsRun = null;   // значения листа на время одного запуска
+var _settingsRun = null;   // значения листа на время одного запуска: { v: значения, d: повторы, n: названия объектов }
 var _settingsWarned = {};  // одно предупреждение о неверном значении на ключ за запуск
 
 function settingsVer_() { return PropertiesService.getScriptProperties().getProperty('SET_VER') || '0'; }
 
-// Строки листа: { 'ключ|объект': 'значение' }. Кэш привязан к номеру версии: после сохранения
-// версия меняется, и старый кэш больше не читается (даже если CacheService ещё хранит его).
-function settingsRaw_() {
+// Объект (команда и т. п.) сравнивается без учёта регистра и лишних пробелов: «u13-a» = «U13-A».
+function settingObj_(s) { return String(s === null || s === undefined ? '' : s).replace(/\s+/g, ' ').trim().toLowerCase(); }
+
+// Строки листа: { 'ключ|объект': 'значение' }. Если строка с тем же ключом и объектом повторяется,
+// действует первая (её же правит сохранение), повтор показывается как ошибка.
+// Кэш привязан к номеру версии: после сохранения версия меняется, и старый кэш больше не читается.
+// Если AdminApp недоступен, работают значения по умолчанию (раздел не должен ломаться из-за настроек).
+function settingsLoad_() {
   if (_settingsRun) return _settingsRun;
   var key = 'set_' + settingsVer_(), cache = CacheService.getScriptCache(), hit = cache.get(key);
   if (hit) { try { _settingsRun = JSON.parse(hit); return _settingsRun; } catch (e) {} }
-  var map = {}, sh = dbRead_(SETTINGS_SHEET);
+  var res = { v: {}, d: {}, n: {} }, sh = null;
+  try { sh = dbRead_(SETTINGS_SHEET); } catch (e) { console.warn('Настройки недоступны, работают значения по умолчанию: ' + e.message); }
   if (sh && sh.getLastRow() > 1) {
     sh.getRange(2, 1, sh.getLastRow() - 1, 3).getDisplayValues().forEach(function (r) {
-      var k = String(r[0]).trim(), v = String(r[2]).trim();
+      var k = String(r[0]).trim(), v = String(r[2]).trim(), o = settingObj_(r[1]), mk = k + '|' + o;
       if (!k || v === '') return;  // пустое значение = «как по умолчанию»
-      map[k + '|' + String(r[1]).trim()] = v;
+      if (res.v.hasOwnProperty(mk)) { res.d[mk] = 1; return; }
+      res.v[mk] = v;
+      if (o) res.n[mk] = String(r[1]).replace(/\s+/g, ' ').trim();
     });
   }
-  try { cache.put(key, JSON.stringify(map), 600); } catch (e) {}
-  _settingsRun = map;
-  return map;
+  try { cache.put(key, JSON.stringify(res), 600); } catch (e) {}
+  _settingsRun = res;
+  return res;
 }
+function settingsRaw_() { return settingsLoad_().v; }
 
 // Разбор значения по типу. Возвращает { ok, value } или { ok: false, error }.
 function settingParse_(sch, raw) {
@@ -103,8 +112,9 @@ function settingGet_(key, obj) {
 }
 
 function settingResolve_(key, obj) {
-  var sch = settingSchema_(key), raw = settingsRaw_(), o = String(obj || '').trim(), errors = [];
+  var sch = settingSchema_(key), meta = settingsLoad_(), raw = meta.v, o = settingObj_(obj), errors = [];
   function fromSheet(k) {
+    if (meta.d[k]) errors.push(k + ': строка повторяется в листе, действует первая');
     if (!raw.hasOwnProperty(k)) return null;
     var p = settingParse_(sch, raw[k]);
     if (p.ok) return p;
@@ -116,7 +126,8 @@ function settingResolve_(key, obj) {
   if (o && sch.perObject) {
     r = fromSheet(key + '|' + o);
     if (r) return { value: r.value, source: 'sheet', errors: errors };
-    if (sch.defs && sch.defs.hasOwnProperty(o)) return { value: sch.defs[o], source: 'default', errors: errors };
+    var dk = settingDefKey_(sch, o);
+    if (dk !== null) return { value: sch.defs[dk], source: 'default', errors: errors };
   }
   r = fromSheet(key + '|');
   if (r) return { value: r.value, source: 'sheet', errors: errors };
@@ -126,6 +137,13 @@ function settingResolve_(key, obj) {
     if (pl && pl.ok) return { value: pl.value, source: 'property', errors: errors };
   }
   return { value: sch.def, source: 'default', errors: errors };
+}
+
+// Ключ умолчания кода для объекта (без учёта регистра) или null.
+function settingDefKey_(sch, o) {
+  var keys = Object.keys(sch.defs || {});
+  for (var i = 0; i < keys.length; i++) if (settingObj_(keys[i]) === o) return keys[i];
+  return null;
 }
 
 // Сброс кэша настроек: новая версия → следующее чтение идёт в лист. Нужен и после ручной правки листа
@@ -140,21 +158,19 @@ function settingsBump_() {
 
 function appSettings(pin) {
   checkAdmin_(pin);
-  var raw = settingsRaw_(), out = [];
+  var meta = settingsLoad_(), out = [];
   Object.keys(SETTINGS_SCHEMA).forEach(function (key) {
     var sch = SETTINGS_SCHEMA[key];
-    var objs = [''];
+    var objs = [''], seen = { '': 1 };
+    function add(name) { var n = settingObj_(name); if (!seen[n]) { seen[n] = 1; objs.push(name); } }
     if (sch.perObject) {
-      Object.keys(sch.defs || {}).forEach(function (o) { if (objs.indexOf(o) < 0) objs.push(o); });
-      Object.keys(raw).forEach(function (k) {
-        var p = k.indexOf('|');
-        if (k.slice(0, p) === key && k.slice(p + 1) && objs.indexOf(k.slice(p + 1)) < 0) objs.push(k.slice(p + 1));
-      });
+      Object.keys(sch.defs || {}).forEach(add);
+      Object.keys(meta.n).forEach(function (k) { if (k.slice(0, k.indexOf('|')) === key) add(meta.n[k]); });
     }
     objs.forEach(function (o) {
-      var r = settingResolve_(key, o);
+      var r = settingResolve_(key, o), dk = o ? settingDefKey_(sch, settingObj_(o)) : null;
       out.push({ key: key, obj: o, group: sch.group, label: sch.label, type: sch.type, perObject: sch.perObject || '',
-        value: r.value, source: r.source, def: o && sch.defs && sch.defs.hasOwnProperty(o) ? sch.defs[o] : sch.def,
+        value: r.value, source: r.source, def: dk !== null ? sch.defs[dk] : sch.def,
         min: sch.min, max: sch.max, error: r.errors.join('; ') });
     });
   });
@@ -164,7 +180,7 @@ function appSettings(pin) {
 // value === '' — вернуть значение по умолчанию (строка листа остаётся, значение очищается).
 function appSettingsSave(pin, key, obj, value) {
   checkAdmin_(pin);
-  var sch = settingSchema_(key), o = String(obj || '').trim();
+  var sch = settingSchema_(key), o = String(obj || '').replace(/\s+/g, ' ').trim();
   if (o && !sch.perObject) throw new Error('У этой настройки нет значений по объектам');
   if (o.length > 60) throw new Error('Слишком длинное название объекта');
   var reset = String(value === null || value === undefined ? '' : value).trim() === '';
@@ -183,7 +199,7 @@ function appSettingsSave(pin, key, obj, value) {
     var sh = dbSheet_(SETTINGS_SHEET, SETTINGS_HEAD), row = 0;
     if (sh.getLastRow() > 1) {
       sh.getRange(2, 1, sh.getLastRow() - 1, 2).getDisplayValues().forEach(function (r, i) {
-        if (!row && String(r[0]).trim() === key && String(r[1]).trim() === o) row = i + 2;
+        if (!row && String(r[0]).trim() === key && settingObj_(r[1]) === settingObj_(o)) row = i + 2;
       });
     }
     if (!row) {
@@ -205,11 +221,12 @@ function appSettingsSave(pin, key, obj, value) {
 function settingText_(v) { return Array.isArray(v) ? v.join(', ') : String(v); }
 
 // Для формы матчей: взнос по умолчанию и по командам (вместо копии 200/300 на клиенте).
+// Ключи byTeam — названия команд в нижнем регистре без лишних пробелов (клиент сравнивает так же).
 function champFeeDefaults_() {
-  var byTeam = {}, sch = SETTINGS_SCHEMA['matches.champFee'], raw = settingsRaw_();
-  Object.keys(sch.defs || {}).forEach(function (t) { byTeam[t] = settingGet_('matches.champFee', t); });
+  var byTeam = {}, sch = SETTINGS_SCHEMA['matches.champFee'], raw = settingsRaw_(), P = 'matches.champFee|';
+  Object.keys(sch.defs || {}).forEach(function (t) { byTeam[settingObj_(t)] = settingGet_('matches.champFee', t); });
   Object.keys(raw).forEach(function (k) {
-    if (k.indexOf('matches.champFee|') === 0 && k.length > 17) byTeam[k.slice(17)] = settingGet_('matches.champFee', k.slice(17));
+    if (k.indexOf(P) === 0 && k.length > P.length) byTeam[k.slice(P.length)] = settingGet_('matches.champFee', k.slice(P.length));
   });
   return { def: settingGet_('matches.champFee'), byTeam: byTeam };
 }

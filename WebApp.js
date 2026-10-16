@@ -90,20 +90,24 @@ function appRoster(pin, group, dateStr) {
     if (v) anyPresent = true;
   });
   // Ячейки отметок — чекбоксы: «ещё не отмечали» и «отсутствовал» в листе выглядят одинаково (FALSE).
-  // Если в колонке есть хотя бы одна галочка, день отмечен: берём все значения листа (как раньше, и для ручных отметок).
-  // Если галочек нет, отметку «не был» ставим только тем, у кого есть своя запись в журнале за эту группу и дату
-  // (сопоставление по ID). Без записи ученик остаётся неотмеченным.
-  var saved = anyPresent ? null : journalDay_(group, dateStr);
-  if (!anyPresent && !Object.keys(saved).length) return roster;
+  if (!anyPresent) {
+    // Галочек нет: статус каждого ученика — из его собственной записи в журнале за эту группу и дату
+    // (сопоставление по ID). Нет записи или статус непонятный — ученик остаётся неотмеченным.
+    var saved = journalDay_(group, dateStr), MARK = { 'присутствовал': 'p', 'отсутствовал': 'a' };
+    roster.forEach(function (p) {
+      var st = saved.hasOwnProperty(String(p.id)) ? MARK[norm(saved[String(p.id)])] : '';
+      if (st) p.mark = st;
+    });
+    return roster;
+  }
+  // Есть хотя бы одна галочка — день отмечен: значения из листа, как раньше (в том числе ручные отметки).
   var inRoster = {};
   roster.forEach(function (p) { var k = norm(p.name); inRoster[k] = (inRoster[k] || 0) + 1; });
   roster.forEach(function (p) {
     var k = norm(p.name);
     // Одинаковые ФИ: в листе нет ID, поэтому чья отметка — не определить. Не подставляем, тренер отметит заново.
     if (inRoster[k] > 1 || rowsByName[k] > 1) return;
-    if (!byName.hasOwnProperty(k)) return;
-    if (saved && !saved.hasOwnProperty(String(p.id))) return;
-    p.mark = byName[k] ? 'p' : 'a'; // значение берём из листа: если галочку потом сняли вручную, лист главнее журнала
+    if (byName.hasOwnProperty(k)) p.mark = byName[k] ? 'p' : 'a';
   });
   return roster;
 }

@@ -36,7 +36,7 @@ function env(opts = {}) {
     CacheService: { getScriptCache: () => ({ get: k => cache[k] || null, put: (k, v) => { cache[k] = v; }, remove: k => { delete cache[k]; } }) },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
     SpreadsheetApp: { openById: () => ({ getSheetByName: n => (opts.equipSheets || ['СЕЗОН 2026-2027']).includes(n) ? {} : null }) },
-    dbRead_: n => (n === 'НАСТРОЙКИ' ? admin.sheet : null),
+    dbRead_: n => { if (opts.adminDown) throw new Error('нет доступа к AdminApp'); return n === 'НАСТРОЙКИ' ? admin.sheet : null; },
     dbSheet_: (n, head) => { if (!admin.sheet) admin.sheet = new Sheet([head]); return admin.sheet; },
     checkAdmin_: pin => { if (String(pin) !== props.APP_ADMIN_PIN) throw new Error('Неверный код администратора'); },
     prop_: k => props[k],
@@ -149,5 +149,31 @@ test('подсказка взноса для формы матчей', () => {
   const e = env({ rows: [['matches.champFee', '', '220'], ['matches.champFee', 'U9', '150']] });
   const d = e.ctx.champFeeDefaults_();
   assert.equal(d.def, 220);
-  assert.deepEqual({ ...d.byTeam }, { 'U13-A': 300, 'U9': 150 });
+  assert.deepEqual({ ...d.byTeam }, { 'u13-a': 300, 'u9': 150 });
+});
+
+test('строка повторяется: действует первая, её же правит сохранение; повтор виден как ошибка', () => {
+  const e = env({ rows: [['stats.lowPct', '', '60'], ['stats.lowPct', '', '70']] });
+  assert.equal(e.ctx.settingGet_('stats.lowPct'), 60);
+  assert.match(e.ctx.appSettings('9').items.find(x => x.key === 'stats.lowPct').error, /повторяется/);
+  e.ctx.appSettingsSave('9', 'stats.lowPct', '', 65);
+  e.newRun();
+  assert.equal(e.ctx.settingGet_('stats.lowPct'), 65);   // сохранённое значение действует
+});
+
+test('объект без учёта регистра и пробелов: «u13-a » = «U13-A»; сохранение правит ту же строку', () => {
+  const e = env({ rows: [['matches.champFee', 'u13-a ', '350']] });
+  assert.equal(e.ctx.settingGet_('matches.champFee', 'U13-A'), 350);
+  e.ctx.appSettingsSave('9', 'matches.champFee', 'U13-A', 360);
+  e.newRun();
+  assert.equal(e.ctx.settingGet_('matches.champFee', 'u13-a'), 360);
+  assert.equal(e.admin.sheet.data.length, 2);            // новая строка не добавилась
+  const items = e.ctx.appSettings('9').items.filter(x => x.key === 'matches.champFee');
+  assert.deepEqual([...items.map(x => x.obj)], ['', 'U13-A']); // один объект, без дубля «u13-a»
+});
+
+test('AdminApp недоступен: значения по умолчанию, разделы не ломаются', () => {
+  const e = env({ adminDown: true });
+  assert.equal(e.ctx.settingGet_('stats.lowPct'), 50);
+  assert.equal(e.ctx.settingGet_('equip.seasonSheet'), 'СЕЗОН 2026-2027');
 });

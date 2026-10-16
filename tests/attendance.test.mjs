@@ -299,9 +299,36 @@ test('Р6. у ученика нет своей записи: состояние 
   assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': 'a', 'KS-2': '', 'KS-3': '' });
 });
 
-test('журнал «Присутствовал», а в листе галочку сняли вручную: лист главнее, «не был»', () => {
+test('все FALSE, у ученика в журнале «Присутствовал»: восстанавливается «Был»', () => {
   const env = allFalse({ journal: [jr('KS-1', 'Bagulin Misha', 'Присутствовал')] });
+  assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': 'p', 'KS-2': '', 'KS-3': '' });
+});
+
+test('все FALSE, смешанные статусы в журнале: у каждого свой статус, без записи — неотмечен', () => {
+  const env = allFalse({ journal: [jr('KS-1', 'Bagulin Misha', 'Присутствовал'), jr('KS-2', 'Kotov Rodion', 'Отсутствовал')] });
+  assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': 'p', 'KS-2': 'a', 'KS-3': '' });
+});
+
+test('все FALSE, записей журнала по ученикам группы нет (есть только чужие ID): никто не отмечен', () => {
+  const env = allFalse({ journal: [jr('KS-77', 'Someone Else', 'Присутствовал'), jr('KS-78', 'Other', 'Отсутствовал')] });
+  assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': '', 'KS-2': '', 'KS-3': '' });
+});
+
+test('все FALSE, непонятный статус в журнале: ученик неотмечен', () => {
+  const env = allFalse({ journal: [jr('KS-1', 'Bagulin Misha', ''), jr('KS-2', 'Kotov Rodion', 'Болел')] });
+  assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': '', 'KS-2': '', 'KS-3': '' });
+});
+
+test('все FALSE, ФИ в листе написано иначе, но запись журнала по ID есть: статус восстанавливается', () => {
+  const env = load({ month: monthSheet(G, ['Bagulin Mihail', 'Kotov Rodion', 'Zubkov Stepan'], 2, { 7: [false, false, false] }), players: KIDS,
+    journal: [jr('KS-1', 'Bagulin Misha', 'Отсутствовал')] });
   assert.equal(marksOf(env.ctx.appRoster('pin', G, DAY))['KS-1'], 'a');
+});
+
+test('есть TRUE: журнал не используется, значения из листа (запись журнала «Присутствовал» не перебивает FALSE)', () => {
+  const env = load({ month: monthSheet(G, KIDS.map(k => k[1]), 2, { 7: [false, true, false] }), players: KIDS,
+    journal: [jr('KS-1', 'Bagulin Misha', 'Присутствовал')] });
+  assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': 'a', 'KS-2': 'p', 'KS-3': 'a' });
 });
 
 test('ученик в двух группах в один день: журнал ведётся по каждой группе отдельно', () => {
