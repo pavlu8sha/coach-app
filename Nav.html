@@ -159,3 +159,17 @@ function friendly_(m) {
   return m.replace(/^Exception:\s*/, '').replace(/^Error:\s*/, '');
 }
 </script>
+<script>
+// Клавиатура на всех страницах: Enter («Готово») скрывает её в полях ввода; вверху над клавиатурой тоже.
+(function(){
+  function fix(t){
+    if(t&&t.tagName==='INPUT'&&/^(text|search|number|tel|email)?$/.test(t.type||'text')){t.setAttribute('enterkeyhint','done');return true}
+    return false;
+  }
+  document.addEventListener('focusin',function(e){fix(e.target)},true);
+  document.addEventListener('keydown',function(e){
+    var t=e.target;
+    if(e.key==='Enter'&&fix(t)){e.preventDefault();t.blur()}
+  },true);
+})();
+</script>

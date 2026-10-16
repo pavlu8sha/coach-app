@@ -50,8 +50,7 @@ function subPayCore_(month, group, id, amount, type, dateStr, comment, method) {
   var T = tariff_(group), paid = added ? 0 : row.paid;
   var disc = !!subLedger_()[month + '|' + norm(group) + '|' + norm(p.name)];
   var remaining = Math.round(Math.max(T - paid, 0) * 100) / 100;
-  // Переплата допускается: при остатке 0 вся сумма пишется как оплата и видна в карточке («внесено 170 из 165»).
-  if (disc && paid > 0) throw new Error('Абонемент за этот месяц уже оплачен со скидкой');
+  // Переплата и доплата по абонементу со скидкой допускаются: сумма пишется как оплата и видна в карточке.
   if (amount < remaining && ['Скидка', 'Частичный'].indexOf(type) < 0) throw new Error('Выберите тип: скидка или частичный платёж');
   var kind = amount >= remaining ? 'Оплата' : type;
   if (!CONFIG.DRY_RUN) {
