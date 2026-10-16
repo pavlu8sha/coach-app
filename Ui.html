@@ -16,15 +16,18 @@
 /* Состояние «Сохраняю…» у кнопки */
 .ks-loading{opacity:.7;cursor:progress!important}
 /* Диалог подтверждения */
-#ksdlg{position:fixed;top:0;right:0;bottom:0;left:0;z-index:80;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(10,14,28,.55)}
+#ksdlg{position:fixed;top:0;right:0;bottom:0;left:0;z-index:80;display:none;align-items:center;justify-content:center;padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom));overscroll-behavior:contain;background:rgba(10,14,28,.55)}
 #ksdlg.ks-open{display:flex}
-#ksdlg .ks-box{width:100%;max-width:480px;max-height:calc(100vh - 32px);overflow:auto;background:var(--color-surface,#fff);color:var(--color-text,#141C33);border:1px solid var(--color-border,#DADFEC);border-radius:var(--radius-xl);box-shadow:var(--shadow-pop);padding:20px;font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;box-sizing:border-box}
+#ksdlg .ks-box{width:100%;max-width:480px;max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px - env(safe-area-inset-bottom));overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:var(--color-surface,#fff);color:var(--color-text,#141C33);border:1px solid var(--color-border,#DADFEC);border-radius:var(--radius-xl);box-shadow:var(--shadow-pop);padding:20px;font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;box-sizing:border-box}
 #ksdlg h2{font-size:19px;margin:0 0 8px;font-weight:700}
 #ksdlg .ks-text{margin:0 0 12px;color:var(--color-text-muted,#5A6584);font-size:15px}
 #ksdlg dl{margin:0 0 12px;display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:15px}
 #ksdlg dt{color:var(--color-text-muted,#5A6584)}
 #ksdlg dd{margin:0;font-weight:600;overflow-wrap:anywhere}
 #ksdlg .ks-warn{background:var(--color-warning-subtle);color:var(--color-warning);border-radius:12px;padding:10px 12px;margin:0 0 12px;font-size:14px;font-weight:600}
+#ksdlg .ks-warn b{display:block;margin-bottom:2px}
+#ksdlg .ks-warn span{font-weight:500}
+#ksdlg dd.ks-total{font-size:17px;font-weight:800}
 #ksdlg .ks-err{background:var(--color-danger-subtle);color:var(--color-danger-strong);border-radius:12px;padding:10px 12px;margin:0 0 12px;font-size:14px;font-weight:600}
 #ksdlg .ks-acts{display:flex;gap:8px;flex-direction:row-reverse}
 #ksdlg .ks-acts button{flex:1;min-height:48px;border-radius:14px;font:700 16px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer;padding:0 12px}
@@ -34,14 +37,17 @@
 #ksdlg button:disabled{opacity:.6;cursor:progress}
 #ksdlg [hidden]{display:none!important}
 @media (max-width:420px){#ksdlg .ks-acts{flex-direction:column}}
+/* Очень узкий экран или крупный масштаб: меньше отступы, длинные слова переносятся */
+#ksdlg h2,#ksdlg .ks-text,#ksdlg .ks-warn,#ksdlg .ks-err,#ksdlg .ks-acts button{overflow-wrap:anywhere}
+@media (max-width:300px){#ksdlg{padding:8px}#ksdlg .ks-box{padding:12px;max-height:calc(100vh - 16px);max-height:calc(100dvh - 16px - env(safe-area-inset-bottom))}#ksdlg dl{grid-template-columns:1fr;gap:0}#ksdlg dd{margin-bottom:6px}}
 html.ks-dlg-lock,html.ks-dlg-lock body{overflow:hidden!important}
 </style>
 <div id="ksdlg" role="presentation">
-  <div class="ks-box" role="dialog" aria-modal="true" aria-labelledby="ksdlg-t" aria-describedby="ksdlg-x ksdlg-d">
+  <div class="ks-box" role="dialog" aria-modal="true" aria-labelledby="ksdlg-t" aria-describedby="ksdlg-x ksdlg-d ksdlg-w">
     <h2 id="ksdlg-t"></h2>
     <p class="ks-text" id="ksdlg-x" hidden></p>
     <dl id="ksdlg-d"></dl>
-    <div class="ks-warn" hidden></div>
+    <div class="ks-warns" id="ksdlg-w"></div>
     <div class="ks-err" role="alert" hidden></div>
     <div class="ks-acts"><button type="button" class="ks-ok"></button><button type="button" class="ks-cancel">Отмена</button></div>
   </div>
@@ -49,7 +55,7 @@ html.ks-dlg-lock,html.ks-dlg-lock body{overflow:hidden!important}
 <script>
 (function(){
   var root=document.getElementById('ksdlg'),box=root.querySelector('.ks-box'),tt=root.querySelector('#ksdlg-t'),
-      tx=root.querySelector('.ks-text'),dl=root.querySelector('dl'),wr=root.querySelector('.ks-warn'),er=root.querySelector('.ks-err'),
+      tx=root.querySelector('.ks-text'),dl=root.querySelector('dl'),wr=root.querySelector('.ks-warns'),er=root.querySelector('.ks-err'),
       ok=root.querySelector('.ks-ok'),cn=root.querySelector('.ks-cancel'),cur=null,busy=false,back=null;
   function txt(s){return s===null||s===undefined?'':String(s)}
   function close(){
@@ -68,7 +74,7 @@ html.ks-dlg-lock,html.ks-dlg-lock body{overflow:hidden!important}
   }
   /* Диалог подтверждения.
      o.title — заголовок; o.text — пояснение; o.rows — [[подпись, значение], …] (пустые значения пропускаются);
-     o.warn — предупреждение; o.ok — текст основной кнопки; o.danger — красная кнопка;
+     o.warn — предупреждение (строка, {title,text} или массив); строка сводки [подпись, значение, 'total'] — итог крупнее; o.ok — текст основной кнопки; o.danger — красная кнопка;
      o.run(done, fail) — вызывается после «Подтвердить»: done() закрывает диалог, fail(текст) показывает ошибку в диалоге.
      o.onCancel — при отмене. Возвращает false, если уже открыт другой диалог. */
   window.ksConfirm=function(o){
@@ -81,15 +87,26 @@ html.ks-dlg-lock,html.ks-dlg-lock body{overflow:hidden!important}
     (o.rows||[]).forEach(function(r){
       if(!r||r[1]===null||r[1]===undefined||r[1]==='')return;
       var a=document.createElement('dt'),b=document.createElement('dd');a.textContent=txt(r[0]);b.textContent=txt(r[1]);
+      if(r[2]==='total')b.className='ks-total';
       dl.appendChild(a);dl.appendChild(b);
     });
     dl.hidden=!dl.children.length;
-    wr.hidden=!o.warn;wr.textContent=txt(o.warn);
+    // o.warn — строка, {title, text} или массив из них: каждое предупреждение отдельной плашкой
+    wr.innerHTML='';
+    [].concat(o.warn||[]).forEach(function(w){
+      if(!w)return;
+      var d=document.createElement('div');d.className='ks-warn';
+      if(typeof w=='object'){var b=document.createElement('b');b.textContent=txt(w.title);d.appendChild(b);var sp=document.createElement('span');sp.textContent=txt(w.text);d.appendChild(sp)}
+      else d.textContent=txt(w);
+      wr.appendChild(d);
+    });
     er.hidden=true;er.textContent='';
     ok.classList.toggle('ks-danger',!!o.danger);
     setBusy(false);
     root.classList.add('ks-open');document.documentElement.classList.add('ks-dlg-lock');
-    cn.focus();
+    // Фокус на «Отмена» без прокрутки к кнопке; новый диалог всегда с начала: заголовок и сумма видны сразу
+    try{cn.focus({preventScroll:true})}catch(e){cn.focus()}
+    box.scrollTop=0;
     return true;
   };
   ok.onclick=function(){
