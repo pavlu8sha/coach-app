@@ -146,9 +146,6 @@ $('scopy').onclick=function(){
     fallback();
   }catch(e){fallback()}
 };
-  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(flash,function(){if(copyTxt(t))flash()})}
-  else if(copyTxt(t))flash();
-};
 // Сообщение по неоплаченным тренировкам: место и дата подставляются из выбранной тренировки.
 var MSG_DEF='Добрый день\nУ вас не оплачена тренировка на {место} {дата}';
 function ddmm(d){var p=d.split('-');return p[2]+'.'+p[1]}
