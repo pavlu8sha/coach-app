@@ -304,6 +304,14 @@ $('cbody').onclick=function(e){
       var over=ksOverpay(amt,left),pn=it.picker?0:(it.paidSum||0),T=it.picker?left:(it.tariff||left);
       if(over&&!it.picker)warn='Сумма больше остатка на '+ksMoney(over)+'. Вся сумма будет записана как оплата абонемента за '+month+': внесено будет '+ksMoney(pn+amt)+' из '+ksMoney(T)+'.';
       else if(over)warn='Сумма больше тарифа на '+ksMoney(over)+'. Если за этот месяц уже есть оплаты, итог будет ещё больше.';
+      // «Другой месяц»: если выбранный месяц закрыт скидкой — отдельное предупреждение (доплата, скидка не меняется)
+      var si=it.picker&&pkSub()?(pkSub().items||[]).filter(function(x){return x.month==month&&String(x.group).trim().toLowerCase()==String(group).trim().toLowerCase()})[0]:null;
+      if(si){
+        // Месяц уже есть в данных карточки: переплата считается с учётом внесённого, как в основной карточке месяца
+        var ov=ksOverpay((si.paid||0)+amt,si.tariff||T);
+        warn=ov?(si.disc?'Сумма больше тарифа':(si.st=='paid'?'Абонемент за '+month+' уже оплачен':'Сумма больше остатка'))+'. Внесено будет '+ksMoney((si.paid||0)+amt)+' из '+ksMoney(si.tariff||T)+'.':'';
+        if(si.disc)warn=[{title:'Месяц закрыт скидкой',text:'Доплата за этот месяц будет записана как новый платёж. Скидка останется без изменений.'}].concat(warn?[warn]:[]);
+      }
     }else if(it.kind=='eq'){
       fn='appAddPayment';args=[pin,id,it.row,amt,date,cm,method];
       txt='Внесено: '+pl.name+', '+money(amt)+' (экипировка, '+method+').';

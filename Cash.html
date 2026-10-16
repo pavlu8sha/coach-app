@@ -127,8 +127,6 @@ function paint(keepInputs){
     var f='<label>Сумма, ₾</label><input type="number" min="1" step="1" class="pa" value="'+(st=='paid'?'':debt)+'" data-debt="'+(st=='paid'?0:debt)+'">'
       +'<div class="pt" hidden><label>Сумма меньше остатка. Что это?</label><select class="ptype"><option value="">Выберите…</option><option value="Скидка">Скидка по договорённости (оплата принята)</option><option value="Частичный">Частичный платёж (останется долг)</option></select></div>'
       +'<button class="btn pay">Внести оплату</button>';
-    // Месяц, закрытый скидкой, сервер оплачивать не даёт — форму не показываем
-    if(st=='paid'&&it&&it.disc)f='';
     return'<div class="prog" data-g="'+esc(g)+'"><div class="prh"><b>'+esc(g)+'</b>'+chip+'</div><div class="sub">внесено '+money(paid)+' из '+money(T)+(it?'':'; в листе месяца пока нет, будет добавлен')+'</div>'+f+'</div>';
   }).join('');
   h+='<h2>Экипировка</h2>';
@@ -192,9 +190,13 @@ $('progs').onclick=function(e){
     if(!method){setMsg('Выберите способ оплаты: наличные или перевод.',true);return}
     if(amt<left&&!type){setMsg('Выберите тип: скидка или частичный платёж.',true);return}
     // Переплата допускается сервером: предупреждаем, но не запрещаем
-    var it=SUB.items.filter(function(i){return i.month==M&&nn(i.group)==nn(g)})[0],T=SUB.tariffs[g],paidNow=it?it.paid:0,over=ksOverpay(amt,left),warn='';
-    if(over&&left>0)warn='Сумма больше остатка на '+ksMoney(over)+'. Вся сумма будет записана как оплата абонемента за '+M+': внесено будет '+ksMoney(paidNow+amt)+' из '+ksMoney(T)+'.';
-    else if(over)warn='Абонемент за '+M+' уже оплачен. Сумма '+ksMoney(amt)+' будет записана как дополнительная оплата: внесено будет '+ksMoney(paidNow+amt)+' из '+ksMoney(T)+'.';
+    var it=SUB.items.filter(function(i){return i.month==M&&nn(i.group)==nn(g)})[0],T=SUB.tariffs[g],paidNow=it?it.paid:0,disc=!!(it&&it.disc),warn=[];
+    // Переплата — когда итог превышает тариф (для месяца со скидкой остаток 0, но это ещё не переплата)
+    var over=ksOverpay(paidNow+amt,T);
+    // Месяц, закрытый скидкой: доплата разрешена сервером, скидка в журнале не меняется
+    if(disc)warn.push({title:'Месяц закрыт скидкой',text:'Доплата за этот месяц будет записана как новый платёж. Скидка останется без изменений.'});
+    if(over&&left>0)warn.push('Сумма больше остатка на '+ksMoney(over)+'. Вся сумма будет записана как оплата абонемента за '+M+': внесено будет '+ksMoney(paidNow+amt)+' из '+ksMoney(T)+'.');
+    else if(over)warn.push((disc?'Сумма больше тарифа':'Абонемент за '+M+' уже оплачен')+'. Сумма '+ksMoney(amt)+' будет записана как дополнительная оплата: внесено будет '+ksMoney(paidNow+amt)+' из '+ksMoney(T)+'.');
     var mt=method,dt=$('dt').value,cm=$('cm').value;
     ksConfirm({title:'Подтвердить оплату?',ok:'Подтвердить оплату',warn:warn,
       rows:payRows(who,amt,'Абонемент, '+M+', '+g,[amt<left?typeRow(type,left-amt):null]),
