@@ -43,7 +43,7 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
 </div>
 <div id="app" class="wrap" hidden>
   <h1>Экипировка</h1>
-  <input id="q" placeholder="Поиск: ФИ или ID">
+  <input id="q" list="qlist" autocomplete="off" placeholder="Поиск: ФИ или ID"><datalist id="qlist"></datalist>
   <div class="row2">
     <select id="fs" aria-label="Показать">
       <option value="all">Все игроки</option><option value="ordered">Заказали форму</option><option value="not">Не заказывали</option>
@@ -101,6 +101,7 @@ function load(){
     if(failed||++got<2)return;
     P=pd.players;
     $('plist').innerHTML=P.filter(function(p){return p.status=='Активен'}).map(function(p){return'<option value="'+esc(p.name+' ('+p.id+')')+'">'}).join('');
+    $('qlist').innerHTML=P.filter(function(p){return p.status=='Активен'}).map(function(p){return'<option value="'+esc(p.name)+'">'+esc(p.id+' · '+p.group)+'</option>'}).join('');
     O=rd.orders;UNL=rd.unl;PR=rd.prices;SZ=rd.sizes||{};
     $('login').hidden=true;$('form').hidden=true;$('app').hidden=false;
     fillGroups();show();
