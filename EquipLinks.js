@@ -116,6 +116,19 @@ function deleteOrderCore_(row) {
   if (!CONFIG.DRY_RUN) {
     var id = String(sh.getRange(row, 12).getValue()).trim(), name = String(sh.getRange(row, 3).getValue()).trim();
     var what = sh.getRange(row, 4, 1, 6).getDisplayValues()[0].join(' | ');
+    // Журнал оплат ссылается на строку заказа (столбец F): после удаления строк ниже сдвигаются, ссылки пересчитываем
+    var ps = dbRead_(PAY_SHEET);
+    if (ps && ps.getLastRow() > 1) {
+      var pv = ps.getRange(2, 1, ps.getLastRow() - 1, 9).getValues(), changed = false;
+      var nf = pv.map(function (r) {
+        var rr = Number(r[5]);
+        if (String(r[4]).indexOf('Экипировка') !== 0 || !(rr > 0)) return [r[5]];
+        if (rr === row) { changed = true; return ['']; }   // заказ удалён: ссылка снимается
+        if (rr > row) { changed = true; return [rr - 1]; }  // строки ниже сдвинулись вверх
+        return [r[5]];
+      });
+      if (changed) ps.getRange(2, 6, nf.length, 1).setValues(nf);
+    }
     sh.deleteRow(row); // строка удаляется целиком, нижние заказы и итоги сдвигаются, формулы итогов подстраиваются
     equipSyncLocations_(sh);
     cacheDropBig_('eq_v1');
