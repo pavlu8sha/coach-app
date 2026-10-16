@@ -66,7 +66,7 @@ summary::-webkit-details-marker{display:none}
   </details>
   <details id="newev"><summary><b>+ Новая тренировка</b></summary>
     <div class="row2"><input type="date" id="nd" aria-label="Дата"><input type="number" min="0" step="1" id="na" placeholder="Сумма, ₾" aria-label="Сумма"></div>
-    <div style="padding-bottom:14px"><button class="btn" id="nadd">Создать тренировку</button></div>
+    <input id="np" placeholder="Место, например Исани" autocomplete="off" style="margin-top:8px"><div style="padding-bottom:14px;padding-top:8px"><button class="btn" id="nadd">Создать тренировку</button></div>
   </details>
   <div id="list"></div>
 </div>
@@ -261,7 +261,7 @@ $('nadd').onclick=function(){
   if(!$('nd').value){msg('Укажите дату',true);return}
   if(!(Number($('na').value)>0)){msg('Введите сумму за тренировку',true);return}
   busy=true;msg('Создаю…');
-  run('appExtraAddEvent',[pin,$('nd').value,$('na').value],function(r){msg(r.exists?'Тренировка на эту дату уже есть':'Тренировка создана');$('newev').open=false;$('na').value='';load()},fail);
+  run('appExtraAddEvent',[pin,$('nd').value,$('na').value,$('np').value],function(r){msg(r.exists?'Тренировка на эту дату уже есть':'Тренировка создана');$('newev').open=false;$('na').value='';$('np').value='';load()},fail);
 };
 $('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;sl('kspin',pin);sl('kspin',pin);load()};
 pin=gl('kspin')||gl('kspin')||gl('kspin');

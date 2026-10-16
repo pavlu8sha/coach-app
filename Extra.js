@@ -331,8 +331,10 @@ function appExtraPay(pin, id, name, method, amount, comment) {
 }
 
 // Новая тренировка: дата и сумма за неё
-function appExtraAddEvent(pin, date, amount) {
+function appExtraAddEvent(pin, date, amount, place) {
   checkAdmin_(pin);
+  var pl = String(place || '').replace(/\s+/g, ' ').trim();
+  if (pl.length > 60) throw new Error('Слишком длинное место');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Неверная дата');
   var amt = extraAmt_(amount);
   if (amt === null) throw new Error('Введите сумму за тренировку');
@@ -355,6 +357,7 @@ function appExtraAddEvent(pin, date, amount) {
       sh.getRange(3, 1, 18, 1).setHorizontalAlignment('center');
       sh.getRange(3, 4, 18, 1).setHorizontalAlignment('center');
       extraPriceSet_(id, date, amt);
+      if (pl) extraPlaceSet_(id, pl);
     } catch (e) { ss.deleteSheet(sh); throw e; }
     _extraDirty[name] = 1;
     extraLog_('Создано', { id: id }, '', 0, '', 'сумма ' + amt);
