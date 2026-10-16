@@ -114,7 +114,7 @@ function fillSList(){
 }
 function renderSList(){
   var e=D.events.filter(function(x){return x.id===$('sev').value})[0];
-  $('stxt').value=e?e.players.map(function(p,i){return(i+1)+'. '+p.name}).join('\n'):'';
+  $('stxt').value=e?e.players.map(function(p,i){return(i+1)+'.\u00A0'+p.name}).join('\n'):'';
 }
 $('sev').onchange=renderSList;
 $('scopy').onclick=function(){
