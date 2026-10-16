@@ -117,6 +117,7 @@ function appAddParticipants(pin, eventId, ids) {
   var pulled = 0;
   if (!CONFIG.DRY_RUN) {
     try { pulled = legacyPullPaid_(eventId, res.names); } catch (e) {}
+    try { pulled += legacyPullFriendlyPaid_(eventId, res.names); } catch (e) {}
   }
   return { ok: true, dryRun: CONFIG.DRY_RUN, added: res.added, pulled: pulled };
 }

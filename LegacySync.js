@@ -430,8 +430,18 @@ function legacyBlockSync_(sh, blks, ev, parent, recs, roster, dryOnly, pAll) {
   return (live ? 'В старый файл записано' : 'Пробный план для старого файла') + ': лист «' + sh.getName() + '» (блоки), ' + msgs.join('; ') + (addedAll ? '; новых игроков ' + addedAll : '') + '.';
 }
 
+// Команда блока старого файла (например «U9-A») совпадает с командой события. Без суффикса блок годится для «U9».
+function legacyTeamKey_(s) {
+  return String(s || '').replace(/А/g, 'A').replace(/В/g, 'B').replace(/С/g, 'C').replace(/\s+/g, '').toLowerCase();
+}
+function legacyBlockOk_(block, team) {
+  var b = legacyTeamKey_(block), t = legacyTeamKey_(team);
+  if (!b) return false;
+  return b === t || (b.indexOf('-') < 0 && b === t.replace(/-[a-z0-9]+$/, ''));
+}
+
 // Подтягивает оплату взноса из старого файла для только что добавленных в состав игроков.
-// TRUE хотя бы на одном листе команды в колонке этого турнира = оплачено. Уже оплаченное не трогает.
+// TRUE хотя бы на одном листе команды в колонке этого турнира и в блоке этой команды = оплачено. Уже оплаченное не трогает.
 function legacyPullPaid_(eventId, names) {
   if (CONFIG.DRY_RUN || !names || !names.length) return 0;
   var ev = sheetOf_('МАТЧИ').getDataRange().getValues().slice(1).filter(function (r) { return String(r[0]) === String(eventId); })[0];
@@ -446,6 +456,7 @@ function legacyPullPaid_(eventId, names) {
     for (var r = 0; r < v.length - 2; r++) {
       for (var c = 2; c < v[r].length; c++) {
         if (lbl(v[r][c]) !== lbl(tname) || !/^paid$/i.test(String(v[r + 1][c]).trim())) continue;
+        if (!legacyBlockOk_(v[r][1], team)) continue;
         for (var rr = r + 2; rr < v.length; rr++) {
           var nm = String(v[rr][1]).trim(), val = v[rr][c];
           if (!nm || (val !== true && val !== false)) continue;
