@@ -50,7 +50,7 @@ li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padd
 </div>
 <div id="app" class="wrap" hidden>
   <h1>Игроки</h1>
-  <input id="q" enterkeyhint="done" onkeydown="if(event.key==='Enter')this.blur()" list="ql" autocomplete="off" placeholder="Поиск: ФИ, ID, группа" style="margin-top:8px"><datalist id="ql"></datalist>
+  <form class="qform" onsubmit="event.preventDefault();this.querySelector('input').blur()" style="margin:0;display:block"><input id="q" enterkeyhint="done" onkeydown="if(event.key==='Enter')this.blur()" list="ql" autocomplete="off" placeholder="Поиск: ФИ, ID, группа" style="margin-top:8px"><datalist id="ql"></datalist></form>
   <div class="row2"><select id="fg" aria-label="Группа"></select><select id="st" aria-label="Статус"></select></div>
   <label>Год рождения (можно несколько)</label><div class="ychips" id="fyear"></div>
   <button class="btn" id="add">+ Добавить игрока</button>

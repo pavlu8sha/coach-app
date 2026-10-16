@@ -43,7 +43,7 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
 </div>
 <div id="app" class="wrap" hidden>
   <h1>Экипировка</h1>
-  <input id="q" enterkeyhint="done" onkeydown="if(event.key==='Enter')this.blur()" list="qlist" autocomplete="off" placeholder="Поиск: ФИ или ID"><datalist id="qlist"></datalist>
+  <form class="qform" onsubmit="event.preventDefault();this.querySelector('input').blur()" style="margin:0;display:block"><input id="q" enterkeyhint="done" onkeydown="if(event.key==='Enter')this.blur()" list="qlist" autocomplete="off" placeholder="Поиск: ФИ или ID"><datalist id="qlist"></datalist></form>
   <div class="row2">
     <select id="fs" aria-label="Показать">
       <option value="all">Все игроки</option><option value="ordered">Заказали форму</option><option value="not">Не заказывали</option>
