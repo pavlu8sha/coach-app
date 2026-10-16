@@ -38,7 +38,7 @@
   });
   // Форма нового события.
   var NAMES={'Товарищеская':'Товарищеская игра','Чемпионат':'Championship 1','Фестиваль':'Festival','Кубок':'Кубок'};
-  function teams(){var t=[];D.events.forEach(function(e){if(t.indexOf(e.team)<0)t.push(e.team)});return t}
+  function teams(){var t=[];D.events.forEach(function(e){if(t.indexOf(e.team)<0)t.push(e.team)});return t.sort(teamCmp)}
   function copyOpts(){
     var tm=$('nt').value.trim();
     var evs=D.events.filter(function(e){return e.team==tm&&e.type!='Игра'&&parts(e.id).length}).sort(function(a,b){return(b.date||'').localeCompare(a.date||'')});

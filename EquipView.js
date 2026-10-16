@@ -27,9 +27,7 @@ function addOrderCore_(o) {
   if (!p) throw new Error('Игрок не найден: ' + o.id);
   // Что нужно заполнить — по настройкам каталога выбранных позиций (размер — если у позиции есть размеры)
   var missing = [];
-  if (!String(o.size || '').trim() && items.some(function (x) { return String(x.sizes || '').trim(); })) missing.push('размер');
-  if (!String(o.num || '').trim() && items.some(function (x) { return x.num; })) missing.push('номер');
-  if (!String(o.inscr || '').trim() && items.some(function (x) { return x.inscr; })) missing.push('надпись');
+  // Размер, номер и надпись не обязательны при создании: дописываются при изменении заказа (в Экипировке помечаются как незаполненные)
   if (missing.length) throw new Error('Для заказа укажите: ' + missing.join(', '));
   var sh = equipSheet_();
   var clash = equipNumClash_(sh, o.id, o.num, 0);

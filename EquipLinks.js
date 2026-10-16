@@ -97,6 +97,55 @@ function appEditOrder(pin, row, o) {
   try { return editOrderCore_(row, o); } finally { lock.releaseLock(); }
 }
 
+// Удаление заказа: очищает строку (как свободная строка для нового заказа). Строку с оплатой не удаляем.
+function appDeleteOrder(pin, row) {
+  checkAdmin_(pin);
+  if (CONFIG.DRY_RUN) return deleteOrderCore_(row);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try { return deleteOrderCore_(row); } finally { lock.releaseLock(); }
+}
+
+function deleteOrderCore_(row) {
+  row = Number(row);
+  if (!(row >= EQ_FIRST && row < EQ_FIRST + EQ_ROWS)) throw new Error('Некорректная строка');
+  var sh = equipSheet_();
+  if (!String(sh.getRange(row, 3).getValue()).trim()) throw new Error('В этой строке нет заказа');
+  var paid = Number(sh.getRange(row, 10).getValue()) || 0;
+  if (paid > 0) throw new Error('По заказу есть оплата (' + paid + ' ₾). Сначала отмените оплату, потом удалите заказ');
+  if (!CONFIG.DRY_RUN) {
+    var id = String(sh.getRange(row, 12).getValue()).trim(), name = String(sh.getRange(row, 3).getValue()).trim();
+    var what = sh.getRange(row, 4, 1, 6).getDisplayValues()[0].join(' | ');
+    sh.getRange(row, 2, 1, 9).clearContent(); // B:J; формула долга в K остаётся
+    sh.getRange(row, 12).clearContent();      // ID игрока
+    equipSyncLocations_(sh);
+    cacheDropBig_('eq_v1');
+    logChange_(id, name, 'удаление заказа экипировки', what, '');
+  }
+  return { ok: true, dryRun: CONFIG.DRY_RUN, row: row };
+}
+
+// Скидка 15% как в форме нового заказа (Kit.html refreshSum): костюм + дождевик и у игрока базовый набор
+// (игровая/вратарская + тренировочная, или полный комплект), без рассрочки. Прежние заказы игрока учитываются как «уже оплачено».
+// Сумма округляется до 5 ₾; в заказе записывается доплата, как и при новом заказе.
+function orderSumWithDisc_(sh, row, kit, inst, total, socks) {
+  var parts = kit.split(' + ').map(function (x) { return x.trim(); });
+  var hasDisc = parts.some(function (x) { return /костюм/i.test(x); }) && parts.some(function (x) { return /дождевик/i.test(x); });
+  if (inst || !hasDisc) return null;
+  total -= socks; // носки и гетры в скидку не входят
+  var id = String(sh.getRange(row, 12).getValue()).trim();
+  var all = sh.getRange(EQ_FIRST, 1, EQ_ROWS, 12).getValues(), others = [];
+  all.forEach(function (r, i) {
+    if (EQ_FIRST + i !== row && String(r[11]).trim() === id && String(r[3]).trim()) others.push(r);
+  });
+  var allKits = others.map(function (r) { return String(r[3]); }).concat([kit]).join(' + ');
+  var covers = /полный комплект/i.test(allKits) || (/игров|вратар/i.test(allKits) && /тренировоч/i.test(allKits));
+  if (!covers) return null;
+  var prior = others.filter(function (r) { return /игров|вратар|тренировоч|полный/i.test(String(r[3])); })
+    .reduce(function (s, r) { return s + (Number(r[8]) || 0); }, 0);
+  return Math.max(Math.round((prior + total) * 0.85 / 5) * 5 - prior, 0) + socks;
+}
+
 function editOrderCore_(row, o) {
   row = Number(row);
   if (!(row >= EQ_FIRST && row < EQ_FIRST + EQ_ROWS)) throw new Error('Некорректная строка');
@@ -106,20 +155,26 @@ function editOrderCore_(row, o) {
   var oldSum = sh.getRange(row, 9).getValue();
   var kit = String(o.kit || '').trim();
   var newSum = null;
-  if (kit && (kit !== before[0] || !(Number(oldSum) > 0))) { // сменился комплект или сумма ещё не стоит: берём цену из каталога
+  if (kit) {
     // Заказ может содержать несколько комплектов («A + B»): сумма — сумма цен каждого из них
-    var cat = catalog_(true), total = 0;
+    var needCat = kit !== before[0] || !(Number(oldSum) > 0); // сменился комплект или сумма ещё не стоит
+    var cat = catalog_(true), total = 0, socks = 0, missing = '';
     kit.split(' + ').forEach(function (part) {
       var name = part.trim();
       var item = cat.filter(function (x) { return x.name === name; })[0];
-      if (!item) throw new Error('Выберите позицию из каталога: ' + name);
+      if (!item) { missing = missing || name; return; }
       total += Number(item.price) || 0;
+      if (/носк|гетр/i.test(name)) socks += Number(item.price) || 0;
     });
-    newSum = total; // комплект сменился: сумма заказа по новым ценам из каталога
+    if (missing && needCat) throw new Error('Выберите позицию из каталога: ' + missing);
+    // Скидка 15% пересчитывается при каждом сохранении, если она положена (null — скидки нет)
+    var disc = missing ? null : orderSumWithDisc_(sh, row, kit, !!o.inst, total, socks);
+    if (needCat) newSum = disc !== null ? disc : total;
+    else if (disc !== null) newSum = disc;
   }
   var after = [kit || before[0], String(o.size || '').trim(), String(o.inscr || '').trim(), String(o.num || '').trim().replace(/\s*[\/,]\s*/g, ','), o.inst ? 'Да' : ''];
-  if (!after[1] || (inscrNeeded_(after[0]) && !after[2]) || !after[3]) throw new Error('Для заказа укажите размер, надпись и номер');
-  var clashE = equipNumClash_(sh, String(sh.getRange(row, 12).getValue()).trim(), after[3], row);
+  // Размер, надпись и номер можно не указывать: дописываются при изменении заказа
+  var clashE = after[3] ? equipNumClash_(sh, String(sh.getRange(row, 12).getValue()).trim(), after[3], row) : '';
   if (clashE) throw new Error('Номер ' + after[3] + ' уже у игрока «' + clashE + '» в этой группе. Выберите другой номер.');
   if (!CONFIG.DRY_RUN) {
     // Пишем по одной ячейке: многоколоночная запись диапазона в Sheets даёт ошибку «выберите элемент в одном столбце»

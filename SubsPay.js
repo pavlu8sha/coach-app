@@ -50,10 +50,10 @@ function subPayCore_(month, group, id, amount, type, dateStr, comment, method) {
   var T = tariff_(group), paid = added ? 0 : row.paid;
   var disc = !!subLedger_()[month + '|' + norm(group) + '|' + norm(p.name)];
   var remaining = Math.round(Math.max(T - paid, 0) * 100) / 100;
-  // Переплата допускается: при остатке 0 вся сумма пишется как оплата и видна в карточке («внесено 170 из 165»).
-  if (disc && paid > 0) throw new Error('Абонемент за этот месяц уже оплачен со скидкой');
-  if (amount < remaining && ['Скидка', 'Частичный'].indexOf(type) < 0) throw new Error('Выберите тип: скидка или частичный платёж');
-  var kind = amount >= remaining ? 'Оплата' : type;
+  // Переплата и доплата по абонементу со скидкой допускаются: сумма пишется как оплата и видна в карточке.
+  // По абонементу со скидкой тип не спрашиваем: частичная сумма пишется как «Частичный», если тип не выбран.
+  if (!disc && amount < remaining && ['Скидка', 'Частичный'].indexOf(type) < 0) throw new Error('Выберите тип: скидка или частичный платёж');
+  var kind = amount >= remaining ? 'Оплата' : (type || 'Частичный');
   if (!CONFIG.DRY_RUN) {
     if (!dbSheet_(SUB_SHEET, SUB_HEAD)) throw new Error('Нет журнала платежей (лист ' + SUB_SHEET + ' в AdminApp). Оплата не внесена.');
     if (isRecentDup_(dbSheet_(SUB_SHEET, SUB_HEAD), [[3, p.id], [5, month], [6, group], [7, String(amount)], [8, kind], [10, method]], 15)) throw new Error('Похоже на повтор: такой платёж только что записан. Обновите страницу');

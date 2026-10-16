@@ -18,7 +18,6 @@ function equipSyncLocations_(sh) {
 }
 
 // Группа для номеров: u7-a и u7-b считаются одной группой «u7»
-function baseGroup_(g) { return String(g || '').trim().replace(/\s*-\s*[a-zа-яё]$/i, ''); }
 
 // Номер игрока пишем через запятую («7,9»), а не «7/9»; при сравнении оба варианта равны
 function numNorm_(v) {
@@ -30,7 +29,8 @@ function equipNumClash_(sh, id, num, row) {
   num = numNorm_(num);
   if (!num) return '';
   var groupOf = {};
-  readRegistry_().players.forEach(function (p) { groupOf[p.id] = baseGroup_(p.group); });
+  // номер сверяем внутри точной группы: U13-A, U13-B и U13-C тренируются и играют раздельно
+  readRegistry_().players.forEach(function (p) { groupOf[p.id] = String(p.group || '').trim(); });
   var myG = groupOf[id];
   if (!myG) return '';
   var vals = sh.getRange(EQ_FIRST, 1, EQ_ROWS, 12).getValues(), hit = '';

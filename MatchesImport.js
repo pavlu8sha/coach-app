@@ -290,8 +290,6 @@ function u9Champ1Apply() {
         if (marks.length) saveGame2Core_(gid, marks, {});
         log.push('  игра ' + g.dm + ' (' + gid + '): сыграли ' + marks.length);
       });
-      var pulled = legacyPullPaid_(tid, known.map(function (x) { return x.name; }));
-      log.push('  оплаты подтянуты: ' + pulled);
     });
   } finally {
     lock.releaseLock();

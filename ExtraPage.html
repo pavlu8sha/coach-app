@@ -48,7 +48,7 @@ summary::-webkit-details-marker{display:none}
   <details id="debt"><summary><b>Должники</b><span class="cnt" id="dcnt"></span></summary>
     <div id="dlist"></div>
   </details>
-  <details id="msgx" open><summary><b>Сообщение по неоплаченным</b></summary>
+  <details id="msgx"><summary><b>Сообщение по неоплаченным</b></summary>
     <label>Тренировка</label><select id="mev"></select>
     <label>Место тренировки</label>
     <div class="row2"><input id="mplace" placeholder="например, Исани"><button class="btn sec" id="mpsave">Сохранить место</button></div>
@@ -58,9 +58,15 @@ summary::-webkit-details-marker{display:none}
     <div class="sub" style="margin-top:12px">Отметьте, кому уже написали</div>
     <div id="mlist"></div>
   </details>
+  <details id="slist"><summary><b>Список записавшихся</b></summary>
+    <label>Тренировка</label><select id="sev"></select>
+    <div id="stxt" style="margin-top:8px;padding:12px 14px;border:1px solid #d9dce3;border-radius:12px;background:#fff;color:inherit;white-space:pre-line;line-height:1.6;min-height:60px;font-size:15px"></div>
+    <button class="btn" id="scopy">Скопировать список</button>
+    <div class="sub" style="margin-top:8px">Заголовок пишете сами; здесь только нумерованный список по порядку записи.</div>
+  </details>
   <details id="newev"><summary><b>+ Новая тренировка</b></summary>
     <div class="row2"><input type="date" id="nd" aria-label="Дата"><input type="number" min="0" step="1" id="na" placeholder="Сумма, ₾" aria-label="Сумма"></div>
-    <div style="padding-bottom:14px"><button class="btn" id="nadd">Создать тренировку</button></div>
+    <input id="np" placeholder="Место, например Исани" autocomplete="off" style="margin-top:8px"><div style="padding-bottom:14px;padding-top:8px"><button class="btn" id="nadd">Создать тренировку</button></div>
   </details>
   <div id="list"></div>
 </div>
@@ -99,6 +105,47 @@ function renderDebts(){
   $('dlist').innerHTML=h||'<p class="th">Долгов нет</p>';
   $('dcnt').textContent=D.debts.length?D.debts.length+' · '+(tot?money(tot):n+' трен.'):'нет';
 }
+// Список записавшихся: только нумерованные ФИ по порядку записи, без заголовка.
+function fillSList(){
+  var sel=$('sev'),prev=sel.value,evs=D.events.slice().sort(function(a,b){return b.date.localeCompare(a.date)});
+  sel.innerHTML=evs.map(function(e){return'<option value="'+esc(e.id)+'">'+esc(dl(e.date)+(e.place?' · '+e.place:''))+'</option>'}).join('')||'<option value="">Нет тренировок</option>';
+  if(prev&&evs.some(function(e){return e.id===prev}))sel.value=prev;
+  renderSList();
+}
+function renderSList(){
+  var e=D.events.filter(function(x){return x.id===$('sev').value})[0];
+  $('stxt').textContent=e?e.players.map(function(p,i){return(i+1)+'. '+p.name}).join('\n'):'';
+}
+$('sev').onchange=renderSList;
+// Копирование как на сборах: в буфер уходят HTML (строки в div, не список) и обычный текст, Телеграм вставляет без списка.
+function sRichHtml(txt){
+  return txt.split('\n').map(function(l){return l.trim()?'<div>'+esc(l)+'</div>':'<div>&nbsp;</div>'}).join('');
+}
+function sCopyRich(txt){
+  var box=document.createElement('div'),ok=false;
+  box.contentEditable='true';
+  box.style.cssText='position:fixed;left:-9999px;top:0;width:1px;overflow:hidden;';
+  box.innerHTML=sRichHtml(txt);
+  document.body.appendChild(box);
+  var sel=window.getSelection(),r=document.createRange();
+  r.selectNodeContents(box);sel.removeAllRanges();sel.addRange(r);
+  try{ok=document.execCommand('copy')}catch(e){}
+  sel.removeAllRanges();document.body.removeChild(box);
+  return ok;
+}
+$('scopy').onclick=function(){
+  var t=$('stxt').textContent,b=this;if(!t)return;
+  var flash=function(){var old=b.textContent;b.textContent='Скопировано';setTimeout(function(){b.textContent=old},1800)};
+  var fallback=function(){if(sCopyRich(t)){flash();return}if(copyTxt(t))flash()};
+  try{
+    if(window.ClipboardItem&&navigator.clipboard&&navigator.clipboard.write){
+      var item=new ClipboardItem({'text/html':new Blob([sRichHtml(t)],{type:'text/html'}),'text/plain':new Blob([t],{type:'text/plain'})});
+      navigator.clipboard.write([item]).then(flash,fallback);
+      return;
+    }
+    fallback();
+  }catch(e){fallback()}
+};
 // Сообщение по неоплаченным тренировкам: место и дата подставляются из выбранной тренировки.
 var MSG_DEF='Добрый день\nУ вас не оплачена тренировка на {место} {дата}';
 function ddmm(d){var p=d.split('-');return p[2]+'.'+p[1]}
@@ -123,6 +170,7 @@ function fillMsg(){
   if(prev&&evs.some(function(e){return e.id===prev}))sel.value=prev;
   if(!$('mtpl').dataset.init){$('mtpl').value=gl('extraMsgTpl')||MSG_DEF;$('mtpl').dataset.init='1'}
   renderMsgList();
+  fillSList();
 }
 $('mev').onchange=function(){renderMsgList()};
 $('mtpl').oninput=function(){try{localStorage.setItem('extraMsgTpl',this.value)}catch(x){}};
@@ -213,7 +261,7 @@ $('nadd').onclick=function(){
   if(!$('nd').value){msg('Укажите дату',true);return}
   if(!(Number($('na').value)>0)){msg('Введите сумму за тренировку',true);return}
   busy=true;msg('Создаю…');
-  run('appExtraAddEvent',[pin,$('nd').value,$('na').value],function(r){msg(r.exists?'Тренировка на эту дату уже есть':'Тренировка создана');$('newev').open=false;$('na').value='';load()},fail);
+  run('appExtraAddEvent',[pin,$('nd').value,$('na').value,$('np').value],function(r){msg(r.exists?'Тренировка на эту дату уже есть':'Тренировка создана');$('newev').open=false;$('na').value='';$('np').value='';load()},fail);
 };
 $('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;sl('kspin',pin);sl('kspin',pin);load()};
 pin=gl('kspin')||gl('kspin')||gl('kspin');
