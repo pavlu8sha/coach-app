@@ -53,6 +53,12 @@ summary::-webkit-details-marker{display:none}
       <button class="btn" id="padd">Добавить в постоянные</button>
     </div>
   </details>
+  <details id="ilist" open><summary><b>Список записавшихся</b></summary>
+    <label>Занятие</label><select id="iev"></select>
+    <textarea id="itxt" rows="12" style="margin-top:8px"></textarea>
+    <button class="btn" id="icopy">Скопировать список</button>
+    <div class="sub" style="margin-top:8px">Заголовок пишете сами; здесь только нумерованный список по порядку записи.</div>
+  </details>
   <details id="newev"><summary><b>+ Новое занятие</b></summary>
     <div class="row2"><input type="date" id="nd" aria-label="Дата"><input type="time" id="nt" value="19:00" aria-label="Время"></div>
     <div class="row2"><select id="nk"><option value="0">Индивидуальные</option><option value="1">Вратари</option></select><input id="nth" placeholder="Тема (пусто = по кругу)"></div>
@@ -92,9 +98,43 @@ function renderPerm(){
   });
   $('plist').innerHTML=h;$('pcnt').textContent=D.perms.length;
 }
+// Список записавшихся: нумерованные ФИ по порядку записи, без заголовка. Копируется как HTML, как на сборах.
+function iRichHtml(txt){return txt.split('\n').map(function(l){return l.trim()?'<div>'+esc(l)+'</div>':'<div>&nbsp;</div>'}).join('')}
+function iCopyRich(txt){
+  var box=document.createElement('div'),ok=false;
+  box.contentEditable='true';box.style.cssText='position:fixed;left:-9999px;top:0;width:1px;overflow:hidden;';
+  box.innerHTML=iRichHtml(txt);document.body.appendChild(box);
+  var sel=window.getSelection(),r=document.createRange();r.selectNodeContents(box);sel.removeAllRanges();sel.addRange(r);
+  try{ok=document.execCommand('copy')}catch(e){}
+  sel.removeAllRanges();document.body.removeChild(box);return ok;
+}
+function fillIList(){
+  var sel=$('iev'),prev=sel.value,evs=D.events.slice().sort(function(a,b){return(b.date+b.time).localeCompare(a.date+a.time)});
+  sel.innerHTML=evs.map(function(e){return'<option value="'+esc(e.id)+'">'+esc(dl(e.date)+' '+e.time+(e.gk?' · вратари':' · индивидуальные'))+'</option>'}).join('')||'<option value="">Нет занятий</option>';
+  if(prev&&evs.some(function(e){return e.id===prev}))sel.value=prev;
+  renderIList();
+}
+function renderIList(){
+  var e=D.events.filter(function(x){return x.id===$('iev').value})[0];
+  $('itxt').value=e?e.players.map(function(p,i){return(i+1)+'. '+p.name}).join('\n'):'';
+}
+$('iev').onchange=renderIList;
+$('icopy').onclick=function(){
+  var t=$('itxt').value,b=this;if(!t)return;
+  var flash=function(){var old=b.textContent;b.textContent='Скопировано';setTimeout(function(){b.textContent=old},1800)};
+  var fallback=function(){if(iCopyRich(t))flash()};
+  try{
+    if(window.ClipboardItem&&navigator.clipboard&&navigator.clipboard.write){
+      var item=new ClipboardItem({'text/html':new Blob([iRichHtml(t)],{type:'text/html'}),'text/plain':new Blob([t],{type:'text/plain'})});
+      navigator.clipboard.write([item]).then(flash,fallback);return;
+    }
+    fallback();
+  }catch(e){fallback()}
+};
 function render(){
   renderPerm();
   renderDebts();
+  fillIList();
   var h='';
   D.events.forEach(function(e,i){
     var paid=e.players.filter(function(p){return p.paid}).length,dk='d'+e.id;
