@@ -274,9 +274,15 @@ $('list').onclick=function(e){
   }
   if(b.classList.contains('ed')){var ef=ord.querySelector('.edf');ef.hidden=!ef.hidden;return}
   if(b.classList.contains('delo')){
-    if(!b.dataset.sure){b.dataset.sure=1;b.textContent='Точно удалить заказ?';return}
-    b.disabled=true;
-    run('appDeleteOrder',[pin,Number(b.dataset.row)],function(r){flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+'Заказ удалён. ';load()},function(m){b.disabled=false;b.dataset.sure='';b.textContent='Удалить заказ';b.parentNode.querySelector('.dm').textContent=m});
+    var dord=orderByRow(b.dataset.row)||{},dm=b.parentNode.querySelector('.dm');dm.textContent='';
+    // Сервер удаляет только заказ без оплат (deleteOrderCore_): с оплатой — сразу объясняем, диалог не открываем
+    if(dord.paid>0){dm.textContent='По заказу есть оплата ('+money(dord.paid)+'). Сначала отмените оплату, потом удалите заказ.';return}
+    ksConfirm({title:'Удалить заказ?',ok:'Удалить заказ',danger:true,
+      text:'Заказ будет удалён. Проверьте данные перед подтверждением.',
+      rows:[['Заказ',(dord.kit||'Комплект не указан')+(dord.no?' (№'+dord.no+')':'')],['Игрок',playerName(dord.id)||dord.oname],['Сумма заказа',ksMoney(dord.sum)],['Оплачено',dord.paid>0?ksMoney(dord.paid):'нет оплат']],
+      run:function(ok,bad){
+        run('appDeleteOrder',[pin,Number(b.dataset.row)],function(r){ok();flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+'Заказ удалён. ';load()},bad);
+      }});
     return;
   }
   if(b.classList.contains('eok')){
@@ -291,19 +297,41 @@ $('list').onclick=function(e){
         function(r){if(ok)ok();flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+'Заказ изменён. ';load()},
         function(m){b.disabled=false;ed.textContent=bad?'':m;if(bad)bad(m)});
     };
-    // Сервер пересчитывает сумму по каталогу, если сменился комплект или сумма ещё не стоит
-    var ns=0;ekits.forEach(function(k){ns+=Number(PR[k])||0});
-    if((nk!==eo.kit||!(eo.sum>0))&&Math.round(ns*100)!==Math.round((eo.sum||0)*100)){
+    // Сумма, которую запишет сервер (editOrderCore_ + orderSumWithDisc_): тот же расчёт, что в EquipLinks.js
+    var pv=editSumPreview(eo,ekits,patch.inst);
+    if(pv.newSum!==null&&Math.round(pv.newSum*100)!==Math.round((eo.sum||0)*100)){
+      var rows4=[['Игрок',playerName(eo.id)||eo.oname],['Заказ',nk],['Было',ksMoney(eo.sum)]];
+      if(pv.disc!==null){
+        rows4.push(['По каталогу',ksMoney(pv.total)]);
+        if(pv.total-pv.newSum>0)rows4.push(['Скидка 15%','−'+ksMoney(pv.total-pv.newSum)]);
+        if(pv.socks>0)rows4.push(['Носки и гетры','по полной цене, '+ksMoney(pv.socks)]);
+      }
+      rows4.push(['Станет',ksMoney(pv.newSum),'total'],['Оплачено',ksMoney(eo.paid)]);
       ksConfirm({title:'Изменить сумму заказа?',ok:'Сохранить заказ',
-        text:'Комплект изменился: сумма заказа будет пересчитана по ценам каталога.',
-        rows:[['Игрок',playerName(eo.id)||eo.oname],['Заказ',nk],['Было',ksMoney(eo.sum)],['Станет',ksMoney(ns)],['Оплачено',ksMoney(eo.paid)]],
-        run:save});
+        text:nk!==eo.kit?'Комплект изменился: сумма заказа будет пересчитана по ценам каталога.':'Сумма заказа будет пересчитана со скидкой 15%.',
+        rows:rows4,run:save});
       return;
     }
     save();
     return;
   }
 };
+// Предпросмотр суммы при правке заказа — повторяет серверный расчёт (EquipLinks.js: editOrderCore_, orderSumWithDisc_).
+// newSum: что будет записано (null — сумма не меняется); disc: сумма со скидкой (null — скидки нет).
+function editSumPreview(eo,ks,inst){
+  var total=0,socks=0,missing=false,kit=ks.join(' + ');
+  ks.forEach(function(k){if(!(k in PR)){missing=true;return}var v=Number(PR[k])||0;total+=v;if(/носк|гетр/i.test(k))socks+=v});
+  var needCat=kit!==String(eo.kit||'').trim()||!(Number(eo.sum)>0),disc=null;
+  if(!missing&&!inst&&ks.some(function(k){return COSTUME.test(k)})&&ks.some(function(k){return RAIN.test(k)})){
+    var id=String(eo.id||'').trim(),others=O.concat(UNL).filter(function(o){return Number(o.row)!==Number(eo.row)&&String(o.id||'').trim()===id&&String(o.kit||'').trim()});
+    var all=others.map(function(o){return String(o.kit)}).concat([kit]).join(' + ');
+    if(/полный комплект/i.test(all)||(/игров|вратар/i.test(all)&&/тренировоч/i.test(all))){
+      var prior=others.filter(function(o){return /игров|вратар|тренировоч|полный/i.test(String(o.kit))}).reduce(function(s,o){return s+(Number(o.sum)||0)},0);
+      disc=Math.max(Math.round((prior+total-socks)*0.85/5)*5-prior,0)+socks;
+    }
+  }
+  return {total:total,socks:socks,disc:disc,newSum:needCat?(disc!==null?disc:total):disc};
+}
 // Скидка 15% на сумму заказа: если у игрока уже есть игровая и тренировочная (или в заказе все четыре основные позиции).
 // Носки и гетры в скидку не входят (идут по полной цене). При рассрочке скидка не применяется. Сумма округляется до 5 ₾.
 var COSTUME=/костюм/i,RAIN=/дождевик/i;
