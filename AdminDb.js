@@ -169,6 +169,20 @@ function finMap_() {
 function finCacheDrop_() { cacheDropBig_('mf_v1'); }
 function finPaid_(eventId, playerId) { var x = finMap_().pays[eventId + '|' + playerId]; return x ? x.paid : null; }
 function feeOf_(eventId) { return finMap_().fees[String(eventId)] || 0; }
+// Игрок уже оплатил тот же турнир в другой группе той же команды (U9-A и U9-B): второй взнос не нужен.
+function siblingPaid_(eventId, playerId) {
+  var evs = sheetOf_('МАТЧИ').getDataRange().getValues().slice(1);
+  var me = evs.filter(function (r) { return String(r[0]) === String(eventId); })[0];
+  if (!me) return false;
+  var base = function (t) { return String(t).replace(/\s*-\s*[A-Za-z0-9]+$/, '').toLowerCase(); };
+  var pays = finMap_().pays;
+  return evs.some(function (r) {
+    if (String(r[0]) === String(eventId) || String(r[2]) !== String(me[2]) || String(r[3]) !== String(me[3])) return false;
+    if (base(r[1]) !== base(me[1])) return false;
+    var x = pays[r[0] + '|' + playerId];
+    return !!x && x.paid === true;
+  });
+}
 
 // Для экрана админа: взносы событий и оплаты игроков (кэш 90 с).
 function finData_() {

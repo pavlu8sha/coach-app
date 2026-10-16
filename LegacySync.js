@@ -449,7 +449,8 @@ function legacyPullPaid_(eventId, names) {
   var team = String(ev[1]), tname = String(ev[3]), fee = feeOf_(String(eventId));
   var base = team.replace(/\s*-\s*[A-Za-z0-9]+$/, '').toLowerCase();
   var lbl = function (x) { return String(x || '').toLowerCase().replace(/\s+/g, ''); };
-  var paid = {};
+  var paid = {}, grp = {};
+  regData_().players.forEach(function (p) { grp[nameKey2_(p.name)] = legacyTeamKey_(p.group); });
   gamesFile_().getSheets().forEach(function (sh) {
     if (sh.getName().toLowerCase().indexOf(base) !== 0) return;
     var v = sh.getDataRange().getValues();
@@ -457,10 +458,13 @@ function legacyPullPaid_(eventId, names) {
       for (var c = 2; c < v[r].length; c++) {
         if (lbl(v[r][c]) !== lbl(tname) || !/^paid$/i.test(String(v[r + 1][c]).trim())) continue;
         if (!legacyBlockOk_(v[r][1], team)) continue;
+        // Блок без суффикса («U9») общий для A и B: игрок учитывается только в своей группе из реестра.
+        var combined = legacyTeamKey_(v[r][1]).indexOf('-') < 0;
         for (var rr = r + 2; rr < v.length; rr++) {
           var nm = String(v[rr][1]).trim(), val = v[rr][c];
           if (!nm || (val !== true && val !== false)) continue;
           var k = nameKey2_(nm);
+          if (combined && grp[k] !== legacyTeamKey_(team)) continue;
           paid[k] = paid[k] === true || val === true;
         }
       }
@@ -472,7 +476,7 @@ function legacyPullPaid_(eventId, names) {
   pv.forEach(function (r, i) {
     if (!i || String(r[0]) !== String(eventId)) return;
     var k = nameKey2_(String(r[2]));
-    if (want[k] && paid[k] === true && finPaid_(String(eventId), String(r[1])) !== true) {
+    if (want[k] && paid[k] === true && finPaid_(String(eventId), String(r[1])) !== true && !siblingPaid_(String(eventId), String(r[1]))) {
       finUpsert_(String(eventId), String(r[1]), String(r[2]), { paid: true, sum: fee, method: '', date: '', comment: 'из старого файла' });
       n++;
     }
