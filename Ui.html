@@ -5,18 +5,18 @@
   --color-bg:var(--bg);--color-surface:var(--card);--color-text:var(--ink);--color-text-muted:var(--mute);
   --color-border:var(--line);--color-primary:var(--g);--color-on-primary:var(--gi);
   --color-primary-subtle:var(--pb);--color-neutral-fill:var(--n);--color-danger:var(--a);
-  --color-warning:#8A5A00;--color-warning-subtle:#FBEFCF;--color-danger-subtle:#F8E1DD;--color-danger-strong:#9E2B1F;
+  --color-warning:#8A5A00;--color-warning-subtle:#FBEFCF;--color-danger-subtle:#F8E1DD;--color-danger-strong:#9E2B1F;--color-border-strong:#7A86A6;--color-on-danger:#fff;
   --radius-xl:16px;--shadow-pop:0 8px 30px rgba(0,0,0,.18)
 }
 @media (prefers-color-scheme:dark){:root{
-  --color-warning:#E8C26A;--color-warning-subtle:#3A2F12;--color-danger-subtle:#3C1F1B;--color-danger-strong:#F0866F
+  --color-warning:#E8C26A;--color-warning-subtle:#3A2F12;--color-danger-subtle:#3C1F1B;--color-danger-strong:#F0866F;--color-border-strong:#6474A6;--color-on-danger:#0B1020
 }}
 /* Широкий контейнер для таблиц и плотных списков: объявлен, применяется по одному экрану (этап G) */
 .ks-wide{max-width:960px;margin-left:auto;margin-right:auto}
 /* Состояние «Сохраняю…» у кнопки */
 .ks-loading{opacity:.7;cursor:progress!important}
 /* Диалог подтверждения */
-#ksdlg{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(10,14,28,.55)}
+#ksdlg{position:fixed;top:0;right:0;bottom:0;left:0;z-index:80;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(10,14,28,.55)}
 #ksdlg.ks-open{display:flex}
 #ksdlg .ks-box{width:100%;max-width:480px;max-height:calc(100vh - 32px);overflow:auto;background:var(--color-surface,#fff);color:var(--color-text,#141C33);border:1px solid var(--color-border,#DADFEC);border-radius:var(--radius-xl);box-shadow:var(--shadow-pop);padding:20px;font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;box-sizing:border-box}
 #ksdlg h2{font-size:19px;margin:0 0 8px;font-weight:700}
@@ -29,18 +29,18 @@
 #ksdlg .ks-acts{display:flex;gap:8px;flex-direction:row-reverse}
 #ksdlg .ks-acts button{flex:1;min-height:48px;border-radius:14px;font:700 16px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer;padding:0 12px}
 #ksdlg .ks-ok{border:0;background:var(--color-primary,#25335A);color:var(--color-on-primary,#fff)}
-#ksdlg .ks-ok.ks-danger{background:var(--color-danger,#C0392B);color:#fff}
-#ksdlg .ks-cancel{border:1px solid var(--color-border,#DADFEC);background:var(--color-surface,#fff);color:var(--color-text,#141C33)}
+#ksdlg .ks-ok.ks-danger{background:var(--color-danger,#C0392B);color:var(--color-on-danger,#fff)}
+#ksdlg .ks-cancel{border:1px solid var(--color-border-strong,#7A86A6);background:var(--color-surface,#fff);color:var(--color-text,#141C33)}
 #ksdlg button:disabled{opacity:.6;cursor:progress}
 #ksdlg [hidden]{display:none!important}
 @media (max-width:420px){#ksdlg .ks-acts{flex-direction:column}}
 html.ks-dlg-lock,html.ks-dlg-lock body{overflow:hidden!important}
 </style>
 <div id="ksdlg" role="presentation">
-  <div class="ks-box" role="dialog" aria-modal="true" aria-labelledby="ksdlg-t">
+  <div class="ks-box" role="dialog" aria-modal="true" aria-labelledby="ksdlg-t" aria-describedby="ksdlg-x ksdlg-d">
     <h2 id="ksdlg-t"></h2>
-    <p class="ks-text" hidden></p>
-    <dl></dl>
+    <p class="ks-text" id="ksdlg-x" hidden></p>
+    <dl id="ksdlg-d"></dl>
     <div class="ks-warn" hidden></div>
     <div class="ks-err" role="alert" hidden></div>
     <div class="ks-acts"><button type="button" class="ks-ok"></button><button type="button" class="ks-cancel">Отмена</button></div>
