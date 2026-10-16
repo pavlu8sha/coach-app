@@ -62,7 +62,7 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
       <option value="debt">Должники (есть долг)</option><option value="late">Просрочка</option>
       <option value="cancelled">Отказались</option><option value="all">Все</option>
     </select>
-    <input id="q" list="qlist" autocomplete="off" placeholder="Поиск по ФИ"><datalist id="qlist"></datalist>
+    <input id="q" enterkeyhint="done" onkeydown="if(event.key==='Enter')this.blur()" list="qlist" autocomplete="off" placeholder="Поиск по ФИ"><datalist id="qlist"></datalist>
   </div>
   <button class="btn" id="new">+ Записать на сбор</button>
   <button class="btn sec" id="listb">Список для отправки</button>
