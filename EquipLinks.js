@@ -118,8 +118,7 @@ function editOrderCore_(row, o) {
     newSum = total; // комплект сменился: сумма заказа по новым ценам из каталога
   }
   var after = [kit || before[0], String(o.size || '').trim(), String(o.inscr || '').trim(), String(o.num || '').trim().replace(/\s*[\/,]\s*/g, ','), o.inst ? 'Да' : ''];
-  // Надпись и номер можно не указывать сразу: дописываются при изменении заказа. Обязателен только размер.
-  if (!after[1]) throw new Error('Для заказа укажите размер');
+  // Размер, надпись и номер можно не указывать: дописываются при изменении заказа
   var clashE = after[3] ? equipNumClash_(sh, String(sh.getRange(row, 12).getValue()).trim(), after[3], row) : '';
   if (clashE) throw new Error('Номер ' + after[3] + ' уже у игрока «' + clashE + '» в этой группе. Выберите другой номер.');
   if (!CONFIG.DRY_RUN) {
