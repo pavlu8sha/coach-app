@@ -2,7 +2,7 @@
 
 var G_SKIP = ['U9', 'Newton cup | 2014-2015 | 14.06'];  // устаревшие вкладки
 var G_YEAR = 2026;
-var G_FEE = { 'default': 200, 'U13-A': 300 }; // взнос за чемпионат, ₾
+// Взнос за чемпионат при переносе — из настройки matches.champFee (Settings.js); не задан — без взноса.
 var IMP_SHEET = 'ИМПОРТ ИГРОКОВ';
 
 function translit2_(s) {
@@ -180,7 +180,8 @@ function importMatchesCommit() {
   var res = parseAllGames_(), ev = [], pr = [], skipped = {}, n = 0;
   res.events.forEach(function (e) { e.id = 'E-' + ('000' + (++n)).slice(-3); });
   res.events.forEach(function (e) {
-    var fee = e.type === 'Чемпионат' ? (G_FEE[e.team] || G_FEE['default']) : '';
+    var cfee = e.type === 'Чемпионат' ? settingGet_('matches.champFee', e.team) : null;
+    var fee = cfee === null ? '' : cfee;
     ev.push([e.id, e.team, e.type, e.name, e.date ? gSerial_(e.date) : '', fee, e.parent ? e.parent.id : '']);
     e.rows.forEach(function (x) {
       var p = map[nameKey2_(x.name)];

@@ -1,4 +1,5 @@
 // Тесты настроек (Settings.js) на имитации AdminApp, кэша и свойств скрипта. Запуск: node --test tests/*.mjs
+// Суммы в фикстурах намеренно не совпадают с реальными взносами клуба: тесты проверяют механизм, а не бизнес-значения.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -42,6 +43,7 @@ function env(opts = {}) {
     prop_: k => props[k],
     cacheDropBig_() {},
     logChange_: (...a) => log.push(a),
+    matchesData_: () => ({ events: (opts.teams || ['U9', 'U10-A', 'U13-A']).map(t => ({ team: t })) }),
   };
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync(path.join(ROOT, 'Settings.js'), 'utf8'), ctx, { filename: 'Settings.js' });
@@ -51,40 +53,80 @@ function env(opts = {}) {
 }
 const arr = v => (Array.isArray(v) ? [...v] : v);
 
-test('лист настроек пуст или его нет: значения как раньше в коде', () => {
+
+const F = 'matches.champFee';
+
+test('технические настройки без листа: значения по умолчанию из схемы', () => {
   for (const e of [env(), env({ rows: [] })]) {
     const g = e.ctx.settingGet_;
     assert.equal(g('stats.lowPct'), 50);
-    assert.equal(g('matches.champFee', 'U10-A'), 200);
-    assert.equal(g('matches.champFee', 'U13-A'), 300);
-    assert.equal(g('matches.champFee'), 200);
     assert.equal(g('equip.seasonSheet'), 'СЕЗОН 2026-2027');
     assert.deepEqual(arr(g('funnel.activeSheets')), ['Осень 2026']);
   }
 });
 
-test('значения из листа: общее и по объекту; умолчание кода для объекта сильнее общего значения листа', () => {
-  const e = env({ rows: [['stats.lowPct', '', '60'], ['matches.champFee', '', '220'], ['matches.champFee', 'U9', '150']] });
-  const g = e.ctx.settingGet_;
-  assert.equal(g('stats.lowPct'), 60);
-  assert.equal(g('matches.champFee', 'U10-A'), 220);
-  assert.equal(g('matches.champFee', 'U9'), 150);
-  assert.equal(g('matches.champFee', 'U13-A'), 300);
+test('взнос: настройки нет — суммы нет ни у одной команды (ни общей, ни U13-A), ошибка видна админу', () => {
+  const e = env();
+  for (const t of [undefined, 'U10-A', 'U13-A', 'Новая команда']) assert.equal(e.ctx.settingGet_(F, t), null);
+  const gen = e.ctx.appSettings('9').items.find(x => x.key === F && !x.obj);
+  assert.equal(gen.source, 'missing');
+  assert.match(gen.error, /не задано/);
+  const d = e.ctx.champFeeDefaults_();
+  assert.equal(d.def, null);
+  assert.match(d.error, /не задано/);
 });
 
-test('неверное значение в листе: берётся значение по умолчанию, ошибка видна в appSettings', () => {
-  const e = env({ rows: [['stats.lowPct', '', 'полтинник'], ['matches.champFee', '', '-5']] });
+test('взнос: общее значение действует для всех, в том числе для U13-A и новой команды без исключения', () => {
+  const e = env({ rows: [[F, '', '250']] });
+  for (const t of [undefined, 'U10-A', 'U13-A', 'U15-Z']) assert.equal(e.ctx.settingGet_(F, t), 250);
+  assert.equal(e.ctx.settingResolve_(F, 'U15-Z').source, 'sheet');
+});
+
+test('взнос: индивидуальное значение команды переопределяет общее', () => {
+  const e = env({ rows: [[F, '', '250'], [F, 'U13-A', '375']] });
+  assert.equal(e.ctx.settingGet_(F, 'U13-A'), 375);
+  assert.equal(e.ctx.settingResolve_(F, 'U13-A').source, 'object');
+  assert.equal(e.ctx.settingGet_(F, 'U10-A'), 250);
+});
+
+test('взнос: индивидуальное значение без общего — только у этой команды, остальные «не задано»', () => {
+  const e = env({ rows: [[F, 'U13-A', '375']] });
+  assert.equal(e.ctx.settingGet_(F, 'U13-A'), 375);
+  assert.equal(e.ctx.settingGet_(F, 'U10-A'), null);
+});
+
+test('взнос: очистка индивидуального значения возвращает команду к общему', () => {
+  const e = env({ rows: [[F, '', '250'], [F, 'U13-A', '375']] });
+  const r = e.ctx.appSettingsSave('9', F, 'U13-A', '');
+  assert.equal(r.value, 250);
+  assert.equal(r.source, 'sheet');
+  e.newRun();
+  assert.equal(e.ctx.settingGet_(F, 'U13-A'), 250);
+  assert.deepEqual([...e.ctx.appSettings('9').items.filter(x => x.key === F).map(x => x.obj)], ['']); // исключение исчезло с экрана
+  assert.match(e.log.at(-1)[4], /очищено/);
+});
+
+test('взнос: неверное общее значение не заменяется ничем — null и ошибка; неверное значение команды — тоже null, не общее', () => {
+  const e = env({ rows: [[F, '', 'abc'], [F, 'U9', '410'], [F, 'U13-A', '-5']] });
+  assert.equal(e.ctx.settingGet_(F, 'U10-A'), null);
+  assert.equal(e.ctx.settingResolve_(F, 'U10-A').source, 'invalid');
+  assert.equal(e.ctx.settingGet_(F, 'U9'), 410);                        // своё верное значение работает
+  const e2 = env({ rows: [[F, '', '250'], [F, 'U13-A', '-5']] });
+  assert.equal(e2.ctx.settingGet_(F, 'U13-A'), null);                  // не подставляется общее 250
+  const it = e2.ctx.appSettings('9').items.find(x => x.key === F && x.obj === 'U13-A');
+  assert.equal(it.source, 'invalid'); assert.equal(it.raw, '-5'); assert.match(it.error, /не меньше 0/);
+  assert.equal(e2.ctx.champFeeDefaults_().byTeam['u13-a'], null);
+});
+
+test('неверное значение технической настройки: пропускается, работает значение по умолчанию, ошибка видна', () => {
+  const e = env({ rows: [['stats.lowPct', '', 'полтинник']] });
   assert.equal(e.ctx.settingGet_('stats.lowPct'), 50);
-  assert.equal(e.ctx.settingGet_('matches.champFee', 'U10-A'), 200);
-  const items = e.ctx.appSettings('9').items;
-  assert.match(items.find(x => x.key === 'stats.lowPct').error, /нужно число/);
-  assert.match(items.find(x => x.key === 'matches.champFee' && !x.obj).error, /не меньше 0/);
+  assert.match(e.ctx.appSettings('9').items.find(x => x.key === 'stats.lowPct').error, /нужно число/);
 });
 
 test('из значения ничего не выполняется: код и формулы остаются текстом', () => {
-  const e = env({ rows: [['funnel.activeSheets', '', 'Осень 2026, ");throw 1;(", =IMPORTRANGE("x")'], ['equip.seasonSheet', '', 'function(){return 1}']] });
+  const e = env({ rows: [['funnel.activeSheets', '', 'Осень 2026, ");throw 1;(", =IMPORTRANGE("x")']] });
   assert.deepEqual(arr(e.ctx.settingGet_('funnel.activeSheets')), ['Осень 2026', '");throw 1;("', '=IMPORTRANGE("x")']);
-  assert.equal(e.ctx.settingGet_('equip.seasonSheet'), 'function(){return 1}');
 });
 
 test('воронка: старое свойство FUNNEL_ACTIVE работает, пока нет настройки; настройка из листа сильнее', () => {
@@ -93,63 +135,73 @@ test('воронка: старое свойство FUNNEL_ACTIVE работае
   assert.deepEqual(arr(e.ctx.settingGet_('funnel.activeSheets')), ['Зима 2027']);
 });
 
-test('сохранение: только админ, проверка значения на сервере', () => {
+test('сохранение: только админ, проверка на сервере, лист сезона заблокирован', () => {
   const e = env();
-  assert.throws(() => e.ctx.appSettingsSave('1', 'stats.lowPct', '', 60), /Неверный код администратора/);
+  assert.throws(() => e.ctx.appSettingsSave('1', F, '', 250), /Неверный код администратора/);
+  assert.throws(() => e.ctx.appSettings('1'), /Неверный код администратора/);
+  assert.throws(() => e.ctx.appSettingsSave('9', F, '', -1), /не меньше 0/);
+  assert.throws(() => e.ctx.appSettingsSave('9', F, 'U9', 'много'), /нужно число/);
   assert.throws(() => e.ctx.appSettingsSave('9', 'stats.lowPct', '', 150), /не больше 100/);
-  assert.throws(() => e.ctx.appSettingsSave('9', 'stats.lowPct', '', '5.5'), /целое/);
   assert.throws(() => e.ctx.appSettingsSave('9', 'stats.lowPct', 'U9', 60), /нет значений по объектам/);
-  assert.throws(() => e.ctx.appSettingsSave('9', 'equip.seasonSheet', '', 'СЕЗОН 2027-2028'), /нет листа/);
+  assert.throws(() => e.ctx.appSettingsSave('9', 'equip.seasonSheet', '', 'СЕЗОН 2026-2027'), /Переключение сезона пока отключено/);
   assert.throws(() => e.ctx.appSettingsSave('9', 'nope', '', 1), /Неизвестная настройка/);
-  assert.equal(e.admin.sheet, null); // ничего не записано
+  assert.equal(e.admin.sheet, null);                                    // ничего не записано
+  assert.equal(e.ctx.appSettings('9').keys['equip.seasonSheet'].locked.length > 0, true);
 });
 
-test('сохранение: строка в листе, журнал изменений, кэш сразу не мешает (и в следующем запуске тоже)', () => {
-  const e = env({ equipSheets: ['СЕЗОН 2026-2027', 'СЕЗОН 2027-2028'] });
-  assert.equal(e.ctx.settingGet_('stats.lowPct'), 50);       // значение закэшировано
-  const r = e.ctx.appSettingsSave('9', 'stats.lowPct', '', '60');
-  assert.equal(r.value, 60);
+test('сохранение: строка в листе, журнал изменений (было → стало), новое значение сразу и в следующем запуске', () => {
+  const e = env();
+  assert.equal(e.ctx.settingGet_(F, 'U10-A'), null);                   // закэшировано «не задано»
+  assert.equal(e.ctx.appSettingsSave('9', F, '', '250').value, 250);
+  assert.equal(e.ctx.settingGet_(F, 'U10-A'), 250);                    // тот же запуск
+  e.ctx.appSettingsSave('9', F, 'U13-A', 375);
+  e.ctx.appSettingsSave('9', 'stats.lowPct', '', '60');
+  e.ctx.appSettingsSave('9', F, '', '260');                            // та же строка
   e.newRun();
+  assert.equal(e.ctx.settingGet_(F, 'U10-A'), 260);
+  assert.equal(e.ctx.settingGet_(F, 'U13-A'), 375);
   assert.equal(e.ctx.settingGet_('stats.lowPct'), 60);
-  e.ctx.appSettingsSave('9', 'matches.champFee', 'U13-A', 350);
-  e.ctx.appSettingsSave('9', 'equip.seasonSheet', '', 'СЕЗОН 2027-2028');
-  e.ctx.appSettingsSave('9', 'stats.lowPct', '', '65');        // повтор: та же строка
-  e.newRun();
-  assert.equal(e.ctx.settingGet_('matches.champFee', 'U13-A'), 350);
-  assert.equal(e.ctx.settingGet_('equip.seasonSheet'), 'СЕЗОН 2027-2028');
-  assert.equal(e.ctx.settingGet_('stats.lowPct'), 65);
-  assert.deepEqual(e.admin.sheet.data.slice(1).map(x => x.slice(0, 3)),
-    [['stats.lowPct', '', '65'], ['matches.champFee', 'U13-A', '350'], ['equip.seasonSheet', '', 'СЕЗОН 2027-2028']]);
+  assert.deepEqual(e.admin.sheet.data.slice(1).map(x => x.slice(0, 3)), [[F, '', '260'], [F, 'U13-A', '375'], ['stats.lowPct', '', '60']]);
   assert.deepEqual(e.log.map(a => [a[2], a[3], a[4]]), [
+    ['настройка: Взнос за чемпионат, ₾', 'не задано', '250'],
+    ['настройка: Взнос за чемпионат, ₾ (U13-A)', '250', '375'],
     ['настройка: Порог низкой посещаемости, %', '50', '60'],
-    ['настройка: Взнос за чемпионат по умолчанию, ₾ (U13-A)', '300', '350'],
-    ['настройка: Лист заказов текущего сезона', 'СЕЗОН 2026-2027', 'СЕЗОН 2027-2028'],
-    ['настройка: Порог низкой посещаемости, %', '60', '65'],
+    ['настройка: Взнос за чемпионат, ₾', '250', '260'],
   ]);
 });
 
-test('пустое значение возвращает умолчание', () => {
-  const e = env({ rows: [['stats.lowPct', '', '70']] });
-  e.ctx.appSettingsSave('9', 'stats.lowPct', '', '');
+test('очистка общего взноса: значение «не задано», команды без своего значения — без суммы', () => {
+  const e = env({ rows: [[F, '', '250'], [F, 'U13-A', '375']] });
+  const r = e.ctx.appSettingsSave('9', F, '', '');
+  assert.equal(r.value, null);
   e.newRun();
-  assert.equal(e.ctx.settingGet_('stats.lowPct'), 50);
+  assert.equal(e.ctx.settingGet_(F, 'U10-A'), null);
+  assert.equal(e.ctx.settingGet_(F, 'U13-A'), 375);
 });
 
 test('ручная правка листа видна после «Обновить данные» (settingsBump_)', () => {
-  const e = env({ rows: [['stats.lowPct', '', '70']] });
-  assert.equal(e.ctx.settingGet_('stats.lowPct'), 70);
-  e.admin.sheet.data[1][2] = '40';
+  const e = env({ rows: [[F, '', '250']] });
+  assert.equal(e.ctx.settingGet_(F), 250);
+  e.admin.sheet.data[1][2] = '270';
   e.newRun();
-  assert.equal(e.ctx.settingGet_('stats.lowPct'), 70);         // кэш ещё жив
+  assert.equal(e.ctx.settingGet_(F), 250);                              // кэш ещё жив
   e.ctx.settingsBump_();
-  assert.equal(e.ctx.settingGet_('stats.lowPct'), 40);
+  assert.equal(e.ctx.settingGet_(F), 270);
 });
 
-test('подсказка взноса для формы матчей', () => {
-  const e = env({ rows: [['matches.champFee', '', '220'], ['matches.champFee', 'U9', '150']] });
+test('экран: список команд для выбора берётся из событий матчей, ключи описаны', () => {
+  const e = env({ teams: ['U13-A', 'U9', 'U9', ' U10-A '] });
+  const k = e.ctx.appSettings('9').keys[F];
+  assert.deepEqual([...k.choices], ['U10-A', 'U13-A', 'U9']);
+  assert.equal(k.required, true); assert.equal(k.hasDefault, false); assert.equal(k.perObject, 'Команда');
+});
+
+test('подсказка взноса для формы матчей: общее и значения команд', () => {
+  const e = env({ rows: [[F, '', '250'], [F, 'U9', '410']] });
   const d = e.ctx.champFeeDefaults_();
-  assert.equal(d.def, 220);
-  assert.deepEqual({ ...d.byTeam }, { 'u13-a': 300, 'u9': 150 });
+  assert.equal(d.def, 250);
+  assert.deepEqual({ ...d.byTeam }, { 'u9': 410 });
+  assert.equal(d.error, '');
 });
 
 test('строка повторяется: действует первая, её же правит сохранение; повтор виден как ошибка', () => {
@@ -158,22 +210,22 @@ test('строка повторяется: действует первая, её
   assert.match(e.ctx.appSettings('9').items.find(x => x.key === 'stats.lowPct').error, /повторяется/);
   e.ctx.appSettingsSave('9', 'stats.lowPct', '', 65);
   e.newRun();
-  assert.equal(e.ctx.settingGet_('stats.lowPct'), 65);   // сохранённое значение действует
+  assert.equal(e.ctx.settingGet_('stats.lowPct'), 65);
 });
 
-test('объект без учёта регистра и пробелов: «u13-a » = «U13-A»; сохранение правит ту же строку', () => {
-  const e = env({ rows: [['matches.champFee', 'u13-a ', '350']] });
-  assert.equal(e.ctx.settingGet_('matches.champFee', 'U13-A'), 350);
-  e.ctx.appSettingsSave('9', 'matches.champFee', 'U13-A', 360);
+test('команда без учёта регистра и пробелов: «u13-a » = «U13-A»; сохранение правит ту же строку', () => {
+  const e = env({ rows: [[F, 'u13-a ', '375']] });
+  assert.equal(e.ctx.settingGet_(F, 'U13-A'), 375);
+  e.ctx.appSettingsSave('9', F, 'U13-A', 380);
   e.newRun();
-  assert.equal(e.ctx.settingGet_('matches.champFee', 'u13-a'), 360);
-  assert.equal(e.admin.sheet.data.length, 2);            // новая строка не добавилась
-  const items = e.ctx.appSettings('9').items.filter(x => x.key === 'matches.champFee');
-  assert.deepEqual([...items.map(x => x.obj)], ['', 'U13-A']); // один объект, без дубля «u13-a»
+  assert.equal(e.ctx.settingGet_(F, 'u13-a'), 380);
+  assert.equal(e.admin.sheet.data.length, 2);
+  assert.deepEqual([...e.ctx.appSettings('9').items.filter(x => x.key === F).map(x => x.obj)], ['', 'U13-A']);
 });
 
-test('AdminApp недоступен: значения по умолчанию, разделы не ломаются', () => {
+test('AdminApp недоступен: технические настройки по умолчанию, взнос «не задано», разделы не падают', () => {
   const e = env({ adminDown: true });
   assert.equal(e.ctx.settingGet_('stats.lowPct'), 50);
   assert.equal(e.ctx.settingGet_('equip.seasonSheet'), 'СЕЗОН 2026-2027');
+  assert.equal(e.ctx.settingGet_(F, 'U13-A'), null);
 });

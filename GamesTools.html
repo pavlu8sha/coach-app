@@ -49,7 +49,7 @@
     var t=$('ntype').value;
     if(!edited)$('nn').value=NAMES[t];
     $('nd').hidden=(t=='Чемпионат'||t=='Фестиваль');
-    if($('nf')){var cf=D.champFee,tm=$('nt').value.replace(/\s+/g,' ').trim().toLowerCase(),fv=cf?(cf.byTeam.hasOwnProperty(tm)?cf.byTeam[tm]:cf.def):'';$('nf').placeholder=t=='Чемпионат'&&fv!==''?'по умолчанию '+fv:'не задан';}
+    if($('nf')){var cf=D.champFee,tm=$('nt').value.replace(/\s+/g,' ').trim().toLowerCase(),fv=cf?(cf.byTeam.hasOwnProperty(tm)?cf.byTeam[tm]:cf.def):null;$('nf').placeholder=t!='Чемпионат'?'не задан':(fv===null||fv===undefined?'по умолчанию не настроен (раздел «Настройки»)':'по умолчанию '+fv);}
   }
   function openNew(){
     panel('Новое событие','Состав можно скопировать из прошлого события команды.');
@@ -69,7 +69,7 @@
     $('ncreate').onclick=function(){
       var t=$('ntype').value,b=this;b.disabled=true;
       run('appAddEvent',[pin,{type:t,team:$('nt').value,name:$('nn').value,date:$('nd').hidden?'':$('ndt').value,fee:$('nf')?$('nf').value:'',copyFrom:$('nc').value}],
-        function(r){done(r,'Событие создано'+(r.copied?', в составе игроков: '+r.copied:'')+'.')},
+        function(r){done(r,'Событие создано'+(r.copied?', в составе игроков: '+r.copied:'')+'.'+(r.feeWarning?' '+r.feeWarning:''))},
         function(m){b.disabled=false;$('nx').textContent=m});
     };
   }

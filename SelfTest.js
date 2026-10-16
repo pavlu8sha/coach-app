@@ -41,7 +41,7 @@ function selfTest() {
   });
   check('настройки', function () {
     var bad = appSettings(prop_('APP_ADMIN_PIN')).items.filter(function (x) { return x.error; });
-    if (bad.length) throw new Error(bad.map(function (x) { return x.error; }).join('; ') + ' (используются значения по умолчанию)');
+    if (bad.length) throw new Error(bad.map(function (x) { return x.key + (x.obj ? ' (' + x.obj + ')' : '') + ': ' + x.error; }).join('; '));
     return 'лист ' + SETTINGS_SHEET + (dbRead_(SETTINGS_SHEET) ? '' : ' ещё не создан, всё по умолчанию');
   });
   check('реестр игроков', function () { return regData_().players.length + ' игроков'; });
