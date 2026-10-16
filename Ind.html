@@ -55,7 +55,7 @@ summary::-webkit-details-marker{display:none}
   </details>
   <details id="ilist" open><summary><b>Список записавшихся</b></summary>
     <label>Занятие</label><select id="iev"></select>
-    <textarea id="itxt" rows="12" style="margin-top:8px"></textarea>
+    <div id="itxt" style="margin-top:8px;padding:12px 14px;border:1px solid #d9dce3;border-radius:12px;background:#fff;color:inherit;white-space:pre-line;line-height:1.6;min-height:60px;font-size:15px"></div>
     <button class="btn" id="icopy">Скопировать список</button>
     <div class="sub" style="margin-top:8px">Заголовок пишете сами; здесь только нумерованный список по порядку записи.</div>
   </details>
@@ -116,11 +116,11 @@ function fillIList(){
 }
 function renderIList(){
   var e=D.events.filter(function(x){return x.id===$('iev').value})[0];
-  $('itxt').value=e?e.players.map(function(p,i){return(i+1)+'. '+p.name}).join('\n'):'';
+  $('itxt').textContent=e?e.players.map(function(p,i){return(i+1)+'. '+p.name}).join('\n'):'';
 }
 $('iev').onchange=renderIList;
 $('icopy').onclick=function(){
-  var t=$('itxt').value,b=this;if(!t)return;
+  var t=$('itxt').textContent,b=this;if(!t)return;
   var flash=function(){var old=b.textContent;b.textContent='Скопировано';setTimeout(function(){b.textContent=old},1800)};
   var fallback=function(){if(iCopyRich(t))flash()};
   try{
