@@ -392,3 +392,49 @@ test('attJournalCheck: находит расхождение лист/журна
   assert.ok(r.lines.some(l => /БЕЗ ЖУРНАЛА: U10-A, 09\.10\.2026/.test(l)));
   assert.equal(snapshot(env), before);
 });
+
+// ---------- Финальная проверка: повторное сохранение и исторические данные ----------
+
+const jRows = env => env.sheets['ЖУРНАЛ ПОСЕЩАЕМОСТИ'].data.slice(3).filter(r => r.length && r[0] !== '');
+const failAppendOnce = sh => { // первая дозапись новых строк журнала (10 колонок) падает
+  const orig = sh.getRange.bind(sh); let failed = false;
+  sh.getRange = (r, c, n, m) => {
+    const rg = orig(r, c, n, m);
+    if (m === 10 && !failed) { rg.setValues = () => { failed = true; throw new Error('Service error: Spreadsheets'); }; }
+    return rg;
+  };
+};
+
+test('журнал упал на середине (статусы обновлены, новые строки не добавлены): повтор дописывает без дублей', () => {
+  const env = fresh({ journal: [jr('KS-1', 'Bagulin Misha', 'Присутствовал')] }); // одна строка уже есть
+  failAppendOnce(env.sheets['ЖУРНАЛ ПОСЕЩАЕМОСТИ']);
+  assert.throws(() => save(env, { 'KS-2': true }), /журнал посещаемости не обновлён/);
+  assert.equal(jRows(env).length, 1);                                    // KS-1 обновлён, KS-2/KS-3 не дописаны
+  assert.equal(jRows(env)[0][6], 'Отсутствовал');
+  save(env, { 'KS-2': true });                                           // повтор
+  const ids = jRows(env).map(r => r[2] + '|' + r[6]).sort();
+  assert.deepEqual(ids, ['KS-1|Отсутствовал', 'KS-2|Присутствовал', 'KS-3|Отсутствовал']);
+  assert.equal(new Set(jRows(env).map(r => r[0])).size, 3);              // ID записей журнала не повторяются
+  const sh = env.sheets['10.26'];
+  assert.deepEqual([6, 7, 8].map(r => sh.cell(r, D)), [false, true, false]);
+  assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': 'a', 'KS-2': 'p', 'KS-3': 'a' });
+  assert.equal(env.ctx.attJournalCheck('10.26').diff, 0);                // лист и журнал согласованы
+});
+
+test('повторное сохранение три раза подряд: в листе одна колонка даты, в журнале по одной строке на ученика', () => {
+  const env = fresh();
+  save(env, {}); save(env, { 'KS-3': true }); save(env, { 'KS-3': true });
+  assert.equal(jRows(env).length, 3);
+  const sh = env.sheets['10.26'];
+  assert.equal(sh.cell(5, D), 46302);
+  assert.equal(sh.cell(5, D + 1), '');                                   // вторая колонка с той же датой не появилась
+  assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': 'a', 'KS-2': 'a', 'KS-3': 'p' });
+});
+
+test('исторические строки журнала «Импорт 09.26» участвуют в восстановлении так же, как строки приложения', () => {
+  const imp = (id, name, st) => ['ATT-202609-0001', '07.10.2026', id, name, G, 'Красный парк', st, '', '', 'Импорт 09.26'];
+  const env = allFalse({ journal: [imp('KS-1', 'Bagulin Misha', 'Отсутствовал'), imp('KS-2', 'Kotov Rodion', 'Присутствовал')] });
+  assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': 'a', 'KS-2': 'p', 'KS-3': '' });
+  save(env, { 'KS-2': true, 'KS-3': true });                             // сохранение обновляет импортированные строки, не дублирует
+  assert.deepEqual(jRows(env).map(r => r[2] + '|' + r[6]).sort(), ['KS-1|Отсутствовал', 'KS-2|Присутствовал', 'KS-3|Присутствовал']);
+});
