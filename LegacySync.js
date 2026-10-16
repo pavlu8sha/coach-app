@@ -525,10 +525,14 @@ function legacyPullFriendlyPaid_(eventId, names) {
   var paid = {};
   gamesFile_().getSheets().forEach(function (sh) {
     var nm = sh.getName().toLowerCase();
-    if (nm.indexOf(base) !== 0 || !/friendly\s*$/.test(nm)) return;
+    // Лист либо «<команда> Friendly», либо общий лист «… All teams» (там колонки всех команд)
+    if (!((nm.indexOf(base) === 0 && /friendly\s*$/.test(nm)) || nm.indexOf('all teams') >= 0)) return;
     var d = sh.getDataRange().getDisplayValues(), v = sh.getDataRange().getValues(), pc = -1;
-    for (var c = 0; c < d[0].length - 1; c++) {
-      if (String(d[0][c]).trim() === dtxt && String(d[1][c + 1]).trim().toLowerCase() === 'paid') { pc = c + 1; break; }
+    // Под датой в первой строке идут «Paid» или «Played» в любом порядке: ищем «Paid» в двух колонках блока
+    for (var c = 0; c < d[0].length - 1 && pc < 0; c++) {
+      if (String(d[0][c]).trim() !== dtxt) continue;
+      if (String(d[1][c]).trim().toLowerCase() === 'paid') pc = c;
+      else if (String(d[1][c + 1]).trim().toLowerCase() === 'paid') pc = c + 1;
     }
     if (pc < 0) return;
     for (var r = 2; r < v.length; r++) {
