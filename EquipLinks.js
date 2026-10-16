@@ -103,7 +103,7 @@ function appEditOrder(pin, row, o) {
 function orderSumWithDisc_(sh, row, kit, inst, total, socks) {
   var parts = kit.split(' + ').map(function (x) { return x.trim(); });
   var hasDisc = parts.some(function (x) { return /костюм/i.test(x); }) && parts.some(function (x) { return /дождевик/i.test(x); });
-  if (inst || !hasDisc) return total;
+  if (inst || !hasDisc) return null;
   total -= socks; // носки и гетры в скидку не входят
   var id = String(sh.getRange(row, 12).getValue()).trim();
   var all = sh.getRange(EQ_FIRST, 1, EQ_ROWS, 12).getValues(), others = [];
@@ -112,7 +112,7 @@ function orderSumWithDisc_(sh, row, kit, inst, total, socks) {
   });
   var allKits = others.map(function (r) { return String(r[3]); }).concat([kit]).join(' + ');
   var covers = /полный комплект/i.test(allKits) || (/игров|вратар/i.test(allKits) && /тренировоч/i.test(allKits));
-  if (!covers) return total;
+  if (!covers) return null;
   var prior = others.filter(function (r) { return /игров|вратар|тренировоч|полный/i.test(String(r[3])); })
     .reduce(function (s, r) { return s + (Number(r[8]) || 0); }, 0);
   return Math.max(Math.round((prior + total) * 0.85 / 5) * 5 - prior, 0) + socks;
@@ -127,18 +127,22 @@ function editOrderCore_(row, o) {
   var oldSum = sh.getRange(row, 9).getValue();
   var kit = String(o.kit || '').trim();
   var newSum = null;
-  if (kit && (kit !== before[0] || !(Number(oldSum) > 0))) { // сменился комплект или сумма ещё не стоит: берём цену из каталога
+  if (kit) {
     // Заказ может содержать несколько комплектов («A + B»): сумма — сумма цен каждого из них
-    var cat = catalog_(true), total = 0;
+    var needCat = kit !== before[0] || !(Number(oldSum) > 0); // сменился комплект или сумма ещё не стоит
+    var cat = catalog_(true), total = 0, socks = 0, missing = '';
     kit.split(' + ').forEach(function (part) {
       var name = part.trim();
       var item = cat.filter(function (x) { return x.name === name; })[0];
-      if (!item) throw new Error('Выберите позицию из каталога: ' + name);
+      if (!item) { missing = missing || name; return; }
       total += Number(item.price) || 0;
+      if (/носк|гетр/i.test(name)) socks += Number(item.price) || 0;
     });
-    var socks = 0;
-    kit.split(' + ').forEach(function (part) { if (/носк|гетр/i.test(part)) socks += Number((cat.filter(function (x) { return x.name === part.trim(); })[0] || {}).price) || 0; });
-    newSum = orderSumWithDisc_(sh, row, kit, !!o.inst, total, socks); // комплект сменился: сумма по каталогу, со скидкой 15% если она положена
+    if (missing && needCat) throw new Error('Выберите позицию из каталога: ' + missing);
+    // Скидка 15% пересчитывается при каждом сохранении, если она положена (null — скидки нет)
+    var disc = missing ? null : orderSumWithDisc_(sh, row, kit, !!o.inst, total, socks);
+    if (needCat) newSum = disc !== null ? disc : total;
+    else if (disc !== null) newSum = disc;
   }
   var after = [kit || before[0], String(o.size || '').trim(), String(o.inscr || '').trim(), String(o.num || '').trim().replace(/\s*[\/,]\s*/g, ','), o.inst ? 'Да' : ''];
   // Размер, надпись и номер можно не указывать: дописываются при изменении заказа
