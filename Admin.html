@@ -17,6 +17,7 @@ label{display:block;margin:12px 0 4px;color:var(--mute);font-size:14px}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
 .row2>div{min-width:0}.row2 input{min-width:0;max-width:100%}
 input[type=date]{-webkit-appearance:none;appearance:none;width:0;min-width:100%;max-width:100%;display:block;box-sizing:border-box}
+#bform{display:flex;gap:8px;align-items:center;margin-top:8px}#bform input[type=date]{flex:1;min-width:0;width:auto}#bform .btn{flex:none;width:auto}
 button{font:inherit;cursor:pointer}
 .ychips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .ychips button{border:1px solid var(--line);background:var(--card);color:var(--mute);border-radius:999px;padding:6px 12px;font-weight:700;font-size:14px}
@@ -221,6 +222,7 @@ function openCard(i){
   $('cbirth').textContent=p.birth?'Дата рождения: '+p.birth:'Дата рождения не указана';
   $('bopen').textContent=p.birth?'Изменить дату рождения':'Указать дату рождения';
   $('bopen').hidden=false;$('bform').hidden=true;
+  $('bdt').value=p.birth?p.birth.slice(6)+'-'+p.birth.slice(3,5)+'-'+p.birth.slice(0,2):'';
   if(cardPid!=p.id){cardPid=p.id;setMethod('');$('pdt').value=today();$('pcm').value=''}
   $('pmsg').textContent=pflash;pflash='';
   $('cbody').innerHTML='<div class="sub">Загрузка…</div>';
