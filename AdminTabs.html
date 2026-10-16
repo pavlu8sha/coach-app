@@ -46,6 +46,7 @@ li.p{padding:12px 14px}
     h+='<h2>Взносы</h2>'+(fees.length?fees.map(function(f){
       var e=f.e,x=f.x,name=e.type==='Товарищеская'?'Товарищеская '+fd(e.date):e.name+(e.date?' '+fd(e.date):''),c;
       if(x.paid===1)c=chip('ok',e.fee>0?'оплачено '+money(x.sum||e.fee):'оплачено');
+      else if(fees.some(function(g){return g!==f&&g.x.paid===1&&g.e.type===e.type&&g.e.name===e.name&&String(g.e.team).replace(/\s*-\s*[A-Za-z0-9]+$/,'')===String(e.team).replace(/\s*-\s*[A-Za-z0-9]+$/,'')}))c=chip('ok','оплачено в другой группе');
       else if(e.fee>0){var debt=Math.max(e.fee-(x.sum||0),0);c=x.sum>0?chip('mid','частично, долг '+money(debt)):chip('bad','долг '+money(debt))}
       else c=chip('bad','не оплачено');
       return'<div class="res gm"><span>'+esc(name)+'<span class="sub"> · '+esc(e.team)+'</span></span>'+c+'</div>';

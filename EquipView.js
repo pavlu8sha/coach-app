@@ -27,9 +27,7 @@ function addOrderCore_(o) {
   if (!p) throw new Error('Игрок не найден: ' + o.id);
   // Что нужно заполнить — по настройкам каталога выбранных позиций (размер — если у позиции есть размеры)
   var missing = [];
-  if (!String(o.size || '').trim() && items.some(function (x) { return String(x.sizes || '').trim(); })) missing.push('размер');
-  if (!String(o.num || '').trim() && items.some(function (x) { return x.num; })) missing.push('номер');
-  if (!String(o.inscr || '').trim() && items.some(function (x) { return x.inscr; })) missing.push('надпись');
+  // Размер, номер и надпись не обязательны при создании: дописываются при изменении заказа (в Экипировке помечаются как незаполненные)
   if (missing.length) throw new Error('Для заказа укажите: ' + missing.join(', '));
   var sh = equipSheet_();
   var clash = equipNumClash_(sh, o.id, o.num, 0);
@@ -61,7 +59,7 @@ function addOrderCore_(o) {
     if (paid > 0) {
       var ps = dbSheet_(PAY_SHEET, PAY_HEAD);
       var r2 = ps.getLastRow() + 1;
-      ps.getRange(r2, 1, 1, 9).setValues([[new Date(), dateStr, o.id, p.name, 'Экипировка: ' + o.kit, row, paid, 'при заказе', method]]);
+      ps.getRange(r2, 1, 1, 9).setValues([[new Date(), dateStr, o.id, p.name, 'Экипировка: ' + o.kit, eqNoOfRow_(sh, row), paid, 'при заказе', method]]);
       ps.getRange(r2, 7).setNumberFormat('#,##0.00 "₾"');
     }
     logChange_(o.id, p.name, 'новый заказ экипировки', '', o.kit + ', ' + sum + ' ₾, строка ' + row);
@@ -90,6 +88,13 @@ function newOrderRow_(sh) {
   if (!tot) throw new Error('В файле экипировки не найдена строка итогов. Добавьте строку заказа вручную.');
   for (i = 0; i < tot - EQ_FIRST; i++) {
     if (String(vals[i][0]).trim() !== '' && !isNaN(Number(vals[i][0]))) maxNum = Math.max(maxNum, Number(vals[i][0]));
+  }
+  // номер не переиспользуем: старые платежи могут ссылаться и на удалённые заказы
+  var jps = dbRead_(PAY_SHEET);
+  if (jps && jps.getLastRow() > 1) {
+    jps.getRange(2, 1, jps.getLastRow() - 1, 6).getValues().forEach(function (r) {
+      if (String(r[4]).indexOf('Экипировка') === 0 && Number(r[5]) > maxNum) maxNum = Number(r[5]);
+    });
   }
   var ok = true;
   var fixed = sh.getRange(tot, 9, 1, 3).getFormulas()[0].map(function (s) {

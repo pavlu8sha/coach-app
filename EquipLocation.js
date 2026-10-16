@@ -18,7 +18,6 @@ function equipSyncLocations_(sh) {
 }
 
 // Группа для номеров: u7-a и u7-b считаются одной группой «u7»
-function baseGroup_(g) { return String(g || '').trim().replace(/\s*-\s*[a-zа-яё]$/i, ''); }
 
 // Номер игрока пишем через запятую («7,9»), а не «7/9»; при сравнении оба варианта равны
 function numNorm_(v) {
@@ -30,7 +29,8 @@ function equipNumClash_(sh, id, num, row) {
   num = numNorm_(num);
   if (!num) return '';
   var groupOf = {};
-  readRegistry_().players.forEach(function (p) { groupOf[p.id] = baseGroup_(p.group); });
+  // номер сверяем внутри точной группы: U13-A, U13-B и U13-C тренируются и играют раздельно
+  readRegistry_().players.forEach(function (p) { groupOf[p.id] = String(p.group || '').trim(); });
   var myG = groupOf[id];
   if (!myG) return '';
   var vals = sh.getRange(EQ_FIRST, 1, EQ_ROWS, 12).getValues(), hit = '';
@@ -40,6 +40,15 @@ function equipNumClash_(sh, id, num, row) {
     if (numNorm_(r[6]) === num && groupOf[oid] === myG) hit = String(r[2]).trim() || oid;
   });
   return hit;
+}
+
+// Заказ в журнале оплат ссылается на свой номер (столбец A листа экипировки), а не на строку: строки могут сдвигаться.
+function eqNoOfRow_(sh, row) { return Number(sh.getRange(row, 1).getValue()) || 0; }
+function eqRowOfNo_(sh, no) {
+  if (!(no > 0)) return 0;
+  var vals = sh.getRange(EQ_FIRST, 1, EQ_ROWS, 1).getValues();
+  for (var i = 0; i < vals.length; i++) { if (Number(vals[i][0]) === no) return EQ_FIRST + i; }
+  return 0;
 }
 
 // Надпись нужна на всех комплектах, кроме тренировочного

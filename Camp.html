@@ -62,7 +62,7 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
       <option value="debt">Должники (есть долг)</option><option value="late">Просрочка</option>
       <option value="cancelled">Отказались</option><option value="all">Все</option>
     </select>
-    <input id="q" placeholder="Поиск по ФИ">
+    <form class="qform" onsubmit="event.preventDefault();this.querySelector('input').blur()" style="margin:0;display:block"><input id="q" enterkeyhint="done" onkeydown="if(event.key==='Enter')this.blur()" list="qlist" autocomplete="off" placeholder="Поиск по ФИ"><datalist id="qlist"></datalist></form>
   </div>
   <button class="btn" id="new">+ Записать на сбор</button>
   <button class="btn sec" id="listb">Список для отправки</button>
@@ -137,6 +137,7 @@ function load(){
     P=pd.players;D=cd;
     campId=(D.camp&&D.camp.id)||campId;
     $('plist').innerHTML=P.filter(function(p){return p.status=='Активен'}).map(function(p){return'<option value="'+esc(p.name+' ('+p.id+')')+'">'}).join('');
+    $('qlist').innerHTML=P.filter(function(p){return p.status=='Активен'}).map(function(p){return'<option value="'+esc(p.name)+'">'+esc(p.id+' · '+p.group)+'</option>'}).join('');
     $('login').hidden=true;$('form').hidden=true;$('campf').hidden=true;$('app').hidden=false;
     show();
   }

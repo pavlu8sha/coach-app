@@ -30,7 +30,7 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
 .pr{border-top:1px solid var(--line);padding:8px 0;font-size:14px}
 .prh{display:flex;justify-content:space-between;gap:8px;font-size:15px}
 .msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:8px}
-.gform{min-width:0;max-width:100%;overflow:hidden}.gform input{-webkit-appearance:none;appearance:none;width:0;min-width:100%;max-width:100%;display:block;box-sizing:border-box}
+.gform{min-width:0;max-width:100%;padding:3px}.gform input{-webkit-appearance:none;appearance:none;width:100%;min-width:0;max-width:100%;display:block;box-sizing:border-box}
 </style>
 </head>
 <body>
@@ -64,10 +64,13 @@ function fail(m){if(m.indexOf('Неверный код')>=0)showLogin('Неве�
 function ev(id){return D.events.filter(function(e){return e.id==id})[0]}
 function parts(id){return D.parts.filter(function(p){return p.e==id})}
 function byDate(a,b){return(a.date||'').localeCompare(b.date||'')}
+// Порядок команд: U9, U9-A, U9-B, U10, U11, U13, U13-A, U13-B; остальные — в конце по алфавиту
+function teamKey(s){var t=String(s||'').trim().replace(/А/g,'A').replace(/В/g,'B').replace(/С/g,'C');var m=/^U(\d+)(?:-([A-Z]))?$/i.exec(t);return m?[0,Number(m[1]),m[2]?m[2].toUpperCase():'']:[1,0,t]}
+function teamCmp(a,b){var x=teamKey(a),y=teamKey(b);if(x[0]!==y[0])return x[0]-y[0];if(x[1]!==y[1])return x[1]-y[1];return x[2]<y[2]?-1:x[2]>y[2]?1:0}
 function load(){
   run('appMatchesData',[pin],function(d){
     D=d;$('login').hidden=true;
-    var t=[];D.events.forEach(function(e){if(t.indexOf(e.team)<0)t.push(e.team)});
+    var t=[];D.events.forEach(function(e){if(t.indexOf(e.team)<0)t.push(e.team)});t.sort(teamCmp);
     $('tm').innerHTML=t.map(function(x){return'<option>'+esc(x)+'</option>'}).join('');
     if(t.indexOf(team)<0)team=t[0];$('tm').value=team;list();
   },fail);
