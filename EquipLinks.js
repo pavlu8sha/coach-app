@@ -97,7 +97,7 @@ function appEditOrder(pin, row, o) {
   try { return editOrderCore_(row, o); } finally { lock.releaseLock(); }
 }
 
-// Удаление заказа: очищает строку (как свободная строка для нового заказа). Строку с оплатой не удаляем.
+// Удаление заказа: удаляет строку целиком. Строку с оплатой не удаляем.
 function appDeleteOrder(pin, row) {
   checkAdmin_(pin);
   if (CONFIG.DRY_RUN) return deleteOrderCore_(row);
@@ -116,8 +116,7 @@ function deleteOrderCore_(row) {
   if (!CONFIG.DRY_RUN) {
     var id = String(sh.getRange(row, 12).getValue()).trim(), name = String(sh.getRange(row, 3).getValue()).trim();
     var what = sh.getRange(row, 4, 1, 6).getDisplayValues()[0].join(' | ');
-    sh.getRange(row, 2, 1, 9).clearContent(); // B:J; формула долга в K остаётся
-    sh.getRange(row, 12).clearContent();      // ID игрока
+    sh.deleteRow(row); // строка удаляется целиком, нижние заказы и итоги сдвигаются, формулы итогов подстраиваются
     equipSyncLocations_(sh);
     cacheDropBig_('eq_v1');
     logChange_(id, name, 'удаление заказа экипировки', what, '');
