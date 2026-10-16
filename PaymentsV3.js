@@ -21,10 +21,11 @@ function appAddPayment(pin, id, row, amount, dateStr, comment, method) {
     if (!CONFIG.DRY_RUN) {
       var ps = dbSheet_(PAY_SHEET, PAY_HEAD);
       if (!ps) throw new Error('Нет журнала платежей (лист ' + PAY_SHEET + ' в AdminApp). Оплата не внесена.');
-      if (isRecentDup_(ps, [[3, id], [6, row], [7, String(amount)], [9, method || '']], 15)) throw new Error('Похоже на повтор: такой платёж только что записан. Обновите страницу');
+      var orderNo = eqNoOfRow_(eq, row); // в журнале столбец F — № заказа, повтор сверяем по нему (не по строке)
+      if (isRecentDup_(ps, [[3, id], [6, orderNo], [7, String(amount)], [9, method || '']], 15)) throw new Error('Похоже на повтор: такой платёж только что записан. Обновите страницу');
       eq.getRange(row, 10).setValue(newPaid);
       var r = ps.getLastRow() + 1;
-      ps.getRange(r, 1, 1, 9).setValues([[new Date(), dateStr || today_(), id, name, 'Экипировка: ' + kit, eqNoOfRow_(eq, row), amount, comment || '', method || '']]);
+      ps.getRange(r, 1, 1, 9).setValues([[new Date(), dateStr || today_(), id, name, 'Экипировка: ' + kit, orderNo, amount, comment || '', method || '']]);
       fmt_(ps.getRange(r, 7), '#,##0.00 "₾"');
       cacheDropBig_('eq_v1');
     }
