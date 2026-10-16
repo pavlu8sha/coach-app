@@ -100,10 +100,11 @@ function appEditOrder(pin, row, o) {
 // Скидка 15% как в форме нового заказа (Kit.html refreshSum): костюм + дождевик и у игрока базовый набор
 // (игровая/вратарская + тренировочная, или полный комплект), без рассрочки. Прежние заказы игрока учитываются как «уже оплачено».
 // Сумма округляется до 5 ₾; в заказе записывается доплата, как и при новом заказе.
-function orderSumWithDisc_(sh, row, kit, inst, total) {
+function orderSumWithDisc_(sh, row, kit, inst, total, socks) {
   var parts = kit.split(' + ').map(function (x) { return x.trim(); });
   var hasDisc = parts.some(function (x) { return /костюм/i.test(x); }) && parts.some(function (x) { return /дождевик/i.test(x); });
   if (inst || !hasDisc) return total;
+  total -= socks; // носки и гетры в скидку не входят
   var id = String(sh.getRange(row, 12).getValue()).trim();
   var all = sh.getRange(EQ_FIRST, 1, EQ_ROWS, 12).getValues(), others = [];
   all.forEach(function (r, i) {
@@ -114,7 +115,7 @@ function orderSumWithDisc_(sh, row, kit, inst, total) {
   if (!covers) return total;
   var prior = others.filter(function (r) { return /игров|вратар|тренировоч|полный/i.test(String(r[3])); })
     .reduce(function (s, r) { return s + (Number(r[8]) || 0); }, 0);
-  return Math.max(Math.round((prior + total) * 0.85 / 5) * 5 - prior, 0);
+  return Math.max(Math.round((prior + total) * 0.85 / 5) * 5 - prior, 0) + socks;
 }
 
 function editOrderCore_(row, o) {
@@ -135,7 +136,9 @@ function editOrderCore_(row, o) {
       if (!item) throw new Error('Выберите позицию из каталога: ' + name);
       total += Number(item.price) || 0;
     });
-    newSum = orderSumWithDisc_(sh, row, kit, !!o.inst, total); // комплект сменился: сумма по каталогу, со скидкой 15% если она положена
+    var socks = 0;
+    kit.split(' + ').forEach(function (part) { if (/носк|гетр/i.test(part)) socks += Number((cat.filter(function (x) { return x.name === part.trim(); })[0] || {}).price) || 0; });
+    newSum = orderSumWithDisc_(sh, row, kit, !!o.inst, total, socks); // комплект сменился: сумма по каталогу, со скидкой 15% если она положена
   }
   var after = [kit || before[0], String(o.size || '').trim(), String(o.inscr || '').trim(), String(o.num || '').trim().replace(/\s*[\/,]\s*/g, ','), o.inst ? 'Да' : ''];
   // Размер, надпись и номер можно не указывать: дописываются при изменении заказа

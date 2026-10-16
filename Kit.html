@@ -261,7 +261,7 @@ $('list').onclick=function(e){
   }
 };
 // Скидка 15% на сумму заказа: если у игрока уже есть игровая и тренировочная (или в заказе все четыре основные позиции).
-// Носки и гетры в расчёт не входят. При рассрочке скидка не применяется. Сумма округляется до 5 ₾.
+// Носки и гетры в скидку не входят (идут по полной цене). При рассрочке скидка не применяется. Сумма округляется до 5 ₾.
 var COSTUME=/костюм/i,RAIN=/дождевик/i;
 // Базовый набор (игровая + тренировочная) есть в уже заказанном или в текущем заказе
 function playerCovers(id,ks){
@@ -278,17 +278,18 @@ function kitsBox(){
   [].forEach.call(document.querySelectorAll('#fkits input'),function(i){i.onchange=refreshSum});
 }
 function refreshSum(){
-  var ks=selKits(),base=0;
-  ks.forEach(function(k){base+=PR[k]||0});
+  var ks=selKits(),base=0,sock=0;
+  ks.forEach(function(k){var v=PR[k]||0;base+=v;if(/носк|гетр/i.test(k))sock+=v});
+  var dbase=base-sock; // носки и гетры в скидку не входят, идут по полной цене
   var id=pid($('fpl').value),inst=$('finst').checked;
   var hasDisc=ks.some(function(k){return COSTUME.test(k)})&&ks.some(function(k){return RAIN.test(k)});
   var eligible=!!id&&hasDisc&&playerCovers(id,ks);
   var disc=!inst&&eligible&&ks.length>0;
   var prior=id&&disc?playerBaseSum(id):0;
-  var target=disc?r5((prior+base)*0.85):0;
-  var sum=disc?Math.max(target-prior,0):base;
+  var target=disc?r5((prior+dbase)*0.85):0;
+  var sum=disc?Math.max(target-prior,0)+sock:base;
   $('fsum').value=ks.length?sum:'';
-  $('fbundle').textContent=!ks.length?'':(disc?(prior?'Скидка 15% на общую сумму '+(prior+base)+' ₾ → '+target+' ₾ (уже оплачено '+prior+' ₾), к доплате '+sum+' ₾':'Скидка 15% на заказ: '+sum+' ₾ вместо '+base+' ₾'):(inst&&eligible?'Рассрочка: скидка не применяется, '+base+' ₾':''));
+  $('fbundle').textContent=!ks.length?'':(disc?(prior?'Скидка 15% на общую сумму '+(prior+dbase)+' ₾ → '+target+' ₾ (уже оплачено '+prior+' ₾), к доплате '+sum+' ₾':'Скидка 15% на заказ: '+sum+' ₾ вместо '+base+' ₾'):(inst&&eligible?'Рассрочка: скидка не применяется, '+base+' ₾':''));
   refreshSizes();
 }
 function refreshSizes(){
