@@ -26,6 +26,7 @@ class Sheet {
         while (sh.data.length < r + i) sh.data.push([]);
         const rr = sh.data[r + i - 1]; while (rr.length < c + j) rr.push(''); rr[c + j - 1] = x;
       })),
+      setValue(x) { this.setValues([[x]]); return this; },
       setNumberFormat() { return this; },
     };
   }
@@ -115,4 +116,69 @@ test('тренер: событие создаётся по настройке, �
   const r = e.champ('U9', '1');
   assert.equal(e.fees[r.id], 250);
   assert.equal(e.ctx.appMatchesData('1').champFee, undefined);
+});
+
+// ---------- Весь путь взноса: создание → показ → правка события → приём оплаты (реальные AdminDb.js, MatchesCode.js) ----------
+
+function envFull(rows) {
+  const e = env(rows);
+  const ctx = e.ctx;
+  const envRead = ctx.dbRead_, envSheet = ctx.dbSheet_;                // лист «НАСТРОЙКИ» — как в env()
+  delete ctx.feeSet_; delete ctx.finData_;                             // нужны настоящие из AdminDb.js
+  for (const f of ['AdminDb.js', 'MatchesCode.js']) vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
+  const admin = {};                                                    // листы AdminApp: ВЗНОСЫ СОБЫТИЙ, ВЗНОСЫ МАТЧЕЙ
+  const matches = new Sheet([['ID', 'Команда', 'Тип', 'Название', 'Дата', 'Взнос', 'Турнир']]);
+  matches.getDataRange = () => matches.getRange(1, 1, matches.data.length, 7);
+  const parts = new Sheet([['Событие', 'ID игрока', 'ФИ', 'Играл']]);
+  Object.assign(ctx, {
+    adminSS_: () => ({ getSpreadsheetTimeZone: () => 'Asia/Tbilisi', getSheetByName: n => admin[n] || null }),
+    dbRead_: n => (n === 'НАСТРОЙКИ' ? envRead(n) : admin[n] || null),
+    dbSheet_: (n, h) => (n === 'НАСТРОЙКИ' ? envSheet(n, h) : admin[n] || (admin[n] = new Sheet([h]))),
+    sheetOf_: n => (n === 'МАТЧИ' ? matches : null),
+    matchesData_: () => ({ events: matches.data.slice(1).map(r => ({ id: r[0], team: r[1], type: r[2] })), parts: [] }),
+    partsSheet_: () => parts, PAY_METHODS: ['Наличные', 'Перевод'], today_: () => '2026-10-16',
+    cacheGetBig_: () => null, cachePutBig_() {}, finCacheDrop_() {},
+  });
+  const newRun = () => vm.runInContext('_settingsRun = null; _fin = null;', ctx);
+  const feeOfEvent = id => { newRun(); return ctx.appMatchesData('9').events.find(x => x.id === id).fee; };
+  const champ = team => ctx.appAddEvent('9', { type: 'Чемпионат', team, name: 'Championship 1', fee: '' });
+  return { ctx, admin, parts, newRun, feeOfEvent, champ };
+}
+
+test('путь взноса: создание по настройке → показ → правка события → смена настройки не трогает созданные события', () => {
+  const e = envFull([[F, '', '250'], [F, 'U13-A', '375']]);
+  const a = e.champ('U13-A').id, b = e.champ('U10-A').id;
+  assert.equal(e.feeOfEvent(a), 375);                                   // показ: взнос события из «ВЗНОСЫ СОБЫТИЙ»
+  assert.equal(e.feeOfEvent(b), 250);
+  assert.equal(e.ctx.appSetEventFee('9', a, 390).fee, 390);             // правка уже созданного события
+  assert.equal(e.feeOfEvent(a), 390);
+  e.ctx.appSettingsSave('9', F, '', 260);                               // смена общего взноса
+  e.ctx.appSettingsSave('9', F, 'U13-A', '');                           // и «К общему» для U13-A
+  assert.equal(e.feeOfEvent(a), 390);                                   // созданные события не изменились
+  assert.equal(e.feeOfEvent(b), 250);
+  assert.equal(e.feeOfEvent(e.champ('U13-A').id), 260);                 // новое — по новой настройке
+  assert.throws(() => e.ctx.appSetEventFee('1', a, 1), /Неверный код администратора/);
+  assert.throws(() => e.ctx.appSetEventFee('9', a, -1), /не меньше нуля/);
+});
+
+test('путь взноса: приём оплаты считает полную оплату по взносу события, а не по настройке', () => {
+  const e = envFull([[F, '', '250']]);
+  const id = e.champ('U9').id;
+  e.parts.data.push([id, 'KS-1', 'Bagulin Misha', true]);
+  e.ctx.appSettingsSave('9', F, '', 100);                               // настройку уменьшили после создания
+  e.newRun();
+  assert.equal(e.ctx.appMatchFee('9', id, 'KS-1', 150, 'Наличные', '', '').full, false);   // 150 из 250
+  e.newRun();
+  assert.equal(e.ctx.appMatchFee('9', id, 'KS-1', 100, 'Перевод', '', '').full, true);     // 250 из 250
+  const row = e.admin['ВЗНОСЫ МАТЧЕЙ'].data[1];
+  assert.deepEqual([row[0], row[1], row[3], row[4]], [id, 'KS-1', true, 250]);
+});
+
+test('путь взноса: событие без настроенного взноса — оплата принимается, долг не считается, взнос можно задать позже', () => {
+  const e = envFull();
+  const r = e.champ('U9');
+  assert.match(r.feeWarning, /не настроен/);
+  assert.equal(e.feeOfEvent(r.id), 0);                                  // на экране «взнос не задан»
+  e.ctx.appSetEventFee('9', r.id, 250);
+  assert.equal(e.feeOfEvent(r.id), 250);
 });
