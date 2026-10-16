@@ -114,12 +114,38 @@ function fillSList(){
 }
 function renderSList(){
   var e=D.events.filter(function(x){return x.id===$('sev').value})[0];
-  $('stxt').value=e?e.players.map(function(p,i){return(i+1)+') '+p.name}).join('\n'):'';
+  $('stxt').value=e?e.players.map(function(p,i){return(i+1)+'. '+p.name}).join('\n'):'';
 }
 $('sev').onchange=renderSList;
+// Копирование как на сборах: в буфер уходят HTML (строки в div, не список) и обычный текст, Телеграм вставляет без списка.
+function sRichHtml(txt){
+  return txt.split('\n').map(function(l){return l.trim()?'<div>'+esc(l)+'</div>':'<div>&nbsp;</div>'}).join('');
+}
+function sCopyRich(txt){
+  var box=document.createElement('div'),ok=false;
+  box.contentEditable='true';
+  box.style.cssText='position:fixed;left:-9999px;top:0;width:1px;overflow:hidden;';
+  box.innerHTML=sRichHtml(txt);
+  document.body.appendChild(box);
+  var sel=window.getSelection(),r=document.createRange();
+  r.selectNodeContents(box);sel.removeAllRanges();sel.addRange(r);
+  try{ok=document.execCommand('copy')}catch(e){}
+  sel.removeAllRanges();document.body.removeChild(box);
+  return ok;
+}
 $('scopy').onclick=function(){
   var t=$('stxt').value,b=this;if(!t)return;
   var flash=function(){var old=b.textContent;b.textContent='Скопировано';setTimeout(function(){b.textContent=old},1800)};
+  var fallback=function(){if(sCopyRich(t)){flash();return}if(copyTxt(t))flash()};
+  try{
+    if(window.ClipboardItem&&navigator.clipboard&&navigator.clipboard.write){
+      var item=new ClipboardItem({'text/html':new Blob([sRichHtml(t)],{type:'text/html'}),'text/plain':new Blob([t],{type:'text/plain'})});
+      navigator.clipboard.write([item]).then(flash,fallback);
+      return;
+    }
+    fallback();
+  }catch(e){fallback()}
+};
   if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(flash,function(){if(copyTxt(t))flash()})}
   else if(copyTxt(t))flash();
 };
