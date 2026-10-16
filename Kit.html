@@ -119,10 +119,9 @@ function fillGroups(){
 function locBucket(l){var s=nn(l||'');if(!s)return'none';if(/красн|krasn/.test(s))return'red';if(/ортач|исан|ortach|isan/.test(s))return'oth';return'rest'}
 var LOC_ORD={red:0,oth:1,rest:2,none:3};
 // Обязательные данные заказа (для любого комплекта): размер, номер, надпись. Номер уникален внутри группы (u7-a и u7-b — это u7).
-function baseGroup(g){return String(g||'').trim().replace(/\s*-\s*[a-zа-яё]$/i,'')}
 function missOf(o){var m=[];if(!o.kit)m.push('комплект');if(!(o.sum>0))m.push('сумма');if(!String(o.size||'').trim())m.push('размер');if(!String(o.num||'').trim())m.push('номер');if(nn(o.kit)!=='тренировочная'&&!String(o.inscr||'').trim())m.push('надпись');return m}
 var DUP={};
-function isDup(o,p){if(!p||!String(o.num||'').trim())return false;return Object.keys(DUP[baseGroup(p.group)+'|'+nn(o.num)]||{}).length>1}
+function isDup(o,p){if(!p||!String(o.num||'').trim())return false;return Object.keys(DUP[String(p.group||'').trim()+'|'+nn(o.num)]||{}).length>1}
 function rows(){
   var by={};
   O.forEach(function(o){if(!o.id)return;(by[o.id]=by[o.id]||[]).push(o)});
@@ -160,7 +159,7 @@ function payOrder(b,ord){
 }
 function kitsOf(k){return String(k||'').split(' + ').map(function(x){return x.trim()}).filter(Boolean)}
 function orderHtml(o,p,linked){
-  var prob=[];var mi=missOf(o);if(mi.length)prob.push('не заполнено: '+mi.join(', '));if(isDup(o,p))prob.push('номер '+o.num+' повторяется в группе '+baseGroup(p.group));
+  var prob=[];var mi=missOf(o);if(mi.length)prob.push('не заполнено: '+mi.join(', '));if(isDup(o,p))prob.push('номер '+o.num+' повторяется в группе '+String(p.group||'').trim());
   return'<div class="ord"><b>'+esc(o.kit||'Комплект не указан')+'</b>'+(o.inst?' (рассрочка)':'')
     +(prob.length?'<div class="sub err">'+esc(prob.join('; '))+'</div>':'')
     +(p&&nn(o.oname)!=nn(p.name)?'<div class="sub err">В файле заказа записано: '+esc(o.oname)+'</div>':'')
@@ -189,7 +188,7 @@ function show(){
   var q=nn($('q').value),g=$('fg').value,fv=$('fs').value;
   // Итог по всему файлу экипировки (все заказы, и с привязкой, и без): совпадает с итогами в таблице
   var PM={};P.forEach(function(p){PM[p.id]=p});
-  DUP={};O.forEach(function(o){var p=PM[o.id];if(!p||!String(o.num||'').trim())return;var k=baseGroup(p.group)+'|'+nn(o.num);(DUP[k]=DUP[k]||{})[o.id]=1});
+  DUP={};O.forEach(function(o){var p=PM[o.id];if(!p||!String(o.num||'').trim())return;var k=String(p.group||'').trim()+'|'+nn(o.num);(DUP[k]=DUP[k]||{})[o.id]=1});
   var AS=0,AP=0,AD=0,AA=O.concat(UNL),NP=0;
   var UA=0,UP=0,UD=0;UNL.forEach(function(o){UA+=o.sum;UP+=o.paid;UD+=o.debt});
   AA.forEach(function(o){AS+=o.sum;AP+=o.paid;AD+=o.debt;if(missOf(o).length||isDup(o,PM[o.id]))NP++});
