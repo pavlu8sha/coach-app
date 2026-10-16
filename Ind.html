@@ -70,8 +70,8 @@ function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;
 function gl(k){try{return localStorage.getItem(k)||''}catch(e){return''}}
 function sl(k,v){try{localStorage.setItem(k,v)}catch(e){}}
 function msg(t,bad){$('msg').textContent=t||'';$('msg').className='msg'+(bad?' err':'')}
-// Ошибка внутри диалога: снимаем занятость; неверный код — закрываем диалог и показываем вход
-function failIn(bad){return function(m){busy=false;if(/Неверный код/.test(m)){bad(m);var c=document.querySelector('#ksdlg .ks-cancel');if(c)c.click();fail(m);return}bad(m)}}
+// Ошибка в диалоге: снимаем занятость экрана; неверный код обрабатывает общий диалог (Ui.html)
+function failIn(bad){return function(m){busy=false;bad(m)}}
 function showLogin(t){$('app').hidden=true;$('login').hidden=false;$('lerr').textContent=t||''}
 function showApp(){$('login').hidden=true;$('app').hidden=false}
 function dl(d){var p=d.split('-'),w=['вс','пн','вт','ср','чт','пт','сб'][new Date(Date.UTC(+p[0],+p[1]-1,+p[2])).getUTCDay()];return w+' '+p[2]+'.'+p[1]}

@@ -99,6 +99,8 @@ html.ks-dlg-lock,html.ks-dlg-lock body{overflow:hidden!important}
     function done(){if(fin||cur!==c)return;fin=true;close()}
     function fail(m){
       if(fin||cur!==c)return;fin=true;setBusy(false);
+      // Неверный код: диалог закрывается, страница показывает экран входа (одинаково на всех страницах)
+      if(/Неверный код/.test(txt(m))){close();ksAuthFail(m);return}
       er.textContent=typeof friendly_=='function'?friendly_(m):txt(m);er.hidden=false;
     }
     try{c.run(done,fail)}catch(e){fail(e&&e.message?e.message:String(e))}
@@ -117,6 +119,13 @@ html.ks-dlg-lock,html.ks-dlg-lock body{overflow:hidden!important}
     }
   },true);
   window.ksDialogOpen=function(){return !!cur};
+  /* Ошибка кода доступа во время действия: экран входа страницы, а если его нет — перезагрузка */
+  function ksAuthFail(m){
+    var t=/администратора/.test(txt(m))?'Неверный код администратора':'Неверный код доступа';
+    if(typeof window.showLogin=='function'){try{window.showLogin(t);return}catch(e){}}
+    try{location.reload()}catch(e){}
+  }
+  window.ksAuthFail=ksAuthFail;
   /* Блокировка кнопки на время запроса: ksBusy(кнопка, true[, текст]) / ksBusy(кнопка, false) */
   window.ksBusy=function(b,on,label){
     if(!b)return;
