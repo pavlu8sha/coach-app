@@ -84,7 +84,7 @@ function migrateMatchFees() {
     sh.setFrozenRows(1);
     if (rows.length) {
       sh.getRange(2, 1, rows.length, MFEE_HEAD.length).setValues(rows);
-      sh.getRange(2, 7, rows.length, 1).setNumberFormat('dd.MM.yyyy');
+      nfSafe_(sh.getRange(2, 7, rows.length, 1), 'dd.MM.yyyy');
     }
     out.push('ВЗНОСЫ МАТЧЕЙ: перенесено строк ' + rows.length);
   }
@@ -214,7 +214,7 @@ function finUpsert_(eventId, playerId, name, v) {
   var d = v.date || (cur ? cur.date : '');
   var comment = v.comment ? v.comment : (cur ? cur.comment : '');
   sh.getRange(row, 1, 1, 8).setValues([[eventId, playerId, name, !!v.paid, Number(v.sum) || 0, v.method || '', iso.test(d) ? serialOf(d) : '', comment]]);
-  sh.getRange(row, 7).setNumberFormat('dd.MM.yyyy');
+  nfSafe_(sh.getRange(row, 7), 'dd.MM.yyyy');
   m.pays[key] = { row: row, paid: !!v.paid, sum: Number(v.sum) || 0, method: v.method || '', date: d, comment: comment };
   finCacheDrop_();
 }

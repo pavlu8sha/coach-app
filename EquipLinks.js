@@ -177,7 +177,7 @@ function editOrderCore_(row, o) {
   if (clashE) throw new Error('Номер ' + after[3] + ' уже у игрока «' + clashE + '» в этой группе. Выберите другой номер.');
   if (!CONFIG.DRY_RUN) {
     // Пишем по одной ячейке: многоколоночная запись диапазона в Sheets даёт ошибку «выберите элемент в одном столбце»
-    [5, 6, 7].forEach(function (col) { sh.getRange(row, col).setNumberFormat('@'); }); // размер, надпись, номер хранятся как текст
+    [5, 6, 7].forEach(function (col) { nfSafe_(sh.getRange(row, col), '@'); }); // размер, надпись, номер хранятся как текст
     for (var ci = 0; ci < after.length; ci++) { sh.getRange(row, 4 + ci).setValue(after[ci]); }
     if (newSum !== null) sh.getRange(row, 9).setValue(newSum);
     cacheDropBig_('eq_v1');

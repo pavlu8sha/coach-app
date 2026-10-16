@@ -116,7 +116,7 @@ function extraLog_(type, ev, name, amount, method, comment) {
   var sh = _extraLogSh || dbSheet_(EXTRA_LOG, IND_HEAD);
   if (!sh) return;
   sh.appendRow([new Date(), ev.id, name, amount, method || '', type, comment || '']);
-  sh.getRange(sh.getLastRow(), 1).setNumberFormat('dd.MM.yyyy HH:mm');
+  nfSafe_(sh.getRange(sh.getLastRow(), 1), 'dd.MM.yyyy HH:mm');
 }
 
 function extraPlayer_(ev, name) {
@@ -345,7 +345,7 @@ function appExtraAddEvent(pin, date, amount, place) {
     if (ss.getSheetByName(name)) return { ok: true, exists: true };
     var sh = ss.insertSheet(name, 0), id = name + '|' + date;
     try {
-      sh.getRange(1, 1).setNumberFormat('@').setValue(name);
+      nfSafe_(sh.getRange(1, 1), '@').setValue(name);
       sh.getRange(1, 1, 1, 4).merge();
       sh.getRange(2, 1, 1, 4).setValues([['№', 'ФИ ребенка', 'Group', 'Paid']]);
       var rows = [];
@@ -388,7 +388,7 @@ function appExtraEventEdit(pin, id, date, amount, place) {
       if (ss.getSheetByName(name)) throw new Error('Лист «' + name + '» уже есть');
       var sh = ss.getSheetByName(ev.sheet);
       sh.setName(name);
-      if (ev.head > 1) sh.getRange(1, 1).setNumberFormat('@').setValue(name);
+      if (ev.head > 1) nfSafe_(sh.getRange(1, 1), '@').setValue(name);
       extraRenameId_(EXTRA_ATT, 1, ev.id, newId);   // отметки
       extraRenameId_(EXTRA_LOG, 2, ev.id, newId);   // журнал оплат: суммы и даты не трогаем, только метка события
       _extraDirty[name] = 1;
@@ -541,7 +541,7 @@ function appWroteSet(pin, keys) {
     var sh = dbSheet_(WROTE_SHEET, WROTE_HEAD);
     var n = Math.max(sh.getLastRow() - 1, 1);
     // Текстовый формат до записи: иначе «11.10» Sheets превращает в дату, и отметка не совпадает при чтении
-    sh.getRange(2, 1, Math.max(sh.getMaxRows() - 1, n), 2).setNumberFormat('@');
+    nfSafe_(sh.getRange(2, 1, Math.max(sh.getMaxRows() - 1, n), 2), '@');
     sh.getRange(2, 1, n, 2).clearContent();
     var rows = (keys || []).map(function (k) { var i = String(k).indexOf('|'); return [String(k).slice(0, i), String(k).slice(i + 1)]; });
     if (rows.length) sh.getRange(2, 1, rows.length, 2).setValues(rows);

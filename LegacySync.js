@@ -158,7 +158,7 @@ function legacySyncCore_(eventId, dryOnly) {
             sh.getRange(lastR, ref).copyTo(sh.getRange(lastR, col), SpreadsheetApp.CopyPasteType.PASTE_FORMULA, false);
           } catch (e) {}
         }
-        if (isDate) sh.getRange(1, col).setValue(ev.date).setNumberFormat('dd.MM');
+        if (isDate) nfSafe_(sh.getRange(1, col).setValue(ev.date), 'dd.MM');
         else if (label.top) sh.getRange(1, col).setValue(label.top);
         sh.getRange(2, col).setValue(label.row2);
       };
@@ -401,7 +401,7 @@ function legacyBlockSync_(sh, blks, ev, parent, recs, roster, dryOnly, pAll) {
       if (newCol) {
         try { sh.getRange(b.head, playedCol - 1, b.to + added - b.head + 1, 1).copyTo(sh.getRange(b.head, playedCol, b.to + added - b.head + 1, 1), SpreadsheetApp.CopyPasteType.PASTE_DATA_VALIDATION, false); } catch (e) {}
       }
-      sh.getRange(b.head, playedCol).setValue(ev.date).setNumberFormat('dd.MM');
+      nfSafe_(sh.getRange(b.head, playedCol).setValue(ev.date), 'dd.MM');
       if (!String(sh.getRange(b.head + 1, playedCol).getValue())) sh.getRange(b.head + 1, playedCol).setValue('Played');
       var gf = ev.gf, ga = ev.ga, opp = ev.opp, other = '';
       blks.forEach(function (x) { if (lbl(x.name) !== lbl(b.name)) other = x.name; });

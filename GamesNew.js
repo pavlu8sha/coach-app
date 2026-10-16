@@ -266,7 +266,7 @@ function appTrainingAdd(pin, o) {
   var hours = gnHours_(o.start, o.end);
   if (CONFIG.DRY_RUN) return { dryRun: true, hours: hours };
   var sh = gnTrainingsSheet_(), r = gnInsertRowFor_(sh, o.date);
-  sh.getRange(r, 1, 1, 10).setNumberFormat('@').setValues([[o.date, wd, String(o.trainer).trim(), String(o.location || ''),
+  nfSafe_(sh.getRange(r, 1, 1, 10), '@').setValues([[o.date, wd, String(o.trainer).trim(), String(o.location || ''),
     String(o.group || ''), String(o.type || ''), String(o.start || ''), String(o.end || ''), String(hours).replace('.', ','), o.held === false ? 'Нет' : 'Да']]);
   logChange_('', '', 'тренировка (раздел Игры)', '', o.date + ' ' + o.trainer + ' ' + (o.group || ''));
   return { ok: true, row: r, hours: hours };
@@ -547,13 +547,13 @@ function gnSyncGame_(eventId) {
   }
   var what;
   if (at) {
-    if (opp) sh.getRange(at, 3).setNumberFormat('@').setValue(opp);
-    if (score) sh.getRange(at, 4).setNumberFormat('@').setValue(score);
-    if (goals) sh.getRange(at, 5).setNumberFormat('@').setValue(goals);
+    if (opp) nfSafe_(sh.getRange(at, 3), '@').setValue(opp);
+    if (score) nfSafe_(sh.getRange(at, 4), '@').setValue(score);
+    if (goals) nfSafe_(sh.getRange(at, 5), '@').setValue(goals);
     what = 'обновлена';
   } else {
     var r = gnGameRowFor_(sh, date);
-    sh.getRange(r, 1, 1, 5).setNumberFormat('@').setValues([[date, team, opp, score, goals]]);
+    nfSafe_(sh.getRange(r, 1, 1, 5), '@').setValues([[date, team, opp, score, goals]]);
     // Проверяем, что строка действительно записана: иначе ошибка видна пользователю, а не только «добавлена» в журнале
     SpreadsheetApp.flush();
     if (String(sh.getRange(r, 1).getDisplayValue()).trim() !== date) {

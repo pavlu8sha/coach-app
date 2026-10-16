@@ -145,7 +145,7 @@ function indPfEnroll_(date, name, gk) {
   }
   sh.getRange(row, 2).setValue(String(name).trim());
   var txt = want + (gk ? ' вр' : '');
-  sh.getRange(row, 3).setNumberFormat('@').setValue(txt);
+  nfSafe_(sh.getRange(row, 3), '@').setValue(txt);
   SpreadsheetApp.flush();
   if (dateText_(sh.getRange(row, 3).getValue()) !== txt) {
     throw new Error('Дата не записалась в строку ' + row + ' файла оплат. Проверьте, нет ли объединения ячеек.');
@@ -176,7 +176,7 @@ function indPfSetAmount_(date, name, amount, gk) {
   var b = indBlock_(sh), row = indPfFind_(sh, b, date, name, gk);
   if (!row) throw new Error('Игрок не записан');
   if (amount === '') sh.getRange(row, 4).clearContent();
-  else sh.getRange(row, 4).setNumberFormat('#,##0.00 "₾"').setValue(amount);
+  else nfSafe_(sh.getRange(row, 4), '#,##0.00 "₾"').setValue(amount);
   monthInvalidate_(month);
   return { row: row, month: month };
 }
@@ -186,7 +186,7 @@ function indAdmAppend_(date, time, gk, theme) {
   var sh = dbSheet_(IND_EVT, IND_EVT_HEAD);
   if (!sh) return null;
   var r = sh.getLastRow() + 1, tz = Session.getScriptTimeZone();
-  sh.getRange(r, 1, 1, 3).setNumberFormat('@');
+  nfSafe_(sh.getRange(r, 1, 1, 3), '@');
   sh.getRange(r, 1, 1, 6).setValues([[indAdmId_(date, time, gk), date, time, !!gk, theme || '',
     Utilities.formatDate(new Date(), tz, 'dd.MM.yyyy HH:mm')]]);
   return { row: r, id: indAdmId_(date, time, gk) };

@@ -65,7 +65,7 @@ function cancelEq_(ss, row) {
     eqCell.setValue(Math.round((paid - amount) * 100) / 100);
     try {
       ps.getRange(n, 1, 1, 9).setValues([[new Date(), today_(), id, r[3], r[4], orderNo, -amount, tag, String(r[8] || '')]]);
-      ps.getRange(n, 7).setNumberFormat('#,##0.00 "₾"');
+      nfSafe_(ps.getRange(n, 7), '#,##0.00 "₾"');
     } catch (e) {
       eqCell.setValue(paid);   // журнал не записан: возвращаем «оплачено» как было
       throw e;

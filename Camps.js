@@ -141,7 +141,7 @@ function appCampAdd(pin, o) {
     if (!CONFIG.DRY_RUN) {
       var ps = campSheets_().ps, r = ps.getLastRow() + 1;
       ps.getRange(r, 1, 1, 12).setValues([[id, camp.id, pid, name, grp, t.name, sum, String(o.size || '').trim(), String(o.comment || '').trim(), 'Записан', serialOf(today_()), guest]]);
-      ps.getRange(r, 11).setNumberFormat('dd.MM.yyyy');
+      nfSafe_(ps.getRange(r, 11), 'dd.MM.yyyy');
       logChange_(pid, name, 'запись на сбор', '', camp.name + ', ' + t.name + ', ' + sum + ' ₾');
       campDrop_();
     }
@@ -195,7 +195,7 @@ function appCampPay(pin, id, amount, type, dateStr, comment, method) {
       var ys = campSheets_().ys, r = ys.getLastRow() + 1;
       if (isRecentDup_(ys, [[4, p.id], [7, String(amount)], [8, type], [9, method]], 15)) throw new Error('Похоже на повтор: такой платёж только что записан. Обновите страницу');
       ys.getRange(r, 1, 1, 10).setValues([[new Date(), dateStr || today_(), p.camp, p.id, p.pid, p.name, amount, type, method, comment || '']]);
-      ys.getRange(r, 7).setNumberFormat('#,##0.00 "₾"');
+      nfSafe_(ys.getRange(r, 7), '#,##0.00 "₾"');
       campDrop_();
     }
     return { ok: true, dryRun: CONFIG.DRY_RUN, paid: r2_(paid + amount), debt: Math.max(r2_(p.sum - paid - amount), 0) };
@@ -216,7 +216,7 @@ function appCampCancel(pin, row) {
     if (!CONFIG.DRY_RUN) {
       var ys = campSheets_().ys, r = ys.getLastRow() + 1;
       ys.getRange(r, 1, 1, 10).setValues([[new Date(), today_(), y.camp, y.part, p ? p.pid : '', y.name, -y.amount, 'Отмена', y.method, tag]]);
-      ys.getRange(r, 7).setNumberFormat('#,##0.00 "₾"');
+      nfSafe_(ys.getRange(r, 7), '#,##0.00 "₾"');
       logChange_(p ? p.pid : '', y.name, 'отмена платежа (сбор)', '', y.amount + ' ₾');
       campDrop_();
     }
@@ -482,8 +482,8 @@ function appCampSave(pin, o) {
       }
       cs.getRange(r, 1, 1, 9).setValues([[id, name, place, serialOf(start), serialOf(end), Number(dep),
         depBy ? serialOf(depBy) : '', payBy ? serialOf(payBy) : '', active ? 'да' : 'нет']]);
-      cs.getRange(r, 4, 1, 2).setNumberFormat('dd.MM.yyyy');
-      cs.getRange(r, 7, 1, 2).setNumberFormat('dd.MM.yyyy');
+      nfSafe_(cs.getRange(r, 4, 1, 2), 'dd.MM.yyyy');
+      nfSafe_(cs.getRange(r, 7, 1, 2), 'dd.MM.yyyy');
       campDrop_();
     }
     return { ok: true, dryRun: CONFIG.DRY_RUN, id: id };
