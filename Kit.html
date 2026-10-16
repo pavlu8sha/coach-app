@@ -167,7 +167,7 @@ function orderHtml(o,p,linked){
     +'<div>Сумма '+money(o.sum)+', оплачено '+money(o.paid)+', долг '+money(o.debt)+'</div>'
     +(linked&&o.debt>0?payForm(o):'')
     +'<button class="btn sec ed" style="margin-top:8px">Изменить заказ</button>'
-    +'<button class="btn sec delo" data-row="'+o.row+'" style="margin-top:8px">Удалить заказ</button>'
+    +'<button class="btn sec delo" data-row="'+o.row+'" style="margin-top:8px">Удалить заказ</button><div class="msg err dm"></div>'
     +'<div class="edf" hidden><label>Комплект</label><div class="ekits">'+Object.keys(PR).map(function(k){return'<label class="kit"><input type="checkbox" class="ekit" value="'+esc(k)+'"'+(kitsOf(o.kit).indexOf(k)>=0?' checked':'')+'> '+esc(k)+'</label>'}).join('')+'</div>'
     +'<label>Размер</label><input class="esize" value="'+esc(o.size||'')+'">'
     +'<label>Надпись</label><input class="einscr" value="'+esc(o.inscr||'')+'">'
@@ -252,9 +252,9 @@ $('list').onclick=function(e){
   }
   if(b.classList.contains('ed')){var ef=ord.querySelector('.edf');ef.hidden=!ef.hidden;return}
   if(b.classList.contains('delo')){
-    if(!confirm('Удалить заказ «'+b.closest('.ord').querySelector('b').textContent+'»? Строка очистится, заказ нельзя будет восстановить.'))return;
+    if(!b.dataset.sure){b.dataset.sure=1;b.textContent='Точно удалить заказ?';return}
     b.disabled=true;
-    run('appDeleteOrder',[pin,Number(b.dataset.row)],function(r){flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+'Заказ удалён. ';load()},function(m){b.disabled=false;alert(m)});
+    run('appDeleteOrder',[pin,Number(b.dataset.row)],function(r){flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+'Заказ удалён. ';load()},function(m){b.disabled=false;b.dataset.sure='';b.textContent='Удалить заказ';b.parentNode.querySelector('.dm').textContent=m});
     return;
   }
   if(b.classList.contains('eok')){
