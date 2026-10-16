@@ -42,5 +42,14 @@ function equipNumClash_(sh, id, num, row) {
   return hit;
 }
 
+// Заказ в журнале оплат ссылается на свой номер (столбец A листа экипировки), а не на строку: строки могут сдвигаться.
+function eqNoOfRow_(sh, row) { return Number(sh.getRange(row, 1).getValue()) || 0; }
+function eqRowOfNo_(sh, no) {
+  if (!(no > 0)) return 0;
+  var vals = sh.getRange(EQ_FIRST, 1, EQ_ROWS, 1).getValues();
+  for (var i = 0; i < vals.length; i++) { if (Number(vals[i][0]) === no) return EQ_FIRST + i; }
+  return 0;
+}
+
 // Надпись нужна на всех комплектах, кроме тренировочного
 function inscrNeeded_(kit) { return !/^тренировочная( форма)?$/i.test(String(kit || '').trim()); }

@@ -55,7 +55,8 @@ function cancelEq_(ss, row) {
   if (!(amount > 0)) throw new Error('Эту запись отменить нельзя');
   var tag = 'отмена платежа, строка ' + row;
   if (all.some(function (x) { return Number(x[6]) < 0 && String(x[7]) === tag; })) throw new Error('Этот платёж уже отменён');
-  var id = String(r[2]), orderRow = Number(r[5]), eq = equipSheet_();
+  var id = String(r[2]), orderNo = Number(r[5]), eq = equipSheet_(), orderRow = eqRowOfNo_(eq, orderNo);
+  if (!orderRow) throw new Error('Заказ не найден в файле экипировки, проверьте вручную');
   if (String(eq.getRange(orderRow, 12).getValue()).trim() !== id) throw new Error('Заказ перепривязан или изменён, проверьте вручную');
   var paid = Number(eq.getRange(orderRow, 10).getValue()) || 0;
   if (paid < amount) throw new Error('В файле экипировки оплачено меньше суммы платежа (' + paid + ' ₾), проверьте вручную');
@@ -63,7 +64,7 @@ function cancelEq_(ss, row) {
     var n = ps.getLastRow() + 1, eqCell = eq.getRange(orderRow, 10);
     eqCell.setValue(Math.round((paid - amount) * 100) / 100);
     try {
-      ps.getRange(n, 1, 1, 9).setValues([[new Date(), today_(), id, r[3], r[4], orderRow, -amount, tag, String(r[8] || '')]]);
+      ps.getRange(n, 1, 1, 9).setValues([[new Date(), today_(), id, r[3], r[4], orderNo, -amount, tag, String(r[8] || '')]]);
       ps.getRange(n, 7).setNumberFormat('#,##0.00 "₾"');
     } catch (e) {
       eqCell.setValue(paid);   // журнал не записан: возвращаем «оплачено» как было

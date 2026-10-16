@@ -160,7 +160,7 @@ function payOrder(b,ord){
 function kitsOf(k){return String(k||'').split(' + ').map(function(x){return x.trim()}).filter(Boolean)}
 function orderHtml(o,p,linked){
   var prob=[];var mi=missOf(o);if(mi.length)prob.push('не заполнено: '+mi.join(', '));if(isDup(o,p))prob.push('номер '+o.num+' повторяется в группе '+String(p.group||'').trim());
-  return'<div class="ord"><b>'+esc(o.kit||'Комплект не указан')+'</b>'+(o.inst?' (рассрочка)':'')
+  return'<div class="ord"><b>'+esc(o.kit||'Комплект не указан')+'</b>'+(o.inst?' (рассрочка)':'')+(o.no?'<span class="sub"> · заказ №'+o.no+'</span>':'')
     +(prob.length?'<div class="sub err">'+esc(prob.join('; '))+'</div>':'')
     +(p&&nn(o.oname)!=nn(p.name)?'<div class="sub err">В файле заказа записано: '+esc(o.oname)+'</div>':'')
     +'<div class="sub">Размер: '+esc(o.size||'не указан')+'; надпись: '+esc(o.inscr||'—')+'; номер: '+esc(o.num||'—')+'</div>'

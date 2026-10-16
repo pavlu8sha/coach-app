@@ -34,7 +34,7 @@ function equipOrdersLive_() {
     var id = String(r[11] || '').trim();
     var sum = Number(r[8]) || 0, paid = Number(r[9]) || 0;
     var o = {
-      id: id, row: EQ_FIRST + i, oname: name, kit: disp[i][3], size: disp[i][4], inscr: disp[i][5], num: disp[i][6],
+      id: id, row: EQ_FIRST + i, no: Number(r[0]), oname: name, kit: disp[i][3], size: disp[i][4], inscr: disp[i][5], num: disp[i][6],
       inst: disp[i][7], sum: sum, paid: paid, debt: Math.max(sum - paid, 0)
     };
     if (id) orders.push(o); else unl.push(o);
@@ -72,10 +72,10 @@ function relinkCore_(row, newId, fix) {
       sh.getRange(row, 3).setValue(np.name);
       logChange_(np.id, np.name, 'ФИ в заказе экипировки', orderName, np.name);
     }
-    var ps = dbRead_(PAY_SHEET);
-    if (np && oldId && ps && ps.getLastRow() > 1) {
+    var ps = dbRead_(PAY_SHEET), myNo = eqNoOfRow_(sh, row);
+    if (np && oldId && myNo && ps && ps.getLastRow() > 1) {
       ps.getRange(2, 1, ps.getLastRow() - 1, 8).getValues().forEach(function (r, i) {
-        if (String(r[2]) === oldId && Number(r[5]) === row) {
+        if (String(r[2]) === oldId && Number(r[5]) === myNo) {
           ps.getRange(i + 2, 3, 1, 2).setValues([[np.id, np.name]]);
           moved++;
         }
