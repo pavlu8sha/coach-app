@@ -34,7 +34,7 @@ function equipOrdersLive_() {
     var id = String(r[11] || '').trim();
     var sum = Number(r[8]) || 0, paid = Number(r[9]) || 0;
     var o = {
-      id: id, row: EQ_FIRST + i, oname: name, kit: disp[i][3], size: disp[i][4], inscr: disp[i][5], num: disp[i][6],
+      id: id, row: EQ_FIRST + i, no: Number(r[0]), oname: name, kit: disp[i][3], size: disp[i][4], inscr: disp[i][5], num: disp[i][6],
       inst: disp[i][7], sum: sum, paid: paid, debt: Math.max(sum - paid, 0)
     };
     if (id) orders.push(o); else unl.push(o);
@@ -72,10 +72,10 @@ function relinkCore_(row, newId, fix) {
       sh.getRange(row, 3).setValue(np.name);
       logChange_(np.id, np.name, 'ФИ в заказе экипировки', orderName, np.name);
     }
-    var ps = dbRead_(PAY_SHEET);
-    if (np && oldId && ps && ps.getLastRow() > 1) {
+    var ps = dbRead_(PAY_SHEET), myNo = eqNoOfRow_(sh, row);
+    if (np && oldId && myNo && ps && ps.getLastRow() > 1) {
       ps.getRange(2, 1, ps.getLastRow() - 1, 8).getValues().forEach(function (r, i) {
-        if (String(r[2]) === oldId && Number(r[5]) === row) {
+        if (String(r[2]) === oldId && Number(r[5]) === myNo) {
           ps.getRange(i + 2, 3, 1, 2).setValues([[np.id, np.name]]);
           moved++;
         }
@@ -116,19 +116,6 @@ function deleteOrderCore_(row) {
   if (!CONFIG.DRY_RUN) {
     var id = String(sh.getRange(row, 12).getValue()).trim(), name = String(sh.getRange(row, 3).getValue()).trim();
     var what = sh.getRange(row, 4, 1, 6).getDisplayValues()[0].join(' | ');
-    // Журнал оплат ссылается на строку заказа (столбец F): после удаления строк ниже сдвигаются, ссылки пересчитываем
-    var ps = dbRead_(PAY_SHEET);
-    if (ps && ps.getLastRow() > 1) {
-      var pv = ps.getRange(2, 1, ps.getLastRow() - 1, 9).getValues(), changed = false;
-      var nf = pv.map(function (r) {
-        var rr = Number(r[5]);
-        if (String(r[4]).indexOf('Экипировка') !== 0 || !(rr > 0)) return [r[5]];
-        if (rr === row) { changed = true; return ['']; }   // заказ удалён: ссылка снимается
-        if (rr > row) { changed = true; return [rr - 1]; }  // строки ниже сдвинулись вверх
-        return [r[5]];
-      });
-      if (changed) ps.getRange(2, 6, nf.length, 1).setValues(nf);
-    }
     sh.deleteRow(row); // строка удаляется целиком, нижние заказы и итоги сдвигаются, формулы итогов подстраиваются
     equipSyncLocations_(sh);
     cacheDropBig_('eq_v1');

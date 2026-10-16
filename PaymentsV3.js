@@ -24,7 +24,7 @@ function appAddPayment(pin, id, row, amount, dateStr, comment, method) {
       if (isRecentDup_(ps, [[3, id], [6, row], [7, String(amount)], [9, method || '']], 15)) throw new Error('Похоже на повтор: такой платёж только что записан. Обновите страницу');
       eq.getRange(row, 10).setValue(newPaid);
       var r = ps.getLastRow() + 1;
-      ps.getRange(r, 1, 1, 9).setValues([[new Date(), dateStr || today_(), id, name, 'Экипировка: ' + kit, row, amount, comment || '', method || '']]);
+      ps.getRange(r, 1, 1, 9).setValues([[new Date(), dateStr || today_(), id, name, 'Экипировка: ' + kit, eqNoOfRow_(eq, row), amount, comment || '', method || '']]);
       fmt_(ps.getRange(r, 7), '#,##0.00 "₾"');
       cacheDropBig_('eq_v1');
     }
