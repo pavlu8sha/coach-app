@@ -4,6 +4,8 @@ var PAY_METHODS = ['Наличные', 'Перевод'];
 
 // Формат ячеек: если столбец типизирован (Таблица в Google Таблицах), формат не ставим и не падаем
 function fmt_(rg, pattern) { try { rg.setNumberFormat(pattern); } catch (e) {} return rg; }
+// Формат ячейки best-effort: в столбцах с типом (таблица-чипы, дата, число) Google отказывает, запись данных не должна падать.
+function nfSafe_(rg, pattern) { try { rg.setNumberFormat(pattern); } catch (e) {} return rg; }
 
 // Журнал платежей со столбцом «Способ» (J).
 function subLog2_(month, group, p, amount, kind, dateStr, comment, method) {

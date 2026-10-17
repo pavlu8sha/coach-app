@@ -56,6 +56,8 @@ function env(orders, pays) {
   const camps = fs.readFileSync(path.join(ROOT, 'Camps.js'), 'utf8');            // isRecentDup_ — настоящая функция
   const s = camps.indexOf('function isRecentDup_');
   vm.runInContext(camps.slice(s, camps.indexOf('\n}\n', s) + 2), ctx);
+  const sp = fs.readFileSync(path.join(ROOT, 'SubsPay.js'), 'utf8');             // nfSafe_ — настоящая функция из SubsPay.js
+  vm.runInContext(sp.slice(sp.indexOf('function nfSafe_'), sp.indexOf('\n', sp.indexOf('function nfSafe_'))), ctx);
   Object.assign(ctx, {
     PAY_SHEET: 'ОПЛАТЫ', PAY_HEAD: HEAD, PAY_METHODS: ['Наличные', 'Перевод'],
     equipSheet_: () => eq,

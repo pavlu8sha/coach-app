@@ -200,7 +200,7 @@ function importMatchesCommit() {
     s2.getRange(1, 1, 1, 10).setValues([['Событие', 'ID игрока', 'ФИ', 'Играл', 'За команду', 'Взнос оплачен', 'Сумма ₾', 'Способ', 'Дата оплаты', 'Комментарий']]);
     if (ev.length) {
       s1.getRange(2, 1, ev.length, 7).setValues(ev);
-      s1.getRange(2, 5, ev.length, 1).setNumberFormat('dd.mm.yyyy');
+      nfSafe_(s1.getRange(2, 5, ev.length, 1), 'dd.mm.yyyy');
     }
     if (pr.length) s2.getRange(2, 1, pr.length, 10).setValues(pr);
     s1.setFrozenRows(1); s2.setFrozenRows(1);

@@ -237,7 +237,7 @@ function saveAttendanceCore_(group, dateStr, marks) {
         var run = ws.slice(i, j + 1);
         var rg = sheet.getRange(run[0].row, Number(col), run.length, 1);
         rg.setValues(run.map(function (w) { return [w.value]; }));
-        if (run[0].isDate) rg.setNumberFormat('d'); // в шапке видно только число дня
+        if (run[0].isDate) nfSafe_(rg, 'd'); // в шапке видно только число дня
         i = j + 1;
       }
     });
