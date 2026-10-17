@@ -58,8 +58,59 @@ function gnResult_(m) {
 
 // ---- Тренировки и статистика за месяц (только чтение) ----
 
-// Таблица 1Cf4: листы «Игры» и «Тренировки». Пока только чтение; запись будет в AdminApp.
+// Файл тренировок: листы «Игры», «Тренировки», «Справочники».
+// Окружение определяется по ID самого скрипта, а не по настройке:
+// - боевой проект (GN_PROD_SCRIPT_ID) всегда открывает боевой файл GN_FILE_ID, свойство GN_FILE_ID игнорируется;
+// - любой другой проект (тестовая копия) открывает только файл из свойства скрипта GN_FILE_ID.
+//   Нет свойства, оно совпадает с боевым ID или файл не открывается — ошибка. Боевой файл не подставляется никогда.
 var GN_FILE_ID = '1Cf4jRMEh8078EcMuzcrpUnPyB1g9_XdDzulxSOC3vC4';
+var GN_PROD_SCRIPT_ID = '1f1a73JcO3XNJdUsB1qSrpFKtSn2AAOMVtzTFBSGu3dHmpWH4xOjFDp7w';
+var _gnFile = null;
+
+// Последние 4 символа ID — для сообщений и логов (полный ID не показываем)
+function gnMaskId_(id) { id = String(id || ''); return id ? '…' + id.slice(-4) : '(пусто)'; }
+
+function gnIsProd_() { return ScriptApp.getScriptId() === GN_PROD_SCRIPT_ID; }
+
+// Какой ID файла тренировок у этого проекта. В тестовом проекте при ошибке настройки — исключение.
+function gnFileId_() {
+  if (gnIsProd_()) return GN_FILE_ID;
+  var id = String(PropertiesService.getScriptProperties().getProperty('GN_FILE_ID') || '').trim();
+  if (!id) throw new Error('Тестовый файл тренировок не настроен: задайте свойство скрипта GN_FILE_ID (ID копии файла тренировок)');
+  if (id === GN_FILE_ID) throw new Error('В тестовом проекте свойство GN_FILE_ID указывает на боевой файл тренировок. Укажите ID копии');
+  return id;
+}
+
+// Единственная точка открытия файла тренировок
+function gnFile_() {
+  if (_gnFile) return _gnFile;
+  var id = gnFileId_();
+  try { _gnFile = SpreadsheetApp.openById(id); }
+  catch (e) {
+    if (gnIsProd_()) throw new Error('Не удалось открыть файл тренировок');
+    throw new Error('Тестовый файл тренировок (' + gnMaskId_(id) + ') не открывается: проверьте свойство GN_FILE_ID и доступ к файлу');
+  }
+  return _gnFile;
+}
+
+// Запускать из редактора: окружение и файлы проекта (названия и последние 4 символа ID). Ничего не записывает.
+function envCheck() {
+  var prod = gnIsProd_(), out = ['Окружение: ' + (prod ? 'БОЕВОЕ' : 'ТЕСТОВОЕ') + ' (скрипт ' + gnMaskId_(ScriptApp.getScriptId()) + ')'];
+  function line(label, fn) {
+    try { var f = fn(); out.push(label + ': «' + f.getName() + '» ' + gnMaskId_(f.getId())); }
+    catch (e) { out.push(label + ': ОШИБКА — ' + e.message); }
+  }
+  line('Файл тренировок (GN_FILE_ID)', gnFile_);
+  line('Таблица посещаемости (скрипт привязан)', function () { return SpreadsheetApp.getActive(); });
+  ['ADMIN_ID', 'PAY_ID', 'EQUIP_ID', 'EXTRA_ID', 'IND_ID', 'ATT_ID', 'GAMES_ID', 'FUNNEL_ID'].forEach(function (k) {
+    var id = PropertiesService.getScriptProperties().getProperty(k);
+    if (!id) { out.push(k + ': не задано'); return; }
+    line(k, function () { return SpreadsheetApp.openById(id); });
+  });
+  if (!prod) out.push('Проверьте: все названия выше — копии (с пометкой ТЕСТ). Если хоть одно боевое — не входите в приложение, исправьте свойство.');
+  Logger.log(out.join('\n'));
+  return out;
+}
 
 function gnStr_(v) {
   if (v instanceof Date) {
@@ -72,8 +123,8 @@ function gnStr_(v) {
 }
 
 function gnValues_(name) {
-  var sh = SpreadsheetApp.openById(GN_FILE_ID).getSheetByName(name);
-  if (!sh) throw new Error('В таблице нет листа «' + name + '»');
+  var sh = gnFile_().getSheetByName(name);
+  if (!sh) throw new Error('В файле тренировок нет листа «' + name + '»');
   // Берём отображаемые значения: время в таблице не превращается в дату и не сдвигается по часовому поясу
   return sh.getDataRange().getDisplayValues().map(function (r) { return r.map(gnStr_); });
 }
@@ -169,8 +220,8 @@ function gnNextGameRow_(sh, row) {
 
 // Заменяет весь состав игры. rows — [[имя, роль, 'Да'|'Нет'], ...]. Строки игры — от её начала до следующей игры.
 function gnSetGameStaff_(date, team, opp, rows) {
-  var sh = SpreadsheetApp.openById(GN_FILE_ID).getSheetByName('Игры');
-  if (!sh) throw new Error('в таблице 1Cf4 нет листа «Игры»');
+  var sh = gnFile_().getSheetByName('Игры');
+  if (!sh) throw new Error('в файле тренировок нет листа «Игры»');
   var row = gnFindGameRow_(sh, date, team, opp);
   if (!row) throw new Error('игра ' + date + ' ' + team + ' ' + opp + ' не найдена в «Игры»');
   var next = gnNextGameRow_(sh, row);
@@ -220,15 +271,15 @@ function appGameStaffSet(pin, date, team, opp, staff) {
   }
 }
 
-// ---- Тренировки в таблице 1Cf4 (лист «Тренировки») ----
+// ---- Тренировки в файле тренировок (лист «Тренировки») ----
 
 var GN_TR_HEAD = ['Дата', 'День недели', 'Тренер', 'Локация', 'Группа', 'Тип тренировки', 'Начало', 'Конец', 'Часы', 'Проведено'];
 var GN_WEEKDAYS = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
 
-// Лист «Тренировки» в таблице 1Cf4 (он уже существует)
+// Лист «Тренировки» в файле тренировок (он уже существует)
 function gnTrainingsSheet_() {
-  var sh = SpreadsheetApp.openById(GN_FILE_ID).getSheetByName('Тренировки');
-  if (!sh) throw new Error('В таблице 1Cf4 нет листа «Тренировки»');
+  var sh = gnFile_().getSheetByName('Тренировки');
+  if (!sh) throw new Error('В файле тренировок нет листа «Тренировки»');
   return sh;
 }
 
@@ -497,7 +548,7 @@ function appConfirmDaily(pin, o) {
   return { ok: true, written: n };
 }
 
-// ---- Игры в таблице 1Cf4 (лист «Игры»): запись из раздела «Матчи» ----
+// ---- Игры в файле тренировок (лист «Игры»): запись из раздела «Матчи» ----
 
 // Латиница в названии команды → кириллица, как в выпадающем списке листа «Игры»: «U9-A» → «U9-А»
 function gnTeamRu_(s) {
@@ -549,8 +600,8 @@ function gnSyncGame_(eventId) {
     .filter(function (r) { return String(r[0]) === String(eventId) && Number(r[10]) > 0; })
     .map(function (r) { return String(r[2]).trim() + (Number(r[10]) > 1 ? ' - ' + Number(r[10]) : ''); }).join(', ');
 
-  var sh = SpreadsheetApp.openById(GN_FILE_ID).getSheetByName('Игры');
-  if (!sh) throw new Error('в таблице 1Cf4 нет листа «Игры»');
+  var sh = gnFile_().getSheetByName('Игры');
+  if (!sh) throw new Error('в файле тренировок нет листа «Игры»');
   var vals = sh.getDataRange().getValues(), at = 0;
   for (var i = 1; i < vals.length; i++) {
     var d = vals[i][0] instanceof Date ? Utilities.formatDate(vals[i][0], tz, 'dd.MM.yyyy') : String(vals[i][0]).trim();
