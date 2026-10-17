@@ -194,7 +194,7 @@ function appSetBirth(pin, id, date) {
       for (var i = 0; i < ids.length; i++) if (String(ids[i][0]).trim() === id) { row = i + 2; break; }
     }
     var target = row || sh.getLastRow() + 1;
-    sh.getRange(target, 3).setNumberFormat('@'); // как текст, чтобы таблица не переписала дату по своей локали
+    nfSafe_(sh.getRange(target, 3), '@'); // как текст, чтобы таблица не переписала дату по своей локали
     sh.getRange(target, 1, 1, 4).setValues([[id, p.name, d, new Date()]]);
     logChange_(id, p.name, 'Дата рождения', was, d);
     cacheDropBig_('bo_v1'); cacheDropBig_('birth_v1');
@@ -242,7 +242,7 @@ function addPlayerCore_(p) {
     sh.getRange(r, 1, 1, row.length).setValues([row]);
     // оформление как у строки выше (цвета, рамки, шрифт); значения не трогаем
     if (r > 4) sh.getRange(r - 1, 1, 1, row.length).copyTo(sh.getRange(r, 1, 1, row.length), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
-    sh.getRange(r, 6).setNumberFormat('dd.MM.yyyy');
+    nfSafe_(sh.getRange(r, 6), 'dd.MM.yyyy');
     logChange_(id, name, 'добавлен', '', p.group + (extras.length ? ' + ' + extras.join(', ') : ''));
     regInvalidate_();
   }
@@ -293,7 +293,7 @@ function updatePlayerCore_(id, c) {
     ch.forEach(function (x) {
       var rg = reg.sh.getRange(p.row, x.col);
       rg.setValue(x.value);
-      if (x.isDate) rg.setNumberFormat('dd.MM.yyyy');
+      if (x.isDate) nfSafe_(rg, 'dd.MM.yyyy');
       logChange_(id, p.name, x.field, x.was, x.now);
     });
     regInvalidate_();

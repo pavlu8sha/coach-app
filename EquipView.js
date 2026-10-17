@@ -60,7 +60,7 @@ function addOrderCore_(o) {
       var ps = dbSheet_(PAY_SHEET, PAY_HEAD);
       var r2 = ps.getLastRow() + 1;
       ps.getRange(r2, 1, 1, 9).setValues([[new Date(), dateStr, o.id, p.name, 'Экипировка: ' + o.kit, eqNoOfRow_(sh, row), paid, 'при заказе', method]]);
-      ps.getRange(r2, 7).setNumberFormat('#,##0.00 "₾"');
+      nfSafe_(ps.getRange(r2, 7), '#,##0.00 "₾"');
     }
     logChange_(o.id, p.name, 'новый заказ экипировки', '', o.kit + ', ' + sum + ' ₾, строка ' + row);
   }

@@ -75,7 +75,7 @@ function addEventCore_(o, isAdmin) {
     try {
       ms.getRange(r1, 1, 1, 7).setValues([[id, team, o.type, name, o.date ? serialOf(o.date) : '', '', parent]]);
       wroteRow = true;
-      ms.getRange(r1, 5).setNumberFormat('dd.mm.yyyy');
+      nfSafe_(ms.getRange(r1, 5), 'dd.mm.yyyy');
       feeSet_(id, team, o.type, name, fee);
       if (copy.length) ps.getRange(ps.getLastRow() + 1, 1, copy.length, 10).setValues(copy);
     } catch (e) {

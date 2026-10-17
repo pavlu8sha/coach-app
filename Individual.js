@@ -37,7 +37,7 @@ function indLog_(type, ev, name, amount, method, comment) {
   var sh = dbSheet_(IND_LOG, IND_HEAD);
   if (!sh) return;
   sh.appendRow([new Date(), ev.id, name, amount, method || '', type, comment || '']);
-  sh.getRange(sh.getLastRow(), 1).setNumberFormat('dd.MM.yyyy HH:mm');
+  nfSafe_(sh.getRange(sh.getLastRow(), 1), 'dd.MM.yyyy HH:mm');
 }
 
 function indPlayer_(ev, name) {
@@ -351,7 +351,7 @@ function appIndEventEdit(pin, id, date, time, theme) {
       });
     }
     var sh = dbSheet_(IND_EVT, IND_EVT_HEAD), newId = indAdmId_(date, hh, ev.goalkeepers);
-    sh.getRange(ev.row, 1, 1, 3).setNumberFormat('@');
+    nfSafe_(sh.getRange(ev.row, 1, 1, 3), '@');
     sh.getRange(ev.row, 1, 1, 5).setValues([[newId, date, hh, ev.goalkeepers, String(theme || '').trim()]]);
     if (newId !== ev.id) { // переносим отметки «кто был» на новый ID занятия
       var ms = adminSS_().getSheetByName(IND_ATT);
