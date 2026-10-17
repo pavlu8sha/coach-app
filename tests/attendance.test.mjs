@@ -97,6 +97,8 @@ function load(opts) {
     checkPin_() {}, indIsGroup_: () => false, extraIsGroup_: () => false,
   };
   vm.createContext(ctx);
+  const sp = fs.readFileSync(path.join(ROOT, 'SubsPay.js'), 'utf8');             // nfSafe_ — настоящая функция из SubsPay.js
+  vm.runInContext(sp.slice(sp.indexOf('function nfSafe_'), sp.indexOf('\n', sp.indexOf('function nfSafe_'))), ctx);
   for (const f of opts.files || ['Attendance.js', 'WebApp.js']) {
     const src = typeof f === 'string' ? fs.readFileSync(path.join(ROOT, f), 'utf8') : f.src;
     vm.runInContext(src, ctx, { filename: typeof f === 'string' ? f : f.name });
