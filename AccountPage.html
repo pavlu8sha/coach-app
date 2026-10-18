@@ -257,7 +257,7 @@ function dyPaint(){
     var can=x.status==='open'&&dayHeld[key]===undefined;
     var tb=can?'<div class="grid2" style="margin-top:6px">'
       +(trs.length<3?'<button class="btn" style="background:var(--card);color:var(--ink);border:1px solid var(--line)" data-add="'+i+'">+ тренер</button>':'')
-      +(trs.length>2?'<button class="btn" style="background:var(--card);color:var(--ink);border:1px solid var(--line)" data-rm="'+i+'">− тренер</button>':'')
+      +(trs.length>1?'<button class="btn" style="background:var(--card);color:var(--ink);border:1px solid var(--line)" data-rm="'+i+'">− тренер</button>':'')
       +'</div>':'';
     var recLine='';
     var saveBlock=isDone?'<div style="margin-top:6px"><button class="btn" data-save="'+i+'" style="width:auto;min-height:36px;margin-top:0;padding:0 16px;font-size:14px">Сохранить тренеров</button></div>':'';
