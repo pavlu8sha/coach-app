@@ -33,6 +33,7 @@ th{color:var(--mute);font-weight:600}
 .msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:8px}
 .err{color:var(--a)}
 label{font-size:13px;color:var(--mute);display:flex;gap:8px;align-items:center;margin-top:8px}
+label:has(> input[type=checkbox]){min-height:44px}label > input[type=checkbox]{width:22px;height:22px;min-height:0;flex:none} /* DS-015: цель касания ≥ 44 px */
 label input{width:auto;min-height:0}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
 .chips button{min-height:36px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--ink);padding:4px 12px}
