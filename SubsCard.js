@@ -11,9 +11,15 @@ function appPlayerSubs(pin, id) {
     (monthGroups_(m) || []).forEach(function (g) {
       g.rows.forEach(function (r) {
         if (!r.name || norm(r.name) !== key) return;
+        if (subIsExtra_(p, g.name)) {   // доп. программа: без своего долга, внесённое идёт в основной абонемент
+          if (r.paid > 0) items.push({ month: m, group: g.name, tariff: 0, paid: r.paid, st: 'paid', debt: 0, extra: p.group, disc: false,
+            method: flags['m|' + m + '|' + norm(g.name) + '|' + key] || '' });
+          return;
+        }
         var T = tariff_(g.name, m), disc = !!flags[m + '|' + norm(g.name) + '|' + key];
-        var s = subState_(T, r.paid, disc);
-        items.push({ month: m, group: g.name, tariff: T, paid: r.paid, st: s.st, debt: s.debt, disc: disc && r.paid > 0 && r.paid < T,
+        var paidEff = norm(g.name) === norm(p.group) ? effPaid_(monthGroups_(m), g.name, r.name, p) : r.paid;
+        var s = subState_(T, paidEff, disc);
+        items.push({ month: m, group: g.name, tariff: T, paid: paidEff, st: s.st, debt: s.debt, disc: disc && paidEff > 0 && paidEff < T,
           method: flags['m|' + m + '|' + norm(g.name) + '|' + key] || '' });
       });
     });
@@ -21,7 +27,7 @@ function appPlayerSubs(pin, id) {
   items.sort(function (a, b) { return rev(b.month).localeCompare(rev(a.month)); });
   months.sort(function (a, b) { return rev(b).localeCompare(rev(a)); });
   var tariffs = {};
-  [p.group].concat(p.extras).forEach(function (g) { if (g && !skipGroup_(g)) tariffs[g] = tariff_(g); });  // текущий месяц: для формы оплаты
+  [p.group].forEach(function (g) { if (g && !skipGroup_(g)) tariffs[g] = tariff_(g); });   // оплата — в основной группе: доп. программы идут в её счёт  // текущий месяц: для формы оплаты
   var tariffsBy = {};
   months.forEach(function (m) { tariffsBy[m] = {}; Object.keys(tariffs).forEach(function (g) { tariffsBy[m][g] = tariff_(g, m); }); });
   var hist = [], ps = dbRead_(SUB_SHEET);

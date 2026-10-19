@@ -107,6 +107,10 @@ function appPayMonth(pin, month) {
       var p = byName[norm(r.name)];
       // выбывший игрок без оплаты за месяц в списке не нужен
       if (p && p.status !== 'Активен' && !(r.paid > 0)) return;
+      if (subIsExtra_(p, g.name)) {   // доп. программа: без своего долга, внесённое идёт в основной абонемент
+        rows.push({ name: r.name, id: p.id, paid: r.paid, st: 'paid', debt: 0, extra: p.group, disc: false, method: flags['m|' + month + '|' + norm(g.name) + '|' + norm(r.name)] || '' });
+        return;
+      }
       var paid = p && norm(p.group) === norm(g.name) ? effPaid_(mg, g.name, r.name, p) : r.paid;
       var disc = !!flags[month + '|' + norm(g.name) + '|' + norm(r.name)];
       var s = subState_(T, paid, disc);
@@ -118,18 +122,26 @@ function appPayMonth(pin, month) {
   return { month: month, groups: groups };
 }
 
-// Оплата игрока за месяц в его основной группе. Если в основной группе ничего не внесено,
-// а игрок переведён из другой группы (и она не его доп. программа) — берём оплату из той группы.
+// Доп. программа игрока — другая группа из «Доп. программы» (не основная, не «Индивидуальные / Вратарские»).
+// Отдельного абонемента у неё нет: внесённое в её блок идёт в счёт основного абонемента (может быть переплата).
+function subIsExtra_(p, gname) {
+  return !!p && norm(gname) !== norm(p.group) && !skipGroup_(gname) && (p.extras || []).map(norm).indexOf(norm(gname)) >= 0;
+}
+
+// Оплата игрока за месяц в его основной группе: внесённое в основной группе плюс внесённое в блоках
+// доп. программ. Если в основной группе ничего не внесено, а игрок переведён из другой группы
+// (и она не его доп. программа) — берём оплату из той группы.
 function effPaid_(mg, gn, name, p) {
-  var own = 0, moved = 0, extras = (p.extras || []).map(norm);
+  var own = 0, moved = 0, extra = 0;
   mg.forEach(function (g) {
     g.rows.forEach(function (r) {
       if (norm(r.name) !== norm(name)) return;
       if (norm(g.name) === norm(gn)) own = Math.max(own, r.paid || 0);
-      else if (r.paid > 0 && extras.indexOf(norm(g.name)) < 0) moved = Math.max(moved, r.paid);
+      else if (subIsExtra_(p, g.name)) extra += r.paid > 0 ? r.paid : 0;
+      else if (r.paid > 0 && !skipGroup_(g.name)) moved = Math.max(moved, r.paid);
     });
   });
-  return own > 0 ? own : moved;
+  return (own > 0 ? own : moved) + extra;
 }
 
 // Принять уже внесённую неполную сумму как «скидку по договорённости».

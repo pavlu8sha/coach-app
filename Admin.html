@@ -145,6 +145,7 @@ function list(){
 function setMethod(m){method=m;[].forEach.call($('meth').children,function(x){x.setAttribute('aria-pressed',String(x.dataset.m==m))})}
 function boxMsg(box,m){var el=box.querySelector('.pm');if(el)el.textContent=m}
 function chipOf(st,it,debt){
+  if(it&&it.extra)return'<span class="ok">доп. программа: в счёт '+esc(it.extra)+'</span>';
   return st=='paid'?'<span class="ok">'+(it&&it.disc?'скидка':'оплачено')+'</span>'
     :st=='partial'?'<span class="err">частично, долг '+money(debt)+'</span>'
     :'<span class="err">не платил</span>';

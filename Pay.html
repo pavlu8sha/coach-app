@@ -85,7 +85,7 @@ function loadMonth(){
   setMsg('Загрузка…');
   run('appPayMonth',[pin,$('mon').value],function(d){if(n==reqN){D=d;show()}},function(m){if(n==reqN)fail(m)});
 }
-function chip(r){return r.st=='paid'?'<span class="ok">'+(r.disc?'скидка':'оплачено')+'</span>':r.st=='partial'?'<span class="err">частично, долг '+money(r.debt)+'</span>':'<span class="err">не платил</span>'}
+function chip(r){return r.extra?'<span class="ok">доп. программа: в счёт '+esc(r.extra)+'</span>':r.st=='paid'?'<span class="ok">'+(r.disc?'скидка':'оплачено')+'</span>':r.st=='partial'?'<span class="err">частично, долг '+money(r.debt)+'</span>':'<span class="err">не платил</span>'}
 function prow(r,gi,ri){
   var b='';
   if(r.st!='paid')b=r.id?'<button class="btn sec pb" data-g="'+gi+'" data-r="'+ri+'">Принять оплату</button>'
@@ -97,7 +97,7 @@ function show(){
   var q=nn($('q').value),only=$('fs').value=='debt',S=0,E=0,P=0,N=0,out='';
   D.groups.forEach(function(g,gi){
     var paidN=0,s=0,e=0;
-    g.rows.forEach(function(r){N++;e+=g.tariff;s+=r.paid;if(r.st=='paid'){paidN++;P++}});
+    g.rows.forEach(function(r){if(r.extra)return;N++;e+=g.tariff;s+=r.paid;if(r.st=='paid'){paidN++;P++}});   // доп. программа считается в основной группе
     S+=s;E+=e;
     var rows=g.rows.map(function(r,ri){return{r:r,ri:ri}}).filter(function(x){return(!only||x.r.st!='paid')&&(!q||nn(x.r.name).indexOf(q)>=0)});
     if(!rows.length)return;

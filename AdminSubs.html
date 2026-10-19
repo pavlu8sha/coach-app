@@ -1,7 +1,7 @@
 <script>
 (function(){
   var orig=window.renderCard,SUB=null;
-  function chip(i){return i.st=='paid'?'<span class="ok">'+(i.disc?'скидка':'оплачено')+'</span>':i.st=='partial'?'<span class="err">частично, долг '+money(i.debt)+'</span>':'<span class="err">не платил</span>'}
+  function chip(i){return i.extra?'<span class="ok">доп. программа: в счёт '+esc(i.extra)+'</span>':i.st=='paid'?'<span class="ok">'+(i.disc?'скидка':'оплачено')+'</span>':i.st=='partial'?'<span class="err">частично, долг '+money(i.debt)+'</span>':'<span class="err">не платил</span>'}
   function form(debt,extra,cls){
     return extra+'<label>Сумма, ₾</label><input type="number" min="0" step="1" class="sa" value="'+debt+'" data-debt="'+debt+'">'
       +'<div class="st2" hidden><label>Сумма меньше остатка. Что это?</label><select class="sty"><option value="">Выберите…</option><option value="Скидка">Скидка по договорённости (оплата принята)</option><option value="Частичный">Частичный платёж (останется долг)</option></select></div>'
