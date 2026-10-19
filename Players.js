@@ -12,12 +12,12 @@ function checkAdmin_(pin) {
 }
 
 function today_() {
-  return Utilities.formatDate(new Date(), SpreadsheetApp.getActive().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
+  return Utilities.formatDate(new Date(), attSS_().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
 }
 
 function isoOf_(v) {
   if (v === '' || v === null || v === undefined) return '';
-  if (v instanceof Date) return Utilities.formatDate(v, SpreadsheetApp.getActive().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
+  if (v instanceof Date) return Utilities.formatDate(v, attSS_().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
   var n = Number(v);
   if (isNaN(n) || n < 1000) return '';
   return Utilities.formatDate(new Date(Date.UTC(1899, 11, 30) + Math.round(n) * 86400000), 'GMT', 'yyyy-MM-dd');
