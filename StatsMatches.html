@@ -35,7 +35,6 @@
   }
   function dm(d){return d?d.slice(8)+'.'+d.slice(5,7):'—'}
   function res(g){
-    if(g.internal)return'<span class="r3 i">вн</span>';
     return g.gf>g.ga?'<span class="r3 w">В</span>':(g.gf<g.ga?'<span class="r3 l">П</span>':'<span class="r3 d">Н</span>');
   }
   function agg(parts){
