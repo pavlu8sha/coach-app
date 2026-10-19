@@ -25,6 +25,7 @@ html:not([data-ok]) #ksnav,html:not([data-ok]) [data-gate]{display:none!importan
 .ksmode.kstheme button{min-height:44px;padding:6px 4px;font-size:13px;line-height:1.2}
 .ksmode button+button{border-left:1px solid var(--line)}
 #kstoast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--navh) + 18px + env(safe-area-inset-bottom));max-width:min(92vw,520px);z-index:70;background:var(--ink);color:var(--bg);padding:12px 16px;border-radius:14px;font:600 14px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+html .msg.ks-inl{visibility:hidden}
 #kstoast.bad{background:var(--a);color:var(--color-on-danger,#fff)}
 #ksblock{position:fixed;top:0;right:0;bottom:0;left:0;z-index:60;background:var(--bg);color:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 #ksblock b{font-size:18px;max-width:320px}
@@ -132,25 +133,58 @@ img,table,select,input,textarea{max-width:100%}
   });
   document.addEventListener('click',function(e){if(!e.target.closest('#ksmore,#ksmb')&&!sheet.hidden)sheetOpen(false)});
   document.getElementById('ksadm').onclick=function(){setMode('admin')};
-  // Всплывающие уведомления: показываем любое сообщение страницы (.msg), кроме «Загрузка…».
+  // UI-010. Сообщения страницы (.msg):
+  //  • тост — только для итогов: общее сообщение страницы (.msg с role="status"), кроме «Загрузка…»/«Сохраняю…»;
+  //  • ошибка формы — внутри формы: если ошибка пришла в общее сообщение сразу после нажатия кнопки на странице,
+  //    она показывается под этой кнопкой (.ks-ferr), без тоста; ошибки без нажатия (загрузка) — тостом, как раньше;
+  //  • сообщения внутри форм (.msg без role) тостом не дублируются; ошибка в них объявляется (role="alert")
+  //    и прокручивается в видимую область, если оказалась за экраном.
   function say(t,bad){
     toast.textContent=t;toast.className=bad?'bad':'';toast.hidden=false;
     clearTimeout(tt);tt=setTimeout(function(){toast.hidden=true},bad?7000:4000);
   }
   window.ksToast=say;
+  var lastBtn=null,lastAt=0,ferrEl=null,ferrSrc=null;
+  document.addEventListener('click',function(e){
+    var b=e.target.closest&&e.target.closest('button,input[type=button],input[type=submit]');
+    if(!b||b.closest('#ksdlg,#ksnav,#ksmore,#kstoast,#ksblock'))return;
+    lastBtn=b;lastAt=Date.now();clearFerr();
+  },true);
+  function clearFerr(){if(ferrEl){ferrEl.remove();ferrEl=null}if(ferrSrc){ferrSrc.classList.remove('ks-inl');ferrSrc=null}}
+  document.addEventListener('input',function(e){if(ferrEl&&!e.target.closest('#ksdlg'))clearFerr()},true);
+  function seen(el){var r=el.getBoundingClientRect();return r.height>0&&r.top>=0&&r.bottom<=(window.innerHeight||0)}
+  function nearest(el){try{el.scrollIntoView({block:'nearest'})}catch(x){}}
+  function formErr(t,src){
+    var b=lastBtn;
+    if(!b||Date.now()-lastAt>15000||!document.body.contains(b)||b.offsetParent===null)return false;
+    var nx=b.nextElementSibling;
+    if(nx&&nx.classList.contains('msg')&&nx.classList.contains('err')&&!nx.hasAttribute('role'))return false; // у формы своё поле ошибки
+    ferrEl=document.createElement('p');ferrEl.className='ks-ferr';ferrEl.setAttribute('role','alert');ferrEl.textContent=t;
+    b.insertAdjacentElement('afterend',ferrEl);
+    ferrSrc=src;src.classList.add('ks-inl'); // копия вверху страницы скрыта, место сохраняется
+    if(!seen(ferrEl))nearest(ferrEl);
+    return true;
+  }
   new MutationObserver(function(ms){
     ms.forEach(function(m){
       var el=m.target.nodeType==3?m.target.parentElement:m.target;
       el=el&&el.closest?el.closest('.msg'):null;
-      if(!el)return;
+      if(!el||el.closest('#ksdlg'))return;
       var t=el.textContent.trim();
       if(!t){el.__t='';return}
       if(el.__t===t)return;
       el.__t=t;
       if(/…$/.test(t))return;
-      say(t,el.classList.contains('err'));
+      var bad=el.classList.contains('err');
+      if(el.getAttribute('role')!=='status'){                // сообщение внутри формы
+        if(bad){el.setAttribute('role','alert');if(!seen(el))nearest(el)}
+        return;
+      }
+      if(bad){clearFerr();if(formErr(t,el))return}
+      if(!bad)clearFerr();
+      say(t,bad);
     });
-  }).observe(document.body,{subtree:true,childList:true,characterData:true});
+  }).observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['class']});
   // Проверка кода на сервере: роль не берётся из сохранённых значений, меню появляется только после ответа сервера
   function check(){
     var c=get('kspin');

@@ -51,6 +51,19 @@ input[type=checkbox],input[type=radio]{accent-color:var(--color-primary)}
 #ksdlg h2,#ksdlg .ks-text,#ksdlg .ks-warn,#ksdlg .ks-err,#ksdlg .ks-acts button{overflow-wrap:anywhere}
 @media (max-width:300px){#ksdlg{padding:8px}#ksdlg .ks-box{padding:12px;max-height:calc(100vh - 16px);max-height:calc(100dvh - 16px - env(safe-area-inset-bottom))}#ksdlg dl{grid-template-columns:1fr;gap:0}#ksdlg dd{margin-bottom:6px}}
 html.ks-dlg-lock,html.ks-dlg-lock body{overflow:hidden!important}
+/* UI-010: ошибка формы под кнопкой, пустые состояния, явная загрузка */
+.ks-ferr{display:flex;gap:6px;align-items:flex-start;margin:6px 0 0;color:var(--color-danger-strong);font-size:14px;font-weight:600;line-height:1.35}
+.ks-ferr::before{content:"!";flex:none;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin-top:1px;border-radius:50%;background:var(--color-danger-strong);color:var(--color-on-danger);font-size:12px;font-weight:800}
+.ks-empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:28px 16px;margin:8px 0;background:var(--card);border:1px solid var(--line);border-radius:14px;list-style:none}
+.ks-empty svg{color:var(--g);margin-bottom:4px}
+.ks-empty b{font-size:16px;color:var(--ink)}
+.ks-empty p{margin:0;color:var(--mute);font-size:14px;max-width:320px}
+.ks-empty button{margin-top:10px;min-height:44px;padding:10px 20px;border-radius:12px;border:0;background:var(--g);color:var(--gi);font:700 15px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer;width:auto}
+.ks-load{display:flex;flex-direction:column;align-items:center;gap:12px;padding:56px 16px;color:var(--mute);font-size:15px}
+.ks-load[hidden],.ks-empty[hidden],.ks-ferr[hidden]{display:none}
+.ks-spin{width:28px;height:28px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--g);animation:ks-spin .9s linear infinite}
+@keyframes ks-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.ks-spin{animation-duration:2.5s}}
 </style>
 <div id="ksdlg" role="presentation">
   <div class="ks-box" role="dialog" aria-modal="true" aria-labelledby="ksdlg-t" aria-describedby="ksdlg-x ksdlg-d ksdlg-w">
@@ -168,6 +181,14 @@ html.ks-dlg-lock,html.ks-dlg-lock body{overflow:hidden!important}
     var m=/^(\d{4})-(\d\d)-(\d\d)$/.exec(String(s||''));if(!m)return '';
     var d=new Date(),z=function(n){return(n<10?'0':'')+n},t=d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate());
     return s===t?'':m[3]+'.'+m[2]+'.'+m[1];
+  };
+  /* UI-010: пустое состояние. ksEmpty({icon:'users'|'box'|'search', title, text, btn:'Текст', id:'idКнопки', tag:'li'}) → HTML */
+  var EICON={users:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    box:'<path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',search:'<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>'};
+  window.ksEmpty=function(o){
+    var tag=o.tag||'div',txt=function(v){return String(v==null?'':v).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})};
+    return'<'+tag+' class="ks-empty" role="status"><svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(EICON[o.icon]||EICON.search)+'</svg>'
+      +'<b>'+txt(o.title)+'</b>'+(o.text?'<p>'+txt(o.text)+'</p>':'')+(o.btn?'<button type="button" id="'+o.id+'">'+txt(o.btn)+'</button>':'')+'</'+tag+'>';
   };
   /* Предупреждение о переплате: сумма больше остатка */
   window.ksOverpay=function(amount,left){

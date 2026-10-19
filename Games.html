@@ -38,6 +38,7 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
   <h1>Вход</h1><p>Введите код доступа</p>
   <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err"></p><button class="btn" id="go">Войти</button>
 </div>
+<div id="gload" class="wrap ks-load" role="status" hidden><span class="ks-spin" aria-hidden="true"></span>Загрузка данных…</div>
 <div id="app" class="wrap" hidden>
   <h1>Матчи</h1>
   <select id="tm" aria-label="Команда"></select>
@@ -59,8 +60,8 @@ function money(n){return String(Math.round(n*100)/100).replace('.',',')+' ₾'}
 function today(){var d=new Date(),z=function(n){return(n<10?'0':'')+n};return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())}
 function fd(s){return s?s.slice(8,10)+'.'+s.slice(5,7)+'.'+s.slice(0,4):'без даты'}
 function setMsg(id,t,bad){$(id).textContent=t||'';$(id).className='msg'+(bad?' err':'')}
-function showLogin(t){$('app').hidden=true;$('panel').hidden=true;$('login').hidden=false;$('lerr').textContent=t||''}
-function fail(m){if(m.indexOf('Неверный код')>=0)showLogin('Неверный код доступа');else{$('login').hidden=true;$('app').hidden=false;setMsg('msg',m,true)}}
+function showLogin(t){$('gload').hidden=true;$('app').hidden=true;$('panel').hidden=true;$('login').hidden=false;$('lerr').textContent=t||''}
+function fail(m){$('gload').hidden=true;if(m.indexOf('Неверный код')>=0)showLogin('Неверный код доступа');else{$('login').hidden=true;$('app').hidden=false;setMsg('msg',m,true)}}
 function ev(id){return D.events.filter(function(e){return e.id==id})[0]}
 function parts(id){return D.parts.filter(function(p){return p.e==id})}
 function byDate(a,b){return(a.date||'').localeCompare(b.date||'')}
@@ -68,8 +69,9 @@ function byDate(a,b){return(a.date||'').localeCompare(b.date||'')}
 function teamKey(s){var t=String(s||'').trim().replace(/А/g,'A').replace(/В/g,'B').replace(/С/g,'C');var m=/^U(\d+)(?:-([A-Z]))?$/i.exec(t);return m?[0,Number(m[1]),m[2]?m[2].toUpperCase():'']:[1,0,t]}
 function teamCmp(a,b){var x=teamKey(a),y=teamKey(b);if(x[0]!==y[0])return x[0]-y[0];if(x[1]!==y[1])return x[1]-y[1];return x[2]<y[2]?-1:x[2]>y[2]?1:0}
 function load(){
+  if(!D){$('gload').hidden=false;$('login').hidden=true}  // UI-010: явная загрузка при первом открытии
   run('appMatchesData',[pin],function(d){
-    D=d;$('login').hidden=true;
+    $('gload').hidden=true;D=d;$('login').hidden=true;
     var t=[];D.events.forEach(function(e){if(t.indexOf(e.team)<0)t.push(e.team)});t.sort(teamCmp);
     $('tm').innerHTML=t.map(function(x){return'<option>'+esc(x)+'</option>'}).join('');
     if(t.indexOf(team)<0)team=t[0];$('tm').value=team;list();
