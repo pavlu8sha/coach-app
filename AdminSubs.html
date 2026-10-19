@@ -83,7 +83,7 @@
     }
     if(b.classList.contains('sn')){
       var f2=b.nextElementSibling,gs=Object.keys(SUB.tariffs);
-      if(!f2.innerHTML)f2.innerHTML=form(gs.length?SUB.tariffs[gs[0]]:165,
+      if(!f2.innerHTML)f2.innerHTML=form(gs.length?SUB.tariffs[gs[0]]:'',
         '<label>Месяц</label><select class="smo">'+SUB.months.map(function(m){return'<option>'+m+'</option>'}).join('')+'</select><label>Группа</label><select class="sgr">'+gs.map(function(g){return'<option>'+esc(g)+'</option>'}).join('')+'</select>','sg2');
       f2.hidden=!f2.hidden;return;
     }

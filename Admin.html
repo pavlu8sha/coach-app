@@ -265,7 +265,7 @@ $('cbody').onclick=function(e){
       var SUB=pkSub();
       if(SUB){
         var gs=Object.keys(SUB.tariffs);
-        var t0=gs.length?SUB.tariffs[gs[0]]:165;
+        var t0=gs.length?SUB.tariffs[gs[0]]:'';
         f.innerHTML=card({kind:'sub',picker:true,type:true,amount:true,title:'Другой месяц или группа',chip:'',
           info:'<label>Месяц</label><select class="smo">'+SUB.months.map(function(m){return'<option>'+m+'</option>'}).join('')+'</select><label>Группа</label><select class="sgr">'+gs.map(function(g){return'<option>'+esc(g)+'</option>'}).join('')+'</select><div class="sub spi"></div>',
           paid:false,debt:t0});
@@ -340,7 +340,7 @@ function pkSub(){return lastSub}
 // Месяц есть в карточке — остаток = долг по нему (для месяца со скидкой 0); месяца нет — полный тариф группы.
 function pickerSync(box){
   var SUB=pkSub();if(!SUB||!box)return;
-  var month=box.querySelector('.smo').value,group=box.querySelector('.sgr').value,T=Number(SUB.tariffs[group])||0;
+  var month=box.querySelector('.smo').value,group=box.querySelector('.sgr').value,T=Number(ksTariff(SUB,month,group))||0;
   var it=(SUB.items||[]).filter(function(x){return x.month==month&&String(x.group).trim().toLowerCase()==String(group).trim().toLowerCase()})[0];
   var left=it?Math.max(Number(it.debt)||0,0):T,a=box.querySelector('.pa'),pt=box.querySelector('.pt'),ty=box.querySelector('.ptype'),info=box.querySelector('.spi');
   a.value=left>0?left:'';a.dataset.debt=left;

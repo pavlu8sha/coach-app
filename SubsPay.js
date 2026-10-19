@@ -54,7 +54,7 @@ function subPayCore_(month, group, id, amount, type, dateStr, comment, method) {
     if (!row) throw new Error('В блоке ' + group + ' нет свободных строк. Добавьте их в файле оплат.');
     added = true;
   }
-  var T = tariff_(group), paid = added ? 0 : row.paid;
+  var T = tariff_(group, month), paid = added ? 0 : row.paid;
   var disc = !!subLedger_()[month + '|' + norm(group) + '|' + norm(p.name)];
   var remaining = Math.round(Math.max(T - paid, 0) * 100) / 100;
   // Переплата и доплата по абонементу со скидкой допускаются: сумма пишется как оплата и видна в карточке.

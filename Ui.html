@@ -151,6 +151,8 @@ html.ks-dlg-lock,html.ks-dlg-lock body{overflow:hidden!important}
   };
   /* Формат суммы для сводок: 165 → «165 ₾», 82.5 → «82,5 ₾» */
   window.ksMoney=function(n){return String(Math.round((Number(n)||0)*100)/100).replace('.',',')+' ₾'};
+  /* Тариф группы за месяц из карточки игрока (appPlayerSubs): цена того месяца, иначе текущая */
+  window.ksTariff=function(sub,month,group){var b=sub&&sub.tariffsBy&&sub.tariffsBy[month];return b&&b[group]!==undefined?b[group]:(sub&&sub.tariffs?sub.tariffs[group]:undefined)};
   /* Дата yyyy-mm-dd → дд.мм.гггг; пусто, если дата сегодняшняя */
   window.ksDateIfNotToday=function(s){
     var m=/^(\d{4})-(\d\d)-(\d\d)$/.exec(String(s||''));if(!m)return '';

@@ -1,5 +1,5 @@
 // ===== Индивидуальные / вратарские: чтение (шаг 1, без записи) =====
-var IND_PRICE = 50;
+// Цена занятия — indPrice_(дата) из Prices.js (лист «ЦЕНЫ», с месяца начала действия)
 var IND_HEAD_RE = /^(\d{1,2}):(\d{2})\s+(\d{2})\.(\d{2})\.(\d{4})\s*(вратари)?\s*$/i;
 
 var _indSS = null;  // файл индивидуальных открываем один раз за запуск
@@ -26,7 +26,7 @@ function indTest() {
     players += e.players.length;
     e.players.forEach(function (p) { if (p.paid) paid++; });
   });
-  Logger.log('Всего записей: ' + players + ', оплачено (Paid=TRUE): ' + paid + ' → ' + (paid * IND_PRICE) + ' ₾');
+  Logger.log('Всего записей: ' + players + ', оплачено (Paid=TRUE): ' + paid + ' → ' + (paid * indPrice_('')) + ' ₾ по текущей цене');
 }
 
 // ===== Запись (только админ) =====
@@ -57,8 +57,9 @@ function appIndPay(pin, id, name, method, comment) {
     var p = indPlayer_(ev, name);
     if (!p) throw new Error('Игрок не записан');
     if (p.paid) throw new Error('Уже оплачено');
-    indPfSetAmount_(ev.date, p.name, IND_PRICE, ev.goalkeepers);
-    indLog_('Оплата', ev, p.name, IND_PRICE, method, comment || '');
+    var price = indPrice_(ev.date);
+    indPfSetAmount_(ev.date, p.name, price, ev.goalkeepers);
+    indLog_('Оплата', ev, p.name, price, method, comment || '');
     return { ok: true };
   });
 }
@@ -73,7 +74,7 @@ function appIndUnpay(pin, id, name) {
     if (!p) throw new Error('Игрок не записан');
     if (!p.paid) throw new Error('Оплаты нет');
     indPfSetAmount_(ev.date, p.name, '', ev.goalkeepers);
-    indLog_('Отмена', ev, p.name, -IND_PRICE, indLastPayMethod_(ev.id, p.name), 'отмена оплаты');
+    indLog_('Отмена', ev, p.name, -(Number(p.amount) > 0 ? Number(p.amount) : indPrice_(ev.date)), indLastPayMethod_(ev.id, p.name), 'отмена оплаты');
     return { ok: true };
   });
 }
@@ -206,13 +207,13 @@ function appIndData(pin) {
   var evs = indParse_();
   evs.sort(function (a, b) { return (b.date + b.time).localeCompare(a.date + a.time); });
   var out = evs.slice(0, 60).map(function (e) {
-    return { id: e.id, date: e.date, time: e.time, gk: e.goalkeepers, theme: e.theme,
+    return { id: e.id, date: e.date, time: e.time, gk: e.goalkeepers, theme: e.theme, price: indPrice_(e.date),
              cap: e.cap, players: e.players.map(function (p) {
                return { name: p.name, group: p.group, paid: p.paid }; }) };
   });
   var perms = indPermList_().filter(function (p) { return p.active; })
     .map(function (p) { return { name: p.name, group: p.group, slot: p.slot }; });
-  return { price: IND_PRICE, events: out, perms: perms, debts: indDebts_(evs) };
+  return { price: indPrice_(''), events: out, perms: perms, debts: indDebts_(evs) };
 }
 
 // Вписывает игрока в блок занятия (вызывать внутри блокировки)
@@ -457,8 +458,9 @@ function indDebts_(evs) {
       if (p.paid) return;
       var k = norm(p.name);
       if (!map[k]) { map[k] = { name: p.name, group: p.group, total: 0, events: [] }; order.push(k); }
-      map[k].total += IND_PRICE;
-      map[k].events.push({ id: e.id, date: e.date, time: e.time, gk: e.goalkeepers });
+      var pr = indPrice_(e.date);
+      map[k].total += pr;
+      map[k].events.push({ id: e.id, date: e.date, time: e.time, gk: e.goalkeepers, price: pr });
     });
   });
   return order.map(function (k) { return map[k]; })
@@ -477,7 +479,7 @@ function appIndOfPlayer(pin, id) {
       if (norm(p.name) !== key) return;
       var d = e.date.split('-');
       out.push({ id: e.id, name: p.name, date: e.date, time: e.time, gk: e.goalkeepers, paid: p.paid,
-        past: (e.date + ' ' + e.time) <= now, price: IND_PRICE,
+        past: (e.date + ' ' + e.time) <= now, price: indPrice_(e.date),
         label: (e.goalkeepers ? 'Вратарские ' : 'Индивидуальное ') + d[2] + '.' + d[1] + ' ' + e.time });
     });
   });

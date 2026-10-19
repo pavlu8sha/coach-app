@@ -17,7 +17,7 @@ function appPaySummary(pin, month) {
       if (!r.name) return;
       var key = norm(r.name), id = byName[key];
       if (!id) return;
-      var T = tariff_(g.name), disc = !!flags[m + '|' + norm(g.name) + '|' + key];
+      var T = tariff_(g.name, m), disc = !!flags[m + '|' + norm(g.name) + '|' + key];
       var s = subState_(T, r.paid, disc);
       var rk = rank[s.st] === undefined ? 2 : rank[s.st];
       var old = out.map[id] === undefined ? -1 : rank[out.map[id]] === undefined ? 2 : rank[out.map[id]];

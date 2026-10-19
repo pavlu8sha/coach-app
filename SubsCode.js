@@ -38,14 +38,7 @@ function payMonths_() {
   return list;
 }
 
-// Тариф за месяц, ₾. Особые группы добавляйте в таблицу, остальные платят TARIFF_DEFAULT.
-var TARIFFS = { 'weekends': 130 };
-var TARIFF_DEFAULT = 165;
-function tariff_(group) {
-  var t = TARIFFS[norm(group)];
-  return t === undefined ? TARIFF_DEFAULT : t;
-}
-
+// Тариф за месяц: tariff_(group, month) — Prices.js (лист «ЦЕНЫ», с месяца начала действия)
 function skipGroup_(name) { return norm(name) === 'индивидуальные / вратарские'; }
 
 // Блоки листа месяца: заголовок группы стоит строкой выше строки «№».
@@ -108,7 +101,7 @@ function appPayMonth(pin, month) {
   var flags = subLedger_(), byName = {};
   regData_().players.forEach(function (x) { var k = norm(x.name); if (!byName[k]) byName[k] = x; });
   var groups = mg.map(function (g) {
-    var T = tariff_(g.name), rows = [], free = 0;
+    var T = tariff_(g.name, month), rows = [], free = 0;
     g.rows.forEach(function (r) {
       if (!r.name) { free++; return; }
       var p = byName[norm(r.name)];
@@ -155,7 +148,7 @@ function subDiscountCore_(month, group, id, comment) {
   var g = sh && parseMonth_(sh).filter(function (x) { return norm(x.name) === norm(group); })[0];
   var row = g && g.rows.filter(function (r) { return norm(r.name) === norm(p.name); })[0];
   if (!row || !(row.paid > 0)) throw new Error('В этом месяце у игрока нет внесённой суммы');
-  if (row.paid >= tariff_(group)) throw new Error('Абонемент за этот месяц уже оплачен полностью');
+  if (row.paid >= tariff_(group, month)) throw new Error('Абонемент за этот месяц уже оплачен полностью');
   if (CONFIG.DRY_RUN) return { ok: true, dryRun: true };
   if (!dbSheet_(SUB_SHEET, SUB_HEAD)) throw new Error('Нет журнала платежей (лист ' + SUB_SHEET + ' в AdminApp). Скидка не записана.');
   cacheDropBig_('sl_v1');   // читаем журнал заново: вдруг скидку только что приняли
