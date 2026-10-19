@@ -88,7 +88,7 @@ function indParseAdm_(filterDate) {
     return {
       src: 'adm', sheet: IND_ADM, row: e.row, id: e.id,
       date: e.date, time: e.time, goalkeepers: e.gk, theme: e.theme,
-      cap: e.gk ? 7 : 6, slots: players.length, players: players, empty: [], last: e.row
+      cap: indCap_(e.gk), slots: players.length, players: players, empty: [], last: e.row
     };
   });
 }

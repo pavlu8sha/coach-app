@@ -31,6 +31,13 @@ button:disabled{opacity:.5;cursor:default}
 .err{color:var(--a)}.msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:6px}
 .ok{color:var(--g)}
 .team-name{flex:1.4;font-weight:600}
+.srow{border-top:1px solid var(--line);padding:10px 0 4px}
+.srow:first-of-type{border-top:0}
+.sgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.sgrid .w2{grid-column:span 2}
+.sgrid input,.sgrid select{padding:8px;min-height:40px;font-size:15px}
+.sgrid label{display:block;font-size:12px;color:var(--mute);margin-bottom:2px}
+@media(max-width:480px){.sgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 </head>
 <body>
@@ -42,9 +49,13 @@ button:disabled{opacity:.5;cursor:default}
   <h1>Настройки</h1>
   <div class="msg" id="msg" role="status"></div>
   <div id="list"></div>
+  <h2>Цены</h2>
+  <div class="card" id="prices"><div class="sub">Загрузка…</div></div>
+  <h2>Расписание сезона</h2>
+  <div class="card" id="sched"><div class="sub">Загрузка…</div></div>
 </div>
 <script>
-var pin='',S=null,busy=false,notes={};
+var pin='',S=null,busy=false,notes={},SC=null,scBusy=false,PRC=null,prBusy=false;
 function $(i){return document.getElementById(i)}
 function run(fn,args,ok,fail){var r=google.script.run.withSuccessHandler(ok).withFailureHandler(function(e){fail(e&&e.message?e.message:String(e))});r[fn].apply(r,args)}
 function esc(s){return String(s===null||s===undefined?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
@@ -62,7 +73,7 @@ function field(k,id,val,dis){
 function note(key,obj){var n=notes[key+'|'+norm(obj)];return n?'<div class="msg '+(n.bad?'err':'ok')+'">'+esc(n.t)+'</div>':''}
 function load(after){
   setMsg(S?'':'Загрузка…');
-  run('appSettings',[pin],function(d){S=d;$('login').hidden=true;$('app').hidden=false;setMsg(d.dryRun?'Пробный режим: изменения не записываются.':'');render();if(after)after()},fail);
+  run('appSettings',[pin],function(d){S=d;$('login').hidden=true;$('app').hidden=false;setMsg(d.dryRun?'Пробный режим: изменения не записываются.':'');render();if(after)after();if(!SC)loadSched();if(!PRC)loadPrices()},fail);
 }
 function render(keep){
   var typed={};
@@ -132,6 +143,79 @@ $('list').onclick=function(e){
     save(key,t,nv,'__new');
   }
 };
+// ---------- Цены с месяца (Prices.js: appPrices / appPriceAdd / appPriceDelete) ----------
+function nextMonth(){var d=new Date();d.setDate(1);d.setMonth(d.getMonth()+1);return('0'+(d.getMonth()+1)).slice(-2)+'.'+String(d.getFullYear()).slice(2)}
+function loadPrices(note,bad){run('appPrices',[pin],function(d){PRC=d;renderPrices(note,bad)},function(m){$('prices').innerHTML='<div class="sub err">'+esc(m)+'</div>'})}
+function renderPrices(note,bad,keep){
+  var typed={};if(keep)['pf','pk','pg','pp'].forEach(function(i){if($(i))typed[i]=$(i).value});
+  var h='<div class="lbl">Абонемент и индивидуальные занятия</div><div class="sub">Новая цена действует с выбранного месяца. Прошлые месяцы остаются по своей цене. Своя цена группы важнее общей.</div>'
+    +'<div class="sub">Сейчас: абонемент '+esc(PRC.now.sub)+' ₾, индивидуальное занятие '+esc(PRC.now.ind)+' ₾.</div>';
+  if(PRC.bad.length)h+='<div class="sub err">В листе «ЦЕНЫ» пропущены строки: '+PRC.bad.map(function(b){return b.line+' ('+esc(b.error)+')'}).join('; ')+'</div>';
+  h+='<div class="lbl" style="margin-top:12px">История</div>';
+  if(!PRC.rows.length)h+='<div class="sub">Строк ещё нет, действуют цены по умолчанию: '+PRC.defaults.map(function(d){return esc(d.kind+(d.group?' ('+d.group+')':'')+' — '+d.price+' ₾')}).join(', ')+'.</div>';
+  PRC.rows.forEach(function(r){
+    h+='<div class="row"><span class="team-name">с '+esc(r.from)+' · '+esc(r.kind)+(r.group?' · '+esc(r.group):r.kind==PRC.kinds[0]?' · все группы':'')+'</span><b>'+esc(r.price)+' ₾</b>'
+      +(r.future?'<button class="sec" data-pa="del" data-l="'+r.line+'">Удалить</button>':'')+'</div>';
+  });
+  h+='<div class="lbl" style="margin-top:14px">Новая цена</div><div class="sgrid">'
+    +'<div><label>С месяца</label><input id="pf" placeholder="ММ.ГГ" value="'+esc(nextMonth())+'"></div>'
+    +'<div class="w2"><label>Позиция</label><select id="pk">'+PRC.kinds.map(function(k){return'<option>'+esc(k)+'</option>'}).join('')+'</select></div>'
+    +'<div><label>Цена, ₾</label><input id="pp" type="number" inputmode="decimal" min="0" step="1"></div>'
+    +'<div class="w2"><label>Группа (для абонемента; пусто — все)</label><input id="pg" placeholder="например weekends"></div></div>'
+    +'<div class="row"><button class="sb" data-pa="add" style="flex:1">Добавить цену</button></div>'
+    +'<div class="msg'+(bad?' err':' ok')+'">'+esc(note||'')+'</div>';
+  $('prices').innerHTML=h;
+  Object.keys(typed).forEach(function(i){$(i).value=typed[i]});
+  [].forEach.call(document.querySelectorAll('#prices button'),function(b){b.disabled=prBusy});
+}
+$('prices').addEventListener('click',function(e){
+  var b=e.target.closest('button');if(!b||b.disabled||!PRC)return;
+  var done=function(t){prBusy=false;loadPrices(t)},err=function(m){prBusy=false;if(m.indexOf('код администратора')>=0){showLogin('Неверный код администратора');return}renderPrices(m,true,true)};
+  if(b.dataset.pa=='add'){
+    var o={from:$('pf').value.trim(),kind:$('pk').value,group:$('pg').value.trim(),price:$('pp').value.trim()};
+    if(o.kind!=PRC.kinds[0])o.group='';
+    if(o.price===''){renderPrices('Введите цену',true,true);return}
+    if(!confirm('Добавить цену: '+o.kind+(o.group?' ('+o.group+')':'')+' — '+o.price+' ₾ с '+o.from+'?'))return;
+    prBusy=true;renderPrices('Сохраняю…',false,true);
+    run('appPriceAdd',[pin,o],function(r){done(r.dryRun?'Пробный режим: не записано.':'Добавлено: '+o.kind+(o.group?' ('+o.group+')':'')+' — '+o.price+' ₾ с '+o.from+'.')},err);
+  }else if(b.dataset.pa=='del'){
+    if(!confirm('Удалить будущую цену?'))return;
+    prBusy=true;renderPrices('Удаляю…');
+    run('appPriceDelete',[pin,Number(b.dataset.l)],function(r){done(r.dryRun?'Пробный режим: не записано.':'Удалено.')},err);
+  }
+});
+// ---------- Расписание сезона (Schedule.js: appSchedule / appScheduleSave) ----------
+function loadSched(note,bad){
+  run('appSchedule',[pin],function(d){SC=d;SC.rows=d.rows.map(function(r){return Object.assign({},r)});renderSched(note,bad)},function(m){$('sched').innerHTML='<div class="sub err">'+esc(m)+'</div>'});
+}
+function schedField(i,k,lbl,cls){return'<div class="'+(cls||'')+'"><label>'+lbl+'</label><input data-r="'+i+'" data-k="'+k+'" value="'+esc(SC.rows[i][k])+'"></div>'}
+function schedSel(i,k,lbl,opts){return'<div><label>'+lbl+'</label><select data-r="'+i+'" data-k="'+k+'">'+opts.map(function(o){return'<option'+(o==SC.rows[i][k]?' selected':'')+'>'+esc(o)+'</option>'}).join('')+'</select></div>'}
+function renderSched(note,bad){
+  var h='<div class="lbl">Тренировки по дням'+'<span class="chip">'+(SC.source=='sheet'?'из листа «РАСПИСАНИЕ»':'по умолчанию, лист ещё не создан')+'</span></div>'
+    +'<div class="sub">«Группа» — как в листе «Тренировки». «Группы в отметках» — группы реестра через запятую: в этот день они показываются в «Отметках» как группы дня.</div>';
+  if(SC.bad&&SC.bad.length)h+='<div class="sub err">В листе пропущены строки: '+SC.bad.map(function(b){return b.line+' ('+esc(b.error)+')'}).join('; ')+'</div>';
+  SC.rows.forEach(function(r,i){
+    h+='<div class="srow"><div class="sgrid">'+schedSel(i,'day','День',SC.days.slice(1).concat(SC.days[0]))+schedField(i,'start','Начало')+schedField(i,'end','Конец')+schedSel(i,'type','Тип',SC.types)
+      +schedField(i,'loc','Локация','w2')+schedField(i,'group','Группа','w2')+schedField(i,'trainers','Тренеры','w2')+schedField(i,'att','Группы в отметках','w2')+'</div>'
+      +'<div class="row" style="justify-content:flex-end;margin-top:6px"><button class="sec" data-sa="del" data-r="'+i+'">Удалить</button></div></div>';
+  });
+  h+='<div class="row" style="flex-wrap:wrap"><button class="sec" data-sa="add" style="flex:1 1 160px">Добавить тренировку</button><button class="sb" data-sa="save" style="flex:1 1 160px">Сохранить расписание</button></div>'
+    +'<div class="msg'+(bad?' err':' ok')+'" id="scmsg">'+esc(note||'')+'</div>';
+  $('sched').innerHTML=h;
+  [].forEach.call(document.querySelectorAll('#sched button'),function(b){b.disabled=scBusy});
+}
+$('sched').addEventListener('input',function(e){var t=e.target;if(t.dataset.r!==undefined&&t.dataset.k)SC.rows[t.dataset.r][t.dataset.k]=t.value});
+$('sched').addEventListener('change',function(e){var t=e.target;if(t.dataset.r!==undefined&&t.dataset.k)SC.rows[t.dataset.r][t.dataset.k]=t.value});
+$('sched').addEventListener('click',function(e){
+  var b=e.target.closest('button');if(!b||b.disabled||!SC)return;
+  if(b.dataset.sa=='del'){SC.rows.splice(Number(b.dataset.r),1);renderSched('Строка удалена. Чтобы изменения вступили в силу, нажмите «Сохранить расписание».');return}
+  if(b.dataset.sa=='add'){SC.rows.push({day:'пн',start:'',end:'',type:'Групповая',loc:'',group:'',trainers:'',att:''});renderSched();return}
+  if(b.dataset.sa=='save'){
+    scBusy=true;renderSched('Сохраняю…');
+    run('appScheduleSave',[pin,SC.rows],function(r){scBusy=false;loadSched(r.dryRun?'Пробный режим: не записано.':'Сохранено: тренировок '+r.count+'.')},
+      function(m){scBusy=false;if(m.indexOf('код администратора')>=0){showLogin('Неверный код администратора');return}renderSched(m,true)});
+  }
+});
 $('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;try{localStorage.setItem('kspin',pin)}catch(e){}load()};
 try{pin=localStorage.getItem('kspin')||''}catch(e){}
 if(pin)load();else showLogin('');

@@ -82,7 +82,7 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
   <button class="btn sec" id="fcancel">Отмена</button>
 </div>
 <script>
-var pin='',P=[],O=[],UNL=[],PR={},SZ={},flash='';
+var pin='',P=[],O=[],UNL=[],PR={},SZ={},DC=null,flash='';
 function $(i){return document.getElementById(i)}
 function run(fn,args,ok,fail){var r=google.script.run.withSuccessHandler(ok).withFailureHandler(function(e){fail(e&&e.message?e.message:String(e))});r[fn].apply(r,args)}
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
@@ -102,7 +102,7 @@ function load(){
     P=pd.players;
     $('plist').innerHTML=P.filter(function(p){return p.status=='Активен'}).map(function(p){return'<option value="'+esc(p.name+' ('+p.id+')')+'">'}).join('');
     $('qlist').innerHTML=P.filter(function(p){return p.status=='Активен'}).map(function(p){return'<option value="'+esc(p.name)+'">'+esc(p.id+' · '+p.group)+'</option>'}).join('');
-    O=rd.orders;UNL=rd.unl;PR=rd.prices;SZ=rd.sizes||{};
+    O=rd.orders;UNL=rd.unl;PR=rd.prices;SZ=rd.sizes||{};DC=rd.disc||null;
     $('login').hidden=true;$('form').hidden=true;$('app').hidden=false;
     fillGroups();show();
   }
@@ -315,18 +315,18 @@ $('list').onclick=function(e){
         function(r){if(ok)ok();flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+'Заказ изменён. ';load()},
         function(m){b.disabled=false;ed.textContent=bad?'':m;if(bad)bad(m)});
     };
-    // Сумма, которую запишет сервер (editOrderCore_ + orderSumWithDisc_): тот же расчёт, что в EquipLinks.js
+    // Сумма, которую запишет сервер (editOrderCore_ + equipDiscCalc_): тот же расчёт, что в EquipLinks.js
     var pv=editSumPreview(eo,ekits,patch.inst);
     if(pv.newSum!==null&&Math.round(pv.newSum*100)!==Math.round((eo.sum||0)*100)){
       var rows4=[['Игрок',playerName(eo.id)||eo.oname],['Заказ',nk],['Было',ksMoney(eo.sum)]];
       if(pv.disc!==null){
         rows4.push(['По каталогу',ksMoney(pv.total)]);
-        if(pv.total-pv.newSum>0)rows4.push(['Скидка 15%','−'+ksMoney(pv.total-pv.newSum)]);
-        if(pv.socks>0)rows4.push(['Носки и гетры','по полной цене, '+ksMoney(pv.socks)]);
+        if(pv.total-pv.newSum>0)rows4.push(['Скидка '+(DC?DC.pct:'')+'%','−'+ksMoney(pv.total-pv.newSum)]);
+        if(pv.socks>0)rows4.push(['Без скидки','по полной цене, '+ksMoney(pv.socks)]);
       }
       rows4.push(['Станет',ksMoney(pv.newSum),'total'],['Оплачено',ksMoney(eo.paid)]);
       ksConfirm({title:'Изменить сумму заказа?',ok:'Сохранить заказ',
-        text:nk!==eo.kit?'Комплект изменился: сумма заказа будет пересчитана по ценам каталога.':'Сумма заказа будет пересчитана со скидкой 15%.',
+        text:nk!==eo.kit?'Комплект изменился: сумма заказа будет пересчитана по ценам каталога.':'Сумма заказа будет пересчитана со скидкой '+(DC?DC.pct:'')+'%.',
         rows:rows4,run:save});
       return;
     }
@@ -337,29 +337,29 @@ $('list').onclick=function(e){
 // Предпросмотр суммы при правке заказа — повторяет серверный расчёт (EquipLinks.js: editOrderCore_, orderSumWithDisc_).
 // newSum: что будет записано (null — сумма не меняется); disc: сумма со скидкой (null — скидки нет).
 function editSumPreview(eo,ks,inst){
-  var total=0,socks=0,missing=false,kit=ks.join(' + ');
-  ks.forEach(function(k){if(!(k in PR)){missing=true;return}var v=Number(PR[k])||0;total+=v;if(/носк|гетр/i.test(k))socks+=v});
-  var needCat=kit!==String(eo.kit||'').trim()||!(Number(eo.sum)>0),disc=null;
-  if(!missing&&!inst&&ks.some(function(k){return COSTUME.test(k)})&&ks.some(function(k){return RAIN.test(k)})){
-    var id=String(eo.id||'').trim(),others=O.concat(UNL).filter(function(o){return Number(o.row)!==Number(eo.row)&&String(o.id||'').trim()===id&&String(o.kit||'').trim()});
-    var all=others.map(function(o){return String(o.kit)}).concat([kit]).join(' + ');
-    if(/полный комплект/i.test(all)||(/игров|вратар/i.test(all)&&/тренировоч/i.test(all))){
-      var prior=others.filter(function(o){return /игров|вратар|тренировоч|полный/i.test(String(o.kit))}).reduce(function(s,o){return s+(Number(o.sum)||0)},0);
-      disc=Math.max(Math.round((prior+total-socks)*0.85/5)*5-prior,0)+socks;
-    }
-  }
-  return {total:total,socks:socks,disc:disc,newSum:needCat?(disc!==null?disc:total):disc};
+  var missing=ks.some(function(k){return!(k in PR)}),kit=ks.join(' + ');
+  var needCat=kit!==String(eo.kit||'').trim()||!(Number(eo.sum)>0);
+  var id=String(eo.id||'').trim(),others=id?O.concat(UNL).filter(function(o){return Number(o.row)!==Number(eo.row)&&String(o.id||'').trim()===id&&String(o.kit||'').trim()}):[];
+  var c=discCalc(ks,inst,others),disc=missing?null:c.disc;
+  return {total:c.total,socks:c.excl,disc:disc,newSum:needCat?(disc!==null?disc:c.total):disc};
 }
-// Скидка 15% на сумму заказа: если у игрока уже есть игровая и тренировочная (или в заказе все четыре основные позиции).
-// Носки и гетры в скидку не входят (идут по полной цене). При рассрочке скидка не применяется. Сумма округляется до 5 ₾.
-var COSTUME=/костюм/i,RAIN=/дождевик/i;
-// Базовый набор (игровая + тренировочная) есть в уже заказанном или в текущем заказе
-function playerCovers(id,ks){
-  var kits=O.filter(function(o){return o.id===id}).map(function(o){return o.kit||''}).concat(ks).join(' + ');
-  return /полный комплект/i.test(kits)||(/игров|вратар/i.test(kits)&&/тренировоч/i.test(kits));
+// Скидка на комплект — правило из настроек (DC, приходит с сервера): тот же расчёт, что equipDiscCalc_ в EquipLinks.js.
+// ks — позиции заказа; others — прежние заказы игрока [{kit,sum}]. Возвращает {total, excl, disc}; disc=null — скидки нет.
+function lowParts(kit){return String(kit||'').split(' + ').map(function(x){return x.trim().toLowerCase()}).filter(Boolean)}
+function discCalc(ks,inst,others){
+  var parts=ks.map(function(k){return String(k).trim().toLowerCase()}),total=0,excl=0;
+  ks.forEach(function(k){var v=Number(PR[k])||0;total+=v;if(DC&&DC.exclude.indexOf(String(k).trim().toLowerCase())>=0)excl+=v});
+  var out={total:total,excl:excl,disc:null};
+  if(!DC||inst||!(DC.pct>0)||!parts.length)return out;
+  if(!DC.needAll.every(function(k){return parts.indexOf(k)>=0}))return out;
+  var own={};parts.forEach(function(k){own[k]=1});(others||[]).forEach(function(o){lowParts(o.kit).forEach(function(k){own[k]=1})});
+  if(!DC.needOwn.every(function(alt){return alt.some(function(k){return own[k]})}))return out;
+  var base=[].concat.apply([],DC.needOwn);
+  var prior=(others||[]).filter(function(o){return lowParts(o.kit).some(function(k){return base.indexOf(k)>=0})}).reduce(function(s,o){return s+(Number(o.sum)||0)},0);
+  var target=Math.round((prior+total-excl)*(100-DC.pct)/100/DC.round)*DC.round;
+  out.disc=Math.max(target-prior,0)+excl;out.prior=prior;out.target=target;
+  return out;
 }
-function r5(n){return Math.round(n/5)*5}
-function playerBaseSum(id){return O.filter(function(o){return o.id===id&&/игров|вратар|тренировоч|полный/i.test(o.kit||'')}).reduce(function(s,o){return s+(Number(o.sum)||0)},0)}
 function selKits(){return[].map.call(document.querySelectorAll('#fkits input:checked'),function(i){return i.value})}
 function kitsBox(){
   $('fkits').innerHTML=Object.keys(PR).map(function(k){
@@ -368,18 +368,13 @@ function kitsBox(){
   [].forEach.call(document.querySelectorAll('#fkits input'),function(i){i.onchange=refreshSum});
 }
 function refreshSum(){
-  var ks=selKits(),base=0,sock=0;
-  ks.forEach(function(k){var v=PR[k]||0;base+=v;if(/носк|гетр/i.test(k))sock+=v});
-  var dbase=base-sock; // носки и гетры в скидку не входят, идут по полной цене
-  var id=pid($('fpl').value),inst=$('finst').checked;
-  var hasDisc=ks.some(function(k){return COSTUME.test(k)})&&ks.some(function(k){return RAIN.test(k)});
-  var eligible=!!id&&hasDisc&&playerCovers(id,ks);
-  var disc=!inst&&eligible&&ks.length>0;
-  var prior=id&&disc?playerBaseSum(id):0;
-  var target=disc?r5((prior+dbase)*0.85):0;
-  var sum=disc?Math.max(target-prior,0)+sock:base;
+  var ks=selKits(),id=pid($('fpl').value),inst=$('finst').checked;
+  var others=id?O.filter(function(o){return o.id===id}):[];
+  var c=discCalc(ks,false,others),base=c.total;
+  var disc=!inst&&c.disc!==null;
+  var sum=disc?c.disc:base;
   $('fsum').value=ks.length?sum:'';
-  $('fbundle').textContent=!ks.length?'':(disc?(prior?'Скидка 15% на общую сумму '+(prior+dbase)+' ₾ → '+target+' ₾ (уже оплачено '+prior+' ₾), к доплате '+sum+' ₾':'Скидка 15% на заказ: '+sum+' ₾ вместо '+base+' ₾'):(inst&&eligible?'Рассрочка: скидка не применяется, '+base+' ₾':''));
+  $('fbundle').textContent=!ks.length?'':(disc?(c.prior?'Скидка '+DC.pct+'% на общую сумму '+(c.prior+base-c.excl)+' ₾ → '+c.target+' ₾ (уже оплачено '+c.prior+' ₾), к доплате '+sum+' ₾':'Скидка '+DC.pct+'% на заказ: '+sum+' ₾ вместо '+base+' ₾'):(inst&&c.disc!==null?'Рассрочка: скидка не применяется, '+base+' ₾':''));
   refreshSizes();
 }
 function refreshSizes(){

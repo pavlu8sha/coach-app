@@ -25,6 +25,7 @@ details{background:var(--card);border:1px solid var(--line);border-radius:14px;m
 summary{cursor:pointer;padding:12px 0;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;list-style:none}
 summary::-webkit-details-marker{display:none}
 .cnt{margin-left:auto;color:var(--mute);font-size:14px}
+.full{color:var(--mute);font-size:14px;padding:10px 0 14px;border-top:1px solid var(--line)}
 .th{color:var(--mute);font-size:14px;margin:-4px 0 8px}
 .pl{border-top:1px solid var(--line);padding:10px 0}
 .pn{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}.pn b{flex:1}
@@ -204,7 +205,7 @@ function render(){
   var h='';
   D.events.forEach(function(e,i){
     var paid=e.players.filter(function(p){return p.paid}).length,dk='d'+e.id;
-    h+='<details data-id="'+esc(e.id)+'"'+(open[e.id]?' open':'')+'><summary><b>'+dl(e.date)+'</b><span>'+(e.price?money(e.price):'без суммы')+'</span><span class="cnt">оплатили '+paid+' из '+e.players.length+'</span></summary>';
+    h+='<details data-id="'+esc(e.id)+'"'+(open[e.id]?' open':'')+'><summary><b>'+dl(e.date)+'</b><span>'+(e.price?money(e.price):'без суммы')+'</span><span class="cnt">'+(D.cap>0?e.players.length+'/'+D.cap+' · ':'')+'оплатили '+paid+' из '+e.players.length+'</span></summary>';
     if(editing==e.id){
       h+='<div class="add" style="border-top:0;padding-top:0"><div class="row2"><input type="date" id="ed'+i+'" value="'+e.date+'"><input type="number" min="0" step="1" id="ea'+i+'" value="'+(e.price||'')+'" placeholder="Сумма, ₾"></div><input id="ep'+i+'" value="'+esc(e.place||'')+'" placeholder="Место, например Исани" style="margin-bottom:8px"><div class="acts"><button class="sm" data-a="esave" data-e="'+i+'">Сохранить</button><button class="sm" data-a="ecancel">Отмена</button></div></div>';
     }else{
@@ -218,7 +219,8 @@ function render(){
       else h+='<button class="sm bad'+(armed==k?' armed':'')+'" data-a="unpay" data-k="'+k+'" data-e="'+i+'" data-p="'+j+'">'+(armed==k?'Точно отменить?':'Отменить оплату')+'</button>';
       h+='</div></div>';
     });
-    h+='<div class="add"><input list="dl" id="in'+i+'" placeholder="Игрок из реестра или гость (имя)" autocomplete="off"><button class="btn" data-a="add" data-e="'+i+'">Записать</button></div>';
+    if(!(D.cap>0)||e.players.length<D.cap)h+='<div class="add"><input list="dl" id="in'+i+'" placeholder="Игрок из реестра или гость (имя)" autocomplete="off"><button class="btn" data-a="add" data-e="'+i+'">Записать</button></div>';
+    else h+='<div class="full">Мест нет: максимум '+D.cap+'</div>';
     h+='</details>';
   });
   $('list').innerHTML=h||'<p class="th">Тренировок пока нет</p>';

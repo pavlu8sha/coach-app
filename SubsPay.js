@@ -2,6 +2,11 @@
 
 var PAY_METHODS = ['Наличные', 'Перевод'];
 
+// Способ оплаты обязателен: наличные или перевод (без значения по умолчанию)
+function payMethodReq_(method) {
+  if (PAY_METHODS.indexOf(String(method || '')) < 0) throw new Error('Выберите способ оплаты: наличные или перевод');
+}
+
 // Формат ячеек: если столбец типизирован (Таблица в Google Таблицах), формат не ставим и не падаем
 function fmt_(rg, pattern) { try { rg.setNumberFormat(pattern); } catch (e) {} return rg; }
 // Формат ячейки best-effort: в столбцах с типом (таблица-чипы, дата, число) Google отказывает, запись данных не должна падать.
@@ -49,7 +54,7 @@ function subPayCore_(month, group, id, amount, type, dateStr, comment, method) {
     if (!row) throw new Error('В блоке ' + group + ' нет свободных строк. Добавьте их в файле оплат.');
     added = true;
   }
-  var T = tariff_(group), paid = added ? 0 : row.paid;
+  var T = tariff_(group, month), paid = added ? 0 : row.paid;
   var disc = !!subLedger_()[month + '|' + norm(group) + '|' + norm(p.name)];
   var remaining = Math.round(Math.max(T - paid, 0) * 100) / 100;
   // Переплата и доплата по абонементу со скидкой допускаются: сумма пишется как оплата и видна в карточке.

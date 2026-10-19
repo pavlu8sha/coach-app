@@ -39,6 +39,16 @@ function selfTest() {
     if (bad.length) throw new Error(bad.map(function (x) { return x.key + (x.obj ? ' (' + x.obj + ')' : '') + ': ' + x.error; }).join('; '));
     return 'лист ' + SETTINGS_SHEET + (dbRead_(SETTINGS_SHEET) ? '' : ' ещё не создан, всё по умолчанию');
   });
+  check('цены', function () {
+    var pr = priceLoad_();
+    if (pr.bad.length) throw new Error('в листе ' + PRICE_SHEET + ' пропущены строки: ' + pr.bad.map(function (b) { return b.line + ' (' + b.error + ')'; }).join('; '));
+    return 'абонемент ' + tariff_('', '') + ' ₾, индивидуальное ' + indPrice_('') + ' ₾' + (pr.rows.length ? '' : ' (по умолчанию, лист ещё не создан)');
+  });
+  check('расписание сезона', function () {
+    var sc = schedLoad_();
+    if (sc.bad.length) throw new Error('в листе ' + SCHED_SHEET + ' пропущены строки: ' + sc.bad.map(function (b) { return b.line + ' (' + b.error + ')'; }).join('; '));
+    return sc.rows.length + ' тренировок, ' + (sc.source === 'sheet' ? 'лист ' + SCHED_SHEET : 'по умолчанию, лист ещё не создан');
+  });
   check('реестр игроков', function () { return regData_().players.length + ' игроков'; });
   check('файл оплат', function () { return payMonths_().length + ' месяцев'; });
   check('файл экипировки', function () { equipSheet_(); return 'лист открыт, L3 в порядке'; });
