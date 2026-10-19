@@ -23,6 +23,7 @@ function appMatchesData(pin) {
   d.role = appWho(pin) === 'admin' ? 'admin' : 'trainer';
   if (d.role === 'admin') {
     var f = finData_();
+    d.champFee = champFeeDefaults_(); // подсказка взноса в форме нового события
     d.events.forEach(function (e) { e.fee = f.fees[e.id] || 0; });
     d.parts.forEach(function (p) {
       var x = f.pays[p.e + '|' + p.p];

@@ -132,7 +132,15 @@ function nextId_(players) {
     var m = /(\d+)$/.exec(p.id);
     if (m) max = Math.max(max, Number(m[1]));
   });
-  return 'KS-' + ('0000' + (max + 1)).slice(-4);
+  return padId_('KS-', max + 1, 4);
+}
+
+// ID вида «префикс + номер» с ведущими нулями до width знаков. Номер длиннее не обрезается
+// (раньше ('000' + 1000).slice(-3) давало «000», и ID шли по кругу).
+function padId_(prefix, n, width) {
+  var s = String(n);
+  while (s.length < width) s = '0' + s;
+  return prefix + s;
 }
 
 function logChange_(id, name, field, was, now) {
@@ -337,6 +345,19 @@ function renameSweep_(id, oldName, newName) {
       });
     });
     bump('Оплаты ' + sh.getName(), n);
+  });
+  // Листы месяцев посещаемости: имя в колонке B внутри блоков групп. Раньше они не переименовывались,
+  // и отметки ученика после переименования в реестре переставали записываться (проверка похожих имён).
+  attSS_().getSheets().forEach(function (sh) {
+    if (!isMonth_(sh.getName()) || sh.getLastRow() < 2) return;
+    var na = 0;
+    attBlocks_(sh).forEach(function (b) {
+      if (!b.slots) return;
+      sh.getRange(b.first, 2, b.slots, 1).getValues().forEach(function (r, i) {
+        if (norm(r[0]) === o) { sh.getRange(b.first + i, 2).setValue(newName); na++; }
+      });
+    });
+    bump('Посещаемость ' + sh.getName(), na);
   });
   // Листы дополнительных тренировок: имя в колонке B
   var nd = 0;

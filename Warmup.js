@@ -38,6 +38,7 @@ function warmUp() {
 // Кнопка «Обновить данные» в меню
 function appRefreshData(pin) {
   checkPin_(pin);
+  settingsBump_();
   indDropSheetCache_();
   extraDropSheetCache_();
   warmCore_();

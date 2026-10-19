@@ -4,13 +4,13 @@ var PAY_SHEET = 'ОПЛАТЫ';
 
 function eqRows_() {
   var sh = equipSheet_();
-  var rg = sh.getRange(4, 1, 127, 12);
+  var rg = sh.getRange(EQ_FIRST, 1, EQ_ROWS, 12); // те же строки, что в разделе «Экипировка» (раньше только 127)
   var vals = rg.getValues(), disp = rg.getDisplayValues(), out = [];
   vals.forEach(function (r, i) {
     var id = String(r[11] || '').trim();
     if (!id || !String(r[2]).trim()) return;
     out.push({
-      row: 4 + i, id: id, kit: disp[i][3], size: disp[i][4], inscr: disp[i][5], num: disp[i][6],
+      row: EQ_FIRST + i, id: id, kit: disp[i][3], size: disp[i][4], inscr: disp[i][5], num: disp[i][6],
       inst: disp[i][7], sum: Number(r[8]) || 0, paid: Number(r[9]) || 0
     });
   });

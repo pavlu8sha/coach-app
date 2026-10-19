@@ -72,8 +72,8 @@ img,table,select,input,textarea{max-width:100%}
     ind:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
     more:'<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>'
   };
-  var ITEMS={att:['Отметки',''],stats:['Статистика','stats'],admin:['Игроки','admin'],equip:['Экипировка','equip'],games:['Матчи','games'],pay:['Оплаты','cash'],camp:['Сборы','camp'],ind:['Индивидуальные','ind'],funnel:['Новые игроки','funnel'],accounting:['Посещаемость тренеров','accounting']};
-  var ADMINP=['admin','equip','pay','camp','ind','funnel','accounting'];
+  var ITEMS={att:['Отметки',''],stats:['Статистика','stats'],admin:['Игроки','admin'],equip:['Экипировка','equip'],games:['Матчи','games'],pay:['Оплаты','cash'],camp:['Сборы','camp'],ind:['Индивидуальные','ind'],funnel:['Новые игроки','funnel'],accounting:['Посещаемость тренеров','accounting'],settings:['Настройки','settings']};
+  var ADMINP=['admin','equip','pay','camp','ind','funnel','accounting','settings'];
   document.documentElement.setAttribute('data-page',PAGE);
   function get(k){try{return localStorage.getItem(k)||''}catch(e){return''}}
   function set(k,v){try{localStorage.setItem(k,v)}catch(e){}}
@@ -90,7 +90,7 @@ img,table,select,input,textarea{max-width:100%}
       document.documentElement.removeAttribute('data-ok');
       nav.hidden=true;sheet.hidden=true;blk.hidden=true;document.getElementById('ksadm').hidden=true;return;
     }
-    var tr=asTrainer(),main=tr?['att','games','stats']:['att','admin','pay','games'],more=tr?[]:['stats','equip','camp','ind','funnel','accounting'];
+    var tr=asTrainer(),main=tr?['att','games','stats']:['att','admin','pay','games'],more=tr?[]:['stats','equip','camp','ind','funnel','accounting','settings'];
     var moreOn=more.indexOf(PAGE)>=0,sh='';
     document.documentElement.setAttribute('data-ok','1');
     nav.innerHTML=main.map(function(k){return link(k,'kst')}).join('')+'<button class="kst'+(moreOn?' on':'')+'" id="ksmb">'+svg('more')+'<span>Ещё</span></button>';

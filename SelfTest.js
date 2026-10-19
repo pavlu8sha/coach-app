@@ -12,7 +12,7 @@ function selfTest() {
     }
   }
   var props = PropertiesService.getScriptProperties();
-  ['APP_PIN', 'APP_ADMIN_PIN', 'EQUIP_ID', 'PAY_ID', 'GAMES_ID', 'ADMIN_ID', 'IND_ID', 'EXTRA_ID', 'FUNNEL_ID'].forEach(function (k) {
+  ['APP_PIN', 'APP_ADMIN_PIN', 'ATT_ID', 'EQUIP_ID', 'PAY_ID', 'GAMES_ID', 'ADMIN_ID', 'IND_ID', 'EXTRA_ID', 'FUNNEL_ID'].forEach(function (k) {
     check('свойство ' + k, function () { if (!props.getProperty(k)) throw new Error('не задано'); });
   });
   var ss = SpreadsheetApp.getActive();
@@ -29,6 +29,15 @@ function selfTest() {
       if (!sh) throw new Error('листа нет в AdminApp');
       return (sh.getLastRow() - 1) + ' строк';
     });
+  });
+  check('файл «Игры / Тренировки»', function () {
+    var f = gnFile_();
+    return f.getName() + (gnIsProd_() ? ' (боевой проект)' : ' (тестовый проект, свойство GN_FILE_ID)');
+  });
+  check('настройки', function () {
+    var bad = appSettings(prop_('APP_ADMIN_PIN')).items.filter(function (x) { return x.error; });
+    if (bad.length) throw new Error(bad.map(function (x) { return x.key + (x.obj ? ' (' + x.obj + ')' : '') + ': ' + x.error; }).join('; '));
+    return 'лист ' + SETTINGS_SHEET + (dbRead_(SETTINGS_SHEET) ? '' : ' ещё не создан, всё по умолчанию');
   });
   check('реестр игроков', function () { return regData_().players.length + ' игроков'; });
   check('файл оплат', function () { return payMonths_().length + ' месяцев'; });

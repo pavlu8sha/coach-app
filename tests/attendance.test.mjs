@@ -84,25 +84,34 @@ function load(opts) {
     'ЖУРНАЛ ПОСЕЩАЕМОСТИ': new FakeSheet('ЖУРНАЛ ПОСЕЩАЕМОСТИ', journal(opts.journal), 3),
   };
   if (opts.noJournal) delete sheets['ЖУРНАЛ ПОСЕЩАЕМОСТИ'];
-  const ss = { getSheetByName: n => sheets[n] || null, getSpreadsheetTimeZone: () => 'Asia/Tbilisi' };
+  const ss = { getSheetByName: n => sheets[n] || null, getSpreadsheetTimeZone: () => 'Asia/Tbilisi', getSheets: () => Object.values(sheets) };
+  const stubs = {
+    attSS_: () => ss,
+    sheetOf_: n => ss.getSheetByName(n),
+    readRegistry_: () => ({ players: opts.players.map(p => ({ id: p[0], name: p[1], group: p[2], status: p[3] || 'Активен', loc: 'Красный парк' })) }),
+    checkPin_() {}, indIsGroup_: () => false, extraIsGroup_: () => false,
+    // для renameSweep_: остальные файлы в тесте пустые
+    adminSS_: () => ({ getSheetByName: () => null }), partsSheet_: () => null, equipSheet_: () => null,
+    payFile_: () => ({ getSheets: () => [] }), extraParseRaw_: () => [], logChange_() {},
+    SUB_SHEET: 'АБОНЕМЕНТЫ', PAY_SHEET: 'ОПЛАТЫ', EXTRA_LOG: 'x', EXTRA_ATT: 'x', IND_LOG: 'x',
+  };
   const ctx = {
     console,
     SpreadsheetApp: { flush() {}, CopyPasteType: { PASTE_NORMAL: 0, PASTE_FORMAT: 1 } },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
     Utilities: { formatDate: () => '' },
     Logger: { log() {} },
-    attSS_: () => ss,
-    sheetOf_: n => ss.getSheetByName(n),
-    readRegistry_: () => ({ players: opts.players.map(p => ({ id: p[0], name: p[1], group: p[2], status: p[3] || 'Активен', loc: 'Красный парк' })) }),
-    checkPin_() {}, indIsGroup_: () => false, extraIsGroup_: () => false,
+    PropertiesService: { getScriptProperties: () => ({ getProperties: () => ({}), getProperty: () => null }) },
+    ...stubs,
   };
   vm.createContext(ctx);
   const sp = fs.readFileSync(path.join(ROOT, 'SubsPay.js'), 'utf8');             // nfSafe_ — настоящая функция из SubsPay.js
   vm.runInContext(sp.slice(sp.indexOf('function nfSafe_'), sp.indexOf('\n', sp.indexOf('function nfSafe_'))), ctx);
-  for (const f of opts.files || ['Attendance.js', 'WebApp.js']) {
+  for (const f of opts.files || ['Attendance.js', 'WebApp.js', 'MonthsAtt.js', 'MonthsCode.js', 'Players.js']) {
     const src = typeof f === 'string' ? fs.readFileSync(path.join(ROOT, f), 'utf8') : f.src;
     vm.runInContext(src, ctx, { filename: typeof f === 'string' ? f : f.name });
   }
+  Object.assign(ctx, stubs); // функции из файлов (attSS_, readRegistry_ …) заменяем имитацией
   return { ctx, sheets };
 }
 
@@ -292,9 +301,36 @@ test('Р6. у ученика нет своей записи: состояние 
   assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': 'a', 'KS-2': '', 'KS-3': '' });
 });
 
-test('журнал «Присутствовал», а в листе галочку сняли вручную: лист главнее, «не был»', () => {
+test('все FALSE, у ученика в журнале «Присутствовал»: восстанавливается «Был»', () => {
   const env = allFalse({ journal: [jr('KS-1', 'Bagulin Misha', 'Присутствовал')] });
+  assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': 'p', 'KS-2': '', 'KS-3': '' });
+});
+
+test('все FALSE, смешанные статусы в журнале: у каждого свой статус, без записи — неотмечен', () => {
+  const env = allFalse({ journal: [jr('KS-1', 'Bagulin Misha', 'Присутствовал'), jr('KS-2', 'Kotov Rodion', 'Отсутствовал')] });
+  assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': 'p', 'KS-2': 'a', 'KS-3': '' });
+});
+
+test('все FALSE, записей журнала по ученикам группы нет (есть только чужие ID): никто не отмечен', () => {
+  const env = allFalse({ journal: [jr('KS-77', 'Someone Else', 'Присутствовал'), jr('KS-78', 'Other', 'Отсутствовал')] });
+  assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': '', 'KS-2': '', 'KS-3': '' });
+});
+
+test('все FALSE, непонятный статус в журнале: ученик неотмечен', () => {
+  const env = allFalse({ journal: [jr('KS-1', 'Bagulin Misha', ''), jr('KS-2', 'Kotov Rodion', 'Болел')] });
+  assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': '', 'KS-2': '', 'KS-3': '' });
+});
+
+test('все FALSE, ФИ в листе написано иначе, но запись журнала по ID есть: статус восстанавливается', () => {
+  const env = load({ month: monthSheet(G, ['Bagulin Mihail', 'Kotov Rodion', 'Zubkov Stepan'], 2, { 7: [false, false, false] }), players: KIDS,
+    journal: [jr('KS-1', 'Bagulin Misha', 'Отсутствовал')] });
   assert.equal(marksOf(env.ctx.appRoster('pin', G, DAY))['KS-1'], 'a');
+});
+
+test('есть TRUE: журнал не используется, значения из листа (запись журнала «Присутствовал» не перебивает FALSE)', () => {
+  const env = load({ month: monthSheet(G, KIDS.map(k => k[1]), 2, { 7: [false, true, false] }), players: KIDS,
+    journal: [jr('KS-1', 'Bagulin Misha', 'Присутствовал')] });
+  assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': 'a', 'KS-2': 'p', 'KS-3': 'a' });
 });
 
 test('ученик в двух группах в один день: журнал ведётся по каждой группе отдельно', () => {
@@ -323,4 +359,84 @@ test('журнал не записался: лист записан, ошибк�
   save(env, {});
   assert.equal(env.sheets['ЖУРНАЛ ПОСЕЩАЕМОСТИ'].data.length - 3, 3);
   assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': 'a', 'KS-2': 'a', 'KS-3': 'a' });
+});
+
+// ---------- Ветка settings-and-fixes ----------
+
+test('вставка строк при нехватке места: блок перенумерован 1..N без повторов', () => {
+  const kids = KIDS.concat([['KS-4', 'New Kid', G], ['KS-5', 'Other Kid', G]]);
+  const env = load({ month: monthSheet(G, KIDS.map(k => k[1]), 0), players: kids });
+  const rep = save(env, { 'KS-4': true });
+  assert.ok(rep.results.every(r => !r.result.startsWith('НЕ')), JSON.stringify(rep.results));
+  const sh = env.sheets['10.26'];
+  assert.deepEqual([6, 7, 8, 9, 10].map(r => sh.cell(r, 1)), [1, 2, 3, 4, 5]);
+  assert.equal(sh.cell(11, 1), 'ИТОГ ГРУППЫ');
+  assert.deepEqual([6, 7, 8, 9, 10].map(r => sh.cell(r, 2)).sort(), ['Bagulin Misha', 'Kotov Rodion', 'New Kid', 'Other Kid', 'Zubkov Stepan']);
+});
+
+test('переименование игрока доходит до листов месяцев посещаемости', () => {
+  const env = fresh();
+  env.ctx.renameSweep_('KS-2', 'Kotov Rodion', 'Kotov Rodion Jr');
+  const sh = env.sheets['10.26'];
+  assert.deepEqual([6, 7, 8].map(r => sh.cell(r, 2)), ['Bagulin Misha', 'Kotov Rodion Jr', 'Zubkov Stepan']);
+});
+
+test('attJournalCheck: находит расхождение лист/журнал и день с галочками без журнала, ничего не пишет', () => {
+  const env = load({
+    month: monthSheet(G, KIDS.map(k => k[1]), 2, { 7: [true, false, false], 9: [true, true, false] }), players: KIDS,
+    journal: [jr('KS-1', 'Bagulin Misha', 'Присутствовал'), jr('KS-2', 'Kotov Rodion', 'Присутствовал')],
+  });
+  const before = snapshot(env);
+  const r = env.ctx.attJournalCheck('10.26');
+  assert.equal(r.diff, 1);          // KS-2: журнал «Присутствовал», лист «Отсутствовал»
+  assert.equal(r.bare, 1);          // 09.10: галочки есть, журнала нет
+  assert.ok(r.lines.some(l => /РАСХОЖДЕНИЕ: U10-A, 07\.10\.2026, Kotov Rodion/.test(l)));
+  assert.ok(r.lines.some(l => /БЕЗ ЖУРНАЛА: U10-A, 09\.10\.2026/.test(l)));
+  assert.equal(snapshot(env), before);
+});
+
+// ---------- Финальная проверка: повторное сохранение и исторические данные ----------
+
+const jRows = env => env.sheets['ЖУРНАЛ ПОСЕЩАЕМОСТИ'].data.slice(3).filter(r => r.length && r[0] !== '');
+const failAppendOnce = sh => { // первая дозапись новых строк журнала (10 колонок) падает
+  const orig = sh.getRange.bind(sh); let failed = false;
+  sh.getRange = (r, c, n, m) => {
+    const rg = orig(r, c, n, m);
+    if (m === 10 && !failed) { rg.setValues = () => { failed = true; throw new Error('Service error: Spreadsheets'); }; }
+    return rg;
+  };
+};
+
+test('журнал упал на середине (статусы обновлены, новые строки не добавлены): повтор дописывает без дублей', () => {
+  const env = fresh({ journal: [jr('KS-1', 'Bagulin Misha', 'Присутствовал')] }); // одна строка уже есть
+  failAppendOnce(env.sheets['ЖУРНАЛ ПОСЕЩАЕМОСТИ']);
+  assert.throws(() => save(env, { 'KS-2': true }), /журнал посещаемости не обновлён/);
+  assert.equal(jRows(env).length, 1);                                    // KS-1 обновлён, KS-2/KS-3 не дописаны
+  assert.equal(jRows(env)[0][6], 'Отсутствовал');
+  save(env, { 'KS-2': true });                                           // повтор
+  const ids = jRows(env).map(r => r[2] + '|' + r[6]).sort();
+  assert.deepEqual(ids, ['KS-1|Отсутствовал', 'KS-2|Присутствовал', 'KS-3|Отсутствовал']);
+  assert.equal(new Set(jRows(env).map(r => r[0])).size, 3);              // ID записей журнала не повторяются
+  const sh = env.sheets['10.26'];
+  assert.deepEqual([6, 7, 8].map(r => sh.cell(r, D)), [false, true, false]);
+  assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': 'a', 'KS-2': 'p', 'KS-3': 'a' });
+  assert.equal(env.ctx.attJournalCheck('10.26').diff, 0);                // лист и журнал согласованы
+});
+
+test('повторное сохранение три раза подряд: в листе одна колонка даты, в журнале по одной строке на ученика', () => {
+  const env = fresh();
+  save(env, {}); save(env, { 'KS-3': true }); save(env, { 'KS-3': true });
+  assert.equal(jRows(env).length, 3);
+  const sh = env.sheets['10.26'];
+  assert.equal(sh.cell(5, D), 46302);
+  assert.equal(sh.cell(5, D + 1), '');                                   // вторая колонка с той же датой не появилась
+  assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': 'a', 'KS-2': 'a', 'KS-3': 'p' });
+});
+
+test('исторические строки журнала «Импорт 09.26» участвуют в восстановлении так же, как строки приложения', () => {
+  const imp = (id, name, st) => ['ATT-202609-0001', '07.10.2026', id, name, G, 'Красный парк', st, '', '', 'Импорт 09.26'];
+  const env = allFalse({ journal: [imp('KS-1', 'Bagulin Misha', 'Отсутствовал'), imp('KS-2', 'Kotov Rodion', 'Присутствовал')] });
+  assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': 'a', 'KS-2': 'p', 'KS-3': '' });
+  save(env, { 'KS-2': true, 'KS-3': true });                             // сохранение обновляет импортированные строки, не дублирует
+  assert.deepEqual(jRows(env).map(r => r[2] + '|' + r[6]).sort(), ['KS-1|Отсутствовал', 'KS-2|Присутствовал', 'KS-3|Присутствовал']);
 });
