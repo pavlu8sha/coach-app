@@ -124,7 +124,7 @@ var DUP={};
 // Номера через запятую или «/»: «9,19» даёт отдельные номера 9 и 19
 function numToks(s){return String(s||'').split(/[\/,]/).map(function(x){return nn(x)}).filter(Boolean)}
 // Где номер должен быть уникален: U10-A и U10-B играют вместе (весь U10), U13-A/B/C — отдельно
-function catOf(g){g=String(g||'').trim();return/^U13/i.test(g)?g:g.replace(/-[A-Za-z0-9]+$/,'')}
+function catOf(g){g=String(g||'').trim();if(/^U13-[BC]$/i.test(g))return'U13-B/C';if(/^U13/i.test(g))return g;return g.replace(/-[A-Za-z0-9]+$/,'')}
 // Какие именно номера заказа повторяются в категории игрока
 function dupNums(o,p){if(!p)return[];return numToks(o.num).filter(function(x){return Object.keys(DUP[catOf(p.group)+'|'+x]||{}).length>1})}
 function isDup(o,p){return dupNums(o,p).length>0}
