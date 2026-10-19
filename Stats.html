@@ -23,6 +23,13 @@ button{font:inherit;cursor:pointer}
 details{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:8px}
 summary{cursor:pointer;list-style:none}
 summary::-webkit-details-marker{display:none}
+/* UI-002: аккордеоны — шеврон справа, поворот при раскрытии; цель нажатия ≥ 44 px */
+details>summary{position:relative;padding-right:30px;min-height:44px}
+details>summary::after{content:"";position:absolute;right:4px;top:12px;width:9px;height:9px;border-right:2px solid var(--mute);border-bottom:2px solid var(--mute);transform:rotate(45deg);transition:transform .15s}
+details[open]>summary::after{transform:rotate(-135deg);top:16px}
+@media(prefers-reduced-motion:reduce){details>summary::after{transition:none}}
+.tile b{font-size:22px!important}
+li.low .lw{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;margin-right:6px;border-radius:50%;background:var(--color-danger-strong,var(--a));color:var(--color-on-danger,#fff);font-size:11px;font-weight:800;vertical-align:1px}
 .top{display:flex;justify-content:space-between;font-weight:700}
 .bar{height:6px;border-radius:3px;background:var(--n);margin-top:8px;overflow:hidden}.bar i{display:block;height:100%;background:var(--g)}
 .sub{color:var(--mute);font-size:13px;margin-top:10px}
@@ -46,7 +53,7 @@ li.low{color:var(--a)}
     <div><label for="from">С</label><input id="from" type="date"></div>
     <div><label for="to">По</label><input id="to" type="date"></div>
   </div>
-  <div class="msg" id="msg" role="status"></div>
+  <div class="msg" id="msg" role="status" data-ks-quiet></div>
   <div class="tiles" id="sum"></div>
   <div id="groups"></div>
 </div>
@@ -98,11 +105,12 @@ function render(d){
   $('groups').innerHTML=d.groups.map(function(g){
     var low=g.list.filter(function(x){return x.pct!=null&&x.pct<d.threshold}).length;
     var rows=g.list.slice().sort(function(a,b){return(a.pct==null?-1:a.pct)-(b.pct==null?-1:b.pct)}).map(function(x){
-      return'<li'+(x.pct!=null&&x.pct<d.threshold?' class="low"':'')+'><span>'+esc(x.name)+'</span><b>'+x.attended+' из '+x.total+' ('+pt(x.pct)+')</b></li>';
+      var lo=x.pct!=null&&x.pct<d.threshold;
+      return'<li'+(lo?' class="low"':'')+'><span>'+(lo?'<span class="lw" role="img" aria-label="ниже '+d.threshold+'%" title="Посещаемость ниже '+d.threshold+'%">!</span>':'')+esc(x.name)+'</span><b>'+x.attended+' из '+x.total+' ('+pt(x.pct)+')</b></li>';
     }).join('');
     var ses='<div class="sub">Тренировки по датам: сколько пришло из игроков группы</div>'+g.sessions.map(function(s){return'<span class="chip">'+s.day+': '+s.present+' из '+g.players+'</span>'}).join('');
     return'<details><summary><div class="top"><span>'+esc(g.name)+'</span><span>'+pt(g.pct)+'</span></div><div class="bar"><i style="width:'+(g.pct||0)+'%"></i></div></summary>'
-      +'<div class="sub">Тренировок: '+g.trainings+', игроков в группе: '+g.players+'. Отметок «был»: '+g.attended+' из '+g.possible+(low?'. Игроков с посещаемостью ниже '+d.threshold+'%: '+low:'')+'</div>'
+      +'<div class="sub">Тренировок: '+g.trainings+', игроков в группе: '+g.players+'. Отметок «был»: '+g.attended+' из '+g.possible+(low?'. Игроков с посещаемостью ниже '+d.threshold+'% (отмечены «!»): '+low:'')+'</div>'
       +'<div class="chips">'+ses+'</div><ul>'+rows+'</ul></details>';
   }).join('');
 }

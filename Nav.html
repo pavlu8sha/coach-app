@@ -180,6 +180,7 @@ img,table,select,input,textarea{max-width:100%}
         if(bad){el.setAttribute('role','alert');if(!seen(el))nearest(el)}
         return;
       }
+      if(!bad&&el.hasAttribute('data-ks-quiet'))return;   // справочная строка страницы (например, «Период: …»): без тоста
       if(bad){clearFerr();if(formErr(t,el))return}
       if(!bad)clearFerr();
       say(t,bad);
