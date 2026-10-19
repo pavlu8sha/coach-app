@@ -32,6 +32,23 @@ button{font:inherit;cursor:pointer}
 .tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
 .tile b{display:block;font-size:16px}.tile span{color:var(--mute);font-size:12px}
 .msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:8px}
+/* UI-003 */
+.srch{position:relative}.srch svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--mute);pointer-events:none}
+.srch input{padding-left:40px}
+.pcard{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 14px;margin:10px 0 0}
+.pcard .av{flex:none;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--color-primary-subtle,var(--pb));color:var(--g);font-weight:800}
+.pcard b{display:block;overflow-wrap:anywhere}.pcard .sub{margin:0}
+.kinds{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0 4px}
+.kinds button{display:flex;align-items:center;gap:8px;min-height:48px;padding:8px 12px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-weight:700;font-size:14px;text-align:left}
+.kinds button svg{flex:none;color:var(--g)}.kinds button span{min-width:0;flex:1;overflow-wrap:anywhere}
+@media(max-width:380px){.kinds button{font-size:13px;padding:8px 8px;gap:6px}}.kinds .cnt{flex:none;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:var(--color-danger-subtle);color:var(--color-danger-strong);font-size:12px;display:inline-flex;align-items:center;justify-content:center}
+.hint{display:flex;gap:10px;align-items:flex-start;background:var(--color-primary-subtle,var(--pb));color:var(--ink);border-radius:12px;padding:12px 14px;margin:12px 0;font-size:14px}
+.hint svg{flex:none;color:var(--g);margin-top:1px}
+.fd{display:flex;align-items:flex-start;gap:12px}.fd .l{flex:1;min-width:0}.fd .l b{overflow-wrap:anywhere}
+.fd .amt{flex:none;font-weight:800;font-size:15px;white-space:nowrap;color:var(--color-success)}
+.fd .amt.neg{color:var(--color-danger-strong)}.fd .amt.rev{color:var(--mute);text-decoration:line-through}
+.res .cnl{min-height:44px}
+h2{scroll-margin-top:12px}
 </style>
 </head>
 <body>
@@ -41,8 +58,9 @@ button{font:inherit;cursor:pointer}
 </div>
 <div id="app" class="wrap" hidden>
   <h1>Приём оплат</h1>
-  <label>Игрок (введите ФИ и выберите из списка)</label>
-  <input id="pl" list="plist" autocomplete="off"><datalist id="plist"></datalist>
+  <label for="pl">Игрок (введите ФИ и выберите из списка)</label>
+  <div class="srch"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input id="pl" list="plist" autocomplete="off" type="search" placeholder="Поиск игрока…"></div><datalist id="plist"></datalist>
+  <div id="pcard"></div>
   <div class="row2">
     <div><label>Месяц абонемента</label><select id="mon"></select></div>
     <div><label>Дата оплаты</label><input type="date" id="dt"></div>
@@ -51,6 +69,7 @@ button{font:inherit;cursor:pointer}
   <div class="seg" id="meth"><button data-m="Наличные" aria-pressed="false">Наличные</button><button data-m="Перевод" aria-pressed="false">Перевод</button></div>
   <label>Комментарий</label><input id="cm" placeholder="необязательно">
   <div class="msg" id="msg" role="status"></div>
+  <div id="kinds"></div>
   <div id="progs"></div>
   <h2>Внесено сегодня</h2>
   <div class="tiles" id="tot"></div>
@@ -79,7 +98,7 @@ function orders(cb){
 function load(){
   $('dt').value=today();
   run('appAdminInit',[pin],function(d){
-    P=d.players;$('login').hidden=true;$('app').hidden=false;
+    P=d.players;$('login').hidden=true;$('app').hidden=false;if(!cur)hint();
     $('plist').innerHTML=P.filter(function(p){return p.status=='Активен'}).map(function(p){return'<option value="'+esc(p.name+' ('+p.id+')')+'">'}).join('');
   },fail);
   feed();orders();
@@ -92,7 +111,9 @@ function feed(){
     $('feed').innerHTML=r.items.length?r.items.map(function(x,i){
       var tag=x.neg?' <span class="sub">(отмена)</span>':(x.reversed?' <span class="sub">(отменён)</span>':'');
       var btn=x.canCancel?'<button class="btn sec cnl" data-i="'+i+'" data-src="'+x.src+'" data-row="'+x.row+'">Отменить платёж</button>':'';
-      return'<div class="res"><b>'+esc(x.name)+'</b> '+money(x.amount)+tag+'<div class="sub">'+esc(x.what+(x.kind?', '+x.kind:'')+(x.method?', '+x.method:''))+'</div>'+btn+'</div>';
+      var cls=x.neg?' neg':(x.reversed?' rev':'');
+      return'<div class="res"><div class="fd"><div class="l"><b>'+esc(x.name)+'</b>'+tag+'<div class="sub">'+esc(x.what+(x.kind?', '+x.kind:'')+(x.method?', '+x.method:''))+'</div></div>'
+        +'<span class="amt'+cls+'">'+(x.neg?'−':'+')+money(Math.abs(x.amount))+'</span></div>'+btn+'</div>';
     }).join(''):'<p class="sub">Сегодня платежей через приложение пока нет.</p>';
   },function(m){$('feed').innerHTML='<p class="err">'+esc(m)+'</p>'});
 }
@@ -112,13 +133,32 @@ function loadPlayer(id,keep){
     paint();
   },function(m){if(n==reqN)fail(m)});
 }
+// UI-003: карточка выбранного игрока, быстрый переход к виду оплаты, подсказка до выбора игрока
+var KICON={sub:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',eq:'<path d="M8 3l-5 4 3 3 2-1v12h8V9l2 1 3-3-5-4c-.5 1.5-2 2.5-4 2.5S8.5 4.5 8 3z"/>',
+  ind:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',ext:'<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/>'};
+function kicon(k){return'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+KICON[k]+'</svg>'}
+function hint(){
+  $('pcard').innerHTML='';$('kinds').innerHTML='';
+  $('progs').innerHTML='<div class="hint"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.5"/></svg><span>Выберите игрока — появятся абонемент, экипировка, индивидуальные и дополнительные тренировки, которые можно оплатить.</span></div>';
+}
+function pcard(){
+  var p=P.filter(function(x){return x.id==cur})[0];
+  if(!p){$('pcard').innerHTML='';return}
+  var ini=String(p.name).split(/\s+/).map(function(w){return w.charAt(0)}).join('').slice(0,2).toUpperCase();
+  $('pcard').innerHTML='<div class="pcard"><span class="av" aria-hidden="true">'+esc(ini)+'</span><div style="min-width:0"><b>'+esc(p.name)+'</b><div class="sub">'+esc(p.id+' · '+p.group+(p.birth?' · '+String(p.birth).slice(-4)+' г.':''))+'</div></div></div>';
+}
+function kinds(c){
+  var K=[['sub','Абонемент',c.sub],['eq','Экипировка',c.eq],['ind','Индивидуальные',c.ind],['ext','Дополнительные',c.ext]];
+  $('kinds').innerHTML='<div class="sub" style="margin-top:12px">Перейти к оплате</div><div class="kinds">'+K.map(function(k){
+    return'<button type="button" data-go="ps-'+k[0]+'">'+kicon(k[0])+'<span>'+k[1]+'</span>'+(k[2]?'<span class="cnt" aria-label="к оплате: '+k[2]+'">'+k[2]+'</span>':'')+'</button>'}).join('')+'</div>';
+}
 function paint(keepInputs){
   var saved={};
   if(keepInputs)[].forEach.call($('progs').querySelectorAll('.prog[data-g]'),function(bx){
     var a=bx.querySelector('.pa'),t=bx.querySelector('.ptype');
     if(a&&a.value!==a.defaultValue)saved[bx.dataset.g]={a:a.value,t:t?t.value:''};
   });
-  var M=$('mon').value,gs=Object.keys(SUB.tariffs),h='<h2>Абонемент, '+esc(M)+'</h2>';
+  var M=$('mon').value,gs=Object.keys(SUB.tariffs),h='<h2 id="ps-sub">Абонемент, '+esc(M)+'</h2>';
   if(!gs.length)h+='<p class="sub err">У игрока нет групп для абонемента.</p>';
   h+=gs.map(function(g){
     var it=SUB.items.filter(function(i){return i.month==M&&nn(i.group)==nn(g)})[0],T=ksTariff(SUB,M,g);
@@ -129,7 +169,7 @@ function paint(keepInputs){
       +'<button class="btn pay">Внести оплату</button>';
     return'<div class="prog" data-g="'+esc(g)+'"><div class="prh"><b>'+esc(g)+'</b>'+chip+'</div><div class="sub">внесено '+money(paid)+' из '+money(T)+(it?'':'; в листе месяца пока нет, будет добавлен')+'</div>'+f+'</div>';
   }).join('');
-  h+='<h2>Экипировка</h2>';
+  h+='<h2 id="ps-eq">Экипировка</h2>';
   var eo=O.filter(function(o){return o.id==cur&&(o.kit||o.sum)});
   if(eqErr)h+='<p class="sub err">'+esc(eqErr)+'</p>';
   else if(!eo.length)h+='<p class="sub">Заказов экипировки нет.</p>';
@@ -139,14 +179,14 @@ function paint(keepInputs){
       +'<button class="btn epay" data-row="'+o.row+'">Внести оплату</button>':'';
     return'<div class="prog"><div class="prh"><b>'+esc(o.kit||'Комплект не указан')+'</b>'+chip+'</div><div class="sub">сумма '+money(o.sum)+', оплачено '+money(o.paid)+(o.size?', размер '+esc(o.size):'')+'</div>'+f+'</div>';
   }).join('');
-  h+='<h2>Индивидуальные и вратарские</h2>';
+  h+='<h2 id="ps-ind">Индивидуальные и вратарские</h2>';
   if(!IND.length)h+='<p class="sub">Записей на индивидуальные нет.</p>';
   h+=IND.map(function(x,i){
     var chip=x.paid?'<span class="ok">оплачено</span>':'<span class="err">'+(x.past?'долг ':'')+money(x.price)+'</span>';
     var f=x.paid?'':'<button class="btn ipay" data-i="'+i+'">Внести оплату</button>';
     return'<div class="prog"><div class="prh"><b>'+esc(x.label)+'</b>'+chip+'</div>'+f+'</div>';
   }).join('');
-  h+='<h2>Дополнительные тренировки</h2>';
+  h+='<h2 id="ps-ext">Дополнительные тренировки</h2>';
   if(!EXT.length)h+='<p class="sub">Записей на дополнительные нет.</p>';
   h+=EXT.map(function(x,i){
     var chip=x.paid?'<span class="ok">оплачено</span>':'<span class="err">'+(x.price>0?money(x.price):'сумма не задана')+'</span>';
@@ -154,6 +194,9 @@ function paint(keepInputs){
     return'<div class="prog"><div class="prh"><b>'+esc(x.label)+'</b>'+chip+'</div>'+f+'</div>';
   }).join('');
   $('progs').innerHTML=h;
+  pcard();
+  kinds({sub:gs.filter(function(g){var it=SUB.items.filter(function(i){return i.month==M&&nn(i.group)==nn(g)})[0];return!it||it.st!='paid'}).length,
+    eq:eqErr?0:eo.filter(function(o){return o.debt>0}).length,ind:IND.filter(function(x){return!x.paid}).length,ext:EXT.filter(function(x){return!x.paid}).length});
   [].forEach.call($('progs').querySelectorAll('.prog[data-g]'),function(bx){
     var k=saved[bx.dataset.g],a=bx.querySelector('.pa');
     if(k&&a){a.value=k.a;bx.querySelector('.ptype').value=k.t;bx.querySelector('.pt').hidden=Number(a.value)>=Number(a.dataset.debt)}
@@ -161,7 +204,10 @@ function paint(keepInputs){
 }
 // Способ оплаты не переносится на другого игрока: при смене игрока выбор сбрасывается
 function resetMethod(){method='';[].forEach.call($('meth').children,function(x){x.setAttribute('aria-pressed','false')})}
-$('pl').oninput=function(){var id=pid(this.value);if(id&&id!=cur){resetMethod();loadPlayer(id)}if(!this.value){reqN++;cur='';SUB=null;$('progs').innerHTML='';resetMethod()}};
+$('pl').oninput=function(){var id=pid(this.value);if(id&&id!=cur){resetMethod();loadPlayer(id)}if(!this.value){reqN++;cur='';SUB=null;resetMethod();hint()}};
+$('kinds').onclick=function(e){var b=e.target.closest('[data-go]');if(!b)return;var h=$(b.dataset.go);if(!h)return;
+  var rm=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;h.scrollIntoView({behavior:rm?'auto':'smooth',block:'start'});
+  var f=h.nextElementSibling&&h.nextElementSibling.querySelector?h.nextElementSibling.querySelector('input,button'):null;if(f)try{f.focus({preventScroll:true})}catch(x){}};
 $('mon').onchange=function(){if(SUB)paint()};
 $('meth').onclick=function(e){var b=e.target.closest('button');if(!b)return;method=b.dataset.m;[].forEach.call(this.children,function(x){x.setAttribute('aria-pressed',x==b)})};
 // Сводка для диалога подтверждения: общие строки экрана (способ, дата, комментарий)

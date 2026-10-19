@@ -50,6 +50,11 @@ html .msg.ks-inl{visibility:hidden}
 @media (prefers-color-scheme:dark){
 :root:root{--bg:#0D1324;--card:#161F38;--ink:#E8ECF7;--mute:#97A3C2;--line:#27325A;
 --g:#7F9DEB;--gi:#0B1020;--pb:#1F2D54;--n:#2F3B63;--a:#F0866F}}
+/* UI-003: подразделы (Приём оплат / По месяцам и группам / Должники и др.) */
+.ks-sub{display:grid;gap:4px;max-width:592px;width:100%;margin:0 auto;padding:10px 16px 0;box-sizing:border-box}
+.ks-sub a{display:flex;align-items:center;justify-content:center;text-align:center;min-height:44px;padding:6px 8px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);text-decoration:none;font:600 14px/1.2 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow-wrap:anywhere}
+.ks-sub a.on{background:var(--g);border-color:var(--g);color:var(--gi)}
+@media(max-width:380px){.ks-sub a{font-size:13px;padding:6px 4px}}
 html,body{overflow-x:hidden;max-width:100%}
 *,*::before,*::after{box-sizing:border-box}
 img,table,select,input,textarea{max-width:100%}

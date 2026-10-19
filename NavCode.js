@@ -47,13 +47,13 @@ var TAB_GROUPS_ = [
 function tabsHtml_(url, page) {
   var group = TAB_GROUPS_.filter(function (g) { return g.some(function (t) { return t[1] === page; }); })[0];
   if (!group) return '';
+  // UI-003: подразделы — сегментный переключатель на всю ширину (оформление — .ks-sub в Nav.html), цели ≥ 44 px
   var h = group.map(function (t) {
     var on = t[1] === page;
-    return '<a target="_top"' + (on ? ' aria-current="page"' : '') + ' href="' + url + '?page=' + t[1] + '" style="padding:7px 14px;border-radius:10px;text-decoration:none;font:600 14px system-ui,-apple-system,sans-serif;border:1px solid var(--line,#DCE3DD);'
-      + (on ? 'background:var(--ink,#15211A);color:var(--bg,#F4F6F3)' : 'background:var(--card,#fff);color:var(--ink,#15211A)') + '">' + t[0] + '</a>';
+    return '<a target="_top"' + (on ? ' class="on" aria-current="page"' : '') + ' href="' + url + '?page=' + t[1] + '">' + t[0] + '</a>';
   }).join('');
   // data-gate: вкладки показываются только после входа по коду (см. Nav.html)
-  return '<nav data-gate aria-label="Подразделы" style="display:flex;flex-wrap:wrap;gap:8px;padding:10px 16px 0;max-width:592px;margin:0 auto;box-sizing:border-box;width:100%">' + h + '</nav>';
+  return '<nav data-gate class="ks-sub" aria-label="Подразделы" style="grid-template-columns:repeat(' + group.length + ',1fr)">' + h + '</nav>';
 }
 
 function doGet(e) {
