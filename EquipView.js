@@ -30,8 +30,7 @@ function addOrderCore_(o) {
   // Размер, номер и надпись не обязательны при создании: дописываются при изменении заказа (в Экипировке помечаются как незаполненные)
   if (missing.length) throw new Error('Для заказа укажите: ' + missing.join(', '));
   var sh = equipSheet_();
-  var clash = equipNumClash_(sh, o.id, o.num, 0);
-  if (clash) throw new Error('Номер ' + o.num + ' уже у игрока «' + clash + '» в этой группе. Выберите другой номер.');
+  // Повторяющиеся номера в группе пока разрешены: номер — желаемый игроком, окончательный выдаётся после жребия
   var rows = sh.getRange(EQ_FIRST, 1, EQ_ROWS, 12).getValues(), row = 0, i, c, empty;
   for (i = 0; i < rows.length && !row; i++) {
     empty = true;
