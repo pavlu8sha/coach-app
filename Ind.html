@@ -13,10 +13,10 @@ h1{font-size:22px;margin:16px 0 10px}
 input,select{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-height:46px;width:100%}
 button{font:inherit;cursor:pointer}
 .btn{width:100%;min-height:48px;border:0;border-radius:14px;background:var(--g);color:var(--gi);font-weight:700}
-.sm{min-height:40px;padding:6px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--g);font-weight:600;font-size:14px}
+.sm{min-height:44px;padding:6px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--g);font-weight:600;font-size:14px}
 .sm.bad{color:var(--a,#C0392B)}
 .sm.armed{background:var(--a,#C0392B);color:#fff;border-color:transparent}
-.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;margin:8px 0}.row2 input{min-width:0;max-width:100%;box-sizing:border-box} /* DS-017: дата и время сжимаются на 320 px */
 details{background:var(--card);border:1px solid var(--line);border-radius:14px;margin:0 0 10px;padding:0 14px}
 summary{cursor:pointer;padding:12px 0;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;list-style:none}
 summary::-webkit-details-marker{display:none}
@@ -55,7 +55,7 @@ summary::-webkit-details-marker{display:none}
   </details>
   <details id="ilist"><summary><b>Список записавшихся</b></summary>
     <label>Занятие</label><select id="iev"></select>
-    <div id="itxt" style="margin-top:8px;padding:12px 14px;border:1px solid #d9dce3;border-radius:12px;background:#fff;color:inherit;white-space:pre-line;line-height:1.6;min-height:60px;font-size:15px"></div>
+    <div id="itxt" style="margin-top:8px;padding:12px 14px;border:1px solid var(--line,#d9dce3);border-radius:12px;background:var(--card,#fff);color:inherit;white-space:pre-line;line-height:1.6;min-height:60px;font-size:15px"></div>
     <button class="btn" id="icopy">Скопировать список</button>
     <div class="sub" style="margin-top:8px">Заголовок пишете сами; здесь только нумерованный список по порядку записи.</div>
   </details>

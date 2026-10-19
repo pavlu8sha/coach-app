@@ -19,7 +19,7 @@ label{display:block;margin:10px 0 4px;color:var(--mute);font-size:14px}
 button{font:inherit;cursor:pointer}
 .btn{width:100%;min-height:46px;border:0;border-radius:12px;background:var(--g);color:var(--gi);font-weight:800;font-size:15px;margin-top:10px}
 .btn:disabled{opacity:.5}
-.cp{border:1px solid var(--line);background:var(--card);color:var(--g);border-radius:10px;min-height:38px;padding:0 12px;font-weight:700;font-size:14px;white-space:nowrap}
+.cp{border:1px solid var(--line);background:var(--card);color:var(--g);border-radius:10px;min-height:44px;padding:0 12px;font-weight:700;font-size:14px;white-space:nowrap} /* DS-015: цель касания ≥ 44 px */
 .seg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .seg button{min-height:42px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--mute);font-weight:700}
 .seg button[aria-pressed=true]{background:var(--g);border-color:var(--g);color:var(--gi)}
@@ -31,11 +31,11 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
 .top{display:flex;justify-content:space-between;gap:8px;font-weight:700}
 .sub{color:var(--mute);font-size:13px}
 .it{padding:8px 0;border-top:1px solid var(--line)}
-.itr{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.itr{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap} /* DS-017: на 320 px кнопки переносятся, а не выходят за экран */
 .itr .nm{min-width:0}.itr .nm b{display:block;font-weight:600}
 .ac{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
 .pf{margin-top:6px}
-.wr{display:flex;gap:6px;align-items:center;color:var(--mute);font-size:13px;margin:0;white-space:nowrap}.wr input{width:20px;min-height:0;height:20px}
+.wr{display:flex;gap:8px;align-items:center;color:var(--mute);font-size:13px;margin:0;white-space:nowrap;min-height:44px}.wr input{width:22px;min-height:0;height:22px} /* DS-015: цель касания ≥ 44 px */
 .err{color:var(--a)}.msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:8px}
 [hidden]{display:none!important}
 </style>

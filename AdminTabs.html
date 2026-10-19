@@ -1,6 +1,4 @@
 <style>
-:root:root{--abg:#F8E1DD;--wbg:#FBEFCF;--wfg:#9A6A00;--okbg:#DDE4F6}
-@media(prefers-color-scheme:dark){:root:root{--abg:#3C1F1B;--wbg:#3A2F12;--wfg:#E8C26A;--okbg:#1F2D54}}
 #card>h2{display:none}
 #app .top{position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0 10px;border-bottom:1px solid var(--line);margin-bottom:8px}
 @media(min-width:840px){#app .top{top:57px}}
@@ -12,7 +10,7 @@
 .kv{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:15px}
 .kv span:first-child{color:var(--mute)}
 .chip{font-size:12px;font-weight:600;border-radius:999px;padding:3px 10px;white-space:nowrap}
-.chip.ok{background:var(--okbg);color:var(--g)}.chip.bad{background:var(--abg);color:var(--a)}.chip.mid{background:var(--wbg);color:var(--wfg)}
+.chip.ok{background:var(--color-success-subtle);color:var(--color-success)}.chip.bad{background:var(--color-danger-subtle);color:var(--color-danger-strong)}.chip.mid{background:var(--color-warning-subtle);color:var(--color-warning)}
 .gm{display:flex;justify-content:space-between;gap:8px;align-items:center}
 .gm .sc{font-weight:800;font-variant-numeric:tabular-nums}
 li.p{padding:12px 14px}

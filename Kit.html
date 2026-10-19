@@ -15,8 +15,8 @@ h1{font-size:22px;margin:16px 0 10px}
 input,select{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:44px;width:100%}
 input[type=date]{-webkit-appearance:none;appearance:none;width:0;min-width:100%;max-width:100%;display:block;box-sizing:border-box}
 label{display:block;margin:12px 0 4px;color:var(--mute);font-size:14px}
-.chk{display:flex;gap:8px;align-items:center}.chk input{width:auto;min-height:0}
-.kits{display:flex;flex-direction:column;gap:4px;margin:4px 0 8px}.kit{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--ink)}.kit input{width:auto;min-height:0;margin:0}
+.chk{display:flex;gap:8px;align-items:center;min-height:44px}.chk input{width:22px;height:22px;min-height:0;flex:none}
+.kits{display:flex;flex-direction:column;gap:4px;margin:4px 0 8px}.kit{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--ink);min-height:44px}.kit input{width:22px;height:22px;min-height:0;margin:0;flex:none} /* DS-015: цель касания ≥ 44 px */
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
 button{font:inherit;cursor:pointer}
 .btn{width:100%;min-height:48px;border:0;border-radius:12px;background:var(--g);color:var(--gi);font-weight:800;font-size:16px;margin-top:12px}
@@ -30,7 +30,7 @@ details{background:var(--card);border:1px solid var(--line);border-radius:12px;p
 summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:none}
 .top{display:flex;justify-content:space-between;gap:8px;font-weight:700}
 .sub{color:var(--mute);font-size:13px}
-.ok{color:var(--g)}.err{color:var(--a)}
+.ok{color:var(--color-success)}.err{color:var(--a)}
 .ord{border-top:1px solid var(--line);margin-top:8px;padding-top:8px;font-size:14px}
 .msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:8px}
 </style>

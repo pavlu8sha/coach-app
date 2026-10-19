@@ -18,6 +18,8 @@ button{font:inherit;cursor:pointer}
 .tabs{display:flex;gap:6px;margin:8px 0}
 .tabs button{flex:1;min-height:40px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink)}
 .tabs button.on{background:var(--g);color:var(--gi);border-color:var(--g)}
+/* DS-017: на 360 px четыре вкладки не помещались в ряд (документ шире экрана на 48 px) — на экране до 400 px — 2 × 2 */
+@media (max-width:400px){.tabs{flex-wrap:wrap}.tabs button{flex:1 1 calc(50% - 3px)}}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;min-width:0}
 .grid2>*{min-width:0}
 .pair{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
@@ -28,13 +30,34 @@ table{width:100%;border-collapse:collapse;font-size:14px}
 th,td{text-align:left;padding:6px 4px;border-top:1px solid var(--line);vertical-align:top}
 th{color:var(--mute);font-weight:600}
 .scroll{overflow-x:auto}
+/* UI-004: таблица в отдельной карточке; если колонки не помещаются — прокручивается только таблица, не страница */
+.tbl{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-top:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+.tbl th,.tbl td{padding:8px 10px;white-space:nowrap}
+.tbl tr:first-child th{border-top:0}
+.tbl td.w,.tbl td[colspan]{white-space:normal}.tbl td.w{min-width:160px}
+.ask{font-weight:600;margin:10px 0 0}
+/* UI-004: выбор месяца стрелками; нажатие на название открывает полный список (настоящий select поверх надписи) */
+.mbar{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--color-border-strong);border-radius:12px;padding:3px;margin:0 0 8px}
+.mstep{flex:none;width:44px;height:44px;border:0;border-radius:10px;background:var(--bg);color:var(--ink);font-size:24px;font-weight:700;line-height:1}
+.mstep:disabled{opacity:.35;cursor:default}
+.mcur{position:relative;flex:1;min-width:0;height:44px;margin:0;display:flex;align-items:center;justify-content:center;gap:8px;font-size:16px;font-weight:700;color:var(--ink);border-radius:10px}
+.mcur svg{width:18px;height:18px;flex:none}
+.mcur select{position:absolute;top:0;left:0;width:100%;height:100%;min-height:0;opacity:0;cursor:pointer;margin:0}
+.mcur:focus-within{outline:3px solid var(--g);outline-offset:1px}
+/* по макету UI-004: «Проведено» — плашка, дата коротко (год виден в выборе месяца) */
+.yn{display:inline-block;min-width:44px;text-align:center;font-size:12px;font-weight:700;border-radius:999px;padding:2px 10px}
+.yn.y{background:var(--color-success-subtle);color:var(--color-success)}.yn.n{background:var(--color-danger-subtle);color:var(--color-danger-strong)}
 .msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:8px}
 .err{color:var(--a)}
 label{font-size:13px;color:var(--mute);display:flex;gap:8px;align-items:center;margin-top:8px}
+label:has(> input[type=checkbox]){min-height:44px}label > input[type=checkbox]{width:22px;height:22px;min-height:0;flex:none} /* DS-015: цель касания ≥ 44 px */
 label input{width:auto;min-height:0}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
 .chips button{min-height:36px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--ink);padding:4px 12px}
 .chips button.on{background:var(--g);color:var(--gi);border-color:var(--g)}
+/* DS-016: статус тренировки в таблице — плашка (DESIGN_SYSTEM_V1 §6.3): «записана» — success, «не проводилась» — нейтральная */
+span.chip{display:inline-block;font-size:12px;font-weight:600;line-height:1.5;border-radius:999px;padding:1px 10px;white-space:nowrap;background:var(--color-neutral-fill,#D2D8E6);color:var(--ink)}
+span.chip.on{background:var(--color-success-subtle,#DFF2E7);color:var(--color-success,#1E7A4C)}
 .top{display:flex;justify-content:space-between;gap:8px;font-weight:700}
 .bar{height:6px;border-radius:3px;background:var(--n);margin-top:8px;overflow:hidden}.bar i{display:block;height:100%;background:var(--g)}
 .sub{color:var(--mute);font-size:13px;margin-top:8px}
@@ -53,7 +76,11 @@ li small{color:var(--mute)}
 </div>
 <div id="app" class="wrap" hidden>
   <h1>Посещаемость тренеров</h1>
-  <select id="mon" aria-label="Месяц"></select>
+  <div class="mbar">
+    <button type="button" class="mstep" id="mprev" aria-label="Предыдущий месяц">‹</button>
+    <label class="mcur"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span id="mlab"></span><select id="mon" aria-label="Месяц"></select></label>
+    <button type="button" class="mstep" id="mnext" aria-label="Следующий месяц">›</button>
+  </div>
   <div class="tabs">
     <button data-t="tr" class="on">Тренировки</button>
     <button data-t="gm">Игры</button>
@@ -87,7 +114,7 @@ li small{color:var(--mute)}
       <label><input type="checkbox" id="a-held" checked> Проведено</label>
       <button class="btn" id="a-save">Добавить тренировку</button>
     </div>
-    <div class="scroll"><table id="tr-table"></table></div>
+    <div class="tbl ks-wide"><table id="tr-table"></table></div>
   </div>
 
   <div id="pane-dy" hidden>
@@ -95,7 +122,7 @@ li small{color:var(--mute)}
     <div id="dy-list"></div>
   </div>
 
-  <div id="pane-gm" hidden><div class="scroll"><table id="gm-table"></table></div></div>
+  <div id="pane-gm" hidden><div class="tbl ks-wide"><table id="gm-table"></table></div></div>
   <div id="pane-st" hidden>
     <div class="grid2" style="margin-bottom:8px;align-items:stretch"><input id="newtr" placeholder="Имя нового тренера" style="height:48px;margin:0"><button class="btn sec" id="addtr" style="height:48px;margin:0">Добавить тренера</button></div>
     <div class="msg" id="trmsg" role="status"></div>
@@ -135,7 +162,7 @@ function init(){
     if(!ms.length){setMsg('Нет игр и тренировок.');return}
     var d=new Date(),k=('0'+(d.getMonth()+1)).slice(-2)+'.'+String(d.getFullYear());
     $('mon').innerHTML=ms.map(function(m){return'<option value="'+m+'">'+monLabel(m)+'</option>'}).join('');
-    $('mon').value=ms.indexOf(k)>=0?k:ms[ms.length-1];
+    $('mon').value=ms.indexOf(k)>=0?k:ms[ms.length-1];monSync();
     load();
   },fail);
 }
@@ -146,9 +173,10 @@ function load(){
   run('appTrainingsList',[pin,m],function(t){if(n!=reqN)return;cache.trainings=t;drawTr();setMsg('')},function(e){if(n==reqN)setMsg(e,true)});
   run('appGamesData',[pin,m],function(d){if(n!=reqN)return;cache.games=d.games;cache.stats=d.stats;drawGm();drawSt();setMsg('')},function(e){if(n==reqN)setMsg(e,true)});
 }
+function dShort(d){var m=/^(\d{2}\.\d{2})\.\d{4}$/.exec(String(d||''));return m?'<span title="'+esc(d)+'">'+m[1]+'</span>':esc(d)}
 function drawTr(){
   var rows=cache.trainings.map(function(t){
-    return'<tr><td>'+esc(t.date)+'</td><td>'+esc(t.trainer)+'</td><td>'+esc(t.group)+'</td><td>'+(t.held?'да':'нет')+'</td><td>'+fmtH(t.hours)+'</td></tr>';
+    return'<tr><td>'+dShort(t.date)+'</td><td>'+esc(t.trainer)+'</td><td>'+esc(t.group)+'</td><td>'+(t.held?'<span class="yn y">Да</span>':'<span class="yn n">Нет</span>')+'</td><td>'+fmtH(t.hours)+'</td></tr>';
   }).join('');
   $('tr-table').innerHTML='<tr><th>Дата</th><th>Тренер</th><th>Группа</th><th>Проведено</th><th>Часы</th></tr>'+(rows||'<tr><td colspan="5">Нет тренировок</td></tr>');
 }
@@ -189,7 +217,7 @@ function drawGm(){
     if(!editing)staff+=(staff?'<br>':'')+'<button class="btn" type="button" data-gmedit="'+i+'" style="'+GM_BTN+';margin-top:6px">Изменить</button>';
     var score=g.tech?'техническая победа':(typeof g.gf==='number'&&typeof g.ga==='number'?g.gf+':'+g.ga:'нет счёта');
     var goals=g.goals.map(function(x){return esc(x.name)+(x.n>1?' ×'+x.n:'')}).join(', ')||'—';
-    var tr='<tr><td>'+esc(g.date)+'</td><td>'+esc(g.team)+'<br>'+esc(g.opp)+'</td><td>'+score+'</td><td>'+goals+'</td><td>'+staff+'</td></tr>';
+    var tr='<tr><td>'+dShort(g.date)+'</td><td>'+esc(g.team)+'<br>'+esc(g.opp)+'</td><td>'+score+'</td><td class="w">'+goals+'</td><td class="w">'+staff+'</td></tr>';
     return tr+(editing?'<tr><td colspan="5">'+gmForm()+'</td></tr>':'');
   }).join('');
   $('gm-table').innerHTML='<tr><th>Дата</th><th>Команда</th><th>Счёт</th><th>Голы</th><th>Сотрудники</th></tr>'+(rows||'<tr><td colspan="5">Нет игр</td></tr>');
@@ -225,8 +253,9 @@ function drawSt(){
   var list=cache.stats.filter(function(s){return !trFilter||s.trainer===trFilter});
   if(!list.length){box.innerHTML='<div class="sub">Нет данных за месяц</div>';return}
   box.innerHTML=list.map(function(s){
-    var pct=s.pct===null?'—':s.pct+'%';
-    var bar=s.pct===null?0:s.pct;
+    // null с сервера приходит на страницу как undefined (google.script.run) — проверяем оба
+    var pct=s.pct==null?'—':s.pct+'%';
+    var bar=s.pct==null?0:s.pct;
     var tr=s.tr.map(function(t){return'<li><span>'+esc(t.date)+' · '+esc(t.group||'—')+'</span><b>'+fmtH(t.hours)+' ч</b></li>'}).join('')||'<li><span>Нет тренировок</span></li>';
     var gm=s.gm.map(function(g){
       var score=g.tech?'техническая победа':(typeof g.gf==='number'&&typeof g.ga==='number'?g.gf+':'+g.ga:'нет счёта');
@@ -280,7 +309,7 @@ function dyPaint(){
         :'<div style="margin-top:6px"><button class="btn" data-addopen="'+i+'" style="background:var(--card);color:var(--ink);border:1px solid var(--line)">+ тренер</button></div>';
     }
     var btns=can
-      ?'<div class="grid2"><button class="btn" data-y="'+i+'">Да</button><button class="btn" data-n="'+i+'" style="background:var(--card);color:var(--ink);border:1px solid var(--line)">Нет</button></div>'
+      ?'<p class="ask" id="ask'+i+'">Тренировка проводилась?</p><div class="grid2" role="group" aria-labelledby="ask'+i+'"><button class="btn" data-y="'+i+'">Да, проводилась</button><button class="btn" data-n="'+i+'" style="background:var(--card);color:var(--ink);border:1px solid var(--line)">Нет</button></div>'
       :'';
     return'<div class="card"><div class="top"><span>'+esc(x.start)+'–'+esc(x.end)+' · '+esc(x.group)+'</span>'+mark+'</div>'
       +'<div class="sub">'+esc(x.loc)+' · '+esc(x.type)+'</div>'+sel+recLine+tb+btns+saveBlock+addBlock+'</div>';
@@ -384,7 +413,10 @@ function addTraining(){
   })();
 }
 document.querySelectorAll('.tabs button').forEach(function(b){b.onclick=function(){showTab(b.getAttribute('data-t'))}});
-$('mon').onchange=load;
+function monSync(){var s=$('mon'),o=s.options[s.selectedIndex];$('mlab').textContent=o?o.text:'';$('mprev').disabled=s.selectedIndex<=0;$('mnext').disabled=s.selectedIndex<0||s.selectedIndex>=s.options.length-1}
+function monStep(d){var s=$('mon'),i=s.selectedIndex+d;if(i<0||i>=s.options.length)return;s.selectedIndex=i;monSync();load()}
+$('mon').onchange=function(){monSync();load()};
+$('mprev').onclick=function(){monStep(-1)};$('mnext').onclick=function(){monStep(1)};
 $('a-save').onclick=addTraining;
 $('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;try{localStorage.setItem('kspin',pin)}catch(e){}init()};
 try{pin=localStorage.getItem('kspin')||''}catch(e){}

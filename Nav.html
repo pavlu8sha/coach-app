@@ -22,7 +22,7 @@ html:not([data-ok]) #ksnav,html:not([data-ok]) [data-gate]{display:none!importan
 .ksmode button{flex:1;border:0;background:var(--card);color:var(--mute);padding:10px;font:600 14px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer}
 .ksmode button.on{background:var(--g);color:var(--gi)}
 #kstoast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--navh) + 18px + env(safe-area-inset-bottom));max-width:min(92vw,520px);z-index:70;background:var(--ink);color:var(--bg);padding:12px 16px;border-radius:14px;font:600 14px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.25)}
-#kstoast.bad{background:var(--a);color:#fff}
+#kstoast.bad{background:var(--a);color:var(--color-on-danger,#fff)}
 #ksblock{position:fixed;top:0;right:0;bottom:0;left:0;z-index:60;background:var(--bg);color:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 #ksblock a,#ksblock button{min-width:220px;padding:12px 18px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:700 15px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-decoration:none;cursor:pointer}
 @media(max-width:839px){
@@ -39,11 +39,9 @@ html:not([data-ok]) #ksnav,html:not([data-ok]) [data-gate]{display:none!importan
 }
 /* Цвета клуба: синий */
 :root:root{--bg:#F3F5FA;--card:#fff;--ink:#141C33;--mute:#5A6584;--line:#DADFEC;
---pitch:#25335A;--pinv:#fff;--presbg:#DDE4F6;--pres:#25335A;--none:#D2D8E6;
 --g:#25335A;--gi:#fff;--pb:#DDE4F6;--n:#D2D8E6;--a:#C0392B}
 @media (prefers-color-scheme:dark){
 :root:root{--bg:#0D1324;--card:#161F38;--ink:#E8ECF7;--mute:#97A3C2;--line:#27325A;
---pitch:#7F9DEB;--pinv:#0B1020;--presbg:#1F2D54;--pres:#7F9DEB;--none:#2F3B63;
 --g:#7F9DEB;--gi:#0B1020;--pb:#1F2D54;--n:#2F3B63;--a:#F0866F}}
 html,body{overflow-x:hidden;max-width:100%}
 *,*::before,*::after{box-sizing:border-box}

@@ -96,9 +96,9 @@ function render(d){
   $('sum').innerHTML=tile('групповых тренировок',T.trainings)+tile('отметок «был»',T.attended+' из '+T.possible)+tile('посещаемость',pt(T.pct));
   if(!d.groups.length){$('groups').innerHTML='<div class="sub">За этот период тренировок не найдено.</div>';return}
   $('groups').innerHTML=d.groups.map(function(g){
-    var low=g.list.filter(function(x){return x.pct!==null&&x.pct<d.threshold}).length;
-    var rows=g.list.slice().sort(function(a,b){return(a.pct===null?-1:a.pct)-(b.pct===null?-1:b.pct)}).map(function(x){
-      return'<li'+(x.pct!==null&&x.pct<d.threshold?' class="low"':'')+'><span>'+esc(x.name)+'</span><b>'+x.attended+' из '+x.total+' ('+pt(x.pct)+')</b></li>';
+    var low=g.list.filter(function(x){return x.pct!=null&&x.pct<d.threshold}).length;
+    var rows=g.list.slice().sort(function(a,b){return(a.pct==null?-1:a.pct)-(b.pct==null?-1:b.pct)}).map(function(x){
+      return'<li'+(x.pct!=null&&x.pct<d.threshold?' class="low"':'')+'><span>'+esc(x.name)+'</span><b>'+x.attended+' из '+x.total+' ('+pt(x.pct)+')</b></li>';
     }).join('');
     var ses='<div class="sub">Тренировки по датам: сколько пришло из игроков группы</div>'+g.sessions.map(function(s){return'<span class="chip">'+s.day+': '+s.present+' из '+g.players+'</span>'}).join('');
     return'<details><summary><div class="top"><span>'+esc(g.name)+'</span><span>'+pt(g.pct)+'</span></div><div class="bar"><i style="width:'+(g.pct||0)+'%"></i></div></summary>'
