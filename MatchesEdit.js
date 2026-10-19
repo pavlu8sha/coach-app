@@ -1,6 +1,7 @@
 /** Раздел «Матчи» (версия 3): создание событий и состав. */
 
-var EV_FEE = { 'default': 200, 'U13-A': 300 }; // взнос за чемпионат по умолчанию, ₾
+// Взнос за чемпионат по умолчанию — настройка matches.champFee (Settings.js, экран «Настройки»):
+// общее значение и значения по командам. Сумм в коде нет.
 var EV_TYPES = ['Чемпионат', 'Игра', 'Товарищеская', 'Фестиваль', 'Кубок'];
 
 // o: {type, team, name, date 'YYYY-MM-DD', fee, parent, copyFrom}
@@ -43,9 +44,9 @@ function addEventCore_(o, isAdmin) {
   if (!ms) throw new Error('Нет листа МАТЧИ: сначала выполните перенос файла матчей');
   var tz = ms.getParent().getSpreadsheetTimeZone();
   var rows = ms.getLastRow() > 1 ? ms.getRange(2, 1, ms.getLastRow() - 1, 7).getValues() : [];
-  var team = String(o.team || '').trim(), name = String(o.name || '').trim(), parent = '', fee = '', max = 0;
+  var team = String(o.team || '').trim(), name = String(o.name || '').trim(), parent = '', fee = '', max = 0, feeWarning = '';
   rows.forEach(function (r) { var m = /(\d+)$/.exec(String(r[0])); if (m) max = Math.max(max, Number(m[1])); });
-  var id = 'E-' + ('000' + (max + 1)).slice(-3);
+  var id = padId_('E-', max + 1, 3);
   if (o.type === 'Игра') {
     var par = rows.filter(function (r) { return String(r[0]) === String(o.parent); })[0];
     if (!par) throw new Error('Не найден турнир для игры');
@@ -62,7 +63,14 @@ function addEventCore_(o, isAdmin) {
     if (isAdmin && o.fee !== '' && o.fee !== null && o.fee !== undefined) {
       fee = Number(o.fee);
       if (!(fee >= 0)) throw new Error('Взнос должен быть числом не меньше нуля');
-    } else if (o.type === 'Чемпионат') fee = EV_FEE[team] || EV_FEE['default'];
+    } else if (o.type === 'Чемпионат') {
+      var cf = settingResolve_('matches.champFee', team);
+      if (cf.value === null) {
+        // Сумму не придумываем: событие создаётся без взноса, админ задаёт его в событии или в «Настройках».
+        feeWarning = 'Взнос для «' + team + '» не настроен' + (cf.source === 'invalid' ? ' (в настройках неверное значение)' : '') +
+          ': событие создано без взноса. Задайте взнос в событии или в разделе «Настройки» → «Матчи».';
+      } else fee = cf.value;
+    }
   }
   var copy = [];
   if (o.copyFrom && o.type !== 'Игра' && ps.getLastRow() > 1) {
@@ -86,7 +94,7 @@ function addEventCore_(o, isAdmin) {
     cacheDropBig_('md_v2');
   }
   var gsync = (!CONFIG.DRY_RUN && (o.type === 'Игра' || o.type === 'Товарищеская' || o.type === 'Кубок')) ? gnSyncGameSafe_(id) : '';
-  return { ok: true, dryRun: CONFIG.DRY_RUN, id: id, copied: copy.length, sync: gsync };
+  return { ok: true, dryRun: CONFIG.DRY_RUN, id: id, copied: copy.length, sync: gsync, fee: fee, feeWarning: feeWarning };
 }
 
 // Добавляет игрока в состав события или турнира.

@@ -159,11 +159,16 @@ function saveAttendanceCore_(group, dateStr, marks) {
     sheet.getRange(src, 1, 1, lastCol).copyTo(sheet.getRange(insAt, 1, extra, lastCol), SpreadsheetApp.CopyPasteType.PASTE_NORMAL, false);
     sheet.getRange(insAt, 2, extra, 1).clearContent();
     sheet.getRange(insAt, CONFIG.FIRST_DATE_COL, extra, CONFIG.LAST_DATE_COL - CONFIG.FIRST_DATE_COL + 1).clearContent();
-    var srcNum = Number(sheet.getRange(src, 1).getValue());
-    if (srcNum) {
+    // Номера строк: перенумеровываем блок целиком 1..N (строки вставлены перед последней, поэтому
+    // нумерация «от строки выше» давала повторы: …13, 14, 14). Если в колонке № формулы или блок
+    // нумеруется не с 1 — номера не трогаем.
+    var numN = block.lastRow + extra - block.firstRow + 1;
+    var numRg = sheet.getRange(block.firstRow, 1, numN, 1);
+    var hasFx = numRg.getFormulas().some(function (r) { return r[0] !== ''; });
+    if (!hasFx && Number(sheet.getRange(block.firstRow, 1).getValue()) === 1) {
       var nums = [];
-      for (var k = 0; k < extra; k++) nums.push([srcNum + k + 1]);
-      sheet.getRange(insAt, 1, extra, 1).setValues(nums);
+      for (var k = 1; k <= numN; k++) nums.push([k]);
+      numRg.setValues(nums);
     }
     block.lastRow += extra;
     delete _blockMemo[sheet.getSheetId() + '|' + norm(group)];
@@ -313,4 +318,58 @@ function journalDay_(group, dateStr) {
     if (id && r[0] === dateCell && norm(r[3]) === g) out[id] = r[5];
   });
   return out;
+}
+
+/**
+ * Сверка листа месяца с журналом посещаемости. Только читает, запуск из редактора: attJournalCheck('10.26').
+ * Показывает в журнале выполнения:
+ *  - расхождения: у ученика (по ID из реестра) в журнале один статус, а в листе другая отметка;
+ *  - дни с галочками в листе, по которым в журнале нет ни одной записи группы
+ *    (отмечено вручную в таблице или журнал не записался). Исправление — пересохранить день из приложения.
+ */
+function attJournalCheck(month) {
+  var ss = attSS_(), sh = ss.getSheetByName(month);
+  if (!sh) throw new Error('Нет листа ' + month);
+  var p = month.split('.'), mm = p[0], yyyy = '20' + p[1];
+  var jsh = ss.getSheetByName(JOURNAL_SHEET_), J = {};
+  if (jsh && jsh.getLastRow() >= 4) {
+    jsh.getRange(4, 2, jsh.getLastRow() - 3, 6).getDisplayValues().forEach(function (r) {
+      var d = String(r[0]); // дд.мм.гггг
+      if (d.slice(3) !== mm + '.' + yyyy) return;
+      var k = norm(r[3]) + '|' + d;
+      (J[k] = J[k] || {})[String(r[1]).trim()] = r[5];
+    });
+  }
+  var idOf = {}, many = {};
+  readRegistry_().players.forEach(function (x) {
+    var k = norm(x.name);
+    if (idOf[k]) many[k] = true; else idOf[k] = x.id;
+  });
+  var out = [], diff = 0, bare = 0, width = CONFIG.LAST_DATE_COL - CONFIG.FIRST_DATE_COL + 1;
+  attBlocks_(sh).forEach(function (b) {
+    if (!b.slots) return;
+    var hdr = sh.getRange(b.title + 1, CONFIG.FIRST_DATE_COL, 1, width).getValues()[0];
+    var names = sh.getRange(b.first, 2, b.slots, 1).getValues();
+    var vals = sh.getRange(b.first, CONFIG.FIRST_DATE_COL, b.slots, width).getValues();
+    hdr.forEach(function (h, c) {
+      var day = dayOf(h);
+      if (day === null) return;
+      var dateCell = ('0' + day).slice(-2) + '.' + mm + '.' + yyyy;
+      var jr = J[norm(b.name) + '|' + dateCell] || {};
+      var anyTrue = vals.some(function (r, i) { return String(names[i][0]).trim() && r[c] === true; });
+      if (anyTrue && !Object.keys(jr).length) { bare++; out.push('БЕЗ ЖУРНАЛА: ' + b.name + ', ' + dateCell); }
+      names.forEach(function (r, i) {
+        var k = norm(r[0]);
+        if (!k || many[k] || !idOf[k] || !jr.hasOwnProperty(idOf[k])) return;
+        var inSheet = vals[i][c] === true ? 'Присутствовал' : 'Отсутствовал';
+        if (jr[idOf[k]] !== inSheet) {
+          diff++;
+          out.push('РАСХОЖДЕНИЕ: ' + b.name + ', ' + dateCell + ', ' + String(r[0]).trim() + ' (' + idOf[k] + '): журнал «' + jr[idOf[k]] + '», лист «' + inSheet + '»');
+        }
+      });
+    });
+  });
+  out.unshift('Сверка ' + month + ': расхождений ' + diff + ', дней с отметками без журнала ' + bare);
+  Logger.log(out.join('\n'));
+  return { diff: diff, bare: bare, lines: out };
 }

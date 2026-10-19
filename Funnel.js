@@ -1,9 +1,9 @@
 /** Воронка новых игроков: таблица «Новый родитель / игрок» (каждый ребёнок = столбец, шаги = строки). */
 // Активные листы (записываются и участвуют в «Новых игроках»). Свойство FUNNEL_ACTIVE: имена через запятую.
 // Остальные листы открываются только для просмотра (архив).
-var FUNNEL_ACTIVE_LIST = (PropertiesService.getScriptProperties().getProperty('FUNNEL_ACTIVE') || 'Осень 2026')
-  .split(',').map(function (x) { return x.trim(); }).filter(Boolean);
-function funnelIsActive_(name) { return FUNNEL_ACTIVE_LIST.indexOf(name) >= 0; }
+// Список — настройка funnel.activeSheets (Settings.js); пока её нет, работает свойство FUNNEL_ACTIVE, затем «Осень 2026».
+function funnelActiveList_() { return settingGet_('funnel.activeSheets'); }
+function funnelIsActive_(name) { return funnelActiveList_().indexOf(name) >= 0; }
 var FUNNEL_GROUP_LABEL = 'Группа';  // строка с группой (не флажок)
 
 var _funnelSS = null;   // файл воронки открываем один раз за запуск
@@ -44,7 +44,7 @@ function appFunnelData(pin, sheetName) {
   checkAdmin_(pin);
   var ss = funnelSS_();
   var names = ss.getSheets().map(function (s) { return s.getName(); });
-  var firstActive = FUNNEL_ACTIVE_LIST.filter(function (a) { return names.indexOf(a) >= 0; })[0];
+  var firstActive = funnelActiveList_().filter(function (a) { return names.indexOf(a) >= 0; })[0];
   var name = names.indexOf(sheetName) >= 0 ? sheetName : (firstActive || names[0]);
   var d = funnelRead_(ss.getSheetByName(name));
   var counts = d.steps.map(function (s, i) {
@@ -105,7 +105,7 @@ function appFunnelGroup(pin, sheetName, col, name, group) {
 // Новый ребёнок = новый столбец в активном листе (все шаги пустые).
 function appFunnelAdd(pin, name, group, sheetName) {
   checkAdmin_(pin);
-  var target = String(sheetName || FUNNEL_ACTIVE_LIST[0]);
+  var target = String(sheetName || funnelActiveList_()[0]);
   if (!funnelIsActive_(target)) throw new Error('Архивный лист доступен только для просмотра');
   name = String(name || '').trim();
   if (!name) throw new Error('Введите имя ребёнка');
@@ -141,7 +141,7 @@ function appFunnelCandidates(pin) {
   checkAdmin_(pin);
   var have = {};
   regData_().players.forEach(function (p) { have[norm(p.name)] = 1; });
-  var reads = FUNNEL_ACTIVE_LIST.map(function (sn) {
+  var reads = funnelActiveList_().map(function (sn) {
     var sh = funnelSS_().getSheetByName(sn);
     return sh ? funnelRead_(sh) : null;
   }).filter(Boolean);
@@ -170,7 +170,7 @@ function funnelMarkRegistered_(funnelName, group) {
   var lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
     var name = String(funnelName).trim(), found = false;
-    FUNNEL_ACTIVE_LIST.forEach(function (sn) {
+    funnelActiveList_().forEach(function (sn) {
       var sh = funnelSS_().getSheetByName(sn);
       if (!sh) return;
       var d = funnelRead_(sh);
