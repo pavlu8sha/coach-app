@@ -18,6 +18,8 @@ button{font:inherit;cursor:pointer}
 .tabs{display:flex;gap:6px;margin:8px 0}
 .tabs button{flex:1;min-height:40px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink)}
 .tabs button.on{background:var(--g);color:var(--gi);border-color:var(--g)}
+/* DS-017: на 360 px четыре вкладки не помещались в ряд (документ шире экрана на 48 px) — на экране до 400 px — 2 × 2 */
+@media (max-width:400px){.tabs{flex-wrap:wrap}.tabs button{flex:1 1 calc(50% - 3px)}}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;min-width:0}
 .grid2>*{min-width:0}
 .pair{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
