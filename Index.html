@@ -30,6 +30,16 @@ footer{position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1p
 #save:disabled{background:var(--n);color:var(--mute)}
 .err{color:var(--a)}.msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:8px}
 .res{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin:8px 0;font-size:14px}
+/* UI-001: отступ снизу = фактическая высота закреплённой кнопки (+ нижнее меню и безопасная зона на телефоне),
+   чтобы последнего ребёнка было видно и можно было отметить */
+html[data-page="att"]:root body{padding-bottom:calc(var(--foot-h,72px) + 16px)!important}
+@media(max-width:839px){html[data-page="att"]:root body{padding-bottom:calc(var(--foot-h,72px) + var(--navh,64px) + env(safe-area-inset-bottom) + 16px)!important}}
+@media(min-width:840px){footer{padding-bottom:calc(10px + env(safe-area-inset-bottom))}}
+/* всплывающее сообщение — над закреплённой кнопкой, а не поверх неё */
+html[data-page="att"]:root #kstoast{bottom:calc(var(--foot-h,72px) + 12px)}
+@media(max-width:839px){html[data-page="att"]:root #kstoast{bottom:calc(var(--foot-h,72px) + var(--navh,64px) + env(safe-area-inset-bottom) + 12px)}}
+#ferr{margin:0 0 8px;font-size:14px;font-weight:600}
+li.empty{display:block;color:var(--mute);font-weight:400;padding:14px}
 </style>
 </head>
 <body>
@@ -46,7 +56,7 @@ footer{position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1p
   <div class="msg" id="msg" role="status"></div>
   <ul id="list"></ul><div id="res"></div>
 </div>
-<footer id="foot" hidden><button id="save"></button></footer>
+<footer id="foot" hidden><p id="ferr" class="err" role="alert" hidden></p><button id="save"></button></footer>
 <script>
 var pin='',roster=[],marks={},busy=false,allGroups=[],reqN=0,rosterFor='';
 function key(){return $('grp').value+'|'+$('dt').value}
@@ -100,6 +110,7 @@ function render(){
     var s=marks[x.id]||'';if(s=='p')p++;if(s=='a')a++;mt+='<i class="'+s+'"></i>';
     li+='<li><span class="nm">'+esc(x.name)+'</span><div class="seg"><button class="p" aria-pressed="'+(s=='p')+'" data-i="'+i+'" data-v="p">Был</button><button class="a" aria-pressed="'+(s=='a')+'" data-i="'+i+'" data-v="a">Не был</button></div></li>';
   });
+  if(!roster.length&&rosterFor===key())li='<li class="empty">В группе пока нет детей. Добавьте их в реестр</li>';
   var r=roster.length-p-a;$('list').innerHTML=li;$('meter').innerHTML=mt;
   $('st').innerHTML='<span><b>'+p+'</b> были</span><span><b>'+a+'</b> не были</span><span><b>'+r+'</b> осталось</span>';
   var stale=roster.length>0&&rosterFor!==key();
@@ -110,19 +121,23 @@ $('list').onclick=function(e){
   var t=e.target;if(!t.dataset||!t.dataset.v)return;
   var id=roster[t.dataset.i].id;
   if(marks[id]==t.dataset.v)delete marks[id];else marks[id]=t.dataset.v;
-  $('res').innerHTML='';render();
+  $('res').innerHTML='';ferr('');render();
 };
 $('all').onclick=function(){roster.forEach(function(x){if(!marks[x.id])marks[x.id]='p'});render()};
 $('clr').onclick=function(){marks={};$('res').innerHTML='';render()};
 $('grp').onchange=function(){$('res').innerHTML='';saveState();loadRoster()};
 $('dt').onchange=function(){if(this.value){saveState();loadGroups()}};
 $('allg').onchange=function(){saveState();fillGroups($('grp').value)};
+function ferr(t){var e=$('ferr');e.textContent=t||'';e.hidden=!t}
+// Высота закреплённой кнопки (с сообщением об ошибке) — для нижнего отступа списка
+(function(){var f=$('foot');function up(){document.documentElement.style.setProperty('--foot-h',(f.offsetHeight||72)+'px')}
+  if(window.ResizeObserver)new ResizeObserver(up).observe(f);window.addEventListener('resize',up);up()})();
 $('save').onclick=function(){
-  busy=true;render();
+  ferr('');busy=true;render();
   var out=roster.map(function(x){return{id:x.id,name:x.name,present:marks[x.id]=='p'}});
   run('appSave',[pin,$('grp').value,$('dt').value,out],
     function(rep){busy=false;render();showResult(rep)},
-    function(m){busy=false;render();msg(m,true)});
+    function(m){busy=false;render();msg(m,true);ferr('Не сохранено: '+m)});
 };
 function showResult(rep){
   var bad=rep.results.filter(function(r){return r.result.indexOf('НЕ записано')==0}),ok=rep.results.length-bad.length;
