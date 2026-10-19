@@ -96,7 +96,10 @@ li small{color:var(--mute)}
   </div>
 
   <div id="pane-gm" hidden><div class="scroll"><table id="gm-table"></table></div></div>
-  <div id="pane-st" hidden><div class="chips" id="chips"></div>
+  <div id="pane-st" hidden>
+    <div class="grid2" style="margin-bottom:8px;align-items:stretch"><input id="newtr" placeholder="Имя нового тренера" style="height:48px;margin:0"><button class="btn sec" id="addtr" style="height:48px;margin:0">Добавить тренера</button></div>
+    <div class="msg" id="trmsg" role="status"></div>
+    <div class="chips" id="chips"></div>
   <div id="st-table"></div></div>
 </div>
 <script>
@@ -200,6 +203,15 @@ $('gm-table').onclick=function(e){
   if(t.hasAttribute('data-gmdel')){gmRead();gmEdit.list.splice(+t.getAttribute('data-gmdel'),1);drawGm();return}
   if(t.hasAttribute('data-gmsave'))gmSave();
 };
+$('addtr').onclick=function(){
+  var n=$('newtr').value.trim(),b=this;
+  if(!n){$('trmsg').textContent='Введите имя тренера';return}
+  b.disabled=true;$('trmsg').textContent='Добавляю…';
+  run('appAddTrainer',[pin,n],function(){
+    b.disabled=false;$('newtr').value='';$('trmsg').textContent='Тренер «'+n+'» добавлен. Теперь его можно выбрать в тренировках и играх.';
+    loadOptions();
+  },function(m){b.disabled=false;$('trmsg').textContent=m});
+};
 function drawChips(){
   $('chips').innerHTML=cache.trainers.map(function(t){
     return'<button class="chip'+(trFilter===t?' on':'')+'" data-tr="'+esc(t)+'">'+esc(t)+'</button>';
@@ -257,7 +269,7 @@ function dyPaint(){
     var can=x.status==='open'&&dayHeld[key]===undefined;
     var tb=can?'<div class="grid2" style="margin-top:6px">'
       +(trs.length<3?'<button class="btn" style="background:var(--card);color:var(--ink);border:1px solid var(--line)" data-add="'+i+'">+ тренер</button>':'')
-      +(trs.length>2?'<button class="btn" style="background:var(--card);color:var(--ink);border:1px solid var(--line)" data-rm="'+i+'">− тренер</button>':'')
+      +(trs.length>1?'<button class="btn" style="background:var(--card);color:var(--ink);border:1px solid var(--line)" data-rm="'+i+'">− тренер</button>':'')
       +'</div>':'';
     var recLine='';
     var saveBlock=isDone?'<div style="margin-top:6px"><button class="btn" data-save="'+i+'" style="width:auto;min-height:36px;margin-top:0;padding:0 16px;font-size:14px">Сохранить тренеров</button></div>':'';

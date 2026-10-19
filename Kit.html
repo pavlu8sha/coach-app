@@ -119,9 +119,27 @@ function fillGroups(){
 function locBucket(l){var s=nn(l||'');if(!s)return'none';if(/красн|krasn/.test(s))return'red';if(/ортач|исан|ortach|isan/.test(s))return'oth';return'rest'}
 var LOC_ORD={red:0,oth:1,rest:2,none:3};
 // Обязательные данные заказа (для любого комплекта): размер, номер, надпись. Номер уникален внутри точной группы (U13-A, U13-B и U13-C — отдельно).
-function missOf(o){var m=[];if(!o.kit)m.push('комплект');if(!(o.sum>0))m.push('сумма');if(!String(o.size||'').trim())m.push('размер');if(!String(o.num||'').trim())m.push('номер');if(nn(o.kit)!=='тренировочная'&&!String(o.inscr||'').trim())m.push('надпись');return m}
+// Носки и гетры — без номера и надписи; тренировочная форма — без надписи
+function missOf(o){
+  var parts=String(o.kit||'').split(' + ').map(nn);
+  var socksOnly=parts.length>0&&parts.every(function(x){return /носк|гетр/.test(x)});
+  var trainOnly=parts.every(function(x){return x==='тренировочная форма'||/носк|гетр/.test(x)});
+  var m=[];
+  if(!o.kit)m.push('комплект');
+  if(!(o.sum>0))m.push('сумма');
+  if(!String(o.size||'').trim())m.push('размер');
+  if(!socksOnly&&!String(o.num||'').trim())m.push('номер');
+  if(!trainOnly&&!String(o.inscr||'').trim())m.push('надпись');
+  return m;
+}
 var DUP={};
-function isDup(o,p){if(!p||!String(o.num||'').trim())return false;return Object.keys(DUP[String(p.group||'').trim()+'|'+nn(o.num)]||{}).length>1}
+// Номера через запятую или «/»: «9,19» даёт отдельные номера 9 и 19
+function numToks(s){return String(s||'').split(/[\/,]/).map(function(x){return nn(x)}).filter(Boolean)}
+// Где номер должен быть уникален: U10-A и U10-B играют вместе (весь U10), U13-A/B/C — отдельно
+function catOf(g){g=String(g||'').trim();if(/^U13-[BC]$/i.test(g))return'U13-B/C';if(/^U13/i.test(g))return g;return g.replace(/-[A-Za-z0-9]+$/,'')}
+// Какие именно номера заказа повторяются в категории игрока
+function dupNums(o,p){if(!p)return[];return numToks(o.num).filter(function(x){return Object.keys(DUP[catOf(p.group)+'|'+x]||{}).length>1})}
+function isDup(o,p){return dupNums(o,p).length>0}
 function rows(){
   var by={};
   O.forEach(function(o){if(!o.id)return;(by[o.id]=by[o.id]||[]).push(o)});
@@ -168,7 +186,7 @@ function orderByRow(row){return O.concat(UNL).filter(function(o){return Number(o
 function playerName(id){var p=P.filter(function(x){return x.id==id})[0];return p?p.name:''}
 function kitsOf(k){return String(k||'').split(' + ').map(function(x){return x.trim()}).filter(Boolean)}
 function orderHtml(o,p,linked){
-  var prob=[];var mi=missOf(o);if(mi.length)prob.push('не заполнено: '+mi.join(', '));if(isDup(o,p))prob.push('номер '+o.num+' повторяется в группе '+String(p.group||'').trim());
+  var prob=[];var mi=missOf(o);if(mi.length)prob.push('не заполнено: '+mi.join(', '));if(isDup(o,p))prob.push((dupNums(o,p).length>1?'номера ':'номер ')+dupNums(o,p).join(', ')+' повторяется в '+catOf(p.group));
   return'<div class="ord"><b>'+esc(o.kit||'Комплект не указан')+'</b>'+(o.inst?' (рассрочка)':'')+(o.no?'<span class="sub"> · заказ №'+o.no+'</span>':'')
     +(prob.length?'<div class="sub err">'+esc(prob.join('; '))+'</div>':'')
     +(p&&nn(o.oname)!=nn(p.name)?'<div class="sub err">В файле заказа записано: '+esc(o.oname)+'</div>':'')
@@ -198,7 +216,7 @@ function show(){
   var q=nn($('q').value),g=$('fg').value,fv=$('fs').value;
   // Итог по всему файлу экипировки (все заказы, и с привязкой, и без): совпадает с итогами в таблице
   var PM={};P.forEach(function(p){PM[p.id]=p});
-  DUP={};O.forEach(function(o){var p=PM[o.id];if(!p||!String(o.num||'').trim())return;var k=String(p.group||'').trim()+'|'+nn(o.num);(DUP[k]=DUP[k]||{})[o.id]=1});
+  DUP={};O.forEach(function(o){var p=PM[o.id];if(!p)return;numToks(o.num).forEach(function(x){var k=catOf(p.group)+'|'+x;(DUP[k]=DUP[k]||{})[o.id]=1})});
   var AS=0,AP=0,AD=0,AA=O.concat(UNL),NP=0;
   var UA=0,UP=0,UD=0;UNL.forEach(function(o){UA+=o.sum;UP+=o.paid;UD+=o.debt});
   AA.forEach(function(o){AS+=o.sum;AP+=o.paid;AD+=o.debt;if(missOf(o).length||isDup(o,PM[o.id]))NP++});

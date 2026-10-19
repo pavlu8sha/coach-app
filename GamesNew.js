@@ -356,7 +356,23 @@ function appTrainingsList(pin, month) {
   });
 }
 
-// ---- Справочники для форм (только чтение) ----
+// ---- Справочники для форм ----
+
+// Добавить тренера в список «Справочники» (столбец A, A2:A10 — по нему строятся списки в «Игры»). Только админ.
+function appAddTrainer(pin, name) {
+  checkAdmin_(pin);
+  var n = String(name || '').trim();
+  if (!n) throw new Error('Введите имя тренера');
+  var sh = gnFile_().getSheetByName('Справочники');
+  if (!sh) throw new Error('В файле тренировок нет листа «Справочники»');
+  var col = sh.getRange('A2:A10').getDisplayValues().map(function (r) { return String(r[0]).trim(); });
+  if (col.indexOf(n) >= 0) throw new Error('Тренер «' + n + '» уже есть в списке');
+  var free = col.indexOf('');
+  if (free < 0) throw new Error('В «Справочники» нет свободной строки в A2:A10: расширьте диапазон проверки для тренеров');
+  sh.getRange(free + 2, 1).setValue(n);
+  logChange_('', '', 'новый тренер', '', n);
+  return { ok: true, name: n };
+}
 
 // Колонки листа «Справочники»: A тренеры, B локации, C группы, D типы тренировок
 function appTrainingOptions(pin) {
@@ -586,14 +602,17 @@ function gnSyncGame_(eventId) {
   var tz = msh.getParent().getSpreadsheetTimeZone();
   var rows = msh.getDataRange().getValues().slice(1);
   var ev = rows.filter(function (r) { return String(r[0]) === String(eventId); })[0];
-  if (!ev || String(ev[2]) !== 'Игра') return '';            // в «Игры» идут отдельные игры турнира
+  // В «Игры» идут игры турнира (тип «Игра») и отдельные товарищеские и кубковые матчи (соперник — название)
+  var standalone = !!ev && (String(ev[2]) === 'Товарищеская' || String(ev[2]) === 'Кубок');
+  if (!ev || (String(ev[2]) !== 'Игра' && !standalone)) return '';
   if (!(ev[4] instanceof Date)) throw new Error('у игры не указана дата');
   var par = rows.filter(function (r) { return String(r[0]) === String(ev[6]); })[0] || [];
   var date = Utilities.formatDate(ev[4], tz, 'dd.MM.yyyy');
-  // Для команды U9 конкретная группа (U9-A / U9-B) записана в колонке «Сторона»
+  // Для команды U9 конкретная группа (U9-A / U9-B) записана в колонке «Сторона»; в «Игры» пишем латиницей, как в списке
   var side = String(ev[10] || '').trim();
-  var team = /^U\d/.test(side) ? side : gnTeamRu_(ev[1]);
-  var opp = String(ev[7] || par[7] || '').trim();
+  var team = /^U\d/.test(side) ? side : String(ev[1]).trim();
+  // Соперник — поле «Соперник» карточки игры (столбец H «Матчи»); название события им не является
+  var opp = String(ev[7] || (standalone ? '' : par[7]) || '').trim();
   var hasScore = ev[8] !== '' && ev[8] != null && ev[9] !== '' && ev[9] != null && !isNaN(Number(ev[8])) && !isNaN(Number(ev[9]));
   var score = hasScore ? Number(ev[8]) + ':' + Number(ev[9]) : '';
   var goals = partsSheet_().getDataRange().getValues().slice(1)

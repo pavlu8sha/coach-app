@@ -198,8 +198,11 @@ function appSetBirth(pin, id, date) {
     sh.getRange(target, 1, 1, 4).setValues([[id, p.name, d, new Date()]]);
     logChange_(id, p.name, 'Дата рождения', was, d);
     cacheDropBig_('bo_v1'); cacheDropBig_('birth_v1');
+    // Дата пишется и в колонку «Дата / дата рождения» файла оплат (на всех листах месяцев, где есть игрок)
+    var inPay = writeBirthToPay_(p.name, d);
+    cacheDropBig_('birth_v1');
   } finally { lock.releaseLock(); }
-  return { ok: true, dryRun: false };
+  return { ok: true, dryRun: false, inPay: inPay };
 }
 
 function appAddPlayer(pin, p) {

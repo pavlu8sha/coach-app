@@ -15,6 +15,8 @@ h1{font-size:22px;margin:16px 0 10px}
 input,select{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:44px;width:100%}
 button{font:inherit;cursor:pointer}
 .btn{width:100%;min-height:48px;border:0;border-radius:12px;background:var(--g);color:var(--gi);font-weight:800;font-size:16px;margin-top:12px}
+.dates{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.dates label{font-size:13px;color:var(--mute)}
 .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
 .tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
 .tile b{display:block;font-size:20px}.tile span{color:var(--mute);font-size:12px}
@@ -39,7 +41,11 @@ li.low{color:var(--a)}
 </div>
 <div id="app" class="wrap" hidden>
   <h1>Статистика посещаемости</h1>
-  <select id="mon" aria-label="Месяц"></select>
+  <select id="per" aria-label="Период"></select>
+  <div class="dates" id="cust" hidden>
+    <div><label for="from">С</label><input id="from" type="date"></div>
+    <div><label for="to">По</label><input id="to" type="date"></div>
+  </div>
   <div class="msg" id="msg" role="status"></div>
   <div class="tiles" id="sum"></div>
   <div id="groups"></div>
@@ -53,38 +59,56 @@ function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;
 function pt(p){return p===null||p===undefined?'—':String(p).replace('.',',')+'%'}
 function setMsg(t,bad){$('msg').textContent=t||'';$('msg').className='msg'+(bad?' err':'')}
 function showLogin(t){$('app').hidden=true;$('login').hidden=false;$('lerr').textContent=t||''}
+function isoOf(d){return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)}
+function ruOf(s){var a=s.split('-');return a[2]+'.'+a[1]+'.'+a[0]}
+// Неделя Пн–Вс: off=0 текущая, off=1 прошлая.
+function weekRange(off){var d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7)-7*off);var e=new Date(d);e.setDate(d.getDate()+6);return[isoOf(d),isoOf(e)]}
+function monthRange(code){var a=code.split('.'),y=2000+Number(a[1]),m=Number(a[0]);return[y+'-'+('0'+m).slice(-2)+'-01',isoOf(new Date(y,m,0))]}
+function currentRange(){
+  var v=$('per').value;
+  if(v==='week')return weekRange(0);
+  if(v==='pweek')return weekRange(1);
+  if(v==='custom')return[$('from').value,$('to').value];
+  return monthRange(v.slice(2));
+}
 function init(){
   run('appStatsMonths',[pin],function(ms){
     $('login').hidden=true;$('app').hidden=false;
-    if(!ms.length){setMsg('Не найдено ни одного листа месяца.',true);return}
-    var d=new Date(),k=('0'+(d.getMonth()+1)).slice(-2)+'.'+String(d.getFullYear()).slice(-2);
-    $('mon').innerHTML=ms.map(function(m){return'<option value="'+m+'">'+monLabel(m)+'</option>'}).join('');
-    $('mon').value=ms.indexOf(k)>=0?k:ms[ms.length-1];
+    var opts='<option value="week">Текущая неделя</option><option value="pweek">Прошлая неделя</option><option value="custom">Свой период</option>';
+    opts+=ms.slice().reverse().map(function(m){return'<option value="m:'+m+'">'+monLabel(m)+'</option>'}).join('');
+    $('per').innerHTML=opts;
+    var wr=weekRange(0);$('from').value=wr[0];$('to').value=isoOf(new Date());
     load();
   },function(m){if(m.indexOf('код доступа')>=0)showLogin('Неверный код доступа');else{$('login').hidden=true;$('app').hidden=false;setMsg(m,true)}});
 }
 function load(){
   var n=++reqN;
+  $('cust').hidden=$('per').value!=='custom';
+  var r=currentRange();
+  if(!r[0]||!r[1]||r[0]>r[1]){setMsg('Укажите правильный период: дата «С» не позже «По».',true);$('sum').innerHTML='';$('groups').innerHTML='';return}
   setMsg('Считаю…');$('sum').innerHTML='';$('groups').innerHTML='';
-  run('appStats',[pin,$('mon').value],function(d){if(n==reqN)render(d)},function(m){if(n==reqN)setMsg(m,true)});
+  run('appStatsRange',[pin,r[0],r[1]],function(d){if(n==reqN)render(d)},function(m){if(n==reqN)setMsg(m,true)});
 }
 function tile(t,v){return'<div class="tile"><b>'+v+'</b><span>'+t+'</span></div>'}
 function render(d){
-  setMsg('');
+  setMsg('Период: '+ruOf(d.from)+' – '+ruOf(d.to));
   var T=d.totals;
   $('sum').innerHTML=tile('групповых тренировок',T.trainings)+tile('отметок «был»',T.attended+' из '+T.possible)+tile('посещаемость',pt(T.pct));
+  if(!d.groups.length){$('groups').innerHTML='<div class="sub">За этот период тренировок не найдено.</div>';return}
   $('groups').innerHTML=d.groups.map(function(g){
     var low=g.list.filter(function(x){return x.pct!==null&&x.pct<d.threshold}).length;
     var rows=g.list.slice().sort(function(a,b){return(a.pct===null?-1:a.pct)-(b.pct===null?-1:b.pct)}).map(function(x){
       return'<li'+(x.pct!==null&&x.pct<d.threshold?' class="low"':'')+'><span>'+esc(x.name)+'</span><b>'+x.attended+' из '+x.total+' ('+pt(x.pct)+')</b></li>';
     }).join('');
-    var ses='<div class="sub">Тренировки по дням: число месяца и сколько пришло из игроков группы</div>'+g.sessions.map(function(s){return'<span class="chip">'+s.day+' число: '+s.present+' из '+g.players+'</span>'}).join('');
+    var ses='<div class="sub">Тренировки по датам: сколько пришло из игроков группы</div>'+g.sessions.map(function(s){return'<span class="chip">'+s.day+': '+s.present+' из '+g.players+'</span>'}).join('');
     return'<details><summary><div class="top"><span>'+esc(g.name)+'</span><span>'+pt(g.pct)+'</span></div><div class="bar"><i style="width:'+(g.pct||0)+'%"></i></div></summary>'
       +'<div class="sub">Тренировок: '+g.trainings+', игроков в группе: '+g.players+'. Отметок «был»: '+g.attended+' из '+g.possible+(low?'. Игроков с посещаемостью ниже '+d.threshold+'%: '+low:'')+'</div>'
       +'<div class="chips">'+ses+'</div><ul>'+rows+'</ul></details>';
   }).join('');
 }
-$('mon').onchange=load;
+$('per').onchange=load;
+$('from').onchange=load;
+$('to').onchange=load;
 $('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;try{localStorage.setItem('kspin',pin)}catch(e){}init()};
 try{pin=localStorage.getItem('kspin')||''}catch(e){}
 if(pin)init();else showLogin('');
