@@ -34,6 +34,24 @@ var SETTINGS_SCHEMA = {
     locked: 'Переключение сезона пока отключено: журнал «ОПЛАТЫ» хранит только номер строки заказа без сезона, ' +
       'старые платежи могут перепутаться с заказами нового листа.'
   },
+  'att.groupOrder': {
+    group: 'Посещаемость', label: 'Порядок групп в листе посещаемости и в списке сбора (через запятую)', type: 'list',
+    def: ['U7-A', 'U7-B', 'U9-A', 'U9-B', 'U10-A', 'U10-B', 'U11', 'U13-A', 'U13-B', 'U13-C', 'weekends', 'Ortachala U9', 'Ortachala U12', 'Isani']
+  },
+  'subs.nextMonthDay': {
+    group: 'Оплаты', label: 'С какого числа в «Оплатах» предлагать следующий месяц', type: 'int', def: 22, min: 1, max: 28
+  },
+  'ind.autoDay': {
+    group: 'Индивидуальные и дополнительные', label: 'Автосоздание занятий на выходные: день недели (пн, вт, ср, чт, пт, сб, вс)',
+    type: 'weekday', def: 'вт'
+  },
+  'ind.autoHour': {
+    group: 'Индивидуальные и дополнительные', label: 'Автосоздание занятий: час (0–23)', type: 'int', def: 9, min: 0, max: 23
+  },
+  'ind.themes': {
+    group: 'Индивидуальные и дополнительные', label: 'Темы индивидуальных по кругу (через запятую, текст как в таблице)', type: 'list',
+    def: ['1 в 1 в ситуации соперник спереди', '1 в 1 в ситуации соперник сбоку', '1 в 1 в ситуации соперник сзади', 'Приём мяча и удары по воротам']
+  },
   'ind.capIndividual': {
     group: 'Индивидуальные и дополнительные', label: 'Мест на индивидуальном занятии', type: 'int', def: 6, min: 1, max: 50
   },
@@ -114,6 +132,11 @@ function settingParse_(sch, raw) {
     if (sch.min !== undefined && n < sch.min) return { ok: false, error: 'не меньше ' + sch.min };
     if (sch.max !== undefined && n > sch.max) return { ok: false, error: 'не больше ' + sch.max };
     return { ok: true, value: n };
+  }
+  if (sch.type === 'weekday') {
+    var wd = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'].indexOf(s.trim().toLowerCase().slice(0, 2));
+    if (wd < 0) return { ok: false, error: 'день недели: пн, вт, ср, чт, пт, сб или вс' };
+    return { ok: true, value: ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'][wd] };
   }
   if (sch.type === 'text' || sch.type === 'sheet') {
     if (!s) return { ok: false, error: 'пустое значение' };

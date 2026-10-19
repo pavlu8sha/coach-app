@@ -1,11 +1,10 @@
 /** Создание листа посещаемости (версия 4): строки добавляются, недостающие блоки копируются, группы расставляются по порядку. */
 
-// Порядок групп в листе посещаемости. Группы, которых здесь нет, идут в конце.
-var GROUP_ORDER = ['U7-A', 'U7-B', 'U9-A', 'U9-B', 'U10-A', 'U10-B', 'U11', 'U13-A', 'U13-B', 'U13-C', 'weekends', 'Ortachala U9', 'Ortachala U12', 'Isani'];
+// Порядок групп в листе посещаемости: настройка att.groupOrder. Группы, которых там нет, идут в конце.
 var ORDER_BLOCKS = true; // false = не переставлять блоки
 
 function groupRank_(name) {
-  var i = GROUP_ORDER.map(norm).indexOf(norm(name));
+  var i = (settingGet_('att.groupOrder') || []).map(norm).indexOf(norm(name));
   return i < 0 ? 999 : i;
 }
 
@@ -74,7 +73,7 @@ function appendBlock_(sh, b) {
   return dest + 2;
 }
 
-// Переставляет блоки групп в порядок GROUP_ORDER (вырезать и вставить, формулы сохраняются).
+// Переставляет блоки групп в порядок настройки att.groupOrder (вырезать и вставить, формулы сохраняются).
 function reorderBlocks_(sh) {
   var W = 24, blocks = attBlocks_(sh);
   blocks.forEach(function (b, i) { b.i = i; });
