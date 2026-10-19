@@ -121,7 +121,7 @@ function paint(keepInputs){
   var M=$('mon').value,gs=Object.keys(SUB.tariffs),h='<h2>Абонемент, '+esc(M)+'</h2>';
   if(!gs.length)h+='<p class="sub err">У игрока нет групп для абонемента.</p>';
   h+=gs.map(function(g){
-    var it=SUB.items.filter(function(i){return i.month==M&&nn(i.group)==nn(g)})[0],T=SUB.tariffs[g];
+    var it=SUB.items.filter(function(i){return i.month==M&&nn(i.group)==nn(g)})[0],T=ksTariff(SUB,M,g);
     var paid=it?it.paid:0,st=it?it.st:'unpaid',debt=it?it.debt:T;
     var chip=st=='paid'?'<span class="ok">'+(it.disc?'скидка':'оплачено')+'</span>':st=='partial'?'<span class="err">частично, долг '+money(debt)+'</span>':'<span class="err">не платил</span>';
     var f='<label>Сумма, ₾</label><input type="number" min="1" step="1" class="pa" value="'+(st=='paid'?'':debt)+'" data-debt="'+(st=='paid'?0:debt)+'">'
@@ -190,7 +190,7 @@ $('progs').onclick=function(e){
     if(!method){setMsg('Выберите способ оплаты: наличные или перевод.',true);return}
     if(amt<left&&!type){setMsg('Выберите тип: скидка или частичный платёж.',true);return}
     // Переплата допускается сервером: предупреждаем, но не запрещаем
-    var it=SUB.items.filter(function(i){return i.month==M&&nn(i.group)==nn(g)})[0],T=SUB.tariffs[g],paidNow=it?it.paid:0,disc=!!(it&&it.disc),warn=[];
+    var it=SUB.items.filter(function(i){return i.month==M&&nn(i.group)==nn(g)})[0],T=ksTariff(SUB,M,g),paidNow=it?it.paid:0,disc=!!(it&&it.disc),warn=[];
     // Переплата — когда итог превышает тариф (для месяца со скидкой остаток 0, но это ещё не переплата)
     var over=ksOverpay(paidNow+amt,T);
     // Месяц, закрытый скидкой: доплата разрешена сервером, скидка в журнале не меняется

@@ -140,7 +140,7 @@ function render(){
   var h='';
   D.events.forEach(function(e,i){
     var paid=e.players.filter(function(p){return p.paid}).length,dk='d'+e.id;
-    h+='<details data-id="'+esc(e.id)+'"'+(open[e.id]?' open':'')+'><summary><b>'+dl(e.date)+' · '+e.time+'</b><span>'+(e.gk?'Вратари':'Индивидуальные')+'</span><span class="cnt">'+e.players.length+'/'+e.cap+' · '+paid*D.price+' ₾</span></summary>';
+    h+='<details data-id="'+esc(e.id)+'"'+(open[e.id]?' open':'')+'><summary><b>'+dl(e.date)+' · '+e.time+'</b><span>'+(e.gk?'Вратари':'Индивидуальные')+'</span><span class="cnt">'+e.players.length+'/'+e.cap+' · '+paid*(e.price||D.price)+' ₾</span></summary>';
     if(e.theme&&!e.gk)h+='<div class="th">'+esc(e.theme)+'</div>';
     if(editing==e.id){
       h+='<div class="add" style="border-top:0;padding-top:0"><div class="row2"><input type="date" id="ed'+i+'" value="'+e.date+'"><input type="time" id="et'+i+'" value="'+e.time+'"></div><input id="eth'+i+'" value="'+esc(e.theme)+'" placeholder="Тема"><div class="acts"><button class="sm" data-a="esave" data-e="'+i+'">Сохранить</button><button class="sm" data-a="ecancel" data-e="'+i+'">Отмена</button></div></div>';
@@ -149,7 +149,7 @@ function render(){
     }
     e.players.forEach(function(p,j){
       var k='r'+i+'_'+j;
-      h+='<div class="pl"><div class="pn"><b>'+esc(p.name)+'</b><span class="gr">'+esc(p.group)+'</span><span class="tag'+(p.paid?'':' no')+'">'+(p.paid?'Оплачено '+D.price+' ₾':'Не оплачено')+'</span></div><div class="acts">';
+      h+='<div class="pl"><div class="pn"><b>'+esc(p.name)+'</b><span class="gr">'+esc(p.group)+'</span><span class="tag'+(p.paid?'':' no')+'">'+(p.paid?'Оплачено '+(e.price||D.price)+' ₾':'Не оплачено')+'</span></div><div class="acts">';
       if(!p.paid)h+='<button class="sm" data-a="pay" data-m="Наличные" data-e="'+i+'" data-p="'+j+'">Оплата: наличные</button><button class="sm" data-a="pay" data-m="Перевод" data-e="'+i+'" data-p="'+j+'">Оплата: перевод</button><button class="sm bad'+(armed==k?' armed':'')+'" data-a="rm" data-k="'+k+'" data-e="'+i+'" data-p="'+j+'">'+(armed==k?'Точно снять?':'Снять')+'</button>';
       else h+='<button class="sm bad'+(armed==k?' armed':'')+'" data-a="unpay" data-k="'+k+'" data-e="'+i+'" data-p="'+j+'">'+(armed==k?'Точно отменить?':'Отменить оплату')+'</button>';
       h+='</div></div>';
@@ -227,7 +227,7 @@ $('dlist').onclick=function(ev){
 };
 // Сводка для диалога: игрок или гость, сумма занятия, занятие, способ
 function indRows(name,group,e,mt){
-  return [[group=='гость'?'Гость':'Игрок',name],['Сумма',ksMoney(D.price)],
+  return [[group=='гость'?'Гость':'Игрок',name],['Сумма',ksMoney(e&&e.price||D.price)],
     ['За что',(e.gk?'Вратарская тренировка, ':'Индивидуальное занятие, ')+dl(e.date)+' '+e.time],['Способ',mt]];
 }
 $('nd').value=today();

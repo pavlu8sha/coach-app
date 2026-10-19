@@ -38,14 +38,7 @@ function payMonths_() {
   return list;
 }
 
-// Тариф за месяц, ₾. Особые группы добавляйте в таблицу, остальные платят TARIFF_DEFAULT.
-var TARIFFS = { 'weekends': 130 };
-var TARIFF_DEFAULT = 165;
-function tariff_(group) {
-  var t = TARIFFS[norm(group)];
-  return t === undefined ? TARIFF_DEFAULT : t;
-}
-
+// Тариф за месяц: tariff_(group, month) — Prices.js (лист «ЦЕНЫ», с месяца начала действия)
 function skipGroup_(name) { return norm(name) === 'индивидуальные / вратарские'; }
 
 // Блоки листа месяца: заголовок группы стоит строкой выше строки «№».
@@ -108,12 +101,16 @@ function appPayMonth(pin, month) {
   var flags = subLedger_(), byName = {};
   regData_().players.forEach(function (x) { var k = norm(x.name); if (!byName[k]) byName[k] = x; });
   var groups = mg.map(function (g) {
-    var T = tariff_(g.name), rows = [], free = 0;
+    var T = tariff_(g.name, month), rows = [], free = 0;
     g.rows.forEach(function (r) {
       if (!r.name) { free++; return; }
       var p = byName[norm(r.name)];
       // выбывший игрок без оплаты за месяц в списке не нужен
       if (p && p.status !== 'Активен' && !(r.paid > 0)) return;
+      if (subIsExtra_(p, g.name)) {   // доп. программа: без своего долга, внесённое идёт в основной абонемент
+        rows.push({ name: r.name, id: p.id, paid: r.paid, st: 'paid', debt: 0, extra: p.group, disc: false, method: flags['m|' + month + '|' + norm(g.name) + '|' + norm(r.name)] || '' });
+        return;
+      }
       var paid = p && norm(p.group) === norm(g.name) ? effPaid_(mg, g.name, r.name, p) : r.paid;
       var disc = !!flags[month + '|' + norm(g.name) + '|' + norm(r.name)];
       var s = subState_(T, paid, disc);
@@ -125,18 +122,26 @@ function appPayMonth(pin, month) {
   return { month: month, groups: groups };
 }
 
-// Оплата игрока за месяц в его основной группе. Если в основной группе ничего не внесено,
-// а игрок переведён из другой группы (и она не его доп. программа) — берём оплату из той группы.
+// Доп. программа игрока — другая группа из «Доп. программы» (не основная, не «Индивидуальные / Вратарские»).
+// Отдельного абонемента у неё нет: внесённое в её блок идёт в счёт основного абонемента (может быть переплата).
+function subIsExtra_(p, gname) {
+  return !!p && norm(gname) !== norm(p.group) && !skipGroup_(gname) && (p.extras || []).map(norm).indexOf(norm(gname)) >= 0;
+}
+
+// Оплата игрока за месяц в его основной группе: внесённое в основной группе плюс внесённое в блоках
+// доп. программ. Если в основной группе ничего не внесено, а игрок переведён из другой группы
+// (и она не его доп. программа) — берём оплату из той группы.
 function effPaid_(mg, gn, name, p) {
-  var own = 0, moved = 0, extras = (p.extras || []).map(norm);
+  var own = 0, moved = 0, extra = 0;
   mg.forEach(function (g) {
     g.rows.forEach(function (r) {
       if (norm(r.name) !== norm(name)) return;
       if (norm(g.name) === norm(gn)) own = Math.max(own, r.paid || 0);
-      else if (r.paid > 0 && extras.indexOf(norm(g.name)) < 0) moved = Math.max(moved, r.paid);
+      else if (subIsExtra_(p, g.name)) extra += r.paid > 0 ? r.paid : 0;
+      else if (r.paid > 0 && !skipGroup_(g.name)) moved = Math.max(moved, r.paid);
     });
   });
-  return own > 0 ? own : moved;
+  return (own > 0 ? own : moved) + extra;
 }
 
 // Принять уже внесённую неполную сумму как «скидку по договорённости».
@@ -155,7 +160,7 @@ function subDiscountCore_(month, group, id, comment) {
   var g = sh && parseMonth_(sh).filter(function (x) { return norm(x.name) === norm(group); })[0];
   var row = g && g.rows.filter(function (r) { return norm(r.name) === norm(p.name); })[0];
   if (!row || !(row.paid > 0)) throw new Error('В этом месяце у игрока нет внесённой суммы');
-  if (row.paid >= tariff_(group)) throw new Error('Абонемент за этот месяц уже оплачен полностью');
+  if (row.paid >= tariff_(group, month)) throw new Error('Абонемент за этот месяц уже оплачен полностью');
   if (CONFIG.DRY_RUN) return { ok: true, dryRun: true };
   if (!dbSheet_(SUB_SHEET, SUB_HEAD)) throw new Error('Нет журнала платежей (лист ' + SUB_SHEET + ' в AdminApp). Скидка не записана.');
   cacheDropBig_('sl_v1');   // читаем журнал заново: вдруг скидку только что приняли

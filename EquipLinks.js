@@ -21,6 +21,7 @@ function appEquipOrders(pin) {
   var data = cacheGetBig_('eq_v1');
   if (!data) { data = equipOrdersLive_(); cachePutBig_('eq_v1', data, 60); }
   data.prices = kitPrices_();
+  data.disc = equipDiscCfg_();
   data.sizes = kitSizes_();
   return data;
 }
@@ -124,25 +125,59 @@ function deleteOrderCore_(row) {
   return { ok: true, dryRun: CONFIG.DRY_RUN, row: row };
 }
 
-// Скидка 15% как в форме нового заказа (Kit.html refreshSum): костюм + дождевик и у игрока базовый набор
-// (игровая/вратарская + тренировочная, или полный комплект), без рассрочки. Прежние заказы игрока учитываются как «уже оплачено».
-// Сумма округляется до 5 ₾; в заказе записывается доплата, как и при новом заказе.
-function orderSumWithDisc_(sh, row, kit, inst, total, socks) {
-  var parts = kit.split(' + ').map(function (x) { return x.trim(); });
-  var hasDisc = parts.some(function (x) { return /костюм/i.test(x); }) && parts.some(function (x) { return /дождевик/i.test(x); });
-  if (inst || !hasDisc) return null;
-  total -= socks; // носки и гетры в скидку не входят
-  var id = String(sh.getRange(row, 12).getValue()).trim();
-  var all = sh.getRange(EQ_FIRST, 1, EQ_ROWS, 12).getValues(), others = [];
-  all.forEach(function (r, i) {
-    if (EQ_FIRST + i !== row && String(r[11]).trim() === id && String(r[3]).trim()) others.push(r);
+// Скидка на комплект — правило из настроек (Settings.js, equip.disc*): процент, округление, какие позиции нужны
+// в заказе (needAll), какие должны быть у игрока в прошлых заказах или в этом (needOwn, «или» — любая из)
+// и какие идут по полной цене (exclude). При рассрочке скидки нет. Прежние заказы игрока с позициями needOwn
+// учитываются как «уже оплачено»: в заказе записывается доплата. Тот же расчёт — в Kit.html (discCalc).
+function equipDiscCfg_() {
+  function low(a) { return (a || []).map(function (x) { return String(x).trim().toLowerCase(); }); }
+  return {
+    pct: Number(settingGet_('equip.discPct')) || 0, round: Number(settingGet_('equip.discRound')) || 1,
+    needAll: low(settingGet_('equip.discNeedAll')),
+    needOwn: (settingGet_('equip.discNeedOwn') || []).map(function (x) { return low(String(x).split(/\s+или\s+/i)); }),
+    exclude: low(settingGet_('equip.discExclude'))
+  };
+}
+
+function kitParts_(kit) {
+  return String(kit || '').split(' + ').map(function (x) { return x.trim().toLowerCase(); }).filter(Boolean);
+}
+
+// parts — позиции заказа (в нижнем регистре); prices — {позиция в нижнем регистре: цена};
+// others — прежние заказы игрока [{kit, sum}]. Возвращает {total, excl, disc}; disc = null — скидки нет.
+function equipDiscCalc_(cfg, parts, prices, inst, others) {
+  var total = 0, excl = 0;
+  parts.forEach(function (k) {
+    var v = Number(prices[k]) || 0;
+    total += v;
+    if (cfg.exclude.indexOf(k) >= 0) excl += v;
   });
-  var allKits = others.map(function (r) { return String(r[3]); }).concat([kit]).join(' + ');
-  var covers = /полный комплект/i.test(allKits) || (/игров|вратар/i.test(allKits) && /тренировоч/i.test(allKits));
-  if (!covers) return null;
-  var prior = others.filter(function (r) { return /игров|вратар|тренировоч|полный/i.test(String(r[3])); })
-    .reduce(function (s, r) { return s + (Number(r[8]) || 0); }, 0);
-  return Math.max(Math.round((prior + total) * 0.85 / 5) * 5 - prior, 0) + socks;
+  var out = { total: total, excl: excl, disc: null };
+  if (inst || !(cfg.pct > 0) || !parts.length) return out;
+  if (!cfg.needAll.every(function (k) { return parts.indexOf(k) >= 0; })) return out;
+  var own = {};
+  parts.concat.apply(parts, (others || []).map(function (o) { return kitParts_(o.kit); })).forEach(function (k) { own[k] = 1; });
+  if (!cfg.needOwn.every(function (alt) { return alt.some(function (k) { return own[k]; }); })) return out;
+  var base = [].concat.apply([], cfg.needOwn);
+  var prior = (others || []).filter(function (o) { return kitParts_(o.kit).some(function (k) { return base.indexOf(k) >= 0; }); })
+    .reduce(function (s, o) { return s + (Number(o.sum) || 0); }, 0);
+  var target = Math.round((prior + total - excl) * (100 - cfg.pct) / 100 / cfg.round) * cfg.round;
+  out.disc = Math.max(target - prior, 0) + excl;
+  return out;
+}
+
+// Прежние заказы игрока (кроме строки skipRow)
+function equipOthers_(sh, id, skipRow) {
+  if (!id) return [];
+  return sh.getRange(EQ_FIRST, 1, EQ_ROWS, 12).getValues().filter(function (r, i) {
+    return EQ_FIRST + i !== skipRow && String(r[11]).trim() === id && String(r[3]).trim();
+  }).map(function (r) { return { kit: String(r[3]), sum: Number(r[8]) || 0 }; });
+}
+
+function catPrices_(cat) {
+  var m = {};
+  cat.forEach(function (x) { m[x.name.toLowerCase()] = Number(x.price) || 0; });
+  return m;
 }
 
 function editOrderCore_(row, o) {
@@ -157,17 +192,16 @@ function editOrderCore_(row, o) {
   if (kit) {
     // Заказ может содержать несколько комплектов («A + B»): сумма — сумма цен каждого из них
     var needCat = kit !== before[0] || !(Number(oldSum) > 0); // сменился комплект или сумма ещё не стоит
-    var cat = catalog_(true), total = 0, socks = 0, missing = '';
+    var cat = catalog_(true), missing = '';
     kit.split(' + ').forEach(function (part) {
       var name = part.trim();
-      var item = cat.filter(function (x) { return x.name === name; })[0];
-      if (!item) { missing = missing || name; return; }
-      total += Number(item.price) || 0;
-      if (/носк|гетр/i.test(name)) socks += Number(item.price) || 0;
+      if (!cat.some(function (x) { return x.name === name; })) missing = missing || name;
     });
     if (missing && needCat) throw new Error('Выберите позицию из каталога: ' + missing);
-    // Скидка 15% пересчитывается при каждом сохранении, если она положена (null — скидки нет)
-    var disc = missing ? null : orderSumWithDisc_(sh, row, kit, !!o.inst, total, socks);
+    // Скидка пересчитывается при каждом сохранении, если она положена (null — скидки нет)
+    var id = String(sh.getRange(row, 12).getValue()).trim();
+    var calc = equipDiscCalc_(equipDiscCfg_(), kitParts_(kit), catPrices_(cat), !!o.inst, equipOthers_(sh, id, row));
+    var total = calc.total, disc = missing ? null : calc.disc;
     if (needCat) newSum = disc !== null ? disc : total;
     else if (disc !== null) newSum = disc;
   }

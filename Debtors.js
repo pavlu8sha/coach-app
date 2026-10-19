@@ -18,10 +18,10 @@ function appDebtors(pin, month) {
   var flags = subLedger_(), byGroup = {};
   regData_().players.forEach(function (p) {
     if (p.status !== 'Активен') return;
-    [p.group].concat(p.extras || []).forEach(function (gn) {
+    [p.group].forEach(function (gn) {   // доп. программы отдельного долга не дают: идут в счёт основного (effPaid_)
       if (!gn || skipGroup_(gn)) return;
       var T;
-      try { T = tariff_(gn); } catch (e) { return; }
+      try { T = tariff_(gn, m); } catch (e) { return; }
       if (!T) return;
       var key = norm(gn) + '|' + norm(p.name);
       var paid = norm(gn) === norm(p.group) ? effPaid_(mg, gn, p.name, p) : (paidOf[key] || 0);

@@ -182,7 +182,7 @@ function renderInd(){
 $('ind').addEventListener('toggle',function(e){indOpen=e.target.open},true);
 $('ind').onclick=function(e){
   var b=e.target.closest('.ipb');if(!b)return;
-  var d=R.ind[b.dataset.i],ev=d.events[b.dataset.j],mt=b.dataset.m,amt=d.total/d.events.length,p=ev.date.split('-');
+  var d=R.ind[b.dataset.i],ev=d.events[b.dataset.j],mt=b.dataset.m,amt=ev.price||d.total/d.events.length,p=ev.date.split('-');
   // Быстрая кнопка выбирает способ и открывает подтверждение; до подтверждения записи нет
   ksConfirm({title:'Подтвердить оплату?',ok:'Подтвердить оплату',
     rows:[['Игрок',d.name],['Сумма',ksMoney(amt)],['За что',(ev.gk?'Вратарская тренировка, ':'Индивидуальное занятие, ')+p[2]+'.'+p[1]+' '+ev.time],['Способ',mt]],

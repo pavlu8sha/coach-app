@@ -9,7 +9,7 @@ function indPayReconcile() {
     e.players.forEach(function (pl) {
       if (!pl.paid) return;
       var key = norm(pl.name) + '|' + dateStr;
-      net[key] = (net[key] || 0) + IND_PRICE;
+      net[key] = (net[key] || 0) + indPrice_(dateStr);
       nameOf[key] = pl.name;
     });
   });
@@ -52,7 +52,7 @@ function indPayReconcile() {
       });
       if (hit) {
         hit.used = true; tot.ok++;
-        if (indAmount_(hit.amt) !== IND_PRICE) { tot.amt++; out.push('  СУММА В ТАБЛИЦЕ НЕ ' + IND_PRICE + ' ₾ (строка ' + hit.row + '): ' + e.name + ', ' + e.date + ', в таблице: ' + (String(hit.amt).trim() || 'пусто')); }
+        if (indAmount_(hit.amt) !== indPrice_(e.date)) { tot.amt++; out.push('  СУММА В ТАБЛИЦЕ НЕ ' + indPrice_(e.date) + ' ₾ (строка ' + hit.row + '): ' + e.name + ', ' + e.date + ', в таблице: ' + (String(hit.amt).trim() || 'пусто')); }
       }
       else if (weak) { weak.used = true; tot.weak++; out.push('  БЕЗ ДАТЫ В ТАБЛИЦЕ (проверьте строку ' + weak.row + '): ' + e.name + ', ' + e.date); }
       else { tot.missing++; out.push('  НЕТ В ТАБЛИЦЕ: ' + e.name + ', ' + e.date); }
