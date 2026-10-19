@@ -30,6 +30,12 @@ table{width:100%;border-collapse:collapse;font-size:14px}
 th,td{text-align:left;padding:6px 4px;border-top:1px solid var(--line);vertical-align:top}
 th{color:var(--mute);font-weight:600}
 .scroll{overflow-x:auto}
+/* UI-004: таблица в отдельной карточке; если колонки не помещаются — прокручивается только таблица, не страница */
+.tbl{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-top:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+.tbl th,.tbl td{padding:8px 10px;white-space:nowrap}
+.tbl tr:first-child th{border-top:0}
+.tbl td.w,.tbl td[colspan]{white-space:normal}.tbl td.w{min-width:160px}
+.ask{font-weight:600;margin:10px 0 0}
 .msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:8px}
 .err{color:var(--a)}
 label{font-size:13px;color:var(--mute);display:flex;gap:8px;align-items:center;margin-top:8px}
@@ -93,7 +99,7 @@ li small{color:var(--mute)}
       <label><input type="checkbox" id="a-held" checked> Проведено</label>
       <button class="btn" id="a-save">Добавить тренировку</button>
     </div>
-    <div class="scroll"><table id="tr-table"></table></div>
+    <div class="tbl ks-wide"><table id="tr-table"></table></div>
   </div>
 
   <div id="pane-dy" hidden>
@@ -101,7 +107,7 @@ li small{color:var(--mute)}
     <div id="dy-list"></div>
   </div>
 
-  <div id="pane-gm" hidden><div class="scroll"><table id="gm-table"></table></div></div>
+  <div id="pane-gm" hidden><div class="tbl ks-wide"><table id="gm-table"></table></div></div>
   <div id="pane-st" hidden>
     <div class="grid2" style="margin-bottom:8px;align-items:stretch"><input id="newtr" placeholder="Имя нового тренера" style="height:48px;margin:0"><button class="btn sec" id="addtr" style="height:48px;margin:0">Добавить тренера</button></div>
     <div class="msg" id="trmsg" role="status"></div>
@@ -195,7 +201,7 @@ function drawGm(){
     if(!editing)staff+=(staff?'<br>':'')+'<button class="btn" type="button" data-gmedit="'+i+'" style="'+GM_BTN+';margin-top:6px">Изменить</button>';
     var score=g.tech?'техническая победа':(typeof g.gf==='number'&&typeof g.ga==='number'?g.gf+':'+g.ga:'нет счёта');
     var goals=g.goals.map(function(x){return esc(x.name)+(x.n>1?' ×'+x.n:'')}).join(', ')||'—';
-    var tr='<tr><td>'+esc(g.date)+'</td><td>'+esc(g.team)+'<br>'+esc(g.opp)+'</td><td>'+score+'</td><td>'+goals+'</td><td>'+staff+'</td></tr>';
+    var tr='<tr><td>'+esc(g.date)+'</td><td>'+esc(g.team)+'<br>'+esc(g.opp)+'</td><td>'+score+'</td><td class="w">'+goals+'</td><td class="w">'+staff+'</td></tr>';
     return tr+(editing?'<tr><td colspan="5">'+gmForm()+'</td></tr>':'');
   }).join('');
   $('gm-table').innerHTML='<tr><th>Дата</th><th>Команда</th><th>Счёт</th><th>Голы</th><th>Сотрудники</th></tr>'+(rows||'<tr><td colspan="5">Нет игр</td></tr>');
@@ -286,7 +292,7 @@ function dyPaint(){
         :'<div style="margin-top:6px"><button class="btn" data-addopen="'+i+'" style="background:var(--card);color:var(--ink);border:1px solid var(--line)">+ тренер</button></div>';
     }
     var btns=can
-      ?'<div class="grid2"><button class="btn" data-y="'+i+'">Да</button><button class="btn" data-n="'+i+'" style="background:var(--card);color:var(--ink);border:1px solid var(--line)">Нет</button></div>'
+      ?'<p class="ask" id="ask'+i+'">Тренировка проводилась?</p><div class="grid2" role="group" aria-labelledby="ask'+i+'"><button class="btn" data-y="'+i+'">Да, проводилась</button><button class="btn" data-n="'+i+'" style="background:var(--card);color:var(--ink);border:1px solid var(--line)">Нет</button></div>'
       :'';
     return'<div class="card"><div class="top"><span>'+esc(x.start)+'–'+esc(x.end)+' · '+esc(x.group)+'</span>'+mark+'</div>'
       +'<div class="sub">'+esc(x.loc)+' · '+esc(x.type)+'</div>'+sel+recLine+tb+btns+saveBlock+addBlock+'</div>';
