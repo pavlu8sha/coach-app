@@ -96,7 +96,10 @@ li small{color:var(--mute)}
   </div>
 
   <div id="pane-gm" hidden><div class="scroll"><table id="gm-table"></table></div></div>
-  <div id="pane-st" hidden><div class="chips" id="chips"></div>
+  <div id="pane-st" hidden>
+    <div class="grid2" style="margin-bottom:8px"><input id="newtr" placeholder="Имя нового тренера"><button class="btn sec" id="addtr">Добавить тренера</button></div>
+    <div class="msg" id="trmsg" role="status"></div>
+    <div class="chips" id="chips"></div>
   <div id="st-table"></div></div>
 </div>
 <script>
@@ -199,6 +202,15 @@ $('gm-table').onclick=function(e){
   if(t.hasAttribute('data-gmadd')){gmRead();gmEdit.list.push({name:cache.trainers[0]||'',role:'Тренер',reg:true});drawGm();return}
   if(t.hasAttribute('data-gmdel')){gmRead();gmEdit.list.splice(+t.getAttribute('data-gmdel'),1);drawGm();return}
   if(t.hasAttribute('data-gmsave'))gmSave();
+};
+$('addtr').onclick=function(){
+  var n=$('newtr').value.trim(),b=this;
+  if(!n){$('trmsg').textContent='Введите имя тренера';return}
+  b.disabled=true;$('trmsg').textContent='Добавляю…';
+  run('appAddTrainer',[pin,n],function(){
+    b.disabled=false;$('newtr').value='';$('trmsg').textContent='Тренер «'+n+'» добавлен. Теперь его можно выбрать в тренировках и играх.';
+    loadOptions();
+  },function(m){b.disabled=false;$('trmsg').textContent=m});
 };
 function drawChips(){
   $('chips').innerHTML=cache.trainers.map(function(t){
