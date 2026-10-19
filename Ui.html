@@ -64,6 +64,9 @@ html.ks-dlg-lock,html.ks-dlg-lock body{overflow:hidden!important}
 .ks-spin{width:28px;height:28px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--g);animation:ks-spin .9s linear infinite}
 @keyframes ks-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.ks-spin{animation-duration:2.5s}}
+/* UI-011: подпись поля входа; фокус для строк-кнопок */
+label.ks-pinl{display:block;margin:16px 0 8px;color:var(--ink);font-size:16px;font-weight:400}
+[data-ks-row]:focus-visible{outline:3px solid var(--g);outline-offset:2px}
 </style>
 <div id="ksdlg" role="presentation">
   <div class="ks-box" role="dialog" aria-modal="true" aria-labelledby="ksdlg-t" aria-describedby="ksdlg-x ksdlg-d ksdlg-w">
@@ -233,5 +236,67 @@ html.ks-dlg-lock,html.ks-dlg-lock body{overflow:hidden!important}
   try{new MutationObserver(function(ms){for(var i=0;i<ms.length;i++)for(var j=0;j<ms[i].addedNodes.length;j++){var n=ms[i].addedNodes[j];if(n.nodeName=='STYLE'||n.nodeName=='LINK'){apply();return}}}).observe(document.head,{childList:true})}catch(e){}
   /* другая вкладка сменила тему */
   window.addEventListener('storage',function(e){if(e.key=='kstheme')apply()});
+})();
+</script>
+<script>
+/* UI-011. Клавиатура и подписи — только разметка доступности, логика страниц не меняется:
+   • <label> без for, за которым сразу идёт поле, связывается с ним (for/id); поле без подписи получает
+     aria-label из placeholder;
+   • строки списков, открываемые нажатием (li.p, li[data-i]), — фокусируемые кнопки: Tab, Enter, пробел;
+   • переключатели разделов на странице ([data-t], .seg2) — вкладки: role=tab, aria-selected по классу .on,
+     стрелки влево/вправо;
+   • вход: Enter в поле кода нажимает «Войти». */
+(function(){
+  var n=0,CTRL=/^(INPUT|SELECT|TEXTAREA)$/;
+  function uid(e){if(!e.id)e.id='ks-f'+(++n);return e.id}
+  function labels(root){
+    [].forEach.call(root.querySelectorAll('label:not([for])'),function(l){
+      if(l.querySelector('input,select,textarea'))return;
+      var c=l.nextElementSibling;
+      if(c&&CTRL.test(c.tagName)&&c.type!='hidden'&&!(c.labels&&c.labels.length))l.htmlFor=uid(c);
+    });
+    [].forEach.call(root.querySelectorAll('input:not([type=hidden]),textarea'),function(c){
+      if((c.labels&&c.labels.length)||c.hasAttribute('aria-label')||c.hasAttribute('aria-labelledby'))return;
+      if(c.placeholder)c.setAttribute('aria-label',c.placeholder);
+    });
+  }
+  function rows(root){
+    [].forEach.call(root.querySelectorAll('li.p,li[data-i]'),function(r){
+      if(r.hasAttribute('data-ks-row')||r.querySelector('button,a,input,select'))return;
+      r.setAttribute('data-ks-row','');r.tabIndex=0;r.setAttribute('role','button');
+    });
+  }
+  function tabs(root){
+    var groups=[];
+    [].forEach.call(root.querySelectorAll('button[data-t]'),function(b){if(groups.indexOf(b.parentElement)<0)groups.push(b.parentElement)});
+    [].forEach.call(root.querySelectorAll('.seg2'),function(g){if(groups.indexOf(g)<0)groups.push(g)});
+    groups.forEach(function(g){
+      var bs=[].filter.call(g.children,function(x){return x.tagName=='BUTTON'});
+      if(bs.length<2)return;
+      if(g.getAttribute('role')!='tablist')g.setAttribute('role','tablist');
+      bs.forEach(function(b){
+        if(b.getAttribute('role')!='tab')b.setAttribute('role','tab');
+        var on=b.classList.contains('on');
+        if(b.getAttribute('aria-selected')!==String(on))b.setAttribute('aria-selected',String(on));
+        var ti=on?0:-1;if(b.tabIndex!==ti)b.tabIndex=ti;
+      });
+      if(!bs.some(function(b){return b.classList.contains('on')})&&bs[0].tabIndex!==0)bs[0].tabIndex=0;
+    });
+  }
+  function all(){var b=document.body;if(!b)return;labels(b);rows(b);tabs(b)}
+  var q=false;
+  function soon(){if(q)return;q=true;(window.requestAnimationFrame||setTimeout)(function(){q=false;all()})}
+  document.addEventListener('DOMContentLoaded',all);
+  try{new MutationObserver(soon).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']})}catch(e){}
+  document.addEventListener('keydown',function(e){
+    var t=e.target;if(!t||!t.closest)return;
+    if((e.key==='Enter'||e.key===' ')&&t.hasAttribute&&t.hasAttribute('data-ks-row')){e.preventDefault();t.click();return}
+    if(e.key==='Enter'&&t.id==='pin'){var g=document.getElementById('go');if(g&&!g.disabled){e.preventDefault();g.click()}return}
+    if((e.key==='ArrowRight'||e.key==='ArrowLeft')&&t.getAttribute('role')==='tab'){
+      var bs=[].filter.call(t.parentElement.children,function(x){return x.getAttribute('role')==='tab'&&!x.hidden}),i=bs.indexOf(t);
+      var nx=bs[(i+(e.key==='ArrowRight'?1:bs.length-1))%bs.length];
+      if(nx){e.preventDefault();nx.focus();nx.click()}
+    }
+  });
 })();
 </script>

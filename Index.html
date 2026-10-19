@@ -46,8 +46,8 @@ li.empty{display:block;color:var(--mute);font-weight:400;padding:14px}
 </head>
 <body>
 <div id="login" class="wrap" hidden>
-  <h1>Вход</h1><p>Введите код доступа</p>
-  <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err"></p><button id="go">Войти</button>
+  <h1>Вход</h1><label for="pin" class="ks-pinl">Введите код доступа</label>
+  <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err" role="alert"></p><button id="go">Войти</button>
 </div>
 <div id="app" class="wrap" hidden>
   <h1>Отметка посещаемости</h1>

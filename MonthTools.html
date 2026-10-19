@@ -10,7 +10,7 @@
     +'<p style="color:var(--mute,#5B6B61);font-size:13px;margin:8px 0">'+(KIND=='pay'
       ?'Копия последнего месяца с пустыми оплатами. Дети со статусом не «Активен» не переносятся.'
       :'Копия «ШАБЛОНА МЕСЯЦА» плюс блоки из прошлого месяца, которых нет в шаблоне (например, weekends). В блоки вписываются активные игроки с этой основной группой, недостающие строки добавляются. Остальные (доп. программы) впишутся при первой отметке.')+'</p>'
-    +'<select class="mm" style="width:100%;min-height:44px;font:inherit;border-radius:10px;border:1px solid var(--color-border-strong,#7A86A6);padding:8px 12px;background:var(--card,#fff);color:var(--ink,#15211A)"></select>'
+    +'<select class="mm" aria-label="Месяц нового листа" style="width:100%;min-height:44px;font:inherit;border-radius:10px;border:1px solid var(--color-border-strong,#7A86A6);padding:8px 12px;background:var(--card,#fff);color:var(--ink,#15211A)"></select>'
     +'<button class="mb" style="width:100%;min-height:46px;margin-top:10px;border:0;border-radius:12px;background:var(--g,#1E6B3C);color:var(--gi,#fff);font:800 15px system-ui,-apple-system,sans-serif;cursor:pointer">Создать лист</button>'
     +'<div class="mr" style="margin-top:8px;font-size:14px"></div>';
   root.appendChild(box);
