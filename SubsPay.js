@@ -2,6 +2,11 @@
 
 var PAY_METHODS = ['Наличные', 'Перевод'];
 
+// Способ оплаты обязателен: наличные или перевод (без значения по умолчанию)
+function payMethodReq_(method) {
+  if (PAY_METHODS.indexOf(String(method || '')) < 0) throw new Error('Выберите способ оплаты: наличные или перевод');
+}
+
 // Формат ячеек: если столбец типизирован (Таблица в Google Таблицах), формат не ставим и не падаем
 function fmt_(rg, pattern) { try { rg.setNumberFormat(pattern); } catch (e) {} return rg; }
 // Формат ячейки best-effort: в столбцах с типом (таблица-чипы, дата, число) Google отказывает, запись данных не должна падать.

@@ -50,6 +50,7 @@ function indPlayer_(ev, name) {
 // Оплата: сумма 50 ₾ в строке игрока файла оплат (игрок должен быть записан)
 function appIndPay(pin, id, name, method, comment) {
   checkAdmin_(pin);
+  payMethodReq_(method);
   return indLocked_(function () {
     var ev = indFind_(id);
     indNotOld_(ev);
@@ -57,7 +58,7 @@ function appIndPay(pin, id, name, method, comment) {
     if (!p) throw new Error('Игрок не записан');
     if (p.paid) throw new Error('Уже оплачено');
     indPfSetAmount_(ev.date, p.name, IND_PRICE, ev.goalkeepers);
-    indLog_('Оплата', ev, p.name, IND_PRICE, method || 'Наличные', comment || '');
+    indLog_('Оплата', ev, p.name, IND_PRICE, method, comment || '');
     return { ok: true };
   });
 }

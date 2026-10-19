@@ -317,6 +317,7 @@ function appExtraData(pin) {
 // Оплата: по умолчанию сумма тренировки; можно передать другую
 function appExtraPay(pin, id, name, method, amount, comment) {
   checkAdmin_(pin);
+  payMethodReq_(method);
   var over = extraAmt_(amount);
   return extraLocked_(function () {
     var ev = extraFind_(id), p = extraPlayer_(ev, name);
@@ -325,7 +326,7 @@ function appExtraPay(pin, id, name, method, amount, comment) {
     var sum = over !== null ? over : (extraPrices_()[id] || 0);
     if (!(sum > 0)) throw new Error('Не задана сумма тренировки: укажите её через «Изменить»');
     extraSS_().getSheetByName(ev.sheet).getRange(p.row, 4).setValue(true);
-    extraLog_('Оплата', ev, p.name, sum, method || 'Наличные', comment || '');
+    extraLog_('Оплата', ev, p.name, sum, method, comment || '');
     return { ok: true };
   });
 }
