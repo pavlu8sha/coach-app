@@ -36,6 +36,9 @@ th{color:var(--mute);font-weight:600}
 .tbl tr:first-child th{border-top:0}
 .tbl td.w,.tbl td[colspan]{white-space:normal}.tbl td.w{min-width:160px}
 .ask{font-weight:600;margin:10px 0 0}
+/* по макету UI-004: «Проведено» — плашка, дата коротко (год виден в выборе месяца) */
+.yn{display:inline-block;min-width:44px;text-align:center;font-size:12px;font-weight:700;border-radius:999px;padding:2px 10px}
+.yn.y{background:var(--color-success-subtle);color:var(--color-success)}.yn.n{background:var(--color-danger-subtle);color:var(--color-danger-strong)}
 .msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:8px}
 .err{color:var(--a)}
 label{font-size:13px;color:var(--mute);display:flex;gap:8px;align-items:center;margin-top:8px}
@@ -158,9 +161,10 @@ function load(){
   run('appTrainingsList',[pin,m],function(t){if(n!=reqN)return;cache.trainings=t;drawTr();setMsg('')},function(e){if(n==reqN)setMsg(e,true)});
   run('appGamesData',[pin,m],function(d){if(n!=reqN)return;cache.games=d.games;cache.stats=d.stats;drawGm();drawSt();setMsg('')},function(e){if(n==reqN)setMsg(e,true)});
 }
+function dShort(d){var m=/^(\d{2}\.\d{2})\.\d{4}$/.exec(String(d||''));return m?'<span title="'+esc(d)+'">'+m[1]+'</span>':esc(d)}
 function drawTr(){
   var rows=cache.trainings.map(function(t){
-    return'<tr><td>'+esc(t.date)+'</td><td>'+esc(t.trainer)+'</td><td>'+esc(t.group)+'</td><td>'+(t.held?'да':'нет')+'</td><td>'+fmtH(t.hours)+'</td></tr>';
+    return'<tr><td>'+dShort(t.date)+'</td><td>'+esc(t.trainer)+'</td><td>'+esc(t.group)+'</td><td>'+(t.held?'<span class="yn y">Да</span>':'<span class="yn n">Нет</span>')+'</td><td>'+fmtH(t.hours)+'</td></tr>';
   }).join('');
   $('tr-table').innerHTML='<tr><th>Дата</th><th>Тренер</th><th>Группа</th><th>Проведено</th><th>Часы</th></tr>'+(rows||'<tr><td colspan="5">Нет тренировок</td></tr>');
 }
@@ -201,7 +205,7 @@ function drawGm(){
     if(!editing)staff+=(staff?'<br>':'')+'<button class="btn" type="button" data-gmedit="'+i+'" style="'+GM_BTN+';margin-top:6px">Изменить</button>';
     var score=g.tech?'техническая победа':(typeof g.gf==='number'&&typeof g.ga==='number'?g.gf+':'+g.ga:'нет счёта');
     var goals=g.goals.map(function(x){return esc(x.name)+(x.n>1?' ×'+x.n:'')}).join(', ')||'—';
-    var tr='<tr><td>'+esc(g.date)+'</td><td>'+esc(g.team)+'<br>'+esc(g.opp)+'</td><td>'+score+'</td><td class="w">'+goals+'</td><td class="w">'+staff+'</td></tr>';
+    var tr='<tr><td>'+dShort(g.date)+'</td><td>'+esc(g.team)+'<br>'+esc(g.opp)+'</td><td>'+score+'</td><td class="w">'+goals+'</td><td class="w">'+staff+'</td></tr>';
     return tr+(editing?'<tr><td colspan="5">'+gmForm()+'</td></tr>':'');
   }).join('');
   $('gm-table').innerHTML='<tr><th>Дата</th><th>Команда</th><th>Счёт</th><th>Голы</th><th>Сотрудники</th></tr>'+(rows||'<tr><td colspan="5">Нет игр</td></tr>');

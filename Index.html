@@ -15,7 +15,7 @@ h1{font-size:22px;margin:16px 0 10px}
 input,select{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:44px;width:100%}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.row2>*{min-width:0;max-width:100%}#dt{-webkit-appearance:none;appearance:none;display:block;width:100%;box-sizing:border-box;min-width:0}input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 1000px var(--card) inset;-webkit-text-fill-color:var(--ink);transition:background-color 9999s}
 .chk{display:flex;gap:8px;align-items:center;margin-top:8px;color:var(--mute);font-size:14px;min-height:44px}.chk input{width:22px;height:22px;min-height:0;flex:none} /* DS-015: цель касания ≥ 44 px */
-.meter{display:flex;gap:3px;margin:12px 0 6px}.meter i{flex:1;height:8px;border-radius:2px;background:var(--n)}.meter .p{background:var(--g)}.meter .a{background:var(--a)}
+.meter{display:flex;gap:3px;margin:12px 0 6px}.meter i{flex:1;height:8px;border-radius:2px;background:var(--n)}.meter .p{background:var(--color-success)}.meter .a{background:var(--a)}
 .st{display:flex;gap:16px;color:var(--mute);font-size:14px}.st b{color:var(--ink);font-size:16px}
 button{font:inherit;cursor:pointer}
 .ghost{font-weight:600;color:var(--g);background:none;border:1px solid var(--line);border-radius:10px;padding:8px 14px;min-height:40px}
@@ -23,7 +23,7 @@ ul{list-style:none;margin:8px 0;padding:0}
 li{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 8px 8px 14px;margin-bottom:8px}
 .nm{flex:1;font-weight:600}
 .seg{display:flex;gap:6px}.seg button{min-width:68px;min-height:44px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--mute);font-weight:600;font-size:14px}
-.seg .p[aria-pressed=true]{background:var(--pb);border-color:var(--g);color:var(--g)}
+.seg .p[aria-pressed=true]{background:var(--color-success-subtle);border-color:var(--color-success);color:var(--color-success)} /* по макету UI-001: «Был» — зелёный */
 .seg .a[aria-pressed=true]{background:var(--ab);border-color:var(--a);color:var(--color-danger-strong,#9E2B1F)}
 footer{position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--line);padding:10px 16px}
 #save,#go{width:100%;min-height:50px;border:0;border-radius:12px;background:var(--g);color:var(--gi);font-weight:800;font-size:17px}
@@ -40,6 +40,8 @@ html[data-page="att"]:root #kstoast{bottom:calc(var(--foot-h,72px) + 12px)}
 @media(max-width:839px){html[data-page="att"]:root #kstoast{bottom:calc(var(--foot-h,72px) + var(--navh,64px) + env(safe-area-inset-bottom) + 12px)}}
 #ferr{margin:0 0 8px;font-size:14px;font-weight:600}
 li.empty{display:block;color:var(--mute);font-weight:400;padding:14px}
+#cnt{margin:0 0 8px;font-size:14px;color:var(--mute)}#cnt b{color:var(--ink)}
+.gc{margin:6px 0 0;font-size:13px;color:var(--mute)}
 </style>
 </head>
 <body>
@@ -50,13 +52,14 @@ li.empty{display:block;color:var(--mute);font-weight:400;padding:14px}
 <div id="app" class="wrap" hidden>
   <h1>Отметка посещаемости</h1>
   <div class="row2"><select id="grp" aria-label="Группа"></select><input type="date" id="dt" aria-label="Дата" autocomplete="off"></div>
+  <p class="gc" id="gcnt" hidden></p>
   <label class="chk"><input type="checkbox" id="allg"> Показать все группы (доп. или перенесённая тренировка)</label>
   <div class="meter" id="meter"></div><div class="st" id="st"></div>
   <div style="display:flex;gap:8px;margin-top:10px"><button class="ghost" id="all">Все были</button><button class="ghost" id="clr">Сбросить</button></div>
   <div class="msg" id="msg" role="status"></div>
   <ul id="list"></ul><div id="res"></div>
 </div>
-<footer id="foot" hidden><p id="ferr" class="err" role="alert" hidden></p><button id="save"></button></footer>
+<footer id="foot" hidden><p id="ferr" class="err" role="alert" hidden></p><p id="cnt" hidden></p><button id="save"></button></footer>
 <script>
 var pin='',roster=[],marks={},busy=false,allGroups=[],reqN=0,rosterFor='';
 function key(){return $('grp').value+'|'+$('dt').value}
@@ -104,6 +107,7 @@ function loadRoster(){
   msg('Загрузка списка…');render();
   run('appRoster',[pin,$('grp').value,$('dt').value],function(r){if(n==reqN)setRoster(r)},function(m){if(n==reqN)msg(m,true)});
 }
+function kids(n){var d=n%10,h=n%100;return n+' '+(d==1&&h!=11?'ребёнок':(d>=2&&d<=4&&(h<12||h>14)?'ребёнка':'детей'))}
 function render(){
   var p=0,a=0,li='',mt='';
   roster.forEach(function(x,i){
@@ -111,6 +115,9 @@ function render(){
     li+='<li><span class="nm">'+esc(x.name)+'</span><div class="seg"><button class="p" aria-pressed="'+(s=='p')+'" data-i="'+i+'" data-v="p">Был</button><button class="a" aria-pressed="'+(s=='a')+'" data-i="'+i+'" data-v="a">Не был</button></div></li>';
   });
   if(!roster.length&&rosterFor===key())li='<li class="empty">В группе пока нет детей. Добавьте их в реестр</li>';
+  var loaded=rosterFor===key()&&roster.length>0;
+  $('cnt').hidden=!loaded;$('cnt').innerHTML='Отмечено: <b>'+(p+a)+'</b> из '+roster.length;
+  $('gcnt').hidden=!loaded;$('gcnt').textContent=kids(roster.length);
   var r=roster.length-p-a;$('list').innerHTML=li;$('meter').innerHTML=mt;
   $('st').innerHTML='<span><b>'+p+'</b> были</span><span><b>'+a+'</b> не были</span><span><b>'+r+'</b> осталось</span>';
   var stale=roster.length>0&&rosterFor!==key();
