@@ -75,9 +75,18 @@ function load(){
     if(t.indexOf(team)<0)team=t[0];$('tm').value=team;list();
   },fail);
 }
-function list(){
+// UI-005: взносы — только в режиме «Администратор». У администратора в режиме «Тренер» кнопки и суммы взносов скрыты.
+function isAdm(){var m='';try{m=localStorage.getItem('ksmode')||''}catch(e){}return!!D&&D.role=='admin'&&m!='trainer'}
+var feeOpen=false;
+window.addEventListener('ksmodechange',function(){
+  if(!D)return;
+  if(feeOpen&&!isAdm()){list();return}               // открытая панель взносов закрывается
+  if(!$('app').hidden)list();                          // список событий перерисовывается
+  var w=$('nfw');if(w)w.hidden=!isAdm();               // поле взноса в форме нового события
+});
+function list(){feeOpen=false;
   $('panel').hidden=true;$('app').hidden=false;setMsg('msg',flash);flash='';
-  var adm=D.role=='admin';
+  var adm=isAdm();
   var evs=D.events.filter(function(e){return e.team==team}).sort(byDate);
   var tours=evs.filter(function(e){return e.type=='Чемпионат'||e.type=='Фестиваль'||e.type=='Турнир'});
   var solo=evs.filter(function(e){return!e.parent&&tours.indexOf(e)<0});
@@ -96,7 +105,7 @@ function list(){
   }).join('');
   $('list').innerHTML=h||'<p class="sub">Для этой команды событий нет.</p>';
 }
-function panel(title,sub){$('app').hidden=true;$('panel').hidden=false;$('pt').textContent=title;$('ps').textContent=sub||'';setMsg('pm','')}
+function panel(title,sub){feeOpen=false;$('app').hidden=true;$('panel').hidden=false;$('pt').textContent=title;$('ps').textContent=sub||'';setMsg('pm','')}
 function openGame(id){
   cur=ev(id);var par=cur.parent?ev(cur.parent):cur,mine={};
   parts(id).forEach(function(p){mine[p.p]=p});
@@ -109,11 +118,12 @@ function openGame(id){
   }).join('')+'<button class="btn" id="sv">Сохранить отметки</button>';
 }
 function openFee(id){
+  if(!isAdm())return;
   cur=ev(id);
   var kids=D.events.filter(function(g){return g.parent==id}).map(function(g){return g.id});
   var pl={};D.parts.forEach(function(p){if((p.e==id||kids.indexOf(p.e)>=0)&&p.played==1)pl[p.p]=1});
   var ps=parts(id).filter(function(p){return pl[p.p]||p.paid==1}).sort(function(a,b){return(a.paid==1)-(b.paid==1)||a.n.localeCompare(b.n)});
-  panel(cur.team+', '+cur.name,'Взнос '+(cur.fee?money(cur.fee):'не задан')+'. Неоплатившие сверху.');
+  panel(cur.team+', '+cur.name,'Взнос '+(cur.fee?money(cur.fee):'не задан')+'. Неоплатившие сверху.');feeOpen=true;
   var head='<div class="pr"><label>Взнос за событие, ₾</label><input type="number" min="0" step="1" id="nfee" value="'+(cur.fee||'')+'"><button class="btn" id="sfee">Сохранить взнос</button></div>';
   $('pb').innerHTML=head+ps.map(function(p){
     var left=cur.fee?Math.max(cur.fee-p.sum,0):0,done=p.paid==1&&(!cur.fee||p.sum>=cur.fee||!p.sum);
