@@ -49,7 +49,8 @@
   function rec(G){
     var r={n:0,w:0,d:0,l:0,gf:0,ga:0,vn:0};
     G.forEach(function(g){
-      if(g.internal){r.vn++;return}
+      // внутренние игры (свои команды клуба) считаем, если они в рамках чемпионата; товарищеские и турнирные — нет
+      if(g.internal&&g.kind!=='Чемпионат'){r.vn++;return}
       r.n++;r.gf+=g.gf;r.ga+=g.ga;
       if(g.gf>g.ga)r.w++;else if(g.gf<g.ga)r.l++;else r.d++;
     });
@@ -63,7 +64,7 @@
     var ids={};G.forEach(function(g){ids[g.id]=g});
     var P=D.parts.filter(function(p){return ids[p.g]});
     var R=rec(G);
-    $('msum').innerHTML=tile('игр (без внутренних)',R.n)+tile('побед–ничьих–поражений',R.w+'–'+R.d+'–'+R.l)+tile('голы (забито:пропущено)',R.gf+':'+R.ga);
+    $('msum').innerHTML=tile('игр (без внутренних товарищеских)',R.n)+tile('побед–ничьих–поражений',R.w+'–'+R.d+'–'+R.l)+tile('голы (забито:пропущено)',R.gf+':'+R.ga);
     if(!G.length){$('mteams').innerHTML='<p class="sub">Игр со счётом пока нет.</p>';$('mtop').innerHTML='';return}
     var teams=[];G.forEach(function(g){if(teams.indexOf(g.team)<0)teams.push(g.team)});
     teams.sort();
@@ -76,7 +77,7 @@
       }).join('');
       var pls=pl.map(function(x){return'<li><span>'+esc(x.name)+'</span><b>игр '+x.games+(x.goals?', голов '+x.goals:'')+'</b></li>'}).join('');
       return'<details><summary><div class="top"><span>'+esc(t)+'</span><span>'+r.w+'–'+r.d+'–'+r.l+', '+r.gf+':'+r.ga+'</span></div>'
-        +'<div class="sub">Игр: '+r.n+(r.vn?', внутренних: '+r.vn:'')+', разница голов: '+(r.gf-r.ga>0?'+':'')+(r.gf-r.ga)+'</div></summary>'
+        +'<div class="sub">Игр: '+r.n+(r.vn?', внутренних товарищеских: '+r.vn:'')+', разница голов: '+(r.gf-r.ga>0?'+':'')+(r.gf-r.ga)+'</div></summary>'
         +'<div class="mh"><b>Игры</b></div><ul>'+gl+'</ul><div class="mh"><b>Игроки</b></div><ul>'+(pls||'<li><span class="sub">нет данных</span></li>')+'</ul></details>';
     }).join('');
     var top=agg(P).filter(function(x){return x.goals>0}).slice(0,10);

@@ -44,6 +44,32 @@ function birthByName_() {
   return map;
 }
 
+// Записать дату рождения (dd.mm.yyyy) в колонку C строки игрока в блоках групп файла оплат. Возвращает число записей.
+function writeBirthToPay_(name, d) {
+  var target = norm(name), changed = 0;
+  payMonths_().forEach(function (m) {
+    var sh = payFile_().getSheetByName(m);
+    if (!sh || sh.getLastRow() < 1) return;
+    var data = sh.getRange(1, 1, sh.getLastRow(), 3).getDisplayValues(), cur = null, i, a;
+    for (i = 0; i < data.length; i++) {
+      a = String(data[i][0]).trim();
+      if (a === '№') {
+        cur = (i > 0 && !skipGroup_(data[i - 1][0])) ? true : null;
+        continue;
+      }
+      if (!cur || a === '') continue;
+      if (isNaN(Number(a))) { cur = null; continue; }
+      if (norm(data[i][1]) === target) {
+        var rg = sh.getRange(i + 1, 3);
+        nfSafe_(rg, '@'); // как текст, чтобы таблица не переписала дату по своей локали
+        rg.setValue(d);
+        changed++;
+      }
+    }
+  });
+  return changed;
+}
+
 function appPlayerCard(pin, id) {
   checkAdmin_(pin);
   var birth = birthById_()[id] || '';
