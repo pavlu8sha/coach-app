@@ -11,6 +11,16 @@ function appAddOrder(pin, o) {
   try { return addOrderCore_(o); } finally { lock.releaseLock(); }
 }
 
+// Следующий номер ORD-xxxx по колонке N листа экипировки (максимум существующих + 1).
+function nextOrdId_(sh) {
+  var last = Math.max(sh.getLastRow(), 1), vals = sh.getRange(1, 14, last, 1).getValues(), max = 0;
+  vals.forEach(function (r) {
+    var m = /^ORD-(\d+)$/.exec(String(r[0]).trim());
+    if (m) max = Math.max(max, Number(m[1]));
+  });
+  return 'ORD-' + ('000' + (max + 1)).slice(-4);
+}
+
 function addOrderCore_(o) {
   // Комплект может быть из нескольких позиций через « + »: каждая должна быть в каталоге
   var cat = catalog_(true), parts = String(o.kit || '').split(' + ').map(function (x) { return x.trim(); }).filter(Boolean);
@@ -46,6 +56,8 @@ function addOrderCore_(o) {
     rg.setNumberFormats(nf);
     rg.setValues([[serialOf(dateStr), p.name, o.kit, String(o.size || ''), String(o.inscr || ''), String(o.num || ''), o.inst ? 'Да' : '', sum, paid]]);
     sh.getRange(row, 12).setValue(o.id);
+    // номер заказа (ORD-xxxx) для «Производства» и «Факта пошива»: следующий свободный, не дублирует существующие
+    sh.getRange(row, 14).setValue(nextOrdId_(sh));
     equipSyncLocations_(sh);
     var k = sh.getRange(row, 11);
     // формула долга: копируем из строки выше (текст формулы из кода в таблице с нашим языком не всегда читается)
