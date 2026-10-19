@@ -54,7 +54,7 @@ function fail(m){if(m.indexOf('код администратора')>=0)showLogi
 var SRC={object:'значение команды',sheet:'из настроек',property:'из свойства скрипта',default:'по умолчанию',missing:'не задано',invalid:'неверное значение'};
 function chip(it){var bad=it.source=='missing'||it.source=='invalid';return'<span class="chip'+(bad?' bad':'')+'">'+esc(SRC[it.source]||it.source)+'</span>'}
 function norm(s){return String(s||'').replace(/\s+/g,' ').trim().toLowerCase()}
-function inputVal(it){return it.source=='invalid'?it.raw:(it.value===null?'':it.value)}
+function inputVal(it){return it.source=='invalid'?(it.raw==null?'':it.raw):(it.value==null?'':it.value)} // null с сервера приходит как undefined
 function field(k,id,val,dis){
   var num=k.type=='int'||k.type=='money';
   return'<input id="'+id+'" '+(num?'type="number" inputmode="decimal" step="'+(k.type=='int'?'1':'0.01')+'"'+(k.min!==undefined&&k.min!==null?' min="'+k.min+'"':'')+(k.max!==undefined&&k.max!==null?' max="'+k.max+'"':''):'type="text"')+' value="'+esc(val)+'"'+(dis?' disabled':'')+'>';
