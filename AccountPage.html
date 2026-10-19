@@ -36,6 +36,14 @@ th{color:var(--mute);font-weight:600}
 .tbl tr:first-child th{border-top:0}
 .tbl td.w,.tbl td[colspan]{white-space:normal}.tbl td.w{min-width:160px}
 .ask{font-weight:600;margin:10px 0 0}
+/* UI-004: выбор месяца стрелками; нажатие на название открывает полный список (настоящий select поверх надписи) */
+.mbar{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--color-border-strong);border-radius:12px;padding:3px;margin:0 0 8px}
+.mstep{flex:none;width:44px;height:44px;border:0;border-radius:10px;background:var(--bg);color:var(--ink);font-size:24px;font-weight:700;line-height:1}
+.mstep:disabled{opacity:.35;cursor:default}
+.mcur{position:relative;flex:1;min-width:0;height:44px;margin:0;display:flex;align-items:center;justify-content:center;gap:8px;font-size:16px;font-weight:700;color:var(--ink);border-radius:10px}
+.mcur svg{width:18px;height:18px;flex:none}
+.mcur select{position:absolute;top:0;left:0;width:100%;height:100%;min-height:0;opacity:0;cursor:pointer;margin:0}
+.mcur:focus-within{outline:3px solid var(--g);outline-offset:1px}
 /* по макету UI-004: «Проведено» — плашка, дата коротко (год виден в выборе месяца) */
 .yn{display:inline-block;min-width:44px;text-align:center;font-size:12px;font-weight:700;border-radius:999px;padding:2px 10px}
 .yn.y{background:var(--color-success-subtle);color:var(--color-success)}.yn.n{background:var(--color-danger-subtle);color:var(--color-danger-strong)}
@@ -68,7 +76,11 @@ li small{color:var(--mute)}
 </div>
 <div id="app" class="wrap" hidden>
   <h1>Посещаемость тренеров</h1>
-  <select id="mon" aria-label="Месяц"></select>
+  <div class="mbar">
+    <button type="button" class="mstep" id="mprev" aria-label="Предыдущий месяц">‹</button>
+    <label class="mcur"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span id="mlab"></span><select id="mon" aria-label="Месяц"></select></label>
+    <button type="button" class="mstep" id="mnext" aria-label="Следующий месяц">›</button>
+  </div>
   <div class="tabs">
     <button data-t="tr" class="on">Тренировки</button>
     <button data-t="gm">Игры</button>
@@ -150,7 +162,7 @@ function init(){
     if(!ms.length){setMsg('Нет игр и тренировок.');return}
     var d=new Date(),k=('0'+(d.getMonth()+1)).slice(-2)+'.'+String(d.getFullYear());
     $('mon').innerHTML=ms.map(function(m){return'<option value="'+m+'">'+monLabel(m)+'</option>'}).join('');
-    $('mon').value=ms.indexOf(k)>=0?k:ms[ms.length-1];
+    $('mon').value=ms.indexOf(k)>=0?k:ms[ms.length-1];monSync();
     load();
   },fail);
 }
@@ -400,7 +412,10 @@ function addTraining(){
   })();
 }
 document.querySelectorAll('.tabs button').forEach(function(b){b.onclick=function(){showTab(b.getAttribute('data-t'))}});
-$('mon').onchange=load;
+function monSync(){var s=$('mon'),o=s.options[s.selectedIndex];$('mlab').textContent=o?o.text:'';$('mprev').disabled=s.selectedIndex<=0;$('mnext').disabled=s.selectedIndex<0||s.selectedIndex>=s.options.length-1}
+function monStep(d){var s=$('mon'),i=s.selectedIndex+d;if(i<0||i>=s.options.length)return;s.selectedIndex=i;monSync();load()}
+$('mon').onchange=function(){monSync();load()};
+$('mprev').onclick=function(){monStep(-1)};$('mnext').onclick=function(){monStep(1)};
 $('a-save').onclick=addTraining;
 $('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;try{localStorage.setItem('kspin',pin)}catch(e){}init()};
 try{pin=localStorage.getItem('kspin')||''}catch(e){}
