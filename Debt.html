@@ -104,7 +104,7 @@ function show(keepMsg){
     return'<details open><summary><div class="top"><span>'+esc(x.name)+'</span><span>'+x.items.length+' · '+money(sm)+'</span></div></summary>'
       +x.items.map(function(i){
         var k=R.month+'|'+i.id;
-        return'<div class="it" data-g="'+esc(x.name)+'" data-id="'+esc(i.id)+'" data-debt="'+i.debt+'" data-n="'+esc(i.name)+'">'
+        return'<div class="it" data-g="'+esc(x.name)+'" data-id="'+esc(i.id)+'" data-debt="'+i.debt+'" data-paid="'+(i.paid||0)+'" data-n="'+esc(i.name)+'">'
           +'<div class="itr"><div class="nm"><b>'+esc(i.name)+'</b><span class="sub">'+(i.partial?'внесено '+money(i.paid)+', долг '+money(i.debt):'долг '+money(i.debt))+'</span></div>'
           +'<div class="ac"><button class="cp pb">Оплата</button><label class="wr"><input type="checkbox" data-k="'+esc(k)+'"'+(done[k]?' checked':'')+'> написал(а)</label></div></div>'
           +'<div class="pf" hidden><label>Сумма, ₾</label><input type="number" min="0" step="1" class="pa" value="'+i.debt+'">'
@@ -149,12 +149,18 @@ $('list').onclick=function(e){
     if(!method){setMsg('Выберите способ оплаты: наличные или перевод.',true);return}
     if(!(amt>0)){setMsg('Введите сумму больше нуля.',true);return}
     if(amt<debt&&!type){setMsg('Сумма меньше долга: выберите скидка или частичный платёж.',true);return}
-    b.disabled=true;setMsg('Сохраняю…');
-    run('appSubPay',[pin,$('mon').value,it.dataset.g,it.dataset.id,amt,type,today(),'',method],function(r){
-      b.disabled=false;
-      if(r.dryRun){setMsg('Пробный режим: в таблицу ничего не записано.');return}
-      run('appDebtors',[pin,$('mon').value],function(d){R=d;show(true);setMsg('Внесено: '+name+', '+money(amt)+' ('+method+').')},fail);
-    },function(m){b.disabled=false;setMsg(m,true)});
+    var M=$('mon').value,g=it.dataset.g,id=it.dataset.id,mt=method,paidNow=Number(it.dataset.paid)||0,over=ksOverpay(amt,debt);
+    ksConfirm({title:'Подтвердить оплату?',ok:'Подтвердить оплату',
+      warn:over?'Сумма больше остатка на '+ksMoney(over)+'. Вся сумма будет записана как оплата абонемента за '+M+': внесено будет '+ksMoney(paidNow+amt)+' из '+ksMoney(paidNow+debt)+'.':'',
+      rows:[['Игрок',name],['Сумма',ksMoney(amt)],['За что','Абонемент, '+M+', '+g],
+        ['Тип',amt>=debt?'':type=='Частичный'?'Частичный платёж, останется долг '+ksMoney(debt-amt):type=='Скидка'?'Скидка по договорённости, оплата принята':''],['Способ',mt]],
+      run:function(ok,bad){
+        run('appSubPay',[pin,M,g,id,amt,type,today(),'',mt],function(r){
+          ok();
+          if(r.dryRun){setMsg('Пробный режим: в таблицу ничего не записано.');return}
+          run('appDebtors',[pin,M],function(d){R=d;show(true);setMsg('Внесено: '+name+', '+money(amt)+' ('+mt+').')},fail);
+        },bad);
+      }});
   }
 };
 var indOpen=false;
@@ -176,11 +182,16 @@ function renderInd(){
 $('ind').addEventListener('toggle',function(e){indOpen=e.target.open},true);
 $('ind').onclick=function(e){
   var b=e.target.closest('.ipb');if(!b)return;
-  var d=R.ind[b.dataset.i],ev=d.events[b.dataset.j];
-  b.disabled=true;setMsg('Сохраняю…');
-  run('appIndPay',[pin,ev.id,d.name,b.dataset.m],function(){
-    run('appDebtors',[pin,$('mon').value],function(r){R=r;show(true);setMsg('Внесено: '+d.name+', '+money(d.total/d.events.length)+' ('+b.dataset.m+').')},fail);
-  },function(m){b.disabled=false;setMsg(m,true)});
+  var d=R.ind[b.dataset.i],ev=d.events[b.dataset.j],mt=b.dataset.m,amt=d.total/d.events.length,p=ev.date.split('-');
+  // Быстрая кнопка выбирает способ и открывает подтверждение; до подтверждения записи нет
+  ksConfirm({title:'Подтвердить оплату?',ok:'Подтвердить оплату',
+    rows:[['Игрок',d.name],['Сумма',ksMoney(amt)],['За что',(ev.gk?'Вратарская тренировка, ':'Индивидуальное занятие, ')+p[2]+'.'+p[1]+' '+ev.time],['Способ',mt]],
+    run:function(ok,bad){
+      run('appIndPay',[pin,ev.id,d.name,mt],function(){
+        ok();
+        run('appDebtors',[pin,$('mon').value],function(r){R=r;show(true);setMsg('Внесено: '+d.name+', '+money(amt)+' ('+mt+').')},fail);
+      },bad);
+    }});
 };
 var extOpen=false;
 function renderExt(){
@@ -202,11 +213,15 @@ function renderExt(){
 $('ext').addEventListener('toggle',function(e){extOpen=e.target.open},true);
 $('ext').onclick=function(e){
   var b=e.target.closest('.xpb');if(!b)return;
-  var d=R.extra[b.dataset.i],ev=d.events[b.dataset.j];
-  b.disabled=true;setMsg('Сохраняю…');
-  run('appExtraPay',[pin,ev.id,d.name,b.dataset.m,''],function(){
-    run('appDebtors',[pin,$('mon').value],function(r){R=r;show(true);setMsg('Внесено: '+d.name+', '+money(ev.price)+' ('+b.dataset.m+').')},fail);
-  },function(m){b.disabled=false;setMsg(m,true)});
+  var d=R.extra[b.dataset.i],ev=d.events[b.dataset.j],mt=b.dataset.m;
+  ksConfirm({title:'Подтвердить оплату?',ok:'Подтвердить оплату',
+    rows:[['Игрок',d.name],['Сумма',ksMoney(ev.price)],['За что','Дополнительная тренировка, '+String(ev.id).split('|')[0]],['Способ',mt]],
+    run:function(ok,bad){
+      run('appExtraPay',[pin,ev.id,d.name,mt,''],function(){
+        ok();
+        run('appDebtors',[pin,$('mon').value],function(r){R=r;show(true);setMsg('Внесено: '+d.name+', '+money(ev.price)+' ('+mt+').')},fail);
+      },bad);
+    }});
 };
 $('mon').onchange=function(){load(true)};
 $('grp').onchange=function(){show()};

@@ -14,10 +14,8 @@ function appMatchStats(pin) {
     var kind = par ? (par.type === 'Чемпионат' ? 'Чемпионат' : 'Турниры и кубки')
       : (e.type === 'Товарищеская' ? 'Товарищеские' : (e.type === 'Чемпионат' ? 'Чемпионат' : 'Турниры и кубки'));
     var opp = String(e.opp || '').trim();
-    var base = e.team.replace(/\s*-\s*[A-Za-z0-9]+$/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    var internal = !!opp && new RegExp('^' + base + '\\s*-\\s*[A-Za-z0-9]+$', 'i').test(opp);
     games.push({ id: id, team: e.team, kind: kind, title: par ? par.name : e.name, date: e.date, opp: opp,
-      gf: e.gf, ga: e.ga, internal: internal });
+      gf: e.gf, ga: e.ga });
     isG[id] = true;
   });
   var parts = [];

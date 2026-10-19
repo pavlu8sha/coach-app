@@ -93,7 +93,7 @@ function addEventCore_(o, isAdmin) {
     logChange_('', '', 'новое событие матчей', '', id + ': ' + team + ', ' + o.type + ', ' + name + (o.date ? ', ' + o.date : ''));
     cacheDropBig_('md_v2');
   }
-  var gsync = (!CONFIG.DRY_RUN && o.type === 'Игра') ? gnSyncGameSafe_(id) : '';
+  var gsync = (!CONFIG.DRY_RUN && (o.type === 'Игра' || o.type === 'Товарищеская' || o.type === 'Кубок')) ? gnSyncGameSafe_(id) : '';
   return { ok: true, dryRun: CONFIG.DRY_RUN, id: id, copied: copy.length, sync: gsync, fee: fee, feeWarning: feeWarning };
 }
 

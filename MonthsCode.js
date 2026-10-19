@@ -9,7 +9,7 @@ function revMonth_(m) { return m.split('.').reverse().join(''); }
 // Три месяца, листов которых ещё нет: считаем от текущего месяца или от последнего созданного листа (что позже).
 function appMonthOptions(pin, kind) {
   checkAdmin_(pin);
-  var ss = kind === 'pay' ? payFile_() : SpreadsheetApp.getActive();
+  var ss = kind === 'pay' ? payFile_() : attSS_();
   var names = ss.getSheets().map(function (s) { return s.getName(); }).filter(isMonth_);
   var now = new Date(), base = new Date(now.getFullYear(), now.getMonth(), 1), out = [];
   names.forEach(function (n) {

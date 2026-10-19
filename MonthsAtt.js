@@ -119,7 +119,7 @@ function appCreateAttMonth(pin, month) {
 }
 
 function createAttMonthCore_(month) {
-  var ss = SpreadsheetApp.getActive();
+  var ss = attSS_(); // лист месяца создаётся в таблице посещаемости (ATT_ID), куда пишутся отметки
   if (ss.getSheetByName(month)) throw new Error('Лист ' + month + ' уже есть');
   var tpl = ss.getSheetByName('ШАБЛОН МЕСЯЦА');
   if (!tpl) throw new Error('В файле нет листа «ШАБЛОН МЕСЯЦА»');

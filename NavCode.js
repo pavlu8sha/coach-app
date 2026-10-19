@@ -66,8 +66,10 @@ function doGet(e) {
     .replace('__URL__', url)
     .replace('__PAGE__', navPage);
   var sub = tabsHtml_(url, page);
+  // Общий слой дизайн-системы: токены, диалог подтверждения, состояние «Сохраняю…» (Ui.html)
+  var ui = HtmlService.createHtmlOutputFromFile('Ui').getContent();
   var html = HtmlService.createHtmlOutputFromFile(file).getContent()
-    .replace(/<body[^>]*>/i, function (m) { return m + nav + sub; });
+    .replace(/<body[^>]*>/i, function (m) { return m + nav + ui + sub; });
   var extra = '';
   (PAGE_EXTRAS_.hasOwnProperty(page) ? PAGE_EXTRAS_[page] : []).forEach(function (f) {
     extra += HtmlService.createHtmlOutputFromFile(f).getContent();

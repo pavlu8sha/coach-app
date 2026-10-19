@@ -11,6 +11,35 @@ function appAddOrder(pin, o) {
   try { return addOrderCore_(o); } finally { lock.releaseLock(); }
 }
 
+// Номер ORD-xxxx для нового заказа: первый свободный из пропусков в занятом диапазоне, иначе максимум + 1.
+// Занятые номера: у строк с заказом (колонка C) и уже связанные с фактом пошива (лист «ФАКТ ПОШИВА»).
+// Номера пустых строк (заранее прописанные в колонке N) не считаются занятыми.
+function nextOrdId_(sh) {
+  var last = Math.max(sh.getLastRow(), 1);
+  var nv = sh.getRange(1, 14, last, 1).getValues(), cv = sh.getRange(1, 3, last, 1).getValues();
+  var used = {}, nums = [];
+  function take(s) {
+    var m = /^ORD-(\d+)$/.exec(String(s).trim());
+    if (m) { used[Number(m[1])] = 1; nums.push(Number(m[1])); }
+  }
+  nv.forEach(function (r, i) { if (String(cv[i][0]).trim() !== '') take(r[0]); });
+  var fact = sh.getParent().getSheetByName('ФАКТ ПОШИВА');
+  if (fact && fact.getLastRow() > 1) fact.getRange(2, 1, fact.getLastRow() - 1, 1).getValues().forEach(function (r) { take(r[0]); });
+  if (!nums.length) return 'ORD-0001';
+  var lo = Math.min.apply(null, nums), hi = Math.max.apply(null, nums), n;
+  for (n = lo; n <= hi; n++) if (!used[n]) break;
+  return 'ORD-' + ('000' + n).slice(-4);
+}
+
+// Снимает такой же номер с пустых строк (остаток заранее прописанного списка), чтобы номер не дублировался.
+function clearStaleOrdId_(sh, id, keepRow) {
+  var last = Math.max(sh.getLastRow(), 1);
+  var nv = sh.getRange(1, 14, last, 1).getValues(), cv = sh.getRange(1, 3, last, 1).getValues();
+  nv.forEach(function (r, i) {
+    if (String(r[0]).trim() === id && String(cv[i][0]).trim() === '' && i + 1 !== keepRow) sh.getRange(i + 1, 14).clearContent();
+  });
+}
+
 function addOrderCore_(o) {
   // Комплект может быть из нескольких позиций через « + »: каждая должна быть в каталоге
   var cat = catalog_(true), parts = String(o.kit || '').split(' + ').map(function (x) { return x.trim(); }).filter(Boolean);
@@ -30,23 +59,29 @@ function addOrderCore_(o) {
   // Размер, номер и надпись не обязательны при создании: дописываются при изменении заказа (в Экипировке помечаются как незаполненные)
   if (missing.length) throw new Error('Для заказа укажите: ' + missing.join(', '));
   var sh = equipSheet_();
-  var clash = equipNumClash_(sh, o.id, o.num, 0);
-  if (clash) throw new Error('Номер ' + o.num + ' уже у игрока «' + clash + '» в этой группе. Выберите другой номер.');
+  // Повторяющиеся номера в группе пока разрешены: номер — желаемый игроком, окончательный выдаётся после жребия
   var rows = sh.getRange(EQ_FIRST, 1, EQ_ROWS, 12).getValues(), row = 0, i, c, empty;
   for (i = 0; i < rows.length && !row; i++) {
     empty = true;
     for (c = 1; c < 12; c++) { if (String(rows[i][c]).trim() !== '') empty = false; }
     if (empty && String(rows[i][0]).trim() !== '' && !isNaN(Number(rows[i][0]))) row = EQ_FIRST + i;
   }
+  // Повтор того же заказа за 15 секунд не записываем (строка заказа в журнале отличается только номером строки).
+  // Проверяем до вставки строки, чтобы при отказе в таблице ничего не менялось
+  if (!CONFIG.DRY_RUN && recentOrderDup_(o.id, o.kit, sum)) throw new Error('Похоже на повтор: такой заказ только что добавлен. Обновите страницу');
   if (!row) row = newOrderRow_(sh); // свободных строк нет: вставляем новую перед итогами
   var dateStr = o.date || today_();
   if (!CONFIG.DRY_RUN) {
     // Столбцы B:J одной записью (дата, ФИ, комплект, размер, надпись, номер, рассрочка, сумма, оплачено)
+    // номер заказа (ORD-xxxx) для «Производства» и «Факта пошива» — считаем до записи строки, пока она пустая
+    var ordId = nextOrdId_(sh);
+    clearStaleOrdId_(sh, ordId, row);
     var rg = sh.getRange(row, 2, 1, 9), nf = rg.getNumberFormats();
     nf[0][0] = 'dd.mm.yyyy'; nf[0][3] = '@'; nf[0][5] = '@';
     rg.setNumberFormats(nf);
     rg.setValues([[serialOf(dateStr), p.name, o.kit, String(o.size || ''), String(o.inscr || ''), String(o.num || ''), o.inst ? 'Да' : '', sum, paid]]);
     sh.getRange(row, 12).setValue(o.id);
+    sh.getRange(row, 14).setValue(ordId);
     equipSyncLocations_(sh);
     var k = sh.getRange(row, 11);
     // формула долга: копируем из строки выше (текст формулы из кода в таблице с нашим языком не всегда читается)
@@ -63,6 +98,17 @@ function addOrderCore_(o) {
   }
   return { ok: true, dryRun: CONFIG.DRY_RUN, row: row };
 }
+// Есть ли в журнале изменений за последние 15 секунд такой же новый заказ этого игрока (тот же комплект и сумма)
+function recentOrderDup_(id, kit, sum) {
+  var log = dbRead_('ЖУРНАЛ ИЗМЕНЕНИЙ');
+  if (!log || log.getLastRow() < 2) return false;
+  var last = log.getLastRow(), from = Math.max(2, last - 24), now = Date.now(), pre = kit + ', ' + sum + ' ₾';
+  return log.getRange(from, 1, last - from + 1, 6).getValues().some(function (r) {
+    return r[0] instanceof Date && now - r[0].getTime() <= 15000 && String(r[1]) === String(id)
+      && String(r[3]) === 'новый заказ экипировки' && String(r[5]).indexOf(pre) === 0;
+  });
+}
+
 // Новая строка заказа перед строкой итогов: вставляем строку и расширяем формулы итогов (SUM по столбцам I, J, K).
 // Если строка итогов не похожа на ожидаемую, останавливаемся, ничего не меняя.
 function newOrderRow_(sh) {

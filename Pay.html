@@ -132,9 +132,12 @@ $('list').onclick=function(e){
     f.hidden=!f.hidden;return;
   }
   if(b.classList.contains('dc')){
-    if(!b.dataset.sure){b.dataset.sure=1;b.textContent='Точно принять как скидку?';return}
-    var g2=D.groups[b.dataset.g],r2=g2.rows[b.dataset.r];b.disabled=true;
-    run('appSubDiscount',[pin,D.month,g2.name,r2.id,$('cm').value],function(x){done(x,'Принято как скидка.')},function(m){b.disabled=false;setMsg(m,true)});
+    var g2=D.groups[b.dataset.g],r2=g2.rows[b.dataset.r],M2=D.month,cm2=$('cm').value;
+    // Скидка закрывает остаток без поступления денег
+    ksConfirm({title:'Подтвердить скидку?',ok:'Подтвердить скидку',
+      text:'Оплата будет отмечена как закрытая за счёт скидки. Денежное поступление не регистрируется.',
+      rows:[['Игрок',r2.name],['За что','Абонемент, '+M2+', '+g2.name],['Внесено',ksMoney(r2.paid)+' из '+ksMoney(g2.tariff)],['Скидка',ksMoney(r2.debt)]],
+      run:function(ok,bad){run('appSubDiscount',[pin,M2,g2.name,r2.id,cm2],function(x){ok();done(x,'Принято как скидка.')},bad)}});
     return;
   }
   if(b.classList.contains('go2')){
@@ -142,10 +145,16 @@ $('list').onclick=function(e){
     var amt=Number(f2.querySelector('.pa').value),type=f2.querySelector('.ptype').value,pm=f2.querySelector('.pm');
     var pmb=f2.querySelector('.pmb[aria-pressed=true]'),method=pmb?pmb.dataset.m:'';
     if(!method){pm.textContent='Выберите способ оплаты';return}
+    if(!(amt>0)){pm.textContent='Введите сумму больше нуля';return}
     if(amt<r3.debt&&!type){pm.textContent='Выберите тип: скидка или частичный платёж';return}
-    b.disabled=true;
-    run('appSubPay',[pin,D.month,g3.name,r3.id,amt,type,$('dt').value,$('cm').value,method],
-      function(x){done(x,'Оплата внесена ('+x.kind+').')},function(m){b.disabled=false;pm.textContent=m});
+    pm.textContent='';
+    var M3=D.month,dt3=$('dt').value,cm3=$('cm').value,over=ksOverpay(amt,r3.debt);
+    ksConfirm({title:'Подтвердить оплату?',ok:'Подтвердить оплату',
+      warn:over?'Сумма больше остатка на '+ksMoney(over)+'. Вся сумма будет записана как оплата абонемента за '+M3+': внесено будет '+ksMoney(r3.paid+amt)+' из '+ksMoney(g3.tariff)+'.':'',
+      rows:[['Игрок',r3.name],['Сумма',ksMoney(amt)],['За что','Абонемент, '+M3+', '+g3.name],
+        ['Тип',amt>=r3.debt?'':type=='Частичный'?'Частичный платёж, останется долг '+ksMoney(r3.debt-amt):type=='Скидка'?'Скидка по договорённости, оплата принята':''],
+        ['Способ',method],['Дата',ksDateIfNotToday(dt3)],['Комментарий',cm3.trim()]],
+      run:function(ok,bad){run('appSubPay',[pin,M3,g3.name,r3.id,amt,type,dt3,cm3,method],function(x){ok();done(x,'Оплата внесена ('+x.kind+').')},bad)}});
   }
 };
 $('list').oninput=function(e){

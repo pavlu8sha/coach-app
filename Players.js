@@ -12,12 +12,12 @@ function checkAdmin_(pin) {
 }
 
 function today_() {
-  return Utilities.formatDate(new Date(), SpreadsheetApp.getActive().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
+  return Utilities.formatDate(new Date(), attSS_().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
 }
 
 function isoOf_(v) {
   if (v === '' || v === null || v === undefined) return '';
-  if (v instanceof Date) return Utilities.formatDate(v, SpreadsheetApp.getActive().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
+  if (v instanceof Date) return Utilities.formatDate(v, attSS_().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
   var n = Number(v);
   if (isNaN(n) || n < 1000) return '';
   return Utilities.formatDate(new Date(Date.UTC(1899, 11, 30) + Math.round(n) * 86400000), 'GMT', 'yyyy-MM-dd');
@@ -206,8 +206,11 @@ function appSetBirth(pin, id, date) {
     sh.getRange(target, 1, 1, 4).setValues([[id, p.name, d, new Date()]]);
     logChange_(id, p.name, 'Дата рождения', was, d);
     cacheDropBig_('bo_v1'); cacheDropBig_('birth_v1');
+    // Дата пишется и в колонку «Дата / дата рождения» файла оплат (на всех листах месяцев, где есть игрок)
+    var inPay = writeBirthToPay_(p.name, d);
+    cacheDropBig_('birth_v1');
   } finally { lock.releaseLock(); }
-  return { ok: true, dryRun: false };
+  return { ok: true, dryRun: false, inPay: inPay };
 }
 
 function appAddPlayer(pin, p) {

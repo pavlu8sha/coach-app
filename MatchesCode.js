@@ -50,6 +50,9 @@ function matchFeeCore_(eventId, playerId, amount, method, dateStr, comment) {
   if (cur.paid && !sum) throw new Error('Взнос уже отмечен как оплаченный');
   var newSum = Math.round((sum + amount) * 100) / 100, full = fee > 0 ? newSum >= fee : true;
   if (!CONFIG.DRY_RUN) {
+    // Повтор той же оплаты за 15 секунд (двойное нажатие, повторная отправка) не записываем: тот же приём, что у абонемента
+    if (isRecentDup_(dbRead_('ЖУРНАЛ ИЗМЕНЕНИЙ'), [[2, playerId], [4, 'взнос: ' + ev[1] + ', ' + ev[3]], [6, amount + ' ₾, ' + method]], 15))
+      throw new Error('Похоже на повтор: такой взнос только что записан. Обновите страницу');
     finUpsert_(eventId, playerId, String(rec[2]), { paid: full, sum: newSum, method: method, date: dateStr || today_(), comment: comment || '' });
     logChange_(playerId, String(rec[2]), 'взнос: ' + ev[1] + ', ' + ev[3], '', amount + ' ₾, ' + method);
   }

@@ -1,0 +1,166 @@
+<style>
+/* Общий слой дизайн-системы v1 (DESIGN_SYSTEM_V1.md). Подключается ко всем страницам после Nav.html.
+   Новые имена токенов — алиасы текущих: значения не меняются, старые имена продолжают работать. */
+:root{
+  --color-bg:var(--bg);--color-surface:var(--card);--color-text:var(--ink);--color-text-muted:var(--mute);
+  --color-border:var(--line);--color-primary:var(--g);--color-on-primary:var(--gi);
+  --color-primary-subtle:var(--pb);--color-neutral-fill:var(--n);--color-danger:var(--a);
+  --color-warning:#8A5A00;--color-warning-subtle:#FBEFCF;--color-danger-subtle:#F8E1DD;--color-danger-strong:#9E2B1F;--color-border-strong:#7A86A6;--color-on-danger:#fff;
+  --radius-xl:16px;--shadow-pop:0 8px 30px rgba(0,0,0,.18)
+}
+@media (prefers-color-scheme:dark){:root{
+  --color-warning:#E8C26A;--color-warning-subtle:#3A2F12;--color-danger-subtle:#3C1F1B;--color-danger-strong:#F0866F;--color-border-strong:#6474A6;--color-on-danger:#0B1020
+}}
+/* Широкий контейнер для таблиц и плотных списков: объявлен, применяется по одному экрану (этап G) */
+.ks-wide{max-width:960px;margin-left:auto;margin-right:auto}
+/* Состояние «Сохраняю…» у кнопки */
+.ks-loading{opacity:.7;cursor:progress!important}
+/* Диалог подтверждения */
+#ksdlg{position:fixed;top:0;right:0;bottom:0;left:0;z-index:80;display:none;align-items:center;justify-content:center;padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom));overscroll-behavior:contain;background:rgba(10,14,28,.55)}
+#ksdlg.ks-open{display:flex}
+#ksdlg .ks-box{width:100%;max-width:480px;max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px - env(safe-area-inset-bottom));overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:var(--color-surface,#fff);color:var(--color-text,#141C33);border:1px solid var(--color-border,#DADFEC);border-radius:var(--radius-xl);box-shadow:var(--shadow-pop);padding:20px;font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;box-sizing:border-box}
+#ksdlg h2{font-size:19px;margin:0 0 8px;font-weight:700}
+#ksdlg .ks-text{margin:0 0 12px;color:var(--color-text-muted,#5A6584);font-size:15px}
+#ksdlg dl{margin:0 0 12px;display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:15px}
+#ksdlg dt{color:var(--color-text-muted,#5A6584)}
+#ksdlg dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+#ksdlg .ks-warn{background:var(--color-warning-subtle);color:var(--color-warning);border-radius:12px;padding:10px 12px;margin:0 0 12px;font-size:14px;font-weight:600}
+#ksdlg .ks-warn b{display:block;margin-bottom:2px}
+#ksdlg .ks-warn span{font-weight:500}
+#ksdlg dd.ks-total{font-size:17px;font-weight:800}
+#ksdlg .ks-err{background:var(--color-danger-subtle);color:var(--color-danger-strong);border-radius:12px;padding:10px 12px;margin:0 0 12px;font-size:14px;font-weight:600}
+#ksdlg .ks-acts{display:flex;gap:8px;flex-direction:row-reverse}
+#ksdlg .ks-acts button{flex:1;min-height:48px;border-radius:14px;font:700 16px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer;padding:0 12px}
+#ksdlg .ks-ok{border:0;background:var(--color-primary,#25335A);color:var(--color-on-primary,#fff)}
+#ksdlg .ks-ok.ks-danger{background:var(--color-danger,#C0392B);color:var(--color-on-danger,#fff)}
+#ksdlg .ks-cancel{border:1px solid var(--color-border-strong,#7A86A6);background:var(--color-surface,#fff);color:var(--color-text,#141C33)}
+#ksdlg button:disabled{opacity:.6;cursor:progress}
+#ksdlg [hidden]{display:none!important}
+@media (max-width:420px){#ksdlg .ks-acts{flex-direction:column}}
+/* Очень узкий экран или крупный масштаб: меньше отступы, длинные слова переносятся */
+#ksdlg h2,#ksdlg .ks-text,#ksdlg .ks-warn,#ksdlg .ks-err,#ksdlg .ks-acts button{overflow-wrap:anywhere}
+@media (max-width:300px){#ksdlg{padding:8px}#ksdlg .ks-box{padding:12px;max-height:calc(100vh - 16px);max-height:calc(100dvh - 16px - env(safe-area-inset-bottom))}#ksdlg dl{grid-template-columns:1fr;gap:0}#ksdlg dd{margin-bottom:6px}}
+html.ks-dlg-lock,html.ks-dlg-lock body{overflow:hidden!important}
+</style>
+<div id="ksdlg" role="presentation">
+  <div class="ks-box" role="dialog" aria-modal="true" aria-labelledby="ksdlg-t" aria-describedby="ksdlg-x ksdlg-d ksdlg-w">
+    <h2 id="ksdlg-t"></h2>
+    <p class="ks-text" id="ksdlg-x" hidden></p>
+    <dl id="ksdlg-d"></dl>
+    <div class="ks-warns" id="ksdlg-w"></div>
+    <div class="ks-err" role="alert" hidden></div>
+    <div class="ks-acts"><button type="button" class="ks-ok"></button><button type="button" class="ks-cancel">Отмена</button></div>
+  </div>
+</div>
+<script>
+(function(){
+  var root=document.getElementById('ksdlg'),box=root.querySelector('.ks-box'),tt=root.querySelector('#ksdlg-t'),
+      tx=root.querySelector('.ks-text'),dl=root.querySelector('dl'),wr=root.querySelector('.ks-warns'),er=root.querySelector('.ks-err'),
+      ok=root.querySelector('.ks-ok'),cn=root.querySelector('.ks-cancel'),cur=null,busy=false,back=null;
+  function txt(s){return s===null||s===undefined?'':String(s)}
+  function close(){
+    if(!cur)return;
+    root.classList.remove('ks-open');document.documentElement.classList.remove('ks-dlg-lock');
+    var c=cur;cur=null;busy=false;
+    if(back&&back.focus&&document.contains(back)){try{back.focus()}catch(e){}}
+    back=null;
+    return c;
+  }
+  function cancel(){if(busy)return;var c=close();if(c&&c.onCancel)c.onCancel()}
+  function setBusy(on){
+    busy=on;ok.disabled=on;cn.disabled=on;
+    ok.textContent=on?'Сохраняю…':cur.ok;
+    ok.classList.toggle('ks-loading',on);
+  }
+  /* Диалог подтверждения.
+     o.title — заголовок; o.text — пояснение; o.rows — [[подпись, значение], …] (пустые значения пропускаются);
+     o.warn — предупреждение (строка, {title,text} или массив); строка сводки [подпись, значение, 'total'] — итог крупнее; o.ok — текст основной кнопки; o.danger — красная кнопка;
+     o.run(done, fail) — вызывается после «Подтвердить»: done() закрывает диалог, fail(текст) показывает ошибку в диалоге.
+     o.onCancel — при отмене. Возвращает false, если уже открыт другой диалог. */
+  window.ksConfirm=function(o){
+    if(cur)return false;
+    cur={ok:o.ok||'Подтвердить',run:o.run,onCancel:o.onCancel};
+    back=document.activeElement;
+    tt.textContent=txt(o.title);
+    tx.hidden=!o.text;tx.textContent=txt(o.text);
+    dl.innerHTML='';
+    (o.rows||[]).forEach(function(r){
+      if(!r||r[1]===null||r[1]===undefined||r[1]==='')return;
+      var a=document.createElement('dt'),b=document.createElement('dd');a.textContent=txt(r[0]);b.textContent=txt(r[1]);
+      if(r[2]==='total')b.className='ks-total';
+      dl.appendChild(a);dl.appendChild(b);
+    });
+    dl.hidden=!dl.children.length;
+    // o.warn — строка, {title, text} или массив из них: каждое предупреждение отдельной плашкой
+    wr.innerHTML='';
+    [].concat(o.warn||[]).forEach(function(w){
+      if(!w)return;
+      var d=document.createElement('div');d.className='ks-warn';
+      if(typeof w=='object'){var b=document.createElement('b');b.textContent=txt(w.title);d.appendChild(b);var sp=document.createElement('span');sp.textContent=txt(w.text);d.appendChild(sp)}
+      else d.textContent=txt(w);
+      wr.appendChild(d);
+    });
+    er.hidden=true;er.textContent='';
+    ok.classList.toggle('ks-danger',!!o.danger);
+    setBusy(false);
+    root.classList.add('ks-open');document.documentElement.classList.add('ks-dlg-lock');
+    // Фокус на «Отмена» без прокрутки к кнопке; новый диалог всегда с начала: заголовок и сумма видны сразу
+    try{cn.focus({preventScroll:true})}catch(e){cn.focus()}
+    box.scrollTop=0;
+    return true;
+  };
+  ok.onclick=function(){
+    if(!cur||busy)return;
+    var c=cur;setBusy(true);er.hidden=true;
+    var fin=false;
+    function done(){if(fin||cur!==c)return;fin=true;close()}
+    function fail(m){
+      if(fin||cur!==c)return;fin=true;setBusy(false);
+      // Неверный код: диалог закрывается, страница показывает экран входа (одинаково на всех страницах)
+      if(/Неверный код/.test(txt(m))){close();ksAuthFail(m);return}
+      er.textContent=typeof friendly_=='function'?friendly_(m):txt(m);er.hidden=false;
+    }
+    try{c.run(done,fail)}catch(e){fail(e&&e.message?e.message:String(e))}
+  };
+  cn.onclick=cancel;
+  root.addEventListener('mousedown',function(e){if(e.target===root)cancel()});
+  document.addEventListener('keydown',function(e){
+    if(!cur)return;
+    if(e.key==='Escape'){e.preventDefault();cancel();return}
+    if(e.key==='Tab'){
+      var f=[].filter.call(box.querySelectorAll('button'),function(b){return !b.disabled});
+      if(!f.length){e.preventDefault();return}
+      var i=f.indexOf(document.activeElement);
+      if(e.shiftKey&&(i<=0)){e.preventDefault();f[f.length-1].focus()}
+      else if(!e.shiftKey&&(i<0||i===f.length-1)){e.preventDefault();f[0].focus()}
+    }
+  },true);
+  window.ksDialogOpen=function(){return !!cur};
+  /* Ошибка кода доступа во время действия: экран входа страницы, а если его нет — перезагрузка */
+  function ksAuthFail(m){
+    var t=/администратора/.test(txt(m))?'Неверный код администратора':'Неверный код доступа';
+    if(typeof window.showLogin=='function'){try{window.showLogin(t);return}catch(e){}}
+    try{location.reload()}catch(e){}
+  }
+  window.ksAuthFail=ksAuthFail;
+  /* Блокировка кнопки на время запроса: ksBusy(кнопка, true[, текст]) / ksBusy(кнопка, false) */
+  window.ksBusy=function(b,on,label){
+    if(!b)return;
+    if(on){if(b.dataset.ksText===undefined)b.dataset.ksText=b.textContent;b.disabled=true;b.classList.add('ks-loading');b.setAttribute('aria-busy','true');if(label)b.textContent=label}
+    else{b.disabled=false;b.classList.remove('ks-loading');b.removeAttribute('aria-busy');if(b.dataset.ksText!==undefined){b.textContent=b.dataset.ksText;delete b.dataset.ksText}}
+  };
+  /* Формат суммы для сводок: 165 → «165 ₾», 82.5 → «82,5 ₾» */
+  window.ksMoney=function(n){return String(Math.round((Number(n)||0)*100)/100).replace('.',',')+' ₾'};
+  /* Дата yyyy-mm-dd → дд.мм.гггг; пусто, если дата сегодняшняя */
+  window.ksDateIfNotToday=function(s){
+    var m=/^(\d{4})-(\d\d)-(\d\d)$/.exec(String(s||''));if(!m)return '';
+    var d=new Date(),z=function(n){return(n<10?'0':'')+n},t=d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate());
+    return s===t?'':m[3]+'.'+m[2]+'.'+m[1];
+  };
+  /* Предупреждение о переплате: сумма больше остатка */
+  window.ksOverpay=function(amount,left){
+    amount=Number(amount)||0;left=Number(left)||0;
+    return amount>left+0.001?Math.round((amount-left)*100)/100:0;
+  };
+})();
+</script>

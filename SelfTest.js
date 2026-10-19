@@ -36,8 +36,8 @@ function selfTest() {
     if (prop_('ATT_ID') !== ss.getId()) throw new Error('ATT_ID указывает на другой файл, чем таблица, к которой привязан скрипт');
   });
   check('файл «Игры / Тренировки»', function () {
-    var f = SpreadsheetApp.openById(gnFileId_());
-    return f.getName() + (prop_('GN_ID') ? '' : ' (свойство GN_ID не задано, используется файл по умолчанию)');
+    var f = gnFile_();
+    return f.getName() + (gnIsProd_() ? ' (боевой проект)' : ' (тестовый проект, свойство GN_FILE_ID)');
   });
   check('настройки', function () {
     var bad = appSettings(prop_('APP_ADMIN_PIN')).items.filter(function (x) { return x.error; });

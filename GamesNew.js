@@ -58,10 +58,59 @@ function gnResult_(m) {
 
 // ---- Тренировки и статистика за месяц (только чтение) ----
 
-// Таблица 1Cf4: листы «Игры» и «Тренировки». ID берётся из свойства GN_ID (чтобы на копии работать с копией),
-// без свойства — прежний файл.
-var GN_FILE_ID_DEFAULT = '1Cf4jRMEh8078EcMuzcrpUnPyB1g9_XdDzulxSOC3vC4';
-function gnFileId_() { return prop_('GN_ID') || GN_FILE_ID_DEFAULT; }
+// Файл тренировок: листы «Игры», «Тренировки», «Справочники».
+// Окружение определяется по ID самого скрипта, а не по настройке:
+// - боевой проект (GN_PROD_SCRIPT_ID) всегда открывает боевой файл GN_FILE_ID, свойство GN_FILE_ID игнорируется;
+// - любой другой проект (тестовая копия) открывает только файл из свойства скрипта GN_FILE_ID.
+//   Нет свойства, оно совпадает с боевым ID или файл не открывается — ошибка. Боевой файл не подставляется никогда.
+var GN_FILE_ID = '1Cf4jRMEh8078EcMuzcrpUnPyB1g9_XdDzulxSOC3vC4';
+var GN_PROD_SCRIPT_ID = '1f1a73JcO3XNJdUsB1qSrpFKtSn2AAOMVtzTFBSGu3dHmpWH4xOjFDp7w';
+var _gnFile = null;
+
+// Последние 4 символа ID — для сообщений и логов (полный ID не показываем)
+function gnMaskId_(id) { id = String(id || ''); return id ? '…' + id.slice(-4) : '(пусто)'; }
+
+function gnIsProd_() { return ScriptApp.getScriptId() === GN_PROD_SCRIPT_ID; }
+
+// Какой ID файла тренировок у этого проекта. В тестовом проекте при ошибке настройки — исключение.
+function gnFileId_() {
+  if (gnIsProd_()) return GN_FILE_ID;
+  var id = String(PropertiesService.getScriptProperties().getProperty('GN_FILE_ID') || '').trim();
+  if (!id) throw new Error('Тестовый файл тренировок не настроен: задайте свойство скрипта GN_FILE_ID (ID копии файла тренировок)');
+  if (id === GN_FILE_ID) throw new Error('В тестовом проекте свойство GN_FILE_ID указывает на боевой файл тренировок. Укажите ID копии');
+  return id;
+}
+
+// Единственная точка открытия файла тренировок
+function gnFile_() {
+  if (_gnFile) return _gnFile;
+  var id = gnFileId_();
+  try { _gnFile = SpreadsheetApp.openById(id); }
+  catch (e) {
+    if (gnIsProd_()) throw new Error('Не удалось открыть файл тренировок');
+    throw new Error('Тестовый файл тренировок (' + gnMaskId_(id) + ') не открывается: проверьте свойство GN_FILE_ID и доступ к файлу');
+  }
+  return _gnFile;
+}
+
+// Запускать из редактора: окружение и файлы проекта (названия и последние 4 символа ID). Ничего не записывает.
+function envCheck() {
+  var prod = gnIsProd_(), out = ['Окружение: ' + (prod ? 'БОЕВОЕ' : 'ТЕСТОВОЕ') + ' (скрипт ' + gnMaskId_(ScriptApp.getScriptId()) + ')'];
+  function line(label, fn) {
+    try { var f = fn(); out.push(label + ': «' + f.getName() + '» ' + gnMaskId_(f.getId())); }
+    catch (e) { out.push(label + ': ОШИБКА — ' + e.message); }
+  }
+  line('Файл тренировок (GN_FILE_ID)', gnFile_);
+  line('Таблица посещаемости (скрипт привязан)', function () { return SpreadsheetApp.getActive(); });
+  ['ADMIN_ID', 'PAY_ID', 'EQUIP_ID', 'EXTRA_ID', 'IND_ID', 'ATT_ID', 'GAMES_ID', 'FUNNEL_ID'].forEach(function (k) {
+    var id = PropertiesService.getScriptProperties().getProperty(k);
+    if (!id) { out.push(k + ': не задано'); return; }
+    line(k, function () { return SpreadsheetApp.openById(id); });
+  });
+  if (!prod) out.push('Проверьте: все названия выше — копии (с пометкой ТЕСТ). Если хоть одно боевое — не входите в приложение, исправьте свойство.');
+  Logger.log(out.join('\n'));
+  return out;
+}
 
 function gnStr_(v) {
   if (v instanceof Date) {
@@ -74,8 +123,8 @@ function gnStr_(v) {
 }
 
 function gnValues_(name) {
-  var sh = SpreadsheetApp.openById(gnFileId_()).getSheetByName(name);
-  if (!sh) throw new Error('В таблице нет листа «' + name + '»');
+  var sh = gnFile_().getSheetByName(name);
+  if (!sh) throw new Error('В файле тренировок нет листа «' + name + '»');
   // Берём отображаемые значения: время в таблице не превращается в дату и не сдвигается по часовому поясу
   return sh.getDataRange().getDisplayValues().map(function (r) { return r.map(gnStr_); });
 }
@@ -171,8 +220,8 @@ function gnNextGameRow_(sh, row) {
 
 // Заменяет весь состав игры. rows — [[имя, роль, 'Да'|'Нет'], ...]. Строки игры — от её начала до следующей игры.
 function gnSetGameStaff_(date, team, opp, rows) {
-  var sh = SpreadsheetApp.openById(gnFileId_()).getSheetByName('Игры');
-  if (!sh) throw new Error('в таблице 1Cf4 нет листа «Игры»');
+  var sh = gnFile_().getSheetByName('Игры');
+  if (!sh) throw new Error('в файле тренировок нет листа «Игры»');
   var row = gnFindGameRow_(sh, date, team, opp);
   if (!row) throw new Error('игра ' + date + ' ' + team + ' ' + opp + ' не найдена в «Игры»');
   var next = gnNextGameRow_(sh, row);
@@ -222,15 +271,15 @@ function appGameStaffSet(pin, date, team, opp, staff) {
   }
 }
 
-// ---- Тренировки в таблице 1Cf4 (лист «Тренировки») ----
+// ---- Тренировки в файле тренировок (лист «Тренировки») ----
 
 var GN_TR_HEAD = ['Дата', 'День недели', 'Тренер', 'Локация', 'Группа', 'Тип тренировки', 'Начало', 'Конец', 'Часы', 'Проведено'];
 var GN_WEEKDAYS = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
 
-// Лист «Тренировки» в таблице 1Cf4 (он уже существует)
+// Лист «Тренировки» в файле тренировок (он уже существует)
 function gnTrainingsSheet_() {
-  var sh = SpreadsheetApp.openById(gnFileId_()).getSheetByName('Тренировки');
-  if (!sh) throw new Error('В таблице 1Cf4 нет листа «Тренировки»');
+  var sh = gnFile_().getSheetByName('Тренировки');
+  if (!sh) throw new Error('В файле тренировок нет листа «Тренировки»');
   return sh;
 }
 
@@ -267,11 +316,22 @@ function appTrainingAdd(pin, o) {
   var p = o.date.split('.'), wd = GN_WEEKDAYS[new Date(+p[2], +p[1] - 1, +p[0]).getDay()];
   var hours = gnHours_(o.start, o.end);
   if (CONFIG.DRY_RUN) return { dryRun: true, hours: hours };
-  var sh = gnTrainingsSheet_(), r = gnInsertRowFor_(sh, o.date);
-  nfSafe_(sh.getRange(r, 1, 1, 10), '@').setValues([[o.date, wd, String(o.trainer).trim(), String(o.location || ''),
-    String(o.group || ''), String(o.type || ''), String(o.start || ''), String(o.end || ''), String(hours).replace('.', ','), o.held === false ? 'Нет' : 'Да']]);
-  logChange_('', '', 'тренировка (раздел Игры)', '', o.date + ' ' + o.trainer + ' ' + (o.group || ''));
-  return { ok: true, row: r, hours: hours };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    // Та же тренировка того же тренера за 15 секунд — повторное нажатие: вторую строку не пишем
+    // Время начала в ключе: две тренировки одного тренера и группы в разное время — не повтор
+    var logText = o.date + ' ' + o.trainer + ' ' + (o.group || '') + (o.start ? ' ' + o.start : '');
+    if (isRecentDup_(dbRead_('ЖУРНАЛ ИЗМЕНЕНИЙ'), [[4, 'тренировка (раздел Игры)'], [6, logText]], 15))
+      throw new Error('Похоже на повтор: такая тренировка только что добавлена. Обновите страницу');
+    var sh = gnTrainingsSheet_(), r = gnInsertRowFor_(sh, o.date);
+    nfSafe_(sh.getRange(r, 1, 1, 10), '@').setValues([[o.date, wd, String(o.trainer).trim(), String(o.location || ''),
+      String(o.group || ''), String(o.type || ''), String(o.start || ''), String(o.end || ''), String(hours).replace('.', ','), o.held === false ? 'Нет' : 'Да']]);
+    logChange_('', '', 'тренировка (раздел Игры)', '', logText);
+    return { ok: true, row: r, hours: hours };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // ---- Страница «Учёт» (только админ): месяцы, тренировки месяца ----
@@ -296,7 +356,23 @@ function appTrainingsList(pin, month) {
   });
 }
 
-// ---- Справочники для форм (только чтение) ----
+// ---- Справочники для форм ----
+
+// Добавить тренера в список «Справочники» (столбец A, A2:A10 — по нему строятся списки в «Игры»). Только админ.
+function appAddTrainer(pin, name) {
+  checkAdmin_(pin);
+  var n = String(name || '').trim();
+  if (!n) throw new Error('Введите имя тренера');
+  var sh = gnFile_().getSheetByName('Справочники');
+  if (!sh) throw new Error('В файле тренировок нет листа «Справочники»');
+  var col = sh.getRange('A2:A10').getDisplayValues().map(function (r) { return String(r[0]).trim(); });
+  if (col.indexOf(n) >= 0) throw new Error('Тренер «' + n + '» уже есть в списке');
+  var free = col.indexOf('');
+  if (free < 0) throw new Error('В «Справочники» нет свободной строки в A2:A10: расширьте диапазон проверки для тренеров');
+  sh.getRange(free + 2, 1).setValue(n);
+  logChange_('', '', 'новый тренер', '', n);
+  return { ok: true, name: n };
+}
 
 // Колонки листа «Справочники»: A тренеры, B локации, C группы, D типы тренировок
 function appTrainingOptions(pin) {
@@ -488,7 +564,7 @@ function appConfirmDaily(pin, o) {
   return { ok: true, written: n };
 }
 
-// ---- Игры в таблице 1Cf4 (лист «Игры»): запись из раздела «Матчи» ----
+// ---- Игры в файле тренировок (лист «Игры»): запись из раздела «Матчи» ----
 
 // Латиница в названии команды → кириллица, как в выпадающем списке листа «Игры»: «U9-A» → «U9-А»
 function gnTeamRu_(s) {
@@ -526,22 +602,25 @@ function gnSyncGame_(eventId) {
   var tz = msh.getParent().getSpreadsheetTimeZone();
   var rows = msh.getDataRange().getValues().slice(1);
   var ev = rows.filter(function (r) { return String(r[0]) === String(eventId); })[0];
-  if (!ev || String(ev[2]) !== 'Игра') return '';            // в «Игры» идут отдельные игры турнира
+  // В «Игры» идут игры турнира (тип «Игра») и отдельные товарищеские и кубковые матчи (соперник — название)
+  var standalone = !!ev && (String(ev[2]) === 'Товарищеская' || String(ev[2]) === 'Кубок');
+  if (!ev || (String(ev[2]) !== 'Игра' && !standalone)) return '';
   if (!(ev[4] instanceof Date)) throw new Error('у игры не указана дата');
   var par = rows.filter(function (r) { return String(r[0]) === String(ev[6]); })[0] || [];
   var date = Utilities.formatDate(ev[4], tz, 'dd.MM.yyyy');
-  // Для команды U9 конкретная группа (U9-A / U9-B) записана в колонке «Сторона»
+  // Для команды U9 конкретная группа (U9-A / U9-B) записана в колонке «Сторона»; в «Игры» пишем латиницей, как в списке
   var side = String(ev[10] || '').trim();
-  var team = /^U\d/.test(side) ? side : gnTeamRu_(ev[1]);
-  var opp = String(ev[7] || par[7] || '').trim();
+  var team = /^U\d/.test(side) ? side : String(ev[1]).trim();
+  // Соперник — поле «Соперник» карточки игры (столбец H «Матчи»); название события им не является
+  var opp = String(ev[7] || (standalone ? '' : par[7]) || '').trim();
   var hasScore = ev[8] !== '' && ev[8] != null && ev[9] !== '' && ev[9] != null && !isNaN(Number(ev[8])) && !isNaN(Number(ev[9]));
   var score = hasScore ? Number(ev[8]) + ':' + Number(ev[9]) : '';
   var goals = partsSheet_().getDataRange().getValues().slice(1)
     .filter(function (r) { return String(r[0]) === String(eventId) && Number(r[10]) > 0; })
     .map(function (r) { return String(r[2]).trim() + (Number(r[10]) > 1 ? ' - ' + Number(r[10]) : ''); }).join(', ');
 
-  var sh = SpreadsheetApp.openById(gnFileId_()).getSheetByName('Игры');
-  if (!sh) throw new Error('в таблице 1Cf4 нет листа «Игры»');
+  var sh = gnFile_().getSheetByName('Игры');
+  if (!sh) throw new Error('в файле тренировок нет листа «Игры»');
   var vals = sh.getDataRange().getValues(), at = 0;
   for (var i = 1; i < vals.length; i++) {
     var d = vals[i][0] instanceof Date ? Utilities.formatDate(vals[i][0], tz, 'dd.MM.yyyy') : String(vals[i][0]).trim();

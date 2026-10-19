@@ -80,6 +80,8 @@ function money(n){return String(Math.round(n*100)/100).replace('.',',')+' ₾'}
 function gl(k){try{return localStorage.getItem(k)||''}catch(e){return''}}
 function sl(k,v){try{localStorage.setItem(k,v)}catch(e){}}
 function msg(t,bad){$('msg').textContent=t||'';$('msg').className='msg'+(bad?' err':'')}
+// Ошибка в диалоге: снимаем занятость экрана; неверный код обрабатывает общий диалог (Ui.html)
+function failIn(bad){return function(m){busy=false;bad(m)}}
 function showLogin(t){$('app').hidden=true;$('login').hidden=false;$('lerr').textContent=t||''}
 function showApp(){$('login').hidden=true;$('app').hidden=false}
 function dl(d){var p=d.split('-'),w=['вс','пн','вт','ср','чт','пт','сб'][new Date(Date.UTC(+p[0],+p[1]-1,+p[2])).getUTCDay()];return w+' '+p[2]+'.'+p[1]}
@@ -227,14 +229,20 @@ $('list').onclick=function(ev){
   var b=ev.target.closest('button');if(!b||busy||!b.dataset.a)return;
   var a=b.dataset.a,e=D.events[b.dataset.e],p=e&&e.players[b.dataset.p];
   if(a=='pay'){
-    var amt='';
+    // Быстрая кнопка выбирает способ и открывает подтверждение; сумма — цена тренировки или поле над списком игроков
+    var amt='',mt=b.dataset.m;
     if(!e.price){amt=$('pa'+b.dataset.e).value;if(!(Number(amt)>0)){msg('Введите сумму оплаты',true);return}}
-    go('appExtraPay',[pin,e.id,p.name,b.dataset.m,amt],'Оплата принята: '+p.name);
-  }else if(a=='unpay'||a=='rm'){
+    ksConfirm({title:'Подтвердить оплату?',ok:'Подтвердить оплату',rows:extraRows(p.name,p.group,e,e.price||amt,mt),
+      run:function(ok,bad){busy=true;run('appExtraPay',[pin,e.id,p.name,mt,amt],function(){ok();msg('Оплата принята: '+p.name);load()},failIn(bad))}});
+  }else if(a=='unpay'){
+    ksConfirm({title:'Отменить оплату?',ok:'Отменить оплату',danger:true,
+      text:'Отметка об оплате будет снята, у игрока снова появится долг за эту тренировку.',
+      rows:extraRows(p.name,p.group,e,e.price,''),
+      run:function(ok,bad){busy=true;run('appExtraUnpay',[pin,e.id,p.name],function(){ok();msg('Оплата отменена: '+p.name);load()},failIn(bad))}});
+  }else if(a=='rm'){
     if(armed!=b.dataset.k){armed=b.dataset.k;render();return}
     armed='';
-    if(a=='unpay')go('appExtraUnpay',[pin,e.id,p.name],'Оплата отменена: '+p.name);
-    else go('appExtraRemove',[pin,e.id,p.name],'Игрок снят: '+p.name);
+    go('appExtraRemove',[pin,e.id,p.name],'Игрок снят: '+p.name);
   }else if(a=='add'){
     var nm=$('in'+b.dataset.e).value.trim();if(!nm){msg('Укажите имя игрока',true);return}
     var g='гость';PL.forEach(function(x){if(x.name.toLowerCase()==nm.toLowerCase()){g=x.group;nm=x.name}});
@@ -242,9 +250,18 @@ $('list').onclick=function(ev){
   }else if(a=='eedit'){editing=e.id;open[e.id]=true;armed='';render()}
   else if(a=='ecancel'){editing='';render()}
   else if(a=='esave'){
-    var i=b.dataset.e,d=$('ed'+i).value;
+    var i=b.dataset.e,d=$('ed'+i).value,na=$('ea'+i).value,pl=$('ep'+i).value;
     if(!d){msg('Укажите дату',true);return}
-    editing='';go('appExtraEventEdit',[pin,e.id,d,$('ea'+i).value,$('ep'+i).value],'Тренировка изменена');
+    // Цена меняется у тренировки, где уже есть записанные игроки: подтверждаем (риск средний)
+    var changed=na!==''&&Number(na)!==Number(e.price||0),who=e.players.length;
+    if(changed&&who){
+      ksConfirm({title:'Изменить цену тренировки?',ok:'Изменить цену',
+        text:'Долг неоплативших игроков будет считаться по новой цене.',
+        rows:[['Тренировка',dl(e.date)],['Было',e.price?ksMoney(e.price):'не задана'],['Станет',ksMoney(na)],['Записано игроков',String(who)]],
+        run:function(ok,bad){busy=true;run('appExtraEventEdit',[pin,e.id,d,na,pl],function(){ok();editing='';msg('Тренировка изменена');load()},function(m){busy=false;bad(m)})}});
+      return;
+    }
+    editing='';go('appExtraEventEdit',[pin,e.id,d,na,pl],'Тренировка изменена');
   }else if(a=='edel'){
     var k='d'+e.id;if(armed!=k){armed=k;render();return}
     armed='';go('appExtraEventDelete',[pin,e.id],'Тренировка удалена');
@@ -252,9 +269,14 @@ $('list').onclick=function(ev){
 };
 $('dlist').onclick=function(ev){
   var b=ev.target.closest('button');if(!b||busy||b.dataset.a!='dpay')return;
-  var d=D.debts[b.dataset.i],e=d.events[b.dataset.j];
-  go('appExtraPay',[pin,e.id,d.name,b.dataset.m,''],'Оплата принята: '+d.name);
+  var d=D.debts[b.dataset.i],e=d.events[b.dataset.j],mt=b.dataset.m;
+  ksConfirm({title:'Подтвердить оплату?',ok:'Подтвердить оплату',rows:extraRows(d.name,d.group,e,e.price,mt),
+    run:function(ok,bad){busy=true;run('appExtraPay',[pin,e.id,d.name,mt,''],function(){ok();msg('Оплата принята: '+d.name);load()},failIn(bad))}});
 };
+// Сводка для диалога: игрок или гость, сумма, тренировка, способ
+function extraRows(name,group,e,amt,mt){
+  return [[group=='гость'?'Гость':'Игрок',name],['Сумма',amt?ksMoney(amt):''],['За что','Дополнительная тренировка, '+dl(e.date)],['Способ',mt]];
+}
 $('nd').value=today();
 $('nadd').onclick=function(){
   if(busy)return;
