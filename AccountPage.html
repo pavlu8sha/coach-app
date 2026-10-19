@@ -35,6 +35,9 @@ label input{width:auto;min-height:0}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
 .chips button{min-height:36px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--ink);padding:4px 12px}
 .chips button.on{background:var(--g);color:var(--gi);border-color:var(--g)}
+/* DS-016: статус тренировки в таблице — плашка (DESIGN_SYSTEM_V1 §6.3): «записана» — success, «не проводилась» — нейтральная */
+span.chip{display:inline-block;font-size:12px;font-weight:600;line-height:1.5;border-radius:999px;padding:1px 10px;white-space:nowrap;background:var(--color-neutral-fill,#D2D8E6);color:var(--ink)}
+span.chip.on{background:var(--color-success-subtle,#DFF2E7);color:var(--color-success,#1E7A4C)}
 .top{display:flex;justify-content:space-between;gap:8px;font-weight:700}
 .bar{height:6px;border-radius:3px;background:var(--n);margin-top:8px;overflow:hidden}.bar i{display:block;height:100%;background:var(--g)}
 .sub{color:var(--mute);font-size:13px;margin-top:8px}
