@@ -121,7 +121,9 @@ var LOC_ORD={red:0,oth:1,rest:2,none:3};
 // Обязательные данные заказа (для любого комплекта): размер, номер, надпись. Номер уникален внутри точной группы (U13-A, U13-B и U13-C — отдельно).
 function missOf(o){var m=[];if(!o.kit)m.push('комплект');if(!(o.sum>0))m.push('сумма');if(!String(o.size||'').trim())m.push('размер');if(!String(o.num||'').trim())m.push('номер');if(nn(o.kit)!=='тренировочная'&&!String(o.inscr||'').trim())m.push('надпись');return m}
 var DUP={};
-function isDup(o,p){if(!p||!String(o.num||'').trim())return false;return Object.keys(DUP[String(p.group||'').trim()+'|'+nn(o.num)]||{}).length>1}
+// Номера через запятую или «/»: «9,19» даёт отдельные номера 9 и 19
+function numToks(s){return String(s||'').split(/[\/,]/).map(function(x){return nn(x)}).filter(Boolean)}
+function isDup(o,p){if(!p)return false;return numToks(o.num).some(function(x){return Object.keys(DUP[String(p.group||'').trim()+'|'+x]||{}).length>1})}
 function rows(){
   var by={};
   O.forEach(function(o){if(!o.id)return;(by[o.id]=by[o.id]||[]).push(o)});
@@ -189,7 +191,7 @@ function show(){
   var q=nn($('q').value),g=$('fg').value,fv=$('fs').value;
   // Итог по всему файлу экипировки (все заказы, и с привязкой, и без): совпадает с итогами в таблице
   var PM={};P.forEach(function(p){PM[p.id]=p});
-  DUP={};O.forEach(function(o){var p=PM[o.id];if(!p||!String(o.num||'').trim())return;var k=String(p.group||'').trim()+'|'+nn(o.num);(DUP[k]=DUP[k]||{})[o.id]=1});
+  DUP={};O.forEach(function(o){var p=PM[o.id];if(!p)return;numToks(o.num).forEach(function(x){var k=String(p.group||'').trim()+'|'+x;(DUP[k]=DUP[k]||{})[o.id]=1})});
   var AS=0,AP=0,AD=0,AA=O.concat(UNL),NP=0;
   var UA=0,UP=0,UD=0;UNL.forEach(function(o){UA+=o.sum;UP+=o.paid;UD+=o.debt});
   AA.forEach(function(o){AS+=o.sum;AP+=o.paid;AD+=o.debt;if(missOf(o).length||isDup(o,PM[o.id]))NP++});
