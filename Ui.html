@@ -12,10 +12,14 @@
   /* DS-011 (вариант б): бывшие локальные токены страниц — в общем слое */
   --ab:var(--color-danger-subtle);--okbg:var(--color-primary-subtle)
 }
-@media (prefers-color-scheme:dark){:root{
+@media (prefers-color-scheme:dark){html:not([data-theme=light]):root{
   --color-warning:#E8C26A;--color-warning-subtle:#3A2F12;--color-danger-subtle:#3C1F1B;--color-danger-strong:#F0866F;--color-border-strong:#6474A6;--color-on-danger:#0B1020;
   --color-success:#5FC48D;--color-success-subtle:#16382A;--color-neutral-strong:#97A3C2;--color-on-status:#0B1020
 }}
+html[data-theme=dark]:root{
+  --color-warning:#E8C26A;--color-warning-subtle:#3A2F12;--color-danger-subtle:#3C1F1B;--color-danger-strong:#F0866F;--color-border-strong:#6474A6;--color-on-danger:#0B1020;
+  --color-success:#5FC48D;--color-success-subtle:#16382A;--color-neutral-strong:#97A3C2;--color-on-status:#0B1020
+}
 /* Широкий контейнер для таблиц и плотных списков (UI-004, затем по одному экрану): выходит из узкой колонки
    страницы до 960 px и центрируется; на телефоне равен ширине колонки. Формы остаются узкими. */
 .ks-wide{--ks-w:min(960px,calc(100vw - 32px));width:var(--ks-w);max-width:none;margin-left:calc(50% - var(--ks-w) / 2);margin-right:0}

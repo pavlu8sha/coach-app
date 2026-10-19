@@ -1,6 +1,8 @@
 <style>
 :root{--sh:0 1px 2px rgba(20,32,26,.07),0 2px 8px rgba(20,32,26,.04);--navh:64px}
-@media(prefers-color-scheme:dark){:root{--sh:none}}
+/* Тема: «Авто» — по системе; html[data-theme=light|dark] — выбор пользователя (меню «Ещё», хранится в браузере) */
+@media(prefers-color-scheme:dark){html:not([data-theme=light]){--sh:none;color-scheme:dark}}
+html[data-theme=dark]{--sh:none;color-scheme:dark}html[data-theme=light]{color-scheme:light}
 html{-webkit-text-size-adjust:100%}
 body{background:var(--bg)!important;color:var(--ink)!important;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif!important}
 h1{font-size:24px!important;letter-spacing:-.01em}
@@ -41,8 +43,10 @@ html:not([data-ok]) #ksnav,html:not([data-ok]) [data-gate]{display:none!importan
 :root:root{--bg:#F3F5FA;--card:#fff;--ink:#141C33;--mute:#5A6584;--line:#DADFEC;
 --g:#25335A;--gi:#fff;--pb:#DDE4F6;--n:#D2D8E6;--a:#C0392B}
 @media (prefers-color-scheme:dark){
-:root:root{--bg:#0D1324;--card:#161F38;--ink:#E8ECF7;--mute:#97A3C2;--line:#27325A;
+html:not([data-theme=light]):root:root{--bg:#0D1324;--card:#161F38;--ink:#E8ECF7;--mute:#97A3C2;--line:#27325A;
 --g:#7F9DEB;--gi:#0B1020;--pb:#1F2D54;--n:#2F3B63;--a:#F0866F}}
+html[data-theme=dark]:root:root{--bg:#0D1324;--card:#161F38;--ink:#E8ECF7;--mute:#97A3C2;--line:#27325A;
+--g:#7F9DEB;--gi:#0B1020;--pb:#1F2D54;--n:#2F3B63;--a:#F0866F}
 html,body{overflow-x:hidden;max-width:100%}
 *,*::before,*::after{box-sizing:border-box}
 img,table,select,input,textarea{max-width:100%}
@@ -75,6 +79,13 @@ img,table,select,input,textarea{max-width:100%}
   document.documentElement.setAttribute('data-page',PAGE);
   function get(k){try{return localStorage.getItem(k)||''}catch(e){return''}}
   function set(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+  // Тема: '' — как в системе, 'light' / 'dark' — вручную
+  function theme(){var t=get('kstheme');return t=='light'||t=='dark'?t:''}
+  function applyTheme(){var t=theme();if(t)document.documentElement.setAttribute('data-theme',t);else document.documentElement.removeAttribute('data-theme')}
+  applyTheme();
+  window.ksTheme=theme;
+  window.ksSetTheme=function(t){set('kstheme',t||'');applyTheme();if(role)show();try{document.dispatchEvent(new Event('kstheme'))}catch(e){}};
+  function themeSw(){var t=theme();return'<div class="ksmode" aria-label="Тема"><button data-t=""'+(t?'':' class="on"')+'>Авто</button><button data-t="light"'+(t=='light'?' class="on"':'')+'>Светлая</button><button data-t="dark"'+(t=='dark'?' class="on"':'')+'>Тёмная</button></div>'}
   var nav=document.getElementById('ksnav'),sheet=document.getElementById('ksmore'),blk=document.getElementById('ksblock'),toast=document.getElementById('kstoast'),last='',role='',tt;
   document.getElementById('ksgo').href=URL;
   function asTrainer(){return role!='admin'||get('ksmode')=='trainer'}
@@ -94,7 +105,7 @@ img,table,select,input,textarea{max-width:100%}
     nav.innerHTML=main.map(function(k){return link(k,'kst')}).join('')+'<button class="kst'+(moreOn?' on':'')+'" id="ksmb">'+svg('more')+'<span>Ещё</span></button>';
     more.forEach(function(k){sh+=link(k,'ksi')});
     if(role=='admin')sh+='<div class="ksmode"><button data-m="admin"'+(tr?'':' class="on"')+'>Админ</button><button data-m="trainer"'+(tr?' class="on"':'')+'>Тренер</button></div>';
-    sh+='<button class="ksi" id="ksref">Обновить данные</button><button class="ksi" id="kslo">Выйти</button>';
+    sh+=themeSw()+'<button class="ksi" id="ksref">Обновить данные</button><button class="ksi" id="kslo">Выйти</button>';
     sheet.innerHTML=sh;
     nav.hidden=false;sheet.hidden=true;
     blk.hidden=!(tr&&ADMINP.indexOf(PAGE)>=0);
@@ -114,7 +125,7 @@ img,table,select,input,textarea{max-width:100%}
   nav.addEventListener('click',function(e){if(e.target.closest('#ksmb'))sheet.hidden=!sheet.hidden});
   sheet.addEventListener('click',function(e){
     var b=e.target.closest('button');if(!b)return;
-    if(b.dataset.m)setMode(b.dataset.m);else if(b.id=='kslo')logout();else if(b.id=='ksref')refresh();
+    if(b.dataset.m)setMode(b.dataset.m);else if(b.hasAttribute('data-t')){window.ksSetTheme(b.dataset.t);sheet.hidden=false}else if(b.id=='kslo')logout();else if(b.id=='ksref')refresh();
   });
   document.addEventListener('click',function(e){if(!e.target.closest('#ksmore,#ksmb'))sheet.hidden=true});
   document.getElementById('ksadm').onclick=function(){setMode('admin')};
