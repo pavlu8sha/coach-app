@@ -24,7 +24,7 @@ function campSheet_(name, headers, seed) {
 
 function campSheets_() {
   var cs = campSheet_(CAMP_SHEET, ['ID сбора', 'Название', 'Место', 'Начало', 'Конец', 'Бронь, ₾', 'Срок брони', 'Срок полной оплаты', 'Активен']);
-  var ts = campSheet_(CAMP_TAR, ['ID сбора', 'Тариф', 'Цена, ₾', 'Активен']);
+  var ts = campSheet_(CAMP_TAR, ['ID сбора', 'Тариф', 'Цена, ₾', 'Активен', 'Метка в списке']);
   var ps = campSheet_(CAMP_PARTS, ['ID записи', 'ID сбора', 'ID игрока', 'ФИ', 'Группа / академия', 'Тариф', 'Сумма, ₾', 'Размер футболки', 'Комментарий', 'Статус', 'Дата записи', 'Гость']);
   var ys = campSheet_(CAMP_PAYS, ['Время', 'Дата', 'ID сбора', 'ID записи', 'ID игрока', 'ФИ', 'Сумма', 'Тип', 'Способ', 'Комментарий']);
   return { cs: cs, ts: ts, ps: ps, ys: ys };
@@ -45,9 +45,9 @@ function campAll_() {
     out.camps.push({ id: String(r[0]), name: String(r[1]), place: String(r[2]), start: isoOf_(r[3]), end: isoOf_(r[4]),
       deposit: Number(r[5]) || 0, depositBy: isoOf_(r[6]), payBy: isoOf_(r[7]), active: campOn_(r[8]) });
   });
-  rows(s.ts, 4).forEach(function (r, i) {
+  rows(s.ts, 5).forEach(function (r, i) {
     if (!r[0] || !r[1]) return;
-    out.tariffs.push({ row: i + 2, camp: String(r[0]), name: String(r[1]).trim(), price: Number(r[2]) || 0, active: campOn_(r[3]) });
+    out.tariffs.push({ row: i + 2, camp: String(r[0]), name: String(r[1]).trim(), price: Number(r[2]) || 0, active: campOn_(r[3]), label: String(r[4] || '').trim() });
   });
   rows(s.ps, 12).forEach(function (r, i) {
     if (!r[0]) return;
@@ -227,8 +227,15 @@ function appCampCancel(pin, row) {
 // Проверка: создаёт листы сборов (если их нет) и показывает, что прочитано.
 // Список для отправки: записавшиеся (без отказов), по группам. Группа без «-A/-B/-C» объединяется (U7-A и U7-B → U7).
 // Суффикс по тарифу: футболист / 1+1 / 1+2. Индивидуальные и вратарские сюда не входят (это не сборы).
-var CAMP_LIST_ORDER_ = ['U7', 'U9', 'U10', 'U11', 'U13', 'weekends', 'Ortachala U9', 'Ortachala U12', 'Isani'];
-function campSuffix_(tariff) {
+// Порядок групп — из настройки att.groupOrder (U7-A и U7-B → U7).
+function campListOrder_() {
+  var out = [];
+  (settingGet_('att.groupOrder') || []).forEach(function (g) { var k = campGroupKey_(g); if (out.indexOf(k) < 0) out.push(k); });
+  return out;
+}
+// Метка тарифа в списке: колонка «Метка в списке» листа тарифов; если её нет — по словам названия, как раньше.
+function campSuffix_(tariff, label) {
+  if (String(label || '').trim()) return String(label).trim();
   var t = String(tariff || '').toLowerCase();
   if (/футбол/.test(t)) return 'футболист';
   if (/2 родител/.test(t)) return '1+2';
@@ -253,8 +260,10 @@ function appCampList(pin, campId) {
     (groups[key] = groups[key] || []).push(p);
     count++;
   });
+  var order = campListOrder_(), labelOf = {};
+  all.tariffs.forEach(function (t) { if (t.camp === camp.id) labelOf[t.name] = t.label; });
   var keys = Object.keys(groups).sort(function (a, b) {
-    var ia = CAMP_LIST_ORDER_.indexOf(a), ib = CAMP_LIST_ORDER_.indexOf(b);
+    var ia = order.indexOf(a), ib = order.indexOf(b);
     if (ia < 0) ia = 999;
     if (ib < 0) ib = 999;
     return ia !== ib ? ia - ib : a.localeCompare(b);
@@ -262,7 +271,7 @@ function appCampList(pin, campId) {
   var gen = keys.map(function (k) {
     return { key: k, players: groups[k].sort(function (a, b) { return a.name.localeCompare(b.name); }).map(function (p) {
       var booked = camp.deposit > 0 && r2_(paidOf[p.id] || 0) >= camp.deposit;
-      return { name: p.name.trim(), booked: booked, text: p.name.trim() + ' - ' + campSuffix_(p.tariff) + (booked ? ', бронь внесена' : '') };
+      return { name: p.name.trim(), booked: booked, text: p.name.trim() + ' - ' + campSuffix_(p.tariff, labelOf[p.tariff]) + (booked ? ', бронь внесена' : '') };
     }) };
   });
   // Отказавшиеся по этому сбору (только явный статус «Отказ») убираются из сохранённого текста.
@@ -398,7 +407,7 @@ function appCampTariffSave(pin, campId, rows) {
     var raw = String(r.price == null ? '' : r.price).trim();
     if (!name) throw new Error('Пустое название тарифа');
     if (raw === '' || !(Number(raw) >= 0)) throw new Error('Тариф «' + name + '»: укажите цену, число не меньше нуля');
-    return { row: Number(r.row) || 0, name: name, price: r2_(Number(raw)), active: !!r.active };
+    return { row: Number(r.row) || 0, name: name, price: r2_(Number(raw)), active: !!r.active, label: String(r.label || '').replace(/\s+/g, ' ').trim().slice(0, 30) };
   });
   var seen = {};
   clean.forEach(function (c) {
@@ -424,10 +433,11 @@ function appCampTariffSave(pin, campId, rows) {
     });
     if (!CONFIG.DRY_RUN) {
       var ts = campSheets_().ts;
+      if (!String(ts.getRange(1, 5).getValue()).trim()) ts.getRange(1, 5).setValue('Метка в списке');   // лист создан до колонки «Метка»
       clean.forEach(function (c) {
-        var vals = [[camp.id, c.name, c.price, c.active ? 'да' : 'нет']];
-        if (c.row) ts.getRange(c.row, 1, 1, 4).setValues(vals);
-        else ts.getRange(ts.getLastRow() + 1, 1, 1, 4).setValues(vals);
+        var vals = [[camp.id, c.name, c.price, c.active ? 'да' : 'нет', c.label]];
+        if (c.row) ts.getRange(c.row, 1, 1, 5).setValues(vals);
+        else ts.getRange(ts.getLastRow() + 1, 1, 1, 5).setValues(vals);
       });
       mine.forEach(function (t) {
         if (!sent[t.row]) ts.getRange(t.row, 4).setValue('нет');

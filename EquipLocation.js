@@ -51,5 +51,3 @@ function eqRowOfNo_(sh, no) {
   return 0;
 }
 
-// Надпись нужна на всех комплектах, кроме тренировочного
-function inscrNeeded_(kit) { return !/^тренировочная( форма)?$/i.test(String(kit || '').trim()); }

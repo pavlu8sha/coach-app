@@ -50,7 +50,7 @@ function readRegistry_() {
 
 function lists_(players) {
   var ref = sheetOf_('СПРАВОЧНИКИ');
-  var vals = ref.getRange(4, 1, 30, 3).getValues();
+  var vals = ref.getRange(4, 1, Math.max(ref.getLastRow() - 3, 1), 3).getValues();   // до последней строки (раньше — только 30)
   var groups = [], locOf = {}, statuses = [];
   vals.forEach(function (r) {
     var g = String(r[0]).trim();

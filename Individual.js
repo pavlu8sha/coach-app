@@ -304,13 +304,26 @@ function indWeeklyCreate() {
   });
 }
 
-// Запустить ОДИН раз: включает запуск по вторникам в 9 утра
+// Запустить ОДИН раз из редактора: включает ежечасную проверку. Занятия создаются в день и час из настроек
+// (ind.autoDay, ind.autoHour), поэтому после смены настройки триггер переустанавливать не нужно.
 function indInstallTrigger() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (t.getHandlerFunction() === 'indWeeklyCreate') ScriptApp.deleteTrigger(t);
+    var h = t.getHandlerFunction();
+    if (h === 'indWeeklyCreate' || h === 'indAutoTick') ScriptApp.deleteTrigger(t);
   });
-  ScriptApp.newTrigger('indWeeklyCreate').timeBased().onWeekDay(ScriptApp.WeekDay.TUESDAY).atHour(9).create();
-  Logger.log('Триггер создан: вторник, около 9:00');
+  ScriptApp.newTrigger('indAutoTick').timeBased().everyHours(1).create();
+  Logger.log('Триггер создан: каждый час; занятия создаются в ' + settingGet_('ind.autoDay') + ', ' + settingGet_('ind.autoHour') + ':00');
+}
+
+// Ежечасно: в день и час из настроек создаёт занятия на ближайшие выходные (один раз в неделю).
+function indAutoTick() {
+  var tz = Session.getScriptTimeZone(), now = new Date();
+  var wd = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'][Number(Utilities.formatDate(now, tz, 'u')) % 7];
+  if (wd !== settingGet_('ind.autoDay') || Number(Utilities.formatDate(now, tz, 'H')) < settingGet_('ind.autoHour')) return;
+  var today = Utilities.formatDate(now, tz, 'yyyy-MM-dd'), props = PropertiesService.getScriptProperties();
+  if (props.getProperty('IND_AUTO_LAST') === today) return;
+  indWeeklyCreate();
+  props.setProperty('IND_AUTO_LAST', today);
 }
 
 // Создаёт занятие (строка в AdminApp), сразу записывает постоянных в файл оплат. Если занятие уже есть — ничего не делает.
@@ -406,15 +419,10 @@ function indFormatAll() {
   Logger.log('Оформлено блоков: ' + indParse_(true).length);
 }
 
-// Темы индивидуальных по кругу (порядок цикла; текст должен совпадать с таблицей)
-var IND_THEMES = [
-  '1 в 1 в ситуации соперник спереди',
-  '1 в 1 в ситуации соперник сбоку',
-  '1 в 1 в ситуации соперник сзади',
-  'Приём мяча и удары по воротам'
-];
-
+// Темы индивидуальных по кругу — настройка ind.themes (порядок цикла; текст должен совпадать с таблицей)
 function indAutoTheme_(date, evs) {
+  var IND_THEMES = settingGet_('ind.themes') || [];
+  if (!IND_THEMES.length) return '';
   var p = date.split('-'), dt = Date.UTC(+p[0], +p[1] - 1, +p[2]);
   var sat = new Date(dt).getUTCDay() === 0 ? dt - 86400000 : dt;
   function ds(ms) { return Utilities.formatDate(new Date(ms), 'UTC', 'yyyy-MM-dd'); }
