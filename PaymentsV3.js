@@ -39,7 +39,8 @@ function appAddPayment(pin, id, row, amount, dateStr, comment, method) {
 // Читаем только хвост журналов: новые записи всегда дописываются в конец.
 function appTodayPayments(pin) {
   checkAdmin_(pin);
-  var ss = attSS_(), tz = ss.getSpreadsheetTimeZone(), td = today_();
+  // «сегодня» считаем в часовом поясе того же файла, где лежат журналы, иначе дата может не совпасть
+  var ss = attSS_(), tz = ss.getSpreadsheetTimeZone(), td = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
   var out = [], tot = { 'Наличные': 0, 'Перевод': 0, other: 0 }, rev = {};
   function day(v) { return v instanceof Date ? Utilities.formatDate(v, tz, 'yyyy-MM-dd') : String(v); }
   function tail(sh, cols) {
