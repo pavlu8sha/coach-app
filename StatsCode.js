@@ -7,7 +7,7 @@ function checkAny_(pin) { checkPin_(pin); }
 
 function appStatsMonths(pin) {
   checkAny_(pin);
-  return SpreadsheetApp.getActive().getSheets()
+  return attSS_().getSheets() // месяцы — из таблицы посещаемости (ATT_ID), откуда читаются и данные статистики
     .map(function (s) { return s.getName(); })
     .filter(function (n) { return /^\d{2}\.\d{2}$/.test(n); })
     .sort(function (a, b) {

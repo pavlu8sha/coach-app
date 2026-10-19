@@ -39,7 +39,7 @@ function appAddPayment(pin, id, row, amount, dateStr, comment, method) {
 // Читаем только хвост журналов: новые записи всегда дописываются в конец.
 function appTodayPayments(pin) {
   checkAdmin_(pin);
-  var ss = SpreadsheetApp.getActive(), tz = ss.getSpreadsheetTimeZone(), td = today_();
+  var ss = attSS_(), tz = ss.getSpreadsheetTimeZone(), td = today_();
   var out = [], tot = { 'Наличные': 0, 'Перевод': 0, other: 0 }, rev = {};
   function day(v) { return v instanceof Date ? Utilities.formatDate(v, tz, 'yyyy-MM-dd') : String(v); }
   function tail(sh, cols) {
