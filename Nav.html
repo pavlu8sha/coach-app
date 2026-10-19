@@ -19,8 +19,11 @@ html:not([data-ok]) #ksnav,html:not([data-ok]) [data-gate]{display:none!importan
 .ksi{display:block;text-align:left;padding:12px 14px;border:0;background:none;border-radius:10px;color:var(--ink);text-decoration:none;font:600 15px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer}
 .ksi.on{background:var(--bg);color:var(--g)}
 .ksmode{display:flex;margin:6px 8px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
-.ksmode button{flex:1;border:0;background:var(--card);color:var(--mute);padding:10px;font:600 14px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer}
+.ksmode button{flex:1;min-height:44px;border:0;background:var(--card);color:var(--mute);padding:10px;font:600 14px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer}
 .ksmode button.on{background:var(--g);color:var(--gi)}
+.kslbl{margin:8px 14px 0;color:var(--mute);font:600 12px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.ksmode.kstheme button{min-height:44px;padding:6px 4px;font-size:13px;line-height:1.2}
+.ksmode button+button{border-left:1px solid var(--line)}
 #kstoast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--navh) + 18px + env(safe-area-inset-bottom));max-width:min(92vw,520px);z-index:70;background:var(--ink);color:var(--bg);padding:12px 16px;border-radius:14px;font:600 14px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.25)}
 #kstoast.bad{background:var(--a);color:var(--color-on-danger,#fff)}
 #ksblock{position:fixed;top:0;right:0;bottom:0;left:0;z-index:60;background:var(--bg);color:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
@@ -93,7 +96,10 @@ img,table,select,input,textarea{max-width:100%}
     document.documentElement.setAttribute('data-ok','1');
     nav.innerHTML=main.map(function(k){return link(k,'kst')}).join('')+'<button class="kst'+(moreOn?' on':'')+'" id="ksmb">'+svg('more')+'<span>Ещё</span></button>';
     more.forEach(function(k){sh+=link(k,'ksi')});
-    if(role=='admin')sh+='<div class="ksmode"><button data-m="admin"'+(tr?'':' class="on"')+'>Админ</button><button data-m="trainer"'+(tr?' class="on"':'')+'>Тренер</button></div>';
+    if(role=='admin')sh+='<div class="kslbl">Режим</div><div class="ksmode"><button data-m="admin"'+(tr?'':' class="on"')+'>Админ</button><button data-m="trainer"'+(tr?' class="on"':'')+'>Тренер</button></div>';
+    var th=window.ksTheme?window.ksTheme():'system';
+    sh+='<div class="kslbl" id="ksthl">Тема</div><div class="ksmode kstheme" role="radiogroup" aria-labelledby="ksthl">'+[['system','Как на устройстве'],['light','Светлая'],['dark','Тёмная']].map(function(x){
+      return'<button type="button" role="radio" aria-checked="'+(th==x[0])+'" data-th="'+x[0]+'"'+(th==x[0]?' class="on"':'')+'>'+x[1]+'</button>'}).join('')+'</div>';
     sh+='<button class="ksi" id="ksref">Обновить данные</button><button class="ksi" id="kslo">Выйти</button>';
     sheet.innerHTML=sh;
     nav.hidden=false;sheet.hidden=true;
@@ -114,6 +120,7 @@ img,table,select,input,textarea{max-width:100%}
   nav.addEventListener('click',function(e){if(e.target.closest('#ksmb'))sheet.hidden=!sheet.hidden});
   sheet.addEventListener('click',function(e){
     var b=e.target.closest('button');if(!b)return;
+    if(b.dataset.th){if(window.ksSetTheme)window.ksSetTheme(b.dataset.th);[].forEach.call(sheet.querySelectorAll('[data-th]'),function(x){var on=x===b;x.classList.toggle('on',on);x.setAttribute('aria-checked',String(on))});return}
     if(b.dataset.m)setMode(b.dataset.m);else if(b.id=='kslo')logout();else if(b.id=='ksref')refresh();
   });
   document.addEventListener('click',function(e){if(!e.target.closest('#ksmore,#ksmb'))sheet.hidden=true});

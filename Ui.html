@@ -176,3 +176,41 @@ html.ks-dlg-lock,html.ks-dlg-lock body{overflow:hidden!important}
   };
 })();
 </script>
+<script>
+/* DS-012: ручная тема. Ключ kstheme: '' / 'system' — как на устройстве, 'light', 'dark'. «Выйти» его не очищает.
+   Тёмные стили во всех файлах написаны через @media(prefers-color-scheme:dark): при ручном выборе такие правила
+   включаются или выключаются заменой условия, при «Как на устройстве» возвращается исходное условие. */
+(function(){
+  var DARK=/\(\s*prefers-color-scheme\s*:\s*dark\s*\)/gi;
+  function get(){var v='';try{v=localStorage.getItem('kstheme')||''}catch(e){}return v=='light'||v=='dark'?v:'system'}
+  function walk(rules,t){
+    for(var i=0;i<rules.length;i++){
+      var r=rules[i];
+      if(r.media&&r.cssRules){
+        if(r.__ksMedia===undefined){if(!DARK.test(r.media.mediaText)){DARK.lastIndex=0;r.__ksMedia=null}else{DARK.lastIndex=0;r.__ksMedia=r.media.mediaText}}
+        if(r.__ksMedia!==null){
+          var m=t=='system'?r.__ksMedia:r.__ksMedia.replace(DARK,t=='dark'?'(min-width:0px)':'(prefers-color-scheme:ks-none)');
+          if(t=='light'&&/^\s*\(prefers-color-scheme:ks-none\)\s*$/.test(m))m='not all';
+          if(r.media.mediaText!==m)r.media.mediaText=m;
+        }
+        walk(r.cssRules,t);
+      }else if(r.cssRules)walk(r.cssRules,t);
+    }
+  }
+  function apply(){
+    var t=get(),ss=document.styleSheets,de=document.documentElement;
+    for(var i=0;i<ss.length;i++){var rs=null;try{rs=ss[i].cssRules}catch(e){}if(rs)walk(rs,t)}
+    if(t=='system'){de.removeAttribute('data-theme');de.style.colorScheme='light dark'}
+    else{de.setAttribute('data-theme',t);de.style.colorScheme=t}
+  }
+  window.ksTheme=get;
+  window.ksSetTheme=function(t){try{if(t=='light'||t=='dark')localStorage.setItem('kstheme',t);else localStorage.removeItem('kstheme')}catch(e){}apply()};
+  apply();
+  document.addEventListener('DOMContentLoaded',apply);
+  window.addEventListener('load',apply);
+  /* стили, которые страница добавляет позже (например, StatsMatches) */
+  try{new MutationObserver(function(ms){for(var i=0;i<ms.length;i++)for(var j=0;j<ms[i].addedNodes.length;j++){var n=ms[i].addedNodes[j];if(n.nodeName=='STYLE'||n.nodeName=='LINK'){apply();return}}}).observe(document.head,{childList:true})}catch(e){}
+  /* другая вкладка сменила тему */
+  window.addEventListener('storage',function(e){if(e.key=='kstheme')apply()});
+})();
+</script>
