@@ -11,14 +11,33 @@ function appAddOrder(pin, o) {
   try { return addOrderCore_(o); } finally { lock.releaseLock(); }
 }
 
-// Следующий номер ORD-xxxx по колонке N листа экипировки (максимум существующих + 1).
+// Номер ORD-xxxx для нового заказа: первый свободный из пропусков в занятом диапазоне, иначе максимум + 1.
+// Занятые номера: у строк с заказом (колонка C) и уже связанные с фактом пошива (лист «ФАКТ ПОШИВА»).
+// Номера пустых строк (заранее прописанные в колонке N) не считаются занятыми.
 function nextOrdId_(sh) {
-  var last = Math.max(sh.getLastRow(), 1), vals = sh.getRange(1, 14, last, 1).getValues(), max = 0;
-  vals.forEach(function (r) {
-    var m = /^ORD-(\d+)$/.exec(String(r[0]).trim());
-    if (m) max = Math.max(max, Number(m[1]));
+  var last = Math.max(sh.getLastRow(), 1);
+  var nv = sh.getRange(1, 14, last, 1).getValues(), cv = sh.getRange(1, 3, last, 1).getValues();
+  var used = {}, nums = [];
+  function take(s) {
+    var m = /^ORD-(\d+)$/.exec(String(s).trim());
+    if (m) { used[Number(m[1])] = 1; nums.push(Number(m[1])); }
+  }
+  nv.forEach(function (r, i) { if (String(cv[i][0]).trim() !== '') take(r[0]); });
+  var fact = sh.getParent().getSheetByName('ФАКТ ПОШИВА');
+  if (fact && fact.getLastRow() > 1) fact.getRange(2, 1, fact.getLastRow() - 1, 1).getValues().forEach(function (r) { take(r[0]); });
+  if (!nums.length) return 'ORD-0001';
+  var lo = Math.min.apply(null, nums), hi = Math.max.apply(null, nums), n;
+  for (n = lo; n <= hi; n++) if (!used[n]) break;
+  return 'ORD-' + ('000' + n).slice(-4);
+}
+
+// Снимает такой же номер с пустых строк (остаток заранее прописанного списка), чтобы номер не дублировался.
+function clearStaleOrdId_(sh, id, keepRow) {
+  var last = Math.max(sh.getLastRow(), 1);
+  var nv = sh.getRange(1, 14, last, 1).getValues(), cv = sh.getRange(1, 3, last, 1).getValues();
+  nv.forEach(function (r, i) {
+    if (String(r[0]).trim() === id && String(cv[i][0]).trim() === '' && i + 1 !== keepRow) sh.getRange(i + 1, 14).clearContent();
   });
-  return 'ORD-' + ('000' + (max + 1)).slice(-4);
 }
 
 function addOrderCore_(o) {
@@ -51,13 +70,15 @@ function addOrderCore_(o) {
   var dateStr = o.date || today_();
   if (!CONFIG.DRY_RUN) {
     // Столбцы B:J одной записью (дата, ФИ, комплект, размер, надпись, номер, рассрочка, сумма, оплачено)
+    // номер заказа (ORD-xxxx) для «Производства» и «Факта пошива» — считаем до записи строки, пока она пустая
+    var ordId = nextOrdId_(sh);
+    clearStaleOrdId_(sh, ordId, row);
     var rg = sh.getRange(row, 2, 1, 9), nf = rg.getNumberFormats();
     nf[0][0] = 'dd.mm.yyyy'; nf[0][3] = '@'; nf[0][5] = '@';
     rg.setNumberFormats(nf);
     rg.setValues([[serialOf(dateStr), p.name, o.kit, String(o.size || ''), String(o.inscr || ''), String(o.num || ''), o.inst ? 'Да' : '', sum, paid]]);
     sh.getRange(row, 12).setValue(o.id);
-    // номер заказа (ORD-xxxx) для «Производства» и «Факта пошива»: следующий свободный, не дублирует существующие
-    sh.getRange(row, 14).setValue(nextOrdId_(sh));
+    sh.getRange(row, 14).setValue(ordId);
     equipSyncLocations_(sh);
     var k = sh.getRange(row, 11);
     // формула долга: копируем из строки выше (текст формулы из кода в таблице с нашим языком не всегда читается)
@@ -74,6 +95,7 @@ function addOrderCore_(o) {
   }
   return { ok: true, dryRun: CONFIG.DRY_RUN, row: row };
 }
+
 // Новая строка заказа перед строкой итогов: вставляем строку и расширяем формулы итогов (SUM по столбцам I, J, K).
 // Если строка итогов не похожа на ожидаемую, останавливаемся, ничего не меняя.
 function newOrderRow_(sh) {
