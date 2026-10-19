@@ -217,9 +217,14 @@ function appIndData(pin) {
 
 // Вписывает игрока в блок занятия (вызывать внутри блокировки)
 // Запись игрока: строка с датой занятия в файле оплат (без лимита мест; лимита в таблице нет)
+// Мест на занятии: настройки ind.capIndividual / ind.capGoalkeepers
+function indCap_(gk) { return settingGet_(gk ? 'ind.capGoalkeepers' : 'ind.capIndividual'); }
+
 function indPutPlayer_(ev, name, group) {
   indNotOld_(ev);
   if (indPlayer_(ev, name)) throw new Error('Уже записан на это занятие');
+  var cap = indCap_(ev.goalkeepers);
+  if (ev.players.length >= cap) throw new Error('Мест нет: максимум ' + cap);
   indPfEnroll_(ev.date, name, ev.goalkeepers);
   indLog_('Запись', ev, name, 0, '', group || 'гость');
 }
@@ -513,7 +518,7 @@ function indParseRaw_(want) {
           if (String(v[k][0]).trim() === '№') { h = k; break; }
         }
         if (h < 0) continue;
-        ev.cap = ev.goalkeepers ? 7 : 6;
+        ev.cap = indCap_(ev.goalkeepers);
         ev.empty = [];
         ev.last = h + 1;
         for (var r = h + 1; r < v.length; r++) {

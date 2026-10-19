@@ -127,6 +127,8 @@ function extraPlayer_(ev, name) {
 
 function extraPut_(ev, name, group) {
   if (extraPlayer_(ev, name)) throw new Error('Уже записан на эту тренировку');
+  var cap = settingGet_('extra.cap');   // 0 — без ограничения
+  if (cap > 0 && ev.players.length >= cap) throw new Error('Мест нет: максимум ' + cap);
   var sh = extraSS_().getSheetByName(ev.sheet), row;
   if (ev.empty.length) row = ev.empty[0];
   else {
@@ -306,6 +308,7 @@ function appExtraData(pin) {
   var evs = extraParse_(), prices = extraPrices_(), places = extraPlaces_();
   evs.sort(function (a, b) { return b.date.localeCompare(a.date); });
   return {
+    cap: settingGet_('extra.cap'),
     events: evs.slice(0, 60).map(function (e) {
       return { id: e.id, date: e.date, price: prices[e.id] || 0, place: places[e.id] || '',
         players: e.players.map(function (p) { return { name: p.name, group: p.group, paid: p.paid }; }) };
