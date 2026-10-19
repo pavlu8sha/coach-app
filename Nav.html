@@ -55,7 +55,7 @@ html .msg.ks-inl{visibility:hidden}
 .ks-sub a{display:flex;align-items:center;justify-content:center;text-align:center;min-height:44px;padding:6px 8px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);text-decoration:none;font:600 14px/1.2 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow-wrap:anywhere}
 .ks-sub a.on{background:var(--g);border-color:var(--g);color:var(--gi)}
 @media(max-width:380px){.ks-sub a{font-size:13px;padding:6px 4px}}
-html,body{overflow-x:hidden;max-width:100%}
+html,body{max-width:100%} /* DS-017: overflow-x:hidden снят — проверка на телефоне с реальными данными */
 *,*::before,*::after{box-sizing:border-box}
 img,table,select,input,textarea{max-width:100%}
 .wrap{max-width:560px;margin-left:auto;margin-right:auto}
