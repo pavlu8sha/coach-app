@@ -46,6 +46,11 @@ function addOrderCore_(o) {
   var items = parts.map(function (name) { return cat.filter(function (x) { return x.name === name; })[0]; });
   if (!parts.length || items.some(function (x) { return !x; })) throw new Error('Выберите позицию из каталога');
   var catSum = items.reduce(function (s, x) { return s + Number(x.price || 0); }, 0);
+  // Сумма не указана — по каталогу со скидкой из настроек (как считает форма)
+  if (!(Number(o.sum) > 0)) {
+    var dc = equipDiscCalc_(equipDiscCfg_(), kitParts_(o.kit), catPrices_(cat), !!o.inst, equipOthers_(equipSheet_(), String(o.id || '').trim(), 0));
+    if (dc.disc !== null) catSum = dc.disc;
+  }
   var sum = Number(o.sum) || catSum, paid = Number(o.paid) || 0;
   if (sum <= 0) throw new Error('Введите сумму заказа');
   if (paid < 0 || paid > sum) throw new Error('Оплачено сейчас: от 0 до суммы заказа');
