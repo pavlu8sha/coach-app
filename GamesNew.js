@@ -549,7 +549,8 @@ function gnSyncGame_(eventId) {
   // Для команды U9 конкретная группа (U9-A / U9-B) записана в колонке «Сторона»; в «Игры» пишем латиницей, как в списке
   var side = String(ev[10] || '').trim();
   var team = /^U\d/.test(side) ? side : String(ev[1]).trim();
-  var opp = standalone ? String(ev[3] || '').trim() : String(ev[7] || par[7] || '').trim();
+  // Соперник — поле «Соперник» карточки игры (столбец H «Матчи»); название события им не является
+  var opp = String(ev[7] || (standalone ? '' : par[7]) || '').trim();
   var hasScore = ev[8] !== '' && ev[8] != null && ev[9] !== '' && ev[9] != null && !isNaN(Number(ev[8])) && !isNaN(Number(ev[9]));
   var score = hasScore ? Number(ev[8]) + ':' + Number(ev[9]) : '';
   var goals = partsSheet_().getDataRange().getValues().slice(1)
