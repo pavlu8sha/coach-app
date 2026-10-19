@@ -119,8 +119,19 @@ function fillGroups(){
 function locBucket(l){var s=nn(l||'');if(!s)return'none';if(/красн|krasn/.test(s))return'red';if(/ортач|исан|ortach|isan/.test(s))return'oth';return'rest'}
 var LOC_ORD={red:0,oth:1,rest:2,none:3};
 // Обязательные данные заказа (для любого комплекта): размер, номер, надпись. Номер уникален внутри точной группы (U13-A, U13-B и U13-C — отдельно).
-function missOf(o){var m=[];if(!o.kit)m.push('комплект');if(!(o.sum>0))m.push('сумма');if(!String(o.size||'').trim())m.push('размер');if(!String(o.num||'').trim())m.push('номер');// Надпись не нужна, если в заказе только тренировочная форма
-if(!String(o.kit||'').split(' + ').every(function(x){return nn(x)==='тренировочная форма'})&&!String(o.inscr||'').trim())m.push('надпись');return m}
+// Носки и гетры — без номера и надписи; тренировочная форма — без надписи
+function missOf(o){
+  var parts=String(o.kit||'').split(' + ').map(nn);
+  var socksOnly=parts.length>0&&parts.every(function(x){return /носк|гетр/.test(x)});
+  var trainOnly=parts.every(function(x){return x==='тренировочная форма'||/носк|гетр/.test(x)});
+  var m=[];
+  if(!o.kit)m.push('комплект');
+  if(!(o.sum>0))m.push('сумма');
+  if(!String(o.size||'').trim())m.push('размер');
+  if(!socksOnly&&!String(o.num||'').trim())m.push('номер');
+  if(!trainOnly&&!String(o.inscr||'').trim())m.push('надпись');
+  return m;
+}
 var DUP={};
 // Номера через запятую или «/»: «9,19» даёт отдельные номера 9 и 19
 function numToks(s){return String(s||'').split(/[\/,]/).map(function(x){return nn(x)}).filter(Boolean)}
