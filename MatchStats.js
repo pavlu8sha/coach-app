@@ -11,8 +11,10 @@ function appMatchStats(pin) {
     var e = byId[id];
     if (e.gf === null || e.ga === null) return;
     var par = e.parent ? byId[e.parent] : null;
-    var kind = par ? (par.type === 'Чемпионат' ? 'Чемпионат' : 'Турниры и кубки')
-      : (e.type === 'Товарищеская' ? 'Товарищеские' : (e.type === 'Чемпионат' ? 'Чемпионат' : 'Турниры и кубки'));
+    // товарищеская остаётся товарищеской, даже если к ней привязан родитель (иначе попадала в «Турниры и кубки»)
+    var kind = e.type === 'Товарищеская' ? 'Товарищеские'
+      : (par ? (par.type === 'Чемпионат' ? 'Чемпионат' : 'Турниры и кубки')
+        : (e.type === 'Чемпионат' ? 'Чемпионат' : 'Турниры и кубки'));
     var opp = String(e.opp || '').trim();
     games.push({ id: id, team: e.team, kind: kind, title: par ? par.name : e.name, date: e.date, opp: opp,
       gf: e.gf, ga: e.ga });
