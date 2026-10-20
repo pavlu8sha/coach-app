@@ -12,11 +12,10 @@
   mp.innerHTML='<div class="mfl"><select id="mtm" aria-label="Команда"></select><select id="mkd" aria-label="Тип игр"><option value="">Все игры</option><option>Чемпионат</option><option>Товарищеские</option><option>Турниры и кубки</option></select></div>'
     +'<div class="msg" id="mmsg" role="status"></div><div class="tiles" id="msum"></div><div class="mt3" id="mres"></div><div id="mleg"></div><div id="mteams"></div><div id="mtop"></div>';
   app.appendChild(mp);
-  var att=[$('per'),$('cust'),$('msg'),$('sum'),$('groups')].filter(Boolean); // #per — выбор периода (раньше #mon)
+  var att=[$('msg'),$('sum'),$('groups')].filter(Boolean); // выбор периода (#per, #cust) общий для обеих вкладок — не скрываем
   function tab(t){
     [].forEach.call(seg.children,function(b){b.className=b.dataset.t==t?'on':''});
     att.forEach(function(e){e.hidden=(t=='mat')});
-    if(t!='mat'&&$('cust'))$('cust').hidden=$('per').value!=='custom'; // «Свой период» — только если выбран
     h1.textContent=t=='mat'?'Статистика матчей':'Статистика посещаемости';
     mp.hidden=(t!='mat');
     if(t=='mat')loadM();
