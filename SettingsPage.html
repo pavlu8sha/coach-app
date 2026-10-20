@@ -116,11 +116,12 @@ function render(keep){
 // Правило скидки словами — по текущим значениям (так считает сервер: EquipLinks.js, equipDiscCalc_)
 function discSummary(){
   function v(key){var it=S.items.filter(function(x){return x.key==key&&!x.obj})[0];return it?it.value:null}
-  function alts(list){return(list||[]).map(function(x){var a=String(x).split(/\s+или\s+/i);return a.length>1?'('+a.join(' или ')+')':a[0]}).join(' и ')}
+  function arr(x){return Array.isArray(x)?x:String(x==null?'':x).split(',').map(function(t){return t.trim()}).filter(Boolean)}
+  function alts(list){return arr(list).map(function(x){var a=String(x).split(/\s+или\s+/i);return a.length>1?'('+a.join(' или ')+')':a[0]}).join(' и ')}
   var pct=v('equip.discPct');
   if(!(pct>0))return'Сейчас скидки нет (процент 0).';
   return'Сейчас: скидка '+pct+' % с округлением до '+v('equip.discRound')+' ₾, если в этом заказе есть '+alts(v('equip.discNeedAll'))
-    +', а у игрока (в прошлых заказах или в этом) есть '+alts(v('equip.discNeedOwn'))+'. По полной цене: '+(v('equip.discExclude')||[]).join(', ')+'. При рассрочке скидки нет.';
+    +', а у игрока (в прошлых заказах или в этом) есть '+alts(v('equip.discNeedOwn'))+'. По полной цене: '+arr(v('equip.discExclude')).join(', ')+'. При рассрочке скидки нет.';
 }
 function card(key){
   var k=S.keys[key],items=S.items.filter(function(x){return x.key==key}),gen=items.filter(function(x){return!x.obj})[0],objs=items.filter(function(x){return x.obj});
@@ -133,7 +134,7 @@ function card(key){
     +(k.hasDefault?'<button class="sec" data-a="reset" data-k="'+esc(key)+'" data-o=""'+(k.locked||gen.source=='default'?' data-off':'')+'>По умолчанию</button>'
       :'<button class="sec" data-a="reset" data-k="'+esc(key)+'" data-o=""'+(gen.source=='missing'?' data-off':'')+'>Очистить</button>')+'</div>';
   if(k.hasDefault)h+='<div class="sub">По умолчанию: '+esc(k.def)+'</div>';
-  if(key=='equip.discPct')h+='<div class="sub ok" style="margin-top:8px">'+esc(discSummary())+'</div>';
+  if(key=='equip.discPct'){var ds='';try{ds=discSummary()}catch(e){}if(ds)h+='<div class="sub ok" style="margin-top:8px">'+esc(ds)+'</div>'}
   h+=note(key,'');
   if(k.perObject){
     h+='<div class="lbl" style="margin-top:14px">'+esc(k.objectsTitle||'Свои значения')+'</div>';
