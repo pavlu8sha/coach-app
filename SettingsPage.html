@@ -30,7 +30,9 @@ button:disabled{opacity:.5;cursor:default}
 .chip.bad{border-color:var(--a);color:var(--a)}
 .err{color:var(--a)}.msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:6px}
 .ok{color:var(--g)}
-.team-name{flex:1.4;font-weight:600}
+.team-name{font-weight:600}
+.team-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.row>button{flex:none;white-space:nowrap}
 .grp .card{margin-bottom:8px}
 .seg3{display:flex;margin-top:10px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .seg3 button{flex:1;min-height:44px;border:0;background:var(--card);color:var(--ink);font-weight:600}
@@ -127,7 +129,7 @@ function card(key){
     h+='<div class="lbl" style="margin-top:14px">'+esc(k.objectsTitle||'Свои значения')+'</div>';
     if(!objs.length)h+='<div class="sub">Нет. Все используют общее значение.</div>';
     objs.forEach(function(it,i){
-      h+='<div class="row"><span class="team-name">'+esc(it.obj)+chip(it)+'</span>'+field(k,'v_'+key+'_'+i,inputVal(it))
+      h+='<div class="team-head"><span class="team-name">'+esc(it.obj)+'</span>'+chip(it)+'</div><div class="row">'+field(k,'v_'+key+'_'+i,inputVal(it))
         +'<button class="sb" data-a="save" data-k="'+esc(key)+'" data-o="'+esc(it.obj)+'" data-i="'+i+'">Сохранить</button>'
         +'<button class="sec" data-a="reset" data-k="'+esc(key)+'" data-o="'+esc(it.obj)+'" title="Удалить своё значение">К общему</button></div>'
         +(it.error?'<div class="sub err">'+esc(it.error)+'</div>':'')+note(key,it.obj);
