@@ -135,7 +135,7 @@ function equipDiscCfg_() {
   function low(a) { return (a || []).map(function (x) { return String(x).trim().toLowerCase(); }); }
   return {
     pct: Number(settingGet_('equip.discPct')) || 0, round: Number(settingGet_('equip.discRound')) || 1,
-    needAll: low(settingGet_('equip.discNeedAll')),
+    needAll: (settingGet_('equip.discNeedAll') || []).map(function (x) { return low(String(x).split(/\s+или\s+/i)); }),
     needOwn: (settingGet_('equip.discNeedOwn') || []).map(function (x) { return low(String(x).split(/\s+или\s+/i)); }),
     exclude: low(settingGet_('equip.discExclude'))
   };
@@ -156,7 +156,7 @@ function equipDiscCalc_(cfg, parts, prices, inst, others) {
   });
   var out = { total: total, excl: excl, disc: null };
   if (inst || !(cfg.pct > 0) || !parts.length) return out;
-  if (!cfg.needAll.every(function (k) { return parts.indexOf(k) >= 0; })) return out;
+  if (!cfg.needAll.every(function (alt) { return alt.some(function (k) { return parts.indexOf(k) >= 0; }); })) return out;
   var own = {};
   parts.concat.apply(parts, (others || []).map(function (o) { return kitParts_(o.kit); })).forEach(function (k) { own[k] = 1; });
   if (!cfg.needOwn.every(function (alt) { return alt.some(function (k) { return own[k]; }); })) return out;

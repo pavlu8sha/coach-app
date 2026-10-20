@@ -69,7 +69,7 @@ var SETTINGS_SCHEMA = {
     group: 'Экипировка', label: 'Сумма со скидкой округляется до, ₾', type: 'int', def: 5, min: 1, max: 100, drop: ['eq_v1']
   },
   'equip.discNeedAll': {
-    group: 'Экипировка', label: 'Скидка: в заказе есть все эти позиции (через запятую)', type: 'list',
+    group: 'Экипировка', label: 'Скидка: в этом заказе есть каждая из позиций (через запятую; «или» — любая из)', type: 'list',
     def: ['Спортивный костюм', 'Дождевик'], drop: ['eq_v1']
   },
   'equip.discNeedOwn': {

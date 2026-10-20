@@ -359,7 +359,7 @@ function discCalc(ks,inst,others){
   ks.forEach(function(k){var v=Number(PR[k])||0;total+=v;if(DC&&DC.exclude.indexOf(String(k).trim().toLowerCase())>=0)excl+=v});
   var out={total:total,excl:excl,disc:null};
   if(!DC||inst||!(DC.pct>0)||!parts.length)return out;
-  if(!DC.needAll.every(function(k){return parts.indexOf(k)>=0}))return out;
+  if(!DC.needAll.every(function(alt){return alt.some(function(k){return parts.indexOf(k)>=0})}))return out;
   var own={};parts.forEach(function(k){own[k]=1});(others||[]).forEach(function(o){lowParts(o.kit).forEach(function(k){own[k]=1})});
   if(!DC.needOwn.every(function(alt){return alt.some(function(k){return own[k]})}))return out;
   var base=[].concat.apply([],DC.needOwn);
