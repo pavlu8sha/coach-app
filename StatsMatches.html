@@ -63,7 +63,8 @@
   function draw(){
     if(!D)return;
     var tm=$('mtm').value,kd=$('mkd').value;
-    var G=D.games.filter(function(g){return(!tm||g.team==tm)&&(!kd||g.kind==kd)});
+    var pr=currentRange(); // тот же период, что и на вкладке посещаемости
+    var G=D.games.filter(function(g){return g.date&&g.date>=pr[0]&&g.date<=pr[1]&&(!tm||g.team==tm)&&(!kd||g.kind==kd)});
     var ids={};G.forEach(function(g){ids[g.id]=g});
     var P=D.parts.filter(function(p){return ids[p.g]});
     var R=rec(G);
@@ -94,5 +95,6 @@
     $('mtop').innerHTML=top.length?'<details open><summary><div class="top"><span>Бомбардиры</span></div></summary><ul>'+top.map(function(x,i){return'<li><span>'+(i+1)+'. '+esc(x.name)+'</span><b>'+x.goals+' (игр '+x.games+')</b></li>'}).join('')+'</ul></details>':'';
   }
   $('mtm').onchange=draw;$('mkd').onchange=draw;
+  ['per','from','to'].forEach(function(id){$(id).addEventListener('change',draw)});
 })();
 </script>
