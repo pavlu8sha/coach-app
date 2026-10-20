@@ -427,10 +427,10 @@ function appDailySchedule(pin, date) {
   var held = gnParseTrainings_(gnTrainingsRows_()).filter(function (t) { return t.date === date && t.held; });
   // Записи без группы в таблице (Исани, Ортачала): группа из плана той же локации по пересечению времени
   held.forEach(function (t) { if (!t.groupCell) t.group = gnGroupOf_(t, wd); });
-  // Прошедший день: расписание только из таблицы, план не показываем
-  var past = gnDateKey_(date) < Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd');
+  // План показываем и за прошедшие дни: тренировку могут отметить проведённой позже.
+  // Не отмеченные за прошедший день остаются «открытыми» (кнопки Да/Нет), как и для будущих дней.
   var consumed = {}, items = [];
-  if (!past) schedSeason_().filter(function (x) { return x.wd === wd; }).forEach(function (x) {
+  schedSeason_().filter(function (x) { return x.wd === wd; }).forEach(function (x) {
     // Если по группе за дату уже есть записи, показываем их время и тренеров из таблицы, а не из плана
     var rows = held.filter(function (t) { return t.group === x.group; });
     if (!rows.length) {
