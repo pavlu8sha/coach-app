@@ -166,7 +166,7 @@ img,table,select,input,textarea{max-width:100%}
   function nearest(el){try{el.scrollIntoView({block:'nearest'})}catch(x){}}
   function formErr(t,src){
     var b=lastBtn;
-    if(!b||Date.now()-lastAt>15000||!document.body.contains(b)||b.offsetParent===null)return false;
+    if(!b||Date.now()-lastAt>15000||!document.body.contains(b)||b.offsetParent===null||b.closest('[role=tablist],[role=radiogroup]'))return false; // вкладки: ошибка показывается страницей
     var nx=b.nextElementSibling;
     if(nx&&nx.classList.contains('msg')&&nx.classList.contains('err')&&!nx.hasAttribute('role'))return false; // у формы своё поле ошибки
     ferrEl=document.createElement('p');ferrEl.className='ks-ferr';ferrEl.setAttribute('role','alert');ferrEl.textContent=t;

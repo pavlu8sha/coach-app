@@ -42,6 +42,13 @@ html[data-page="att"]:root #kstoast{bottom:calc(var(--foot-h,72px) + 12px)}
 li.empty{display:block;color:var(--mute);font-weight:400;padding:14px}
 #cnt{margin:0 0 8px;font-size:14px;color:var(--mute)}#cnt b{color:var(--ink)}
 .gc{margin:6px 0 0;font-size:13px;color:var(--mute)}
+/* UI-016: переключатель «Группы / Индивидуальные» над выбором группы */
+.chk[hidden]{display:none}
+.ktab{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:0 0 10px;padding:4px;border:1px solid var(--line);border-radius:14px;background:var(--card)}
+.ktab button{min-height:44px;border:0;border-radius:10px;background:none;color:var(--mute);font-weight:700;font-size:15px}
+.ktab button.on{background:var(--g);color:var(--gi)}
+.lerr{display:block;background:var(--color-danger-subtle);border-color:var(--a);color:var(--color-danger-strong);font-weight:600;padding:12px 14px}
+.lerr button{display:block;margin-top:10px;min-height:44px;padding:8px 18px;border-radius:10px;border:1px solid currentColor;background:none;color:inherit;font-weight:700}
 </style>
 </head>
 <body>
@@ -51,6 +58,7 @@ li.empty{display:block;color:var(--mute);font-weight:400;padding:14px}
 </div>
 <div id="app" class="wrap" hidden>
   <h1>Отметка посещаемости</h1>
+  <div class="ktab" id="ktab" role="tablist" aria-label="Тип занятий"><button type="button" role="tab" aria-selected="true" class="on" data-k="grp">Группы</button><button type="button" role="tab" aria-selected="false" tabindex="-1" data-k="ind">Индивидуальные</button></div>
   <div class="row2"><select id="grp" aria-label="Группа"></select><input type="date" id="dt" aria-label="Дата" autocomplete="off"></div>
   <p class="gc" id="gcnt" hidden></p>
   <label class="chk"><input type="checkbox" id="allg"> Показать все группы (доп. или перенесённая тренировка)</label>
@@ -61,7 +69,10 @@ li.empty{display:block;color:var(--mute);font-weight:400;padding:14px}
 </div>
 <footer id="foot" hidden><p id="ferr" class="err" role="alert" hidden></p><p id="cnt" hidden></p><button id="save"></button></footer>
 <script>
-var pin='',roster=[],marks={},busy=false,allGroups=[],reqN=0,rosterFor='';
+var pin='',roster=[],marks={},busy=false,allGroups=[],reqN=0,rosterFor='',tab='grp',emptyTab=false,loadErr='';
+// UI-016: вкладка группы — «Индивидуальные» для индивидуальных, вратарей и дополнительных (как IND_GROUP_RE и EXTRA_GROUP на сервере)
+function kindOf(name){return/^(Индивидуальные|Вратари|Дополнительные)$/.test(String(name||''))?'ind':'grp'}
+function setTab(t){tab=t;[].forEach.call($('ktab').children,function(b){var on=b.dataset.k==t;b.classList.toggle('on',on);b.setAttribute('aria-selected',String(on));b.tabIndex=on?0:-1});$('allg').parentElement.hidden=(t=='ind')}
 function key(){return $('grp').value+'|'+$('dt').value}
 function $(i){return document.getElementById(i)}
 function run(fn,args,ok,fail){var r=google.script.run.withSuccessHandler(ok).withFailureHandler(function(e){fail(e&&e.message?e.message:String(e))});r[fn].apply(r,args)}
@@ -71,14 +82,22 @@ function msg(t,bad){$('msg').textContent=t||'';$('msg').className='msg'+(bad?' e
 function showLogin(t){$('app').hidden=true;$('foot').hidden=true;$('login').hidden=false;$('lerr').textContent=t||''}
 function showApp(){$('login').hidden=true;$('app').hidden=false;$('foot').hidden=false}
 // Запоминаем дату и группу только в пределах текущего дня.
-function saveState(){try{localStorage.setItem('st',JSON.stringify({d:$('dt').value,g:$('grp').value,all:$('allg').checked,on:today()}))}catch(e){}}
-function loadState(){try{var s=JSON.parse(localStorage.getItem('st')||'null');if(s&&s.on==today()){$('dt').value=s.d;$('allg').checked=!!s.all;return s.g||''}}catch(e){}return''}
+function saveState(){try{localStorage.setItem('st',JSON.stringify({d:$('dt').value,g:$('grp').value,all:$('allg').checked,t:tab,on:today()}))}catch(e){}}
+function loadState(){try{var s=JSON.parse(localStorage.getItem('st')||'null');if(s&&s.on==today()){$('dt').value=s.d;$('allg').checked=!!s.all;setTab(s.t=='ind'?'ind':'grp');return s.g||''}}catch(e){}return''}
 function fillGroups(want,pre){
-  var show=allGroups.filter(function(g){return $('allg').checked||g.sched});
-  $('grp').innerHTML=show.map(function(g){return'<option value="'+esc(g.name)+'">'+esc(g.name)+(g.sched?'':' (не по расписанию)')+'</option>'}).join('');
-  if(!show.length){roster=[];marks={};render();msg('В этот день по расписанию тренировок нет. Для дополнительной или перенесённой включите «Показать все группы».',true);return}
+  // сохранённая группа с другой вкладки — переключаем вкладку
+  if(want&&allGroups.some(function(g){return g.name==want})&&kindOf(want)!=tab)setTab(kindOf(want));
+  var vis=allGroups.filter(function(g){return $('allg').checked||g.sched||kindOf(g.name)=='ind'});
+  var show=vis.filter(function(g){return kindOf(g.name)==tab});
+  $('grp').innerHTML=show.map(function(g){return'<option value="'+esc(g.name)+'">'+esc(g.name)+(g.sched?'':' (не по расписанию)')+'</option>'}).join('')||'<option value="">'+(tab=='ind'?'Нет занятий':'Нет групп')+'</option>';
+  $('grp').disabled=!show.length;emptyTab=false;loadErr='';
+  if(!show.length){
+    roster=[];marks={};rosterFor='';
+    if(tab=='ind'){emptyTab=true;msg('');render();return}
+    render();msg('В этот день по расписанию тренировок нет. Для дополнительной или перенесённой включите «Показать все группы».',true);return;
+  }
   if(show.some(function(g){return g.name==want}))$('grp').value=want;
-  if(pre){setRoster(pre);return}
+  if(pre&&pre.group===$('grp').value){setRoster(pre.roster);return}
   loadRoster();
 }
 function loadGroups(want){
@@ -88,11 +107,11 @@ function loadGroups(want){
     if(n!=reqN)return;
     showApp();allGroups=r.groups;
     if(!r.groups.length){$('grp').innerHTML='';roster=[];marks={};render();msg('В листе месяца нет групп.',true);return}
-    fillGroups(r.group||want,r.roster);
+    fillGroups(want&&r.groups.some(function(g){return g.name==want})?want:r.group,{group:r.group,roster:r.roster});
   },function(m){
     if(n!=reqN)return;
     if(m.indexOf('код доступа')>=0)showLogin('Неверный код доступа');
-    else{showApp();allGroups=[];$('grp').innerHTML='';roster=[];marks={};render();msg(m,true)}
+    else{showApp();allGroups=[];$('grp').innerHTML='';roster=[];marks={};loadErr=m;render();msg(m,true)}
   });
 }
 function setRoster(r){
@@ -105,7 +124,8 @@ function setRoster(r){
 function loadRoster(){
   var n=++reqN;
   msg('Загрузка списка…');render();
-  run('appRoster',[pin,$('grp').value,$('dt').value],function(r){if(n==reqN)setRoster(r)},function(m){if(n==reqN)msg(m,true)});
+  loadErr='';
+  run('appRoster',[pin,$('grp').value,$('dt').value],function(r){if(n==reqN)setRoster(r)},function(m){if(n==reqN){loadErr=m;roster=[];marks={};rosterFor='';msg('');render()}}); // ошибка — блоком в списке с «Повторить»
 }
 function kids(n){var d=n%10,h=n%100;return n+' '+(d==1&&h!=11?'ребёнок':(d>=2&&d<=4&&(h<12||h>14)?'ребёнка':'детей'))}
 function render(){
@@ -115,6 +135,8 @@ function render(){
     li+='<li><span class="nm">'+esc(x.name)+'</span><div class="seg"><button class="p" aria-pressed="'+(s=='p')+'" data-i="'+i+'" data-v="p">Был</button><button class="a" aria-pressed="'+(s=='a')+'" data-i="'+i+'" data-v="a">Не был</button></div></li>';
   });
   if(!roster.length&&rosterFor===key())li='<li class="empty">В группе пока нет детей. Добавьте их в реестр</li>';
+  if(emptyTab)li=ksEmpty({tag:'li',icon:'users',title:'Индивидуальных занятий сегодня нет',text:'На выбранную дату нет индивидуальных, вратарских или дополнительных занятий.'});
+  if(loadErr&&!roster.length)li='<li class="lerr" role="alert">Не удалось загрузить список. '+esc(loadErr)+'<button type="button" id="retry">Повторить</button></li>';
   var loaded=rosterFor===key()&&roster.length>0;
   $('cnt').hidden=!loaded;$('cnt').innerHTML='Отмечено: <b>'+(p+a)+'</b> из '+roster.length;
   $('gcnt').hidden=!loaded;$('gcnt').textContent=kids(roster.length);
@@ -125,6 +147,7 @@ function render(){
   b.textContent=busy?'Сохраняю…':(stale?'Загрузка списка…':(r>0?'Осталось отметить: '+r:'Сохранить отметки'));
 }
 $('list').onclick=function(e){
+  if(e.target.id=='retry'){if(allGroups.length&&$('grp').value)loadRoster();else loadGroups();return}
   var t=e.target;if(!t.dataset||!t.dataset.v)return;
   var id=roster[t.dataset.i].id;
   if(marks[id]==t.dataset.v)delete marks[id];else marks[id]=t.dataset.v;
@@ -135,6 +158,7 @@ $('clr').onclick=function(){marks={};$('res').innerHTML='';render()};
 $('grp').onchange=function(){$('res').innerHTML='';saveState();loadRoster()};
 $('dt').onchange=function(){if(this.value){saveState();loadGroups()}};
 $('allg').onchange=function(){saveState();fillGroups($('grp').value)};
+$('ktab').onclick=function(e){var b=e.target.closest('button');if(!b||b.dataset.k==tab)return;setTab(b.dataset.k);$('res').innerHTML='';ferr('');fillGroups('');saveState()};
 function ferr(t){var e=$('ferr');e.textContent=t||'';e.hidden=!t}
 // Высота закреплённой кнопки (с сообщением об ошибке) — для нижнего отступа списка
 (function(){var f=$('foot');function up(){document.documentElement.style.setProperty('--foot-h',(f.offsetHeight||72)+'px')}
