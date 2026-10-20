@@ -31,13 +31,38 @@ button:disabled{opacity:.5;cursor:default}
 .err{color:var(--a)}.msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:6px}
 .ok{color:var(--g)}
 .team-name{flex:1.4;font-weight:600}
-.srow{border-top:1px solid var(--line);padding:10px 0 4px}
-.srow:first-of-type{border-top:0}
-.sgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
-.sgrid .w2{grid-column:span 2}
-.sgrid input,.sgrid select{padding:8px;min-height:40px;font-size:15px}
-.sgrid label{display:block;font-size:12px;color:var(--mute);margin-bottom:2px}
-@media(max-width:480px){.sgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.grp .card{margin-bottom:8px}
+.seg3{display:flex;margin-top:10px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.seg3 button{flex:1;min-height:44px;border:0;background:var(--card);color:var(--ink);font-weight:600}
+.seg3 button[aria-pressed=true]{background:var(--g);color:var(--gi)}
+/* Расписание: дни — раскрывающиеся блоки; на телефоне тренировка — краткая строка, поля по нажатию */
+.sday{border-top:1px solid var(--line);padding:4px 0;border-radius:0!important;box-shadow:none!important}
+.sday>summary{display:flex;gap:10px;align-items:baseline;padding:10px 0;cursor:pointer;list-style-position:outside}
+.sday>summary .sub{margin:0}
+.strn{border:1px solid var(--line);border-radius:10px;margin:6px 0;padding:0 10px}
+.strn>summary{padding:10px 0;cursor:pointer;overflow-wrap:anywhere}
+.srow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:4px 0 10px}
+.sf{display:block;min-width:0}.sf>span{display:block;font-size:12px;color:var(--mute);margin-bottom:2px}
+.sf input,.sf select{padding:8px;min-height:40px;font-size:15px}
+.sf-loc,.sf-group,.sf-trainers,.sf-att{grid-column:span 2}
+.sf-del{display:flex;align-items:flex-end;justify-content:flex-end}
+.sadd{width:100%;margin:6px 0 8px}
+.shead{display:none}
+/* Компьютер: шире колонка страницы, настройки в две колонки, тренировка — одна строка таблицы */
+@media(min-width:840px){
+  #app.wrap,#login.wrap{max-width:1040px}
+  .grp{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:start}
+  .grp .card{margin-bottom:0}
+  #theme{max-width:520px}
+  .shead,.sday .srow{display:grid;grid-template-columns:72px 72px 132px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 72px 92px;gap:6px;align-items:center}
+  .shead{font-size:12px;color:var(--mute);padding:0 0 2px}
+  .sday .srow{padding:3px 0;border:0}
+  .sday .srow .sf>span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .sf-loc,.sf-group,.sf-trainers,.sf-att{grid-column:auto}
+  .sf-del{align-items:center}
+  .sadd{width:auto}
+  .ssave{max-width:520px}
+}
 </style>
 </head>
 <body>
@@ -48,6 +73,8 @@ button:disabled{opacity:.5;cursor:default}
 <div id="app" class="wrap" hidden>
   <h1>Настройки</h1>
   <div class="msg" id="msg" role="status"></div>
+  <h2>Оформление</h2>
+  <div class="card" id="theme"></div>
   <div id="list"></div>
   <h2>Цены</h2>
   <div class="card" id="prices"><div class="sub">Загрузка…</div></div>
@@ -73,14 +100,14 @@ function field(k,id,val,dis){
 function note(key,obj){var n=notes[key+'|'+norm(obj)];return n?'<div class="msg '+(n.bad?'err':'ok')+'">'+esc(n.t)+'</div>':''}
 function load(after){
   setMsg(S?'':'Загрузка…');
-  run('appSettings',[pin],function(d){S=d;$('login').hidden=true;$('app').hidden=false;setMsg(d.dryRun?'Пробный режим: изменения не записываются.':'');render();if(after)after();if(!SC)loadSched();if(!PRC)loadPrices()},fail);
+  run('appSettings',[pin],function(d){S=d;$('login').hidden=true;$('app').hidden=false;setMsg(d.dryRun?'Пробный режим: изменения не записываются.':'');render();if(after)after();if(!SC)loadSched();if(!PRC)loadPrices();renderTheme()},fail);
 }
 function render(keep){
   var typed={};
   if(keep)[].forEach.call(document.querySelectorAll('#list input'),function(i){typed[i.id]=i.value});
   var groups={},order=[];
   Object.keys(S.keys).forEach(function(key){var g=S.keys[key].group;if(!groups[g]){groups[g]=[];order.push(g)}groups[g].push(key)});
-  $('list').innerHTML=order.map(function(g){return'<h2>'+esc(g)+'</h2>'+groups[g].map(card).join('')}).join('');
+  $('list').innerHTML=order.map(function(g){return'<h2>'+esc(g)+'</h2><div class="grp">'+groups[g].map(card).join('')+'</div>'}).join('');
   [].forEach.call(document.querySelectorAll('#list button'),function(b){b.disabled=busy||b.hasAttribute('data-off')});
   if(keep)Object.keys(typed).forEach(function(id){if($(id))$(id).value=typed[id]});
 }
@@ -188,34 +215,65 @@ $('prices').addEventListener('click',function(e){
 function loadSched(note,bad){
   run('appSchedule',[pin],function(d){SC=d;SC.rows=d.rows.map(function(r){return Object.assign({},r)});renderSched(note,bad)},function(m){$('sched').innerHTML='<div class="sub err">'+esc(m)+'</div>'});
 }
-function schedField(i,k,lbl,cls){return'<div class="'+(cls||'')+'"><label>'+lbl+'</label><input data-r="'+i+'" data-k="'+k+'" value="'+esc(SC.rows[i][k])+'"></div>'}
-function schedSel(i,k,lbl,opts){return'<div><label>'+lbl+'</label><select data-r="'+i+'" data-k="'+k+'">'+opts.map(function(o){return'<option'+(o==SC.rows[i][k]?' selected':'')+'>'+esc(o)+'</option>'}).join('')+'</select></div>'}
+var WIDE=window.matchMedia?window.matchMedia('(min-width:840px)'):{matches:false},scOpen={},scDirty=false;
+var DAYN={пн:'Понедельник',вт:'Вторник',ср:'Среда',чт:'Четверг',пт:'Пятница',сб:'Суббота',вс:'Воскресенье'};
+function schedInp(i,k,lbl,ph){return'<label class="sf sf-'+k+'"><span>'+lbl+'</span><input data-r="'+i+'" data-k="'+k+'" value="'+esc(SC.rows[i][k])+'"'+(ph?' placeholder="'+ph+'"':'')+(k=='start'||k=='end'?' inputmode="numeric"':'')+'></label>'}
+function schedSel(i,k,lbl,opts){return'<label class="sf sf-'+k+'"><span>'+lbl+'</span><select data-r="'+i+'" data-k="'+k+'">'+opts.map(function(o){return'<option'+(o==SC.rows[i][k]?' selected':'')+'>'+esc(o)+'</option>'}).join('')+'</select></label>'}
+function schedDays(){return SC.days.slice(1).concat(SC.days[0])}
+function schedFields(i){
+  return schedInp(i,'start','Начало','16:00')+schedInp(i,'end','Конец','17:00')+schedSel(i,'type','Тип',SC.types)
+    +schedInp(i,'loc','Локация')+schedInp(i,'group','Группа','как в «Тренировках»')+schedInp(i,'trainers','Тренеры','через запятую')
+    +schedInp(i,'att','Группы в отметках','группы реестра')+schedSel(i,'day','День',schedDays())
+    +'<div class="sf sf-del"><button class="sec" data-sa="del" data-r="'+i+'" title="Удалить тренировку">Удалить</button></div>';
+}
+function schedSum(r){return'<b>'+esc(r.start||'—')+'–'+esc(r.end||'—')+'</b> · '+esc(r.group||'группа не указана')+'<span class="sub"> · '+esc(r.loc||'')+(r.trainers?' · '+esc(r.trainers):'')+'</span>'}
 function renderSched(note,bad){
-  var h='<div class="lbl">Тренировки по дням'+'<span class="chip">'+(SC.source=='sheet'?'из листа «РАСПИСАНИЕ»':'по умолчанию, лист ещё не создан')+'</span></div>'
+  var wide=WIDE.matches,h='<div class="lbl">Тренировки по дням<span class="chip">'+(SC.source=='sheet'?'из листа «РАСПИСАНИЕ»':'по умолчанию, лист ещё не создан')+'</span></div>'
     +'<div class="sub">«Группа» — как в листе «Тренировки». «Группы в отметках» — группы реестра через запятую: в этот день они показываются в «Отметках» как группы дня.</div>';
   if(SC.bad&&SC.bad.length)h+='<div class="sub err">В листе пропущены строки: '+SC.bad.map(function(b){return b.line+' ('+esc(b.error)+')'}).join('; ')+'</div>';
-  SC.rows.forEach(function(r,i){
-    h+='<div class="srow"><div class="sgrid">'+schedSel(i,'day','День',SC.days.slice(1).concat(SC.days[0]))+schedField(i,'start','Начало')+schedField(i,'end','Конец')+schedSel(i,'type','Тип',SC.types)
-      +schedField(i,'loc','Локация','w2')+schedField(i,'group','Группа','w2')+schedField(i,'trainers','Тренеры','w2')+schedField(i,'att','Группы в отметках','w2')+'</div>'
-      +'<div class="row" style="justify-content:flex-end;margin-top:6px"><button class="sec" data-sa="del" data-r="'+i+'">Удалить</button></div></div>';
+  schedDays().forEach(function(d){
+    var idx=[];SC.rows.forEach(function(r,i){if(r.day==d)idx.push(i)});
+    idx.sort(function(a,b){return String(SC.rows[a].start).localeCompare(String(SC.rows[b].start))});
+    h+='<details class="sday" data-day="'+d+'"'+(scOpen[d]?' open':'')+'><summary><b>'+DAYN[d]+'</b><span class="sub">'+(idx.length?idx.length+' трен.':'нет тренировок')+'</span></summary>';
+    if(wide&&idx.length)h+='<div class="shead"><span>Начало</span><span>Конец</span><span>Тип</span><span>Локация</span><span>Группа</span><span>Тренеры</span><span>Группы в отметках</span><span>День</span><span></span></div>';
+    idx.forEach(function(i){
+      h+=wide?'<div class="srow">'+schedFields(i)+'</div>'
+        :'<details class="strn"'+(SC.rows[i]._open?' open':'')+' data-r="'+i+'"><summary>'+schedSum(SC.rows[i])+'</summary><div class="srow">'+schedFields(i)+'</div></details>';
+    });
+    h+='<button class="sec sadd" data-sa="add" data-day="'+d+'">+ Тренировка: '+DAYN[d].toLowerCase()+'</button></details>';
   });
-  h+='<div class="row" style="flex-wrap:wrap"><button class="sec" data-sa="add" style="flex:1 1 160px">Добавить тренировку</button><button class="sb" data-sa="save" style="flex:1 1 160px">Сохранить расписание</button></div>'
-    +'<div class="msg'+(bad?' err':' ok')+'" id="scmsg">'+esc(note||'')+'</div>';
+  h+='<div class="row ssave"><button class="sb" data-sa="save" style="flex:1">Сохранить расписание</button></div>'
+    +'<div class="msg'+(bad?' err':scDirty?'':' ok')+'" id="scmsg">'+esc(note||(scDirty?'Есть несохранённые изменения.':''))+'</div>';
   $('sched').innerHTML=h;
   [].forEach.call(document.querySelectorAll('#sched button'),function(b){b.disabled=scBusy});
 }
-$('sched').addEventListener('input',function(e){var t=e.target;if(t.dataset.r!==undefined&&t.dataset.k)SC.rows[t.dataset.r][t.dataset.k]=t.value});
-$('sched').addEventListener('change',function(e){var t=e.target;if(t.dataset.r!==undefined&&t.dataset.k)SC.rows[t.dataset.r][t.dataset.k]=t.value});
+if(WIDE.addEventListener)WIDE.addEventListener('change',function(){if(SC)renderSched()});
+$('sched').addEventListener('toggle',function(e){var t=e.target;if(t.classList.contains('sday'))scOpen[t.dataset.day]=t.open;else if(t.classList.contains('strn'))SC.rows[t.dataset.r]._open=t.open},true);
+function scEdit(e){var t=e.target;if(t.dataset.r===undefined||!t.dataset.k)return;SC.rows[t.dataset.r][t.dataset.k]=t.value;
+  if(!scDirty){scDirty=true;var m=$('scmsg');if(m){m.textContent='Есть несохранённые изменения.';m.className='msg'}}
+  if(t.dataset.k=='day'){scOpen[t.value]=true;renderSched()}}
+$('sched').addEventListener('input',scEdit);
+$('sched').addEventListener('change',scEdit);
 $('sched').addEventListener('click',function(e){
   var b=e.target.closest('button');if(!b||b.disabled||!SC)return;
-  if(b.dataset.sa=='del'){SC.rows.splice(Number(b.dataset.r),1);renderSched('Строка удалена. Чтобы изменения вступили в силу, нажмите «Сохранить расписание».');return}
-  if(b.dataset.sa=='add'){SC.rows.push({day:'пн',start:'',end:'',type:'Групповая',loc:'',group:'',trainers:'',att:''});renderSched();return}
+  if(b.dataset.sa=='del'){var r=SC.rows[b.dataset.r];if(!confirm('Удалить тренировку '+(r.start||'')+' '+(r.group||'')+'?'))return;SC.rows.splice(Number(b.dataset.r),1);scDirty=true;renderSched('Тренировка удалена. Чтобы изменения вступили в силу, нажмите «Сохранить расписание».');return}
+  if(b.dataset.sa=='add'){var d=b.dataset.day||'пн';SC.rows.push({day:d,start:'',end:'',type:'Групповая',loc:'',group:'',trainers:'',att:'',_open:true});scOpen[d]=true;scDirty=true;renderSched();return}
   if(b.dataset.sa=='save'){
     scBusy=true;renderSched('Сохраняю…');
-    run('appScheduleSave',[pin,SC.rows],function(r){scBusy=false;loadSched(r.dryRun?'Пробный режим: не записано.':'Сохранено: тренировок '+r.count+'.')},
+    var rows=SC.rows.map(function(r){return{day:r.day,start:r.start,end:r.end,type:r.type,loc:r.loc,group:r.group,trainers:r.trainers,att:r.att}});
+    run('appScheduleSave',[pin,rows],function(r){scBusy=false;scDirty=false;loadSched(r.dryRun?'Пробный режим: не записано.':'Сохранено: тренировок '+r.count+'.')},
       function(m){scBusy=false;if(m.indexOf('код администратора')>=0){showLogin('Неверный код администратора');return}renderSched(m,true)});
   }
 });
+window.addEventListener('beforeunload',function(e){if(scDirty){e.preventDefault();e.returnValue=''}});
+// ---------- Оформление: тема (Nav.html: ksSetTheme, хранится в браузере) ----------
+function renderTheme(){
+  var t=window.ksTheme?window.ksTheme():'';
+  $('theme').innerHTML='<div class="lbl">Тема</div><div class="sub">Только для этого браузера. «Как на устройстве» — как в настройках телефона или компьютера.</div>'
+    +'<div class="seg3">'+[['','Как на устройстве'],['light','Светлая'],['dark','Тёмная']].map(function(x){return'<button data-t="'+x[0]+'" aria-pressed="'+(t==x[0])+'">'+x[1]+'</button>'}).join('')+'</div>';
+}
+$('theme').addEventListener('click',function(e){var b=e.target.closest('button');if(!b||!window.ksSetTheme)return;window.ksSetTheme(b.dataset.t);renderTheme()});
+document.addEventListener('kstheme',function(){if($('theme').innerHTML)renderTheme()});
 $('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;try{localStorage.setItem('kspin',pin)}catch(e){}load()};
 try{pin=localStorage.getItem('kspin')||''}catch(e){}
 if(pin)load();else showLogin('');

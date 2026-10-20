@@ -22,6 +22,8 @@ function appEquipOrders(pin) {
   if (!data) { data = equipOrdersLive_(); cachePutBig_('eq_v1', data, 60); }
   data.prices = kitPrices_();
   data.disc = equipDiscCfg_();
+  data.flags = {};   // что требует позиция каталога: надпись, номер (колонки «Надпись», «Номер»)
+  catalog_(false).forEach(function (x) { data.flags[x.name.toLowerCase()] = { inscr: !!x.inscr, num: !!x.num }; });
   data.sizes = kitSizes_();
   return data;
 }
