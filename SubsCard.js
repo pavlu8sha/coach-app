@@ -36,5 +36,5 @@ function appPlayerSubs(pin, id) {
       if (r[2] === id) hist.push({ date: r[1], month: r[4], group: r[5], amount: r[6], type: r[7], comment: r[8], method: r[9] });
     });
   }
-  return { items: items, hist: hist.reverse(), months: months, tariffs: tariffs, tariffsBy: tariffsBy };
+  return { items: items, hist: hist.reverse(), months: months, tariffs: tariffs, tariffsBy: tariffsBy, nextDay: settingGet_('subs.nextMonthDay') };
 }

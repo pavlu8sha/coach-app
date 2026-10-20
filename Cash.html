@@ -87,8 +87,8 @@ function setMsg(t,bad){$('msg').textContent=t||'';$('msg').className='msg'+(bad?
 function showLogin(t){$('app').hidden=true;$('login').hidden=false;$('lerr').textContent=t||''}
 function fail(m){m=friendly_(m);if(/уже оплачен/.test(m)&&cur){$('login').hidden=true;$('app').hidden=false;setMsg(m,true);loadPlayer(cur,true);return}if(/код (администратора|доступа)/.test(m))showLogin('Неверный код доступа');else{$('login').hidden=true;$('app').hidden=false;setMsg(m,true)}}
 function pid(v){var m=/\((KS-\d+)\)\s*$/.exec(v.trim());return m?m[1]:''}
-function defMonth(ms){
-  var d=new Date(),t=new Date(d.getFullYear(),d.getMonth()+(d.getDate()>=22?1:0),1);
+function defMonth(ms,day){
+  var d=new Date(),t=new Date(d.getFullYear(),d.getMonth()+(d.getDate()>=(day||22)?1:0),1);   // day — настройка subs.nextMonthDay
   var k=('0'+(t.getMonth()+1)).slice(-2)+'.'+String(t.getFullYear()).slice(-2);
   return ms.indexOf(k)>=0?k:ms[0];
 }
@@ -127,7 +127,7 @@ function loadPlayer(id,keep){
     var old=$('mon').value;
     $('mon').innerHTML=r.months.map(function(m){return'<option>'+m+'</option>'}).join('');
     if(!r.months.length){setMsg('В файле оплат нет листов месяцев.',true);return}
-    $('mon').value=r.months.indexOf(old)>=0?old:defMonth(r.months);
+    $('mon').value=r.months.indexOf(old)>=0?old:defMonth(r.months,r.nextDay);
     run('appIndOfPlayer',[pin,id],function(x){if(n==reqN&&cur==id){IND=x;paint(true)}},function(){});
     loadExt(n);
     paint();

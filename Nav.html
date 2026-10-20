@@ -1,6 +1,8 @@
 <style>
 :root{--sh:0 1px 2px rgba(20,32,26,.07),0 2px 8px rgba(20,32,26,.04);--navh:64px}
-@media(prefers-color-scheme:dark){:root{--sh:none}}
+/* Тема: «Как на устройстве» — по системе; html[data-theme=light|dark] — выбор пользователя (меню «Ещё», хранится в браузере) */
+@media(prefers-color-scheme:dark){html:not([data-theme=light]){--sh:none;color-scheme:dark}}
+html[data-theme=dark]{--sh:none;color-scheme:dark}html[data-theme=light]{color-scheme:light}
 html{-webkit-text-size-adjust:100%}
 body{background:var(--bg)!important;color:var(--ink)!important;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif!important}
 h1{font-size:24px!important;letter-spacing:-.01em}
@@ -48,7 +50,7 @@ html .msg.ks-inl{visibility:hidden}
 :root:root{--bg:#F3F5FA;--card:#fff;--ink:#141C33;--mute:#5A6584;--line:#DADFEC;
 --g:#25335A;--gi:#fff;--pb:#DDE4F6;--n:#D2D8E6;--a:#C0392B}
 @media (prefers-color-scheme:dark){
-:root:root{--bg:#0D1324;--card:#161F38;--ink:#E8ECF7;--mute:#97A3C2;--line:#27325A;
+html:not([data-theme=light]):root:root{--bg:#0D1324;--card:#161F38;--ink:#E8ECF7;--mute:#97A3C2;--line:#27325A;
 --g:#7F9DEB;--gi:#0B1020;--pb:#1F2D54;--n:#2F3B63;--a:#F0866F}}
 /* UI-003: подразделы (Приём оплат / По месяцам и группам / Должники и др.) */
 .ks-sub{display:grid;gap:4px;max-width:592px;width:100%;margin:0 auto;padding:10px 16px 0;box-sizing:border-box}
@@ -88,6 +90,7 @@ img,table,select,input,textarea{max-width:100%}
   document.documentElement.setAttribute('data-page',PAGE);
   function get(k){try{return localStorage.getItem(k)||''}catch(e){return''}}
   function set(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+  // Тема — Ui.html (window.ksTheme / ksSetTheme, ключ kstheme); здесь только переключатель в «Ещё»
   var nav=document.getElementById('ksnav'),sheet=document.getElementById('ksmore'),blk=document.getElementById('ksblock'),toast=document.getElementById('kstoast'),last='',role='',tt;
   document.getElementById('ksgo').href=URL;
   function asTrainer(){return role!='admin'||get('ksmode')=='trainer'}
@@ -107,8 +110,8 @@ img,table,select,input,textarea{max-width:100%}
     nav.innerHTML=main.map(function(k){return link(k,'kst')}).join('')+'<button type="button" class="kst'+(moreOn?' on':'')+'" id="ksmb" aria-haspopup="true" aria-expanded="false" aria-controls="ksmore">'+svg('more')+'<span>Ещё</span></button>';
     more.forEach(function(k){sh+=link(k,'ksi')});
     if(role=='admin')sh+='<div class="kslbl">Режим</div><div class="ksmode"><button data-m="admin"'+(tr?'':' class="on"')+'>Админ</button><button data-m="trainer"'+(tr?' class="on"':'')+'>Тренер</button></div>';
-    var th=window.ksTheme?window.ksTheme():'system';
-    sh+='<div class="kslbl" id="ksthl">Тема</div><div class="ksmode kstheme" role="radiogroup" aria-labelledby="ksthl">'+[['system','Как на устройстве'],['light','Светлая'],['dark','Тёмная']].map(function(x){
+    var th=window.ksTheme?window.ksTheme():'';
+    sh+='<div class="kslbl" id="ksthl">Тема</div><div class="ksmode kstheme" role="radiogroup" aria-labelledby="ksthl">'+[['','Как на устройстве'],['light','Светлая'],['dark','Тёмная']].map(function(x){
       return'<button type="button" role="radio" aria-checked="'+(th==x[0])+'" data-th="'+x[0]+'"'+(th==x[0]?' class="on"':'')+'>'+x[1]+'</button>'}).join('')+'</div>';
     sh+='<button class="ksi" id="ksref">Обновить данные</button><button class="ksi" id="kslo">Выйти</button>';
     sheet.innerHTML=sh;
@@ -133,11 +136,13 @@ img,table,select,input,textarea{max-width:100%}
   document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!sheet.hidden){sheetOpen(false);var mb=document.getElementById('ksmb');if(mb)mb.focus()}});
   sheet.addEventListener('click',function(e){
     var b=e.target.closest('button');if(!b)return;
-    if(b.dataset.th){if(window.ksSetTheme)window.ksSetTheme(b.dataset.th);[].forEach.call(sheet.querySelectorAll('[data-th]'),function(x){var on=x===b;x.classList.toggle('on',on);x.setAttribute('aria-checked',String(on))});return}
+    if(b.hasAttribute('data-th')){if(window.ksSetTheme)window.ksSetTheme(b.dataset.th);return}
     if(b.dataset.m)setMode(b.dataset.m);else if(b.id=='kslo')logout();else if(b.id=='ksref')refresh();
   });
   document.addEventListener('click',function(e){if(!e.target.closest('#ksmore,#ksmb')&&!sheet.hidden)sheetOpen(false)});
   document.getElementById('ksadm').onclick=function(){setMode('admin')};
+  // тема сменилась (здесь, в «Настройках» или в другой вкладке) — отметка в «Ещё»
+  document.addEventListener('kstheme',function(){var t=window.ksTheme?window.ksTheme():'';[].forEach.call(sheet.querySelectorAll('[data-th]'),function(x){var on=x.dataset.th===t;x.classList.toggle('on',on);x.setAttribute('aria-checked',String(on))})});
   // UI-010. Сообщения страницы (.msg):
   //  • тост — только для итогов: общее сообщение страницы (.msg с role="status"), кроме «Загрузка…»/«Сохраняю…»;
   //  • ошибка формы — внутри формы: если ошибка пришла в общее сообщение сразу после нажатия кнопки на странице,

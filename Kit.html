@@ -82,7 +82,7 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
   <button class="btn sec" id="fcancel">Отмена</button>
 </div>
 <script>
-var pin='',P=[],O=[],UNL=[],PR={},SZ={},DC=null,flash='';
+var pin='',P=[],O=[],UNL=[],PR={},SZ={},DC=null,FL={},flash='';
 function $(i){return document.getElementById(i)}
 function run(fn,args,ok,fail){var r=google.script.run.withSuccessHandler(ok).withFailureHandler(function(e){fail(e&&e.message?e.message:String(e))});r[fn].apply(r,args)}
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
@@ -102,7 +102,7 @@ function load(){
     P=pd.players;
     $('plist').innerHTML=P.filter(function(p){return p.status=='Активен'}).map(function(p){return'<option value="'+esc(p.name+' ('+p.id+')')+'">'}).join('');
     $('qlist').innerHTML=P.filter(function(p){return p.status=='Активен'}).map(function(p){return'<option value="'+esc(p.name)+'">'+esc(p.id+' · '+p.group)+'</option>'}).join('');
-    O=rd.orders;UNL=rd.unl;PR=rd.prices;SZ=rd.sizes||{};DC=rd.disc||null;
+    O=rd.orders;UNL=rd.unl;PR=rd.prices;SZ=rd.sizes||{};DC=rd.disc||null;FL=rd.flags||{};
     $('login').hidden=true;$('form').hidden=true;$('app').hidden=false;
     fillGroups();show();
   }
@@ -119,11 +119,12 @@ function fillGroups(){
 function locBucket(l){var s=nn(l||'');if(!s)return'none';if(/красн|krasn/.test(s))return'red';if(/ортач|исан|ortach|isan/.test(s))return'oth';return'rest'}
 var LOC_ORD={red:0,oth:1,rest:2,none:3};
 // Обязательные данные заказа (для любого комплекта): размер, номер, надпись. Номер уникален внутри точной группы (U13-A, U13-B и U13-C — отдельно).
-// Носки и гетры — без номера и надписи; тренировочная форма — без надписи
+// Надпись и номер нужны, если их требует хотя бы одна позиция заказа (флаги каталога «Надпись», «Номер»).
+// Позиция не из каталога — нужны оба.
 function missOf(o){
-  var parts=String(o.kit||'').split(' + ').map(nn);
-  var socksOnly=parts.length>0&&parts.every(function(x){return /носк|гетр/.test(x)});
-  var trainOnly=parts.every(function(x){return x==='тренировочная форма'||/носк|гетр/.test(x)});
+  var parts=String(o.kit||'').split(' + ').map(nn).filter(Boolean);
+  var need=function(f){return parts.some(function(x){var c=FL[x];return!c||c[f]})};
+  var socksOnly=!need('num'),trainOnly=!need('inscr');
   var m=[];
   if(!o.kit)m.push('комплект');
   if(!(o.sum>0))m.push('сумма');

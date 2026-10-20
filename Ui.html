@@ -12,10 +12,14 @@
   /* DS-011 (вариант б): бывшие локальные токены страниц — в общем слое */
   --ab:var(--color-danger-subtle);--okbg:var(--color-primary-subtle)
 }
-@media (prefers-color-scheme:dark){:root{
+@media (prefers-color-scheme:dark){html:not([data-theme=light]):root{
   --color-warning:#E8C26A;--color-warning-subtle:#3A2F12;--color-danger-subtle:#3C1F1B;--color-danger-strong:#F0866F;--color-border-strong:#6474A6;--color-on-danger:#0B1020;
   --color-success:#5FC48D;--color-success-subtle:#16382A;--color-neutral-strong:#97A3C2;--color-on-status:#0B1020
 }}
+html[data-theme=dark]:root{
+  --color-warning:#E8C26A;--color-warning-subtle:#3A2F12;--color-danger-subtle:#3C1F1B;--color-danger-strong:#F0866F;--color-border-strong:#6474A6;--color-on-danger:#0B1020;
+  --color-success:#5FC48D;--color-success-subtle:#16382A;--color-neutral-strong:#97A3C2;--color-on-status:#0B1020
+}
 /* Широкий контейнер для таблиц и плотных списков (UI-004, затем по одному экрану): выходит из узкой колонки
    страницы до 960 px и центрируется; на телефоне равен ширине колонки. Формы остаются узкими. */
 .ks-wide{--ks-w:min(960px,calc(100vw - 32px));width:var(--ks-w);max-width:none;margin-left:calc(50% - var(--ks-w) / 2);margin-right:0}
@@ -201,19 +205,19 @@ label.ks-pinl{display:block;margin:16px 0 8px;color:var(--ink);font-size:16px;fo
 })();
 </script>
 <script>
-/* DS-012: ручная тема. Ключ kstheme: '' / 'system' — как на устройстве, 'light', 'dark'. «Выйти» его не очищает.
+/* DS-012: ручная тема. Ключ kstheme: нет / '' — как на устройстве, 'light', 'dark'. ksTheme() → '' | 'light' | 'dark'. «Выйти» его не очищает.
    Тёмные стили во всех файлах написаны через @media(prefers-color-scheme:dark): при ручном выборе такие правила
    включаются или выключаются заменой условия, при «Как на устройстве» возвращается исходное условие. */
 (function(){
   var DARK=/\(\s*prefers-color-scheme\s*:\s*dark\s*\)/gi;
-  function get(){var v='';try{v=localStorage.getItem('kstheme')||''}catch(e){}return v=='light'||v=='dark'?v:'system'}
+  function get(){var v='';try{v=localStorage.getItem('kstheme')||''}catch(e){}return v=='light'||v=='dark'?v:''}
   function walk(rules,t){
     for(var i=0;i<rules.length;i++){
       var r=rules[i];
       if(r.media&&r.cssRules){
         if(r.__ksMedia===undefined){if(!DARK.test(r.media.mediaText)){DARK.lastIndex=0;r.__ksMedia=null}else{DARK.lastIndex=0;r.__ksMedia=r.media.mediaText}}
         if(r.__ksMedia!==null){
-          var m=t=='system'?r.__ksMedia:r.__ksMedia.replace(DARK,t=='dark'?'(min-width:0px)':'(prefers-color-scheme:ks-none)');
+          var m=!t?r.__ksMedia:r.__ksMedia.replace(DARK,t=='dark'?'(min-width:0px)':'(prefers-color-scheme:ks-none)');
           if(t=='light'&&/^\s*\(prefers-color-scheme:ks-none\)\s*$/.test(m))m='not all';
           if(r.media.mediaText!==m)r.media.mediaText=m;
         }
@@ -224,18 +228,18 @@ label.ks-pinl{display:block;margin:16px 0 8px;color:var(--ink);font-size:16px;fo
   function apply(){
     var t=get(),ss=document.styleSheets,de=document.documentElement;
     for(var i=0;i<ss.length;i++){var rs=null;try{rs=ss[i].cssRules}catch(e){}if(rs)walk(rs,t)}
-    if(t=='system'){de.removeAttribute('data-theme');de.style.colorScheme='light dark'}
+    if(!t){de.removeAttribute('data-theme');de.style.colorScheme='light dark'}
     else{de.setAttribute('data-theme',t);de.style.colorScheme=t}
   }
   window.ksTheme=get;
-  window.ksSetTheme=function(t){try{if(t=='light'||t=='dark')localStorage.setItem('kstheme',t);else localStorage.removeItem('kstheme')}catch(e){}apply()};
+  window.ksSetTheme=function(t){try{if(t=='light'||t=='dark')localStorage.setItem('kstheme',t);else localStorage.removeItem('kstheme')}catch(e){}apply();try{document.dispatchEvent(new Event('kstheme'))}catch(e){}};
   apply();
   document.addEventListener('DOMContentLoaded',apply);
   window.addEventListener('load',apply);
   /* стили, которые страница добавляет позже (например, StatsMatches) */
   try{new MutationObserver(function(ms){for(var i=0;i<ms.length;i++)for(var j=0;j<ms[i].addedNodes.length;j++){var n=ms[i].addedNodes[j];if(n.nodeName=='STYLE'||n.nodeName=='LINK'){apply();return}}}).observe(document.head,{childList:true})}catch(e){}
   /* другая вкладка сменила тему */
-  window.addEventListener('storage',function(e){if(e.key=='kstheme')apply()});
+  window.addEventListener('storage',function(e){if(e.key=='kstheme'){apply();try{document.dispatchEvent(new Event('kstheme'))}catch(x){}}});
 })();
 </script>
 <script>
