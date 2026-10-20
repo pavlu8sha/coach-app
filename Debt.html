@@ -27,7 +27,7 @@ button{font:inherit;cursor:pointer}
 .tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
 .tile b{display:block;font-size:18px}.tile span{color:var(--mute);font-size:12px}
 details{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:8px}
-summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:none}
+summary{cursor:pointer;list-style:none;min-height:44px;display:flex;flex-direction:column;justify-content:center} /* цель нажатия ≥ 44 px */summary::-webkit-details-marker{display:none}
 .top{display:flex;justify-content:space-between;gap:8px;font-weight:700}
 .sub{color:var(--mute);font-size:13px}
 .it{padding:8px 0;border-top:1px solid var(--line)}
