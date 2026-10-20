@@ -35,8 +35,8 @@ summary::-webkit-details-marker{display:none}
 </head>
 <body>
 <div id="login" class="wrap" hidden>
-  <h1>Индивидуальные</h1><p>Введите код администратора</p>
-  <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err"></p>
+  <h1>Индивидуальные</h1><label for="pin" class="ks-pinl">Введите код администратора</label>
+  <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err" role="alert"></p>
   <button class="btn" id="go">Войти</button>
 </div>
 <div id="app" class="wrap" hidden>
@@ -49,7 +49,7 @@ summary::-webkit-details-marker{display:none}
     <div id="plist"></div>
     <div class="add">
       <input list="dl" id="pn" placeholder="Игрок из реестра или гость (имя)" autocomplete="off">
-      <select id="ps"><option value="6-ind">Сб · индивидуальные</option><option value="0-ind">Вс · индивидуальные</option><option value="0-gk">Вс · вратари</option></select>
+      <select id="ps" aria-label="Расписание"><option value="6-ind">Сб · индивидуальные</option><option value="0-ind">Вс · индивидуальные</option><option value="0-gk">Вс · вратари</option></select>
       <button class="btn" id="padd">Добавить в постоянные</button>
     </div>
   </details>
@@ -61,7 +61,7 @@ summary::-webkit-details-marker{display:none}
   </details>
   <details id="newev"><summary><b>+ Новое занятие</b></summary>
     <div class="row2"><input type="date" id="nd" aria-label="Дата"><input type="time" id="nt" value="19:00" aria-label="Время"></div>
-    <div class="row2"><select id="nk"><option value="0">Индивидуальные</option><option value="1">Вратари</option></select><input id="nth" placeholder="Тема (пусто = по кругу)"></div>
+    <div class="row2"><select id="nk" aria-label="Тип занятия"><option value="0">Индивидуальные</option><option value="1">Вратари</option></select><input id="nth" placeholder="Тема (пусто = по кругу)"></div>
     <div style="padding-bottom:14px"><button class="btn" id="nadd">Создать занятие</button></div>
   </details>
   <div id="list"></div>

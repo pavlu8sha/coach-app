@@ -55,6 +55,22 @@ input[type=checkbox],input[type=radio]{accent-color:var(--color-primary)}
 #ksdlg h2,#ksdlg .ks-text,#ksdlg .ks-warn,#ksdlg .ks-err,#ksdlg .ks-acts button{overflow-wrap:anywhere}
 @media (max-width:300px){#ksdlg{padding:8px}#ksdlg .ks-box{padding:12px;max-height:calc(100vh - 16px);max-height:calc(100dvh - 16px - env(safe-area-inset-bottom))}#ksdlg dl{grid-template-columns:1fr;gap:0}#ksdlg dd{margin-bottom:6px}}
 html.ks-dlg-lock,html.ks-dlg-lock body{overflow:hidden!important}
+/* UI-010: ошибка формы под кнопкой, пустые состояния, явная загрузка */
+.ks-ferr{display:flex;gap:6px;align-items:flex-start;margin:6px 0 0;color:var(--color-danger-strong);font-size:14px;font-weight:600;line-height:1.35}
+.ks-ferr::before{content:"!";flex:none;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin-top:1px;border-radius:50%;background:var(--color-danger-strong);color:var(--color-on-danger);font-size:12px;font-weight:800}
+.ks-empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:28px 16px;margin:8px 0;background:var(--card);border:1px solid var(--line);border-radius:14px;list-style:none}
+.ks-empty svg{color:var(--g);margin-bottom:4px}
+.ks-empty b{font-size:16px;color:var(--ink)}
+.ks-empty p{margin:0;color:var(--mute);font-size:14px;max-width:320px}
+.ks-empty button{margin-top:10px;min-height:44px;padding:10px 20px;border-radius:12px;border:0;background:var(--g);color:var(--gi);font:700 15px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer;width:auto}
+.ks-load{display:flex;flex-direction:column;align-items:center;gap:12px;padding:56px 16px;color:var(--mute);font-size:15px}
+.ks-load[hidden],.ks-empty[hidden],.ks-ferr[hidden]{display:none}
+.ks-spin{width:28px;height:28px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--g);animation:ks-spin .9s linear infinite}
+@keyframes ks-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.ks-spin{animation-duration:2.5s}}
+/* UI-011: подпись поля входа; фокус для строк-кнопок */
+label.ks-pinl{display:block;margin:16px 0 8px;color:var(--ink);font-size:16px;font-weight:400}
+[data-ks-row]:focus-visible{outline:3px solid var(--g);outline-offset:2px}
 </style>
 <div id="ksdlg" role="presentation">
   <div class="ks-box" role="dialog" aria-modal="true" aria-labelledby="ksdlg-t" aria-describedby="ksdlg-x ksdlg-d ksdlg-w">
@@ -173,10 +189,118 @@ html.ks-dlg-lock,html.ks-dlg-lock body{overflow:hidden!important}
     var d=new Date(),z=function(n){return(n<10?'0':'')+n},t=d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate());
     return s===t?'':m[3]+'.'+m[2]+'.'+m[1];
   };
+  /* UI-010: пустое состояние. ksEmpty({icon:'users'|'box'|'search', title, text, btn:'Текст', id:'idКнопки', tag:'li'}) → HTML */
+  var EICON={users:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    box:'<path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',search:'<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>'};
+  window.ksEmpty=function(o){
+    var tag=o.tag||'div',txt=function(v){return String(v==null?'':v).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})};
+    return'<'+tag+' class="ks-empty" role="status"><svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(EICON[o.icon]||EICON.search)+'</svg>'
+      +'<b>'+txt(o.title)+'</b>'+(o.text?'<p>'+txt(o.text)+'</p>':'')+(o.btn?'<button type="button" id="'+o.id+'">'+txt(o.btn)+'</button>':'')+'</'+tag+'>';
+  };
   /* Предупреждение о переплате: сумма больше остатка */
   window.ksOverpay=function(amount,left){
     amount=Number(amount)||0;left=Number(left)||0;
     return amount>left+0.001?Math.round((amount-left)*100)/100:0;
   };
+})();
+</script>
+<script>
+/* DS-012: ручная тема. Ключ kstheme: нет / '' — как на устройстве, 'light', 'dark'. ksTheme() → '' | 'light' | 'dark'. «Выйти» его не очищает.
+   Тёмные стили во всех файлах написаны через @media(prefers-color-scheme:dark): при ручном выборе такие правила
+   включаются или выключаются заменой условия, при «Как на устройстве» возвращается исходное условие. */
+(function(){
+  var DARK=/\(\s*prefers-color-scheme\s*:\s*dark\s*\)/gi;
+  function get(){var v='';try{v=localStorage.getItem('kstheme')||''}catch(e){}return v=='light'||v=='dark'?v:''}
+  function walk(rules,t){
+    for(var i=0;i<rules.length;i++){
+      var r=rules[i];
+      if(r.media&&r.cssRules){
+        if(r.__ksMedia===undefined){if(!DARK.test(r.media.mediaText)){DARK.lastIndex=0;r.__ksMedia=null}else{DARK.lastIndex=0;r.__ksMedia=r.media.mediaText}}
+        if(r.__ksMedia!==null){
+          var m=!t?r.__ksMedia:r.__ksMedia.replace(DARK,t=='dark'?'(min-width:0px)':'(prefers-color-scheme:ks-none)');
+          if(t=='light'&&/^\s*\(prefers-color-scheme:ks-none\)\s*$/.test(m))m='not all';
+          if(r.media.mediaText!==m)r.media.mediaText=m;
+        }
+        walk(r.cssRules,t);
+      }else if(r.cssRules)walk(r.cssRules,t);
+    }
+  }
+  function apply(){
+    var t=get(),ss=document.styleSheets,de=document.documentElement;
+    for(var i=0;i<ss.length;i++){var rs=null;try{rs=ss[i].cssRules}catch(e){}if(rs)walk(rs,t)}
+    if(!t){de.removeAttribute('data-theme');de.style.colorScheme='light dark'}
+    else{de.setAttribute('data-theme',t);de.style.colorScheme=t}
+  }
+  window.ksTheme=get;
+  window.ksSetTheme=function(t){try{if(t=='light'||t=='dark')localStorage.setItem('kstheme',t);else localStorage.removeItem('kstheme')}catch(e){}apply();try{document.dispatchEvent(new Event('kstheme'))}catch(e){}};
+  apply();
+  document.addEventListener('DOMContentLoaded',apply);
+  window.addEventListener('load',apply);
+  /* стили, которые страница добавляет позже (например, StatsMatches) */
+  try{new MutationObserver(function(ms){for(var i=0;i<ms.length;i++)for(var j=0;j<ms[i].addedNodes.length;j++){var n=ms[i].addedNodes[j];if(n.nodeName=='STYLE'||n.nodeName=='LINK'){apply();return}}}).observe(document.head,{childList:true})}catch(e){}
+  /* другая вкладка сменила тему */
+  window.addEventListener('storage',function(e){if(e.key=='kstheme'){apply();try{document.dispatchEvent(new Event('kstheme'))}catch(x){}}});
+})();
+</script>
+<script>
+/* UI-011. Клавиатура и подписи — только разметка доступности, логика страниц не меняется:
+   • <label> без for, за которым сразу идёт поле, связывается с ним (for/id); поле без подписи получает
+     aria-label из placeholder;
+   • строки списков, открываемые нажатием (li.p, li[data-i]), — фокусируемые кнопки: Tab, Enter, пробел;
+   • переключатели разделов на странице ([data-t], .seg2) — вкладки: role=tab, aria-selected по классу .on,
+     стрелки влево/вправо;
+   • вход: Enter в поле кода нажимает «Войти». */
+(function(){
+  var n=0,CTRL=/^(INPUT|SELECT|TEXTAREA)$/;
+  function uid(e){if(!e.id)e.id='ks-f'+(++n);return e.id}
+  function labels(root){
+    [].forEach.call(root.querySelectorAll('label:not([for])'),function(l){
+      if(l.querySelector('input,select,textarea'))return;
+      var c=l.nextElementSibling;
+      if(c&&CTRL.test(c.tagName)&&c.type!='hidden'&&!(c.labels&&c.labels.length))l.htmlFor=uid(c);
+    });
+    [].forEach.call(root.querySelectorAll('input:not([type=hidden]),textarea'),function(c){
+      if((c.labels&&c.labels.length)||c.hasAttribute('aria-label')||c.hasAttribute('aria-labelledby'))return;
+      if(c.placeholder)c.setAttribute('aria-label',c.placeholder);
+    });
+  }
+  function rows(root){
+    [].forEach.call(root.querySelectorAll('li.p,li[data-i]'),function(r){
+      if(r.hasAttribute('data-ks-row')||r.querySelector('button,a,input,select'))return;
+      r.setAttribute('data-ks-row','');r.tabIndex=0;r.setAttribute('role','button');
+    });
+  }
+  function tabs(root){
+    var groups=[];
+    [].forEach.call(root.querySelectorAll('button[data-t]'),function(b){if(groups.indexOf(b.parentElement)<0)groups.push(b.parentElement)});
+    [].forEach.call(root.querySelectorAll('.seg2'),function(g){if(groups.indexOf(g)<0)groups.push(g)});
+    groups.forEach(function(g){
+      var bs=[].filter.call(g.children,function(x){return x.tagName=='BUTTON'});
+      if(bs.length<2)return;
+      if(g.getAttribute('role')!='tablist')g.setAttribute('role','tablist');
+      bs.forEach(function(b){
+        if(b.getAttribute('role')!='tab')b.setAttribute('role','tab');
+        var on=b.classList.contains('on');
+        if(b.getAttribute('aria-selected')!==String(on))b.setAttribute('aria-selected',String(on));
+        var ti=on?0:-1;if(b.tabIndex!==ti)b.tabIndex=ti;
+      });
+      if(!bs.some(function(b){return b.classList.contains('on')})&&bs[0].tabIndex!==0)bs[0].tabIndex=0;
+    });
+  }
+  function all(){var b=document.body;if(!b)return;labels(b);rows(b);tabs(b)}
+  var q=false;
+  function soon(){if(q)return;q=true;(window.requestAnimationFrame||setTimeout)(function(){q=false;all()})}
+  document.addEventListener('DOMContentLoaded',all);
+  try{new MutationObserver(soon).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']})}catch(e){}
+  document.addEventListener('keydown',function(e){
+    var t=e.target;if(!t||!t.closest)return;
+    if((e.key==='Enter'||e.key===' ')&&t.hasAttribute&&t.hasAttribute('data-ks-row')){e.preventDefault();t.click();return}
+    if(e.key==='Enter'&&t.id==='pin'){var g=document.getElementById('go');if(g&&!g.disabled){e.preventDefault();g.click()}return}
+    if((e.key==='ArrowRight'||e.key==='ArrowLeft')&&t.getAttribute('role')==='tab'){
+      var bs=[].filter.call(t.parentElement.children,function(x){return x.getAttribute('role')==='tab'&&!x.hidden}),i=bs.indexOf(t);
+      var nx=bs[(i+(e.key==='ArrowRight'?1:bs.length-1))%bs.length];
+      if(nx){e.preventDefault();nx.focus();nx.click()}
+    }
+  });
 })();
 </script>

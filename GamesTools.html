@@ -58,7 +58,7 @@
       +'<label>Тип</label><select id="ntype"><option>Товарищеская</option><option>Чемпионат</option><option>Фестиваль</option><option>Кубок</option></select>'
       +'<label>Название</label><input id="nn">'
       +'<div id="nd"><label>Дата</label><input type="date" id="ndt" value="'+today()+'"></div>'
-      +(D.role=='admin'?'<label>Взнос, ₾ (необязательно)</label><input type="number" min="0" step="1" id="nf">':'')
+      +(D.role=='admin'?'<div id="nfw"'+(isAdm()?'':' hidden')+'><label>Взнос, ₾ (необязательно)</label><input type="number" min="0" step="1" id="nf"></div>':'')
       +'<label>Состав</label><select id="nc"></select>'
       +'<button class="btn" id="ncreate">Создать</button><div class="msg err" id="nx"></div>';
     var edited=false;
@@ -68,7 +68,7 @@
     $('nt').onchange=function(){copyOpts();typeChanged(edited)};
     $('ncreate').onclick=function(){
       var t=$('ntype').value,b=this;b.disabled=true;
-      run('appAddEvent',[pin,{type:t,team:$('nt').value,name:$('nn').value,date:$('nd').hidden?'':$('ndt').value,fee:$('nf')?$('nf').value:'',copyFrom:$('nc').value}],
+      run('appAddEvent',[pin,{type:t,team:$('nt').value,name:$('nn').value,date:$('nd').hidden?'':$('ndt').value,fee:$('nf')&&isAdm()?$('nf').value:'',copyFrom:$('nc').value}],
         function(r){done(r,'Событие создано'+(r.copied?', в составе игроков: '+r.copied:'')+'.'+(r.feeWarning?' '+r.feeWarning:''))},
         function(m){b.disabled=false;$('nx').textContent=m});
     };

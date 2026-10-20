@@ -38,8 +38,8 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
 <body>
 <datalist id="plist"></datalist>
 <div id="login" class="wrap" hidden>
-  <h1>Экипировка</h1><p>Введите код администратора</p>
-  <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err"></p><button class="btn" id="go">Войти</button>
+  <h1>Экипировка</h1><label for="pin" class="ks-pinl">Введите код администратора</label>
+  <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err" role="alert"></p><button class="btn" id="go">Войти</button>
 </div>
 <div id="app" class="wrap" hidden>
   <h1>Экипировка</h1>
@@ -227,7 +227,7 @@ function show(){
     var S0=0;u.forEach(function(o){S0+=o.sum});
     $('sum').innerHTML=tile('заказов без привязки',u.length)+tile('на сумму',money(S0));
     setMsg(flash+(u.length?'Выберите игрока и нажмите «Привязать к игроку».':'Все заказы привязаны.'));flash='';
-    $('list').innerHTML=u.map(ucard).join('');return;
+    $('list').innerHTML=u.map(ucard).join('')||(UNL.length?ksEmpty({icon:'search',title:'Никого не нашли',text:'Измените поиск.'}):ksEmpty({icon:'box',title:'Все заказы привязаны',text:'Заказов без привязки к игроку нет.'}));return;
   }
   var f=F[fv],lv=$('fl').value;
   if(!$('fkf').dataset.init&&Object.keys(PR).length){
@@ -251,6 +251,13 @@ function show(){
   $('sum').innerHTML=tile('игроков в списке',a.length)+tile('заказано',money(S))+tile('оплачено',money(Pd))+tile('долг',money(Dt),Dt>0);
   setMsg(flash+(UNL.length?'Заказов без привязки: '+UNL.length+' (фильтр «Заказы без привязки»).':''));flash='';
   $('list').innerHTML=a.slice(0,150).map(card).join('')+(a.length>150?'<p class="sub">Показаны первые 150, уточните поиск.</p>':'');
+  // UI-010: пустые состояния — заказов нет совсем / по фильтрам никого
+  if(!a.length){
+    var noOrd=!O.length&&!UNL.length&&!q&&fv!='not';
+    $('list').innerHTML=!P.length?ksEmpty({icon:'users',title:'Нет игроков',text:'Добавьте игроков в реестр в разделе «Игроки».'})
+      :noOrd?ksEmpty({icon:'box',title:'Заказов пока нет',text:'Новый заказ добавляется кнопкой «Новый заказ».',btn:'Новый заказ',id:'enew'})
+      :ksEmpty({icon:'search',title:'Никого не нашли',text:'Измените поиск или фильтры.',btn:'Сбросить фильтры',id:'ereset'});
+  }
 }
 function pid(v){var m=/\((KS-\d+)\)\s*$/.exec(v.trim());if(m)return m[1];var f=P.filter(function(p){return p.name==v.trim()})[0];return f?f.id:''}
 function relink(row,id,fix,btn){
@@ -413,6 +420,11 @@ function submit(){
     rows:[['Игрок',playerName(id)],['Заказ',kit+', сумма '+ksMoney(osum)],['Оплачено сейчас',ksMoney(o.paid)],['Останется',ksMoney(Math.max(osum-o.paid,0))],['Способ',o.method],['Дата заказа',dp?dp[3]+'.'+dp[2]+'.'+dp[1]:'']],
     run:send});
 }
+$('list').addEventListener('click',function(e){
+  var b=e.target.closest('#enew,#ereset');if(!b)return;
+  if(b.id=='enew'){$('new').click();return}
+  $('q').value='';$('fs').value='all';$('fg').value='';$('fl').value='';[].forEach.call(document.querySelectorAll('.fkc:checked'),function(c){c.checked=false});show();
+});
 $('q').oninput=show;$('fs').onchange=show;$('fg').onchange=show;$('fl').onchange=show;
 $('new').onclick=openForm;
 $('fcancel').onclick=function(){$('form').hidden=true;$('app').hidden=false};

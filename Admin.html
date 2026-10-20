@@ -45,8 +45,8 @@ li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padd
 </head>
 <body>
 <div id="login" class="wrap" hidden>
-  <h1>Игроки</h1><p>Введите код администратора</p>
-  <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err"></p><button class="btn" id="go">Войти</button>
+  <h1>Игроки</h1><label for="pin" class="ks-pinl">Введите код администратора</label>
+  <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err" role="alert"></p><button class="btn" id="go">Войти</button>
 </div>
 <div id="app" class="wrap" hidden>
   <h1>Игроки</h1>
@@ -121,11 +121,17 @@ function fillYears(){
   $('fyear').innerHTML=years.map(function(y){return chip(y,y)}).join('')+(none?chip('none','без даты'):'');
   $('ql').innerHTML=D.players.map(function(p){return'<option value="'+esc(p.name)+'">'+esc(p.id+' · '+p.group)+'</option>'}).join('');
 }
+$('list').addEventListener('click',function(e){
+  var b=e.target.closest('#eadd,#ereset');if(!b)return;
+  if(b.id=='eadd'){$('add').click();return}
+  $('q').value='';$('fg').value='';$('st').value='Активен';ySel=[];fillYears();
+  var t=$('dbt');if(t&&t.getAttribute('aria-pressed')=='true')t.click();else window.list();
+});
 $('fyear').onclick=function(e){
   var b=e.target.closest('button');if(!b)return;
   var v=b.dataset.y,i=ySel.indexOf(v);
   if(i>=0)ySel.splice(i,1);else ySel.push(v);
-  fillYears();list();
+  fillYears();window.list();
 };
 function list(){
   var q=$('q').value.trim().toLowerCase(),st=$('st').value,g=$('fg').value;
@@ -139,6 +145,10 @@ function list(){
   $('list').innerHTML=a.slice(0,80).map(function(p){
     return'<li class="p" data-i="'+D.players.indexOf(p)+'"><b>'+esc(p.name)+'</b><div class="sub">'+esc(p.id+' / '+p.group+(p.extras.length?' + '+p.extras.join(', '):'')+(p.status!='Активен'?' / '+p.status:'')+' / '+(p.birth?'р. '+p.birth:'без даты'))+'</div></li>';
   }).join('');
+  // UI-010: пустые состояния — в реестре нет игроков / по фильтрам никого
+  if(!a.length)$('list').innerHTML=!D.players.length
+    ?ksEmpty({tag:'li',icon:'users',title:'Нет игроков',text:'Добавьте игроков в реестр.',btn:'Добавить игрока',id:'eadd'})
+    :ksEmpty({tag:'li',icon:'search',title:'Никого не нашли',text:'Измените поиск или фильтры.',btn:'Сбросить фильтры',id:'ereset'});
 }
 
 // ---------- Карточка игрока ----------

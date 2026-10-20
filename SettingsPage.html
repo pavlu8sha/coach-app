@@ -69,8 +69,8 @@ button:disabled{opacity:.5;cursor:default}
 </head>
 <body>
 <div id="login" class="wrap" hidden>
-  <h1>Вход</h1><p>Введите код администратора</p>
-  <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err"></p><button class="btn" id="go">Войти</button>
+  <h1>Вход</h1><label for="pin" class="ks-pinl">Введите код администратора</label>
+  <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err" role="alert"></p><button class="btn" id="go">Войти</button>
 </div>
 <div id="app" class="wrap" hidden>
   <h1>Настройки</h1>
@@ -271,8 +271,8 @@ window.addEventListener('beforeunload',function(e){if(scDirty){e.preventDefault(
 // ---------- Оформление: тема (Nav.html: ksSetTheme, хранится в браузере) ----------
 function renderTheme(){
   var t=window.ksTheme?window.ksTheme():'';
-  $('theme').innerHTML='<div class="lbl">Тема</div><div class="sub">Только для этого браузера. «Авто» — как в настройках телефона или компьютера.</div>'
-    +'<div class="seg3">'+[['','Авто'],['light','Светлая'],['dark','Тёмная']].map(function(x){return'<button data-t="'+x[0]+'" aria-pressed="'+(t==x[0])+'">'+x[1]+'</button>'}).join('')+'</div>';
+  $('theme').innerHTML='<div class="lbl">Тема</div><div class="sub">Только для этого браузера. «Как на устройстве» — как в настройках телефона или компьютера.</div>'
+    +'<div class="seg3">'+[['','Как на устройстве'],['light','Светлая'],['dark','Тёмная']].map(function(x){return'<button data-t="'+x[0]+'" aria-pressed="'+(t==x[0])+'">'+x[1]+'</button>'}).join('')+'</div>';
 }
 $('theme').addEventListener('click',function(e){var b=e.target.closest('button');if(!b||!window.ksSetTheme)return;window.ksSetTheme(b.dataset.t);renderTheme()});
 document.addEventListener('kstheme',function(){if($('theme').innerHTML)renderTheme()});
