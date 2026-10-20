@@ -1,5 +1,5 @@
 // Доп. программы (другая группа) идут в счёт основного абонемента: своего долга нет, переплата допускается.
-// Настоящие SubsCode.js, SubsList.js, Debtors.js, Prices.js; таблицы — заглушки.
+// Настоящие MonthsCode.js, SubsCode.js, SubsList.js, Debtors.js, Prices.js; таблицы — заглушки.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -24,7 +24,7 @@ function env(mg) {
     CacheService: { getScriptCache: () => ({ get: () => null, put() {} }) },
   };
   vm.createContext(ctx);
-  for (const f of ['Settings.js', 'Prices.js', 'SubsCode.js', 'SubsList.js', 'Debtors.js']) vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
+  for (const f of ['Settings.js', 'Prices.js', 'MonthsCode.js', 'SubsCode.js', 'SubsList.js', 'Debtors.js']) vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
   Object.assign(ctx, {
     norm, checkAdmin_() {}, dbRead_: () => null,
     monthGroups_: () => mg, payMonths_: () => ['10.26'], subLedger_: () => ({}),

@@ -371,15 +371,6 @@ function renameSweep_(id, oldName, newName) {
   return report;
 }
 
-var _attSS = null; // таблица посещаемости, открывается один раз за запуск
-function attSS_() {
-  if (_attSS) return _attSS;
-  var id = prop_('ATT_ID');
-  if (!id) throw new Error('Не задано свойство ATT_ID (ID таблицы посещаемости)');
-  _attSS = SpreadsheetApp.openById(id);
-  return _attSS;
-}
-
 // Листы, которые живут в AdminApp. Все остальные листы читаются из посещаемости.
 var ADMIN_SHEETS_ = ['МАТЧИ', 'УЧАСТИЕ', 'ИМПОРТ ИГРОКОВ', 'ОПЛАТЫ', 'ЖУРНАЛ ИЗМЕНЕНИЙ',
   'АБОНЕМЕНТЫ', 'ИНДИВИДУАЛЬНЫЕ ОПЛАТЫ', 'ДОПОЛНИТЕЛЬНЫЕ ОПЛАТЫ', 'ДОПОЛНИТЕЛЬНЫЕ ОТМЕТКИ', 'СБОРЫ'];

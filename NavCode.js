@@ -23,6 +23,9 @@ function checkPin_(pin) {
   if (!appWho(pin)) throw new Error('Неверный код доступа');
 }
 
+// Любой из двух кодов — там, где тренер и администратор равнозначны.
+function checkAny_(pin) { checkPin_(pin); }
+
 // Страницы: адрес ?page=ключ → [HTML-файл, заголовок, пункт меню, который подсвечивается (если не сам ключ)]
 var PAGES_ = {
   admin: ['Admin', 'Игроки'], stats: ['Stats', 'Статистика'], equip: ['Kit', 'Экипировка'],

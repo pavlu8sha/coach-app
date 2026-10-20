@@ -24,9 +24,6 @@ function monthGroups_(month) {
 }
 function monthInvalidate_(month) { cacheDropBig_('pm_' + month); }
 
-// Ключ сортировки месяца «мм.гг» -> «ггмм», чтобы сравнивать по времени
-function revMonth_(m) { var p = String(m).split('.'); return p[1] + p[0]; }
-
 // Список месяцев (листы вида 10.26) из кэша.
 function payMonths_() {
   var hit = cacheGetBig_('pmonths');

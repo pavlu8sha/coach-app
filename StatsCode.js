@@ -2,17 +2,12 @@
 
 // Порог «низкой посещаемости», %: настройка stats.lowPct (Settings.js), по умолчанию 50.
 
-// Статистику видят и тренеры, и администратор: подходит любой из двух кодов.
-function checkAny_(pin) { checkPin_(pin); }
-
 function appStatsMonths(pin) {
   checkAny_(pin);
   return attSS_().getSheets() // месяцы — из таблицы посещаемости (ATT_ID), откуда читаются и данные статистики
     .map(function (s) { return s.getName(); })
     .filter(function (n) { return /^\d{2}\.\d{2}$/.test(n); })
-    .sort(function (a, b) {
-      return a.split('.').reverse().join('').localeCompare(b.split('.').reverse().join(''));
-    });
+    .sort(function (a, b) { return revMonth_(a).localeCompare(revMonth_(b)); });
 }
 
 function isoDate_(s) { return /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(Date.parse(s)); }
