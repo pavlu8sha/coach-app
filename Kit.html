@@ -196,7 +196,7 @@ function orderHtml(o,p,linked){
     +(linked&&o.debt>0?payForm(o):'')
     +'<button class="btn sec ed" style="margin-top:8px">Изменить заказ</button>'
     +'<button class="btn sec delo" data-row="'+o.row+'" style="margin-top:8px">Удалить заказ</button><div class="msg err dm"></div>'
-    +'<div class="edf" hidden><label>Комплект</label><div class="ekits">'+Object.keys(PR).map(function(k){return'<label class="kit"><input type="checkbox" class="ekit" value="'+esc(k)+'"'+(kitsOf(o.kit).indexOf(k)>=0?' checked':'')+'> '+esc(k)+'</label>'}).join('')+'</div>'
+    +'<div class="edf" hidden><label>Комплект</label><div class="ekits">'+Object.keys(PR).map(function(k){return'<label class="kit"><input type="checkbox" class="ekit" value="'+esc(k)+'"'+(kitsOf(o.kit).indexOf(k)>=0?' checked':'')+'> '+esc(k)+'</label>'}).join('')+'</div><div class="sub esum" aria-live="polite"></div>'
     +'<label>Размер</label><input class="esize" value="'+esc(o.size||'')+'">'
     +'<label>Надпись</label><input class="einscr" value="'+esc(o.inscr||'')+'">'
     +'<label>Номер</label><input class="enum" value="'+esc(o.num||'')+'">'
@@ -298,7 +298,7 @@ $('list').onclick=function(e){
     }
     relink(b.dataset.row,id,fix,b);
   }
-  if(b.classList.contains('ed')){var ef=ord.querySelector('.edf');ef.hidden=!ef.hidden;return}
+  if(b.classList.contains('ed')){var ef=ord.querySelector('.edf');ef.hidden=!ef.hidden;if(!ef.hidden)editSumShow(ef);return}
   if(b.classList.contains('delo')){
     var dord=orderByRow(b.dataset.row)||{},dm=b.parentNode.querySelector('.dm');dm.textContent='';
     // Сервер удаляет только заказ без оплат (deleteOrderCore_): с оплатой — сразу объясняем, диалог не открываем
@@ -344,12 +344,24 @@ $('list').onclick=function(e){
 };
 // Предпросмотр суммы при правке заказа — повторяет серверный расчёт (EquipLinks.js: editOrderCore_, orderSumWithDisc_).
 // newSum: что будет записано (null — сумма не меняется); disc: сумма со скидкой (null — скидки нет).
+// Подсказка суммы в форме правки заказа: что запишется при сохранении (тот же расчёт, что на сервере)
+function editSumShow(ef){
+  var el=ef.querySelector('.esum');if(!el)return;
+  var eo=orderByRow(ef.querySelector('.eok').dataset.row)||{},ks=[].map.call(ef.querySelectorAll('.ekit:checked'),function(c){return c.value});
+  if(!ks.length){el.textContent='';return}
+  var inst=ef.querySelector('.einst').checked,pv=editSumPreview(eo,ks,inst),was=Number(eo.sum)||0,t;
+  if(pv.disc!==null)t='Весь комплект: скидка '+DC.pct+'% — '+(pv.prior+pv.total-pv.socks)+' ₾ → '+pv.target+' ₾'+(pv.prior?' (из них в других заказах '+pv.prior+' ₾)':'')+'. В этом заказе будет '+pv.newSum+' ₾'+(pv.newSum!==was?' вместо '+was+' ₾':'')+'.';
+  else if(pv.newSum!==null)t='По каталогу: '+pv.newSum+' ₾'+(pv.newSum!==was?' вместо '+was+' ₾':'')+'. Скидки нет: '+(inst?'рассрочка.':'комплект не полный.');
+  else t='Сумма заказа не меняется: '+was+' ₾. Скидки нет: '+(inst?'рассрочка.':'комплект не полный.');
+  el.textContent=t;
+}
+document.addEventListener('change',function(e){var t=e.target;if(t.classList&&(t.classList.contains('ekit')||t.classList.contains('einst'))){var ef=t.closest('.edf');if(ef)editSumShow(ef)}});
 function editSumPreview(eo,ks,inst){
   var missing=ks.some(function(k){return!(k in PR)}),kit=ks.join(' + ');
   var needCat=kit!==String(eo.kit||'').trim()||!(Number(eo.sum)>0);
   var id=String(eo.id||'').trim(),others=id?O.concat(UNL).filter(function(o){return Number(o.row)!==Number(eo.row)&&String(o.id||'').trim()===id&&String(o.kit||'').trim()}):[];
   var c=discCalc(ks,inst,others),disc=missing?null:c.disc;
-  return {total:c.total,socks:c.excl,disc:disc,newSum:needCat?(disc!==null?disc:c.total):disc};
+  return {total:c.total,socks:c.excl,disc:disc,prior:c.prior||0,target:c.target||0,newSum:needCat?(disc!==null?disc:c.total):disc};
 }
 // Скидка на комплект — правило из настроек (DC, приходит с сервера): тот же расчёт, что equipDiscCalc_ в EquipLinks.js.
 // ks — позиции заказа; others — прежние заказы игрока [{kit,sum}]. Возвращает {total, excl, disc}; disc=null — скидки нет.
@@ -382,7 +394,7 @@ function refreshSum(){
   var disc=!inst&&c.disc!==null;
   var sum=disc?c.disc:base;
   $('fsum').value=ks.length?sum:'';
-  $('fbundle').textContent=!ks.length?'':(disc?(c.prior?'Скидка '+DC.pct+'% на общую сумму '+(c.prior+base-c.excl)+' ₾ → '+c.target+' ₾ (уже оплачено '+c.prior+' ₾), к доплате '+sum+' ₾':'Скидка '+DC.pct+'% на заказ: '+sum+' ₾ вместо '+base+' ₾'):(inst&&c.disc!==null?'Рассрочка: скидка не применяется, '+base+' ₾':''));
+  $('fbundle').textContent=!ks.length?'':(disc?(c.prior?'Скидка '+DC.pct+'% на общую сумму '+(c.prior+base-c.excl)+' ₾ → '+c.target+' ₾ (из них в других заказах '+c.prior+' ₾), в этот заказ '+sum+' ₾':'Скидка '+DC.pct+'% на заказ: '+sum+' ₾ вместо '+base+' ₾'):(inst&&c.disc!==null?'Рассрочка: скидка не применяется, '+base+' ₾':''));
   refreshSizes();
 }
 function refreshSizes(){
