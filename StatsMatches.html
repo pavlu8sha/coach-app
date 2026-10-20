@@ -12,7 +12,8 @@
   mp.innerHTML='<div class="mfl"><select id="mtm" aria-label="Команда"></select><select id="mkd" aria-label="Тип игр"><option value="">Все игры</option><option>Чемпионат</option><option>Товарищеские</option><option>Турниры и кубки</option></select></div>'
     +'<div class="msg" id="mmsg" role="status"></div><div class="tiles" id="msum"></div><div id="mteams"></div><div id="mtop"></div>';
   app.appendChild(mp);
-  var att=[$('mon'),$('msg'),$('sum'),$('groups')];
+  // элементы вкладки «Посещаемость» (выбора месяца на странице уже нет, поэтому только то, что есть)
+  var att=['msg','sum','groups'].map(function(id){return $(id)}).filter(Boolean);
   function tab(t){
     [].forEach.call(seg.children,function(b){b.className=b.dataset.t==t?'on':''});
     att.forEach(function(e){e.hidden=(t=='mat')});
