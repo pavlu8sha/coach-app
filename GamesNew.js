@@ -94,7 +94,7 @@ function gnFile_() {
 }
 
 // Запускать из редактора: окружение и файлы проекта (названия и последние 4 символа ID). Ничего не записывает.
-function envCheck() {
+function envCheck_() {
   var prod = gnIsProd_(), out = ['Окружение: ' + (prod ? 'БОЕВОЕ' : 'ТЕСТОВОЕ') + ' (скрипт ' + gnMaskId_(ScriptApp.getScriptId()) + ')'];
   function line(label, fn) {
     try { var f = fn(); out.push(label + ': «' + f.getName() + '» ' + gnMaskId_(f.getId())); }
