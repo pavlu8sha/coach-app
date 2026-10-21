@@ -2,13 +2,8 @@
 
 var CAMP_SHEET = 'СБОРЫ', CAMP_TAR = 'ТАРИФЫ СБОРОВ', CAMP_PARTS = 'УЧАСТНИКИ СБОРОВ', CAMP_PAYS = 'ОПЛАТЫ СБОРОВ';
 var CAMP_CACHE = 'camp_v1';
-var _campSS = null;
 function campSS_() {
-  if (_campSS) return _campSS;
-  var id = PropertiesService.getScriptProperties().getProperty('ADMIN_ID');
-  if (!id) throw new Error('Не задан ADMIN_ID в свойствах скрипта');
-  _campSS = SpreadsheetApp.openById(id);
-  return _campSS;
+  return clubSource_('ADMIN_ID', 'Не задан ADMIN_ID в свойствах скрипта');
 }
 
 function campSheet_(name, headers, seed) {

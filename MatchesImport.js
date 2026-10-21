@@ -31,13 +31,8 @@ function lev2_(a, b) {
   return prev[b.length];
 }
 
-var _gamesFile = null;   // файл матчей открываем один раз за запуск
 function gamesFile_() {
-  if (_gamesFile) return _gamesFile;
-  var id = PropertiesService.getScriptProperties().getProperty('GAMES_ID');
-  if (!id) throw new Error('Не задано свойство GAMES_ID (ID файла матчей)');
-  _gamesFile = SpreadsheetApp.openById(id);
-  return _gamesFile;
+  return clubSource_('GAMES_ID', 'Не задано свойство GAMES_ID (ID файла матчей)');
 }
 
 function gDate_(s) {

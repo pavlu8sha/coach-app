@@ -6,13 +6,8 @@ function funnelActiveList_() { return settingGet_('funnel.activeSheets'); }
 function funnelIsActive_(name) { return funnelActiveList_().indexOf(name) >= 0; }
 var FUNNEL_GROUP_LABEL = 'Группа';  // строка с группой (не флажок)
 
-var _funnelSS = null;   // файл воронки открываем один раз за запуск
 function funnelSS_() {
-  if (_funnelSS) return _funnelSS;
-  var id = PropertiesService.getScriptProperties().getProperty('FUNNEL_ID');
-  if (!id) throw new Error('Не задан FUNNEL_ID в свойствах скрипта');
-  _funnelSS = SpreadsheetApp.openById(id);
-  return _funnelSS;
+  return clubSource_('FUNNEL_ID', 'Не задан FUNNEL_ID в свойствах скрипта');
 }
 
 function funnelRead_(sh) {

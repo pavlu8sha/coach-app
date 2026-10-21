@@ -1,12 +1,7 @@
 // ===== Дополнительные тренировки: чтение (шаг 1, без записи) =====
 
-var _extraSS = null;   // файл дополнительных открываем один раз за запуск
 function extraSS_() {
-  if (_extraSS) return _extraSS;
-  var id = prop_('EXTRA_ID');
-  if (!id) throw new Error('Не задан EXTRA_ID');
-  _extraSS = SpreadsheetApp.openById(id);
-  return _extraSS;
+  return clubSource_('EXTRA_ID', 'Не задан EXTRA_ID');
 }
 
 // Название листа 'дд.мм' -> 'гггг-мм-дд' (год: текущий, а если дата далеко в будущем — прошлый)

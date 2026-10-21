@@ -39,6 +39,9 @@ caused 4 phantom failures on Windows.
   - `ADMIN_ID` — "AdminApp": all money sheets, guarded by `AdminDb.js`
   Routing is `sheetOf_` (`Players.js:387`): names in `ADMIN_SHEETS_` go to AdminApp, all others to
   `ATT_ID`. `SpreadsheetApp.getActive()` is only the bound container (selfTest, one-off migrations).
+  All file opens go through `clubSource_(propKey, errText)` in `Sources.js` (one open per ID per run;
+  texts of «Не задан…» errors are user-visible — don't reword them). `gnFile_` is the exception:
+  in prod its file ID is hardcoded in code, the script property exists only in the test project.
 - Auth = two PINs in script properties (`APP_PIN` trainer, `APP_ADMIN_PIN` admin), resolved by
   `appWho`/`checkPin_`/`checkAdmin_`. **Every new server function handling data must check a PIN.**
 - Config: `CONFIG` in `Attendance.js:19` (`DRY_RUN` — script property `DRY_RUN` = `'true'` makes writes

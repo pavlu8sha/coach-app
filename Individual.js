@@ -2,15 +2,8 @@
 // Цена занятия — indPrice_(дата) из Prices.js (лист «ЦЕНЫ», с месяца начала действия)
 var IND_HEAD_RE = /^(\d{1,2}):(\d{2})\s+(\d{2})\.(\d{2})\.(\d{4})\s*(вратари)?\s*$/i;
 
-var _indSS = null;  // файл индивидуальных открываем один раз за запуск
 function indSS_() {
-  if (_indSS) return _indSS;
-  var t0 = Date.now();
-  var id = prop_('IND_ID');
-  if (!id) throw new Error('Не задан IND_ID');
-  _indSS = SpreadsheetApp.openById(id);
-  Logger.log('открытие IND: ' + (Date.now() - t0) + ' мс');
-  return _indSS;
+  return clubSource_('IND_ID', 'Не задан IND_ID');
 }
 
 // Тест: ничего не пишет, только показывает, что нашлось

@@ -6,11 +6,6 @@ function prop_(k) {
   return _props[k];
 }
 
-function checkAdmin_(pin) {
-  var real = prop_('APP_ADMIN_PIN');
-  if (!real || String(pin) !== String(real)) throw new Error('Неверный код администратора');
-}
-
 function today_() {
   return Utilities.formatDate(new Date(), attSS_().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
 }
@@ -23,13 +18,8 @@ function isoOf_(v) {
   return Utilities.formatDate(new Date(Date.UTC(1899, 11, 30) + Math.round(n) * 86400000), 'GMT', 'yyyy-MM-dd');
 }
 
-var _attSS = null;
 function attSS_() {
-  if (_attSS) return _attSS;
-  var id = prop_('ATT_ID');
-  if (!id) throw new Error('Не задано свойство ATT_ID (ID таблицы посещаемости)');
-  _attSS = SpreadsheetApp.openById(id);
-  return _attSS;
+  return clubSource_('ATT_ID', 'Не задано свойство ATT_ID (ID таблицы посещаемости)');
 }
 
 function readRegistry_() {
