@@ -9,7 +9,7 @@
 - **Pull Requests (PR)** — единственный штатный путь внесения изменений в `master`.
 - **Google Apps Script deployment** — отдельный этап. Слияние в `master` само по себе не означает публикацию в production.
 
-Карта всех веток и пошаговые точки возобновления: [docs/BRANCH_ROADMAP.md](docs/BRANCH_ROADMAP.md). Текущий статус работ: [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md). Принятые правила и важные решения: [docs/DECISIONS.md](docs/DECISIONS.md). Роли агентов и передача задач: [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md).
+Карта всех веток и пошаговые точки возобновления: [docs/BRANCH_ROADMAP.md](docs/BRANCH_ROADMAP.md). Текущий статус работ: [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md). Принятые правила и важные решения: [docs/DECISIONS.md](docs/DECISIONS.md). Роли агентов и передача задач: [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md). Пошаговая передача для Claude: [docs/CLAUDE_HANDOFF.md](docs/CLAUDE_HANDOFF.md).
 
 ## Технологии и тесты
 
