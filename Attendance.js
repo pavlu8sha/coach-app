@@ -111,7 +111,7 @@ function saveAttendanceCore_(group, dateStr, marks) {
 
   function failAll(msg) {
     marks.forEach(function (m) { report.results.push({ id: m.id, name: m.name, result: 'НЕ записано: ' + msg }); });
-    logResults(report, marks);
+    logResults_(report, marks);
     return report;
   }
 
@@ -249,7 +249,7 @@ function saveAttendanceCore_(group, dateStr, marks) {
   // Лист уже записан. Если журнал не записался, говорим об этом прямо: повторное сохранение безопасно
   // (в лист пишутся те же значения, строки журнала обновляются, а не дублируются).
   try {
-    logResults(report, marks);
+    logResults_(report, marks);
   } catch (e) {
     console.error('Журнал посещаемости не записан: ' + group + ' ' + dateStr + ': ' + e.message);
     throw new Error('Отметки записаны в лист ' + d.sheet + ', но журнал посещаемости не обновлён (' + e.message +
@@ -261,7 +261,7 @@ function saveAttendanceCore_(group, dateStr, marks) {
 // Журнал приложения: создаётся только при реальной записи.
 var JOURNAL_SHEET_ = 'ЖУРНАЛ ПОСЕЩАЕМОСТИ';
 
-function logResults(report, marks) {
+function logResults_(report, marks) {
   if (!marks.length) return;
   // Сопоставляем отметку с результатом по ID ученика (по ФИ — только если ID нет).
   function keyOf(x) { return x.id ? 'id:' + x.id : 'nm:' + norm(x.name); }
