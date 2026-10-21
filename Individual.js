@@ -14,7 +14,7 @@ function indSS_() {
 }
 
 // Тест: ничего не пишет, только показывает, что нашлось
-function indTest() {
+function indTest_() {
   var evs = indParse_();
   Logger.log('Занятий найдено: ' + evs.length);
   var players = 0, paid = 0;
@@ -95,7 +95,7 @@ function appIndRemove(pin, id, name) {
 }
 
 // Тест ЗАПИСИ — запускать только на копии
-function indWriteTest() {
+function indWriteTest_() {
   var pin = prop_('APP_ADMIN_PIN');
   var evs = indParse_().filter(indAdmIsNew_);
   if (!evs.length) { Logger.log('Нет новых занятий (лист ИНДИВИДУАЛЬНЫЕ ЗАНЯТИЯ)'); return; }
@@ -306,7 +306,7 @@ function indWeeklyCreate() {
 
 // Запустить ОДИН раз из редактора: включает ежечасную проверку. Занятия создаются в день и час из настроек
 // (ind.autoDay, ind.autoHour), поэтому после смены настройки триггер переустанавливать не нужно.
-function indInstallTrigger() {
+function indInstallTrigger_() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
     var h = t.getHandlerFunction();
     if (h === 'indWeeklyCreate' || h === 'indAutoTick') ScriptApp.deleteTrigger(t);
@@ -416,7 +416,7 @@ function indFormatBlock_(sh, top, n) {
 }
 
 // Разово привести к этому виду все занятия таблицы (можно не запускать: нужные блоки уже оформлены)
-function indFormatAll() {
+function indFormatAll_() {
   indParse_(true).forEach(function (ev) {
     if (indAdmIsNew_(ev)) return; // новые занятия — строки листа AdminApp, оформление блока не нужно
     indFormatBlock_(indSS_().getSheetByName(ev.sheet), ev.row, ev.last - ev.row + 1);
