@@ -14,6 +14,8 @@ test('attendance read/write helpers are private and only guarded app wrappers ca
   assert.doesNotMatch(attendance, /function\s+getRoster\s*\(/);
   assert.match(attendance, /function\s+saveAttendance_\s*\(/);
   assert.doesNotMatch(attendance, /function\s+saveAttendance\s*\(/);
+  assert.match(attendance, /function\s+logResults_\s*\(/);
+  assert.doesNotMatch(attendance, /function\s+logResults\s*\(/);
   assert.match(web, /getRoster_\(group\)/);
   assert.match(web, /saveAttendance_\(group, dateStr, toSave\)/);
 });
