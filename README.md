@@ -14,8 +14,8 @@
 ## Технологии и тесты
 
 - Google Apps Script (HTML Service + server-side JavaScript).
-- Автоматические тесты на Node.js, файлы `tests/*.test.mjs`.
-- После настройки CI основной запуск: `node --test tests/*.mjs`.
+- Автоматические Node.js-тесты находятся в каталоге `tests/`.
+- Workflow CI, подготовленный в PR #3, запускает `node --test tests/*.mjs` для pull request в `master` и push в `master`.
 
 Тесты с моками и GitHub Actions не должны изменять боевые таблицы. Не запускайте экспериментальные операции записи через production Apps Script.
 
