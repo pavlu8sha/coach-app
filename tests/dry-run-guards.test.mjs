@@ -48,10 +48,11 @@ test('finance migration functions exit before any spreadsheet writes in DRY_RUN'
 test('importMatchesPreview does not create or clear the preview sheet in DRY_RUN', () => {
   let sheetAccess = 0;
   const context = load('MatchesImport.js', {
-    parseAllGames_: () => ({ notes: [], events: [{ team: 'U9-A', type: 'Кубок', name: 'Test', rows: [{ name: 'Test Player' }] }] }),
-    readRegistry_: () => ({ players: [{ name: 'Test Player' }] }),
     adminSS_: () => { sheetAccess++; throw new Error('must not access AdminApp in DRY_RUN'); }
   });
+  // Replace declarations after evaluating the source; function declarations in the source otherwise overwrite injected stubs.
+  context.parseAllGames_ = () => ({ notes: [], events: [{ team: 'U9-A', type: 'Кубок', name: 'Test', rows: [{ name: 'Test Player' }] }] });
+  context.readRegistry_ = () => ({ players: [{ name: 'Test Player' }] });
   assert.doesNotThrow(() => context.importMatchesPreview());
   assert.equal(sheetAccess, 0);
 });
