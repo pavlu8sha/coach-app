@@ -71,7 +71,7 @@ test('темы индивидуальных — из настройки, по к
 
 test('форма экипировки: надпись и номер по флагам каталога (как в боевом каталоге)', () => {
   const s = fs.readFileSync(path.join(ROOT, 'Kit.html'), 'utf8');
-  const a = s.indexOf('function missOf(o){'), b = s.indexOf('\n}\n', a) + 3;
+  const a = s.indexOf('function missOf(o){'), m = /\r?\n\}/.exec(s.slice(a)), b = a + m.index + m[0].length;
   const ctx = { nn: x => String(x).trim().toLowerCase(), FL: {
     'тренировочная форма': { inscr: false, num: true }, 'игровая форма': { inscr: true, num: true }, 'носки': { inscr: false, num: false },
     'гетры': { inscr: false, num: false }, 'спортивный костюм': { inscr: false, num: true }, 'дождевик': { inscr: false, num: true } } };
