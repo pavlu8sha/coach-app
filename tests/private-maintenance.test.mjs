@@ -16,6 +16,7 @@ const PRIVATE_FUNCTIONS = {
   'IndReconcile.js': ['indPayReconcile'],
   'Individual.js': ['indTest', 'indWriteTest', 'indFormatAll', 'indInstallTrigger'],
   'GamesNew.js': ['envCheck'],
+  'Warmup.js': ['installWarmTrigger', 'warmTest'],
   'Extra.js': ['extraTest', 'extraWriteTest'],
 };
 
