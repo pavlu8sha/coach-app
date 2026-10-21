@@ -9,7 +9,7 @@
 - **Pull Requests (PR)** — единственный штатный путь внесения изменений в `master`.
 - **Google Apps Script deployment** — отдельный этап. Слияние в `master` само по себе не означает публикацию в production.
 
-Текущий статус работ: [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md). Принятые правила и важные решения: [docs/DECISIONS.md](docs/DECISIONS.md).
+Текущий статус работ: [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md). Принятые правила и важные решения: [docs/DECISIONS.md](docs/DECISIONS.md). Роли агентов и передача задач: [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md).
 
 ## Технологии и тесты
 
