@@ -322,7 +322,12 @@ function indAutoTick() {
   if (wd !== settingGet_('ind.autoDay') || Number(Utilities.formatDate(now, tz, 'H')) < settingGet_('ind.autoHour')) return;
   var today = Utilities.formatDate(now, tz, 'yyyy-MM-dd'), props = PropertiesService.getScriptProperties();
   if (props.getProperty('IND_AUTO_LAST') === today) return;
-  indWeeklyCreate();
+  var result = indWeeklyCreate();
+  // Не фиксируем день выполнения, если DRY_RUN пропустил создание: после отключения режима задача должна повториться.
+  if (result && result.dryRun) {
+    Logger.log('DRY_RUN: IND_AUTO_LAST не обновлён; автосоздание будет повторено после отключения режима.');
+    return;
+  }
   props.setProperty('IND_AUTO_LAST', today);
 }
 
