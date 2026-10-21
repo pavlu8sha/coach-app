@@ -50,3 +50,10 @@ test('clubSource_ сообщает об отсутствующем ID до от�
   assert.throws(() => e.ctx.clubSource_('ADMIN_ID', 'не задан ADMIN_ID'), /не задан ADMIN_ID/);
   assert.deepEqual(e.opened, []);
 });
+
+test('clubSource_ не принимает унаследованные ключи кэша за открытый файл', () => {
+  const e = env({ ADMIN_ID: 'toString' });
+  const a = e.ctx.clubSource_('ADMIN_ID', 'нет ADMIN_ID');
+  assert.equal(a.id, 'toString');
+  assert.deepEqual(e.opened, ['toString']);
+});
