@@ -20,6 +20,6 @@ test('scheduled handlers are private and installers target the private names', (
   assert.match(warmup, /function\s+warmUp_\s*\(/);
   assert.doesNotMatch(warmup, /function\s+warmUp\s*\(/);
   assert.match(warmup, /newTrigger\('warmUp_'\)/);
-  assert.match(selfTest, /getHandlerFunction\(\).*'warmUp_'/);
-  assert.match(selfTest, /getHandlerFunction\(\).*'indAutoTick_'/);
+  assert.match(selfTest, /h.indexOf\\('warmUp_'\\)/);
+  assert.match(selfTest, /h.indexOf\\('indAutoTick_'\\)/);
 });
