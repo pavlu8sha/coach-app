@@ -1,7 +1,7 @@
 /** Проверка: игроки из файла оплат, которых нет в реестре игроков. Ничего не записывает.
- *  Запускается вручную из редактора Apps Script (функция payNamesNotInRegistry), результат в журнале. */
+ *  Запускается вручную из редактора Apps Script (функция payNamesNotInRegistry_), результат в журнале. */
 
-function payNamesNotInRegistry() {
+function payNamesNotInRegistry_() {
   var reg = {};
   readRegistry_().players.forEach(function (p) { reg[norm(p.name)] = p; });
   var miss = {}, file = payFile_();
