@@ -41,8 +41,8 @@ caused 4 phantom failures on Windows.
   `ATT_ID`. `SpreadsheetApp.getActive()` is only the bound container (selfTest, one-off migrations).
 - Auth = two PINs in script properties (`APP_PIN` trainer, `APP_ADMIN_PIN` admin), resolved by
   `appWho`/`checkPin_`/`checkAdmin_`. **Every new server function handling data must check a PIN.**
-- Config: `CONFIG` in `Attendance.js:19` (`DRY_RUN` — set `true` to make writes no-ops; the app
-  writes to real club spreadsheets, test only on copies) plus a «НАСТРОЙКИ» sheet read through
+- Config: `CONFIG` in `Attendance.js:19` (`DRY_RUN` — script property `DRY_RUN` = `'true'` makes writes
+  no-ops, default off; the app writes to real club spreadsheets, test only on copies) plus a «НАСТРОЙКИ» sheet read through
   `Settings.js` (`settingGet_` with defaults + per-team overrides). Required script properties are
   listed in `SelfTest.js:15`; missing ones throw in production.
 - Time-driven triggers: `warmUp` (cache warm-up, every 10 min, Warmup.js:53) and `indAutoTick`

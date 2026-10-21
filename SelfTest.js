@@ -15,6 +15,9 @@ function selfTest() {
   ['APP_PIN', 'APP_ADMIN_PIN', 'ATT_ID', 'EQUIP_ID', 'PAY_ID', 'GAMES_ID', 'ADMIN_ID', 'IND_ID', 'EXTRA_ID', 'FUNNEL_ID'].forEach(function (k) {
     check('свойство ' + k, function () { if (!props.getProperty(k)) throw new Error('не задано'); });
   });
+  check('режим DRY_RUN', function () {
+    return props.getProperty('DRY_RUN') === 'true' ? 'включён: записи в таблицы отключены' : 'выключен';
+  });
   var ss = SpreadsheetApp.getActive();
   [CONFIG.REGISTRY_SHEET, 'СПРАВОЧНИКИ', 'МАТЧИ', 'УЧАСТИЕ', CAT_SHEET].forEach(function (n) {
     check('лист ' + n, function () {
