@@ -7,10 +7,8 @@ var _equipSheet = null; // лист открываем один раз за за
 
 function equipSheet_() {
   if (_equipSheet) return _equipSheet;
-  var id = prop_('EQUIP_ID');
-  if (!id) throw new Error('Не задано свойство EQUIP_ID (ID файла экипировки)');
   var season = settingGet_('equip.seasonSheet');
-  var sh = SpreadsheetApp.openById(id).getSheetByName(season);
+  var sh = clubSource_('EQUIP_ID', 'Не задано свойство EQUIP_ID (ID файла экипировки)').getSheetByName(season);
   if (!sh) throw new Error('В файле экипировки нет листа ' + season);
   var cache = CacheService.getScriptCache();
   if (!cache.get('eq_hdr_ok')) {
