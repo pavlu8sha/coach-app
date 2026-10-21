@@ -5,7 +5,7 @@
  * Сейчас запись включена (DRY_RUN = false). Чтобы только посмотреть план без записи,
  * поставьте DRY_RUN = true.
  *
- * Что делает saveAttendance(группа, дата, отметки):
+ * Что делает saveAttendance_(группа, дата, отметки):
  *  1. открывает лист месяца (дата 2026-10-05 -> лист "10.26");
  *  2. находит блок группы по названию в столбце A (до строки "ИТОГ ГРУППЫ");
  *  3. находит столбец даты в шапке блока (C:T); если даты нет, берёт первую
@@ -30,7 +30,7 @@ function norm(s) {
 }
 
 // Список активных игроков группы: основная группа или «Доп. программы» (столбец H).
-function getRoster(group) {
+function getRoster_(group) {
   var sh = sheetOf_(CONFIG.REGISTRY_SHEET);
   var rows = sh.getRange(4, 1, Math.max(sh.getLastRow() - 3, 1), 8).getValues();
   var g = norm(group), out = [];
@@ -97,7 +97,7 @@ function findBlock(sheet, group) {
  * marks: [{id: 'KS-0006', name: 'Фамилия Имя', present: true}, ...]
  * Возвращает отчёт: что записано и что не удалось (по каждому ребёнку).
  */
-function saveAttendance(group, dateStr, marks) {
+function saveAttendance_(group, dateStr, marks) {
   if (CONFIG.DRY_RUN) return saveAttendanceCore_(group, dateStr, marks);
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
