@@ -46,7 +46,7 @@ function appRefreshData(pin) {
 }
 
 // Запустить ОДИН раз: включает прогрев каждые 10 минут
-function installWarmTrigger() {
+function installWarmTrigger_() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'warmUp') ScriptApp.deleteTrigger(t);
   });
@@ -55,4 +55,4 @@ function installWarmTrigger() {
 }
 
 // Для ручного запуска из редактора: замер времени по шагам прогрева
-function warmTest() { warmCore_(); }
+function warmTest_() { warmCore_(); }
