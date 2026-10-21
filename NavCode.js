@@ -18,13 +18,28 @@ function failDelay_() {
   } catch (e) {}
 }
 
-// Для отметки посещаемости подходит и код тренера, и код администратора.
-function checkPin_(pin) {
-  if (!appWho(pin)) throw new Error('Неверный код доступа');
+// Контекст вызова: роль по коду; пустой или неверный код — ошибка.
+function appCtx(pin) {
+  var role = appWho(pin);
+  if (!role) throw new Error('Неверный код доступа');
+  return { role: role, admin: role === 'admin' };
 }
 
+// Доступ по списку ролей: ['admin'], ['admin', 'trainer'].
+function requireRole(ctx, roles) {
+  if (!ctx || roles.indexOf(ctx.role) < 0) throw new Error('Недостаточно прав');
+}
+
+// Для отметки посещаемости подходит и код тренера, и код администратора.
+function checkPin_(pin) { appCtx(pin); }
+
 // Любой из двух кодов — там, где тренер и администратор равнозначны.
-function checkAny_(pin) { checkPin_(pin); }
+function checkAny_(pin) { appCtx(pin); }
+
+function checkAdmin_(pin) {
+  var real = prop_('APP_ADMIN_PIN');
+  if (!real || String(pin) !== String(real)) throw new Error('Неверный код администратора');
+}
 
 // Страницы: адрес ?page=ключ → [HTML-файл, заголовок, пункт меню, который подсвечивается (если не сам ключ)]
 var PAGES_ = {
