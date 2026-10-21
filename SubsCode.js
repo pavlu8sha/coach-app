@@ -4,11 +4,7 @@ var SUB_SHEET = 'АБОНЕМЕНТЫ';
 
 var _payFile = null; // открываем файл оплат один раз за запуск
 function payFile_() {
-  if (_payFile) return _payFile;
-  var id = prop_('PAY_ID');
-  if (!id) throw new Error('Не задано свойство PAY_ID (ID файла оплат)');
-  _payFile = SpreadsheetApp.openById(id);
-  return _payFile;
+  return clubSource_('PAY_ID', 'Не задано свойство PAY_ID (ID файла оплат)');
 }
 
 // Месяц оплат из кэша (до 15 мин); сбрасывается при каждой записи платежа через приложение.
