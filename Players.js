@@ -25,11 +25,7 @@ function isoOf_(v) {
 
 var _attSS = null;
 function attSS_() {
-  if (_attSS) return _attSS;
-  var id = prop_('ATT_ID');
-  if (!id) throw new Error('Не задано свойство ATT_ID (ID таблицы посещаемости)');
-  _attSS = SpreadsheetApp.openById(id);
-  return _attSS;
+  return clubSource_('ATT_ID', 'Не задано свойство ATT_ID (ID таблицы посещаемости)');
 }
 
 function readRegistry_() {
