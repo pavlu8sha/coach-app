@@ -68,6 +68,8 @@ html.ks-dlg-lock,html.ks-dlg-lock body{overflow:hidden!important}
 .ks-load[hidden],.ks-empty[hidden],.ks-ferr[hidden]{display:none}
 /* Пустая строка сообщения не оставляет дыру в разметке: место появляется только вместе с текстом */
 .msg:empty{min-height:0!important}
+/* Сообщение о процессе («Сохраняю…», «Загрузка…») — нейтральным цветом, даже если строка предназначена для ошибок */
+.msg.ks-progress,.ks-progress.err{color:var(--mute)!important}
 .ks-spin{width:28px;height:28px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--g);animation:ks-spin .9s linear infinite}
 @keyframes ks-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.ks-spin{animation-duration:2.5s}}
@@ -305,5 +307,22 @@ label.ks-pinl{display:block;margin:16px 0 8px;color:var(--ink);font-size:16px;fo
       if(nx){e.preventDefault();nx.focus();nx.click()}
     }
   });
+})();
+</script>
+<script>
+/* Процесс vs ошибка: строки .msg получают класс ks-progress, пока в них текст о ходе действия */
+(function(){
+  var RX=/^\s*(Сохраняю|Загрузка|Загружаю|Проверяю|Удаляю|Отменяю|Записываю|Отправляю|Создаю|Обновляю)/;
+  function mark(el){if(el&&el.classList&&el.classList.contains('msg'))el.classList.toggle('ks-progress',RX.test(el.textContent||''))}
+  function scan(root){if(!root||!root.querySelectorAll)return;if(root.classList&&root.classList.contains('msg'))mark(root);[].forEach.call(root.querySelectorAll('.msg'),mark)}
+  function start(){
+    scan(document.body);
+    new MutationObserver(function(ms){ms.forEach(function(m){
+      var t=m.target.nodeType===3?m.target.parentNode:m.target;
+      var el=t&&t.closest?t.closest('.msg'):null;if(el)mark(el);
+      [].forEach.call(m.addedNodes||[],function(n){if(n.nodeType===1)scan(n)});
+    })}).observe(document.body,{subtree:true,childList:true,characterData:true});
+  }
+  if(document.body)start();else document.addEventListener('DOMContentLoaded',start);
 })();
 </script>
