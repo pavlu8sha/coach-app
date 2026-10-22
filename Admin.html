@@ -147,7 +147,7 @@ $('list').addEventListener('click',function(e){
   var b=e.target.closest('#eadd,#ereset');if(!b)return;
   if(b.id=='eadd'){$('add').click();return}
   $('q').value='';$('fg').value='';$('st').value='Активен';ySel=[];fillYears();
-  var t=$('dbt');if(t&&t.getAttribute('aria-pressed')=='true')t.click();else window.list();
+  var t=$('dbt');if(t&&t.getAttribute('aria-checked')=='true')t.click();else window.list();
 });
 $('fyear').onclick=function(e){
   var b=e.target.closest('button');if(!b)return;
