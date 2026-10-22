@@ -560,14 +560,15 @@ function indParseRaw_(want) {
 }
 
 // Занятия только с листов, относящихся к дате (лист «сб/вс» содержит оба дня)
-function indParseForDate_(date) {
+// noPlayers — без состава новых занятий (см. indParseAdm_): только для списка групп дня
+function indParseForDate_(date, noPlayers) {
   var p = date.split('-'), dt = Date.UTC(+p[0], +p[1] - 1, +p[2]);
   function dm(ms) { return Utilities.formatDate(new Date(ms), 'UTC', 'dd.MM'); }
   var keys = [dm(dt), dm(dt - 86400000), dm(dt + 86400000)];
   var old = indParseRaw_(function (name) {
     return name.split('/').some(function (t) { return keys.indexOf(t.trim()) >= 0; });
   }).filter(function (e) { return e.date === date; });
-  var adm = indParseAdm_(date);
+  var adm = indParseAdm_(date, noPlayers);
   return indDropMigrated_(old, adm).concat(adm);
 }
 
@@ -600,7 +601,7 @@ function indDropSheetCache_() {
 
 function indGroups_(dateStr) {
   var seen = {}, out = [];
-  indParseForDate_(dateStr)
+  indParseForDate_(dateStr, true)   // для названий групп состав не нужен: имя — по типу занятия, порядок — по времени
     .sort(function (a, b) { return a.time.localeCompare(b.time); })
     .forEach(function (e) {
       var n = indGroupName_(e);
