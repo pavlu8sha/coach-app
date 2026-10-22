@@ -96,7 +96,9 @@ export function buildPlan({ eventsCsv, feesCsv, gamesFiles, registryPlayers }) {
 
   const tournaments = [...ev.tournaments, { ...NEWTON }];
   const tExt = new Map(tournaments.map(t => [t.external_id, t]));
-  const matches = ev.matches.map(m => ({ ...m, fee: m.kind === 'friendly' ? friendlyFee(m.played_on) : null }));
+  // Даты, исправленные по журналу игр (подтверждено тренером): в листе МАТЧИ стояла 18.10, верно 17.10
+  const DATE_FIX = { 'E-119': '2026-10-17' };
+  const matches = ev.matches.map(m => { const played_on = DATE_FIX[m.external_id] ?? m.played_on; return { ...m, played_on, fee: m.kind === 'friendly' ? friendlyFee(played_on) : null }; });
   const mExt = new Map(matches.map(m => [m.external_id, m]));
   const byTeamDate = new Map(matches.map(m => [m.team + '|' + m.played_on, m]));
 
