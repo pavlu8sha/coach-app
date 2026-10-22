@@ -127,9 +127,16 @@ function planPayMonthSync_(groups, players) {
     seen[key] = true;
     var g = blocks[norm(p.group)];
     if (!g) { unmatched.push({ name: p.name, group: p.group }); return; }
-    adds.push({ group: g, name: p.name });
+    adds.push({ group: g, name: p.name, id: p.id });
   });
   return { adds: adds, unmatched: unmatched };
+}
+
+function setBirthCell_(sh, row, d) {
+  if (!d) return;
+  var rg = sh.getRange(row, 3);
+  nfSafe_(rg, '@');
+  rg.setValue(d);
 }
 
 function syncPayMonthCore_(month) {
@@ -140,6 +147,7 @@ function syncPayMonthCore_(month) {
   var active = readRegistry_().players.filter(function (p) { return p.status === 'Активен'; });
   var groups = parseMonth_(sh);
   var plan = planPayMonthSync_(groups, active);
+  var birth = birthById_(active); // id → dd.mm.yyyy (та же логика, что в карточке игрока)
   var added = plan.adds.map(function (a) { return a.name; });
   if (!CONFIG.DRY_RUN && plan.adds.length) {
     // последняя строка каждого блока — до заполнения пустых мест
@@ -152,11 +160,12 @@ function syncPayMonthCore_(month) {
       if (slot) {
         a.group.rows.splice(a.group.rows.indexOf(slot), 1);
         sh.getRange(slot.row, 2).setValue(a.name);
+        setBirthCell_(sh, slot.row, birth[a.id]);
       } else rest.push(a);
     });
     // 2) остальное — вставкой строк после последней строки блока; блоки идут снизу вверх, чтобы номера строк не сбивались
     var byBlock = {};
-    rest.forEach(function (a) { var k = norm(a.group.name); (byBlock[k] = byBlock[k] || { g: a.group, names: [] }).names.push(a.name); });
+    rest.forEach(function (a) { var k = norm(a.group.name); (byBlock[k] = byBlock[k] || { g: a.group, names: [], ids: [] }).names.push(a.name), byBlock[k].ids.push(a.id); });
     Object.keys(byBlock).map(function (k) { return byBlock[k]; })
       .sort(function (x, y) { return lastOf[norm(y.g.name)] - lastOf[norm(x.g.name)]; })
       .forEach(function (b) {
@@ -164,6 +173,7 @@ function syncPayMonthCore_(month) {
         b.names.forEach(function (name, i) {
           sh.insertRowAfter(at + i);
           sh.getRange(at + i + 1, 2).setValue(name);
+          setBirthCell_(sh, at + i + 1, birth[b.ids[i]]);
         });
       });
     renumberRows_(sh);
@@ -174,12 +184,10 @@ function syncPayMonthCore_(month) {
   return { ok: true, dryRun: CONFIG.DRY_RUN, month: month, added: added, unmatched: plan.unmatched };
 }
 
-// Запуск из редактора Apps Script (есть в списке «Выполнить»): только в окне обслуживания MAINT_UNTIL, без PIN.
-// Вне окна maintCheck_ бросает ошибку. Месяц задаётся в константе SYNC_PAY_MONTH_ ниже.
-var SYNC_PAY_MONTH_ = '11.26';
-function syncPayMonthRun() {
-  maintCheck_();
+// Запуск из приложения (инструменты месяца, только администратор, по PIN) — как создание листа месяца.
+function appSyncPayMonth(pin, month) {
+  checkAdmin_(pin);
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
-  try { return syncPayMonthCore_(SYNC_PAY_MONTH_); } finally { lock.releaseLock(); }
+  try { return syncPayMonthCore_(month); } finally { lock.releaseLock(); }
 }

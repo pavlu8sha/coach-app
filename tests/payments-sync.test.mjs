@@ -66,3 +66,17 @@ test('пустые строки блока (нет имени) не считаю
   const plan = ctx.planPayMonthSync_(groups(), [{ name: 'Simutkin Tikhon', group: 'U7-A' }]);
   assert.equal(plan.adds.length, 1);
 });
+
+test('запуск из приложения защищён PIN администратора и не зависит от окна обслуживания', () => {
+  const src = read('MonthsCode.js');
+  const s = src.indexOf('function appSyncPayMonth(');
+  assert.ok(s >= 0, 'нет appSyncPayMonth');
+  const body = src.slice(s, src.indexOf('\n}\n', s) + 3);
+  assert.match(body, /checkAdmin_\(pin\)/);
+  assert.doesNotMatch(body, /maintCheck_/);
+});
+
+test('дата рождения пишется как текст в колонку C', () => {
+  const src = read('MonthsCode.js');
+  assert.match(src, /function setBirthCell_\(sh, row, d\)[\s\S]*?nfSafe_\(rg, '@'\)/);
+});
