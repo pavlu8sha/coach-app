@@ -6,7 +6,7 @@ import { parseAmount } from './payments.mjs';
 const norm = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
 // Те же правила, что в приложении (MatchesImport.js): явные соответствия U9_ALIAS_, затем сходство до 2 правок
 const NAME_ALIAS = { 'kurbanoiv emin': 'Kurbanov Emin', 'ganakova varya': 'Ganakova Varvara', 'cherkasov misha': 'Cherkasov Mikhail',
-  'sechko ilya': 'Siachko Ilia', 'grichshenikov sergey': 'Grichshenkov Sergey', 'grichshenikov mikhail': 'Grichshenkov Misha', 'german gio': 'German Georgiy', 'yarovoy vasya': 'Yarovoy Vasiliy' };
+  'sechko ilya': 'Siachko Ilia', 'grichshenikov sergey': 'Grichshenkov Sergey', 'grichshenikov mikhail': 'Grichshenkov Misha', 'german gio': 'German Georgiy', 'yarovoy vasya': 'Yarovoy Vasiliy', 'sechko vova': 'Siachko Vladimir' };
 const SKIP_NAMES = new Set(['pashkin denis']);
 const fkey = s => String(s).replace(/х/g, 'x').toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean).sort().join(' ');
 function lev(a, b) {
