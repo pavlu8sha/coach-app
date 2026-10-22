@@ -51,7 +51,7 @@ function appRoster(pin, group, dateStr) {
   checkPin_(pin);
   if (indIsGroup_(group)) return indRoster_(group, dateStr);
   if (extraIsGroup_(group)) return extraRoster_(dateStr);
-  var roster = getRoster(group);
+  var roster = getRoster_(group);
   var d = parseDate(dateStr);
   var sheet = sheetOf_(d.sheet);
   var block = sheet ? findBlock(sheet, group) : null;
@@ -125,7 +125,7 @@ function appSave(pin, group, dateStr, marks) {
     }
     toSave.push(m);
   });
-  var report = saveAttendance(group, dateStr, toSave);
+  var report = saveAttendance_(group, dateStr, toSave);
   report.results = report.results.concat(skipped);
   return report;
 }
