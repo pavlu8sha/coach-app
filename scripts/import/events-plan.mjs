@@ -41,7 +41,7 @@ export function parseGamesFile(text, fileName) {
     const hdr = rows[hi].map(x => (x || '').trim());
     // «Paid» над чемпионатом (название «Championship …» в шапке над колонкой) — отметка на турнир;
     // «Paid» перед «Played» у товарищеских — оплата этой даты
-    const labelAt = j => { for (let q = j; q >= 0; q--) if (/Championship/.test(top[q] || '')) return (top[q] || '').trim(); return ''; };
+    const labelAt = j => { for (let q = j; q >= 0; q--) if (/Championship|Festival/.test(top[q] || '')) return (top[q] || '').trim(); return ''; };
     const tournamentPaid = []; // {label, col}
     hdr.forEach((c, j) => {
       if (c !== 'Paid') return;
@@ -141,11 +141,11 @@ export function buildPlan({ eventsCsv, feesCsv, gamesFiles, registryPlayers }) {
       // турниры: состав из листа; оплачено — журнал или отметка «Paid» на турнир
       for (const pp of b.players) {
         const p = pl(pp.name); if (!p) continue;
-        for (const t of tournaments.filter(t => t.team === b.team && t.kind === 'championship' && b.tournamentPaid.includes(t.name))) {
+        for (const t of tournaments.filter(t => t.team === b.team && t.kind !== 'cup' && b.tournamentPaid.includes(t.name))) {
           const k = t.external_id + p.external_id;
           if (seenTF.has(k)) continue;
           const mark = pp.tMarked.get(t.name) || '';
-          const inRoster = pp.anyPlayed || mark === 'TRUE' || mark === 'FALSE';
+          const inRoster = mark === 'TRUE' || mark === 'FALSE'; // как в приложении: в составе турнира только с отметкой Paid
           if (!inRoster) continue;
           seenTF.add(k);
           const lp = ledger.has(t.external_id + "|" + p.external_id);
