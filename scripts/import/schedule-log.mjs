@@ -38,25 +38,31 @@ export function parseSchedule(text) {
 }
 
 // «Тренировки»: Дата, День недели, Тренер, Локация, Группа, Тип тренировки, Начало, Конец, Часы, Проведено
+// Одинаковые строки (тот же день, тренер, группа, время) — разные записи: номер вхождения входит в ключ.
+// Подтверждено тренером: 17.10 у Соприка и Цотне строка «U13-B/C» — это U13-B (первая) и U13-C (вторая).
+const SPLIT_17_10 = { 'Соприк|17:00': ['U13-B', 'U13-C'], 'Цотне|18:00': ['U13-B', 'U13-C'] };
 export function parseTrainingLog(text) {
-  const problems = [], seen = new Map(), duplicates = [];
+  const problems = [], count = new Map();
   const rows = parseCsv(text).slice(1).filter(r => (r[0] || '').trim());
   const out = [];
   rows.forEach((r, i) => {
     const held_on = iso(r[0]);
     const coach = (r[2] || '').trim();
-    const group_label = normGroup(r[4]);
+    let group_label = normGroup(r[4]);
     const kind = KIND[(r[5] || '').trim().toLowerCase()];
     const starts_at = hhmm(r[6]), ends_at = hhmm(r[7]);
     if (!held_on || !coach || !group_label || !kind) { problems.push({ line: i + 2, error: 'не разобрана строка журнала' }); return; }
-    const external_id = `${held_on}|${coach}|${group_label}|${starts_at}`;
-    const row = {
-      external_id, held_on, weekday: (r[1] || '').trim() || null, coach, location: (r[3] || '').trim() || null,
-      group_label, kind, starts_at, ends_at, hours: hours(r[8]), held: (r[9] || '').trim() !== 'Нет',
-    };
-    if (seen.has(external_id)) { duplicates.push(external_id); return; }   // точный дубль строки — учитываем один раз
-    seen.set(external_id, true);
-    out.push(row);
+    const base = `${held_on}|${coach}|${group_label}|${starts_at}`;
+    const n = (count.get(base) || 0) + 1;
+    count.set(base, n);
+    if (held_on === '2026-10-17' && group_label === 'U13-B/C' && SPLIT_17_10[`${coach}|${starts_at}`]) {
+      group_label = SPLIT_17_10[`${coach}|${starts_at}`][n - 1];
+    }
+    out.push({
+      external_id: `${held_on}|${coach}|${group_label}|${starts_at}|${n}`, held_on, weekday: (r[1] || '').trim() || null,
+      coach, location: (r[3] || '').trim() || null, group_label, kind, starts_at, ends_at,
+      hours: hours(r[8]), held: (r[9] || '').trim() !== 'Нет',
+    });
   });
-  return { rows: out, duplicates, problems };
+  return { rows: out, duplicates: [], problems };
 }

@@ -20,12 +20,12 @@ test('расписание: одна строка на группу из «Гр�
   assert.equal(r.rows[0].weekday, 1);
 });
 
-test('журнал: часы с запятой, точный дубль учитывается один раз', () => {
+test('журнал: одинаковые строки — разные записи, 17.10 делится на U13-B и U13-C', () => {
   const csv = 'Дата,День недели,Тренер,Локация,Группа,Тип тренировки,Начало,Конец,Часы,Проведено\n' +
     '01.09.2026,вторник,Паша,Красный парк,U10-A/В,Групповая,17:00,18:30,"1,50",Да\n' +
     '01.09.2026,вторник,Паша,Красный парк,U10-A/В,Групповая,17:00,18:30,"1,50",Да\n';
   const r = parseTrainingLog(csv);
-  assert.equal(r.rows.length, 1);
+  assert.equal(r.rows.length, 2);
   assert.equal(r.rows[0].hours, 1.5);
-  assert.equal(r.duplicates.length, 1);
+  assert.notEqual(r.rows[0].external_id, r.rows[1].external_id);
 });
