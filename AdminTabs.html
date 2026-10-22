@@ -67,7 +67,7 @@ li.p{padding:12px 14px}
     if(sb.length&&sb[0].tagName==='H2')sb.shift().remove();
     var main=mk('pane','<div class="kv"><span>Номер</span><span>'+esc(p.id)+'</span></div>'
       +'<div class="kv"><span>Группа</span><span>'+esc(p.group)+'</span></div>'
-      +'<div class="kv"><span>Доп. программы</span><span>'+esc(p.extras.length?p.extras.join(', '):'—')+'</span></div>'
+      +'<div class="kv"><span>Дополнительные тренировки</span><span>'+esc(p.extras.length?p.extras.join(', '):'—')+'</span></div>'
       +'<div class="kv"><span>Статус</span><span>'+chip(p.status==='Активен'?'ok':'mid',p.status)+'</span></div>'
       +'<p class="sub">Чтобы изменить группу или статус, нажмите «Изменить данные игрока» выше.</p>');
     var ps=mk('pane'),pe=mk('pane'),pg=mk('pane');

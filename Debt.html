@@ -110,7 +110,7 @@ function show(keepMsg){
           +'<div class="pf" hidden><label>Сумма, ₾</label><input type="number" min="0" step="1" class="pa" value="'+i.debt+'">'
           +'<div class="pt" hidden><label>Сумма меньше долга. Что это?</label><select class="ptype"><option value="">Выберите…</option><option value="Скидка">Скидка по договорённости (оплата принята)</option><option value="Частичный">Частичный платёж (останется долг)</option></select></div>'
           +'<label>Способ оплаты</label><div class="seg"><button class="mt" data-m="Наличные" aria-pressed="'+(method=='Наличные')+'">Наличные</button><button class="mt" data-m="Перевод" aria-pressed="'+(method=='Перевод')+'">Перевод</button></div>'
-          +'<button class="btn go">Внести оплату</button></div></div>';
+          +'<button class="btn go">Принять оплату</button></div></div>';
       }).join('')+'</details>';
   }).join('')||'<p class="sub">Должников нет.</p>';
 }
@@ -169,7 +169,7 @@ function renderInd(){
   var a=R.ind||[],g=$('grp').value;
   if(g||!a.length){$('ind').innerHTML='';return}
   var tot=0;a.forEach(function(d){tot+=d.total});
-  var h='<details'+(indOpen?' open':'')+'><summary><div class="top"><span>Индивидуальные и вратарские</span><span>'+a.length+' · '+money(tot)+'</span></div></summary>';
+  var h='<details'+(indOpen?' open':'')+'><summary><div class="top"><span>Индивидуальные и вратари</span><span>'+a.length+' · '+money(tot)+'</span></div></summary>';
   a.forEach(function(d,i){
     h+='<div class="it"><div class="nm"><b>'+esc(d.name)+'</b><span class="sub">'+esc(d.group)+' · долг '+money(d.total)+'</span></div>';
     d.events.forEach(function(e,j){

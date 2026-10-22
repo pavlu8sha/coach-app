@@ -43,7 +43,7 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
   <h1>Оплаты</h1><label for="pin" class="ks-pinl">Введите код администратора</label>
   <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err" role="alert"></p><button class="btn" id="go">Войти</button>
 </div>
-<div id="app" class="wrap" hidden>
+<div id="app" class="wrap ks-wide-w" hidden>
   <h1>Оплаты по месяцам</h1>
   <div class="row2"><select id="mon" aria-label="Месяц"></select>
     <select id="fs" aria-label="Показать"><option value="all">Все</option><option value="debt">Только должники</option></select></div>
@@ -114,7 +114,7 @@ function form(r){
   return'<label>Способ оплаты</label><div class="seg pmseg"><button class="pmb" data-m="Наличные" aria-pressed="false">Наличные</button><button class="pmb" data-m="Перевод" aria-pressed="false">Перевод</button></div>'
     +'<label>Сумма, ₾</label><input type="number" min="1" step="1" class="pa" value="'+r.debt+'" data-debt="'+r.debt+'">'
     +'<div class="pt" hidden><label>Сумма меньше остатка. Что это?</label><select class="ptype"><option value="">Выберите…</option><option value="Скидка">Скидка по договорённости (оплата принята)</option><option value="Частичный">Частичный платёж (останется долг)</option></select></div>'
-    +'<button class="btn go2">Внести оплату</button><div class="msg err pm"></div>';
+    +'<button class="btn go2">Принять оплату</button><div class="msg err pm"></div>';
 }
 function done(r,msg){
   if(r&&r.dryRun){flash='Пробный режим: в таблицу ничего не записано. ';loadMonth();return}

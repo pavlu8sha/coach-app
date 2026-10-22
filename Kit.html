@@ -41,7 +41,7 @@ summary{cursor:pointer;list-style:none;min-height:44px;display:flex;flex-directi
   <h1>Экипировка</h1><label for="pin" class="ks-pinl">Введите код администратора</label>
   <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err" role="alert"></p><button class="btn" id="go">Войти</button>
 </div>
-<div id="app" class="wrap" hidden>
+<div id="app" class="wrap ks-wide-w" hidden>
   <h1>Экипировка</h1>
   <form class="qform" onsubmit="event.preventDefault();this.querySelector('input').blur()" style="margin:0;display:block"><input id="q" enterkeyhint="done" onkeydown="if(event.key==='Enter')this.blur()" list="qlist" autocomplete="off" placeholder="Поиск: ФИ или ID"><datalist id="qlist"></datalist></form>
   <div class="row2">
@@ -164,7 +164,7 @@ function payForm(o){
     +'<label>Способ оплаты</label><select class="pmt"><option value="">Выберите…</option><option>Наличные</option><option>Перевод</option></select>'
     +'<label>Дата</label><input class="pdt" type="date" value="'+today()+'">'
     +'<label>Комментарий</label><input class="pcm">'
-    +'<button class="btn pok" data-row="'+o.row+'" data-id="'+esc(o.id)+'">Внести оплату</button><div class="msg err pm"></div></div>';
+    +'<button class="btn pok" data-row="'+o.row+'" data-id="'+esc(o.id)+'">Принять оплату</button><div class="msg err pm"></div></div>';
 }
 function payOrder(b,ord){
   var pm=ord.querySelector('.pm'),amt=Number(ord.querySelector('.pam').value),mt=ord.querySelector('.pmt').value;

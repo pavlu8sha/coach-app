@@ -111,7 +111,7 @@ summary{cursor:pointer;list-style:none;min-height:44px;display:flex;flex-directi
   <label>Размер футболки</label><input id="fsize">
   <label>Комментарий</label><input id="fcm">
   <div class="msg err" id="fmsg"></div>
-  <button class="btn" id="fsave">Записать</button>
+  <button class="btn" id="fsave">Сохранить</button>
   <button class="btn sec" id="fcancel">Отмена</button>
 </div>
 <script>
@@ -331,7 +331,7 @@ $('list').onclick=function(e){
     return}
   if(b.classList.contains('cx')){
     var hp=part(box&&box.dataset.pid),hx=hp&&(hp.hist||[]).filter(function(x){return String(x.row)===b.dataset.row})[0];
-    ksConfirm({title:'Отменить платёж?',ok:'Отменить платёж',danger:true,
+    ksConfirm({title:'Отменить оплату?',ok:'Отменить оплату',danger:true,
       text:'В журнале сбора появится запись об отмене, сумма платежа перестанет учитываться.',
       rows:(hp?whoRows(hp):[]).concat(hx?[['Сумма',ksMoney(hx.amount)],['Тип',hx.type],['Дата',fd(hx.date)],['Способ',hx.method]]:[]),
       run:function(ok,bad){run('appCampCancel',[pin,Number(b.dataset.row)],function(r){ok();reload(dry(r)+'Платёж отменён. ')},bad)}});
