@@ -6,7 +6,7 @@
   document.head.appendChild(st);
   var app=$('app'),h1=app.querySelector('h1');
   var seg=document.createElement('div');seg.className='seg2';
-  seg.innerHTML='<button class="on" data-t="att">Посещаемость</button><button data-t="mat">Матчи</button>';
+  seg.innerHTML='<button class="on" data-t="att">Тренировки</button><button data-t="mat">Матчи</button>';
   h1.insertAdjacentElement('afterend',seg);
   var mp=document.createElement('div');mp.id='mapp';mp.hidden=true;
   mp.innerHTML='<div class="mfl"><select id="mtm" aria-label="Команда"></select><select id="mkd" aria-label="Тип игр"><option value="">Все игры</option><option>Чемпионат</option><option>Товарищеские</option><option>Турниры и кубки</option></select></div>'
@@ -16,7 +16,7 @@
   function tab(t){
     [].forEach.call(seg.children,function(b){b.className=b.dataset.t==t?'on':''});
     att.forEach(function(e){e.hidden=(t=='mat')});
-    h1.textContent=t=='mat'?'Статистика матчей':'Статистика посещаемости';
+    h1.textContent=t=='mat'?'Статистика матчей':'Статистика';
     mp.hidden=(t!='mat');
     if(t=='mat')loadM();
   }
