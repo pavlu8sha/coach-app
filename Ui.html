@@ -66,6 +66,8 @@ html.ks-dlg-lock,html.ks-dlg-lock body{overflow:hidden!important}
 .ks-empty button{margin-top:10px;min-height:44px;padding:10px 20px;border-radius:12px;border:0;background:var(--g);color:var(--gi);font:700 15px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer;width:auto}
 .ks-load{display:flex;flex-direction:column;align-items:center;gap:12px;padding:56px 16px;color:var(--mute);font-size:15px}
 .ks-load[hidden],.ks-empty[hidden],.ks-ferr[hidden]{display:none}
+/* Пустая строка сообщения не оставляет дыру в разметке: место появляется только вместе с текстом */
+.msg:empty{min-height:0!important;margin-top:0!important;margin-bottom:0!important}
 .ks-spin{width:28px;height:28px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--g);animation:ks-spin .9s linear infinite}
 @keyframes ks-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.ks-spin{animation-duration:2.5s}}

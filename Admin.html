@@ -36,6 +36,15 @@ li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padd
 .ext label{display:flex;gap:6px;align-items:center;margin:0;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:999px;color:var(--ink);font-size:14px;cursor:pointer}
 .ext label:has(input:checked){background:var(--g);border-color:var(--g);color:var(--gi)}
 .ext label:focus-within{outline:2px solid var(--g);outline-offset:2px}
+.xsel{margin:0}
+.xsel>summary{list-style:none;display:flex;align-items:center;min-height:44px;padding:10px 40px 10px 12px;border:1px solid var(--color-border-strong,var(--line));border-radius:10px;background:var(--card);color:var(--ink);cursor:pointer;position:relative;overflow-wrap:anywhere}
+.xsel>summary::-webkit-details-marker{display:none}
+.xsel>summary:after{content:'';position:absolute;right:16px;top:50%;width:8px;height:8px;border-right:2px solid var(--mute);border-bottom:2px solid var(--mute);transform:translateY(-70%) rotate(45deg)}
+.xsel[open]>summary:after{transform:translateY(-30%) rotate(-135deg)}
+.xsel>summary:focus-visible{outline:2px solid var(--g);outline-offset:2px}
+.xlist{display:flex;flex-direction:column;gap:0;margin-top:6px;border:1px solid var(--line);border-radius:10px;background:var(--card);max-height:300px;overflow:auto}
+.xlist label{border:0;border-radius:0;border-bottom:1px solid var(--line);min-height:44px;padding:0 12px;background:none!important;color:var(--ink)!important}
+.xlist label:last-child{border-bottom:0}
 .ferr{color:var(--a);font-size:14px;margin:4px 0 0}
 .frow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
 .frow .btn{margin:0}
@@ -111,7 +120,8 @@ li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padd
   <label>Основная группа</label><select id="fgrp"></select>
   <div id="rowstat"><label>Статус</label><select id="fstat"></select></div>
   <div id="rowdate"><label id="fdl"></label><input type="date" id="fdate"></div>
-  <label>Дополнительные тренировки</label><div class="ext" id="fext"></div>
+  <label id="fextl">Дополнительные тренировки</label>
+  <details class="xsel" id="fextd"><summary id="fexts" aria-describedby="fextl">Не выбраны</summary><div class="ext xlist" id="fext"></div></details>
   <p class="fhint">Дата рождения указывается отдельно, в карточке игрока.</p>
   <div class="msg err" id="fmsg"></div><div id="warn"></div>
   <div class="frow"><button class="btn sec" id="cancel">Отмена</button><button class="btn" id="save">Сохранить</button></div>
@@ -438,7 +448,10 @@ function openForm(i){
   $('fext').innerHTML=allGroups().map(function(g){var on=cur&&cur.extras.indexOf(g)>=0;return'<label><input type="checkbox" value="'+esc(g)+'"'+(on?' checked':'')+'>'+esc(g)+'</label>'}).join('');
   $('fdate').value=cur&&cur.status!='Активен'&&cur.end?cur.end:today();
   dl();
+  $('fextd').open=false;updExt();
 }
+function updExt(){var a=[].map.call(document.querySelectorAll('#fext input:checked'),function(x){return x.value});$('fexts').textContent=a.length?a.join(', '):'Не выбраны'}
+$('fext').addEventListener('change',updExt);
 function submit(){
   var name=$('fname').value.trim();
   if(!name){$('fnerr').hidden=false;$('fname').setAttribute('aria-invalid','true');$('fname').focus();return}
