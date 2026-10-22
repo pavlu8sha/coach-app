@@ -28,8 +28,12 @@ function warmCore_() {
   step(['extra_v1'], function () { extraParse_(true); });
 }
 
-// Запускается по расписанию; ночью ничего не делает
-function warmUp() {
+// Обработчик триггера прогрева. Имя не менять: на него ссылается уже установленный триггер (план миграции #15/#16).
+// Внешний вызов только читает таблицы и обновляет кэш.
+function warmUp(e) { warmUpRun_(); }
+
+// Ночью ничего не делает
+function warmUpRun_() {
   var h = Number(Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'H'));
   if (h < 7 || h >= 23) return;
   warmCore_();

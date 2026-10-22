@@ -56,7 +56,7 @@ test('автосоздание: в день и час из настроек и �
   const days = { '2026-10-20': 2, '2026-10-21': 3 };
   const fmt = (d, tz, f) => { const [dd, hh] = now.split(' '); return f === 'u' ? String(days[dd] || 7) : f === 'H' ? String(Number(hh.split(':')[0])) : dd; };
   const e = env([['ind.autoHour', '', '9']], { Session: { getScriptTimeZone: () => 'Asia/Tbilisi' }, Utilities: { formatDate: fmt } });
-  e.ctx.indWeeklyCreate = () => { made++; };
+  e.ctx.indWeeklyCreate_ = () => { made++; };
   e.ctx.indAutoTick(); assert.equal(made, 0);              // 8:30 — рано
   now = '2026-10-20 09:05'; e.ctx.indAutoTick(); assert.equal(made, 1);
   now = '2026-10-20 10:05'; e.ctx.indAutoTick(); assert.equal(made, 1);   // второй раз за день — нет

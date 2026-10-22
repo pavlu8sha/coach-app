@@ -286,7 +286,7 @@ function appIndPermOff(pin, name, slot) {
 }
 
 // ----- Автосоздание: каждый вторник на ближайшие выходные -----
-function indWeeklyCreate() {
+function indWeeklyCreate_() {
   if (CONFIG.DRY_RUN) { Logger.log('DRY_RUN: индивидуальные занятия на выходные не созданы'); return { dryRun: true }; }
   var tz = Session.getScriptTimeZone();
   var y = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd').split('-');
@@ -318,14 +318,18 @@ function indInstallTrigger_() {
   Logger.log('Триггер создан: каждый час; занятия создаются в ' + settingGet_('ind.autoDay') + ', ' + settingGet_('ind.autoHour') + ':00');
 }
 
+// Обработчик ежечасного триггера. Имя не менять: на него ссылается уже установленный триггер (план миграции #15/#16).
+// Внешний вызов безопасен: создаёт занятия только в день и час из настроек и не больше одного раза в день.
+function indAutoTick(e) { indAutoTickRun_(); }
+
 // Ежечасно: в день и час из настроек создаёт занятия на ближайшие выходные (один раз в неделю).
-function indAutoTick() {
+function indAutoTickRun_() {
   var tz = Session.getScriptTimeZone(), now = new Date();
   var wd = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'][Number(Utilities.formatDate(now, tz, 'u')) % 7];
   if (wd !== settingGet_('ind.autoDay') || Number(Utilities.formatDate(now, tz, 'H')) < settingGet_('ind.autoHour')) return;
   var today = Utilities.formatDate(now, tz, 'yyyy-MM-dd'), props = PropertiesService.getScriptProperties();
   if (props.getProperty('IND_AUTO_LAST') === today) return;
-  indWeeklyCreate();
+  indWeeklyCreate_();
   props.setProperty('IND_AUTO_LAST', today);
 }
 
