@@ -8,7 +8,7 @@
 
 | Ветка | PR / Issue | Назначение и сделанное | Что осталось |
 |---|---|---|---|
-| `master` | — | Стабильная интеграционная ветка; защищена ruleset `Protect master` | Не коммитить напрямую; production-версию проверять отдельно |
+| `master` | — | Стабильная интеграционная ветка; ruleset `Protect master` снят 2026-10-22, прямой push разрешён | Production-версию проверять отдельно |
 | `stage-abc` | [PR #2](https://github.com/pavlu8sha/coach-app/pull/2), [Issue #4](https://github.com/pavlu8sha/coach-app/issues/4) | Аудит OpenCode: DRY_RUN, clubSource_, auth-примитивы, тесты | Проверить каждый server endpoint и write-path; не вливать PR целиком; принимаемые темы вынести отдельными PR |
 | `chore/repository-governance` | [PR #3](https://github.com/pavlu8sha/coach-app/pull/3), [Issue #6](https://github.com/pavlu8sha/coach-app/issues/6) | Документация, шаблоны GitHub, workflow CI | Завершить review/CI; после merge проверить workflow и включить обязательный check |
 | `perf-phase1` | [Issue #5](https://github.com/pavlu8sha/coach-app/issues/5) | 5 уникальных коммитов на момент проверки; инструментация и оптимизации | Не вливать целиком; проверить эквивалентность платежей/посещаемости/групп, CI и PERF_LOG=false; переносить выборочно |

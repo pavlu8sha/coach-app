@@ -24,6 +24,15 @@ function appMonthOptions(pin, kind) {
 }
 
 // Новый лист ставим сразу после последнего листа месяца.
+// Нумерация «№» по блокам заново: 1, 2, 3… без пропусков (после удаления строк ушедших)
+function renumberRows_(sh) {
+  parseMonth_(sh).forEach(function (g) {
+    g.rows.forEach(function (r, i) {
+      if (Number(sh.getRange(r.row, 1).getValue()) !== i + 1) sh.getRange(r.row, 1).setValue(i + 1);
+    });
+  });
+}
+
 function placeAfterMonths_(ss, sh) {
   var last = 0;
   ss.getSheets().forEach(function (s) {
@@ -68,16 +77,18 @@ function createPayMonthCore_(month) {
     try {
       sh = src.copyTo(ss);
       sh.setName(month);
-      var dcells = [], ncells = [];
+      // Ушедших игроков удаляем строками целиком (без дыр в списке), остальным очищаем оплату
+      var dcells = [], gone = [];
       parseMonth_(sh).forEach(function (g) {
         g.rows.forEach(function (r) {
-          dcells.push('D' + r.row);
           if (r.paid) cleared++;
-          if (leaves(r)) ncells.push('B' + r.row, 'C' + r.row);
+          if (leaves(r)) { gone.push(r.row); return; }
+          dcells.push('D' + r.row);
         });
       });
       if (dcells.length) sh.getRangeList(dcells).clearContent();
-      if (ncells.length) sh.getRangeList(ncells).clearContent();
+      gone.sort(function (a, b) { return b - a; }).forEach(function (row) { sh.deleteRow(row); });
+      if (gone.length) renumberRows_(sh);
       // Блок «Индивидуальные / Вратарские» разбор листа пропускает, поэтому чистим его отдельно: новый месяц начинается пустым
       var bcells = indBlockCells_(sh);
       if (bcells.length) sh.getRangeList(bcells).clearContent();
