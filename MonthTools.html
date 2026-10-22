@@ -29,7 +29,7 @@
     setInterval(svis,1500);
     sbox.addEventListener('toggle',function(){
       if(!sbox.open)return;
-      run('appMonthOptions',[pin,KIND],function(o){ssel.innerHTML=o.map(function(m){return'<option>'+m+'</option>'}).join('')},function(m){sres.textContent=m});
+      run('appPayMonths',[pin],function(o){ssel.innerHTML=o.slice().reverse().map(function(m){return'<option>'+m+'</option>'}).join('')},function(m){sres.textContent=m});
     });
     sbtn.onclick=function(){
       if(!ssel.value)return;
