@@ -39,6 +39,13 @@ summary{cursor:pointer;list-style:none;min-height:44px;display:flex;flex-directi
 .h button{border:1px solid var(--line);background:none;color:var(--a);border-radius:10px;padding:0 12px;font-size:13px;min-height:44px;min-width:44px} /* DS-015: цель касания ≥ 44 px */
 .msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:8px}
 .msg.err{color:var(--a)}
+.srch{position:relative}.srch svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--mute);pointer-events:none}
+.srch input{padding-left:40px}
+.sk-row{display:flex;gap:12px;align-items:center;padding:12px 14px;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:8px}
+.sk-t{flex:1;min-width:0}.sk-l{display:block;height:12px;border-radius:6px;background:var(--line);margin:8px 0;width:100%;animation:skp 1.2s ease-in-out infinite}
+.sk-l.w60{width:60%}.sk-l.w40{width:40%}
+@keyframes skp{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.sk-l{animation:none}}
 </style>
 </head>
 <body>
@@ -47,7 +54,7 @@ summary{cursor:pointer;list-style:none;min-height:44px;display:flex;flex-directi
   <h1>Сборы</h1><label for="pin" class="ks-pinl">Введите код администратора</label>
   <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err" role="alert"></p><button class="btn" id="go">Войти</button>
 </div>
-<div id="app" class="wrap" hidden>
+<div id="app" class="wrap ks-wide-w" hidden>
   <h1 id="ttl">Сборы</h1>
   <div class="sub" id="cinfo"></div>
   <div class="acts" style="margin-top:8px">
@@ -63,7 +70,7 @@ summary{cursor:pointer;list-style:none;min-height:44px;display:flex;flex-directi
       <option value="debt">Должники (есть долг)</option><option value="late">Просрочка</option>
       <option value="cancelled">Отказались</option><option value="all">Все</option>
     </select>
-    <form class="qform" onsubmit="event.preventDefault();this.querySelector('input').blur()" style="margin:0;display:block"><input id="q" enterkeyhint="done" onkeydown="if(event.key==='Enter')this.blur()" list="qlist" autocomplete="off" placeholder="Поиск по ФИ"><datalist id="qlist"></datalist></form>
+    <form class="qform srch" onsubmit="event.preventDefault();this.querySelector('input').blur()" style="margin:0;display:block"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input id="q" aria-label="Поиск участника" enterkeyhint="done" onkeydown="if(event.key==='Enter')this.blur()" list="qlist" autocomplete="off" placeholder="Поиск по ФИ"><datalist id="qlist"></datalist></form>
   </div>
   <button class="btn" id="new">+ Записать на сбор</button>
   <button class="btn sec" id="listb">Список для отправки</button>
@@ -129,10 +136,14 @@ function setMsg(t,bad){$('msg').textContent=t||'';$('msg').className='msg'+(bad?
 function fmsg(t,bad){$('fmsg').textContent=t||'';$('fmsg').className='msg'+(bad?' err':'')}
 function showLogin(t){$('app').hidden=true;$('form').hidden=true;$('campf').hidden=true;$('login').hidden=false;$('lerr').textContent=t||''}
 function fail(m){if(/код (администратора|доступа)/.test(m))showLogin('Неверный код доступа');else{$('login').hidden=true;$('app').hidden=false;setMsg(m,true)}}
+function skelRows(n){var h='';for(var i=0;i<n;i++)h+='<div class="sk-row" aria-hidden="true"><span class="sk-t"><span class="sk-l w60"></span><span class="sk-l w40"></span></span></div>';return h}
 function load(){
-  setMsg('Загрузка…');
+  var first=!D;
+  if(first){setMsg('');$('list').innerHTML=skelRows(4)}else setMsg('Загрузка…');
   var got=0,pd=null,cd=null,failed=false;
-  function bad(m){if(failed)return;failed=true;fail(m)}
+  function bad(m){if(failed)return;failed=true;
+    if(first&&!/код (администратора|доступа)/.test(m)){$('login').hidden=true;$('app').hidden=false;setMsg('');$('list').innerHTML=ksEmpty({tag:'div',icon:'alert',title:'Не удалось загрузить данные',text:'Проверьте соединение и попробуйте ещё раз.',btn:'Повторить',id:'cretry'});return}
+    fail(m)}
   function done(){
     if(failed||++got<2)return;
     P=pd.players;D=cd;
@@ -236,7 +247,9 @@ function show(){
   var bt=t.byTariff||{},bs=Object.keys(bt).map(function(k){var v=bt[k];return esc(k)+': '+(typeof v=='object'?(v.n!=null?v.n:JSON.stringify(v)):v)}).join(' · ');
   var late=all.filter(FL.late).length,debtors=all.filter(FL.debt).length;
   setMsg(flash+(bs?'По тарифам — '+bs+'. ':'')+(debtors?'Должников: '+debtors+'. ':'')+(late?'Просрочек: '+late+'.':''));flash='';
-  $('list').innerHTML=a.map(card).join('')||'<p class="sub">Участников нет.</p>';
+  $('list').innerHTML=a.map(card).join('')||(all.length&&(q||$('fs').value!=='act')
+    ?ksEmpty({tag:'div',icon:'search',title:'Ничего не найдено',text:'Попробуйте изменить запрос или сбросить фильтры.',btn:'Сбросить фильтры',id:'creset'})
+    :ksEmpty({tag:'div',icon:'users',title:'Пока никто не записан',text:'Запишите первого участника на сбор.',btn:'+ Записать на сбор',id:'cadd'}));
 }
 function reload(m){flash=m||'';load()}
 // Участник для сводки диалога: игрок из реестра или гость (у гостя в «группе» — академия или контакт)
@@ -325,6 +338,11 @@ $('tarsave').onclick=function(){
   run('appCampTariffSave',[pin,campId,rows],function(r){$('tarsave').disabled=false;$('tarbox').hidden=true;reload(dry(r)+'Тарифы сохранены. ')},function(m){$('tarsave').disabled=false;$('tarmsg').textContent=m});
 };
 // ---------- Участники ----------
+$('list').addEventListener('click',function(e){
+  if(e.target.closest('#cretry'))return load();
+  if(e.target.closest('#creset')){$('q').value='';$('fs').value='act';return show()}
+  if(e.target.closest('#cadd'))return $('new').click();
+});
 $('list').onclick=function(e){
   var b=e.target.closest('button');if(!b)return;
   var ord=b.closest('.ord'),box=b.closest('details');
