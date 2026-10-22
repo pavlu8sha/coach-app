@@ -16,6 +16,7 @@ input,select{font:inherit;color:var(--ink);background:var(--card);border:1px sol
 input[type=date]{-webkit-appearance:none;appearance:none;width:0;min-width:100%;max-width:100%;display:block;box-sizing:border-box}
 label{display:block;margin:12px 0 4px;color:var(--mute);font-size:14px}
 .chk{display:flex;gap:8px;align-items:center;min-height:44px}.chk input{width:22px;height:22px;min-height:0;flex:none}
+.kitrow{display:flex;align-items:center;gap:8px}.kitrow .kit{flex:1;min-width:0}.kq,.ekq{width:72px;min-height:44px;height:44px;margin:0;font-size:16px;text-align:center}
 .kits{display:flex;flex-direction:column;gap:4px;margin:4px 0 8px}.kit{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--ink);min-height:44px}.kit input{width:22px;height:22px;min-height:0;margin:0;flex:none} /* DS-015: цель касания ≥ 44 px */
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
 button{font:inherit;cursor:pointer}
@@ -201,7 +202,7 @@ function orderHtml(o,p,linked){
     +(linked&&o.debt>0?payForm(o):'')
     +'<button class="btn sec ed" style="margin-top:8px">Изменить заказ</button>'
     +'<button class="btn sec delo" data-row="'+o.row+'" style="margin-top:8px">Удалить заказ</button><div class="msg err dm"></div>'
-    +'<div class="edf" hidden><label>Комплект</label><div class="ekits">'+Object.keys(PR).map(function(k){return'<label class="kit"><input type="checkbox" class="ekit" value="'+esc(k)+'"'+(kitsOf(o.kit).indexOf(k)>=0?' checked':'')+'> '+esc(k)+' <input type="number" class="ekq" data-k="'+esc(k)+'" min="1" max="10" step="1" value="'+qtyOfKit(o,k)+'" aria-label="Количество"></label>'}).join('')+'</div><div class="sub esum" aria-live="polite"></div>'
+    +'<div class="edf" hidden><label>Комплект</label><div class="ekits">'+Object.keys(PR).map(function(k){return'<div class="kitrow"><label class="kit"><input type="checkbox" class="ekit" value="'+esc(k)+'"'+(kitsOf(o.kit).indexOf(k)>=0?' checked':'')+'> '+esc(k)+'</label><input type="number" class="ekq" data-k="'+esc(k)+'" min="1" max="10" step="1" value="'+qtyOfKit(o,k)+'" inputmode="numeric" aria-label="Количество"></div>'}).join('')+'</div><div class="sub esum" aria-live="polite"></div>'
     +'<label>Размер</label><input class="esize" value="'+esc(o.size||'')+'">'
     +'<label>Надпись</label><input class="einscr" value="'+esc(o.inscr||'')+'">'
     +'<label>Номер</label><input class="enum" value="'+esc(o.num||'')+'">'
@@ -389,7 +390,7 @@ function discCalc(ks,inst,others,qm){
 function selKits(){return[].map.call(document.querySelectorAll('#fkits input:checked'),function(i){return i.value})}
 function kitsBox(){
   $('fkits').innerHTML=Object.keys(PR).map(function(k){
-    return'<label class="kit"><input type="checkbox" value="'+esc(k)+'"> '+esc(k)+' — '+PR[k]+' ₾ <input type="number" class="kq" data-k="'+esc(k)+'" min="1" max="10" step="1" value="1" aria-label="Количество"></label>';
+    return'<div class="kitrow"><label class="kit"><input type="checkbox" value="'+esc(k)+'"> '+esc(k)+' — '+PR[k]+' ₾</label><input type="number" class="kq" data-k="'+esc(k)+'" min="1" max="10" step="1" value="1" inputmode="numeric" aria-label="Количество"></div>';
   }).join('');
   [].forEach.call(document.querySelectorAll('#fkits input'),function(i){i.onchange=refreshSum});
 }
