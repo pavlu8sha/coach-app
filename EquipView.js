@@ -32,10 +32,10 @@ function nextOrdId_(sh, cols) {
   return 'ORD-' + ('000' + n).slice(-4);
 }
 
-// Колонки N (№ ORD) и C (ФИ) всего листа — одно чтение для nextOrdId_ и clearStaleOrdId_
+// Колонки N (№ ORD) и C (ФИ) всего листа — одно чтение (C:N) для nextOrdId_ и clearStaleOrdId_
 function ordCols_(sh) {
-  var last = Math.max(sh.getLastRow(), 1);
-  return { nv: sh.getRange(1, 14, last, 1).getValues(), cv: sh.getRange(1, 3, last, 1).getValues() };
+  var last = Math.max(sh.getLastRow(), 1), v = sh.getRange(1, 3, last, 12).getValues();
+  return { nv: v.map(function (r) { return [r[11]]; }), cv: v.map(function (r) { return [r[0]]; }) };
 }
 
 // Снимает такой же номер с пустых строк (остаток заранее прописанного списка), чтобы номер не дублировался.
@@ -93,7 +93,7 @@ function addOrderCore_(o) {
   // Проверяем до вставки строки, чтобы при отказе в таблице ничего не менялось
   if (!CONFIG.DRY_RUN && recentOrderDup_(o.id, o.kit, sum)) throw new Error('Похоже на повтор: такой заказ только что добавлен. Обновите страницу');
   step('проверка повтора');
-  if (!row) { row = newOrderRow_(sh); step('новая строка'); } // свободных строк нет: вставляем новую перед итогами
+  if (!row) { row = newOrderRow_(sh, rows); step('новая строка'); } // свободных строк нет: вставляем новую перед итогами
   var dateStr = o.date || today_();
   if (!CONFIG.DRY_RUN) {
     // Столбцы B:J одной записью (дата, ФИ, комплект, размер, надпись, номер, рассрочка, сумма, оплачено)
@@ -105,12 +105,11 @@ function addOrderCore_(o) {
     nf[0][0] = 'dd.mm.yyyy'; nf[0][3] = '@'; nf[0][5] = '@';
     rg.setNumberFormats(nf);
     rg.setValues([[serialOf(dateStr), p.name, o.kit, String(o.size || ''), String(o.inscr || ''), String(o.num || ''), o.inst ? 'Да' : '', sum, paid]]);
-    sh.getRange(row, 12).setValue(o.id);
-    sh.getRange(row, 14).setValue(ordId);
-    // количество — в колонку M; заголовок ставим, только если его ещё нет
+    // количество — в колонку O (EQ_QTY_COL); заголовок ставим, только если его ещё нет
     if (!String(sh.getRange(EQ_FIRST - 1, EQ_QTY_COL).getValue()).trim()) sh.getRange(EQ_FIRST - 1, EQ_QTY_COL).setValue('Кол-во');
     nfSafe_(sh.getRange(row, EQ_QTY_COL), '@');
-    sh.getRange(row, EQ_QTY_COL).setValue(qs.join(' + '));
+    // L:O одной записью: ID игрока, локация (то же значение, что сразу ниже запишет equipSyncLocations_), № ORD, количество
+    sh.getRange(row, 12, 1, EQ_QTY_COL - 11).setValues([[o.id, p.loc || '', ordId, qs.join(' + ')]]);
     step('запись строки');
     equipSyncLocations_(sh, players);
     step('локации');
@@ -143,10 +142,15 @@ function recentOrderDup_(id, kit, sum) {
   });
 }
 
-// Новая строка заказа перед строкой итогов: вставляем строку и расширяем формулы итогов (SUM по столбцам I, J, K).
-// Если строка итогов не похожа на ожидаемую, останавливаемся, ничего не меняя.
-function newOrderRow_(sh) {
-  var vals = sh.getRange(EQ_FIRST, 1, EQ_ROWS, 12).getValues(), tot = 0, maxNum = 0, i, c, empty;
+// Свободных строк нет: перед строкой итогов вставляем сразу пачку пронумерованных пустых строк (как было
+// заведено в листе — заранее прописанные строки) и расширяем формулы итогов (SUM по I, J, K) и правила цвета.
+// Долгая вставка — раз в EQ_NEW_ROWS заказов, а не при каждом. Возвращает первую новую строку.
+// vals — строки заказов (EQ_FIRST.., 12 колонок), если уже прочитаны. Если строка итогов не похожа на ожидаемую,
+// останавливаемся, ничего не меняя.
+var EQ_NEW_ROWS = 10;
+function newOrderRow_(sh, vals) {
+  vals = vals || sh.getRange(EQ_FIRST, 1, EQ_ROWS, 12).getValues();
+  var tot = 0, maxNum = 0, i, c, empty;
   for (i = 0; i < vals.length && !tot; i++) {
     empty = true;
     for (c = 1; c < 8; c++) { if (String(vals[i][c]).trim() !== '') empty = false; }
@@ -163,19 +167,23 @@ function newOrderRow_(sh) {
       if (String(r[4]).indexOf('Экипировка') === 0 && Number(r[5]) > maxNum) maxNum = Number(r[5]);
     });
   }
+  // сколько строк вставить: пачку, но строка итогов должна остаться в просматриваемых строках (до EQ_FIRST + EQ_ROWS - 1)
+  var n = Math.max(1, Math.min(EQ_NEW_ROWS, EQ_FIRST + EQ_ROWS - 1 - tot));
   var ok = true;
   var fixed = sh.getRange(tot, 9, 1, 3).getFormulas()[0].map(function (s) {
     var m = /^=SUM\(([A-Z])4:([A-Z])(\d+)\)$/.exec(String(s));
     if (!m || m[1] !== m[2] || Number(m[3]) !== tot - 1) { ok = false; return s; }
-    return '=SUM(' + m[1] + '4:' + m[2] + tot + ')';
+    return '=SUM(' + m[1] + '4:' + m[2] + (tot + n - 1) + ')';
   });
   if (!ok) throw new Error('Строка итогов в файле экипировки изменена. Добавьте строку заказа вручную.');
   if (!CONFIG.DRY_RUN) {
-    sh.insertRowBefore(tot);
-    sh.getRange(tot + 1, 9, 1, 3).setFormulas([fixed]);
-    sh.getRange(tot, 1).setValue(maxNum + 1);
+    sh.insertRowsBefore(tot, n);
+    sh.getRange(tot + n, 9, 1, 3).setFormulas([fixed]);
+    var nums = [];
+    for (i = 1; i <= n; i++) nums.push([maxNum + i]);
+    sh.getRange(tot, 1, n, 1).setValues(nums);
     // оформление как у строки выше (шрифт, цвета, границы)
-    sh.getRange(tot - 1, 1, 1, 12).copyTo(sh.getRange(tot, 1, 1, 12), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+    sh.getRange(tot - 1, 1, 1, 12).copyTo(sh.getRange(tot, 1, n, 12), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
     // условное форматирование (зелёный/красный по оплате): расширяем диапазон, который заканчивается строкой выше
     var rules = sh.getConditionalFormatRules();
     sh.setConditionalFormatRules(rules.map(function (rule) {
@@ -183,7 +191,7 @@ function newOrderRow_(sh) {
       var nr = rule.getRanges().map(function (r) {
         if (r.getLastRow() !== tot - 1) return r;
         changed = true;
-        return sh.getRange(r.getRow(), r.getColumn(), r.getNumRows() + 1, r.getNumColumns());
+        return sh.getRange(r.getRow(), r.getColumn(), r.getNumRows() + n, r.getNumColumns());
       });
       return changed ? rule.copy().setRanges(nr).build() : rule;
     }));

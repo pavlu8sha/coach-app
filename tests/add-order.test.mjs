@@ -12,7 +12,15 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 class Sheet {
-  constructor(rows, parent) { this.data = rows.map(r => r.slice()); this.parent = parent; this.reads = 0; this.formulas = {}; }
+  constructor(rows, parent) { this.data = rows.map(r => r.slice()); this.parent = parent; this.reads = 0; this.formulas = {}; this.formatCopies = []; this.rules = []; }
+  insertRowsBefore(at, n) {
+    for (let i = 0; i < n; i++) this.data.splice(at - 1, 0, Array(14).fill(''));
+    const f = {};
+    for (const [k, v] of Object.entries(this.formulas)) { const [a, b] = k.split(':').map(Number); f[(a >= at ? a + n : a) + ':' + b] = v; }
+    this.formulas = f;
+  }
+  getConditionalFormatRules() { return this.rules; }
+  setConditionalFormatRules(r) { this.rules = r; }
   getLastRow() { let n = this.data.length; while (n && this.data[n - 1].every(x => x === '' || x === undefined)) n--; return n; }
   getParent() { return this.parent; }
   cell(a, b) { const x = this.data[a - 1]; return x && x[b - 1] !== undefined ? x[b - 1] : ''; }
@@ -30,8 +38,11 @@ class Sheet {
       getNumberFormats: () => grid(() => ''), setNumberFormats: () => rg, setNumberFormat: () => rg,
       setHorizontalAlignment: () => rg, setFontWeight: () => rg,
       getFormula: () => sh.formulas[r + ':' + c] || '',
+      getFormulas: () => grid((a, b) => sh.formulas[a + ':' + b] || ''),
+      setFormulas: v => { v.forEach((row, i) => row.forEach((x, j) => { sh.formulas[(r + i) + ':' + (c + j)] = x; })); return rg; },
+      getRow: () => r, getColumn: () => c, getNumRows: () => n, getNumColumns: () => m, getLastRow: () => r + n - 1,
       setFormula: f => { sh.formulas[r + ':' + c] = f; return rg; },
-      copyTo: (dst) => { dst.setFormula('=copy'); return rg; },
+      copyTo: (dst, how) => { if (how === 'm') sh.formatCopies.push([r, dst.getRow(), dst.getNumRows()]); else dst.setFormula('=copy'); return rg; },
     };
     return rg;
   }
@@ -124,8 +135,57 @@ test('колонки N и C читаются один раз для номера
   const e = env();
   const orig = e.eq.getRange.bind(e.eq);
   let nReads = 0;
-  e.eq.getRange = (r, c, n, m) => { const rg = orig(r, c, n, m); if (r === 1 && c === 14) { const g = rg.getValues; rg.getValues = () => { nReads++; return g(); }; } return rg; };
+  e.eq.getRange = (r, c, n, m) => { const rg = orig(r, c, n, m); if (r === 1 && (c === 14 || c === 3)) { const g = rg.getValues; rg.getValues = () => { nReads++; return g(); }; } return rg; };
   e.ctx.appAddOrder('9', { id: 'KS-3', kit: 'Дождевик', sum: 150, paid: 0, size: '128' });
   assert.equal(nReads, 1);
   assert.equal(e.eq.data[5][13], 'ORD-0003');
+});
+
+// Свободных строк нет: строки 4–6 — заказы, строка 7 — итоги; в журнале оплат есть платёж по удалённому заказу №5
+function fullEnv() {
+  const e = env();
+  const rows = e.eq.data.slice(0, 5);
+  rows.push([3, 46002, 'Delta D', 'Дождевик', '128', '', '', '', 150, 0, 150, 'KS-2', 'Парк', 'ORD-0004']);
+  rows.push(['', '', '', '', '', '', '', '', 500, 200, 300, '', '', '']);            // итоги
+  rows.push(['', '', 'примечание под итогами']);
+  while (rows.length < 3 + 250) rows.push(EMPTY());
+  e.eq.data = rows;
+  e.eq.formulas = { '5:11': '=MAX(I5-J5,0)', '6:11': '=MAX(I6-J6,0)', '7:9': '=SUM(I4:I6)', '7:10': '=SUM(J4:J6)', '7:11': '=SUM(K4:K6)' };
+  const rule = ranges => ({ getRanges: () => ranges, copy: () => { const b = { r: null, setRanges: x => { b.r = x; return b; }, build: () => rule(b.r) }; return b; } });
+  e.eq.rules = [rule([e.eq.getRange(4, 1, 3, 12)]), rule([e.eq.getRange(1, 1, 2, 2)])];
+  e.ps.data.push([new Date(0), '2026-10-01', 'KS-9', 'Gone', 'Экипировка: Носки', 5, 15, '', 'Наличные']);
+  return e;
+}
+
+test('нет свободных строк: вставляется пачка из 10 пронумерованных строк, заказ — в первую', () => {
+  const e = fullEnv();
+  const r = e.ctx.appAddOrder('9', { id: 'KS-3', kit: 'Дождевик', sum: 150, paid: 0, size: '128' });
+  assert.equal(r.row, 7);
+  assert.deepEqual(e.eq.data.slice(6, 16).map(x => x[0]), [6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);   // номера после №5 из журнала оплат
+  assert.deepEqual(e.eq.data[6].slice(1, 4), [e.ctx.serialOf('2026-10-22'), 'Gamma C', 'Дождевик']);
+  assert.ok(e.eq.data.slice(7, 16).every(x => x.slice(1, 12).every(v => v === '')));                 // остальные 9 — пустые, свободные
+  assert.deepEqual([e.eq.data[16][8], e.eq.data[17][2]], [500, 'примечание под итогами']);             // итоги и строка под ними сдвинулись
+  assert.deepEqual([e.eq.formulas['17:9'], e.eq.formulas['17:10'], e.eq.formulas['17:11']], ['=SUM(I4:I16)', '=SUM(J4:J16)', '=SUM(K4:K16)']);
+  assert.deepEqual(e.eq.formatCopies, [[6, 7, 10]]);                                                 // оформление строки выше — на все 10
+  const rr = e.eq.rules.map(x => x.getRanges().map(g => [g.getRow(), g.getNumRows()]));
+  assert.deepEqual(rr, [[[4, 13]], [[1, 2]]]);                                                       // правило цвета заказов продлено на 10
+  // следующий заказ — в свободную строку пачки, без новой вставки
+  e.ctx.appAddOrder('9', { id: 'KS-1', kit: 'Дождевик', sum: 150, paid: 0, size: '128' });
+  assert.deepEqual([e.eq.data[7][2], e.eq.data.slice(6, 17).map(x => x[0]).length, e.eq.formatCopies.length], ['Alpha A', 11, 1]);
+});
+
+test('пачка не выводит строку итогов за просматриваемые строки', () => {
+  const e = fullEnv();
+  const ord = e.eq.data.slice(3, 6);
+  const rows = e.eq.data.slice(0, 3);
+  for (let i = 0; i < 245; i++) rows.push(ord[i % 3].map((v, j) => (j === 0 ? i + 1 : v)));      // строки 4..248 заняты
+  rows.push(['', '', '', '', '', '', '', '', 1, 1, 0, '', '', '']);                                // итоги в строке 249
+  while (rows.length < 3 + 260) rows.push(EMPTY());
+  e.eq.data = rows;
+  e.eq.formulas = { '248:11': '=x', '249:9': '=SUM(I4:I248)', '249:10': '=SUM(J4:J248)', '249:11': '=SUM(K4:K248)' };
+  e.eq.rules = [];
+  const r = e.ctx.appAddOrder('9', { id: 'KS-3', kit: 'Дождевик', sum: 150, paid: 0, size: '128' });
+  assert.equal(r.row, 249);
+  assert.equal(e.eq.data[252][8], 1);                                    // итоги в строке 253 — последней просматриваемой
+  assert.equal(e.eq.formulas['253:9'], '=SUM(I4:I252)');
 });
