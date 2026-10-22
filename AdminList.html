@@ -3,6 +3,25 @@
 .tg[aria-pressed=true]{background:var(--okbg,#DDE4F6);border-color:var(--g)}
 li.p{display:flex;justify-content:space-between;align-items:center;gap:10px}
 li.p .l{min-width:0}
+/* UI-013 «Игроки»: поиск со значком, компактная панель «Только не оплатившие / + Добавить», заголовок списка,
+   строка игрока — инициалы, ФИ, группа, ID и дата рождения, статус оплаты, стрелка перехода в карточку */
+.srch{position:relative}.srch svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--mute);pointer-events:none}
+.srch input{padding-left:40px}
+.pbar{display:flex;gap:8px;align-items:stretch;margin-top:8px}
+.pbar .tg{margin:0;min-height:44px;flex:1 1 auto}
+.pbar #add{margin:0;width:auto;flex:0 0 auto;min-height:44px;padding:0 16px;font-size:15px}
+.ychips button{min-height:44px}
+.lhd{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin:14px 0 4px;padding-bottom:6px;border-bottom:2px solid var(--ink)}
+.lhd b{font-size:13px;letter-spacing:.06em;text-transform:uppercase}.lhd .n{font-weight:800;font-size:15px}
+.lhd2{margin:0 0 6px}
+#count .lhd{color:var(--ink)}
+li.p{gap:12px;padding:10px 12px}
+li.p .av{flex:none;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--color-primary-subtle,var(--pb));color:var(--g);font-weight:800;font-size:14px}
+li.p .l{flex:1}li.p .l b{display:block;overflow-wrap:break-word}
+li.p .l .chip{display:none;margin-top:4px}
+li.p .r{flex:none;display:flex;align-items:center;gap:6px}
+li.p .chev{flex:none;width:8px;height:8px;border-right:2px solid var(--mute);border-top:2px solid var(--mute);transform:rotate(45deg);margin:0 4px 0 2px}
+@media(max-width:380px){li.p .av{width:34px;height:34px;font-size:13px}.pbar #add{padding:0 12px}li.p .r .chip{display:none}li.p .l .chip{display:inline-block}}
 </style>
 <script>
 (function(){
@@ -12,6 +31,12 @@ li.p .l{min-width:0}
   var add=$('add'),b=document.createElement('button');
   b.className='tg';b.id='dbt';b.setAttribute('aria-pressed','false');b.textContent='Только не оплатившие';
   add.parentNode.insertBefore(b,add);
+  // UI-013: «Только не оплатившие» и «Добавить» в одну строку; значок поиска
+  var bar=document.createElement('div');bar.className='pbar';add.parentNode.insertBefore(bar,b);bar.appendChild(b);bar.appendChild(add);
+  add.textContent='+ Добавить';add.setAttribute('aria-label','Добавить игрока');
+  var q0=$('q'),sw=document.createElement('div');sw.className='srch';q0.parentNode.insertBefore(sw,q0);
+  sw.innerHTML='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>';sw.appendChild(q0);
+  if(!q0.getAttribute('aria-label'))q0.setAttribute('aria-label','Поиск игрока');
   b.onclick=function(){only=!only;b.setAttribute('aria-pressed',String(only));window.list()};
   function badge(p){
     if(p.status!=='Активен')return chip('mid',p.status);
@@ -27,10 +52,13 @@ li.p .l{min-width:0}
       if(ySel.length&&ySel.indexOf(yearOf(p.birth))<0)return false;
       return !q||(p.name+' '+p.id+' '+p.group+' '+p.extras.join(' ')).toLowerCase().indexOf(q)>=0;
     });
-    $('count').textContent='Найдено: '+a.length+(a.length>80?' (показаны первые 80, уточните поиск)':'')
-      +(PAY?(PAY.found?' · оплата за '+PAY.month:' · листа оплат за '+PAY.month+' нет'):'');
+    $('count').innerHTML='<div class="lhd"><b>Игроки</b><span class="n">'+a.length+'</span></div><div class="lhd2">'
+      +esc((PAY?(PAY.found?'Статус оплаты за '+PAY.month:'Листа оплат за '+PAY.month+' нет'):'')+(a.length>80?(PAY?' · ':'')+'показаны первые 80, уточните поиск':''))+'</div>';
     $('list').innerHTML=a.slice(0,80).map(function(p){
-      return'<li class="p" data-i="'+D.players.indexOf(p)+'"><div class="l"><b>'+esc(p.name)+'</b><div class="sub">'+esc(p.id+' / '+p.group+(p.extras.length?' + '+p.extras.join(', '):'')+' / '+(p.birth?'р. '+p.birth:'без даты'))+'</div></div>'+badge(p)+'</li>';
+      var ini=String(p.name).split(/\s+/).map(function(w){return w.charAt(0)}).join('').slice(0,2).toUpperCase();
+      return'<li class="p" data-i="'+D.players.indexOf(p)+'"><span class="av" aria-hidden="true">'+esc(ini)+'</span><div class="l"><b>'+esc(p.name)+'</b>'
+        +'<div class="sub">'+esc(p.group+(p.extras.length?' + '+p.extras.join(', '):''))+'</div>'
+        +'<div class="sub">'+esc(p.id+' · '+(p.birth?'р. '+p.birth:'без даты'))+'</div>'+badge(p)+'</div><span class="r">'+badge(p)+'<span class="chev" aria-hidden="true"></span></span></li>';
     }).join('');
     // UI-010: пустые состояния (как в Admin.html list)
     if(!a.length)$('list').innerHTML=!D.players.length
