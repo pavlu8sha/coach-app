@@ -17,7 +17,9 @@ function kitSizes_(cat) {
   return m;
 }
 
-function appEquipOrders(pin) {
+// Замер (PerfLog.js): обёртка не меняет результат; при PERF_LOG = false ничего не пишет
+function appEquipOrders(pin) { return perfSpan_('appEquipOrders', function () { return appEquipOrders0_(pin); }); }
+function appEquipOrders0_(pin) {
   checkAdmin_(pin);
   var data = cacheGetBig_('eq_v1');
   if (!data) { data = equipOrdersLive_(); cachePutBig_('eq_v1', data, 60); }

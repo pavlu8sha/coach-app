@@ -38,7 +38,9 @@ function appGroups(pin, dateStr) {
 }
 
 // Один запрос вместо двух: группы дня и состав выбранной группы.
-function appAttInit(pin, dateStr, want, all) {
+// Замер (PerfLog.js): обёртка не меняет результат; при PERF_LOG = false ничего не пишет
+function appAttInit(pin, dateStr, want, all) { return perfSpan_('appAttInit', function () { return appAttInit0_(pin, dateStr, want, all); }); }
+function appAttInit0_(pin, dateStr, want, all) {
   var gs = appGroups(pin, dateStr);
   var shown = gs.filter(function (g) { return all || g.sched; });
   var pick = '';
@@ -47,7 +49,9 @@ function appAttInit(pin, dateStr, want, all) {
   return { groups: gs, group: pick, roster: pick ? appRoster(pin, pick, dateStr) : [] };
 }
 
-function appRoster(pin, group, dateStr) {
+// Замер (PerfLog.js): обёртка не меняет результат; при PERF_LOG = false ничего не пишет
+function appRoster(pin, group, dateStr) { return perfSpan_('appRoster', function () { return appRoster0_(pin, group, dateStr); }); }
+function appRoster0_(pin, group, dateStr) {
   checkPin_(pin);
   if (indIsGroup_(group)) return indRoster_(group, dateStr);
   if (extraIsGroup_(group)) return extraRoster_(dateStr);

@@ -50,6 +50,7 @@ function env(orders, pays) {
     SpreadsheetApp: { getActive: () => ({}) },
   };
   vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(new URL('../PerfLog.js', import.meta.url), 'utf8'), ctx);
   for (const f of ['Equip.js', 'EquipLinks.js', 'EquipLocation.js', 'Cancel.js', 'PaymentsV3.js']) {
     vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
   }

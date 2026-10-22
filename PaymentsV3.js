@@ -37,7 +37,9 @@ function appAddPayment(pin, id, row, amount, dateStr, comment, method) {
 
 // Платежи за сегодня (по дате оплаты): абонемент и экипировка, с итогами по способам.
 // Читаем только хвост журналов: новые записи всегда дописываются в конец.
-function appTodayPayments(pin) {
+// Замер (PerfLog.js): обёртка не меняет результат; при PERF_LOG = false ничего не пишет
+function appTodayPayments(pin) { return perfSpan_('appTodayPayments', function () { return appTodayPayments0_(pin); }); }
+function appTodayPayments0_(pin) {
   checkAdmin_(pin);
   // журналы оплат лежат в админ-файле: даты берём в его часовом поясе (файл посещаемости в UTC сдвигает дату на сутки)
   var ss = adminSS_(), tz = ss.getSpreadsheetTimeZone(), td = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');

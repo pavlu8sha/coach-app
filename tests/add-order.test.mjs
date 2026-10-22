@@ -75,6 +75,7 @@ function env() {
     SpreadsheetApp: { CopyPasteType: { PASTE_FORMULA: 'f', PASTE_FORMAT: 'm' } },
   };
   vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(new URL('../PerfLog.js', import.meta.url), 'utf8'), ctx);
   for (const f of ['Equip.js', 'EquipView.js', 'EquipLinks.js', 'EquipLocation.js']) vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
   const att = fs.readFileSync(path.join(ROOT, 'Attendance.js'), 'utf8'), s = att.indexOf('function serialOf');
   vm.runInContext(att.slice(s, att.indexOf('\n}\n', s) + 2), ctx);

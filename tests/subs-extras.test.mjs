@@ -24,6 +24,7 @@ function env(mg) {
     CacheService: { getScriptCache: () => ({ get: () => null, put() {} }) },
   };
   vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(new URL('../PerfLog.js', import.meta.url), 'utf8'), ctx);
   for (const f of ['Settings.js', 'Prices.js', 'SubsCode.js', 'SubsList.js', 'Debtors.js']) vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
   Object.assign(ctx, {
     norm, checkAdmin_() {}, dbRead_: () => null,

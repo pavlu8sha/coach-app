@@ -68,7 +68,14 @@ var REG_CACHE_KEY = 'reg_v1';
 
 var CACHE_MIN_TTL = 900; // кэш живёт не меньше 15 минут (записи через приложение сбрасывают его сами)
 
+// Попадание/промах кэша отмечаются в замере (PerfLog.js); сама выборка не меняется
 function cacheGetBig_(key) {
+  var v = cacheGetBig0_(key);
+  perfCache_(key, v !== null && v !== undefined);
+  return v;
+}
+
+function cacheGetBig0_(key) {
   var c = CacheService.getScriptCache();
   var n = Number(c.get(key + '_n'));
   if (!n) return null;
@@ -145,7 +152,9 @@ function logChange_(id, name, field, was, now) {
   cacheDropBig_('md_v2'); cacheDropBig_('mf_v1'); cacheDropBig_('eq_v1'); cacheDropBig_('cat_v1');
 }
 
-function appAdminInit(pin) {
+// Замер (PerfLog.js): обёртка не меняет результат; при PERF_LOG = false ничего не пишет
+function appAdminInit(pin) { return perfSpan_('appAdminInit', function () { return appAdminInit0_(pin); }); }
+function appAdminInit0_(pin) {
   checkAdmin_(pin);
   var d = regData_(), bd = birthById_(d.players);   // реестр уже получен — второй раз не читаем
   return {
