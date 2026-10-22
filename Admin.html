@@ -33,7 +33,13 @@ li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padd
 .sub{color:var(--mute);font-size:13px}
 .ok{color:var(--color-success)}
 .ext{display:flex;flex-wrap:wrap;gap:8px}
-.ext label{display:flex;gap:6px;align-items:center;margin:0;padding:6px 10px;border:1px solid var(--line);border-radius:999px;color:var(--ink);font-size:14px}
+.ext label{display:flex;gap:6px;align-items:center;margin:0;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:999px;color:var(--ink);font-size:14px;cursor:pointer}
+.ext label:has(input:checked){background:var(--g);border-color:var(--g);color:var(--gi)}
+.ext label:focus-within{outline:2px solid var(--g);outline-offset:2px}
+.ferr{color:var(--a);font-size:14px;margin:4px 0 0}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.frow .btn{margin:0}
+.fhint{margin:10px 0 0;color:var(--mute);font-size:13px}
 .ext input{width:auto;min-height:0}
 .err{color:var(--a)}.msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:8px}
 .res,.prog{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin:8px 0;font-size:14px}
@@ -90,14 +96,14 @@ li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padd
 <div id="form" class="wrap" hidden>
   <h1 id="ftitle"></h1>
   <div id="rowfun" hidden><label>Из воронки новых игроков (необязательно)</label><select id="ffun"></select></div>
-  <label>ФИ (как в листах месяца)</label><input id="fname">
+  <label>ФИ (как в листах месяца)</label><input id="fname" aria-describedby="fnerr"><div class="ferr" id="fnerr" role="alert" hidden>Поле обязательно</div>
   <label>Основная группа</label><select id="fgrp"></select>
   <div id="rowstat"><label>Статус</label><select id="fstat"></select></div>
   <div id="rowdate"><label id="fdl"></label><input type="date" id="fdate"></div>
   <label>Дополнительные тренировки</label><div class="ext" id="fext"></div>
+  <p class="fhint">Дата рождения указывается отдельно, в карточке игрока.</p>
   <div class="msg err" id="fmsg"></div><div id="warn"></div>
-  <button class="btn" id="save">Сохранить</button>
-  <button class="btn sec" id="cancel">Отмена</button>
+  <div class="frow"><button class="btn sec" id="cancel">Отмена</button><button class="btn" id="save">Сохранить</button></div>
 </div>
 <script>
 var pin='',D=null,cur=null,force=false,flash='',gSel='',sSel='Активен',cardI=-1,FUN=[];
@@ -387,7 +393,8 @@ function dl(){$('fdl').textContent=cur?'Дата окончания':'Дата �
 function openForm(i){
   cur=i<0?null:D.players[i];force=false;
   $('app').hidden=true;$('card').hidden=true;$('form').hidden=false;setMsg('fmsg','');$('warn').innerHTML='';
-  $('ftitle').textContent=cur?'Игрок '+cur.id:'Новый игрок';
+  $('ftitle').textContent=cur?'Редактировать данные игрока':'Добавить игрока';
+  $('fnerr').hidden=true;$('fname').removeAttribute('aria-invalid');
   $('fname').value=cur?cur.name:'';
   $('fgrp').innerHTML=D.groups.map(function(g){return opt(g)}).join('');
   if(cur)$('fgrp').value=cur.group;
@@ -407,7 +414,8 @@ function openForm(i){
 }
 function submit(){
   var name=$('fname').value.trim();
-  if(!name){setMsg('fmsg','Введите ФИ',true);return}
+  if(!name){$('fnerr').hidden=false;$('fname').setAttribute('aria-invalid','true');$('fname').focus();return}
+  $('fnerr').hidden=true;$('fname').removeAttribute('aria-invalid');
   var grp=$('fgrp').value;
   var ext=[].map.call(document.querySelectorAll('#fext input:checked'),function(x){return x.value}).filter(function(g){return g!=grp});
   $('save').disabled=true;setMsg('fmsg','Сохраняю…',false);
@@ -437,6 +445,7 @@ $('ffun').onchange=function(){
   if(D.groups.indexOf(k.group)>=0)$('fgrp').value=k.group;
 };
 $('fstat').onchange=dl;
+$('fname').oninput=function(){if(this.value.trim()){$('fnerr').hidden=true;this.removeAttribute('aria-invalid')}};
 $('q').oninput=list;
 $('st').onchange=function(){sSel=this.value;list()};
 $('fg').onchange=function(){gSel=this.value;list()};
