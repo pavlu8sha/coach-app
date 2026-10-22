@@ -129,7 +129,8 @@ function envFull(rows) {
   delete ctx.feeSet_; delete ctx.finData_;                             // нужны настоящие из AdminDb.js
   for (const f of ['AdminDb.js', 'MatchesCode.js']) vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
   const camps = fs.readFileSync(path.join(ROOT, 'Camps.js'), 'utf8'), cs = camps.indexOf('function isRecentDup_');   // настоящая функция
-  vm.runInContext(camps.slice(cs, camps.indexOf('\n}\n', cs) + 2), ctx);
+  const cm = /\r?\n\}/.exec(camps.slice(cs));
+  vm.runInContext(camps.slice(cs, cs + cm.index + cm[0].length), ctx);
   const admin = {};                                                    // листы AdminApp: ВЗНОСЫ СОБЫТИЙ, ВЗНОСЫ МАТЧЕЙ
   const matches = new Sheet([['ID', 'Команда', 'Тип', 'Название', 'Дата', 'Взнос', 'Турнир']]);
   matches.getDataRange = () => matches.getRange(1, 1, matches.data.length, 7);

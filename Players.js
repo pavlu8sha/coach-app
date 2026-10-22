@@ -23,13 +23,9 @@ function isoOf_(v) {
   return Utilities.formatDate(new Date(Date.UTC(1899, 11, 30) + Math.round(n) * 86400000), 'GMT', 'yyyy-MM-dd');
 }
 
-var _attSS = null;
+// Таблица посещаемости (ATT_ID); открывается один раз за запуск через общий clubSource_ (Sources.js)
 function attSS_() {
-  if (_attSS) return _attSS;
-  var id = prop_('ATT_ID');
-  if (!id) throw new Error('Не задано свойство ATT_ID (ID таблицы посещаемости)');
-  _attSS = SpreadsheetApp.openById(id);
-  return _attSS;
+  return clubSource_('ATT_ID', 'Не задано свойство ATT_ID (ID таблицы посещаемости)');
 }
 
 function readRegistry_() {
@@ -369,15 +365,6 @@ function renameSweep_(id, oldName, newName) {
   bump('Доп. тренировки', nd);
   logChange_(id, newName, 'переименован: сверка таблиц', oldName, newName + (Object.keys(report).length ? ' | ' + JSON.stringify(report) : ' | нигде не найден'));
   return report;
-}
-
-var _attSS = null; // таблица посещаемости, открывается один раз за запуск
-function attSS_() {
-  if (_attSS) return _attSS;
-  var id = prop_('ATT_ID');
-  if (!id) throw new Error('Не задано свойство ATT_ID (ID таблицы посещаемости)');
-  _attSS = SpreadsheetApp.openById(id);
-  return _attSS;
 }
 
 // Листы, которые живут в AdminApp. Все остальные листы читаются из посещаемости.

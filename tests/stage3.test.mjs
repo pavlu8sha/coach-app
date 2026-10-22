@@ -56,7 +56,7 @@ test('автосоздание: в день и час из настроек и �
   const days = { '2026-10-20': 2, '2026-10-21': 3 };
   const fmt = (d, tz, f) => { const [dd, hh] = now.split(' '); return f === 'u' ? String(days[dd] || 7) : f === 'H' ? String(Number(hh.split(':')[0])) : dd; };
   const e = env([['ind.autoHour', '', '9']], { Session: { getScriptTimeZone: () => 'Asia/Tbilisi' }, Utilities: { formatDate: fmt } });
-  e.ctx.indWeeklyCreate = () => { made++; };
+  e.ctx.indWeeklyCreate_ = () => { made++; };
   e.ctx.indAutoTick(); assert.equal(made, 0);              // 8:30 — рано
   now = '2026-10-20 09:05'; e.ctx.indAutoTick(); assert.equal(made, 1);
   now = '2026-10-20 10:05'; e.ctx.indAutoTick(); assert.equal(made, 1);   // второй раз за день — нет
@@ -71,7 +71,7 @@ test('темы индивидуальных — из настройки, по к
 
 test('форма экипировки: надпись и номер по флагам каталога (как в боевом каталоге)', () => {
   const s = fs.readFileSync(path.join(ROOT, 'Kit.html'), 'utf8');
-  const a = s.indexOf('function missOf(o){'), b = s.indexOf('\n}\n', a) + 3;
+  const a = s.indexOf('function missOf(o){'), m = /\r?\n\}/.exec(s.slice(a)), b = a + m.index + m[0].length;
   const ctx = { nn: x => String(x).trim().toLowerCase(), FL: {
     'тренировочная форма': { inscr: false, num: true }, 'игровая форма': { inscr: true, num: true }, 'носки': { inscr: false, num: false },
     'гетры': { inscr: false, num: false }, 'спортивный костюм': { inscr: false, num: true }, 'дождевик': { inscr: false, num: true } } };

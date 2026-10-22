@@ -4,11 +4,7 @@ var CAMP_SHEET = 'СБОРЫ', CAMP_TAR = 'ТАРИФЫ СБОРОВ', CAMP_PART
 var CAMP_CACHE = 'camp_v1';
 var _campSS = null;
 function campSS_() {
-  if (_campSS) return _campSS;
-  var id = PropertiesService.getScriptProperties().getProperty('ADMIN_ID');
-  if (!id) throw new Error('Не задан ADMIN_ID в свойствах скрипта');
-  _campSS = SpreadsheetApp.openById(id);
-  return _campSS;
+  return clubSource_('ADMIN_ID', 'Не задан ADMIN_ID в свойствах скрипта');
 }
 
 function campSheet_(name, headers, seed) {
@@ -373,7 +369,7 @@ function appSaveCampList(pin, campId, text) {
   return { ok: true, dryRun: CONFIG.DRY_RUN };
 }
 
-function campsTest() {
+function campsTest_() {
   var all = campAll_();
   Logger.log('Сборов: ' + all.camps.length + ', тарифов: ' + all.tariffs.length + ', участников: ' + all.parts.length + ', платежей: ' + all.pays.length);
   all.camps.forEach(function (c) { Logger.log(c.id + ' ' + c.name + ', ' + c.start + ' — ' + c.end + ', бронь ' + c.deposit + ' до ' + c.depositBy + ', оплата до ' + c.payBy); });

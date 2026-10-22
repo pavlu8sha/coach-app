@@ -219,7 +219,7 @@ function indMigratePlan_() {
 }
 
 // Только отчёт в журнал, ничего не пишет
-function indMigrateReport() {
+function indMigrateReport_() {
   indMigratePlan_().forEach(function (x) {
     Logger.log(x.ev.id + ' | неоплаченных: ' + x.unpaid.map(function (p) { return p.name; }).join(', ') +
       ' | в файле оплат нет: ' + (x.toEnroll.map(function (p) { return p.name; }).join(', ') || 'нет') +
@@ -228,7 +228,7 @@ function indMigrateReport() {
 }
 
 // Переносит: создаёт занятие в AdminApp и дописывает в файл оплат недостающие строки (без сумм)
-function indMigrateApply() {
+function indMigrateApply_() {
   return indLocked_(function () {
     var done = 0;
     indMigratePlan_().forEach(function (x) {
