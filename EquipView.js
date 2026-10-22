@@ -14,9 +14,10 @@ function appAddOrder(pin, o) {
 // Номер ORD-xxxx для нового заказа: первый свободный из пропусков в занятом диапазоне, иначе максимум + 1.
 // Занятые номера: у строк с заказом (колонка C) и уже связанные с фактом пошива (лист «ФАКТ ПОШИВА»).
 // Номера пустых строк (заранее прописанные в колонке N) не считаются занятыми.
-function nextOrdId_(sh) {
-  var last = Math.max(sh.getLastRow(), 1);
-  var nv = sh.getRange(1, 14, last, 1).getValues(), cv = sh.getRange(1, 3, last, 1).getValues();
+// cols — колонки N и C, если уже прочитаны (ordCols_), иначе читаются здесь
+function nextOrdId_(sh, cols) {
+  cols = cols || ordCols_(sh);
+  var nv = cols.nv, cv = cols.cv;
   var used = {}, nums = [];
   function take(s) {
     var m = /^ORD-(\d+)$/.exec(String(s).trim());
@@ -31,16 +32,26 @@ function nextOrdId_(sh) {
   return 'ORD-' + ('000' + n).slice(-4);
 }
 
-// Снимает такой же номер с пустых строк (остаток заранее прописанного списка), чтобы номер не дублировался.
-function clearStaleOrdId_(sh, id, keepRow) {
+// Колонки N (№ ORD) и C (ФИ) всего листа — одно чтение для nextOrdId_ и clearStaleOrdId_
+function ordCols_(sh) {
   var last = Math.max(sh.getLastRow(), 1);
-  var nv = sh.getRange(1, 14, last, 1).getValues(), cv = sh.getRange(1, 3, last, 1).getValues();
+  return { nv: sh.getRange(1, 14, last, 1).getValues(), cv: sh.getRange(1, 3, last, 1).getValues() };
+}
+
+// Снимает такой же номер с пустых строк (остаток заранее прописанного списка), чтобы номер не дублировался.
+// cols — те же прочитанные колонки, что у nextOrdId_ (между вызовами в лист ничего не пишется)
+function clearStaleOrdId_(sh, id, keepRow, cols) {
+  cols = cols || ordCols_(sh);
+  var nv = cols.nv, cv = cols.cv;
   nv.forEach(function (r, i) {
     if (String(r[0]).trim() === id && String(cv[i][0]).trim() === '' && i + 1 !== keepRow) sh.getRange(i + 1, 14).clearContent();
   });
 }
 
 function addOrderCore_(o) {
+  // Замер по шагам — в журнал выполнения, одной строкой: только названия шагов и миллисекунды (без ФИ, ID, сумм)
+  var tStart = Date.now(), tLast = tStart, steps = [];
+  function step(name) { var t = Date.now(); steps.push(name + ' ' + (t - tLast) + ' мс'); tLast = t; }
   // Комплект может быть из нескольких позиций через « + »: каждая должна быть в каталоге
   var cat = catalog_(true), parts = String(o.kit || '').split(' + ').map(function (x) { return x.trim(); }).filter(Boolean);
   var items = parts.map(function (name) { return cat.filter(function (x) { return x.name === name; })[0]; });
@@ -60,12 +71,16 @@ function addOrderCore_(o) {
   var method = String(o.method || '').trim();
   if (paid > 0 && !method) throw new Error('Выберите способ оплаты: наличные или перевод');
   if (method && PAY_METHODS.indexOf(method) < 0) throw new Error('Неизвестный способ оплаты');
-  var p = readRegistry_().players.filter(function (x) { return x.id === o.id; })[0];
+  step('каталог');
+  // Реестр читаем один раз: он же нужен для локаций (equipSyncLocations_) в этом же запросе
+  var players = readRegistry_().players;
+  var p = players.filter(function (x) { return x.id === o.id; })[0];
   if (!p) throw new Error('Игрок не найден: ' + o.id);
   // Что нужно заполнить — по настройкам каталога выбранных позиций (размер — если у позиции есть размеры)
   var missing = [];
   // Размер, номер и надпись не обязательны при создании: дописываются при изменении заказа (в Экипировке помечаются как незаполненные)
   if (missing.length) throw new Error('Для заказа укажите: ' + missing.join(', '));
+  step('реестр');
   var sh = equipSheet_();
   // Повторяющиеся номера в группе пока разрешены: номер — желаемый игроком, окончательный выдаётся после жребия
   var rows = sh.getRange(EQ_FIRST, 1, EQ_ROWS, 12).getValues(), row = 0, i, c, empty;
@@ -74,16 +89,19 @@ function addOrderCore_(o) {
     for (c = 1; c < 12; c++) { if (String(rows[i][c]).trim() !== '') empty = false; }
     if (empty && String(rows[i][0]).trim() !== '' && !isNaN(Number(rows[i][0]))) row = EQ_FIRST + i;
   }
+  step('лист заказов');
   // Повтор того же заказа за 15 секунд не записываем (строка заказа в журнале отличается только номером строки).
   // Проверяем до вставки строки, чтобы при отказе в таблице ничего не менялось
   if (!CONFIG.DRY_RUN && recentOrderDup_(o.id, o.kit, sum)) throw new Error('Похоже на повтор: такой заказ только что добавлен. Обновите страницу');
-  if (!row) row = newOrderRow_(sh); // свободных строк нет: вставляем новую перед итогами
+  step('проверка повтора');
+  if (!row) { row = newOrderRow_(sh); step('новая строка'); } // свободных строк нет: вставляем новую перед итогами
   var dateStr = o.date || today_();
   if (!CONFIG.DRY_RUN) {
     // Столбцы B:J одной записью (дата, ФИ, комплект, размер, надпись, номер, рассрочка, сумма, оплачено)
     // номер заказа (ORD-xxxx) для «Производства» и «Факта пошива» — считаем до записи строки, пока она пустая
-    var ordId = nextOrdId_(sh);
-    clearStaleOrdId_(sh, ordId, row);
+    var cols = ordCols_(sh), ordId = nextOrdId_(sh, cols);
+    clearStaleOrdId_(sh, ordId, row, cols);
+    step('номер ORD');
     var rg = sh.getRange(row, 2, 1, 9), nf = rg.getNumberFormats();
     nf[0][0] = 'dd.mm.yyyy'; nf[0][3] = '@'; nf[0][5] = '@';
     rg.setNumberFormats(nf);
@@ -93,7 +111,9 @@ function addOrderCore_(o) {
     // количество — в колонку M; заголовок ставим, только если его ещё нет
     if (!String(sh.getRange(EQ_FIRST - 1, 13).getValue()).trim()) sh.getRange(EQ_FIRST - 1, 13).setValue('Кол-во');
     sh.getRange(row, 13).setValue(qty);
-    equipSyncLocations_(sh);
+    step('запись строки');
+    equipSyncLocations_(sh, players);
+    step('локации');
     var k = sh.getRange(row, 11);
     // формула долга: копируем из строки выше (текст формулы из кода в таблице с нашим языком не всегда читается)
     var above = sh.getRange(row - 1, 11);
@@ -105,8 +125,11 @@ function addOrderCore_(o) {
       ps.getRange(r2, 1, 1, 9).setValues([[new Date(), dateStr, o.id, p.name, 'Экипировка: ' + o.kit, eqNoOfRow_(sh, row), paid, 'при заказе', method]]);
       nfSafe_(ps.getRange(r2, 7), '#,##0.00 "₾"');
     }
+    step('оплата');
     logChange_(o.id, p.name, 'новый заказ экипировки', '', o.kit + (qty > 1 ? ' × ' + qty : '') + ', ' + sum + ' ₾, строка ' + row);
+    step('журнал');
   }
+  Logger.log('заказ экипировки: ' + steps.join(', ') + ', итого ' + (Date.now() - tStart) + ' мс');
   return { ok: true, dryRun: CONFIG.DRY_RUN, row: row };
 }
 // Есть ли в журнале изменений за последние 15 секунд такой же новый заказ этого игрока (тот же комплект и сумма)
