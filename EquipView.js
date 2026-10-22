@@ -51,7 +51,10 @@ function addOrderCore_(o) {
     var dc = equipDiscCalc_(equipDiscCfg_(), kitParts_(o.kit), catPrices_(cat), !!o.inst, equipOthers_(equipSheet_(), String(o.id || '').trim(), 0));
     if (dc.disc !== null) catSum = dc.disc;
   }
-  var sum = Number(o.sum) || catSum, paid = Number(o.paid) || 0;
+  // Количество комплектов одинаковых (размер, надпись, номер общие): сумма = цена × количество
+  var qty = Math.floor(Number(o.qty)) || 1;
+  if (qty < 1 || qty > 10) throw new Error('Количество: от 1 до 10');
+  var sum = Number(o.sum) || catSum * qty, paid = Number(o.paid) || 0;
   if (sum <= 0) throw new Error('Введите сумму заказа');
   if (paid < 0 || paid > sum) throw new Error('Оплачено сейчас: от 0 до суммы заказа');
   var method = String(o.method || '').trim();
@@ -87,6 +90,9 @@ function addOrderCore_(o) {
     rg.setValues([[serialOf(dateStr), p.name, o.kit, String(o.size || ''), String(o.inscr || ''), String(o.num || ''), o.inst ? 'Да' : '', sum, paid]]);
     sh.getRange(row, 12).setValue(o.id);
     sh.getRange(row, 14).setValue(ordId);
+    // количество — в колонку M; заголовок ставим, только если его ещё нет
+    if (!String(sh.getRange(EQ_FIRST - 1, 13).getValue()).trim()) sh.getRange(EQ_FIRST - 1, 13).setValue('Кол-во');
+    sh.getRange(row, 13).setValue(qty);
     equipSyncLocations_(sh);
     var k = sh.getRange(row, 11);
     // формула долга: копируем из строки выше (текст формулы из кода в таблице с нашим языком не всегда читается)
@@ -99,7 +105,7 @@ function addOrderCore_(o) {
       ps.getRange(r2, 1, 1, 9).setValues([[new Date(), dateStr, o.id, p.name, 'Экипировка: ' + o.kit, eqNoOfRow_(sh, row), paid, 'при заказе', method]]);
       nfSafe_(ps.getRange(r2, 7), '#,##0.00 "₾"');
     }
-    logChange_(o.id, p.name, 'новый заказ экипировки', '', o.kit + ', ' + sum + ' ₾, строка ' + row);
+    logChange_(o.id, p.name, 'новый заказ экипировки', '', o.kit + (qty > 1 ? ' × ' + qty : '') + ', ' + sum + ' ₾, строка ' + row);
   }
   return { ok: true, dryRun: CONFIG.DRY_RUN, row: row };
 }

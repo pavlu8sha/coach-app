@@ -29,7 +29,7 @@ function appEquipOrders(pin) {
 }
 
 function equipOrdersLive_() {
-  var sh = equipSheet_(), rg = sh.getRange(EQ_FIRST, 1, EQ_ROWS, 12);
+  var sh = equipSheet_(), rg = sh.getRange(EQ_FIRST, 1, EQ_ROWS, 13);
   var vals = rg.getValues(), disp = rg.getDisplayValues(), orders = [], unl = [];
   vals.forEach(function (r, i) {
     var name = String(r[2]).trim();
@@ -38,7 +38,7 @@ function equipOrdersLive_() {
     var sum = Number(r[8]) || 0, paid = Number(r[9]) || 0;
     var o = {
       id: id, row: EQ_FIRST + i, no: Number(r[0]), oname: name, kit: disp[i][3], size: disp[i][4], inscr: disp[i][5], num: disp[i][6],
-      inst: disp[i][7], sum: sum, paid: paid, debt: Math.max(sum - paid, 0)
+      inst: disp[i][7], sum: sum, paid: paid, debt: Math.max(sum - paid, 0), qty: Number(r[12]) || 1
     };
     if (id) orders.push(o); else unl.push(o);
   });

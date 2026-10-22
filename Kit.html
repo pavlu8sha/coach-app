@@ -70,6 +70,7 @@ summary{cursor:pointer;list-style:none;min-height:44px;display:flex;flex-directi
   <input id="fpl" list="plist" autocomplete="off">
   <label>Позиции заказа</label><div id="fkits" class="kits"></div><div class="msg" id="fbundle"></div>
   <label>Сумма заказа, ₾</label><input id="fsum" type="number" min="0" step="1">
+  <label>Количество комплектов (одинаковых)</label><input id="fqty" type="number" min="1" max="10" step="1" value="1" oninput="refreshSum()">
   <label>Размер</label><select id="fsizeSel" hidden></select><input id="fsize" placeholder="например, 140 или майка - 164, шорты - M">
   <label>Надпись</label><input id="finscr">
   <label>Номер (несколько вариантов через /)</label><input id="fnum">
@@ -188,7 +189,7 @@ function playerName(id){var p=P.filter(function(x){return x.id==id})[0];return p
 function kitsOf(k){return String(k||'').split(' + ').map(function(x){return x.trim()}).filter(Boolean)}
 function orderHtml(o,p,linked){
   var prob=[];var mi=missOf(o);if(mi.length)prob.push('не заполнено: '+mi.join(', '));if(isDup(o,p))prob.push((dupNums(o,p).length>1?'номера ':'номер ')+dupNums(o,p).join(', ')+' повторяется в '+catOf(p.group));
-  return'<div class="ord"><b>'+esc(o.kit||'Комплект не указан')+'</b>'+(o.inst?' (рассрочка)':'')+(o.no?'<span class="sub"> · заказ №'+o.no+'</span>':'')
+  return'<div class="ord"><b>'+esc(o.kit||'Комплект не указан')+(o.qty>1?' × '+o.qty:'')+'</b>'+(o.inst?' (рассрочка)':'')+(o.no?'<span class="sub"> · заказ №'+o.no+'</span>':'')
     +(prob.length?'<div class="sub err">'+esc(prob.join('; '))+'</div>':'')
     +(p&&nn(o.oname)!=nn(p.name)?'<div class="sub err">В файле заказа записано: '+esc(o.oname)+'</div>':'')
     +'<div class="sub">Размер: '+esc(o.size||'не указан')+'; надпись: '+esc(o.inscr||'—')+'; номер: '+esc(o.num||'—')+'</div>'
@@ -387,12 +388,13 @@ function kitsBox(){
   }).join('');
   [].forEach.call(document.querySelectorAll('#fkits input'),function(i){i.onchange=refreshSum});
 }
+function qtyN(){var v=parseInt($('fqty').value,10);return v>=1?v:1}
 function refreshSum(){
   var ks=selKits(),id=pid($('fpl').value),inst=$('finst').checked;
   var others=id?O.filter(function(o){return o.id===id}):[];
   var c=discCalc(ks,false,others),base=c.total;
   var disc=!inst&&c.disc!==null;
-  var sum=disc?c.disc:base;
+  var sum=(disc?c.disc:base)*qtyN();
   $('fsum').value=ks.length?sum:'';
   $('fbundle').textContent=!ks.length?'':(disc?(c.prior?'Скидка '+DC.pct+'% на общую сумму '+(c.prior+base-c.excl)+' ₾ → '+c.target+' ₾ (из них в других заказах '+c.prior+' ₾), в этот заказ '+sum+' ₾':'Скидка '+DC.pct+'% на заказ: '+sum+' ₾ вместо '+base+' ₾'):(inst&&c.disc!==null?'Рассрочка: скидка не применяется, '+base+' ₾':''));
   refreshSizes();
@@ -406,7 +408,7 @@ function openForm(){
   $('app').hidden=true;$('form').hidden=false;fmsg('');
   kitsBox();
   ['fpl','fsize','finscr','fnum'].forEach(function(i){$(i).value=''});
-  $('finst').checked=false;$('fpaid').value=0;$('fmt').value='';$('fmrow').hidden=true;$('fdate').value=today();
+  $('finst').checked=false;$('fqty').value=1;$('fpaid').value=0;$('fmt').value='';$('fmrow').hidden=true;$('fdate').value=today();
   refreshSum();
 }
 function submit(){
@@ -414,7 +416,7 @@ function submit(){
   if(!id){fmsg('Выберите игрока из списка',true);return}
   if(!selKits().length){fmsg('Отметьте хотя бы одну позицию',true);return}
   var kit=selKits().join(' + ');
-  var o={id:id,kit:kit,sum:Number($('fsum').value),size:(!$('fsizeSel').hidden?$('fsizeSel').value:$('fsize').value.trim()),inscr:$('finscr').value.trim(),num:$('fnum').value.trim(),inst:$('finst').checked,paid:Number($('fpaid').value)||0,date:$('fdate').value,method:$('fmt').value};
+  var o={id:id,kit:kit,qty:qtyN(),sum:Number($('fsum').value),size:(!$('fsizeSel').hidden?$('fsizeSel').value:$('fsize').value.trim()),inscr:$('finscr').value.trim(),num:$('fnum').value.trim(),inst:$('finst').checked,paid:Number($('fpaid').value)||0,date:$('fdate').value,method:$('fmt').value};
   if(o.paid>0&&!o.method){fmsg('Выберите способ оплаты: наличные или перевод',true);return}
   var send=function(ok,bad){
     $('fsave').disabled=true;fmsg('Сохраняю…');
@@ -426,7 +428,7 @@ function submit(){
   };
   // Заказ без оплаты создаётся как раньше; с «Оплачено сейчас» — после подтверждения обеих операций
   if(!(o.paid>0)){send();return}
-  var osum=o.sum>0?o.sum:selKits().reduce(function(s,k){return s+(Number(PR[k])||0)},0);
+  var osum=o.sum>0?o.sum:selKits().reduce(function(s,k){return s+(Number(PR[k])||0)},0)*o.qty;
   var dp=/^(\d{4})-(\d\d)-(\d\d)$/.exec(o.date||'');
   ksConfirm({title:'Создать заказ и принять оплату?',ok:'Создать заказ и принять оплату',
     rows:[['Игрок',playerName(id)],['Заказ',kit+', сумма '+ksMoney(osum)],['Оплачено сейчас',ksMoney(o.paid)],['Останется',ksMoney(Math.max(osum-o.paid,0))],['Способ',o.method],['Дата заказа',dp?dp[3]+'.'+dp[2]+'.'+dp[1]:'']],
