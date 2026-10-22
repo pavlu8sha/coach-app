@@ -58,6 +58,17 @@ function tabsHtml_(url, page) {
 
 function doGet(e) {
   var page = (e && e.parameter && e.parameter.page) || '';
+  // UI-017 (проба): единый каркас по ссылке ?shell=1 — рабочие страницы не меняются
+  if (e && e.parameter && e.parameter.shell) return shellOutput_(page);
+  var def = PAGES_.hasOwnProperty(page) ? PAGES_[page] : null;
+  return HtmlService.createHtmlOutput(pageHtml_(page, false))
+    .setTitle(def ? def[1] : 'Посещаемость')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+// Сборка страницы раздела: меню (Nav), общий слой (Ui), подразделы, сама страница и её вставки.
+// embed=true — для каркаса UI-017: страница помечается data-embed, своё меню у неё скрыто.
+function pageHtml_(page, embed) {
   var def = PAGES_.hasOwnProperty(page) ? PAGES_[page] : null;
   var file = def ? def[0] : 'Index';
   var url = ScriptApp.getService().getUrl();
@@ -77,7 +88,35 @@ function doGet(e) {
   var kind = page === 'pay' ? 'pay' : (def ? '' : 'att');
   if (kind) extra += '<script>window.KS_KIND="' + kind + '"</script>' + HtmlService.createHtmlOutputFromFile('MonthTools').getContent();
   if (extra) html = html.replace('</body>', function () { return extra + '</body>'; });
+  if (embed) html = html.replace(/<html([^>]*)>/i, function (m, a) { return '<html' + a + ' data-embed="1">'; });
+  return html;
+}
+
+// UI-017 (проба): разделы, которые открываются внутри каркаса. Остальные открываются как раньше, обычной страницей.
+var SHELL_PAGES_ = ['stats', 'funnel'];
+
+// Разметка раздела для каркаса. Данных не содержит — тот же HTML, что при обычном открытии страницы.
+function appPageHtml(page) {
+  page = String(page || '');
+  if (SHELL_PAGES_.indexOf(page) < 0) throw new Error('Раздел пока не перенесён в каркас');
+  return pageHtml_(page, true);
+}
+
+function shellOutput_(page) {
+  var url = ScriptApp.getService().getUrl();
+  var start = SHELL_PAGES_.indexOf(page) >= 0 ? page : SHELL_PAGES_[0];
+  var def = PAGES_[start];
+  var navPage = def[2] || start;
+  var nav = HtmlService.createHtmlOutputFromFile('Nav').getContent()
+    .replace('__URL__', url).replace('__PAGE__', navPage);
+  var ui = HtmlService.createHtmlOutputFromFile('Ui').getContent();
+  var shell = HtmlService.createHtmlOutputFromFile('Shell').getContent()
+    .replace('__SHELL_PAGES__', JSON.stringify(SHELL_PAGES_))
+    .replace('__START__', start)
+    .replace('__URL__', url);
+  var html = '<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"></head><body>'
+    + '<script>window.KS_SHELL=1</script>' + nav + ui + shell + '</body></html>';
   return HtmlService.createHtmlOutput(html)
-    .setTitle(def ? def[1] : 'Посещаемость')
+    .setTitle('Coach App')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }

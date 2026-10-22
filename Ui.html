@@ -68,6 +68,8 @@ html.ks-dlg-lock,html.ks-dlg-lock body{overflow:hidden!important}
 .ks-load[hidden],.ks-empty[hidden],.ks-ferr[hidden]{display:none}
 /* Пустая строка сообщения не оставляет дыру в разметке: место появляется только вместе с текстом */
 .msg:empty{min-height:0!important}
+/* Сообщение о процессе («Сохраняю…», «Загрузка…») — нейтральным цветом, даже если строка предназначена для ошибок */
+.msg.ks-progress,.ks-progress.err{color:var(--mute)!important}
 .ks-spin{width:28px;height:28px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--g);animation:ks-spin .9s linear infinite}
 @keyframes ks-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.ks-spin{animation-duration:2.5s}}
@@ -307,3 +309,93 @@ label.ks-pinl{display:block;margin:16px 0 8px;color:var(--ink);font-size:16px;fo
   });
 })();
 </script>
+<script>
+/* Процесс vs ошибка: строки .msg получают класс ks-progress, пока в них текст о ходе действия */
+(function(){
+  var RX=/^\s*(Сохраняю|Загрузка|Загружаю|Проверяю|Удаляю|Отменяю|Записываю|Отправляю|Создаю|Обновляю)/;
+  function mark(el){if(el&&el.classList&&el.classList.contains('msg'))el.classList.toggle('ks-progress',RX.test(el.textContent||''))}
+  function scan(root){if(!root||!root.querySelectorAll)return;if(root.classList&&root.classList.contains('msg'))mark(root);[].forEach.call(root.querySelectorAll('.msg'),mark)}
+  function start(){
+    scan(document.body);
+    new MutationObserver(function(ms){ms.forEach(function(m){
+      var t=m.target.nodeType===3?m.target.parentNode:m.target;
+      var el=t&&t.closest?t.closest('.msg'):null;if(el)mark(el);
+      [].forEach.call(m.addedNodes||[],function(n){if(n.nodeType===1)scan(n)});
+    })}).observe(document.body,{subtree:true,childList:true,characterData:true});
+  }
+  if(document.body)start();else document.addEventListener('DOMContentLoaded',start);
+})();
+</script>
+<style>
+/* UI-017 (вариант 1): мгновенный отклик при переходе между разделами */
+#ksgoing{position:fixed;left:0;right:0;z-index:40;background:var(--bg);overflow:hidden;padding:16px}
+#ksgoing[hidden]{display:none}
+#ksgoing .bar{position:absolute;left:0;top:0;height:3px;width:30%;background:var(--g);animation:ksgo 1.1s ease-in-out infinite}
+@keyframes ksgo{0%{left:-30%}100%{left:100%}}
+#ksgoing .in{max-width:560px;margin:0 auto}
+#ksgoing .h{height:26px;width:45%;border-radius:8px;background:var(--line);margin:8px 0 16px}
+#ksgoing .r{height:64px;border-radius:12px;background:var(--card);border:1px solid var(--line);margin-bottom:8px;animation:skp 1.2s ease-in-out infinite}
+@keyframes skp{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){#ksgoing .bar,#ksgoing .r{animation:none}}
+</style>
+<script>
+/* UI-017 (вариант 1). 1) По нажатию на раздел сразу показываем скелетон, не дожидаясь загрузки новой страницы.
+   2) Первые данные раздела (только списки без ввода: Игроки, Статистика, Новые игроки) берём из памяти вкладки,
+      а свежие подгружаем следом и показываем, если они изменились. Память чистится при «Выйти» и «Обновить данные». */
+(function(){
+  var ov=null;
+  function showGoing(){
+    if(!ov){ov=document.createElement('div');ov.id='ksgoing';ov.setAttribute('role','status');ov.setAttribute('aria-label','Открываю раздел');
+      ov.innerHTML='<div class="bar"></div><div class="in"><div class="h"></div><div class="r"></div><div class="r"></div><div class="r"></div><div class="r"></div><div class="r"></div></div>';
+      document.body.appendChild(ov)}
+    var n=document.getElementById('ksnav'),r=n&&!n.hidden?n.getBoundingClientRect():null;
+    if(r&&r.top>window.innerHeight/2){ov.style.top='0';ov.style.bottom=(window.innerHeight-r.top)+'px'}
+    else{ov.style.top=(r?r.bottom:0)+'px';ov.style.bottom='0'}
+    ov.hidden=false;
+    clearTimeout(showGoing.t);showGoing.t=setTimeout(function(){if(ov)ov.hidden=true},20000);
+  }
+  document.addEventListener('click',function(e){
+    if(e.defaultPrevented||e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    var a=e.target.closest&&e.target.closest('a[target="_top"][href]');
+    if(!a||a.getAttribute('aria-current')==='page')return;
+    var nav=a.closest('#ksnav,#ksmore,.ks-sub');if(!nav)return;
+    [].forEach.call(nav.querySelectorAll('a.on'),function(x){x.classList.remove('on')});a.classList.add('on');
+    showGoing();
+  });
+  window.addEventListener('pageshow',function(e){if(e.persisted&&ov)ov.hidden=true});
+
+  window.ksCacheClear=function(){try{Object.keys(sessionStorage).forEach(function(k){if(k.indexOf('kscache:')===0)sessionStorage.removeItem(k)})}catch(e){}};
+  if(window.KS_SHELL)return; // в каркасе данные запоминают сами разделы
+  var gs=window.google&&google.script;if(!gs||!gs.run||typeof Proxy==='undefined')return;
+  var desc=Object.getOwnPropertyDescriptor(gs,'run')||{value:gs.run};
+  function base(){return desc.get?desc.get.call(gs):desc.value}  // как на страницах: каждый вызов — через google.script.run
+  var PAGE=window.KS_NAVPAGE||'';
+  var SWR={admin:['appAdminInit'],stats:['appStatsMonths','appStatsRange','appMatchStats'],funnel:['appFunnelData']};
+  // Обновлять экран свежими данными только если пользователь ещё не ушёл в карточку/форму и не ждёт сохранения
+  var GUARD={admin:function(){var a=document.getElementById('app');return!!a&&!a.hidden},funnel:function(){return!window.qb}};
+  var allow=SWR[PAGE]||[];if(!allow.length)return;
+  var used={};
+  function mk(ok,fl,ud){return new Proxy({},{get:function(_,k){
+    if(k==='withSuccessHandler')return function(f){return mk(f,fl,ud)};
+    if(k==='withFailureHandler')return function(f){return mk(ok,f,ud)};
+    if(k==='withUserObject')return function(u){return mk(ok,fl,u)};
+    return function(){
+      var args=[].slice.call(arguments),swr=allow.indexOf(k)>=0,first=swr&&!used[k];if(swr)used[k]=1;
+      var K='kscache:'+PAGE+':'+k+':'+JSON.stringify(args.slice(1)),cached=null,served=false;
+      if(first){try{cached=sessionStorage.getItem(K)}catch(e){}}
+      if(cached&&ok){served=true;setTimeout(function(){try{ok(JSON.parse(cached),ud)}catch(e){served=false}},0)}
+      var r=base().withSuccessHandler(function(res){
+        var s=null;if(swr){try{s=JSON.stringify(res);sessionStorage.setItem(K,s)}catch(e){}}
+        if(!served){if(ok)ok(res,ud);return}
+        if(s===cached)return;
+        var g=GUARD[PAGE];if(g&&!g())return;
+        if(ok)ok(res,ud);
+      }).withFailureHandler(function(e){if(served)return;if(fl)fl(e,ud)});
+      if(ud!==undefined)r=r.withUserObject(ud);
+      return r[k].apply(r,args);
+    };
+  }})}
+  try{Object.defineProperty(gs,'run',{configurable:true,get:function(){return mk(null,null,undefined)}})}catch(e){}
+})();
+</script>
+

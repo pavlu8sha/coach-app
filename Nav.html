@@ -57,6 +57,9 @@ html:not([data-theme=light]):root:root{--bg:#0D1324;--card:#161F38;--ink:#E8ECF7
 .ks-sub a{display:flex;align-items:center;justify-content:center;text-align:center;min-height:44px;padding:6px 8px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);text-decoration:none;font:600 14px/1.2 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow-wrap:anywhere}
 .ks-sub a.on{background:var(--g);border-color:var(--g);color:var(--gi)}
 @media(max-width:380px){.ks-sub a{font-size:13px;padding:6px 4px}}
+/* UI-017 (проба): раздел внутри каркаса — своё меню скрыто, меню показывает каркас */
+html[data-embed] #ksnav,html[data-embed] #ksmore{display:none!important}
+@media(max-width:839px){html[data-embed] body{padding-bottom:28px!important}html[data-embed] #kstoast{bottom:calc(18px + env(safe-area-inset-bottom))}}
 html,body{max-width:100%} /* DS-017: overflow-x:hidden снят — проверка на телефоне с реальными данными */
 *,*::before,*::after{box-sizing:border-box}
 img,table,select,input,textarea{max-width:100%}
@@ -74,6 +77,12 @@ img,table,select,input,textarea{max-width:100%}
 <script>
 (function(){
   var URL='__URL__',PAGE='__PAGE__';
+  window.KS_NAVPAGE=PAGE;
+  // UI-017 (проба): в каркасе ссылки раздела (подразделы, «К отметкам») переключают раздел, а не перезагружают страницу
+  if(document.documentElement.hasAttribute('data-embed'))document.addEventListener('click',function(e){
+    var a=e.target.closest&&e.target.closest('a[target="_top"][href]');if(!a)return;
+    try{if(window.parent!==window&&window.parent.ksShellGo){e.preventDefault();window.parent.ksShellGo(a.getAttribute('href'))}}catch(x){}
+  },true);
   var ICON={
     att:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
     admin:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
@@ -121,6 +130,7 @@ img,table,select,input,textarea{max-width:100%}
     document.getElementById('ksbt').textContent=role=='admin'?'Переключитесь в режим администратора или вернитесь к отметкам.':'Этот раздел доступен только администратору.';
   }
   function refresh(){
+    if(window.ksCacheClear)ksCacheClear();
     sheet.hidden=true;say('Обновляю данные…');
     google.script.run.withSuccessHandler(function(){say('Данные обновлены. Откройте раздел заново, чтобы увидеть свежие.')})
       .withFailureHandler(function(e){say(e&&e.message?e.message:'Не удалось обновить',true)})
@@ -128,6 +138,7 @@ img,table,select,input,textarea{max-width:100%}
   }
   function setMode(m){set('ksmode',m);show();try{window.dispatchEvent(new Event('ksmodechange'))}catch(e){}}
   function logout(){
+    if(window.ksCacheClear)ksCacheClear();
     ['kspin','ksmode','ksrole'].forEach(function(k){try{localStorage.removeItem(k)}catch(e){}});
     try{window.top.location.href=URL}catch(e){location.reload()}
   }
