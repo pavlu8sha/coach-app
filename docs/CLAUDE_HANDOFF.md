@@ -15,7 +15,7 @@
 - [PR #2 — OpenCode / stage-abc](https://github.com/pavlu8sha/coach-app/pull/2): открыт как draft. Содержит этап A, `DRY_RUN`, централизованный источник клубных файлов, auth-примитивы и тесты. Ревью не завершено. Наличие `appCtx`/`requireRole` не означает, что все серверные endpoints защищены.
 - [PR #3 — документация и CI](https://github.com/pavlu8sha/coach-app/pull/3): открыт как draft. Добавлены README, CONTRIBUTING, карта веток, статусы, правила агентов, шаблоны и workflow тестов. CI успешно проходил на одном из предыдущих коммитов; для самого последнего документационного коммита отдельный запуск пока не подтверждён.
 - [Issue #5 — производительность](https://github.com/pavlu8sha/coach-app/issues/5): `perf-phase1` содержит 5 уникальных коммитов, отстаёт от `master` на 7, меняет 16 файлов. Ветка на ревью, не вливать целиком. `PERF_LOG` в ней включён по умолчанию; до переноса нужен согласованный безопасный default (предварительная рекомендация — `false`).
-- [Issue #6 — обязательный CI](https://github.com/pavlu8sha/coach-app/issues/6): ruleset `Protect master` активен, но CI ещё не обязательная status check.
+- [Issue #6 — обязательный CI](https://github.com/pavlu8sha/coach-app/issues/6): ruleset `Protect master` снят 2026-10-22 по решению владельца; прямой push разрешён.
 - [Issue #7 — старые ветки](https://github.com/pavlu8sha/coach-app/issues/7): 15 исторических веток ранее сравнивались с `master` и не содержали уникальных коммитов. Не удалять без повторной проверки и разрешения Павла.
 
 ## Обязательная проверка перед началом

@@ -259,7 +259,7 @@ function appSettingsSave(pin, key, obj, value) {
   var p = reset ? null : settingParse_(sch, value);
   if (p && !p.ok) throw new Error(sch.label + ': ' + p.error);
   if (p && sch.type === 'sheet') {
-    var ss = SpreadsheetApp.openById(prop_(sch.file));
+    var ss = clubSource_(sch.file, 'Не задано свойство ' + sch.file);
     if (!ss.getSheetByName(p.value)) throw new Error('В файле нет листа «' + p.value + '»');
   }
   var text = reset ? '' : (sch.type === 'list' ? p.value.join(', ') : String(p.value));

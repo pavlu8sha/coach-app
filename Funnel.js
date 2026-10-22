@@ -8,11 +8,7 @@ var FUNNEL_GROUP_LABEL = 'Группа';  // строка с группой (н�
 
 var _funnelSS = null;   // файл воронки открываем один раз за запуск
 function funnelSS_() {
-  if (_funnelSS) return _funnelSS;
-  var id = PropertiesService.getScriptProperties().getProperty('FUNNEL_ID');
-  if (!id) throw new Error('Не задан FUNNEL_ID в свойствах скрипта');
-  _funnelSS = SpreadsheetApp.openById(id);
-  return _funnelSS;
+  return clubSource_('FUNNEL_ID', 'Не задан FUNNEL_ID в свойствах скрипта');
 }
 
 function funnelRead_(sh) {
@@ -129,7 +125,7 @@ function appFunnelAdd(pin, name, group, sheetName) {
 }
 
 // Проверка чтения: запустите вручную и посмотрите журнал.
-function funnelTest() {
+function funnelTest_() {
   funnelSS_().getSheets().forEach(function (s) {
     var d = funnelRead_(s);
     Logger.log(s.getName() + ': детей ' + d.kids.length + ', шагов ' + d.steps.length + ' (' + d.steps.join(' | ') + '), строка группы: ' + d.groupRow);

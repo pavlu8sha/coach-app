@@ -24,6 +24,7 @@ function server(rows) {
     CacheService: { getScriptCache: () => ({ get: k => cache[k] || null, put: (k, v) => { cache[k] = v; }, remove() {} }) },
   };
   vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(new URL('../PerfLog.js', import.meta.url), 'utf8'), ctx);
   for (const f of ['Settings.js', 'EquipLinks.js']) vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
   ctx.dbRead_ = n => (n === 'НАСТРОЙКИ' ? settings : null);
   const cfg = ctx.equipDiscCfg_();
@@ -35,6 +36,7 @@ function client(rows) {                        // discCalc из Kit.html с ко
   const a = s.indexOf('function lowParts('), b = s.indexOf('function selKits(){');
   const ctx = { PR: PRICES };
   vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(new URL('../PerfLog.js', import.meta.url), 'utf8'), ctx);
   vm.runInContext(s.slice(a, b), ctx);
   const srv = server(rows);
   return (kit, inst, others) => {
@@ -49,6 +51,7 @@ function clientCfg(rows) {
     CacheService: { getScriptCache: () => ({ get: () => null, put() {}, remove() {} }) },
   };
   vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(new URL('../PerfLog.js', import.meta.url), 'utf8'), ctx);
   for (const f of ['Settings.js', 'EquipLinks.js']) vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
   const data = [['Ключ', 'Объект', 'Значение', 'Изменено']].concat(rows || []);
   ctx.dbRead_ = () => ({ getLastRow: () => data.length, getRange: (r, c, n = 1, m = 1) => ({ getValues: () => Array.from({ length: n }, (_, i) => Array.from({ length: m }, (_, j) => (data[r - 1 + i] || [])[c - 1 + j] ?? '')), getDisplayValues() { return this.getValues().map(x => x.map(String)); } }) });

@@ -13,6 +13,7 @@ function env() {
   const calls = [];
   const ctx = { console: { warn() {}, error() {}, log() {} }, CONFIG: { DRY_RUN: false } };
   vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(new URL('../PerfLog.js', import.meta.url), 'utf8'), ctx);
   for (const f of ['SubsPay.js', 'Individual.js', 'Extra.js']) vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
   Object.assign(ctx, {
     checkAdmin_: p => { if (String(p) !== '9') throw new Error('Неверный код администратора'); },

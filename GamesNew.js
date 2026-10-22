@@ -94,7 +94,7 @@ function gnFile_() {
 }
 
 // Запускать из редактора: окружение и файлы проекта (названия и последние 4 символа ID). Ничего не записывает.
-function envCheck() {
+function envCheck_() {
   var prod = gnIsProd_(), out = ['Окружение: ' + (prod ? 'БОЕВОЕ' : 'ТЕСТОВОЕ') + ' (скрипт ' + gnMaskId_(ScriptApp.getScriptId()) + ')'];
   function line(label, fn) {
     try { var f = fn(); out.push(label + ': «' + f.getName() + '» ' + gnMaskId_(f.getId())); }
@@ -419,7 +419,9 @@ function gnGroupOf_(t, wd) {
   return best || t.group;
 }
 
-function appDailySchedule(pin, date) {
+// Замер (PerfLog.js): обёртка не меняет результат; при PERF_LOG = false ничего не пишет
+function appDailySchedule(pin, date) { return perfSpan_('appDailySchedule', function () { return appDailySchedule0_(pin, date); }); }
+function appDailySchedule0_(pin, date) {
   checkAdmin_(pin);
   date = gnDmy_(date);
   if (!/^\d{2}\.\d{2}\.\d{4}$/.test(date)) throw new Error('Дата в формате дд.мм.гггг');

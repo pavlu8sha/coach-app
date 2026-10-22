@@ -56,7 +56,7 @@ h2{scroll-margin-top:12px}
   <h1>Приём оплат</h1><label for="pin" class="ks-pinl">Введите код администратора</label>
   <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err" role="alert"></p><button class="btn" id="go">Войти</button>
 </div>
-<div id="app" class="wrap" hidden>
+<div id="app" class="wrap ks-wide-w" hidden>
   <h1>Приём оплат</h1>
   <label for="pl">Игрок (введите ФИ и выберите из списка)</label>
   <div class="srch"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input id="pl" list="plist" autocomplete="off" type="search" placeholder="Поиск игрока…"></div><datalist id="plist"></datalist>
@@ -110,7 +110,7 @@ function feed(){
     FEED=r.items;
     $('feed').innerHTML=r.items.length?r.items.map(function(x,i){
       var tag=x.neg?' <span class="sub">(отмена)</span>':(x.reversed?' <span class="sub">(отменён)</span>':'');
-      var btn=x.canCancel?'<button class="btn sec cnl" data-i="'+i+'" data-src="'+x.src+'" data-row="'+x.row+'">Отменить платёж</button>':'';
+      var btn=x.canCancel?'<button class="btn sec cnl" data-i="'+i+'" data-src="'+x.src+'" data-row="'+x.row+'">Отменить оплату</button>':'';
       var cls=x.neg?' neg':(x.reversed?' rev':'');
       return'<div class="res"><div class="fd"><div class="l"><b>'+esc(x.name)+'</b>'+tag+'<div class="sub">'+esc(x.what+(x.kind?', '+x.kind:'')+(x.method?', '+x.method:''))+'</div></div>'
         +'<span class="amt'+cls+'">'+(x.neg?'−':'+')+money(Math.abs(x.amount))+'</span></div>'+btn+'</div>';
@@ -166,7 +166,7 @@ function paint(keepInputs){
     var chip=st=='paid'?'<span class="ok">'+(it.disc?'скидка':'оплачено')+'</span>':st=='partial'?'<span class="err">частично, долг '+money(debt)+'</span>':'<span class="err">не платил</span>';
     var f='<label>Сумма, ₾</label><input type="number" min="1" step="1" class="pa" value="'+(st=='paid'?'':debt)+'" data-debt="'+(st=='paid'?0:debt)+'">'
       +'<div class="pt" hidden><label>Сумма меньше остатка. Что это?</label><select class="ptype"><option value="">Выберите…</option><option value="Скидка">Скидка по договорённости (оплата принята)</option><option value="Частичный">Частичный платёж (останется долг)</option></select></div>'
-      +'<button class="btn pay">Внести оплату</button>';
+      +'<button class="btn pay">Принять оплату</button>';
     return'<div class="prog" data-g="'+esc(g)+'"><div class="prh"><b>'+esc(g)+'</b>'+chip+'</div><div class="sub">внесено '+money(paid)+' из '+money(T)+(it?'':'; в листе месяца пока нет, будет добавлен')+'</div>'+f+'</div>';
   }).join('');
   h+='<h2 id="ps-eq">Экипировка</h2>';
@@ -176,21 +176,21 @@ function paint(keepInputs){
   h+=eo.map(function(o){
     var chip=o.debt>0?'<span class="err">долг '+money(o.debt)+'</span>':'<span class="ok">оплачено</span>';
     var f=o.debt>0?'<label>Сумма, ₾</label><input type="number" min="1" step="1" class="ea" value="'+o.debt+'">'
-      +'<button class="btn epay" data-row="'+o.row+'">Внести оплату</button>':'';
+      +'<button class="btn epay" data-row="'+o.row+'">Принять оплату</button>':'';
     return'<div class="prog"><div class="prh"><b>'+esc(o.kit||'Комплект не указан')+'</b>'+chip+'</div><div class="sub">сумма '+money(o.sum)+', оплачено '+money(o.paid)+(o.size?', размер '+esc(o.size):'')+'</div>'+f+'</div>';
   }).join('');
-  h+='<h2 id="ps-ind">Индивидуальные и вратарские</h2>';
+  h+='<h2 id="ps-ind">Индивидуальные и вратари</h2>';
   if(!IND.length)h+='<p class="sub">Записей на индивидуальные нет.</p>';
   h+=IND.map(function(x,i){
     var chip=x.paid?'<span class="ok">оплачено</span>':'<span class="err">'+(x.past?'долг ':'')+money(x.price)+'</span>';
-    var f=x.paid?'':'<button class="btn ipay" data-i="'+i+'">Внести оплату</button>';
+    var f=x.paid?'':'<button class="btn ipay" data-i="'+i+'">Принять оплату</button>';
     return'<div class="prog"><div class="prh"><b>'+esc(x.label)+'</b>'+chip+'</div>'+f+'</div>';
   }).join('');
   h+='<h2 id="ps-ext">Дополнительные тренировки</h2>';
   if(!EXT.length)h+='<p class="sub">Записей на дополнительные нет.</p>';
   h+=EXT.map(function(x,i){
     var chip=x.paid?'<span class="ok">оплачено</span>':'<span class="err">'+(x.price>0?money(x.price):'сумма не задана')+'</span>';
-    var f=x.paid?'':(x.price>0?'':'<label>Сумма, ₾</label><input id="xa'+i+'" type="number" inputmode="numeric" min="1" step="1">')+'<button class="btn xpay" data-i="'+i+'">Внести оплату</button>';
+    var f=x.paid?'':(x.price>0?'':'<label>Сумма, ₾</label><input id="xa'+i+'" type="number" inputmode="numeric" min="1" step="1">')+'<button class="btn xpay" data-i="'+i+'">Принять оплату</button>';
     return'<div class="prog"><div class="prh"><b>'+esc(x.label)+'</b>'+chip+'</div>'+f+'</div>';
   }).join('');
   $('progs').innerHTML=h;
@@ -304,7 +304,7 @@ $('progs').addEventListener('click',function(e){
 $('feed').onclick=function(e){
   var b=e.target.closest('.cnl');if(!b)return;
   var x=FEED[b.dataset.i]||{};
-  ksConfirm({title:'Отменить платёж?',ok:'Отменить платёж',danger:true,
+  ksConfirm({title:'Отменить оплату?',ok:'Отменить оплату',danger:true,
     text:'В журнале появится запись об отмене, сумма платежа перестанет учитываться.',
     rows:[['Игрок',x.name],['Сумма',x.amount!=null?ksMoney(x.amount):''],['За что',x.what],['Способ',x.method]],
     run:function(ok,bad){

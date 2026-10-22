@@ -50,12 +50,14 @@ function env(orders, pays) {
     SpreadsheetApp: { getActive: () => ({}) },
   };
   vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(new URL('../PerfLog.js', import.meta.url), 'utf8'), ctx);
   for (const f of ['Equip.js', 'EquipLinks.js', 'EquipLocation.js', 'Cancel.js', 'PaymentsV3.js']) {
     vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
   }
   const camps = fs.readFileSync(path.join(ROOT, 'Camps.js'), 'utf8');            // isRecentDup_ — настоящая функция
   const s = camps.indexOf('function isRecentDup_');
-  vm.runInContext(camps.slice(s, camps.indexOf('\n}\n', s) + 2), ctx);
+  const m = /\r?\n\}/.exec(camps.slice(s));
+  vm.runInContext(camps.slice(s, s + m.index + m[0].length), ctx);
   const sp = fs.readFileSync(path.join(ROOT, 'SubsPay.js'), 'utf8');             // nfSafe_ — настоящая функция из SubsPay.js
   vm.runInContext(sp.slice(sp.indexOf('function nfSafe_'), sp.indexOf('\n', sp.indexOf('function nfSafe_'))), ctx);
   Object.assign(ctx, {

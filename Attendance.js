@@ -5,7 +5,7 @@
  * Сейчас запись включена (DRY_RUN = false). Чтобы только посмотреть план без записи,
  * поставьте DRY_RUN = true.
  *
- * Что делает saveAttendance(группа, дата, отметки):
+ * Что делает saveAttendance_(группа, дата, отметки):
  *  1. открывает лист месяца (дата 2026-10-05 -> лист "10.26");
  *  2. находит блок группы по названию в столбце A (до строки "ИТОГ ГРУППЫ");
  *  3. находит столбец даты в шапке блока (C:T); если даты нет, берёт первую
@@ -30,7 +30,7 @@ function norm(s) {
 }
 
 // Список активных игроков группы: основная группа или «Доп. программы» (столбец H).
-function getRoster(group) {
+function getRoster_(group) {
   var sh = sheetOf_(CONFIG.REGISTRY_SHEET);
   var rows = sh.getRange(4, 1, Math.max(sh.getLastRow() - 3, 1), 8).getValues();
   var g = norm(group), out = [];
@@ -97,7 +97,7 @@ function findBlock(sheet, group) {
  * marks: [{id: 'KS-0006', name: 'Фамилия Имя', present: true}, ...]
  * Возвращает отчёт: что записано и что не удалось (по каждому ребёнку).
  */
-function saveAttendance(group, dateStr, marks) {
+function saveAttendance_(group, dateStr, marks) {
   if (CONFIG.DRY_RUN) return saveAttendanceCore_(group, dateStr, marks);
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
@@ -111,7 +111,7 @@ function saveAttendanceCore_(group, dateStr, marks) {
 
   function failAll(msg) {
     marks.forEach(function (m) { report.results.push({ id: m.id, name: m.name, result: 'НЕ записано: ' + msg }); });
-    logResults(report, marks);
+    logResults_(report, marks);
     return report;
   }
 
@@ -249,7 +249,7 @@ function saveAttendanceCore_(group, dateStr, marks) {
   // Лист уже записан. Если журнал не записался, говорим об этом прямо: повторное сохранение безопасно
   // (в лист пишутся те же значения, строки журнала обновляются, а не дублируются).
   try {
-    logResults(report, marks);
+    logResults_(report, marks);
   } catch (e) {
     console.error('Журнал посещаемости не записан: ' + group + ' ' + dateStr + ': ' + e.message);
     throw new Error('Отметки записаны в лист ' + d.sheet + ', но журнал посещаемости не обновлён (' + e.message +
@@ -261,7 +261,7 @@ function saveAttendanceCore_(group, dateStr, marks) {
 // Журнал приложения: создаётся только при реальной записи.
 var JOURNAL_SHEET_ = 'ЖУРНАЛ ПОСЕЩАЕМОСТИ';
 
-function logResults(report, marks) {
+function logResults_(report, marks) {
   if (!marks.length) return;
   // Сопоставляем отметку с результатом по ID ученика (по ФИ — только если ID нет).
   function keyOf(x) { return x.id ? 'id:' + x.id : 'nm:' + norm(x.name); }
@@ -321,13 +321,13 @@ function journalDay_(group, dateStr) {
 }
 
 /**
- * Сверка листа месяца с журналом посещаемости. Только читает, запуск из редактора: attJournalCheck('10.26').
+ * Сверка листа месяца с журналом посещаемости. Только читает, запуск из редактора: attJournalCheck_('10.26').
  * Показывает в журнале выполнения:
  *  - расхождения: у ученика (по ID из реестра) в журнале один статус, а в листе другая отметка;
  *  - дни с галочками в листе, по которым в журнале нет ни одной записи группы
  *    (отмечено вручную в таблице или журнал не записался). Исправление — пересохранить день из приложения.
  */
-function attJournalCheck(month) {
+function attJournalCheck_(month) {
   var ss = attSS_(), sh = ss.getSheetByName(month);
   if (!sh) throw new Error('Нет листа ' + month);
   var p = month.split('.'), mm = p[0], yyyy = '20' + p[1];

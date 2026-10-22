@@ -16,6 +16,7 @@ input,select{font:inherit;color:var(--ink);background:var(--card);border:1px sol
 input[type=date]{-webkit-appearance:none;appearance:none;width:0;min-width:100%;max-width:100%;display:block;box-sizing:border-box}
 label{display:block;margin:12px 0 4px;color:var(--mute);font-size:14px}
 .chk{display:flex;gap:8px;align-items:center;min-height:44px}.chk input{width:22px;height:22px;min-height:0;flex:none}
+.kitrow{display:flex;align-items:center;gap:8px}.kitrow .kit{flex:1;min-width:0}.kq,.ekq{width:72px;min-height:44px;height:44px;margin:0;font-size:16px;text-align:center}
 .kits{display:flex;flex-direction:column;gap:4px;margin:4px 0 8px}.kit{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--ink);min-height:44px}.kit input{width:22px;height:22px;min-height:0;margin:0;flex:none} /* DS-015: цель касания ≥ 44 px */
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
 button{font:inherit;cursor:pointer}
@@ -41,7 +42,7 @@ summary{cursor:pointer;list-style:none;min-height:44px;display:flex;flex-directi
   <h1>Экипировка</h1><label for="pin" class="ks-pinl">Введите код администратора</label>
   <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err" role="alert"></p><button class="btn" id="go">Войти</button>
 </div>
-<div id="app" class="wrap" hidden>
+<div id="app" class="wrap ks-wide-w" hidden>
   <h1>Экипировка</h1>
   <form class="qform" onsubmit="event.preventDefault();this.querySelector('input').blur()" style="margin:0;display:block"><input id="q" enterkeyhint="done" onkeydown="if(event.key==='Enter')this.blur()" list="qlist" autocomplete="off" placeholder="Поиск: ФИ или ID"><datalist id="qlist"></datalist></form>
   <div class="row2">
@@ -164,7 +165,7 @@ function payForm(o){
     +'<label>Способ оплаты</label><select class="pmt"><option value="">Выберите…</option><option>Наличные</option><option>Перевод</option></select>'
     +'<label>Дата</label><input class="pdt" type="date" value="'+today()+'">'
     +'<label>Комментарий</label><input class="pcm">'
-    +'<button class="btn pok" data-row="'+o.row+'" data-id="'+esc(o.id)+'">Внести оплату</button><div class="msg err pm"></div></div>';
+    +'<button class="btn pok" data-row="'+o.row+'" data-id="'+esc(o.id)+'">Принять оплату</button><div class="msg err pm"></div></div>';
 }
 function payOrder(b,ord){
   var pm=ord.querySelector('.pm'),amt=Number(ord.querySelector('.pam').value),mt=ord.querySelector('.pmt').value;
@@ -185,10 +186,15 @@ function payOrder(b,ord){
 }
 function orderByRow(row){return O.concat(UNL).filter(function(o){return Number(o.row)===Number(row)})[0]}
 function playerName(id){var p=P.filter(function(x){return x.id==id})[0];return p?p.name:''}
+function qtyOfKit(o,k){var i=kitsOf(o.kit).indexOf(k);return i>=0&&(o.qtys||[])[i]||1}
+function kitShown(o){var q=o.qtys||[];return kitsOf(o.kit).map(function(k,i){return k+(q[i]>1?' × '+q[i]:'')}).join(' + ')}
+function qtyEdit(root,k){var i=root.querySelector('.ekq[data-k="'+k+'"]');var v=parseInt(i&&i.value,10);return v>=1?v:1}
+function qmEdit(root,ks){var m={};ks.forEach(function(k){m[k]=qtyEdit(root,k)});return m}
+function qmNew(ks){var m={};ks.forEach(function(k){var i=document.querySelector('#fkits .kq[data-k="'+k+'"]');var v=parseInt(i&&i.value,10);m[k]=v>=1?v:1});return m}
 function kitsOf(k){return String(k||'').split(' + ').map(function(x){return x.trim()}).filter(Boolean)}
 function orderHtml(o,p,linked){
   var prob=[];var mi=missOf(o);if(mi.length)prob.push('не заполнено: '+mi.join(', '));if(isDup(o,p))prob.push((dupNums(o,p).length>1?'номера ':'номер ')+dupNums(o,p).join(', ')+' повторяется в '+catOf(p.group));
-  return'<div class="ord"><b>'+esc(o.kit||'Комплект не указан')+'</b>'+(o.inst?' (рассрочка)':'')+(o.no?'<span class="sub"> · заказ №'+o.no+'</span>':'')
+  return'<div class="ord"><b>'+esc(kitShown(o)||'Комплект не указан')+'</b>'+(o.inst?' (рассрочка)':'')+(o.no?'<span class="sub"> · заказ №'+o.no+'</span>':'')
     +(prob.length?'<div class="sub err">'+esc(prob.join('; '))+'</div>':'')
     +(p&&nn(o.oname)!=nn(p.name)?'<div class="sub err">В файле заказа записано: '+esc(o.oname)+'</div>':'')
     +'<div class="sub">Размер: '+esc(o.size||'не указан')+'; надпись: '+esc(o.inscr||'—')+'; номер: '+esc(o.num||'—')+'</div>'
@@ -196,7 +202,7 @@ function orderHtml(o,p,linked){
     +(linked&&o.debt>0?payForm(o):'')
     +'<button class="btn sec ed" style="margin-top:8px">Изменить заказ</button>'
     +'<button class="btn sec delo" data-row="'+o.row+'" style="margin-top:8px">Удалить заказ</button><div class="msg err dm"></div>'
-    +'<div class="edf" hidden><label>Комплект</label><div class="ekits">'+Object.keys(PR).map(function(k){return'<label class="kit"><input type="checkbox" class="ekit" value="'+esc(k)+'"'+(kitsOf(o.kit).indexOf(k)>=0?' checked':'')+'> '+esc(k)+'</label>'}).join('')+'</div><div class="sub esum" aria-live="polite"></div>'
+    +'<div class="edf" hidden><label>Комплект</label><div class="ekits">'+Object.keys(PR).map(function(k){return'<div class="kitrow"><label class="kit"><input type="checkbox" class="ekit" value="'+esc(k)+'"'+(kitsOf(o.kit).indexOf(k)>=0?' checked':'')+'> '+esc(k)+'</label><input type="number" class="ekq" data-k="'+esc(k)+'" min="1" max="10" step="1" value="'+qtyOfKit(o,k)+'" inputmode="numeric" aria-label="Количество"></div>'}).join('')+'</div><div class="sub esum" aria-live="polite"></div>'
     +'<label>Размер</label><input class="esize" value="'+esc(o.size||'')+'">'
     +'<label>Надпись</label><input class="einscr" value="'+esc(o.inscr||'')+'">'
     +'<label>Номер</label><input class="enum" value="'+esc(o.num||'')+'">'
@@ -316,7 +322,7 @@ $('list').onclick=function(e){
     var ekits=Array.from(ord.querySelectorAll('.ekit:checked')).map(function(c){return c.value});
     if(!ekits.length){ed.textContent='Отметьте хотя бы один комплект';return}
     var eo=orderByRow(b.dataset.row)||{},nk=ekits.join(' + ');
-    var patch={kit:nk,size:ord.querySelector('.esize').value,inscr:ord.querySelector('.einscr').value,num:ord.querySelector('.enum').value,inst:ord.querySelector('.einst').checked};
+    var patch={kit:nk,qtys:ekits.map(function(k){return qtyEdit(ord,k)}),size:ord.querySelector('.esize').value,inscr:ord.querySelector('.einscr').value,num:ord.querySelector('.enum').value,inst:ord.querySelector('.einst').checked};
     var save=function(ok,bad){
       b.disabled=true;ed.textContent='Сохраняю…';
       run('appEditOrder',[pin,Number(b.dataset.row),patch],
@@ -324,7 +330,7 @@ $('list').onclick=function(e){
         function(m){b.disabled=false;ed.textContent=bad?'':m;if(bad)bad(m)});
     };
     // Сумма, которую запишет сервер (editOrderCore_ + equipDiscCalc_): тот же расчёт, что в EquipLinks.js
-    var pv=editSumPreview(eo,ekits,patch.inst);
+    var pv=editSumPreview(eo,ekits,patch.inst,qmEdit(ord,ekits));
     if(pv.newSum!==null&&Math.round(pv.newSum*100)!==Math.round((eo.sum||0)*100)){
       var rows4=[['Игрок',playerName(eo.id)||eo.oname],['Заказ',nk],['Было',ksMoney(eo.sum)]];
       if(pv.disc!==null){
@@ -349,26 +355,27 @@ function editSumShow(ef){
   var el=ef.querySelector('.esum');if(!el)return;
   var eo=orderByRow(ef.querySelector('.eok').dataset.row)||{},ks=[].map.call(ef.querySelectorAll('.ekit:checked'),function(c){return c.value});
   if(!ks.length){el.textContent='';return}
-  var inst=ef.querySelector('.einst').checked,pv=editSumPreview(eo,ks,inst),was=Number(eo.sum)||0,t;
+  var inst=ef.querySelector('.einst').checked,pv=editSumPreview(eo,ks,inst,qmEdit(ef,ks)),was=Number(eo.sum)||0,t;
   if(pv.disc!==null)t='Весь комплект: скидка '+DC.pct+'% — '+(pv.prior+pv.total-pv.socks)+' ₾ → '+pv.target+' ₾'+(pv.prior?' (из них в других заказах '+pv.prior+' ₾)':'')+'. В этом заказе будет '+pv.newSum+' ₾'+(pv.newSum!==was?' вместо '+was+' ₾':'')+'.';
   else if(pv.newSum!==null)t='По каталогу: '+pv.newSum+' ₾'+(pv.newSum!==was?' вместо '+was+' ₾':'')+'. Скидки нет: '+(inst?'рассрочка.':'комплект не полный.');
   else t='Сумма заказа не меняется: '+was+' ₾. Скидки нет: '+(inst?'рассрочка.':'комплект не полный.');
   el.textContent=t;
 }
-document.addEventListener('change',function(e){var t=e.target;if(t.classList&&(t.classList.contains('ekit')||t.classList.contains('einst'))){var ef=t.closest('.edf');if(ef)editSumShow(ef)}});
-function editSumPreview(eo,ks,inst){
+document.addEventListener('change',function(e){var t=e.target;if(t.classList&&(t.classList.contains('ekit')||t.classList.contains('einst')||t.classList.contains('ekq'))){var ef=t.closest('.edf');if(ef)editSumShow(ef)}});
+function editSumPreview(eo,ks,inst,qm){
   var missing=ks.some(function(k){return!(k in PR)}),kit=ks.join(' + ');
-  var needCat=kit!==String(eo.kit||'').trim()||!(Number(eo.sum)>0);
+  var oldQ=kitsOf(eo.kit).map(function(k,i){return(eo.qtys||[])[i]||1}).join(' + '),newQ=ks.map(function(k){return(qm||{})[k]||1}).join(' + ');
+  var needCat=kit!==String(eo.kit||'').trim()||newQ!==oldQ||!(Number(eo.sum)>0);
   var id=String(eo.id||'').trim(),others=id?O.concat(UNL).filter(function(o){return Number(o.row)!==Number(eo.row)&&String(o.id||'').trim()===id&&String(o.kit||'').trim()}):[];
-  var c=discCalc(ks,inst,others),disc=missing?null:c.disc;
+  var c=discCalc(ks,inst,others,qm),disc=missing?null:c.disc;
   return {total:c.total,socks:c.excl,disc:disc,prior:c.prior||0,target:c.target||0,newSum:needCat?(disc!==null?disc:c.total):disc};
 }
 // Скидка на комплект — правило из настроек (DC, приходит с сервера): тот же расчёт, что equipDiscCalc_ в EquipLinks.js.
 // ks — позиции заказа; others — прежние заказы игрока [{kit,sum}]. Возвращает {total, excl, disc}; disc=null — скидки нет.
 function lowParts(kit){return String(kit||'').split(' + ').map(function(x){return x.trim().toLowerCase()}).filter(Boolean)}
-function discCalc(ks,inst,others){
+function discCalc(ks,inst,others,qm){
   var parts=ks.map(function(k){return String(k).trim().toLowerCase()}),total=0,excl=0;
-  ks.forEach(function(k){var v=Number(PR[k])||0;total+=v;if(DC&&DC.exclude.indexOf(String(k).trim().toLowerCase())>=0)excl+=v});
+  ks.forEach(function(k){var v=(Number(PR[k])||0)*((qm&&qm[k])||1);total+=v;if(DC&&DC.exclude.indexOf(String(k).trim().toLowerCase())>=0)excl+=v});
   var out={total:total,excl:excl,disc:null};
   if(!DC||inst||!(DC.pct>0)||!parts.length)return out;
   if(!DC.needAll.every(function(alt){return alt.some(function(k){return parts.indexOf(k)>=0})}))return out;
@@ -383,14 +390,15 @@ function discCalc(ks,inst,others){
 function selKits(){return[].map.call(document.querySelectorAll('#fkits input:checked'),function(i){return i.value})}
 function kitsBox(){
   $('fkits').innerHTML=Object.keys(PR).map(function(k){
-    return'<label class="kit"><input type="checkbox" value="'+esc(k)+'"> '+esc(k)+' — '+PR[k]+' ₾</label>';
+    return'<div class="kitrow"><label class="kit"><input type="checkbox" value="'+esc(k)+'"> '+esc(k)+' — '+PR[k]+' ₾</label><input type="number" class="kq" data-k="'+esc(k)+'" min="1" max="10" step="1" value="1" inputmode="numeric" aria-label="Количество"></div>';
   }).join('');
   [].forEach.call(document.querySelectorAll('#fkits input'),function(i){i.onchange=refreshSum});
 }
 function refreshSum(){
   var ks=selKits(),id=pid($('fpl').value),inst=$('finst').checked;
   var others=id?O.filter(function(o){return o.id===id}):[];
-  var c=discCalc(ks,false,others),base=c.total;
+  var qm=qmNew(ks);
+  var c=discCalc(ks,false,others,qm),base=c.total;
   var disc=!inst&&c.disc!==null;
   var sum=disc?c.disc:base;
   $('fsum').value=ks.length?sum:'';
@@ -414,7 +422,8 @@ function submit(){
   if(!id){fmsg('Выберите игрока из списка',true);return}
   if(!selKits().length){fmsg('Отметьте хотя бы одну позицию',true);return}
   var kit=selKits().join(' + ');
-  var o={id:id,kit:kit,sum:Number($('fsum').value),size:(!$('fsizeSel').hidden?$('fsizeSel').value:$('fsize').value.trim()),inscr:$('finscr').value.trim(),num:$('fnum').value.trim(),inst:$('finst').checked,paid:Number($('fpaid').value)||0,date:$('fdate').value,method:$('fmt').value};
+  var qm=qmNew(selKits());
+  var o={id:id,kit:kit,qtys:selKits().map(function(k){return qm[k]}),sum:Number($('fsum').value),size:(!$('fsizeSel').hidden?$('fsizeSel').value:$('fsize').value.trim()),inscr:$('finscr').value.trim(),num:$('fnum').value.trim(),inst:$('finst').checked,paid:Number($('fpaid').value)||0,date:$('fdate').value,method:$('fmt').value};
   if(o.paid>0&&!o.method){fmsg('Выберите способ оплаты: наличные или перевод',true);return}
   var send=function(ok,bad){
     $('fsave').disabled=true;fmsg('Сохраняю…');
@@ -426,7 +435,7 @@ function submit(){
   };
   // Заказ без оплаты создаётся как раньше; с «Оплачено сейчас» — после подтверждения обеих операций
   if(!(o.paid>0)){send();return}
-  var osum=o.sum>0?o.sum:selKits().reduce(function(s,k){return s+(Number(PR[k])||0)},0);
+  var osum=o.sum>0?o.sum:selKits().reduce(function(s,k){return s+(Number(PR[k])||0)*qm[k]},0);
   var dp=/^(\d{4})-(\d\d)-(\d\d)$/.exec(o.date||'');
   ksConfirm({title:'Создать заказ и принять оплату?',ok:'Создать заказ и принять оплату',
     rows:[['Игрок',playerName(id)],['Заказ',kit+', сумма '+ksMoney(osum)],['Оплачено сейчас',ksMoney(o.paid)],['Останется',ksMoney(Math.max(osum-o.paid,0))],['Способ',o.method],['Дата заказа',dp?dp[3]+'.'+dp[2]+'.'+dp[1]:'']],

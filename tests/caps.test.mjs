@@ -36,6 +36,7 @@ function env(settingsRows) {
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
   };
   vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(new URL('../PerfLog.js', import.meta.url), 'utf8'), ctx);
   for (const f of ['Settings.js', 'Individual.js', 'Extra.js']) vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
   const extraSheet = new Sheet([[]]);
   Object.assign(ctx, {

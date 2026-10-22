@@ -38,7 +38,9 @@ function appGroups(pin, dateStr) {
 }
 
 // Один запрос вместо двух: группы дня и состав выбранной группы.
-function appAttInit(pin, dateStr, want, all) {
+// Замер (PerfLog.js): обёртка не меняет результат; при PERF_LOG = false ничего не пишет
+function appAttInit(pin, dateStr, want, all) { return perfSpan_('appAttInit', function () { return appAttInit0_(pin, dateStr, want, all); }); }
+function appAttInit0_(pin, dateStr, want, all) {
   var gs = appGroups(pin, dateStr);
   var shown = gs.filter(function (g) { return all || g.sched; });
   var pick = '';
@@ -47,11 +49,13 @@ function appAttInit(pin, dateStr, want, all) {
   return { groups: gs, group: pick, roster: pick ? appRoster(pin, pick, dateStr) : [] };
 }
 
-function appRoster(pin, group, dateStr) {
+// Замер (PerfLog.js): обёртка не меняет результат; при PERF_LOG = false ничего не пишет
+function appRoster(pin, group, dateStr) { return perfSpan_('appRoster', function () { return appRoster0_(pin, group, dateStr); }); }
+function appRoster0_(pin, group, dateStr) {
   checkPin_(pin);
   if (indIsGroup_(group)) return indRoster_(group, dateStr);
   if (extraIsGroup_(group)) return extraRoster_(dateStr);
-  var roster = getRoster(group);
+  var roster = getRoster_(group);
   var d = parseDate(dateStr);
   var sheet = sheetOf_(d.sheet);
   var block = sheet ? findBlock(sheet, group) : null;
@@ -125,7 +129,7 @@ function appSave(pin, group, dateStr, marks) {
     }
     toSave.push(m);
   });
-  var report = saveAttendance(group, dateStr, toSave);
+  var report = saveAttendance_(group, dateStr, toSave);
   report.results = report.results.concat(skipped);
   return report;
 }

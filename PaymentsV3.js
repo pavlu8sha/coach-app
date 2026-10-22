@@ -37,12 +37,21 @@ function appAddPayment(pin, id, row, amount, dateStr, comment, method) {
 
 // Платежи за сегодня (по дате оплаты): абонемент и экипировка, с итогами по способам.
 // Читаем только хвост журналов: новые записи всегда дописываются в конец.
-function appTodayPayments(pin) {
+// Замер (PerfLog.js): обёртка не меняет результат; при PERF_LOG = false ничего не пишет
+function appTodayPayments(pin) { return perfSpan_('appTodayPayments', function () { return appTodayPayments0_(pin); }); }
+function appTodayPayments0_(pin) {
   checkAdmin_(pin);
   // журналы оплат лежат в админ-файле: даты берём в его часовом поясе (файл посещаемости в UTC сдвигает дату на сутки)
   var ss = adminSS_(), tz = ss.getSpreadsheetTimeZone(), td = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
   var out = [], tot = { 'Наличные': 0, 'Перевод': 0, other: 0 }, rev = {};
-  function day(v) { return v instanceof Date ? Utilities.formatDate(v, tz, 'yyyy-MM-dd') : String(v); }
+  // Дата → «гггг-мм-дд» в поясе AdminApp. Результат зависит только от момента времени, а дней в журналах мало,
+  // поэтому запоминаем по getTime(): Utilities.formatDate вызывается один раз на день, а не на каждую строку.
+  var dayMemo = {};
+  function day(v) {
+    if (!(v instanceof Date)) return String(v);
+    var k = v.getTime();
+    return dayMemo.hasOwnProperty(k) ? dayMemo[k] : (dayMemo[k] = Utilities.formatDate(v, tz, 'yyyy-MM-dd'));
+  }
   function tail(sh, cols) {
     var last = sh ? sh.getLastRow() : 0;
     if (last < 2) return { from: 2, rows: [] };

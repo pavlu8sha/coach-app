@@ -26,13 +26,9 @@ function isoOf_(v) {
   return Utilities.formatDate(new Date(Date.UTC(1899, 11, 30) + Math.round(n) * 86400000), 'GMT', 'yyyy-MM-dd');
 }
 
-var _attSS = null;
+// Таблица посещаемости (ATT_ID); открывается один раз за запуск через общий clubSource_ (Sources.js)
 function attSS_() {
-  if (_attSS) return _attSS;
-  var id = prop_('ATT_ID');
-  if (!id) throw new Error('Не задано свойство ATT_ID (ID таблицы посещаемости)');
-  _attSS = SpreadsheetApp.openById(id);
-  return _attSS;
+  return clubSource_('ATT_ID', 'Не задано свойство ATT_ID (ID таблицы посещаемости)');
 }
 
 function readRegistry_() {
@@ -75,7 +71,14 @@ var REG_CACHE_KEY = 'reg_v1';
 
 var CACHE_MIN_TTL = 900; // кэш живёт не меньше 15 минут (записи через приложение сбрасывают его сами)
 
+// Попадание/промах кэша отмечаются в замере (PerfLog.js); сама выборка не меняется
 function cacheGetBig_(key) {
+  var v = cacheGetBig0_(key);
+  perfCache_(key, v !== null && v !== undefined);
+  return v;
+}
+
+function cacheGetBig0_(key) {
   var c = CacheService.getScriptCache();
   var n = Number(c.get(key + '_n'));
   if (!n) return null;
@@ -152,9 +155,11 @@ function logChange_(id, name, field, was, now) {
   cacheDropBig_('md_v2'); cacheDropBig_('mf_v1'); cacheDropBig_('eq_v1'); cacheDropBig_('cat_v1');
 }
 
-function appAdminInit(pin) {
+// Замер (PerfLog.js): обёртка не меняет результат; при PERF_LOG = false ничего не пишет
+function appAdminInit(pin) { return perfSpan_('appAdminInit', function () { return appAdminInit0_(pin); }); }
+function appAdminInit0_(pin) {
   checkAdmin_(pin);
-  var d = regData_(), bd = birthById_();
+  var d = regData_(), bd = birthById_(d.players);   // реестр уже получен — второй раз не читаем
   return {
     groups: d.l.groups, statuses: d.l.statuses,
     players: d.players.map(function (p) {
@@ -180,9 +185,10 @@ function birthOverrides_() {
   return map;
 }
 // Карта «ID игрока → дата рождения dd.mm.yyyy» для всех игроков реестра.
-function birthById_() {
+// players — игроки реестра, если вызывающий их уже получил (тот же regData_ того же запроса); иначе читаются здесь
+function birthById_(players) {
   var ov = birthOverrides_(), fromFile = birthByName_(), out = {};
-  regData_().players.forEach(function (p) {
+  (players || regData_().players).forEach(function (p) {
     out[p.id] = ov[p.id] || fromFile[norm(p.name)] || '';
   });
   return out;
@@ -372,15 +378,6 @@ function renameSweep_(id, oldName, newName) {
   bump('Доп. тренировки', nd);
   logChange_(id, newName, 'переименован: сверка таблиц', oldName, newName + (Object.keys(report).length ? ' | ' + JSON.stringify(report) : ' | нигде не найден'));
   return report;
-}
-
-var _attSS = null; // таблица посещаемости, открывается один раз за запуск
-function attSS_() {
-  if (_attSS) return _attSS;
-  var id = prop_('ATT_ID');
-  if (!id) throw new Error('Не задано свойство ATT_ID (ID таблицы посещаемости)');
-  _attSS = SpreadsheetApp.openById(id);
-  return _attSS;
 }
 
 // Листы, которые живут в AdminApp. Все остальные листы читаются из посещаемости.

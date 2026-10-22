@@ -80,11 +80,12 @@ function indPfPlayers_(date, cache, gk) {
 }
 
 // Новые занятия целиком (с игроками из файла оплат). filterDate — только эта дата.
-function indParseAdm_(filterDate) {
+// noPlayers — без состава (файл оплат не читается): для списка групп дня нужны только дата, время и тип занятия
+function indParseAdm_(filterDate, noPlayers) {
   var rows = indAdmRows_().filter(function (e) { return !filterDate || e.date === filterDate; });
   var cache = {};
   return rows.map(function (e) {
-    var players = indPfPlayers_(e.date, cache, e.gk);
+    var players = noPlayers ? [] : indPfPlayers_(e.date, cache, e.gk);
     return {
       src: 'adm', sheet: IND_ADM, row: e.row, id: e.id,
       date: e.date, time: e.time, goalkeepers: e.gk, theme: e.theme,
@@ -219,7 +220,7 @@ function indMigratePlan_() {
 }
 
 // Только отчёт в журнал, ничего не пишет
-function indMigrateReport() {
+function indMigrateReport_() {
   indMigratePlan_().forEach(function (x) {
     Logger.log(x.ev.id + ' | неоплаченных: ' + x.unpaid.map(function (p) { return p.name; }).join(', ') +
       ' | в файле оплат нет: ' + (x.toEnroll.map(function (p) { return p.name; }).join(', ') || 'нет') +
@@ -228,7 +229,7 @@ function indMigrateReport() {
 }
 
 // Переносит: создаёт занятие в AdminApp и дописывает в файл оплат недостающие строки (без сумм)
-function indMigrateApply() {
+function indMigrateApply_() {
   return indLocked_(function () {
     var done = 0;
     indMigratePlan_().forEach(function (x) {

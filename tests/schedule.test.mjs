@@ -42,6 +42,7 @@ function env(sheetRows) {
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
   };
   vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(new URL('../PerfLog.js', import.meta.url), 'utf8'), ctx);
   for (const f of ['Settings.js', 'Schedule.js']) vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
   const sp = fs.readFileSync(path.join(ROOT, 'SubsPay.js'), 'utf8');
   vm.runInContext(sp.slice(sp.indexOf('function nfSafe_'), sp.indexOf('\n', sp.indexOf('function nfSafe_'))), ctx);

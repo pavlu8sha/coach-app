@@ -41,6 +41,21 @@ li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padd
 .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
 .tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
 .tile b{display:block;font-size:17px}.tile span{color:var(--mute);font-size:12px}
+.chd{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:4px 0 12px}
+.chd .cbk{border:0;background:none;padding:0 8px 0 0;min-height:44px;font-size:17px}
+.chd #cedit{min-height:44px;width:auto;padding:0 14px}
+.cprof{display:flex;gap:16px;align-items:center;margin-bottom:14px}
+.cav{flex:none;width:88px;height:88px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--color-primary-subtle,#DDE4F6);color:var(--g);font-weight:800;font-size:28px;border:2px solid var(--line)}
+.cpt{min-width:0}.cpt h1{margin:0 0 4px;font-size:24px;overflow-wrap:break-word}
+.cpt .sub{margin:2px 0}
+.pill,.prh>span+span{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:13px;font-weight:700;white-space:nowrap;background:color-mix(in srgb,var(--mute) 14%,var(--card));color:var(--mute)}
+.pill.ok,.prh>span+span.ok{color:#1E6B3C;background:#E3F1E8}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .pill.ok,:root:not([data-theme="light"]) .prh>span+span.ok{color:#4FAE74;background:#1B2E22}}
+:root[data-theme="dark"] .pill.ok,:root[data-theme="dark"] .prh>span+span.ok{color:#4FAE74;background:#1B2E22}
+.prh>span+span.err{color:#B23A2B;background:#F8E1DD}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .prh>span+span.err{color:#E8806F;background:#3A221E}}
+:root[data-theme="dark"] .prh>span+span.err{color:#E8806F;background:#3A221E}
+.pill.ok:before,.prh>span+span.ok:before,.prh>span+span.err:before{content:'● ';font-size:10px}
 </style>
 </head>
 <body>
@@ -48,7 +63,7 @@ li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padd
   <h1>Игроки</h1><label for="pin" class="ks-pinl">Введите код администратора</label>
   <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err" role="alert"></p><button class="btn" id="go">Войти</button>
 </div>
-<div id="app" class="wrap" hidden>
+<div id="app" class="wrap ks-wide-w" hidden>
   <h1>Игроки</h1>
   <form class="qform" onsubmit="event.preventDefault();this.querySelector('input').blur()" style="margin:0;display:block"><input id="q" enterkeyhint="done" onkeydown="if(event.key==='Enter')this.blur()" list="ql" autocomplete="off" placeholder="Поиск: ФИ, ID, группа" style="margin-top:8px"><datalist id="ql"></datalist></form>
   <div class="row2"><select id="fg" aria-label="Группа"></select><select id="st" aria-label="Статус"></select></div>
@@ -59,10 +74,10 @@ li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padd
   <ul id="list"></ul>
 </div>
 <div id="card" class="wrap" hidden>
-  <h1 id="ctitle"></h1><div class="sub" id="cinfo"></div><div class="sub" id="cbirth"></div>
+  <div class="chd"><button class="btn sec cbk" id="cback" aria-label="Назад к списку игроков">‹ Игроки</button><button class="btn sec" id="cedit">Изменить данные</button></div>
+  <div class="cprof"><div class="cav" id="cav" aria-hidden="true"></div><div class="cpt"><h1 id="ctitle"></h1><div class="sub" id="cinfo"></div><div class="sub" id="cbirth"></div></div></div>
   <button class="btn sec" id="bopen" hidden>Указать дату рождения</button>
   <div id="bform" hidden><input type="date" id="bdt" aria-label="Дата рождения"><button class="btn sec" id="bsave">Сохранить дату</button></div>
-  <button class="btn sec" id="cedit">Изменить данные игрока</button>
   <label>Способ оплаты (для всех платежей ниже)</label>
   <div class="seg" id="meth"><button data-m="Наличные" aria-pressed="false">Наличные</button><button data-m="Перевод" aria-pressed="false">Перевод</button></div>
   <div class="row2">
@@ -71,7 +86,6 @@ li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padd
   </div>
   <div class="msg" id="pmsg" role="status"></div>
   <div id="cbody"></div>
-  <button class="btn sec" id="cback">К списку игроков</button>
 </div>
 <div id="form" class="wrap" hidden>
   <h1 id="ftitle"></h1>
@@ -80,7 +94,7 @@ li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padd
   <label>Основная группа</label><select id="fgrp"></select>
   <div id="rowstat"><label>Статус</label><select id="fstat"></select></div>
   <div id="rowdate"><label id="fdl"></label><input type="date" id="fdate"></div>
-  <label>Доп. программы</label><div class="ext" id="fext"></div>
+  <label>Дополнительные тренировки</label><div class="ext" id="fext"></div>
   <div class="msg err" id="fmsg"></div><div id="warn"></div>
   <button class="btn" id="save">Сохранить</button>
   <button class="btn sec" id="cancel">Отмена</button>
@@ -167,7 +181,7 @@ function card(it){
   if(!it.paid){
     if(it.amount)f+='<label>Сумма, ₾</label><input type="number" min="0" step="1" class="pa" value="'+(it.debt>0?it.debt:'')+'" data-debt="'+(it.debt>0?it.debt:0)+'">';
     if(it.type)f+='<div class="pt" hidden><label>Сумма меньше остатка. Что это?</label><select class="ptype"><option value="">Выберите…</option><option value="Скидка">Скидка по договорённости (оплата принята)</option><option value="Частичный">Частичный платёж (останется долг)</option></select></div>';
-    f+='<button class="btn pay">Внести оплату</button>';
+    f+='<button class="btn pay">Принять оплату</button>';
     if(it.discOK)f+='<button class="btn sec dc">Считать оплаченным (скидка)</button>';
     f+='<div class="msg err pm"></div>';
   }
@@ -207,7 +221,7 @@ function renderCard(pk){
       return'<div class="res">'+esc(x.date)+': <b>'+esc(x.amount)+'</b> ('+esc(x.month+', '+x.group+', '+x.type+(x.method?', '+x.method:''))+(x.comment?', '+esc(x.comment):'')+')</div>';
     }).join(''):'<p class="sub">Платежей через приложение пока нет. Суммы, внесённые раньше, видны в списке выше.</p>');
   }
-  h+='<h2>Индивидуальные и вратарские</h2>';
+  h+='<h2>Индивидуальные и вратари</h2>';
   if(pk.indErr)h+=errp(pk.indErr);
   else h+=pk.ind.length?pk.ind.map(function(x){
     return card({kind:'ind',sid:x.id,name:x.name,label:x.label,title:x.label,
@@ -230,7 +244,8 @@ function openCard(i){
   var n=++cardReq;cardI=i;var p=D.players[i],pk={},left=4;
   $('app').hidden=true;$('form').hidden=true;$('card').hidden=false;
   $('ctitle').textContent=p.name;
-  $('cinfo').textContent=p.id+' / '+p.group+(p.extras.length?' + '+p.extras.join(', '):'')+' / '+p.status;
+  $('cav').textContent=String(p.name).split(/\s+/).map(function(w){return w.charAt(0)}).join('').slice(0,2).toUpperCase();
+  $('cinfo').innerHTML=esc(p.id+' · '+p.group+(p.extras.length?' + '+p.extras.join(', '):''))+' · <span class="pill '+(p.status=='Активен'?'ok':'mid')+'">'+esc(p.status)+'</span>';
   $('cbirth').textContent=p.birth?'Дата рождения: '+p.birth:'Дата рождения не указана';
   $('bopen').textContent=p.birth?'Изменить дату рождения':'Указать дату рождения';
   $('bopen').hidden=false;$('bform').hidden=true;
