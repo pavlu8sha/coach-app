@@ -1,7 +1,7 @@
 -- pgTAP: доступ по ролям. Запуск: psql -f db/migrations/0001_init.sql -f db/migrations/0002_rls.sql -f db/tests/rls_test.sql
 begin;
 create extension if not exists pgtap;
-select plan(8);
+select plan(9);
 
 -- Фикстуры (от владельца БД, RLS не действует). Все UUID — корректный hex.
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
@@ -65,14 +65,19 @@ select is(
 select as_user('00000000-0000-0000-0000-0000000000a1');
 select is((select count(*)::int from players), 2, 'администратор видит всех игроков');
 
--- 6. Журнал баллов не меняется: update от родителя ничего не меняет (RLS без политики UPDATE)
+-- 6. Журнал баллов нельзя изменить из приложения: update запрещён правами (42501)
 select as_user('00000000-0000-0000-0000-0000000000b1');
-update point_events set points = 99 where player_id = '00000000-0000-0000-0000-00000000d001';
+select throws_ok(
+  $$update point_events set points = 99$$,
+  '42501',
+  null,
+  'журнал баллов нельзя изменить из приложения (update запрещён правами)'
+);
 reset role;
 select is(
   (select points from point_events where player_id = '00000000-0000-0000-0000-00000000d001'),
   1,
-  'журнал баллов нельзя изменить из приложения'
+  'баллы не изменились'
 );
 
 -- 7. Групповой рейтинг: сумма группы, без имён
