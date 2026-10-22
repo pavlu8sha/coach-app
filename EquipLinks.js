@@ -33,7 +33,7 @@ function appEquipOrders(pin) {
 }
 
 function equipOrdersLive_() {
-  var sh = equipSheet_(), rg = sh.getRange(EQ_FIRST, 1, EQ_ROWS, 13);
+  var sh = equipSheet_(), rg = sh.getRange(EQ_FIRST, 1, EQ_ROWS, EQ_QTY_COL);
   var vals = rg.getValues(), disp = rg.getDisplayValues(), orders = [], unl = [];
   vals.forEach(function (r, i) {
     var name = String(r[2]).trim();
@@ -42,7 +42,7 @@ function equipOrdersLive_() {
     var sum = Number(r[8]) || 0, paid = Number(r[9]) || 0;
     var o = {
       id: id, row: EQ_FIRST + i, no: Number(r[0]), oname: name, kit: disp[i][3], size: disp[i][4], inscr: disp[i][5], num: disp[i][6],
-      inst: disp[i][7], sum: sum, paid: paid, debt: Math.max(sum - paid, 0), qtys: qtysOf_(r[12], String(r[3] || '').split(' + ').length)
+      inst: disp[i][7], sum: sum, paid: paid, debt: Math.max(sum - paid, 0), qtys: qtysOf_(r[EQ_QTY_COL - 1], String(r[3] || '').split(' + ').length)
     };
     if (id) orders.push(o); else unl.push(o);
   });
@@ -208,7 +208,7 @@ function editOrderCore_(row, o) {
   var kit = String(o.kit || '').trim();
   var newSum = null, qs = null;
   var kparts = kit.split(' + ').map(function (x) { return x.trim(); }).filter(Boolean);
-  var mOld = String(sh.getRange(row, 13).getValue()).trim();
+  var mOld = String(sh.getRange(row, EQ_QTY_COL).getValue()).trim();
   if (kit) {
     qs = Array.isArray(o.qtys) ? qtyCheck_(kparts.map(function (x, i) { return Math.floor(Number(o.qtys[i])) || 1; }))
       : (kit === before[0] ? qtysOf_(mOld, kparts.length) : qtysOf_('', kparts.length));
@@ -237,7 +237,7 @@ function editOrderCore_(row, o) {
     // Пишем по одной ячейке: многоколоночная запись диапазона в Sheets даёт ошибку «выберите элемент в одном столбце»
     [5, 6, 7].forEach(function (col) { nfSafe_(sh.getRange(row, col), '@'); }); // размер, надпись, номер хранятся как текст
     for (var ci = 0; ci < after.length; ci++) { sh.getRange(row, 4 + ci).setValue(after[ci]); }
-    if (qs) { nfSafe_(sh.getRange(row, 13), '@'); sh.getRange(row, 13).setValue(qs.join(' + ')); }
+    if (qs) { nfSafe_(sh.getRange(row, EQ_QTY_COL), '@'); sh.getRange(row, EQ_QTY_COL).setValue(qs.join(' + ')); }
     if (newSum !== null) sh.getRange(row, 9).setValue(newSum);
     cacheDropBig_('eq_v1');
     var what = before.join(' | ') + (newSum !== null ? ' | сумма ' + oldSum : '');

@@ -108,9 +108,9 @@ function addOrderCore_(o) {
     sh.getRange(row, 12).setValue(o.id);
     sh.getRange(row, 14).setValue(ordId);
     // количество — в колонку M; заголовок ставим, только если его ещё нет
-    if (!String(sh.getRange(EQ_FIRST - 1, 13).getValue()).trim()) sh.getRange(EQ_FIRST - 1, 13).setValue('Кол-во');
-    nfSafe_(sh.getRange(row, 13), '@');
-    sh.getRange(row, 13).setValue(qs.join(' + '));
+    if (!String(sh.getRange(EQ_FIRST - 1, EQ_QTY_COL).getValue()).trim()) sh.getRange(EQ_FIRST - 1, EQ_QTY_COL).setValue('Кол-во');
+    nfSafe_(sh.getRange(row, EQ_QTY_COL), '@');
+    sh.getRange(row, EQ_QTY_COL).setValue(qs.join(' + '));
     step('запись строки');
     equipSyncLocations_(sh, players);
     step('локации');
