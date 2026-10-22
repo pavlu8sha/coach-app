@@ -36,6 +36,17 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
 .pr{border-top:1px solid var(--line);margin-top:8px;padding-top:8px;font-size:14px}
 .prh{display:flex;justify-content:space-between;gap:8px}
 .msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:8px}
+.swrow{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px;padding:0 14px;border:1px solid var(--color-border-strong,var(--line));border-radius:12px;background:var(--card);font-weight:700;font-size:14px}
+.sw{position:relative;flex:none;width:46px;height:26px;padding:0;border:0;border-radius:13px;background:var(--line);cursor:pointer;min-height:26px;margin:0}
+.sw .knob{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .15s}
+.sw[aria-checked=true]{background:var(--g)}
+.sw[aria-checked=true] .knob{transform:translateX(20px)}
+.sw:focus-visible{outline:2px solid var(--g);outline-offset:2px}
+.sk-row{display:flex;gap:12px;align-items:center;padding:12px 14px;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:8px}
+.sk-t{flex:1;min-width:0}.sk-l{display:block;height:12px;border-radius:6px;background:var(--line);margin:8px 0;width:100%;animation:skp 1.2s ease-in-out infinite}
+.sk-l.w60{width:60%}.sk-l.w40{width:40%}
+@keyframes skp{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.sk-l{animation:none}}
 </style>
 </head>
 <body>
@@ -44,9 +55,9 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
   <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err" role="alert"></p><button class="btn" id="go">Войти</button>
 </div>
 <div id="app" class="wrap ks-wide-w" hidden>
-  <h1>Оплаты по месяцам</h1>
   <div class="row2"><select id="mon" aria-label="Месяц"></select>
-    <select id="fs" aria-label="Показать"><option value="all">Все</option><option value="debt">Только должники</option></select></div>
+    <div class="swrow"><span id="fl">Только должники</span><button type="button" class="sw" id="fsw" role="switch" aria-labelledby="fl" aria-checked="false"><span class="knob" aria-hidden="true"></span></button></div></div>
+  <input type="hidden" id="fs" value="all">
   <input id="q" placeholder="Поиск по ФИ" style="margin-top:8px">
   <div class="row2">
     <div><label>Дата оплаты</label><input type="date" id="dt"></div>
@@ -80,11 +91,22 @@ function load(){
     loadMonth();
   },fail);
 }
+function skelRows(n){var h='';for(var i=0;i<n;i++)h+='<div class="sk-row" aria-hidden="true"><span class="sk-t"><span class="sk-l w60"></span><span class="sk-l w40"></span></span></div>';return h}
 function loadMonth(){
   var n=++reqN;
-  setMsg('Загрузка…');
-  run('appPayMonth',[pin,$('mon').value],function(d){if(n==reqN){D=d;show()}},function(m){if(n==reqN)fail(m)});
+  setMsg('');
+  $('list').innerHTML=skelRows(4);
+  run('appPayMonth',[pin,$('mon').value],function(d){if(n==reqN){D=d;show()}},function(m){
+    if(n!=reqN)return;
+    if(/код (администратора|доступа)|уже оплачен/.test(String(m)))return fail(m);
+    $('list').innerHTML=ksEmpty({tag:'div',icon:'alert',title:'Не удалось загрузить данные',text:'Проверьте соединение и попробуйте ещё раз.',btn:'Повторить',id:'pretry'});
+  });
 }
+$('list').addEventListener('click',function(e){
+  if(e.target.closest('#pretry'))return loadMonth();
+  if(e.target.closest('#preset')){$('q').value='';$('fs').value='all';$('fsw').setAttribute('aria-checked','false');show()}
+});
+$('fsw').onclick=function(){var on=$('fs').value!='debt';$('fs').value=on?'debt':'all';this.setAttribute('aria-checked',String(on));show()};
 function chip(r){return r.extra?'<span class="ok">доп. программа: в счёт '+esc(r.extra)+'</span>':r.st=='paid'?'<span class="ok">'+(r.disc?'скидка':'оплачено')+'</span>':r.st=='partial'?'<span class="err">частично, долг '+money(r.debt)+'</span>':'<span class="err">не платил</span>'}
 function prow(r,gi,ri){
   var b='';
@@ -107,7 +129,8 @@ function show(){
   });
   var t=function(a,b,c){return'<div class="tile"><b'+(c?' class="err"':'')+'>'+b+'</b><span>'+a+'</span></div>'};
   $('sum').innerHTML=t('внесено',money(S))+t('ожидается по тарифам',money(E))+t('оплатили',P+' из '+N)+t('должников',(N-P),N-P>0);
-  setMsg(flash);flash='';$('list').innerHTML=out||'<p class="sub">Ничего не найдено.</p>';
+  setMsg(flash);flash='';
+  $('list').innerHTML=out||ksEmpty({tag:'div',icon:'search',title:'Ничего не найдено',text:'Попробуйте изменить запрос или сбросить фильтры.',btn:'Сбросить фильтры',id:'preset'});
 }
 // Форма строки: сумма и тип (если сумма меньше остатка). Способ, дата и комментарий — общие сверху.
 function form(r){
