@@ -40,6 +40,7 @@ th{color:var(--mute);font-weight:600}
 .mbar{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--color-border-strong);border-radius:12px;padding:3px;margin:0 0 8px}
 .mstep{flex:none;width:44px;height:44px;border:0;border-radius:10px;background:var(--bg);color:var(--ink);font-size:24px;font-weight:700;line-height:1}
 .mstep:disabled{opacity:.35;cursor:default}
+.dbar{display:flex;gap:8px;align-items:center;margin-bottom:12px}.dbar input{flex:1;min-width:0}
 .mcur{position:relative;flex:1;min-width:0;height:44px;margin:0;display:flex;align-items:center;justify-content:center;gap:8px;font-size:16px;font-weight:700;color:var(--ink);border-radius:10px}
 .mcur svg{width:18px;height:18px;flex:none}
 .mcur select{position:absolute;top:0;left:0;width:100%;height:100%;min-height:0;opacity:0;cursor:pointer;margin:0}
@@ -74,7 +75,7 @@ li small{color:var(--mute)}
   <h1>Вход</h1><label for="pin" class="ks-pinl">Введите код доступа</label>
   <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err" role="alert"></p><button class="btn" id="go">Войти</button>
 </div>
-<div id="app" class="wrap" hidden>
+<div id="app" class="wrap ks-wide-w" hidden>
   <h1>Посещаемость тренеров</h1>
   <div class="mbar">
     <button type="button" class="mstep" id="mprev" aria-label="Предыдущий месяц">‹</button>
@@ -118,7 +119,11 @@ li small{color:var(--mute)}
   </div>
 
   <div id="pane-dy" hidden>
-    <input id="dy-date" type="date" aria-label="Дата">
+    <div class="dbar">
+      <button type="button" class="mstep" id="dprev" aria-label="Предыдущий день">‹</button>
+      <input id="dy-date" type="date" aria-label="Дата">
+      <button type="button" class="mstep" id="dnext" aria-label="Следующий день">›</button>
+    </div>
     <div id="dy-list"></div>
   </div>
 
@@ -368,6 +373,14 @@ function loadDay(){
   },function(e){setMsg(e,true)});
 }
 $('dy-date').onchange=loadDay;
+// Стрелки «предыдущий / следующий день» — как у переключения месяца
+function shiftDy(n){
+  var v=$('dy-date').value||todayIso(),d=new Date(v+'T00:00:00');
+  d.setDate(d.getDate()+n);
+  $('dy-date').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  loadDay();
+}
+$('dprev').onclick=function(){shiftDy(-1)};$('dnext').onclick=function(){shiftDy(1)};
 // Дополнительные тренеры формы: до трёх в сумме, каждый — отдельной строкой тренировки
 function trExtraAdd(){
   var n=document.querySelectorAll('.a-tr-x').length;
