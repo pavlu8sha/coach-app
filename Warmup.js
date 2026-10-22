@@ -28,8 +28,12 @@ function warmCore_() {
   step(['extra_v1'], function () { extraParse_(true); });
 }
 
-// Запускается по расписанию; ночью ничего не делает
-function warmUp() {
+// Обработчик триггера прогрева. Имя не менять: на него ссылается уже установленный триггер (план миграции #15/#16).
+// Внешний вызов только читает таблицы и обновляет кэш.
+function warmUp(e) { warmUpRun_(); }
+
+// Ночью ничего не делает
+function warmUpRun_() {
   var h = Number(Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'H'));
   if (h < 7 || h >= 23) return;
   warmCore_();
@@ -45,8 +49,11 @@ function appRefreshData(pin) {
   return true;
 }
 
-// Запустить ОДИН раз: включает прогрев каждые 10 минут
-function installWarmTrigger() {
+// Запуск из редактора («Выполнить»), только в окне обслуживания MAINT_UNTIL (см. Maint.js). Ничего не возвращает.
+function installWarmTrigger() { maintCheck_(); installWarmTrigger_(); }
+
+// Включает прогрев каждые 10 минут (старый триггер warmUp удаляется, создаётся новый)
+function installWarmTrigger_() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'warmUp') ScriptApp.deleteTrigger(t);
   });
@@ -55,4 +62,4 @@ function installWarmTrigger() {
 }
 
 // Для ручного запуска из редактора: замер времени по шагам прогрева
-function warmTest() { warmCore_(); }
+function warmTest_() { warmCore_(); }

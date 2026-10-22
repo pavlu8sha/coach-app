@@ -40,8 +40,8 @@ test('finance migration functions exit before any spreadsheet writes in DRY_RUN'
     SpreadsheetApp: { getActive: () => { spreadsheetAccess++; throw new Error('must not access sheets in DRY_RUN'); } },
     adminSS_: () => { spreadsheetAccess++; throw new Error('must not access AdminApp in DRY_RUN'); }
   });
-  assert.doesNotThrow(() => context.migrateFinance());
-  assert.doesNotThrow(() => context.migrateMatchFees());
+  assert.doesNotThrow(() => context.migrateFinance_());
+  assert.doesNotThrow(() => context.migrateMatchFees_());
   assert.equal(spreadsheetAccess, 0);
 });
 
@@ -53,6 +53,6 @@ test('importMatchesPreview does not create or clear the preview sheet in DRY_RUN
   // Replace declarations after evaluating the source; function declarations in the source otherwise overwrite injected stubs.
   context.parseAllGames_ = () => ({ notes: [], events: [{ team: 'U9-A', type: 'Кубок', name: 'Test', rows: [{ name: 'Test Player' }] }] });
   context.readRegistry_ = () => ({ players: [{ name: 'Test Player' }] });
-  assert.doesNotThrow(() => context.importMatchesPreview());
+  assert.doesNotThrow(() => context.importMatchesPreview_());
   assert.equal(sheetAccess, 0);
 });

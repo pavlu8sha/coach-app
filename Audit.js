@@ -1,4 +1,4 @@
-function auditSheets() {
+function auditSheets_() {
   var out = [];
   function dump(label, ss) {
     out.push('=== ' + label + ': ' + ss.getName() + ' ===');
