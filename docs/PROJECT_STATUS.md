@@ -7,9 +7,9 @@
 ## Зафиксированное состояние
 
 - `master` после merge PR #3: `b6c7ff04f726a5995a889b1e6deb1a61f605d5e0` (сверять актуальный HEAD перед работой).
-- Ruleset `Protect master` активен: PR обязателен, force-push и удаление master запрещены, bypass list пустой.
+- Ruleset `Protect master` снят по решению владельца (2026-10-22): PR не обязателен, прямой push в master разрешён.
 - Workflow `Тесты` теперь находится в master; [последний run на HEAD PR #3](https://github.com/pavlu8sha/coach-app/actions/runs/39590822753) завершился успешно.
-- **Обязательный CI check пока не включён.** Следующий шаг — проверить запуск после merge и включить required status check в ruleset.
+- Обязательный CI check не включён; без ruleset он неприменим. CI-workflow запускается на push в master и на PR, его результат смотреть перед деплоем.
 - Слияние в GitHub не означает публикацию в Apps Script. Production deployment отдельно не подтверждён.
 - Тестовая среда отсутствует; `/dev` production-проекта использует боевые таблицы. Никаких тестовых записей в production.
 
