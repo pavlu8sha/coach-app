@@ -1,33 +1,40 @@
 // Импорт индивидуальных тренировок (листы IND_ID) в Supabase. Нужна миграция 0008.
+// Источник: листы приложения (AdminApp), не старые файлы IND_ID.
 // Использование:
-//   node scripts/import/run-individual.mjs --registry РЕЕСТР.csv --dir ПАПКА_IND_ID        — проверка
+//   node scripts/import/run-individual.mjs --registry РЕЕСТР.csv --sessions ИНДИВИДУАЛЬНЫЕ_ЗАНЯТИЯ.csv --journal ИНДИВИДУАЛЬНЫЕ_ОПЛАТЫ.csv   — проверка
 //   то же + --write — записать
 // Нужны переменные окружения: SUPABASE_URL, SUPABASE_SERVICE_KEY, CLUB_ID. Ключ в репозиторий и в чат не класть.
 // Гости записываются в players с external_id GUEST-… и статусом inactive. Повторный запуск не дублирует.
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseRegistry } from './registry.mjs';
-import { parseIndividualFile, IND_PRICE } from './individual.mjs';
+import { IND_PRICE, parseSessionsSheet, replayJournal, parseSessionKey } from './individual.mjs';
 
 const arg = name => { const i = process.argv.indexOf('--' + name); return i >= 0 ? process.argv[i + 1] : null; };
 const write = process.argv.includes('--write');
-const regFile = arg('registry'), dir = arg('dir');
-if (!regFile || !dir) { console.error('Укажите --registry и --dir (папка IND_ID)'); process.exit(2); }
+const regFile = arg('registry'), sessFile = arg('sessions'), jFile = arg('journal');
+if (!regFile || !sessFile || !jFile) { console.error('Укажите --registry, --sessions, --journal'); process.exit(2); }
 
 const reg = parseRegistry(fs.readFileSync(regFile, 'utf8'));
 const names = reg.players.map(p => p.full_name);
-const sessions = [], problems = [];
-for (const f of fs.readdirSync(dir).filter(n => n.endsWith('.csv')).sort()) {
-  const r = parseIndividualFile(fs.readFileSync(path.join(dir, f), 'utf8'), f, names);
-  sessions.push(...r.sessions); problems.push(...r.problems);
+const listed = parseSessionsSheet(fs.readFileSync(sessFile, 'utf8'));
+const journal = replayJournal(fs.readFileSync(jFile, 'utf8'), names);
+const problems = [...journal.problems];
+// занятия: из листа ЗАНЯТИЯ и те, что есть только в журнале (старые, без строки в листе)
+const sessMap = new Map(listed.map(s => [s.key, { ...s, people: [] }]));
+for (const b of journal.bookings) {
+  if (!sessMap.has(b.key)) { const info = parseSessionKey(b.key); if (!info) { problems.push({ error: 'занятие не разобрано: ' + b.key }); continue; } sessMap.set(b.key, { ...info, topic: null, people: [] }); }
+  sessMap.get(b.key).people.push(b);
 }
-const entries = sessions.reduce((a, s) => a + s.people.length, 0);
-const paid = sessions.reduce((a, s) => a + s.people.filter(p => p.paid).length, 0);
-const guests = [...new Set(sessions.flatMap(s => s.people.filter(p => p.guest).map(p => p.name)))];
+const sessions = [...sessMap.values()];
+const bookings = sessions.flatMap(s => s.people);
+const entries = bookings.length;
+const paid = bookings.filter(p => p.paid).length;
+const guests = [...new Set(bookings.filter(p => p.guest).map(p => p.name))];
 console.log(`Занятий ${sessions.length} (вратарских ${sessions.filter(s => s.external_id.endsWith('GK')).length}), записей ${entries}, оплачено ${paid}, не оплачено ${entries - paid}`);
 console.log(`Гости: ${guests.join(', ')}`);
 console.log(`Проблем: ${problems.length}`);
-for (const p of problems) console.log(`  ${p.file}: ${p.error}`);
+for (const p of problems) console.log(`  ${p.error}`);
 if (!write) { console.log('Проверка без записи. Для записи добавьте --write.'); process.exit(0); }
 if (problems.length) { console.error('Есть проблемы разбора — запись остановлена.'); process.exit(1); }
 
@@ -46,7 +53,7 @@ async function rest(method, p, body, prefer = '') {
 const MERGE = 'resolution=merge-duplicates,return=minimal';
 
 // 1) гости — как игроки без группы
-const guestRows = [...new Map(sessions.flatMap(s => s.people.filter(p => p.guest)).map(p => [p.external_id, p])).values()];
+const guestRows = [...new Map(bookings.filter(p => p.guest).map(p => [p.external_id, p])).values()];
 if (guestRows.length) await rest('POST', 'players?on_conflict=club_id,external_id', guestRows.map(g => ({
   club_id: CLUB_ID, external_id: g.external_id, full_name: g.name, status: 'inactive',
 })), MERGE);
@@ -54,7 +61,7 @@ if (guestRows.length) await rest('POST', 'players?on_conflict=club_id,external_i
 // 2) игроки базы: реестр (KS-…) и гости (GUEST-…)
 const dbPlayers = await rest('GET', `players?club_id=eq.${CLUB_ID}&select=id,external_id,full_name`);
 const byName = new Map(dbPlayers.map(p => [p.full_name, p.id]));
-const absent = [...new Set(sessions.flatMap(s => s.people.map(p => p.name)).filter(n => !byName.has(n)))];
+const absent = [...new Set(bookings.map(p => p.name).filter(n => !byName.has(n)))];
 if (absent.length) { console.error('Игроки не найдены в базе (сначала реестр и гости): ' + absent.join(', ')); process.exit(1); }
 
 // 3) занятия
@@ -65,10 +72,10 @@ const dbS = await rest('GET', `individual_sessions?club_id=eq.${CLUB_ID}&select=
 const sid = new Map(dbS.map(s => [s.external_id, s.id]));
 
 // 4) записи
-const bookings = sessions.flatMap(s => s.people.map(p => ({
+const rowsB = sessions.flatMap(s => s.people.map(p => ({
   session_id: sid.get(s.external_id), player_id: byName.get(p.name), amount: IND_PRICE, paid: p.paid,
 })));
-for (let i = 0; i < bookings.length; i += 500) {
-  await rest('POST', 'individual_bookings?on_conflict=session_id,player_id', bookings.slice(i, i + 500), MERGE);
+for (let i = 0; i < rowsB.length; i += 500) {
+  await rest('POST', 'individual_bookings?on_conflict=session_id,player_id', rowsB.slice(i, i + 500), MERGE);
 }
-console.log(`Записано: занятий ${sessions.length}, записей ${bookings.length}, гостей ${guestRows.length}.`);
+console.log(`Записано: занятий ${sessions.length}, записей ${rowsB.length}, гостей ${guestRows.length}.`);
