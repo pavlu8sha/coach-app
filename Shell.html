@@ -24,7 +24,7 @@
 (function(){
   var PAGES=__SHELL_PAGES__,START='__START__',URL='__URL__';
   var host=document.getElementById('kshost'),load=host.querySelector('.ksshl'),err=host.querySelector('.ksshe');
-  var frames={},cur='',want='';
+  var frames={},cur='',want='',htmlCache={},prefetched=false;
   function pageOf(href){var m=/[?&]page=([^&#]+)/.exec(href||'');return m?decodeURIComponent(m[1]):'att'}
 
   // Окно раздела занимает место между меню и краем экрана (меню снизу на телефоне, сверху на компьютере)
@@ -68,18 +68,26 @@
     if(frames[page]){showOnly(page);return}
     Object.keys(frames).forEach(function(k){frames[k].hidden=true});
     err.hidden=true;load.hidden=false;
-    google.script.run.withSuccessHandler(function(html){
-      if(frames[page])return;
-      var f=document.createElement('iframe');f.title=page;f.hidden=true;
-      html=String(html).replace(/<head([^>]*)>/i,function(m){return m+'<script>window.KS_EMBED=1;try{window.google=parent.ksChildGoogle()}catch(e){}<\/script>'});
-      f.addEventListener('load',function(){if(want===page)showOnly(page)});
-      f.srcdoc=html;frames[page]=f;host.appendChild(f);
-    }).withFailureHandler(function(e){
+    if(htmlCache[page]){mount(page,htmlCache[page]);return}
+    google.script.run.withSuccessHandler(function(html){htmlCache[page]=html;mount(page,html)}).withFailureHandler(function(e){
       if(want!==page)return;
       load.hidden=true;
       document.getElementById('ksshein').innerHTML=ksEmpty({tag:'div',icon:'alert',title:'Не удалось открыть раздел',text:(e&&e.message)||'Проверьте соединение и попробуйте ещё раз.',btn:'Повторить',id:'ksshretry'});
       err.hidden=false;
     }).appPageHtml(page);
+  }
+  // Разметку остальных разделов каркаса подгружаем заранее, после первого открытого: переход ждёт только данные раздела
+  function prefetch(){
+    if(prefetched)return;prefetched=true;
+    PAGES.forEach(function(p){if(htmlCache[p]||frames[p])return;
+      google.script.run.withSuccessHandler(function(h){htmlCache[p]=h}).withFailureHandler(function(){}).appPageHtml(p)});
+  }
+  function mount(page,html){
+      if(frames[page])return;
+      var f=document.createElement('iframe');f.title=page;f.hidden=true;
+      html=String(html).replace(/<head([^>]*)>/i,function(m){return m+'<script>window.KS_EMBED=1;try{window.google=parent.ksChildGoogle()}catch(e){}<\/script>'});
+      f.addEventListener('load',function(){if(want===page)showOnly(page);setTimeout(prefetch,1500)});
+      f.srcdoc=html;frames[page]=f;host.appendChild(f);
   }
   err.addEventListener('click',function(e){if(e.target.closest('#ksshretry'))open(want,false)});
 

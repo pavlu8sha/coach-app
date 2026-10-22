@@ -330,6 +330,17 @@ label.ks-pinl{display:block;margin:16px 0 8px;color:var(--ink);font-size:16px;fo
 /* UI-017 (вариант 1): мгновенный отклик при переходе между разделами */
 #ksgoing{position:fixed;left:0;right:0;z-index:40;background:var(--bg);overflow:hidden;padding:16px}
 #ksgoing[hidden]{display:none}
+#ksboot{position:fixed;inset:0;z-index:40;background:var(--bg);overflow:hidden;padding:16px}
+#ksboot .bar{position:absolute;left:0;top:0;height:3px;width:30%;background:var(--g);animation:ksgo 1.1s ease-in-out infinite}
+#ksboot .in{max-width:560px;margin:0 auto}
+#ksboot .h{height:26px;width:45%;border-radius:8px;background:var(--line);margin:8px 0 16px}
+#ksboot .r{height:64px;border-radius:12px;background:var(--card);border:1px solid var(--line);margin-bottom:8px;animation:skp 1.2s ease-in-out infinite}
+/* Место меню, пока сервер проверяет код (настоящее меню появится поверх) */
+#ksboot .nb{position:absolute;left:0;right:0;bottom:0;height:calc(var(--navh,64px) + env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--line);display:flex;justify-content:space-around;align-items:center;padding-bottom:env(safe-area-inset-bottom)}
+#ksboot .nb i{display:block;width:32px;height:32px;border-radius:8px;background:var(--line)}
+html[data-embed] #ksboot .nb{display:none}
+@media(min-width:840px){#ksboot{padding-top:84px}#ksboot .nb{top:0;bottom:auto;height:64px;border-top:0;border-bottom:1px solid var(--line);justify-content:center;gap:24px}#ksboot .nb i{width:90px;height:20px}}
+@media (prefers-reduced-motion:reduce){#ksboot .bar,#ksboot .r{animation:none}}
 #ksgoing .bar{position:absolute;left:0;top:0;height:3px;width:30%;background:var(--g);animation:ksgo 1.1s ease-in-out infinite}
 @keyframes ksgo{0%{left:-30%}100%{left:100%}}
 #ksgoing .in{max-width:560px;margin:0 auto}
@@ -363,6 +374,21 @@ label.ks-pinl{display:block;margin:16px 0 8px;color:var(--ink);font-size:16px;fo
     showGoing();
   });
   window.addEventListener('pageshow',function(e){if(e.persisted&&ov)ov.hidden=true});
+
+  // Пока новая страница ждёт свои данные, её разделы скрыты — без этого после скелетона был пустой экран.
+  // Показываем тот же скелетон с самого начала загрузки и убираем, как только страница показала содержимое или вход.
+  var SEL='#app:not([hidden]),#login:not([hidden]),#card:not([hidden]),#form:not([hidden]),#panel:not([hidden]),#campf:not([hidden]),#gload:not([hidden])';
+  var hasPin=false;try{hasPin=!!localStorage.getItem('kspin')}catch(e){}
+  if(hasPin&&document.body){
+    var boot=document.createElement('div');boot.id='ksboot';boot.setAttribute('role','status');boot.setAttribute('aria-label','Загрузка раздела');
+    boot.innerHTML='<div class="bar"></div><div class="in"><div class="h"></div><div class="r"></div><div class="r"></div><div class="r"></div><div class="r"></div><div class="r"></div></div><div class="nb"><i></i><i></i><i></i><i></i><i></i></div>';
+    document.body.appendChild(boot);
+    var done=function(){if(!boot)return;boot.remove();boot=null;mo.disconnect();clearTimeout(tm)};
+    var mo=new MutationObserver(function(){if(document.querySelector(SEL))done()});
+    mo.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden']});
+    var tm=setTimeout(done,20000);
+    document.addEventListener('DOMContentLoaded',function(){if(!document.getElementById('app')&&!document.getElementById('login'))done()});
+  }
 
   window.ksCacheClear=function(){try{Object.keys(sessionStorage).forEach(function(k){if(k.indexOf('kscache:')===0)sessionStorage.removeItem(k)})}catch(e){}};
   if(window.KS_SHELL)return; // в каркасе данные запоминают сами разделы
