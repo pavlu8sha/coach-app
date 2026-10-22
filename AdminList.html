@@ -15,6 +15,9 @@ li.p .l{min-width:0}
 .lhd b{font-size:13px;letter-spacing:.06em;text-transform:uppercase}.lhd .n{font-weight:800;font-size:15px}
 .lhd2{margin:0 0 6px}
 #count .lhd{color:var(--ink)}
+.afil{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0}
+.afil button{min-height:44px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:0 14px;font-weight:700;font-size:14px}
+.afil button.all{border:0;background:none;color:var(--g);font-weight:700;padding:0 8px}
 li.p{gap:12px;padding:10px 12px}
 li.p .av{flex:none;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--color-primary-subtle,var(--pb));color:var(--g);font-weight:800;font-size:14px}
 li.p .l{flex:1}li.p .l b{display:block;overflow-wrap:break-word}
@@ -60,12 +63,38 @@ li.p .chev{flex:none;width:8px;height:8px;border-right:2px solid var(--mute);bor
         +'<div class="sub">'+esc(p.group+(p.extras.length?' + '+p.extras.join(', '):''))+'</div>'
         +'<div class="sub">'+esc(p.id+' · '+(p.birth?'р. '+p.birth:'без даты'))+'</div>'+badge(p)+'</div><span class="r">'+badge(p)+'<span class="chev" aria-hidden="true"></span></span></li>';
     }).join('');
+    renderApplied(q,g,st);
     // UI-010: пустые состояния (как в Admin.html list)
     if(!a.length)$('list').innerHTML=!D.players.length
       ?ksEmpty({tag:'li',icon:'users',title:'Нет игроков',text:'Добавьте игроков в реестр.',btn:'Добавить игрока',id:'eadd'})
       :ksEmpty({tag:'li',icon:'search',title:'Никого не нашли',text:only?'Нет игроков с неоплаченным абонементом по этим фильтрам.':'Измените поиск или фильтры.',btn:'Сбросить фильтры',id:'ereset'});
   };
   $('q').oninput=function(){window.list()};
+  // UI-013 (макет): панель применённых фильтров, каждый со «×», и «Сбросить все»
+  var af=document.createElement('div');af.id='afil';af.className='afil';af.hidden=true;
+  $('list').parentNode.insertBefore(af,$('list'));
+  function resetAll(){$('q').value='';$('fg').value='';$('st').value='Активен';ySel=[];only=false;$('dbt').setAttribute('aria-pressed','false');fillYears();window.list()}
+  function renderApplied(q,g,st){
+    var h=[];
+    if(q)h.push('<button type="button" data-k="q">Поиск: '+esc($('q').value.trim())+' ×</button>');
+    if(g)h.push('<button type="button" data-k="g">'+esc(g)+' ×</button>');
+    if(st!=='Активен')h.push('<button type="button" data-k="st">'+esc($('st').selectedOptions[0].textContent)+' ×</button>');
+    if(only)h.push('<button type="button" data-k="only">Только не оплатившие ×</button>');
+    ySel.forEach(function(y){h.push('<button type="button" data-k="y" data-y="'+esc(y)+'">'+esc(y==='none'?'без даты':y)+' ×</button>')});
+    af.hidden=!h.length;
+    af.innerHTML=h.length?h.join('')+'<button type="button" class="all" data-k="all">Сбросить все</button>':'';
+  }
+  af.addEventListener('click',function(e){
+    var x=e.target.closest('button');if(!x)return;
+    var k=x.dataset.k;
+    if(k==='all'){resetAll();return}
+    if(k==='q')$('q').value='';
+    else if(k==='g')$('fg').value='';
+    else if(k==='st')$('st').value='Активен';
+    else if(k==='only'){only=false;$('dbt').setAttribute('aria-pressed','false')}
+    else if(k==='y')ySel=ySel.filter(function(y){return y!==x.dataset.y});
+    fillYears();window.list();
+  });
   // Подтягиваем статусы оплаты за текущий месяц после загрузки списка игроков.
   function refresh(){run('appPaySummary',[pin,''],function(r){PAY=r;if(window.D)window.list()},function(){})}
   $('cback').addEventListener('click',refresh);
