@@ -253,7 +253,20 @@ function openTar(){
   $('tarmsg').textContent='';
   $('tarbox').hidden=false;
 }
-$('listb').onclick=function(){run('appCampList',[pin,campId||''],function(r){$('listtxt').value=r.text||'Никто не записан';$('listbox').hidden=false;$('msg').textContent=r.removed&&r.removed.length?'Убраны из списка (отказались): '+r.removed.join(', '):''},fail)};
+// Список для отправки: кнопка открывает и закрывает список; пока он загружается — «Загружаю…», повторные нажатия не срабатывают
+$('listb').setAttribute('aria-expanded','false');$('listb').setAttribute('aria-controls','listbox');
+$('listb').onclick=function(){
+  var b=this;
+  if(!$('listbox').hidden){$('listbox').hidden=true;b.textContent='Список для отправки';b.setAttribute('aria-expanded','false');return}
+  if(b.disabled)return;
+  ksBusy(b,true,'Загружаю…');
+  run('appCampList',[pin,campId||''],function(r){
+    ksBusy(b,false);
+    $('listtxt').value=r.text||'Никто не записан';$('listbox').hidden=false;
+    b.textContent='Скрыть список';b.setAttribute('aria-expanded','true');
+    $('msg').textContent=r.removed&&r.removed.length?'Убраны из списка (отказались): '+r.removed.join(', '):'';
+  },function(m){ksBusy(b,false);fail(m)});
+};
 // Версия для вставки с форматированием: названия групп и имена игроков жирным.
 function campRichHtml(txt){
   return txt.split('\n').map(function(l){
@@ -364,7 +377,7 @@ function submit(){
   run('appCampAdd',[pin,o],function(r){$('fsave').disabled=false;reload(dry(r)+'Участник записан. ')},function(m){$('fsave').disabled=false;fmsg(m,true)});
 }
 $('q').oninput=show;$('fs').onchange=show;
-$('csel').onchange=function(){campId=this.value;load()};
+$('csel').onchange=function(){campId=this.value;$('listbox').hidden=true;$('listb').textContent='Список для отправки';$('listb').setAttribute('aria-expanded','false');load()};
 $('new').onclick=openForm;
 $('fcancel').onclick=function(){$('form').hidden=true;$('app').hidden=false};
 $('fguest').onchange=guestToggle;$('ftar').onchange=tarSum;$('fsave').onclick=submit;
