@@ -127,7 +127,7 @@ function parseAllGames_() {
 }
 
 // ШАГ 1. Создаёт лист «ИМПОРТ ИГРОКОВ» для проверки соответствия имён реестру.
-function importMatchesPreview() {
+function importMatchesPreview_() {
   var res = parseAllGames_(), reg = readRegistry_().players;
   var keys = reg.map(function (p) { return nameKey2_(p.name); });
   var seen = {}, order = [];
@@ -165,9 +165,9 @@ function importMatchesPreview() {
 }
 
 // ШАГ 2. Создаёт листы МАТЧИ и УЧАСТИЕ по проверенному соответствию имён.
-function importMatchesCommit() {
+function importMatchesCommit_() {
   var ss = adminSS_(), mp = ss.getSheetByName(IMP_SHEET);
-  if (!mp) throw new Error('Сначала запустите importMatchesPreview и проверьте лист «' + IMP_SHEET + '»');
+  if (!mp) throw new Error('Сначала запустите importMatchesPreview_ и проверьте лист «' + IMP_SHEET + '»');
   if (ss.getSheetByName('МАТЧИ') || ss.getSheetByName('УЧАСТИЕ')) throw new Error('Листы МАТЧИ или УЧАСТИЕ уже есть: перенос уже выполнялся');
   var byName = {}, map = {};
   readRegistry_().players.forEach(function (p) { byName[norm(p.name)] = p; });
@@ -258,7 +258,7 @@ var U9_ALIAS_ = {
   'german gio': 'German Georgiy'
 };
 
-function u9Champ1Preview() {
+function u9Champ1Preview_() {
   var out = [];
   u9Champ1Plan_().forEach(function (p) {
     out.push(p.team + ': игр ' + p.games.length + ' (' + p.games.map(function (g) { return g.dm; }).join(', ') +
@@ -269,7 +269,7 @@ function u9Champ1Preview() {
   return out.join('\n');
 }
 
-function u9Champ1Apply() {
+function u9Champ1Apply_() {
   if (CONFIG.DRY_RUN) return 'DRY_RUN включён: ничего не записано';
   var log = [];
   var lock = LockService.getScriptLock();

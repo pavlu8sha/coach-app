@@ -45,8 +45,11 @@ function appRefreshData(pin) {
   return true;
 }
 
-// Запустить ОДИН раз: включает прогрев каждые 10 минут
-function installWarmTrigger() {
+// Запуск из редактора («Выполнить»), только в окне обслуживания MAINT_UNTIL (см. Maint.js). Ничего не возвращает.
+function installWarmTrigger() { maintCheck_(); installWarmTrigger_(); }
+
+// Включает прогрев каждые 10 минут (старый триггер warmUp удаляется, создаётся новый)
+function installWarmTrigger_() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'warmUp') ScriptApp.deleteTrigger(t);
   });
@@ -55,4 +58,4 @@ function installWarmTrigger() {
 }
 
 // Для ручного запуска из редактора: замер времени по шагам прогрева
-function warmTest() { warmCore_(); }
+function warmTest_() { warmCore_(); }

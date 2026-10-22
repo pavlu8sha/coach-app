@@ -373,7 +373,7 @@ function appSaveCampList(pin, campId, text) {
   return { ok: true, dryRun: CONFIG.DRY_RUN };
 }
 
-function campsTest() {
+function campsTest_() {
   var all = campAll_();
   Logger.log('Сборов: ' + all.camps.length + ', тарифов: ' + all.tariffs.length + ', участников: ' + all.parts.length + ', платежей: ' + all.pays.length);
   all.camps.forEach(function (c) { Logger.log(c.id + ' ' + c.name + ', ' + c.start + ' — ' + c.end + ', бронь ' + c.deposit + ' до ' + c.depositBy + ', оплата до ' + c.payBy); });
