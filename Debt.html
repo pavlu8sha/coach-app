@@ -61,8 +61,22 @@ summary{cursor:pointer;list-style:none;min-height:44px;display:flex;flex-directi
   <div id="ext"></div>
 </div>
 <script>
-var pin='',R=null,done={},method='';
-try{done=JSON.parse(localStorage.getItem('debtDone')||'{}')}catch(e){}
+var pin='',R=null,done={},method='',moved=false;
+// Отметки «написал(а)» — на сервере (лист «ОТМЕТКИ ДОЛЖНИКОВ»), общие для всех устройств; приходят вместе со списком
+function setDone(r){done={};(r.wrote||[]).forEach(function(id){done[r.month+'|'+id]=1})}
+// Отметки, сохранённые раньше только в этом браузере (localStorage «debtDone»), один раз переносятся на сервер:
+// только добавляются, ничего не снимается; после переноса хранятся под «debtDoneMoved» и больше не отправляются
+function moveLocal(){
+  if(moved)return;moved=true;
+  var old=null;try{old=JSON.parse(localStorage.getItem('debtDone')||'null')}catch(e){}
+  var keys=old?Object.keys(old).filter(function(k){return old[k]}):[];
+  if(!keys.length)return;
+  run('appDebtWroteImport',[pin,keys],function(r){
+    if(!r||r.dryRun)return;
+    try{localStorage.setItem('debtDoneMoved',localStorage.getItem('debtDone'));localStorage.removeItem('debtDone')}catch(e){}
+    if(r.added)load(true);
+  },function(){moved=false});
+}
 var MN=['январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
 var DEF='Добрый день\nУ вас не оплачен абонемент за {месяц}';
 function $(i){return document.getElementById(i)}
@@ -81,7 +95,7 @@ function msgFor(name){
 function load(keepMon){
   setMsg('Загрузка…');
   run('appDebtors',[pin,keepMon?$('mon').value:''],function(r){
-    R=r;$('login').hidden=true;$('app').hidden=false;
+    R=r;setDone(r);$('login').hidden=true;$('app').hidden=false;
     if(!keepMon){
       $('mon').innerHTML=r.months.map(function(m){return'<option>'+m+'</option>'}).join('');
       $('mon').value=r.month;
@@ -90,6 +104,7 @@ function load(keepMon){
     $('grp').innerHTML='<option value="">Все группы</option>'+r.groups.map(function(x){return'<option>'+esc(x.name)+'</option>'}).join('');
     $('grp').value=g;
     show();
+    moveLocal();
   },fail);
 }
 function show(keepMsg){
@@ -129,7 +144,13 @@ function copyText(t,b){
   else done2(fallbackCopy(t));
 }
 $('cpall').onclick=function(){copyText(msgFor(''),this)};
-$('list').onchange=function(e){var c=e.target;if(c.dataset&&c.dataset.k){if(c.checked)done[c.dataset.k]=1;else delete done[c.dataset.k];try{localStorage.setItem('debtDone',JSON.stringify(done))}catch(x){}}};
+// одна отметка за нажатие (месяц|ID): чужие отметки не затираются; при ошибке галочка возвращается
+$('list').onchange=function(e){
+  var c=e.target;if(!(c.dataset&&c.dataset.k))return;
+  var k=c.dataset.k,i=k.indexOf('|'),on=c.checked;if(on)done[k]=1;else delete done[k];
+  c.disabled=true;
+  run('appDebtWrote',[pin,k.slice(0,i),k.slice(i+1),on],function(){c.disabled=false},function(m){c.disabled=false;c.checked=!on;if(on)delete done[k];else done[k]=1;setMsg(m,true)});
+};
 $('list').oninput=function(e){
   if(!e.target.classList.contains('pa'))return;
   var it=e.target.closest('.it');

@@ -517,36 +517,21 @@ function appExtraOfPlayer(pin, id) {
   });
   return res;
 }
-// Отметки «написал(а)» по неоплаченным тренировкам: лист AdminApp «ОТМЕТКИ СООБЩЕНИЙ» (событие, игрок).
+// Отметки «написал(а)» по неоплаченным тренировкам: лист AdminApp «ОТМЕТКИ СООБЩЕНИЙ» (событие, игрок). См. Wrote.js.
 var WROTE_SHEET = 'ОТМЕТКИ СООБЩЕНИЙ', WROTE_HEAD = ['Событие', 'Игрок'];
 
 function appWroteList(pin) {
   checkAdmin_(pin);
-  var sh = dbRead_(WROTE_SHEET);
-  if (!sh) return [];
-  var n = sh.getLastRow() - 1;
-  if (n < 1) return [];
-  return sh.getRange(2, 1, n, 2).getValues()
-    .filter(function (r) { return String(r[0]) && String(r[1]); })
-    .map(function (r) { return String(r[0]) + '|' + String(r[1]); });
+  return wroteRows_(dbRead_(WROTE_SHEET))
+    .filter(function (r) { return r[0] && r[1]; })
+    .map(function (r) { return r[0] + '|' + r[1]; });
 }
 
-// keys: список «событие|игрок», которые отмечены сейчас; лист перезаписывается целиком
-function appWroteSet(pin, keys) {
+// Одна отметка: key «событие|игрок» (до первой «|» — лист тренировки), on — поставить или снять.
+// Раньше appWroteSet перезаписывал весь лист набором с одной страницы и затирал отметки, поставленные в другом месте.
+function appWroteToggle(pin, key, on) {
   checkAdmin_(pin);
-  if (CONFIG.DRY_RUN) return { ok: true, dryRun: true };
-  var lock = LockService.getScriptLock();
-  lock.waitLock(20000);
-  try {
-    var sh = dbSheet_(WROTE_SHEET, WROTE_HEAD);
-    var n = Math.max(sh.getLastRow() - 1, 1);
-    // Текстовый формат до записи: иначе «11.10» Sheets превращает в дату, и отметка не совпадает при чтении
-    nfSafe_(sh.getRange(2, 1, Math.max(sh.getMaxRows() - 1, n), 2), '@');
-    sh.getRange(2, 1, n, 2).clearContent();
-    var rows = (keys || []).map(function (k) { var i = String(k).indexOf('|'); return [String(k).slice(0, i), String(k).slice(i + 1)]; });
-    if (rows.length) sh.getRange(2, 1, rows.length, 2).setValues(rows);
-    return { ok: true, count: rows.length };
-  } finally {
-    lock.releaseLock();
-  }
+  var k = String(key || ''), i = k.indexOf('|'), a = i > 0 ? k.slice(0, i).trim() : '', b = i > 0 ? k.slice(i + 1).trim() : '';
+  if (!a || !b || k.length > 300) throw new Error('Неверная отметка');
+  return wroteToggle_(WROTE_SHEET, WROTE_HEAD, a, b, !!on);
 }

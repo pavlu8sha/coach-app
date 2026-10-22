@@ -198,8 +198,10 @@ $('mpsave').onclick=function(){
 };
 $('mlist').onchange=function(ev){
   var c=ev.target;if(!c.dataset||!c.dataset.w)return;
-  var m=wroteMap();if(c.checked)m[c.dataset.w]=1;else delete m[c.dataset.w];
-  run('appWroteSet',[pin,Object.keys(m).filter(function(k){return m[k]})],function(){},function(e){msg(e,true)});
+  // одна отметка за нажатие: чужие отметки не затираются; при ошибке галочка возвращается
+  var m=wroteMap(),k=c.dataset.w,on=c.checked;if(on)m[k]=1;else delete m[k];
+  c.disabled=true;
+  run('appWroteToggle',[pin,k,on],function(){c.disabled=false},function(e){c.disabled=false;c.checked=!on;if(on)delete m[k];else m[k]=1;msg(e,true)});
 };
 function render(){
   renderDebts();fillMsg();
