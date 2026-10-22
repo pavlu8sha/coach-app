@@ -106,7 +106,11 @@
       if(frames[page])return;
       var f=document.createElement('iframe');f.title=page;f.hidden=true;
       html=String(html).replace(/<head([^>]*)>/i,function(m){return m+'<script>window.KS_EMBED=1;try{window.google=parent.ksChildGoogle('+JSON.stringify(page)+')}catch(e){}<\/script>'});
-      f.addEventListener('load',function(){if(want===page)showOnly(page);setTimeout(prefetch,1500)});
+      f.addEventListener('load',function(){
+        if(want===page)showOnly(page);setTimeout(prefetch,1500);
+        // нажатие внутри раздела закрывает открытое меню «Ещё»
+        try{f.contentWindow.document.addEventListener('pointerdown',function(){if(window.ksMoreClose)ksMoreClose()},true)}catch(e){}
+      });
       f.srcdoc=html;frames[page]=f;host.appendChild(f);
   }
   err.addEventListener('click',function(e){if(e.target.closest('#ksshretry'))open(want,false)});

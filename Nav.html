@@ -153,6 +153,9 @@ img,table,select,input,textarea{max-width:100%}
     if(b.dataset.m)setMode(b.dataset.m);else if(b.id=='kslo')logout();else if(b.id=='ksref')refresh();
   });
   document.addEventListener('click',function(e){if(!e.target.closest('#ksmore,#ksmb')&&!sheet.hidden)sheetOpen(false)});
+  // В каркасе нажатие по разделу приходится на его окно и сюда не доходит: закрываем «Ещё», когда фокус ушёл в окно раздела
+  window.addEventListener('blur',function(){if(!sheet.hidden)sheetOpen(false)});
+  window.ksMoreClose=function(){if(!sheet.hidden)sheetOpen(false)};
   document.getElementById('ksadm').onclick=function(){setMode('admin')};
   // тема сменилась (здесь, в «Настройках» или в другой вкладке) — отметка в «Ещё»
   document.addEventListener('kstheme',function(){var t=window.ksTheme?window.ksTheme():'';[].forEach.call(sheet.querySelectorAll('[data-th]'),function(x){var on=x.dataset.th===t;x.classList.toggle('on',on);x.setAttribute('aria-checked',String(on))})});
