@@ -41,6 +41,13 @@ li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padd
 .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
 .tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
 .tile b{display:block;font-size:17px}.tile span{color:var(--mute);font-size:12px}
+.chd{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:4px 0 12px}
+.chd .cbk{border:0;background:none;padding:0 8px 0 0;min-height:44px;font-size:17px}
+.chd #cedit{min-height:44px;width:auto;padding:0 14px}
+.cprof{display:flex;gap:16px;align-items:center;margin-bottom:14px}
+.cav{flex:none;width:88px;height:88px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--color-primary-subtle,#DDE4F6);color:var(--g);font-weight:800;font-size:28px;border:2px solid var(--line)}
+.cpt{min-width:0}.cpt h1{margin:0 0 4px;font-size:24px;overflow-wrap:break-word}
+.cpt .sub{margin:2px 0}
 </style>
 </head>
 <body>
@@ -59,10 +66,10 @@ li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padd
   <ul id="list"></ul>
 </div>
 <div id="card" class="wrap" hidden>
-  <h1 id="ctitle"></h1><div class="sub" id="cinfo"></div><div class="sub" id="cbirth"></div>
+  <div class="chd"><button class="btn sec cbk" id="cback" aria-label="Назад к списку игроков">‹ Игроки</button><button class="btn sec" id="cedit">Изменить данные</button></div>
+  <div class="cprof"><div class="cav" id="cav" aria-hidden="true"></div><div class="cpt"><h1 id="ctitle"></h1><div class="sub" id="cinfo"></div><div class="sub" id="cbirth"></div></div></div>
   <button class="btn sec" id="bopen" hidden>Указать дату рождения</button>
   <div id="bform" hidden><input type="date" id="bdt" aria-label="Дата рождения"><button class="btn sec" id="bsave">Сохранить дату</button></div>
-  <button class="btn sec" id="cedit">Изменить данные игрока</button>
   <label>Способ оплаты (для всех платежей ниже)</label>
   <div class="seg" id="meth"><button data-m="Наличные" aria-pressed="false">Наличные</button><button data-m="Перевод" aria-pressed="false">Перевод</button></div>
   <div class="row2">
@@ -71,7 +78,6 @@ li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padd
   </div>
   <div class="msg" id="pmsg" role="status"></div>
   <div id="cbody"></div>
-  <button class="btn sec" id="cback">К списку игроков</button>
 </div>
 <div id="form" class="wrap" hidden>
   <h1 id="ftitle"></h1>
@@ -230,7 +236,8 @@ function openCard(i){
   var n=++cardReq;cardI=i;var p=D.players[i],pk={},left=4;
   $('app').hidden=true;$('form').hidden=true;$('card').hidden=false;
   $('ctitle').textContent=p.name;
-  $('cinfo').textContent=p.id+' / '+p.group+(p.extras.length?' + '+p.extras.join(', '):'')+' / '+p.status;
+  $('cav').textContent=String(p.name).split(/\s+/).map(function(w){return w.charAt(0)}).join('').slice(0,2).toUpperCase();
+  $('cinfo').textContent=p.id+' · '+p.group+(p.extras.length?' + '+p.extras.join(', '):'')+' · '+p.status;
   $('cbirth').textContent=p.birth?'Дата рождения: '+p.birth:'Дата рождения не указана';
   $('bopen').textContent=p.birth?'Изменить дату рождения':'Указать дату рождения';
   $('bopen').hidden=false;$('bform').hidden=true;
