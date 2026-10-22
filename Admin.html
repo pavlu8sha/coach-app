@@ -36,9 +36,8 @@ li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padd
 .ext label{display:flex;gap:6px;align-items:center;margin:0;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:999px;color:var(--ink);font-size:14px;cursor:pointer}
 .ext label:has(input:checked){background:var(--g);border-color:var(--g);color:var(--gi)}
 .ext label:focus-within{outline:2px solid var(--g);outline-offset:2px}
-#fext[multiple]{padding:4px 0;height:auto}
-#fext[multiple] option{padding:10px 12px;min-height:44px}
-#fext[multiple] option:checked{background:var(--color-primary-subtle,#DDE4F6);color:var(--ink)}
+#fext[multiple]{min-height:44px;padding:10px 12px}
+@media (pointer:fine){#fext[multiple]{padding:4px 0;height:auto}#fext[multiple] option{padding:10px 12px;min-height:44px}#fext[multiple] option:checked{background:var(--color-primary-subtle,#DDE4F6);color:var(--ink)}}
 .fexth{margin-top:6px;overflow-wrap:anywhere}
 .ferr{color:var(--a);font-size:14px;margin:4px 0 0}
 .frow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}

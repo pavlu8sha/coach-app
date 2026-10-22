@@ -43,8 +43,9 @@ summary{cursor:pointer;list-style:none;min-height:44px;display:flex;flex-directi
 .srch{position:relative}.srch svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--mute);pointer-events:none}
 .srch input{padding-left:40px}
 .fkl{margin-top:10px}
-#fks{padding:4px 0;height:auto}
-#fks option{padding:10px 12px;min-height:44px}
+/* На телефоне — обычное поле выбора высотой 44 px; на компьютере — список строк */
+#fks{min-height:44px;padding:10px 12px}
+@media (pointer:fine){#fks{padding:4px 0;height:auto}#fks option{padding:10px 12px;min-height:44px}}
 .fksh{margin-top:6px;overflow-wrap:anywhere}
 .sk-row{display:flex;gap:12px;align-items:center;padding:12px 14px;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:8px}
 .sk-t{flex:1;min-width:0}.sk-l{display:block;height:12px;border-radius:6px;background:var(--line);margin:8px 0;width:100%;animation:skp 1.2s ease-in-out infinite}
