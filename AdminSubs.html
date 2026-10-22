@@ -7,7 +7,7 @@
       +'<div class="st2" hidden><label>Сумма меньше остатка. Что это?</label><select class="sty"><option value="">Выберите…</option><option value="Скидка">Скидка по договорённости (оплата принята)</option><option value="Частичный">Частичный платёж (останется долг)</option></select></div>'
       +'<label>Способ оплаты</label><select class="smt"><option value="">Выберите…</option><option>Наличные</option><option>Перевод</option></select>'
       +'<label>Дата</label><input type="date" class="sdt" value="'+today()+'"><label>Комментарий</label><input class="scm">'
-      +'<button class="btn '+cls+'">Внести оплату</button><div class="msg err sm"></div>';
+      +'<button class="btn '+cls+'">Принять оплату</button><div class="msg err sm"></div>';
   }
   function item(i,n){
     var act=i.st!='paid'?'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button class="btn sec sb" data-n="'+n+'">Принять оплату</button>'
@@ -53,7 +53,7 @@
     [].slice.call($('cbody').querySelectorAll('h2')).forEach(function(h){
       if(h.textContent=='Абонемент'){var n=h.nextElementSibling;if(n)n.remove();h.remove()}
     });
-    $('cbody').insertAdjacentHTML('beforeend','<h2>Абонемент</h2><div id="subs"><p class="sub">Загрузка…</p></div><h2>Индивидуальные и вратарские</h2><div id="inds"><p class="sub">Загрузка…</p></div><h2>Дополнительные тренировки</h2><div id="exs"><p class="sub">Загрузка…</p></div>');
+    $('cbody').insertAdjacentHTML('beforeend','<h2>Абонемент</h2><div id="subs"><p class="sub">Загрузка…</p></div><h2>Индивидуальные и вратари</h2><div id="inds"><p class="sub">Загрузка…</p></div><h2>Дополнительные тренировки</h2><div id="exs"><p class="sub">Загрузка…</p></div>');
     var sid=D.players[cardI].id;
     run('appPlayerSubs',[pin,sid],function(r){if(D.players[cardI].id==sid){SUB=r;paint()}},function(m){var el=$('subs');if(el&&D.players[cardI].id==sid)el.innerHTML='<p class="err">'+esc(m)+'</p>'});
     loadInd();loadEx();

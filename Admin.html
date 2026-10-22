@@ -48,7 +48,7 @@ li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padd
   <h1>Игроки</h1><label for="pin" class="ks-pinl">Введите код администратора</label>
   <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err" role="alert"></p><button class="btn" id="go">Войти</button>
 </div>
-<div id="app" class="wrap" hidden>
+<div id="app" class="wrap ks-wide-w" hidden>
   <h1>Игроки</h1>
   <form class="qform" onsubmit="event.preventDefault();this.querySelector('input').blur()" style="margin:0;display:block"><input id="q" enterkeyhint="done" onkeydown="if(event.key==='Enter')this.blur()" list="ql" autocomplete="off" placeholder="Поиск: ФИ, ID, группа" style="margin-top:8px"><datalist id="ql"></datalist></form>
   <div class="row2"><select id="fg" aria-label="Группа"></select><select id="st" aria-label="Статус"></select></div>
@@ -80,7 +80,7 @@ li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padd
   <label>Основная группа</label><select id="fgrp"></select>
   <div id="rowstat"><label>Статус</label><select id="fstat"></select></div>
   <div id="rowdate"><label id="fdl"></label><input type="date" id="fdate"></div>
-  <label>Доп. программы</label><div class="ext" id="fext"></div>
+  <label>Дополнительные тренировки</label><div class="ext" id="fext"></div>
   <div class="msg err" id="fmsg"></div><div id="warn"></div>
   <button class="btn" id="save">Сохранить</button>
   <button class="btn sec" id="cancel">Отмена</button>
@@ -167,7 +167,7 @@ function card(it){
   if(!it.paid){
     if(it.amount)f+='<label>Сумма, ₾</label><input type="number" min="0" step="1" class="pa" value="'+(it.debt>0?it.debt:'')+'" data-debt="'+(it.debt>0?it.debt:0)+'">';
     if(it.type)f+='<div class="pt" hidden><label>Сумма меньше остатка. Что это?</label><select class="ptype"><option value="">Выберите…</option><option value="Скидка">Скидка по договорённости (оплата принята)</option><option value="Частичный">Частичный платёж (останется долг)</option></select></div>';
-    f+='<button class="btn pay">Внести оплату</button>';
+    f+='<button class="btn pay">Принять оплату</button>';
     if(it.discOK)f+='<button class="btn sec dc">Считать оплаченным (скидка)</button>';
     f+='<div class="msg err pm"></div>';
   }
@@ -207,7 +207,7 @@ function renderCard(pk){
       return'<div class="res">'+esc(x.date)+': <b>'+esc(x.amount)+'</b> ('+esc(x.month+', '+x.group+', '+x.type+(x.method?', '+x.method:''))+(x.comment?', '+esc(x.comment):'')+')</div>';
     }).join(''):'<p class="sub">Платежей через приложение пока нет. Суммы, внесённые раньше, видны в списке выше.</p>');
   }
-  h+='<h2>Индивидуальные и вратарские</h2>';
+  h+='<h2>Индивидуальные и вратари</h2>';
   if(pk.indErr)h+=errp(pk.indErr);
   else h+=pk.ind.length?pk.ind.map(function(x){
     return card({kind:'ind',sid:x.id,name:x.name,label:x.label,title:x.label,
