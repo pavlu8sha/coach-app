@@ -35,6 +35,13 @@ summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:n
 ul{margin:6px 0 0;padding-left:18px}
 .err{color:var(--a,#B23A2B)}.msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:8px}
 [hidden]{display:none!important}
+.srch{position:relative;min-width:0}.srch svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--mute);pointer-events:none}
+.srch input{padding-left:40px}
+.sk-row{display:flex;gap:12px;align-items:center;padding:12px 14px;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:8px}
+.sk-t{flex:1;min-width:0}.sk-l{display:block;height:12px;border-radius:6px;background:var(--line);margin:8px 0;width:100%;animation:skp 1.2s ease-in-out infinite}
+.sk-l.w60{width:60%}.sk-l.w40{width:40%}
+@keyframes skp{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.sk-l{animation:none}}
 </style>
 </head>
 <body>
@@ -42,7 +49,7 @@ ul{margin:6px 0 0;padding-left:18px}
   <h1>Новые игроки</h1><label for="pin" class="ks-pinl">Введите код администратора</label>
   <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err" role="alert"></p><button class="btn" id="go">Войти</button>
 </div>
-<div id="app" class="wrap" hidden>
+<div id="app" class="wrap ks-wide-w" hidden>
   <h1>Новые игроки</h1>
   <select id="sh" aria-label="Лист"></select>
   <div class="msg" id="msg" role="status"></div>
@@ -50,7 +57,7 @@ ul{margin:6px 0 0;padding-left:18px}
   <div class="fn" id="fn"></div>
   <div id="stuck"></div>
   <h2>Дети</h2>
-  <div class="row2"><input id="q" placeholder="Поиск по имени"><select id="fg" aria-label="Группа"></select></div>
+  <div class="row2"><div class="srch"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input id="q" placeholder="Поиск" aria-label="Поиск ребёнка по имени"></div><select id="fg" aria-label="Группа"></select></div>
   <div id="addbox" hidden>
     <button class="btn sec" id="addb">+ Добавить ребёнка</button>
     <div id="addf" hidden>
@@ -74,8 +81,10 @@ function fail(m){if(/Неверный код/.test(m))showLogin('Неверны�
 var Q=[],qb=false;
 function enq(job){Q.push(job);if(!qb)nextQ()}
 function nextQ(){var j=Q.shift();if(!j){qb=false;return}qb=true;j(nextQ)}
+function skelRows(n){var h='';for(var i=0;i<n;i++)h+='<div class="sk-row" aria-hidden="true"><span class="sk-t"><span class="sk-l w60"></span><span class="sk-l w40"></span></span></div>';return h}
 function load(sheet){
-  setMsg('Загрузка…');
+  var first=!D;
+  if(first){setMsg('');$('list').innerHTML=skelRows(4)}else setMsg('Загрузка…');
   run('appFunnelData',[pin,sheet||''],function(d){
     D=d;$('login').hidden=true;$('app').hidden=false;setMsg('');
     $('sh').innerHTML=d.sheets.map(function(s){return'<option value="'+esc(s.name)+'">'+esc(s.name)+(s.active?'':' (архив)')+'</option>'}).join('');
@@ -86,7 +95,10 @@ function load(sheet){
     $('gl').innerHTML=d.groups.map(function(x){return'<option value="'+esc(x)+'">'}).join('');
     $('addbox').hidden=!d.editable;
     paintAll();
-  },fail);
+  },function(m){
+    if(first&&!/Неверный код/.test(m)){$('login').hidden=true;$('app').hidden=false;setMsg('');$('list').innerHTML=ksEmpty({tag:'div',icon:'alert',title:'Не удалось загрузить данные',text:'Проверьте соединение и попробуйте ещё раз.',btn:'Повторить',id:'fretry'});return}
+    fail(m);
+  });
 }
 function recount(){
   D.counts=D.steps.map(function(s,i){return D.kids.filter(function(k){return k.flags[i]}).length});
@@ -116,8 +128,15 @@ function paintList(){
     return'<details data-k="'+o.i+'"'+(opened[k.name]?' open':'')+'><summary><div class="top"><span>'+esc(k.name)+'</span><span class="sub">'+esc(k.group||'без группы')+' · '+done+'/'+D.steps.length+'</span></div></summary>'
       +'<div class="chips">'+D.steps.map(function(s,si){return'<button class="st" data-k="'+o.i+'" data-s="'+si+'" aria-pressed="'+(k.flags[si]?'true':'false')+'"'+(D.editable?'':' disabled')+'>'+esc(s)+'</button>'}).join('')+'</div>'
       +(D.editable?'<label>Группа</label><input class="gi" data-k="'+o.i+'" list="gl" value="'+esc(k.group)+'">':'')+'</details>';
-  }).join('')||'<p class="sub">Никого не найдено.</p>';
+  }).join('')||(D.kids.length
+    ?ksEmpty({tag:'div',icon:'search',title:'Ничего не найдено',text:'Попробуйте изменить запрос или сбросить фильтры.',btn:'Сбросить фильтры',id:'freset'})
+    :ksEmpty({tag:'div',icon:'users',title:'В листе пока нет детей',text:D.editable?'Добавьте первого ребёнка.':'Детей в этом листе нет.',btn:D.editable?'+ Добавить ребёнка':'',id:'fadd'}));
 }
+$('list').addEventListener('click',function(e){
+  if(e.target.closest('#fretry'))return load();
+  if(e.target.closest('#freset')){$('q').value='';$('fg').value='';return paintList()}
+  if(e.target.closest('#fadd')){$('addb').click();$('addbox').scrollIntoView({block:'center'})}
+});
 $('list').addEventListener('toggle',function(e){var d=e.target,k=D.kids[d.dataset.k];if(k)opened[k.name]=d.open},true);
 $('stuck').addEventListener('toggle',function(e){opened.__stuck=e.target.open},true);
 $('list').onclick=function(e){
