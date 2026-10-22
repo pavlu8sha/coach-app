@@ -28,20 +28,31 @@ function env() {
   return ctx;
 }
 
-test('обычная страница собирается как раньше: меню, общий слой, без пометки каркаса', () => {
+test('?classic=1 — запасной режим: отдельная страница как раньше, ссылки остаются в нём', () => {
   const ctx = env();
-  const r = ctx.doGet({ parameter: { page: 'stats' } });
+  const r = ctx.doGet({ parameter: { page: 'stats', classic: '1' } });
   assert.equal(r.title, 'Статистика');
   assert.match(r.html, /id="ksnav"/);
   assert.match(r.html, /window\.ksEmpty/);
   assert.doesNotMatch(r.html, /<html[^>]*data-embed/);
-  assert.doesNotMatch(r.html, /__URL__|__PAGE__/);
+  assert.doesNotMatch(r.html, /id="kshost"/);
+  assert.doesNotMatch(r.html, /__URL__|__PAGE__|__CL__/);
+  assert.match(r.html, /CL='1'/, 'меню строит ссылки с classic=1');
+  const debt = ctx.doGet({ parameter: { page: 'debt', classic: '1' } });
+  assert.match(debt.html, /href="https:\/\/example\/exec\?page=pay&classic=1"/, 'вкладки подразделов тоже в запасном режиме');
 });
 
-test('без параметра открываются «Отметки», как раньше', () => {
+test('без параметров открывается каркас со стартом на «Отметках»', () => {
   const ctx = env();
   const r = ctx.doGet({ parameter: {} });
   assert.equal(r.title, 'Посещаемость');
+  assert.match(r.html, /id="kshost"/);
+  assert.match(r.html, /START='att'/);
+  assert.match(r.html, /CL=''/, 'в каркасе ссылки без classic');
+  assert.doesNotMatch(r.html, /__URL__|__PAGE__|__CL__|__NAVOF__|__SHELL_PAGES__|__START__/);
+  const st = ctx.doGet({ parameter: { page: 'stats' } });
+  assert.match(st.html, /START='stats'/);
+  assert.equal(st.title, 'Статистика');
 });
 
 test('?shell=1 открывает каркас: все разделы, стартовый раздел и подсветка меню', () => {
@@ -65,6 +76,7 @@ test('appPageHtml отдаёт разделы каркаса с пометкой
   const ctx = env();
   const html = ctx.appPageHtml('stats');
   assert.match(html, /<html[^>]*data-embed="1"/);
+  assert.doesNotMatch(html, /__URL__|__PAGE__|__CL__/);
   assert.match(html, /id="ksnav"/, 'меню остаётся в разметке (скрыто стилями) — для тостов и проверки роли');
   assert.match(ctx.appPageHtml('att'), /<html[^>]*data-embed="1"/, '«Отметки» тоже открываются в каркасе');
   assert.match(ctx.appPageHtml('debt'), /class="ks-sub"/, 'подразделы «Оплат» на месте');

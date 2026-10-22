@@ -44,39 +44,41 @@ var TAB_GROUPS_ = [
   [['Индивидуальные', 'ind'], ['Дополнительные', 'extra']]
 ];
 
-function tabsHtml_(url, page) {
+function tabsHtml_(url, page, classic) {
   var group = TAB_GROUPS_.filter(function (g) { return g.some(function (t) { return t[1] === page; }); })[0];
   if (!group) return '';
   // UI-003: подразделы — сегментный переключатель на всю ширину (оформление — .ks-sub в Nav.html), цели ≥ 44 px
   var h = group.map(function (t) {
     var on = t[1] === page;
-    return '<a target="_top"' + (on ? ' class="on" aria-current="page"' : '') + ' href="' + url + '?page=' + t[1] + '">' + t[0] + '</a>';
+    return '<a target="_top"' + (on ? ' class="on" aria-current="page"' : '') + ' href="' + url + '?page=' + t[1] + (classic ? '&classic=1' : '') + '">' + t[0] + '</a>';
   }).join('');
   // data-gate: вкладки показываются только после входа по коду (см. Nav.html)
   return '<nav data-gate class="ks-sub" aria-label="Подразделы" style="grid-template-columns:repeat(' + group.length + ',1fr)">' + h + '</nav>';
 }
 
 function doGet(e) {
-  var page = (e && e.parameter && e.parameter.page) || '';
-  // UI-017 (проба): единый каркас по ссылке ?shell=1 — рабочие страницы не меняются
-  if (e && e.parameter && e.parameter.shell) return shellOutput_(page);
+  var prm = (e && e.parameter) || {};
+  var page = prm.page || '';
+  // UI-017: по умолчанию — единый каркас. Запасной режим отдельных страниц — ?classic=1
+  if (!prm.classic) return shellOutput_(page);
   var def = PAGES_.hasOwnProperty(page) ? PAGES_[page] : null;
-  return HtmlService.createHtmlOutput(pageHtml_(page, false))
+  return HtmlService.createHtmlOutput(pageHtml_(page, false, true))
     .setTitle(def ? def[1] : 'Посещаемость')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
 // Сборка страницы раздела: меню (Nav), общий слой (Ui), подразделы, сама страница и её вставки.
 // embed=true — для каркаса UI-017: страница помечается data-embed, своё меню у неё скрыто.
-function pageHtml_(page, embed) {
+function pageHtml_(page, embed, classic) {
   var def = PAGES_.hasOwnProperty(page) ? PAGES_[page] : null;
   var file = def ? def[0] : 'Index';
   var url = ScriptApp.getService().getUrl();
   var navPage = def ? (def[2] || page) : 'att';
   var nav = HtmlService.createHtmlOutputFromFile('Nav').getContent()
     .replace('__URL__', url)
-    .replace('__PAGE__', navPage);
-  var sub = tabsHtml_(url, page);
+    .replace('__PAGE__', navPage)
+    .replace('__CL__', classic ? '1' : '');
+  var sub = tabsHtml_(url, page, classic);
   // Общий слой дизайн-системы: токены, диалог подтверждения, состояние «Сохраняю…» (Ui.html)
   var ui = HtmlService.createHtmlOutputFromFile('Ui').getContent();
   var html = HtmlService.createHtmlOutputFromFile(file).getContent()
@@ -92,7 +94,7 @@ function pageHtml_(page, embed) {
   return html;
 }
 
-// UI-017: разделы, которые открываются внутри каркаса (att — «Отметки», стартовая страница без параметра).
+// UI-017: разделы, которые открываются внутри каркаса (каркас — вход по умолчанию) (att — «Отметки», стартовая страница без параметра).
 var SHELL_PAGES_ = ['att'].concat(Object.keys(PAGES_));
 
 // Какой пункт меню подсвечивать для раздела (подразделы «Оплат» и «Индивидуальных» — свой пункт)
@@ -114,7 +116,7 @@ function shellOutput_(page) {
   var start = SHELL_PAGES_.indexOf(page || 'att') >= 0 ? (page || 'att') : 'att';
   var navPage = shellNavOf_()[start];
   var nav = HtmlService.createHtmlOutputFromFile('Nav').getContent()
-    .replace('__URL__', url).replace('__PAGE__', navPage);
+    .replace('__URL__', url).replace('__PAGE__', navPage).replace('__CL__', '');
   var ui = HtmlService.createHtmlOutputFromFile('Ui').getContent();
   var shell = HtmlService.createHtmlOutputFromFile('Shell').getContent()
     .replace('__SHELL_PAGES__', JSON.stringify(SHELL_PAGES_))
@@ -123,7 +125,8 @@ function shellOutput_(page) {
     .replace('__URL__', url);
   var html = '<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"></head><body>'
     + '<script>window.KS_SHELL=1</script>' + nav + ui + shell + '</body></html>';
+  var def = PAGES_.hasOwnProperty(start) ? PAGES_[start] : null;
   return HtmlService.createHtmlOutput(html)
-    .setTitle('Coach App')
+    .setTitle(def ? def[1] : 'Посещаемость')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }

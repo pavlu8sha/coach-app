@@ -1,4 +1,4 @@
-<!-- UI-017 (проба): единый каркас. Меню загружается один раз, разделы открываются внутри без перезагрузки.
+<!-- UI-017: единый каркас — вход в приложение по умолчанию (запасной режим отдельных страниц — ?classic=1). Меню загружается один раз, разделы открываются внутри без перезагрузки.
      Каждый раздел — та же страница, что и раньше, в своём окне (iframe srcdoc): свои переменные и стили не смешиваются.
      Открытые разделы остаются в памяти: повторный переход мгновенный. Разделы вне SHELL_PAGES_ открываются обычной страницей. -->
 <style>
@@ -133,7 +133,7 @@
   window.addEventListener('ksmodechange',function(){Object.keys(frames).forEach(function(k){try{frames[k].contentWindow.dispatchEvent(new Event('ksmodechange'))}catch(e){}})});
   // Вход по коду выполнен внутри раздела — перезапускаем каркас, чтобы показать меню
   var pin0=null;try{pin0=localStorage.getItem('kspin')}catch(e){}
-  window.addEventListener('storage',function(e){if(e.key==='kspin'&&!pin0&&e.newValue){try{window.top.location.href=URL+'?shell=1&page='+encodeURIComponent(cur||START)}catch(x){}}});
+  window.addEventListener('storage',function(e){if(e.key==='kspin'&&!pin0&&e.newValue){try{window.top.location.href=URL+'?page='+encodeURIComponent(cur||START)}catch(x){}}});
 
   layout();setTimeout(layout,300);
   open(START,false);

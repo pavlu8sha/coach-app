@@ -76,7 +76,9 @@ img,table,select,input,textarea{max-width:100%}
 <div id="kstoast" hidden></div>
 <script>
 (function(){
-  var URL='__URL__',PAGE='__PAGE__';
+  var URL='__URL__',PAGE='__PAGE__',CL='__CL__';
+  // Ссылка на раздел; в запасном режиме (?classic=1) ссылки остаются в нём же
+  function pageUrl(p){return URL+(p?'?page='+p+(CL?'&classic=1':''):(CL?'?classic=1':''))}
   window.KS_NAVPAGE=PAGE;
   // UI-017 (проба): в каркасе ссылки раздела (подразделы, «К отметкам») переключают раздел, а не перезагружают страницу
   if(document.documentElement.hasAttribute('data-embed'))document.addEventListener('click',function(e){
@@ -101,11 +103,11 @@ img,table,select,input,textarea{max-width:100%}
   function set(k,v){try{localStorage.setItem(k,v)}catch(e){}}
   // Тема — Ui.html (window.ksTheme / ksSetTheme, ключ kstheme); здесь только переключатель в «Ещё»
   var nav=document.getElementById('ksnav'),sheet=document.getElementById('ksmore'),blk=document.getElementById('ksblock'),toast=document.getElementById('kstoast'),last='',role='',tt;
-  document.getElementById('ksgo').href=URL;
+  document.getElementById('ksgo').href=pageUrl('');
   function asTrainer(){return role!='admin'||get('ksmode')=='trainer'}
   function svg(k){return'<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+ICON[k]+'</svg>'}
   function link(k,cls){
-    var it=ITEMS[k],href=URL+(it[1]?'?page='+it[1]:'');
+    var it=ITEMS[k],href=pageUrl(it[1]);
     return'<a class="'+cls+(k==PAGE?' on':'')+'"'+(k==PAGE?' aria-current="page"':'')+' target="_top" href="'+href+'">'+(cls=='kst'?svg(k)+'<span>'+it[0]+'</span>':it[0])+'</a>';
   }
   function show(){
@@ -140,7 +142,7 @@ img,table,select,input,textarea{max-width:100%}
   function logout(){
     if(window.ksCacheClear)ksCacheClear();
     ['kspin','ksmode','ksrole'].forEach(function(k){try{localStorage.removeItem(k)}catch(e){}});
-    try{window.top.location.href=URL}catch(e){location.reload()}
+    try{window.top.location.href=pageUrl('')}catch(e){location.reload()}
   }
   function sheetOpen(on){sheet.hidden=!on;var mb=document.getElementById('ksmb');if(mb)mb.setAttribute('aria-expanded',String(!!on))}
   nav.addEventListener('click',function(e){if(e.target.closest('#ksmb'))sheetOpen(sheet.hidden)});
