@@ -8,11 +8,7 @@ var FUNNEL_GROUP_LABEL = 'Группа';  // строка с группой (н�
 
 var _funnelSS = null;   // файл воронки открываем один раз за запуск
 function funnelSS_() {
-  if (_funnelSS) return _funnelSS;
-  var id = PropertiesService.getScriptProperties().getProperty('FUNNEL_ID');
-  if (!id) throw new Error('Не задан FUNNEL_ID в свойствах скрипта');
-  _funnelSS = SpreadsheetApp.openById(id);
-  return _funnelSS;
+  return clubSource_('FUNNEL_ID', 'Не задан FUNNEL_ID в свойствах скрипта');
 }
 
 function funnelRead_(sh) {

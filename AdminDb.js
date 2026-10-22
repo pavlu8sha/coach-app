@@ -6,11 +6,7 @@ var LOG_HEAD = ['Время', 'ID', 'ФИ', 'Поле', 'Было', 'Стало'
 
 var _adminSS = null;
 function adminSS_() {
-  if (_adminSS) return _adminSS;
-  var id = prop_('ADMIN_ID');
-  if (!id) throw new Error('Не задан ADMIN_ID в свойствах скрипта');
-  _adminSS = SpreadsheetApp.openById(id);
-  return _adminSS;
+  return clubSource_('ADMIN_ID', 'Не задан ADMIN_ID в свойствах скрипта');
 }
 
 // Чтение: лист из AdminApp или null, ничего не создаёт.

@@ -3,9 +3,7 @@
 var CAT_SHEET = 'КАТАЛОГ ЭКИПИРОВКИ';
 
 function catSheet_() {
-  var id = prop_('EQUIP_ID');
-  if (!id) throw new Error('Не задан EQUIP_ID в свойствах скрипта');
-  var ss = SpreadsheetApp.openById(id), sh = ss.getSheetByName(CAT_SHEET);
+  var ss = clubSource_('EQUIP_ID', 'Не задан EQUIP_ID в свойствах скрипта'), sh = ss.getSheetByName(CAT_SHEET);
   if (sh) return sh;
   if (CONFIG.DRY_RUN) return null;
   sh = ss.insertSheet(CAT_SHEET);
