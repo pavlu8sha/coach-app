@@ -142,3 +142,11 @@ language sql stable security definer set search_path = public as $$
     and (auth.uid() is not null)
   group by g.id
 $$;
+
+-- Права на таблицы (не выдаются автоматически: при создании проекта отключена авто-выдача).
+-- Строки дальше ограничивает RLS выше. Журнал баллов — только чтение и добавление.
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on all tables in schema public to authenticated;
+revoke update, delete on point_events from authenticated;
+revoke all on all tables in schema public from anon;
+grant execute on function current_user_id(), is_admin(), is_guardian_of(uuid), is_coach_of_player(uuid), is_coach_of_group(uuid), group_rating(uuid, uuid) to authenticated;
