@@ -1,46 +1,37 @@
 # Карта веток Coach App
 
-Этот документ содержит **только подробности о ветках**: назначение, сохранённые изменения, риски и точку возобновления. Общий статус проекта и таблица Issue → PR находятся в [PROJECT_STATUS.md](PROJECT_STATUS.md) — единственном главном статусном документе.
+Этот документ содержит **только подробности о ветках**. Общий статус проекта и таблица Issue → PR — в [PROJECT_STATUS.md](PROJECT_STATUS.md).
 
-Сведения ниже — снимок на 21.10.2026. Перед удалением, продолжением работы или переносом изменений заново сравнить ветку с актуальным `master`.
+Снимок на 22.10.2026 (после очистки, [Issue #7](https://github.com/pavlu8sha/coach-app/issues/7)).
 
-## Активные ветки
+## Ветки на GitHub
 
-| Ветка | PR / Issue | Назначение и сделанное | Что осталось |
-|---|---|---|---|
-| `master` | — | Стабильная интеграционная ветка; ruleset `Protect master` снят 2026-10-22, прямой push разрешён | Production-версию проверять отдельно |
-| `stage-abc` | [PR #2](https://github.com/pavlu8sha/coach-app/pull/2), [Issue #4](https://github.com/pavlu8sha/coach-app/issues/4) | Аудит OpenCode: DRY_RUN, clubSource_, auth-примитивы, тесты | Проверить каждый server endpoint и write-path; не вливать PR целиком; принимаемые темы вынести отдельными PR |
-| `chore/repository-governance` | [PR #3](https://github.com/pavlu8sha/coach-app/pull/3), [Issue #6](https://github.com/pavlu8sha/coach-app/issues/6) | Документация, шаблоны GitHub, workflow CI | Завершить review/CI; после merge проверить workflow и включить обязательный check |
-| `perf-phase1` | [Issue #5](https://github.com/pavlu8sha/coach-app/issues/5) | 5 уникальных коммитов на момент проверки; инструментация и оптимизации | Не вливать целиком; проверить эквивалентность платежей/посещаемости/групп, CI и PERF_LOG=false; переносить выборочно |
+| Ветка | PR | Назначение |
+|---|---|---|
+| `master` | — | Стабильная интеграционная ветка; прямой push разрешён (решение владельца 2026-10-22). Из неё и только из неё делается `clasp push` |
+| `fix/rev-month-dup` | [PR #27](https://github.com/pavlu8sha/coach-app/pull/27) | Убрать вторую `revMonth_` (из аудита `stage-abc`) |
 
-## Исторические ветки-кандидаты на удаление
+## Очистка 22.10.2026
 
-По предыдущему сравнению с master у перечисленных веток было `ahead_by = 0`; это снимок, а не гарантия текущего состояния. Повторно сравнить перед удалением. См. [Issue #7](https://github.com/pavlu8sha/coach-app/issues/7).
+Удалены все остальные ветки (≈47). Перед удалением каждая сверена с master:
 
-| Ветка | Было позади master |
-|---|---:|
-| `design-e` | 70 |
-| `design-g` | 34 |
-| `design-p1-noclip` | 4 |
-| `design-p1` | 4 |
-| `design-settings-fixes` | 29 |
-| `design-targets` | 3 |
-| `design-ui016` | 1 |
-| `design-v1` | 78 |
-| `disc-preview` | 8 |
-| `disc-rule-fix` | 13 |
-| `disc-rule-v2` | 11 |
-| `fix-att-binding` | 97 |
-| `settings-and-fixes` | 62 |
-| `settings-stage2` | 51 |
-| `settings-stage3` | 31 |
+- **без коммитов вне master** — ветки слитых PR (#9, #10, #12, #13, #15–#17, #19–#24), ветки дизайна, настроек, скидок и т. п.: всё содержимое в master;
+- **с коммитами вне master** — содержимое уже в master в другом виде или решено не переносить; коммиты остаются доступны в закрытых PR:
 
-**Не удалять** активные ветки `stage-abc`, `perf-phase1`, `chore/repository-governance` или `master`. Старые ветки не удалены до отдельного решения владельца.
+| Ветка | Где коммиты | Итог |
+|---|---|---|
+| `stage-abc` | `refs/pull/2/head` | PR #2 закрыт; решения по темам — [Issue #4](https://github.com/pavlu8sha/coach-app/issues/4) |
+| `chore/repository-governance` | `refs/pull/3/head` | слит как #3 (squash) |
+| `docs/status-after-pr3` | `refs/pull/8/head` | слит как #8 |
+| `refactor/club-sources` | `refs/pull/11/head` | заменён #12 |
+| `fix/private-maintenance-functions` | `refs/pull/14/head` | заменён #15 |
+| `perf-phase1` | — (PR не было) | рабочий код перенесён в #19–#21, #25, #26; не перенесены только точки подробных замеров — не нужны, при необходимости добавить заново в текущий код |
 
-## Правила возобновления работы
+Посмотреть коммиты закрытого PR: `git fetch origin pull/<номер>/head:pr-<номер>`.
 
-- Сверить актуальные base/head SHA, открытые PR, Issues и CI.
-- Не продолжать старую ветку автоматически: для новой реализации создавать свежую ветку от актуального master.
-- Не cherry-pick/merge всю `perf-phase1` или `stage-abc` вслепую.
-- Отдельной тестовой среды нет; `/dev` production-проекта использует боевые таблицы. Разрешены локальные моки, CI и read-only проверки; запрещены тестовые записи в production.
-- После решения по ветке обновить эту карту и главный статусный документ.
+## Правила
+
+- Новая работа — свежая ветка от актуального master; после слияния PR ветку удалить.
+- Старые ветки не продолжать: начинать заново от master.
+- Отдельной тестовой среды нет: `/dev` использует боевые таблицы. Локально — моки и CI; тестовые записи в production запрещены.
+- Перед `clasp push`: `git branch --show-current` = `master`.
