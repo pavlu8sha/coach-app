@@ -365,6 +365,7 @@ label.ks-pinl{display:block;margin:16px 0 8px;color:var(--ink);font-size:16px;fo
   window.addEventListener('pageshow',function(e){if(e.persisted&&ov)ov.hidden=true});
 
   window.ksCacheClear=function(){try{Object.keys(sessionStorage).forEach(function(k){if(k.indexOf('kscache:')===0)sessionStorage.removeItem(k)})}catch(e){}};
+  if(window.KS_SHELL)return; // в каркасе данные запоминают сами разделы
   var gs=window.google&&google.script;if(!gs||!gs.run||typeof Proxy==='undefined')return;
   var desc=Object.getOwnPropertyDescriptor(gs,'run')||{value:gs.run};
   function base(){return desc.get?desc.get.call(gs):desc.value}  // как на страницах: каждый вызов — через google.script.run
