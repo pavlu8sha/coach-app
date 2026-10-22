@@ -38,6 +38,11 @@ summary{cursor:pointer;list-style:none;min-height:44px;display:flex;flex-directi
 .wr{display:flex;gap:8px;align-items:center;color:var(--mute);font-size:13px;margin:0;white-space:nowrap;min-height:44px}.wr input{width:22px;min-height:0;height:22px} /* DS-015: цель касания ≥ 44 px */
 .err{color:var(--a)}.msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:8px}
 [hidden]{display:none!important}
+.sk-row{display:flex;gap:12px;align-items:center;padding:12px 14px;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:8px}
+.sk-t{flex:1;min-width:0}.sk-l{display:block;height:12px;border-radius:6px;background:var(--line);margin:8px 0;width:100%;animation:skp 1.2s ease-in-out infinite}
+.sk-l.w60{width:60%}.sk-l.w40{width:40%}
+@keyframes skp{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.sk-l{animation:none}}
 </style>
 </head>
 <body>
@@ -46,7 +51,6 @@ summary{cursor:pointer;list-style:none;min-height:44px;display:flex;flex-directi
   <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err" role="alert"></p><button class="btn" id="go">Войти</button>
 </div>
 <div id="app" class="wrap ks-wide-w" hidden>
-  <h1>Должники</h1>
   <div class="row2">
     <div><label>Месяц абонемента</label><select id="mon"></select></div>
     <div><label>Группа</label><select id="grp"></select></div>
@@ -92,8 +96,10 @@ function future(m){var a=m.split('.'),d=new Date(),cur=d.getFullYear()%100*12+d.
 function msgFor(name){
   return $('tpl').value.replace(/\{месяц\}/g,monName($('mon').value)).replace(/\{имя\}/g,name);
 }
+function skelRows(n){var h='';for(var i=0;i<n;i++)h+='<div class="sk-row" aria-hidden="true"><span class="sk-t"><span class="sk-l w60"></span><span class="sk-l w40"></span></span></div>';return h}
 function load(keepMon){
-  setMsg('Загрузка…');
+  setMsg('');
+  $('list').innerHTML=skelRows(4);
   run('appDebtors',[pin,keepMon?$('mon').value:''],function(r){
     R=r;setDone(r);$('login').hidden=true;$('app').hidden=false;
     if(!keepMon){
@@ -105,8 +111,13 @@ function load(keepMon){
     $('grp').value=g;
     show();
     moveLocal();
-  },fail);
+  },function(m){
+    if(String(m).indexOf('код администратора')>=0)return fail(m);
+    $('login').hidden=true;$('app').hidden=false;
+    $('list').innerHTML=ksEmpty({tag:'div',icon:'alert',title:'Не удалось загрузить данные',text:'Проверьте соединение и попробуйте ещё раз.',btn:'Повторить',id:'dretry'});
+  });
 }
+$('list').addEventListener('click',function(e){if(e.target.closest('#dretry'))load(!!R)});
 function show(keepMsg){
   if(!R)return;renderInd();renderExt();
   if(!R.found){setMsg('В файле оплат нет листа '+R.month+'.',true);$('sum').innerHTML='';$('list').innerHTML='';return}
@@ -127,7 +138,7 @@ function show(keepMsg){
           +'<label>Способ оплаты</label><div class="seg"><button class="mt" data-m="Наличные" aria-pressed="'+(method=='Наличные')+'">Наличные</button><button class="mt" data-m="Перевод" aria-pressed="'+(method=='Перевод')+'">Перевод</button></div>'
           +'<button class="btn go">Принять оплату</button></div></div>';
       }).join('')+'</details>';
-  }).join('')||'<p class="sub">Должников нет.</p>';
+  }).join('')||ksEmpty({tag:'div',icon:'users',title:'Должников нет',text:'За выбранный месяц и группу все оплатили.'});
 }
 function fallbackCopy(t){
   var a=document.createElement('textarea');a.value=t;a.style.position='fixed';a.style.opacity='0';document.body.appendChild(a);a.select();
