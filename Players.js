@@ -8,7 +8,10 @@ function prop_(k) {
 
 function checkAdmin_(pin) {
   var real = prop_('APP_ADMIN_PIN');
-  if (!real || String(pin) !== String(real)) throw new Error('Неверный код администратора');
+  if (!real || String(pin) !== String(real)) {
+    failDelay_();
+    throw new Error('Неверный код администратора');
+  }
 }
 
 function today_() {
