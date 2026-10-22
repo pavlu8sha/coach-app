@@ -40,6 +40,17 @@ summary{cursor:pointer;list-style:none;min-height:44px;display:flex;flex-directi
 .sw[aria-checked=true]{background:var(--g)}
 .sw[aria-checked=true] .knob{transform:translateX(20px)}
 .sw:focus-visible{outline:2px solid var(--g);outline-offset:2px}
+.srch{position:relative}.srch svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--mute);pointer-events:none}
+.srch input{padding-left:40px}
+.fkl{margin-top:10px}
+#fks{padding:4px 0;height:auto}
+#fks option{padding:10px 12px;min-height:44px}
+.fksh{margin-top:6px;overflow-wrap:anywhere}
+.sk-row{display:flex;gap:12px;align-items:center;padding:12px 14px;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:8px}
+.sk-t{flex:1;min-width:0}.sk-l{display:block;height:12px;border-radius:6px;background:var(--line);margin:8px 0;width:100%;animation:skp 1.2s ease-in-out infinite}
+.sk-l.w60{width:60%}.sk-l.w40{width:40%}
+@keyframes skp{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.sk-l{animation:none}}
 </style>
 </head>
 <body>
@@ -50,7 +61,7 @@ summary{cursor:pointer;list-style:none;min-height:44px;display:flex;flex-directi
 </div>
 <div id="app" class="wrap ks-wide-w" hidden>
   <h1>Экипировка</h1>
-  <form class="qform" onsubmit="event.preventDefault();this.querySelector('input').blur()" style="margin:0;display:block"><input id="q" enterkeyhint="done" onkeydown="if(event.key==='Enter')this.blur()" list="qlist" autocomplete="off" placeholder="Поиск: ФИ или ID"><datalist id="qlist"></datalist></form>
+  <form class="qform srch" onsubmit="event.preventDefault();this.querySelector('input').blur()" style="margin:0;display:block"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input id="q" aria-label="Поиск игрока" enterkeyhint="done" onkeydown="if(event.key==='Enter')this.blur()" list="qlist" autocomplete="off" placeholder="Поиск: ФИ или ID"><datalist id="qlist"></datalist></form>
   <div class="row2">
     <select id="fs" aria-label="Показать">
       <option value="all">Все игроки</option><option value="ordered">Заказали форму</option><option value="not">Не заказывали</option>
@@ -61,7 +72,7 @@ summary{cursor:pointer;list-style:none;min-height:44px;display:flex;flex-directi
     <select id="fg" aria-label="Группа"></select>
   </div>
   <div class="swrow" style="margin-top:8px"><span id="kdl">Только не оплатившие</span><button type="button" class="sw" id="kdbt" role="switch" aria-checked="false" aria-labelledby="kdl"><span class="knob" aria-hidden="true"></span></button></div>
-  <details id="fk" style="margin-top:8px"><summary>Товар: все</summary><div id="fkf" class="kits"></div></details>
+  <label for="fks" class="fkl">Товар</label><select id="fks" multiple></select><div class="sub fksh" id="fksh">Все товары</div>
   <select id="fl" aria-label="Локация" style="margin-top:8px">
     <option value="">Все локации: сначала красный парк</option><option value="red">Только красный парк</option>
     <option value="oth">Только ортачала и исани</option><option value="none">Без локации в реестре</option>
@@ -102,9 +113,12 @@ function fmsg(t,bad){$('fmsg').textContent=t||'';$('fmsg').className='msg'+(bad?
 function showLogin(t){$('app').hidden=true;$('form').hidden=true;$('login').hidden=false;$('lerr').textContent=t||''}
 function fail(m){if(m.indexOf('код администратора')>=0)showLogin('Неверный код администратора');else{$('login').hidden=true;$('app').hidden=false;setMsg(m,true)}}
 function load(){
-  setMsg('Загрузка…');
+  var first=!O.length&&!P.length;
+  if(first){setMsg('');$('list').innerHTML=skelRows(4)}else setMsg('Загрузка…');
   var got=0,pd=null,rd=null,failed=false;
-  function bad(m){if(failed)return;failed=true;fail(m)}
+  function bad(m){if(failed)return;failed=true;
+    if(first&&m.indexOf('код администратора')<0){$('login').hidden=true;$('app').hidden=false;setMsg('');$('list').innerHTML=ksEmpty({tag:'div',icon:'alert',title:'Не удалось загрузить данные',text:'Проверьте соединение и попробуйте ещё раз.',btn:'Повторить',id:'kretry'});return}
+    fail(m)}
   function done(){
     if(failed||++got<2)return;
     P=pd.players;
@@ -117,6 +131,8 @@ function load(){
   run('appAdminInit',[pin],function(d){pd=d;done()},bad);
   run('appEquipOrders',[pin],function(r){rd=r;done()},bad);
 }
+function skelRows(n){var h='';for(var i=0;i<n;i++)h+='<div class="sk-row" aria-hidden="true"><span class="sk-t"><span class="sk-l w60"></span><span class="sk-l w40"></span></span></div>';return h}
+$('list').addEventListener('click',function(e){if(e.target.closest('#kretry'))load()});
 function fillGroups(){
   var g=[],v=$('fg').value;
   P.forEach(function(p){[p.group].concat(p.extras).forEach(function(x){if(x&&g.indexOf(x)<0)g.push(x)})});
@@ -243,13 +259,15 @@ function show(){
     $('list').innerHTML=u.map(ucard).join('')||(UNL.length?ksEmpty({icon:'search',title:'Никого не нашли',text:'Измените поиск.'}):ksEmpty({icon:'box',title:'Все заказы привязаны',text:'Заказов без привязки к игроку нет.'}));return;
   }
   var f=F[fv],lv=$('fl').value;
-  if(!$('fkf').dataset.init&&Object.keys(PR).length){
-    $('fkf').innerHTML=Object.keys(PR).map(function(k){return'<label class="kit"><input type="checkbox" class="fkc" value="'+esc(k)+'"> '+esc(k)+'</label>'}).join('');
-    $('fkf').dataset.init='1';
-    $('fkf').onchange=function(){show()};
+  if(!$('fks').dataset.init&&Object.keys(PR).length){
+    var ks=Object.keys(PR);
+    $('fks').innerHTML=ks.map(function(k){return'<option value="'+esc(k)+'">'+esc(k)+'</option>'}).join('');
+    $('fks').size=Math.min(ks.length,4);
+    $('fks').dataset.init='1';
+    $('fks').onchange=function(){show()};
   }
-  var kits=[].map.call(document.querySelectorAll('.fkc:checked'),function(c){return c.value});
-  $('fk').querySelector('summary').textContent=kits.length?'Товар: выбрано '+kits.length:'Товар: все';
+  var kits=[].map.call($('fks').selectedOptions,function(o){return o.value});
+  $('fksh').textContent=kits.length?'Выбрано: '+kits.join(', '):'Все товары';
   var a=rows().filter(function(r){
     if(!f(r))return false;
     if(kOnly&&!(r.debt>0))return false;
@@ -452,9 +470,13 @@ function submit(){
 $('list').addEventListener('click',function(e){
   var b=e.target.closest('#enew,#ereset');if(!b)return;
   if(b.id=='enew'){$('new').click();return}
-  $('q').value='';$('fs').value='all';$('fg').value='';$('fl').value='';kOnly=false;$('kdbt').setAttribute('aria-checked','false');[].forEach.call(document.querySelectorAll('.fkc:checked'),function(c){c.checked=false});show();
+  $('q').value='';$('fs').value='all';$('fg').value='';$('fl').value='';kOnly=false;$('kdbt').setAttribute('aria-checked','false');[].forEach.call($('fks').options,function(o){o.selected=false});show();
 });
 var kOnly=false;
+$('fks').addEventListener('mousedown',function(e){
+  var o=e.target;if(!o||o.tagName!=='OPTION'||matchMedia('(pointer:coarse)').matches)return;
+  e.preventDefault();var t=this.scrollTop;o.selected=!o.selected;this.focus();this.scrollTop=t;show();
+});
 $('kdbt').onclick=function(){kOnly=!kOnly;this.setAttribute('aria-checked',String(kOnly));show()};
 $('q').oninput=show;$('fs').onchange=show;$('fg').onchange=show;$('fl').onchange=show;
 $('new').onclick=openForm;
