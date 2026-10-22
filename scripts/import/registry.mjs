@@ -28,6 +28,11 @@ export function isoDate(s) {
   let m = t.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
   if (m) return `${m[3]}-${m[2]}-${m[1]}`;
   if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+  // Серийный номер Google Sheets (дни от 1899-12-30), если ячейка без формата даты
+  if (/^\d{5}$/.test(t)) {
+    const d = new Date(Date.UTC(1899, 11, 30) + Number(t) * 86400000);
+    return d.toISOString().slice(0, 10);
+  }
   throw new Error('Дата не распознана: ' + t);
 }
 

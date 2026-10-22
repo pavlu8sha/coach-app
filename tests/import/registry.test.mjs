@@ -13,6 +13,8 @@ test('дата: dd.mm.yyyy → yyyy-mm-dd, пусто → null, мусор → �
   assert.equal(isoDate(''), null);
   assert.equal(isoDate('2019-05-17'), '2019-05-17');
   assert.throws(() => isoDate('17/05/19'), /не распознана/);
+  assert.equal(isoDate('46266'), '2026-09-01'); // серийный номер Sheets
+  assert.equal(isoDate('46280'), '2026-09-15');
 });
 
 test('реестр: группы без дублей, статус, даты, доп. программы', () => {
