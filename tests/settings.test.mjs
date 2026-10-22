@@ -46,6 +46,7 @@ function env(opts = {}) {
     matchesData_: () => ({ events: (opts.teams || ['U9', 'U10-A', 'U13-A']).map(t => ({ team: t })) }),
   };
   vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(new URL('../PerfLog.js', import.meta.url), 'utf8'), ctx);
   vm.runInContext(fs.readFileSync(path.join(ROOT, 'Settings.js'), 'utf8'), ctx, { filename: 'Settings.js' });
   // новый «запуск» скрипта: память запуска сбрасывается, кэш и свойства остаются
   const newRun = () => vm.runInContext('_settingsRun = null; _settingsWarned = {};', ctx);

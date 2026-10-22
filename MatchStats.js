@@ -1,6 +1,8 @@
 /** Статистика матчей: считает по листам МАТЧИ и УЧАСТИЕ, ничего не записывает. Доступна тренерам и администратору. */
 
-function appMatchStats(pin) {
+// Замер (PerfLog.js): обёртка не меняет результат; при PERF_LOG = false ничего не пишет
+function appMatchStats(pin) { return perfSpan_('appMatchStats', function () { return appMatchStats0_(pin); }); }
+function appMatchStats0_(pin) {
   checkAny_(pin);
   var d = matchesData_();
   if (!d.events.length) return { games: [], parts: [] };

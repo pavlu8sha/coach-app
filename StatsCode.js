@@ -45,7 +45,9 @@ function blocksOf_(data) {
 }
 
 // Статистика по группам за период [from, to]. Занятие считается проведённым, если кто-то отмечен «был».
-function appStatsRange(pin, from, to) {
+// Замер (PerfLog.js): обёртка не меняет результат; при PERF_LOG = false ничего не пишет
+function appStatsRange(pin, from, to) { return perfSpan_('appStatsRange', function () { return appStatsRange0_(pin, from, to); }); }
+function appStatsRange0_(pin, from, to) {
   checkAny_(pin);
   if (!isoDate_(from) || !isoDate_(to) || from > to) throw new Error('Неверный период');
   var months = monthsBetween_(from, to);

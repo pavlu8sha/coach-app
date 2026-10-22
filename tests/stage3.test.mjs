@@ -19,6 +19,7 @@ function env(rows, extra = {}) {
     CacheService: { getScriptCache: () => ({ get: k => cache[k] || null, put: (k, v) => { cache[k] = v; }, remove() {} }) },
   }, extra);
   vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(new URL('../PerfLog.js', import.meta.url), 'utf8'), ctx);
   for (const f of ['Settings.js', 'MonthsAtt.js', 'Camps.js', 'Individual.js']) vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
   ctx.norm = norm;
   ctx.dbRead_ = () => ({ getLastRow: () => data.length, getRange: (r, c, n = 1, m = 1) => ({ getDisplayValues: () => Array.from({ length: n }, (_, i) => Array.from({ length: m }, (_, j) => String((data[r - 1 + i] || [])[c - 1 + j] ?? ''))) }) });
@@ -75,7 +76,8 @@ test('форма экипировки: надпись и номер по фла�
   const ctx = { nn: x => String(x).trim().toLowerCase(), FL: {
     'тренировочная форма': { inscr: false, num: true }, 'игровая форма': { inscr: true, num: true }, 'носки': { inscr: false, num: false },
     'гетры': { inscr: false, num: false }, 'спортивный костюм': { inscr: false, num: true }, 'дождевик': { inscr: false, num: true } } };
-  vm.createContext(ctx); vm.runInContext(s.slice(a, b), ctx);
+  vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(new URL('../PerfLog.js', import.meta.url), 'utf8'), ctx); vm.runInContext(s.slice(a, b), ctx);
   const miss = kit => [...ctx.missOf({ kit, sum: 100, size: 'M', num: '', inscr: '' })];
   assert.deepEqual(miss('Носки + Гетры'), []);
   assert.deepEqual(miss('Тренировочная форма'), ['номер']);

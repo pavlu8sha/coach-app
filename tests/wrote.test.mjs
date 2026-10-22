@@ -37,6 +37,7 @@ function env(dry = false) {
     LockService: { getScriptLock: () => ({ waitLock() { locks++; }, releaseLock() {} }) },
   };
   vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(new URL('../PerfLog.js', import.meta.url), 'utf8'), ctx);
   for (const f of ['Wrote.js', 'Debtors.js', 'Extra.js']) vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
   const sp = fs.readFileSync(path.join(ROOT, 'SubsPay.js'), 'utf8');
   vm.runInContext(sp.slice(sp.indexOf('function nfSafe_'), sp.indexOf('\n', sp.indexOf('function nfSafe_'))), ctx);
@@ -147,6 +148,7 @@ function page(stored) {
     run: (fn, args, ok, fail) => calls.push({ fn, args, ok, fail }),
   };
   vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(new URL('../PerfLog.js', import.meta.url), 'utf8'), ctx);
   vm.runInContext(pick('function setDone') + '\n' + pick('function moveLocal'), ctx);
   const h = js.indexOf("$('list').onchange");
   ctx.$ = () => ctx.list = {};

@@ -28,6 +28,7 @@ function env(until, now = '2026-10-22 12:00') {
     settingGet_: k => (k === 'ind.autoDay' ? 'вт' : 9),
   };
   vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(new URL('../PerfLog.js', import.meta.url), 'utf8'), ctx);
   for (const f of ['Maint.js', 'Warmup.js', 'Individual.js']) vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
   return { ctx, created, deleted, handlers: () => triggers.map(t => t.h).sort() };
 }

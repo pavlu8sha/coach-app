@@ -15,6 +15,7 @@ function run(extraRows = 0) {
   const ctx = { console: { log() {} }, CONFIG: { DRY_RUN: false },
     Utilities: { formatDate: (d) => { fmt++; return d.toISOString().slice(0, 10); } } };
   vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(new URL('../PerfLog.js', import.meta.url), 'utf8'), ctx);
   const T = vm.runInContext('new Date()', ctx), TD = T.toISOString().slice(0, 10), DM = TD.slice(8, 10) + '.' + TD.slice(5, 7);
   const D = vm.runInContext('(s) => new Date(s + "T00:00:00Z")', ctx);
   const old = Array.from({ length: extraRows }, (_, i) => [T, D('2026-09-0' + (1 + (i % 3))), 'KS-9', 'Old', '09.26', 'U9-A', 165, 'Оплата', '', 'Наличные']);

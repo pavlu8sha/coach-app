@@ -105,6 +105,7 @@ function load(opts) {
     ...stubs,
   };
   vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(new URL('../PerfLog.js', import.meta.url), 'utf8'), ctx);
   const sp = fs.readFileSync(path.join(ROOT, 'SubsPay.js'), 'utf8');             // nfSafe_ — настоящая функция из SubsPay.js
   vm.runInContext(sp.slice(sp.indexOf('function nfSafe_'), sp.indexOf('\n', sp.indexOf('function nfSafe_'))), ctx);
   for (const f of opts.files || ['Attendance.js', 'WebApp.js', 'MonthsAtt.js', 'MonthsCode.js', 'Players.js']) {

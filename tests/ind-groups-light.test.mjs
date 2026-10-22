@@ -11,6 +11,7 @@ function env() {
   let pf = 0;
   const ctx = { console: { log() {} }, CONFIG: { DRY_RUN: false }, Utilities: { formatDate: (d) => { const x = new Date(d); return String(x.getUTCDate()).padStart(2, '0') + '.' + String(x.getUTCMonth() + 1).padStart(2, '0'); } } };
   vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(new URL('../PerfLog.js', import.meta.url), 'utf8'), ctx);
   for (const f of ['Settings.js', 'Individual.js', 'IndRoster.js']) vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
   Object.assign(ctx, {
     settingGet_: k => (k === 'ind.capGoalkeepers' ? 7 : 6),

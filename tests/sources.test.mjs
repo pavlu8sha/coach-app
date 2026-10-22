@@ -23,6 +23,7 @@ function env(props = {}) {
     Date,
   };
   vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(new URL('../PerfLog.js', import.meta.url), 'utf8'), ctx);
   vm.runInContext(fs.readFileSync(path.join(ROOT, 'Sources.js'), 'utf8'), ctx, { filename: 'Sources.js' });
   return { ctx, opened, files };
 }

@@ -20,6 +20,7 @@ function env(props) {
     SpreadsheetApp: { openById: id => { opened.push(id); return { id, getSheetByName: n => ({ file: id, name: n }) }; } },
   };
   vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(new URL('../PerfLog.js', import.meta.url), 'utf8'), ctx);
   // При двух определениях в Apps Script действует последнее по порядку файлов; после исправления определение одно
   for (const f of ['Sources.js', 'Players.js']) vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
   return { ctx, opened, logs };
