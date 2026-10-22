@@ -8,7 +8,7 @@ import { resolveName } from './events-plan.mjs';
 export const IND_PRICE = 50;
 // Гости (разовые, в клубе не состоят): их нет в реестре, записываются отдельно
 export const GUESTS = { 'gleb': 'Gleb' };
-const guestExt = name => 'GUEST-' + name.toUpperCase().replace(/[^A-Z]+/g, '-').replace(/^-|-$/g, '');
+export const guestExt = name => 'GUEST-' + name.toUpperCase().replace(/[^A-Z]+/g, '-').replace(/^-|-$/g, '');
 
 export const sessionKey = id => String(id || '').split('|').pop().trim();   // "ADM|2026-10-18 18:00" → "2026-10-18 18:00"
 
@@ -62,4 +62,24 @@ export function replayJournal(text, registryNames) {
     state.set(k, s);
   }
   return { bookings: [...state.values()].filter(s => s.booked), problems };
+}
+
+// Блок «Индивидуальные / Вратарские» в файле оплат (лист месяца). Строка = запись; сумма = оплачено.
+// Дата в строке, «вр» — вратарская; пустая дата — дата предыдущей строки блока.
+export function parsePayBlock(text) {
+  const rows = parseCsv(text);
+  const start = rows.findIndex(r => (r[0] || '').trim() === 'Индивидуальные / Вратарские');
+  if (start < 0) return [];
+  const out = [];
+  let date = null, gk = false;
+  for (const r of rows.slice(start + 2)) {
+    const first = (r[0] || '').trim();
+    if (!/^\d+$/.test(first)) break;                 // конец блока
+    const name = (r[1] || '').trim();
+    const m = (r[2] || '').trim().match(/^(\d{2})\.(\d{2})\.(\d{4})(\s+вр)?$/);
+    if (m) { date = `${m[3]}-${m[2]}-${m[1]}`; gk = !!m[4]; }
+    if (!name || !date) continue;
+    out.push({ date, gk, name, paid: !!(r[3] || '').trim() });
+  }
+  return out;
 }

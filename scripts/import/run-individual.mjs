@@ -1,32 +1,50 @@
 // Импорт индивидуальных тренировок (листы IND_ID) в Supabase. Нужна миграция 0008.
-// Источник: листы приложения (AdminApp), не старые файлы IND_ID.
+// Источник: блок «Индивидуальные / Вратарские» в файлах оплат; время и тема — из листов приложения.
 // Использование:
-//   node scripts/import/run-individual.mjs --registry РЕЕСТР.csv --sessions ИНДИВИДУАЛЬНЫЕ_ЗАНЯТИЯ.csv --journal ИНДИВИДУАЛЬНЫЕ_ОПЛАТЫ.csv   — проверка
+//   node scripts/import/run-individual.mjs --registry РЕЕСТР.csv --pay-dir ПАПКА_PAY_ID --sessions ИНДИВИДУАЛЬНЫЕ_ЗАНЯТИЯ.csv --journal ИНДИВИДУАЛЬНЫЕ_ОПЛАТЫ.csv   — проверка
 //   то же + --write — записать
 // Нужны переменные окружения: SUPABASE_URL, SUPABASE_SERVICE_KEY, CLUB_ID. Ключ в репозиторий и в чат не класть.
 // Гости записываются в players с external_id GUEST-… и статусом inactive. Повторный запуск не дублирует.
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseRegistry } from './registry.mjs';
-import { IND_PRICE, parseSessionsSheet, replayJournal, parseSessionKey } from './individual.mjs';
+import { IND_PRICE, GUESTS, parsePayBlock, parseSessionsSheet, replayJournal, parseSessionKey, guestExt } from './individual.mjs';
+import { resolveName } from './events-plan.mjs';
 
 const arg = name => { const i = process.argv.indexOf('--' + name); return i >= 0 ? process.argv[i + 1] : null; };
 const write = process.argv.includes('--write');
-const regFile = arg('registry'), sessFile = arg('sessions'), jFile = arg('journal');
-if (!regFile || !sessFile || !jFile) { console.error('Укажите --registry, --sessions, --journal'); process.exit(2); }
+const regFile = arg('registry'), payDir = arg('pay-dir'), sessFile = arg('sessions'), jFile = arg('journal');
+if (!regFile || !payDir || !sessFile || !jFile) { console.error('Укажите --registry, --pay-dir (папка PAY_ID), --sessions (ЗАНЯТИЯ), --journal (ОПЛАТЫ)'); process.exit(2); }
 
 const reg = parseRegistry(fs.readFileSync(regFile, 'utf8'));
 const names = reg.players.map(p => p.full_name);
-const listed = parseSessionsSheet(fs.readFileSync(sessFile, 'utf8'));
+// Записи и оплаты — из блока «Индивидуальные / Вратарские» в файлах оплат (лист месяца)
+const problems = [];
+const payRows = fs.readdirSync(payDir).filter(n => n.endsWith('.csv')).sort()
+  .flatMap(f => parsePayBlock(fs.readFileSync(path.join(payDir, f), 'utf8')));
+// Время занятия — из листа ЗАНЯТИЯ и из ID журнала (дата и время в ключе)
+const times = new Map();
+for (const s of parseSessionsSheet(fs.readFileSync(sessFile, 'utf8'))) times.set(s.key.slice(0, 10) + (s.goalkeepers ? ' gk' : ''), s);
 const journal = replayJournal(fs.readFileSync(jFile, 'utf8'), names);
-const problems = [...journal.problems];
-// занятия: из листа ЗАНЯТИЯ и те, что есть только в журнале (старые, без строки в листе)
-const sessMap = new Map(listed.map(s => [s.key, { ...s, people: [] }]));
-for (const b of journal.bookings) {
-  if (!sessMap.has(b.key)) { const info = parseSessionKey(b.key); if (!info) { problems.push({ error: 'занятие не разобрано: ' + b.key }); continue; } sessMap.set(b.key, { ...info, topic: null, people: [] }); }
-  sessMap.get(b.key).people.push(b);
+for (const b of journal.bookings) { const k = b.key.slice(0, 10) + (b.key.endsWith(' gk') ? ' gk' : ''); if (!times.has(k)) times.set(k, parseSessionKey(b.key)); }
+const topics = new Map(parseSessionsSheet(fs.readFileSync(sessFile, 'utf8')).map(s => [s.key.slice(0, 10) + (s.goalkeepers ? ' gk' : ''), s.topic]));
+
+const sessMap = new Map();
+for (const r of payRows) {
+  const k = r.date + (r.gk ? ' gk' : '');
+  const info = times.get(k);
+  if (!info) problems.push({ error: `нет времени занятия ${k} — поставлено 19:00` });
+  const sid = `IND-${r.date.replace(/-/g, '-')}${r.gk ? '-GK' : ''}`;
+  if (!sessMap.has(sid)) sessMap.set(sid, { external_id: sid, starts_at: info ? info.starts_at : `${r.date}T19:00:00`, topic: topics.get(k) ?? null, people: new Map() });
+  const sess = sessMap.get(sid);
+  const g = GUESTS[r.name.toLowerCase()];
+  const pname = g ?? resolveName(r.name, names)?.name;
+  if (!pname) { problems.push({ error: `имя не найдено в реестре: ${r.name}` }); continue; }
+  const cur = sess.people.get(pname);
+  const guest = !!g;
+  sess.people.set(pname, { name: pname, guest, external_id: guest ? guestExt(pname) : null, paid: (cur?.paid ?? false) || r.paid });
 }
-const sessions = [...sessMap.values()];
+const sessions = [...sessMap.values()].map(s => ({ ...s, people: [...s.people.values()] }));
 const bookings = sessions.flatMap(s => s.people);
 const entries = bookings.length;
 const paid = bookings.filter(p => p.paid).length;
@@ -54,6 +72,7 @@ const MERGE = 'resolution=merge-duplicates,return=minimal';
 
 // 1) гости — как игроки без группы
 const guestRows = [...new Map(bookings.filter(p => p.guest).map(p => [p.external_id, p])).values()];
+// (гости из файла оплат)
 if (guestRows.length) await rest('POST', 'players?on_conflict=club_id,external_id', guestRows.map(g => ({
   club_id: CLUB_ID, external_id: g.external_id, full_name: g.name, status: 'inactive',
 })), MERGE);
