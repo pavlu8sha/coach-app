@@ -4,8 +4,9 @@
 @media(min-width:840px){#app .top{top:57px}}
 #app .top h1{margin:6px 0 8px}
 #card h1{margin:16px 0 4px}
-.tabs2{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:12px 0}
-.tabs2 button{font:inherit;font-weight:600;background:none;border:0;border-bottom:3px solid transparent;color:var(--mute);padding:10px 12px;min-height:44px;white-space:nowrap;cursor:pointer;flex:1 1 0;text-align:center}
+.tabs2{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:12px 0;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;max-width:100%}
+.tabs2::-webkit-scrollbar{display:none}
+.tabs2 button{font:inherit;font-size:14px;font-weight:600;background:none;border:0;border-bottom:3px solid transparent;color:var(--mute);padding:10px 6px;min-height:44px;white-space:nowrap;cursor:pointer;flex:1 0 auto;text-align:center}
 .tabs2 button[aria-selected=true]{color:var(--g);border-bottom-color:var(--g)}
 .kv{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:15px}
 .kv>span:last-child{min-width:0;max-width:100%;overflow-wrap:anywhere;text-align:right}
