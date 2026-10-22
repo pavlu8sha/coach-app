@@ -26,7 +26,8 @@ async function rest(method, path, body, prefer = '') {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`${method} ${path}: ${res.status} ${await res.text()}`);
-  return res.status === 204 ? null : res.json();
+  const text = await res.text(); // return=minimal отдаёт пустое тело
+  return text ? JSON.parse(text) : null;
 }
 
 // 1) группы (upsert по club_id + name)
