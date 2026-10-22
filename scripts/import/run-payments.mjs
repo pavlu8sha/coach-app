@@ -60,12 +60,27 @@ const idOf = name => playerId.get(canon(name));
 const dbGroups = await rest('GET', `groups?club_id=eq.${CLUB_ID}&select=id,name`);
 const groupId = new Map(dbGroups.map(g => [g.name, g.id]));
 
-const rows = all.filter(r => !GUESTS.has(norm(r.name)) && playerId.has(canon(r.name)) && groupId.has(r.group));
+// Индивидуальные / вратарские тренировки в абонементы не пишем: у них нет месяца-абонемента, их импорт — отдельным шагом с листами IND_ID
+const IND_GROUP = 'Индивидуальные / Вратарские';
+const indCount = all.filter(r => r.group === IND_GROUP).length;
+const rows = all.filter(r => r.group !== IND_GROUP && !GUESTS.has(norm(r.name)) && playerId.has(canon(r.name)) && groupId.has(r.group));
+console.log(`Индивидуальные строки (не пишутся в этом шаге): ${indCount}`);
 const missingGroups = [...new Set(all.map(r => r.group).filter(g => !groupId.has(g)))];
 if (missingGroups.length) { console.error('Группы не найдены в базе, сначала импортируйте реестр: ' + missingGroups.join(', ')); process.exit(1); }
 
 // 1) абонементы: по одной строке на игрока и месяц
-const subs = rows.map(r => ({ player_id: idOf(r.name), group_id: groupId.get(r.group), month: r.month, amount_due: r.paid }));
+// одна строка абонемента на игрока и месяц: группа — из реестра, сумма — по всем строкам месяца
+const subMap = new Map();
+for (const r of rows) {
+  const pid = idOf(r.name);
+  const key = `${pid}|${r.month}`;
+  const regGroup = regByName.get(canon(r.name))?.group_name;
+  const gid = groupId.get(regGroup) ?? groupId.get(r.group);
+  const cur = subMap.get(key) || { player_id: pid, group_id: gid, month: r.month, amount_due: 0 };
+  cur.amount_due += r.paid;
+  subMap.set(key, cur);
+}
+const subs = [...subMap.values()];
 for (let i = 0; i < subs.length; i += 500) {
   await rest('POST', 'subscriptions?on_conflict=player_id,month', subs.slice(i, i + 500), 'resolution=merge-duplicates,return=minimal');
 }
