@@ -147,7 +147,7 @@ function logChange_(id, name, field, was, now) {
 
 function appAdminInit(pin) {
   checkAdmin_(pin);
-  var d = regData_(), bd = birthById_();
+  var d = regData_(), bd = birthById_(d.players);   // реестр уже получен — второй раз не читаем
   return {
     groups: d.l.groups, statuses: d.l.statuses,
     players: d.players.map(function (p) {
@@ -173,9 +173,10 @@ function birthOverrides_() {
   return map;
 }
 // Карта «ID игрока → дата рождения dd.mm.yyyy» для всех игроков реестра.
-function birthById_() {
+// players — игроки реестра, если вызывающий их уже получил (тот же regData_ того же запроса); иначе читаются здесь
+function birthById_(players) {
   var ov = birthOverrides_(), fromFile = birthByName_(), out = {};
-  regData_().players.forEach(function (p) {
+  (players || regData_().players).forEach(function (p) {
     out[p.id] = ov[p.id] || fromFile[norm(p.name)] || '';
   });
   return out;
