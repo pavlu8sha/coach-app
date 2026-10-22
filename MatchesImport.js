@@ -145,6 +145,10 @@ function importMatchesPreview_() {
       d.slice(0, 3).map(function (x) { return x.p.name; }).join(' / '), Object.keys(seen[k].teams).join(', '), best.d];
   });
   rows.sort(function (a, b) { return (a[2] === 'выберите вручную' ? 0 : 1) - (b[2] === 'выберите вручную' ? 0 : 1) || b[5] - a[5]; });
+  if (CONFIG.DRY_RUN) {
+    Logger.log('DRY_RUN: предпросмотр рассчитан, но лист «' + IMP_SHEET + '» не создан и не изменён. Уникальных имён: ' + rows.length + ', событий: ' + res.events.length + '.');
+    return;
+  }
   var ss = adminSS_(), sh = ss.getSheetByName(IMP_SHEET);
   if (sh && sh.getLastRow() > 1) throw new Error('Лист «' + IMP_SHEET + '» уже есть, в нём может быть ваш выбор имён. Удалите лист вручную, если нужно пересоздать.');
   sh = sh || ss.insertSheet(IMP_SHEET);

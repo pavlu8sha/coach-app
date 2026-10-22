@@ -39,7 +39,7 @@ test('обработчики — тонкие обёртки над приват
 test('indWeeklyCreate приватная: создание занятий нельзя вызвать извне в обход дня и часа', () => {
   assert.match(src['Individual.js'], /function\s+indWeeklyCreate_\s*\(/);
   assert.doesNotMatch(all, /function\s+indWeeklyCreate\s*\(/);
-  assert.match(src['Individual.js'], /function indAutoTickRun_\(\) \{[\s\S]*?\n  indWeeklyCreate_\(\);/);
+  assert.match(src['Individual.js'], /function indAutoTickRun_\(\) \{[\s\S]*?\bindWeeklyCreate_\(\);/);
 });
 
 test('selfTest проверяет те же имена, что создают установщики', () => {

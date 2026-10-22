@@ -30,6 +30,7 @@ var FIN_SHEETS = ['АБОНЕМЕНТЫ', 'ОПЛАТЫ', 'ЖУРНАЛ ИЗМЕ
 
 // Копирует листы целиком в AdminApp (формат сохраняется). Старые листы не трогает. Если лист уже есть в AdminApp, пропускает.
 function migrateFinance_() {
+  if (CONFIG.DRY_RUN) { Logger.log('DRY_RUN: миграция финансов пропущена; листы не копировались.'); return; }
   var src = SpreadsheetApp.getActive(), dst = adminSS_(), out = [];
   FIN_SHEETS.forEach(function (n) {
     var s = src.getSheetByName(n);
@@ -64,6 +65,7 @@ var EFEE_HEAD = ['ID события', 'Команда', 'Тип', 'Назван�
 
 // Копирует денежные данные матчей в AdminApp. Старые листы не трогает. Повторный запуск ничего не перезаписывает.
 function migrateMatchFees_() {
+  if (CONFIG.DRY_RUN) { Logger.log('DRY_RUN: миграция взносов матчей/событий пропущена; листы не создавались.'); return; }
   var src = SpreadsheetApp.getActive(), dst = adminSS_(), out = [];
   var ps = src.getSheetByName('УЧАСТИЕ'), ms = src.getSheetByName('МАТЧИ');
   if (!ps || !ms) throw new Error('Нет листа УЧАСТИЕ или МАТЧИ');
