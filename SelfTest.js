@@ -1,4 +1,7 @@
-/** Проверка здоровья приложения. Только читает, ничего не пишет. Запуск: выберите selfTest_ и «Выполнить». */
+/** Проверка здоровья приложения. Только читает, ничего не пишет. Запуск: выберите selfTest и «Выполнить».
+ *  Результат — только в журнале выполнения: обёртка ничего не возвращает, поэтому при внешнем вызове наружу ничего не уходит. */
+
+function selfTest() { selfTest_(); }
 
 function selfTest_() {
   var out = [];
@@ -66,8 +69,8 @@ function selfTest_() {
     var h = ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); });
     if (h.indexOf('warmUp') < 0) throw new Error('нет триггера warmUp');
     if (h.indexOf('indAutoTick') < 0) throw new Error(h.indexOf('indWeeklyCreate') >= 0
-      ? 'автосоздание индивидуальных идёт по старому триггеру (вторник 9:00), настройки дня и часа не действуют: запустите indInstallTrigger_'
-      : 'нет триггера автосоздания индивидуальных: запустите indInstallTrigger_');
+      ? 'автосоздание индивидуальных идёт по старому триггеру (вторник 9:00), настройки дня и часа не действуют: запустите indInstallTrigger в окне обслуживания MAINT_UNTIL'
+      : 'нет триггера автосоздания индивидуальных: запустите indInstallTrigger в окне обслуживания MAINT_UNTIL');
     return h.length + ' триггеров; индивидуальные создаются: ' + settingGet_('ind.autoDay') + ', с ' + settingGet_('ind.autoHour') + ':00';
   });
   out.push('Режим пробной записи (DRY_RUN): ' + (CONFIG.DRY_RUN ? 'ВКЛ, ничего не пишется' : 'выкл'));

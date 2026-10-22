@@ -304,7 +304,10 @@ function indWeeklyCreate() {
   });
 }
 
-// Запустить ОДИН раз из редактора: включает ежечасную проверку. Занятия создаются в день и час из настроек
+// Запуск из редактора («Выполнить»), только в окне обслуживания MAINT_UNTIL (см. Maint.js). Ничего не возвращает.
+function indInstallTrigger() { maintCheck_(); indInstallTrigger_(); }
+
+// Включает ежечасную проверку. Занятия создаются в день и час из настроек
 // (ind.autoDay, ind.autoHour), поэтому после смены настройки триггер переустанавливать не нужно.
 function indInstallTrigger_() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
