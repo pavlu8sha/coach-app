@@ -109,3 +109,77 @@ function createPayMonthCore_(month) {
   }
   return { ok: true, dryRun: CONFIG.DRY_RUN, month: month, from: prev[prev.length - 1], kept: kept, removed: removed, cleared: cleared };
 }
+// ===== Дописать в существующий лист месяца активных игроков, которых там нет =====
+// Лист создаётся копией предыдущего месяца, поэтому игроки, добавленные позже, в него не попадают.
+// Берём только активных из реестра; игрок идёт в блок своей группы (заголовок блока = название группы).
+
+// Чистая логика (без таблиц): что нужно дописать. groups — результат parseMonth_, players — активные из реестра.
+function planPayMonthSync_(groups, players) {
+  var present = {}, blocks = {};
+  groups.forEach(function (g) {
+    blocks[norm(g.name)] = g;
+    g.rows.forEach(function (r) { if (r.name) present[norm(r.name)] = true; });
+  });
+  var adds = [], unmatched = [], seen = {};
+  players.forEach(function (p) {
+    var key = norm(p.name);
+    if (!key || present[key] || seen[key]) return;
+    seen[key] = true;
+    var g = blocks[norm(p.group)];
+    if (!g) { unmatched.push({ name: p.name, group: p.group }); return; }
+    adds.push({ group: g, name: p.name });
+  });
+  return { adds: adds, unmatched: unmatched };
+}
+
+function syncPayMonthCore_(month) {
+  if (!isMonth_(month)) throw new Error('Месяц нужен в формате ММ.ГГ');
+  var ss = payFile_();
+  var sh = ss.getSheetByName(month);
+  if (!sh) throw new Error('Листа ' + month + ' нет');
+  var active = readRegistry_().players.filter(function (p) { return p.status === 'Активен'; });
+  var groups = parseMonth_(sh);
+  var plan = planPayMonthSync_(groups, active);
+  var added = plan.adds.map(function (a) { return a.name; });
+  if (!CONFIG.DRY_RUN && plan.adds.length) {
+    // последняя строка каждого блока — до заполнения пустых мест
+    var lastOf = {};
+    groups.forEach(function (g) { lastOf[norm(g.name)] = g.rows[g.rows.length - 1].row; });
+    // 1) сначала заполняем пустые места с номером (ничего не сдвигаем)
+    var rest = [];
+    plan.adds.forEach(function (a) {
+      var slot = a.group.rows.filter(function (r) { return !r.name; }).shift();
+      if (slot) {
+        a.group.rows.splice(a.group.rows.indexOf(slot), 1);
+        sh.getRange(slot.row, 2).setValue(a.name);
+      } else rest.push(a);
+    });
+    // 2) остальное — вставкой строк после последней строки блока; блоки идут снизу вверх, чтобы номера строк не сбивались
+    var byBlock = {};
+    rest.forEach(function (a) { var k = norm(a.group.name); (byBlock[k] = byBlock[k] || { g: a.group, names: [] }).names.push(a.name); });
+    Object.keys(byBlock).map(function (k) { return byBlock[k]; })
+      .sort(function (x, y) { return lastOf[norm(y.g.name)] - lastOf[norm(x.g.name)]; })
+      .forEach(function (b) {
+        var at = lastOf[norm(b.g.name)];
+        b.names.forEach(function (name, i) {
+          sh.insertRowAfter(at + i);
+          sh.getRange(at + i + 1, 2).setValue(name);
+        });
+      });
+    renumberRows_(sh);
+    cacheDropBig_('pmonths');
+    monthInvalidate_(month);
+    logChange_('', '', 'дописаны игроки в лист месяца (оплаты)', month, added.join(', '));
+  }
+  return { ok: true, dryRun: CONFIG.DRY_RUN, month: month, added: added, unmatched: plan.unmatched };
+}
+
+// Запуск из редактора Apps Script (есть в списке «Выполнить»): только в окне обслуживания MAINT_UNTIL, без PIN.
+// Вне окна maintCheck_ бросает ошибку. Месяц задаётся в константе SYNC_PAY_MONTH_ ниже.
+var SYNC_PAY_MONTH_ = '11.26';
+function syncPayMonthRun() {
+  maintCheck_();
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try { return syncPayMonthCore_(SYNC_PAY_MONTH_); } finally { lock.releaseLock(); }
+}
