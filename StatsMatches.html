@@ -16,7 +16,7 @@
   function tab(t){
     [].forEach.call(seg.children,function(b){b.className=b.dataset.t==t?'on':''});
     att.forEach(function(e){e.hidden=(t=='mat')});
-    h1.textContent=t=='mat'?'Статистика матчей':'Статистика тренировок';
+    h1.textContent=t=='mat'?'Статистика матчей':'Статистика';
     mp.hidden=(t!='mat');
     if(t=='mat')loadM();
   }
