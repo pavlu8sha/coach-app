@@ -127,12 +127,13 @@ export function buildPlan({ eventsCsv, feesCsv, gamesFiles, registryPlayers }) {
           if (m.kind === 'game') {
             if (played && !seenMP.has(m.external_id + p.external_id)) { seenMP.add(m.external_id + p.external_id); matchPlayers.push({ match_ext: m.external_id, name: p.full_name, played: true }); }
           }
-          if (m.kind === 'friendly' && (played || sPaid)) {
+          // взнос только у тех, кто играл; отметка «оплатил» без игры в листе не учитывается
+          if (m.kind === 'friendly' && played) {
             const k = m.external_id + p.external_id;
             if (!seenMF.has(k)) {
               seenMF.add(k);
               const lp = ledger.has(m.external_id + "|" + p.external_id);
-              matchFees.push({ match_ext: m.external_id, name: p.full_name, amount: m.fee, paid: lp || sPaid, src: lp ? 'ВЗНОСЫ' : (sPaid ? 'GAMES' : 'нет оплаты') });
+              matchFees.push({ match_ext: m.external_id, name: p.full_name, amount: m.fee, paid: lp, src: lp ? 'ВЗНОСЫ' : 'нет оплаты' });
             }
           }
         }
