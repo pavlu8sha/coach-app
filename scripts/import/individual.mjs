@@ -66,12 +66,19 @@ export function replayJournal(text, registryNames) {
 
 // Блок «Индивидуальные / Вратарские» в файле оплат (лист месяца). Строка = запись; сумма = оплачено.
 // Дата в строке, «вр» — вратарская; пустая дата — дата предыдущей строки блока.
+// Вратарские в сентябре в файле оплат без отметки «вр» — подтверждено тренером.
+// Для 20.09 вторая строка Dzidziguri Matvey — вратарская (первая — индивидуальная).
+const GK_NO_MARK = {
+  '2026-09-20': { gk: ['Gilichinskiy Shunya', 'Beresnev Fedor'], second_gk: ['Dzidziguri Matvey'] },
+  '2026-09-27': { gk: ['Beresnev Fedor', 'Vaksin Lev', 'Kyral Dzhan', 'Gilichinskiy Shunya'] },
+};
 export function parsePayBlock(text) {
   const rows = parseCsv(text);
   const start = rows.findIndex(r => (r[0] || '').trim() === 'Индивидуальные / Вратарские');
   if (start < 0) return [];
   const out = [];
   let date = null, gk = false;
+  const seen = new Map();
   for (const r of rows.slice(start + 2)) {
     const first = (r[0] || '').trim();
     if (!/^\d+$/.test(first)) break;                 // конец блока
@@ -79,7 +86,15 @@ export function parsePayBlock(text) {
     const m = (r[2] || '').trim().match(/^(\d{2})\.(\d{2})\.(\d{4})(\s+вр)?$/);
     if (m) { date = `${m[3]}-${m[2]}-${m[1]}`; gk = !!m[4]; }
     if (!name || !date) continue;
-    out.push({ date, gk, name, paid: !!(r[3] || '').trim() });
+    let isGk = gk;
+    const rule = GK_NO_MARK[date];
+    if (rule && !m?.[4]) {
+      const n = (seen.get(name) || 0) + 1;
+      seen.set(name, n);
+      if (rule.gk?.includes(name)) isGk = true;
+      if (rule.second_gk?.includes(name)) isGk = n === 2;
+    }
+    out.push({ date, gk: isGk, name, paid: !!(r[3] || '').trim() });
   }
   return out;
 }

@@ -29,13 +29,19 @@ const journal = replayJournal(fs.readFileSync(jFile, 'utf8'), names);
 for (const b of journal.bookings) { const k = b.key.slice(0, 10) + (b.key.endsWith(' gk') ? ' gk' : ''); if (!times.has(k)) times.set(k, parseSessionKey(b.key)); }
 const topics = new Map(parseSessionsSheet(fs.readFileSync(sessFile, 'utf8')).map(s => [s.key.slice(0, 10) + (s.goalkeepers ? ' gk' : ''), s.topic]));
 
+// Время занятий, которых нет в листах приложения, — подтверждено тренером
+const MANUAL_TIMES = {
+  '2026-09-06': '19:00', '2026-09-12': '18:30', '2026-09-13': '18:00', '2026-09-13 gk': '19:00',
+  '2026-09-19': '19:00', '2026-09-20': '18:00', '2026-09-20 gk': '19:00', '2026-09-26': '19:00',
+  '2026-09-27': '18:00', '2026-09-27 gk': '19:00', '2026-10-31': '19:00',
+};
 const sessMap = new Map();
 for (const r of payRows) {
   const k = r.date + (r.gk ? ' gk' : '');
-  const info = times.get(k);
-  if (!info) problems.push({ error: `нет времени занятия ${k} — поставлено 19:00` });
+  const info = times.get(k) ?? (MANUAL_TIMES[k] ? { starts_at: `${r.date}T${MANUAL_TIMES[k]}:00` } : null);
+  if (!info) problems.push({ error: `нет времени занятия ${k}` });
   const sid = `IND-${r.date.replace(/-/g, '-')}${r.gk ? '-GK' : ''}`;
-  if (!sessMap.has(sid)) sessMap.set(sid, { external_id: sid, starts_at: info ? info.starts_at : `${r.date}T19:00:00`, topic: topics.get(k) ?? null, people: new Map() });
+  if (!sessMap.has(sid)) sessMap.set(sid, { external_id: sid, starts_at: info ? info.starts_at : null, topic: topics.get(k) ?? null, people: new Map() });
   const sess = sessMap.get(sid);
   const g = GUESTS[r.name.toLowerCase()];
   const pname = g ?? resolveName(r.name, names)?.name;
