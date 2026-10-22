@@ -4,7 +4,7 @@ function monthKey_(d) { return ('0' + (d.getMonth() + 1)).slice(-2) + '.' + Stri
 
 function isMonth_(n) { return /^\d{2}\.\d{2}$/.test(n); }
 
-function revMonth_(m) { return m.split('.').reverse().join(''); }
+// revMonth_ («мм.гг» → «ггмм» для сравнения месяцев) — одна на проект, в SubsCode.js
 
 // Три месяца, листов которых ещё нет: считаем от текущего месяца или от последнего созданного листа (что позже).
 function appMonthOptions(pin, kind) {
