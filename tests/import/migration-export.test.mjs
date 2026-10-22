@@ -30,4 +30,5 @@ test('воронка не выгружается; имена файлов без
 test('выгрузка защищена окном обслуживания', () => {
   const body = src.slice(src.indexOf('function migrationExport'));
   assert.match(body, /maintCheck_\(\)/);
+  assert.match(src, /GN_FILE_ID/);
 });

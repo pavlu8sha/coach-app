@@ -2,7 +2,7 @@
  *  Только чтение таблиц. Работает только в окне обслуживания (MAINT_UNTIL), без PIN.
  *  Воронка (листы с «ВОРОНК») не выгружается: там телефоны, которые не переносим. */
 
-var EXPORT_PROPS = ['ATT_ID', 'PAY_ID', 'ADMIN_ID', 'GAMES_ID', 'EQUIP_ID', 'IND_ID', 'EXTRA_ID'];
+var EXPORT_PROPS = ['ATT_ID', 'PAY_ID', 'ADMIN_ID', 'GAMES_ID', 'EQUIP_ID', 'IND_ID', 'EXTRA_ID', 'GN_FILE'];
 
 function csvCell_(v) {
   var s = v === null || v === undefined ? '' : String(v);
@@ -25,7 +25,9 @@ function migrationExport() {
   var report = [];
   EXPORT_PROPS.forEach(function (prop) {
     try {
-      var ss = clubSource_(prop, 'Не задано свойство ' + prop);
+      // GN_FILE_ID зашит в GamesNew.js (файл игр и тренировок), свойства нет
+      var ss = prop === 'GN_FILE' ? SpreadsheetApp.openById(GN_FILE_ID)
+        : clubSource_(prop, 'Не задано свойство ' + prop);
       var sub = root.createFolder(prop);
       ss.getSheets().forEach(function (sh) {
         var name = sh.getName();
