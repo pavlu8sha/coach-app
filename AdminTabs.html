@@ -48,11 +48,11 @@ li.p{padding:12px 14px}
       else if(e.fee>0){var debt=Math.max(e.fee-(x.sum||0),0);c=x.sum>0?chip('mid','частично, долг '+money(debt)):chip('bad','долг '+money(debt))}
       else c=chip('bad','не оплачено');
       return'<div class="res gm"><span>'+esc(name)+'<span class="sub"> · '+esc(e.team)+'</span></span>'+c+'</div>';
-    }).join(''):'<p class="sub">Взносов нет.</p>');
+    }).join(''):emptyBox('Взносов нет.'));
     h+='<h2>Сыгранные матчи</h2>'+(games.length?games.map(function(g){
       var e=g.e,par=ev[e.parent],sc=(typeof e.gf==='number'&&typeof e.ga==='number')?e.gf+':'+e.ga:'';
       return'<div class="res gm"><span>'+esc(fd(e.date))+' · '+esc(e.opp||'соперник не указан')+'<span class="sub"> · '+esc(par?par.name:e.name)+(g.x.goals?' · голов: '+g.x.goals:'')+'</span></span><span class="sc">'+esc(sc)+'</span></div>';
-    }).join(''):'<p class="sub">Сыгранных матчей пока нет.</p>');
+    }).join(''):emptyBox('Сыгранных матчей пока нет.'));
     pg.innerHTML=h;
   }
   function loadGames(pg){
