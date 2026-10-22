@@ -64,6 +64,15 @@ li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padd
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .prh>span+span.err{color:#E8806F;background:#3A221E}}
 :root[data-theme="dark"] .prh>span+span.err{color:#E8806F;background:#3A221E}
 .pill.ok:before,.prh>span+span.ok:before,.prh>span+span.err:before{content:'● ';font-size:10px}
+.sk-row{display:flex;gap:12px;align-items:center;padding:12px 14px;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:8px;list-style:none}
+.sk-av{flex:none;width:40px;height:40px;border-radius:50%;background:var(--line)}
+.sk-t{flex:1;min-width:0}
+.sk-l{display:block;height:12px;border-radius:6px;background:var(--line);margin:8px 0;width:100%}
+.sk-l.w60{width:60%}.sk-l.w40{width:40%}
+.sk-card{padding:8px 0}
+.sk-row .sk-l,.sk-card .sk-l{animation:skp 1.2s ease-in-out infinite}
+@keyframes skp{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.sk-row .sk-l,.sk-card .sk-l{animation:none}}
 </style>
 </head>
 <body>
@@ -126,12 +135,21 @@ function fillFilters(){
   $('st').innerHTML=opt('Активен','Активные')+statuses().filter(function(x){return x!='Активен'}).map(function(x){return opt(x)}).join('')+opt('','Все');
   $('st').value=sSel;
 }
+// UI-013 (пустые состояния): скелетон списка при первой загрузке
+function skelList(n){var h='';for(var i=0;i<n;i++)h+='<li class="sk-row" aria-hidden="true"><span class="sk-av"></span><span class="sk-t"><span class="sk-l w60"></span><span class="sk-l w40"></span></span></li>';return h}
+function skelCard(){return'<div class="sk-card" aria-hidden="true"><span class="sk-l w40"></span><span class="sk-l"></span><span class="sk-l w60"></span><span class="sk-l"></span></div><p class="sub" role="status">Загрузка…</p>'}
 function load(){
   setMsg('msg','Загрузка…',false);
+  if(!D&&$('list'))$('list').innerHTML=skelList(5);
   run('appAdminInit',[pin],function(d){
     D=d;$('login').hidden=true;$('form').hidden=true;$('card').hidden=true;$('app').hidden=false;
     fillFilters();fillYears();setMsg('msg',flash,false);flash='';list();
-  },function(m){if(/код (администратора|доступа)/.test(m))showLogin('Неверный код доступа');else{$('app').hidden=false;setMsg('msg',m,true)}});
+  },function(m){
+    if(/код (администратора|доступа)/.test(m))showLogin('Неверный код доступа');
+    else{$('app').hidden=false;
+      if(!D&&$('list')){$('msg').textContent='';$('list').innerHTML=ksEmpty({tag:'li',icon:'alert',title:'Не удалось загрузить данные',text:'Проверьте соединение и попробуйте ещё раз.',btn:'Повторить',id:'eretry'})}
+      else setMsg('msg',m,true)}
+  });
 }
 function yearOf(b){return b?b.slice(6):'none'}
 function chip(v,t){return'<button type="button" data-y="'+esc(v)+'" aria-pressed="'+(ySel.indexOf(v)>=0)+'">'+esc(t)+'</button>'}
@@ -144,7 +162,8 @@ function fillYears(){
   $('ql').innerHTML=D.players.map(function(p){return'<option value="'+esc(p.name)+'">'+esc(p.id+' · '+p.group)+'</option>'}).join('');
 }
 $('list').addEventListener('click',function(e){
-  var b=e.target.closest('#eadd,#ereset');if(!b)return;
+  var b=e.target.closest('#eadd,#ereset,#eretry');if(!b)return;
+  if(b.id=='eretry'){load();return}
   if(b.id=='eadd'){$('add').click();return}
   $('q').value='';$('fg').value='';$('st').value='Активен';ySel=[];fillYears();
   var t=$('dbt');if(t&&t.getAttribute('aria-checked')=='true')t.click();else window.list();
@@ -260,7 +279,7 @@ function openCard(i){
   $('bdt').value=p.birth?p.birth.slice(6)+'-'+p.birth.slice(3,5)+'-'+p.birth.slice(0,2):'';
   if(cardPid!=p.id){cardPid=p.id;setMethod('');$('pdt').value=today();$('pcm').value=''}
   $('pmsg').textContent=pflash;pflash='';
-  $('cbody').innerHTML='<div class="sub">Загрузка…</div>';
+  $('cbody').innerHTML=skelCard();
   function part(key,fn,args){
     function settle(){if(--left===0&&n==cardReq)renderCard(pk)}
     run(fn,args,function(r){pk[key]=r;settle()},function(m){pk[key+'Err']=m;settle()});

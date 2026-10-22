@@ -74,8 +74,8 @@ li.p .chev{flex:none;width:8px;height:8px;border-right:2px solid var(--mute);bor
     renderApplied(q,g,st);
     // UI-010: пустые состояния (как в Admin.html list)
     if(!a.length)$('list').innerHTML=!D.players.length
-      ?ksEmpty({tag:'li',icon:'users',title:'Нет игроков',text:'Добавьте игроков в реестр.',btn:'Добавить игрока',id:'eadd'})
-      :ksEmpty({tag:'li',icon:'search',title:'Никого не нашли',text:only?'Нет игроков с неоплаченным абонементом по этим фильтрам.':'Измените поиск или фильтры.',btn:'Сбросить фильтры',id:'ereset'});
+      ?ksEmpty({tag:'li',icon:'users',title:'В базе нет игроков',text:'Добавьте первого игрока или измените фильтры поиска.',btn:'+ Добавить игрока',id:'eadd'})
+      :ksEmpty({tag:'li',icon:'search',title:'Ничего не найдено',text:only?'Нет игроков с неоплаченным абонементом по этим фильтрам.':'Попробуйте изменить запрос или сбросить фильтры.',btn:'Сбросить фильтры',id:'ereset'});
   };
   $('q').oninput=function(){window.list()};
   // UI-013 (макет): панель применённых фильтров, каждый со «×», и «Сбросить все»
