@@ -4,7 +4,7 @@
 <base target="_top">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Посещаемость</title>
+<title>Отметки</title>
 <style>
 :root{--bg:#F4F6F3;--card:#fff;--ink:#15211A;--mute:#5B6B61;--line:#DCE3DD;--g:#1E6B3C;--gi:#fff;--pb:#DDF0E3;--a:#B23A2B;--n:#D3DAD5}
 @media(prefers-color-scheme:dark){:root{--bg:#0F1712;--card:#17221B;--ink:#E8F0EA;--mute:#93A69A;--line:#26362C;--g:#4FAE74;--gi:#0B1410;--pb:#1B3A28;--a:#E8806F;--n:#33443A}}
@@ -57,7 +57,7 @@ li.empty{display:block;color:var(--mute);font-weight:400;padding:14px}
   <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err" role="alert"></p><button id="go">Войти</button>
 </div>
 <div id="app" class="wrap ks-wide-w" hidden>
-  <h1>Отметка посещаемости</h1>
+  <h1>Отметки</h1>
   <div class="ktab" id="ktab" role="tablist" aria-label="Тип занятий"><button type="button" role="tab" aria-selected="true" class="on" data-k="grp">Группы</button><button type="button" role="tab" aria-selected="false" tabindex="-1" data-k="ind">Индивидуальные</button></div>
   <div class="row2"><select id="grp" aria-label="Группа"></select><input type="date" id="dt" aria-label="Дата" autocomplete="off"></div>
   <p class="gc" id="gcnt" hidden></p>
