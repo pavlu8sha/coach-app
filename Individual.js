@@ -309,14 +309,18 @@ function indWeeklyCreate_() {
 function indInstallTrigger() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
     var h = t.getHandlerFunction();
-    if (h === 'indWeeklyCreate' || h === 'indAutoTick' || h === 'indWeeklyCreate_' || h === 'indAutoTick_') ScriptApp.deleteTrigger(t);
+    if (h === 'indWeeklyCreate' || h === 'indAutoTick') ScriptApp.deleteTrigger(t);
   });
-  ScriptApp.newTrigger('indAutoTick_').timeBased().everyHours(1).create();
+  ScriptApp.newTrigger('indAutoTick').timeBased().everyHours(1).create();
   Logger.log('Триггер создан: каждый час; занятия создаются в ' + settingGet_('ind.autoDay') + ', ' + settingGet_('ind.autoHour') + ':00');
 }
 
+// Обработчик ежечасного триггера. Имя не менять: на него ссылается уже установленный триггер (план миграции #15/#16).
+// Внешний вызов безопасен: создаёт занятия только в день и час из настроек и не больше одного раза в день.
+function indAutoTick(e) { indAutoTickRun_(); }
+
 // Ежечасно: в день и час из настроек создаёт занятия на ближайшие выходные (один раз в неделю).
-function indAutoTick_() {
+function indAutoTickRun_() {
   var tz = Session.getScriptTimeZone(), now = new Date();
   var wd = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'][Number(Utilities.formatDate(now, tz, 'u')) % 7];
   if (wd !== settingGet_('ind.autoDay') || Number(Utilities.formatDate(now, tz, 'H')) < settingGet_('ind.autoHour')) return;
