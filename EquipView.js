@@ -56,16 +56,15 @@ function addOrderCore_(o) {
   var cat = catalog_(true), parts = String(o.kit || '').split(' + ').map(function (x) { return x.trim(); }).filter(Boolean);
   var items = parts.map(function (name) { return cat.filter(function (x) { return x.name === name; })[0]; });
   if (!parts.length || items.some(function (x) { return !x; })) throw new Error('Выберите позицию из каталога');
-  var catSum = items.reduce(function (s, x) { return s + Number(x.price || 0); }, 0);
+  // Количество каждой позиции (одинаковые комплекты; размер, надпись и номер общие на заказ)
+  var qs = qtyCheck_(parts.map(function (p, i) { return Math.floor(Number(o.qtys && o.qtys[i])) || 1; }));
+  var catSum = items.reduce(function (s, x, i) { return s + Number(x.price || 0) * qs[i]; }, 0);
   // Сумма не указана — по каталогу со скидкой из настроек (как считает форма)
   if (!(Number(o.sum) > 0)) {
-    var dc = equipDiscCalc_(equipDiscCfg_(), kitParts_(o.kit), catPrices_(cat), !!o.inst, equipOthers_(equipSheet_(), String(o.id || '').trim(), 0));
+    var dc = equipDiscCalc_(equipDiscCfg_(), kitParts_(o.kit), catPrices_(cat), !!o.inst, equipOthers_(equipSheet_(), String(o.id || '').trim(), 0), qs);
     if (dc.disc !== null) catSum = dc.disc;
   }
-  // Количество комплектов одинаковых (размер, надпись, номер общие): сумма = цена × количество
-  var qty = Math.floor(Number(o.qty)) || 1;
-  if (qty < 1 || qty > 10) throw new Error('Количество: от 1 до 10');
-  var sum = Number(o.sum) || catSum * qty, paid = Number(o.paid) || 0;
+  var sum = Number(o.sum) || catSum, paid = Number(o.paid) || 0;
   if (sum <= 0) throw new Error('Введите сумму заказа');
   if (paid < 0 || paid > sum) throw new Error('Оплачено сейчас: от 0 до суммы заказа');
   var method = String(o.method || '').trim();
@@ -110,7 +109,8 @@ function addOrderCore_(o) {
     sh.getRange(row, 14).setValue(ordId);
     // количество — в колонку M; заголовок ставим, только если его ещё нет
     if (!String(sh.getRange(EQ_FIRST - 1, 13).getValue()).trim()) sh.getRange(EQ_FIRST - 1, 13).setValue('Кол-во');
-    sh.getRange(row, 13).setValue(qty);
+    nfSafe_(sh.getRange(row, 13), '@');
+    sh.getRange(row, 13).setValue(qs.join(' + '));
     step('запись строки');
     equipSyncLocations_(sh, players);
     step('локации');
@@ -126,7 +126,7 @@ function addOrderCore_(o) {
       nfSafe_(ps.getRange(r2, 7), '#,##0.00 "₾"');
     }
     step('оплата');
-    logChange_(o.id, p.name, 'новый заказ экипировки', '', o.kit + (qty > 1 ? ' × ' + qty : '') + ', ' + sum + ' ₾, строка ' + row);
+    logChange_(o.id, p.name, 'новый заказ экипировки', '', o.kit + (qs.some(function (q) { return q > 1; }) ? ', кол-во ' + qs.join(' + ') : '') + ', ' + sum + ' ₾, строка ' + row);
     step('журнал');
   }
   Logger.log('заказ экипировки: ' + steps.join(', ') + ', итого ' + (Date.now() - tStart) + ' мс');

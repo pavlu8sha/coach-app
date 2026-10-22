@@ -42,7 +42,7 @@ function equipOrdersLive_() {
     var sum = Number(r[8]) || 0, paid = Number(r[9]) || 0;
     var o = {
       id: id, row: EQ_FIRST + i, no: Number(r[0]), oname: name, kit: disp[i][3], size: disp[i][4], inscr: disp[i][5], num: disp[i][6],
-      inst: disp[i][7], sum: sum, paid: paid, debt: Math.max(sum - paid, 0), qty: Number(r[12]) || 1
+      inst: disp[i][7], sum: sum, paid: paid, debt: Math.max(sum - paid, 0), qtys: qtysOf_(r[12], String(r[3] || '').split(' + ').length)
     };
     if (id) orders.push(o); else unl.push(o);
   });
@@ -145,16 +145,28 @@ function equipDiscCfg_() {
   };
 }
 
+// Количество каждой позиции: колонка M, «2 + 1» по порядку позиций в колонке D; пусто — по 1
+function qtysOf_(text, n) {
+  var a = String(text || '').split(' + ');
+  var out = [];
+  for (var i = 0; i < n; i++) { var v = Math.floor(Number(a[i])); out.push(v >= 1 ? v : 1); }
+  return out;
+}
+function qtyCheck_(qs) {
+  qs.forEach(function (q) { if (!(q >= 1 && q <= 10)) throw new Error('Количество каждого комплекта: от 1 до 10'); });
+  return qs;
+}
+
 function kitParts_(kit) {
   return String(kit || '').split(' + ').map(function (x) { return x.trim().toLowerCase(); }).filter(Boolean);
 }
 
 // parts — позиции заказа (в нижнем регистре); prices — {позиция в нижнем регистре: цена};
 // others — прежние заказы игрока [{kit, sum}]. Возвращает {total, excl, disc}; disc = null — скидки нет.
-function equipDiscCalc_(cfg, parts, prices, inst, others) {
+function equipDiscCalc_(cfg, parts, prices, inst, others, qtys) {
   var total = 0, excl = 0;
-  parts.forEach(function (k) {
-    var v = Number(prices[k]) || 0;
+  parts.forEach(function (k, i) {
+    var v = (Number(prices[k]) || 0) * ((qtys && qtys[i]) || 1);
     total += v;
     if (cfg.exclude.indexOf(k) >= 0) excl += v;
   });
@@ -194,10 +206,17 @@ function editOrderCore_(row, o) {
   var before = sh.getRange(row, 4, 1, 5).getDisplayValues()[0];
   var oldSum = sh.getRange(row, 9).getValue();
   var kit = String(o.kit || '').trim();
-  var newSum = null;
+  var newSum = null, qs = null;
+  var kparts = kit.split(' + ').map(function (x) { return x.trim(); }).filter(Boolean);
+  var mOld = String(sh.getRange(row, 13).getValue()).trim();
+  if (kit) {
+    qs = Array.isArray(o.qtys) ? qtyCheck_(kparts.map(function (x, i) { return Math.floor(Number(o.qtys[i])) || 1; }))
+      : (kit === before[0] ? qtysOf_(mOld, kparts.length) : qtysOf_('', kparts.length));
+  }
+  var qtyChanged = qs !== null && qs.join(' + ') !== qtysOf_(mOld, kparts.length).join(' + ');
   if (kit) {
     // Заказ может содержать несколько комплектов («A + B»): сумма — сумма цен каждого из них
-    var needCat = kit !== before[0] || !(Number(oldSum) > 0); // сменился комплект или сумма ещё не стоит
+    var needCat = kit !== before[0] || !(Number(oldSum) > 0) || qtyChanged; // сменился комплект, количество или сумма ещё не стоит
     var cat = catalog_(true), missing = '';
     kit.split(' + ').forEach(function (part) {
       var name = part.trim();
@@ -206,7 +225,7 @@ function editOrderCore_(row, o) {
     if (missing && needCat) throw new Error('Выберите позицию из каталога: ' + missing);
     // Скидка пересчитывается при каждом сохранении, если она положена (null — скидки нет)
     var id = String(sh.getRange(row, 12).getValue()).trim();
-    var calc = equipDiscCalc_(equipDiscCfg_(), kitParts_(kit), catPrices_(cat), !!o.inst, equipOthers_(sh, id, row));
+    var calc = equipDiscCalc_(equipDiscCfg_(), kitParts_(kit), catPrices_(cat), !!o.inst, equipOthers_(sh, id, row), qs);
     var total = calc.total, disc = missing ? null : calc.disc;
     if (needCat) newSum = disc !== null ? disc : total;
     else if (disc !== null) newSum = disc;
@@ -218,6 +237,7 @@ function editOrderCore_(row, o) {
     // Пишем по одной ячейке: многоколоночная запись диапазона в Sheets даёт ошибку «выберите элемент в одном столбце»
     [5, 6, 7].forEach(function (col) { nfSafe_(sh.getRange(row, col), '@'); }); // размер, надпись, номер хранятся как текст
     for (var ci = 0; ci < after.length; ci++) { sh.getRange(row, 4 + ci).setValue(after[ci]); }
+    if (qs) { nfSafe_(sh.getRange(row, 13), '@'); sh.getRange(row, 13).setValue(qs.join(' + ')); }
     if (newSum !== null) sh.getRange(row, 9).setValue(newSum);
     cacheDropBig_('eq_v1');
     var what = before.join(' | ') + (newSum !== null ? ' | сумма ' + oldSum : '');
