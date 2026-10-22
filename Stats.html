@@ -16,6 +16,8 @@ input,select{font:inherit;color:var(--ink);background:var(--card);border:1px sol
 button{font:inherit;cursor:pointer}
 .btn{width:100%;min-height:48px;border:0;border-radius:12px;background:var(--g);color:var(--gi);font-weight:800;font-size:16px;margin-top:12px}
 .dates{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+/* iOS: поле даты не сжимается само — без этого «С» и «По» налезали друг на друга и выходили за экран */
+.dates>div{min-width:0}.dates input[type=date]{-webkit-appearance:none;appearance:none;width:0;min-width:100%;max-width:100%;display:block;box-sizing:border-box}
 .dates label{font-size:13px;color:var(--mute)}
 .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
 .tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
