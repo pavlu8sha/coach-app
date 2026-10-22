@@ -8,13 +8,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseRegistry } from './registry.mjs';
-import { IND_PRICE, GUESTS, parsePayBlock, parseSessionsSheet, replayJournal, parseSessionKey, guestExt } from './individual.mjs';
+import { IND_PRICE, GUESTS, parsePayBlock, parseSessionsSheet, replayJournal, parseSessionKey, guestExt, parseIndividualFile } from './individual.mjs';
 import { resolveName } from './events-plan.mjs';
 
 const arg = name => { const i = process.argv.indexOf('--' + name); return i >= 0 ? process.argv[i + 1] : null; };
 const write = process.argv.includes('--write');
-const regFile = arg('registry'), payDir = arg('pay-dir'), sessFile = arg('sessions'), jFile = arg('journal');
-if (!regFile || !payDir || !sessFile || !jFile) { console.error('Укажите --registry, --pay-dir (папка PAY_ID), --sessions (ЗАНЯТИЯ), --journal (ОПЛАТЫ)'); process.exit(2); }
+const regFile = arg('registry'), payDir = arg('pay-dir'), sessFile = arg('sessions'), jFile = arg('journal'), oldDir = arg('old-dir');
+if (!regFile || !payDir || !sessFile || !jFile) { console.error('Укажите --registry, --pay-dir (папка PAY_ID), --sessions (ЗАНЯТИЯ), --journal (ОПЛАТЫ) и при необходимости --old-dir (старые IND_ID, занятия до сентября)'); process.exit(2); }
 
 const reg = parseRegistry(fs.readFileSync(regFile, 'utf8'));
 const names = reg.players.map(p => p.full_name);
@@ -49,6 +49,17 @@ for (const r of payRows) {
   const cur = sess.people.get(pname);
   const guest = !!g;
   sess.people.set(pname, { name: pname, guest, external_id: guest ? guestExt(pname) : null, paid: (cur?.paid ?? false) || r.paid });
+}
+// Занятия до сентября — из старой таблицы занятий (IND_ID): там история с 18.01, в листах приложения её нет
+if (oldDir) {
+  for (const f of fs.readdirSync(oldDir).filter(n => n.endsWith('.csv')).sort()) {
+    const r = parseIndividualFile(fs.readFileSync(path.join(oldDir, f), 'utf8'), f, names);
+    problems.push(...r.problems);
+    for (const os of r.sessions.filter(x => x.starts_at < '2026-09-01')) {
+      if (sessMap.has(os.external_id)) { problems.push({ error: `занятие уже есть: ${os.external_id}` }); continue; }
+      sessMap.set(os.external_id, { external_id: os.external_id, starts_at: os.starts_at, topic: os.topic, people: new Map(os.people.map(p => [p.name, p])) });
+    }
+  }
 }
 const sessions = [...sessMap.values()].map(s => ({ ...s, people: [...s.people.values()] }));
 const bookings = sessions.flatMap(s => s.people);
