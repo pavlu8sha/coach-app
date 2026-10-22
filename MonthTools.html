@@ -14,6 +14,35 @@
     +'<button class="mb" style="width:100%;min-height:46px;margin-top:10px;border:0;border-radius:12px;background:var(--g,#1E6B3C);color:var(--gi,#fff);font:800 15px system-ui,-apple-system,sans-serif;cursor:pointer">Создать лист</button>'
     +'<div class="mr" style="margin-top:8px;font-size:14px"></div>';
   root.appendChild(box);
+  if(KIND=='pay'){
+    var sbox=document.createElement('details');
+    sbox.hidden=true;
+    sbox.style.cssText=box.style.cssText;
+    sbox.innerHTML='<summary style="cursor:pointer;font-weight:700">Дописать игроков в лист месяца</summary>'
+      +'<p style="color:var(--mute,#5B6B61);font-size:13px;margin:8px 0">Добавит активных игроков из реестра, которых нет в листе, в блок их группы. Дата рождения переносится, если она известна. Оплаты не трогаются.</p>'
+      +'<select class="sm" aria-label="Месяц листа" style="width:100%;min-height:44px;font:inherit;border-radius:10px;border:1px solid var(--color-border-strong,#7A86A6);padding:8px 12px;background:var(--card,#fff);color:var(--ink,#15211A)"></select>'
+      +'<button class="sb" style="width:100%;min-height:46px;margin-top:10px;border:0;border-radius:12px;background:var(--g,#1E6B3C);color:var(--gi,#fff);font:800 15px system-ui,-apple-system,sans-serif;cursor:pointer">Дописать игроков</button>'
+      +'<div class="sr" style="margin-top:8px;font-size:14px"></div>';
+    root.appendChild(sbox);
+    var ssel=sbox.querySelector('.sm'),sbtn=sbox.querySelector('.sb'),sres=sbox.querySelector('.sr');
+    var svis=function(){var tr=false;try{tr=localStorage.getItem('ksmode')=='trainer'}catch(e){}sbox.hidden=(role!='admin')||tr};
+    setInterval(svis,1500);
+    sbox.addEventListener('toggle',function(){
+      if(!sbox.open)return;
+      run('appMonthOptions',[pin,KIND],function(o){ssel.innerHTML=o.map(function(m){return'<option>'+m+'</option>'}).join('')},function(m){sres.textContent=m});
+    });
+    sbtn.onclick=function(){
+      if(!ssel.value)return;
+      sbtn.disabled=true;sres.textContent='Дописываю…';
+      run('appSyncPayMonth',[pin,ssel.value],function(r){
+        sbtn.disabled=false;
+        var t='Лист '+r.month+(r.dryRun?' (пробный режим, ничего не записано). ':'. ');
+        t+=r.added.length?'Добавлено: '+r.added.join(', ')+'.':'Добавлять некого.';
+        if(r.unmatched&&r.unmatched.length)t+=' Нет блока группы: '+r.unmatched.map(function(u){return u.name+' ('+u.group+')'}).join(', ')+'.';
+        sres.textContent=t;
+      },function(m){sbtn.disabled=false;sres.textContent=m});
+    };
+  }
   var sel=box.querySelector('.mm'),btn=box.querySelector('.mb'),res=box.querySelector('.mr');
   function vis(){var tr=false;try{tr=localStorage.getItem('ksmode')=='trainer'}catch(e){}box.hidden=(role!='admin')||tr}
   setInterval(function(){
