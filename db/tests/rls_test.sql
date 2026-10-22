@@ -1,7 +1,7 @@
 -- pgTAP: доступ по ролям. Запуск: psql -f db/migrations/0001_init.sql -f db/migrations/0002_rls.sql -f db/tests/rls_test.sql
 begin;
 create extension if not exists pgtap;
-select plan(8);
+select plan(9);
 
 -- Фикстуры (от владельца БД, RLS не действует). Все UUID — корректный hex.
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
