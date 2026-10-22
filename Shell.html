@@ -22,9 +22,13 @@
 </div>
 <script>
 (function(){
-  var PAGES=__SHELL_PAGES__,START='__START__',URL='__URL__';
+  var PAGES=__SHELL_PAGES__,NAVOF=__NAVOF__,START='__START__',URL='__URL__';
   var host=document.getElementById('kshost'),load=host.querySelector('.ksshl'),err=host.querySelector('.ksshe');
-  var frames={},cur='',want='',htmlCache={},prefetched=false;
+  var frames={},cur='',want='',htmlCache={},prefetched=false,stale={},hiddenAt={};
+  var MAXAGE=5*60*1000; // раздел, скрытый дольше 5 минут, открывается заново со свежими данными
+  // Вызовы, которые только читают данные. Любой другой успешный вызов (запись, оплата, отметка) помечает
+  // остальные открытые разделы устаревшими: при следующем открытии они загрузятся заново.
+  var READ=['appWho','appPageHtml','appAccountMonths','appAdminInit','appAttInit','appCampData','appCampList','appCatalog','appDailySchedule','appDebtors','appEquipOrders','appExtraData','appExtraOfPlayer','appFunnelCandidates','appFunnelData','appGamesData','appIndData','appIndOfPlayer','appIndPlayers','appMatchPlayers','appMatchStats','appMatchesData','appMonthOptions','appPayMonth','appPayMonths','appPaySummary','appPlayerCard','appPlayerSubs','appPrices','appRoster','appSchedule','appSettings','appStatsMonths','appStatsRange','appTodayPayments','appTrainingOptions','appTrainingsList','appWroteList'];
   function pageOf(href){var m=/[?&]page=([^&#]+)/.exec(href||'');return m?decodeURIComponent(m[1]):'att'}
 
   // Окно раздела занимает место между меню и краем экрана (меню снизу на телефоне, сверху на компьютере)
@@ -38,19 +42,31 @@
   new MutationObserver(layout).observe(document.documentElement,{attributes:true,attributeFilter:['data-ok']});
 
   // У каждого окна свой объект google: вызовы сервера идут через каркас, а обёртки страниц не трогают друг друга
-  window.ksChildGoogle=function(){
+  window.ksChildGoogle=function(page){
     var g=google.script;
-    return{script:{get run(){return g.run},history:g.history,url:g.url,host:g.host}};
+    function mk(ok,fl,ud){return new Proxy({},{get:function(_,k){
+      if(k==='withSuccessHandler')return function(f){return mk(f,fl,ud)};
+      if(k==='withFailureHandler')return function(f){return mk(ok,f,ud)};
+      if(k==='withUserObject')return function(u){return mk(ok,fl,u)};
+      return function(){
+        var r=g.run.withSuccessHandler(function(res,u){if(READ.indexOf(k)<0)markStale(page);if(ok)ok(res,u)})
+          .withFailureHandler(function(e,u){if(fl)fl(e,u)});
+        if(ud!==undefined)r=r.withUserObject(ud);
+        return r[k].apply(r,arguments);
+      };
+    }})}
+    return{script:{get run(){return mk(null,null,undefined)},history:g.history,url:g.url,host:g.host}};
   };
+  function markStale(page){Object.keys(frames).forEach(function(k){if(k!==page)stale[k]=1})}
 
   function markNav(page){
     [].forEach.call(document.querySelectorAll('#ksnav a[href],#ksmore a[href]'),function(a){
-      var on=pageOf(a.getAttribute('href'))===page;a.classList.toggle('on',on);
+      var on=NAVOF[pageOf(a.getAttribute('href'))]===NAVOF[page];a.classList.toggle('on',on);
       if(on)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');
     });
   }
   function showOnly(page){
-    Object.keys(frames).forEach(function(k){frames[k].hidden=(k!==page)});
+    Object.keys(frames).forEach(function(k){var h=(k!==page);if(h&&!frames[k].hidden)hiddenAt[k]=Date.now();frames[k].hidden=h});
     load.hidden=true;err.hidden=true;
   }
   function hist(page){try{google.script.history.push({page:page},{shell:'1',page:page})}catch(e){}}
@@ -65,8 +81,11 @@
     var mb=document.getElementById('ksmb');if(mb)mb.setAttribute('aria-expanded','false');
     if(push&&page!==cur)hist(page);
     cur=page;
+    if(frames[page]&&(stale[page]||Date.now()-(hiddenAt[page]||Date.now())>MAXAGE)){ // устарел — открываем заново
+      host.removeChild(frames[page]);delete frames[page];delete stale[page];
+    }
     if(frames[page]){showOnly(page);return}
-    Object.keys(frames).forEach(function(k){frames[k].hidden=true});
+    Object.keys(frames).forEach(function(k){if(!frames[k].hidden)hiddenAt[k]=Date.now();frames[k].hidden=true});
     err.hidden=true;load.hidden=false;
     if(htmlCache[page]){mount(page,htmlCache[page]);return}
     google.script.run.withSuccessHandler(function(html){htmlCache[page]=html;mount(page,html)}).withFailureHandler(function(e){
@@ -79,13 +98,14 @@
   // Разметку остальных разделов каркаса подгружаем заранее, после первого открытого: переход ждёт только данные раздела
   function prefetch(){
     if(prefetched)return;prefetched=true;
-    PAGES.forEach(function(p){if(htmlCache[p]||frames[p])return;
-      google.script.run.withSuccessHandler(function(h){htmlCache[p]=h}).withFailureHandler(function(){}).appPageHtml(p)});
+    var q=PAGES.filter(function(p){return!htmlCache[p]&&!frames[p]});
+    (function next(){var p=q.shift();if(!p)return;if(htmlCache[p]||frames[p])return next(); // по одному, чтобы не нагружать сервер
+      google.script.run.withSuccessHandler(function(h){htmlCache[p]=h;next()}).withFailureHandler(function(){next()}).appPageHtml(p)})();
   }
   function mount(page,html){
       if(frames[page])return;
       var f=document.createElement('iframe');f.title=page;f.hidden=true;
-      html=String(html).replace(/<head([^>]*)>/i,function(m){return m+'<script>window.KS_EMBED=1;try{window.google=parent.ksChildGoogle()}catch(e){}<\/script>'});
+      html=String(html).replace(/<head([^>]*)>/i,function(m){return m+'<script>window.KS_EMBED=1;try{window.google=parent.ksChildGoogle('+JSON.stringify(page)+')}catch(e){}<\/script>'});
       f.addEventListener('load',function(){if(want===page)showOnly(page);setTimeout(prefetch,1500)});
       f.srcdoc=html;frames[page]=f;host.appendChild(f);
   }

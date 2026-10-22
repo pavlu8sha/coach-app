@@ -92,8 +92,15 @@ function pageHtml_(page, embed) {
   return html;
 }
 
-// UI-017 (проба): разделы, которые открываются внутри каркаса. Остальные открываются как раньше, обычной страницей.
-var SHELL_PAGES_ = ['stats', 'funnel'];
+// UI-017: разделы, которые открываются внутри каркаса (att — «Отметки», стартовая страница без параметра).
+var SHELL_PAGES_ = ['att'].concat(Object.keys(PAGES_));
+
+// Какой пункт меню подсвечивать для раздела (подразделы «Оплат» и «Индивидуальных» — свой пункт)
+function shellNavOf_() {
+  var m = { att: 'att' };
+  Object.keys(PAGES_).forEach(function (k) { m[k] = PAGES_[k][2] || k; });
+  return m;
+}
 
 // Разметка раздела для каркаса. Данных не содержит — тот же HTML, что при обычном открытии страницы.
 function appPageHtml(page) {
@@ -104,14 +111,14 @@ function appPageHtml(page) {
 
 function shellOutput_(page) {
   var url = ScriptApp.getService().getUrl();
-  var start = SHELL_PAGES_.indexOf(page) >= 0 ? page : SHELL_PAGES_[0];
-  var def = PAGES_[start];
-  var navPage = def[2] || start;
+  var start = SHELL_PAGES_.indexOf(page || 'att') >= 0 ? (page || 'att') : 'att';
+  var navPage = shellNavOf_()[start];
   var nav = HtmlService.createHtmlOutputFromFile('Nav').getContent()
     .replace('__URL__', url).replace('__PAGE__', navPage);
   var ui = HtmlService.createHtmlOutputFromFile('Ui').getContent();
   var shell = HtmlService.createHtmlOutputFromFile('Shell').getContent()
     .replace('__SHELL_PAGES__', JSON.stringify(SHELL_PAGES_))
+    .replace('__NAVOF__', JSON.stringify(shellNavOf_()))
     .replace('__START__', start)
     .replace('__URL__', url);
   var html = '<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"></head><body>'
