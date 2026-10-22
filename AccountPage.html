@@ -40,6 +40,7 @@ th{color:var(--mute);font-weight:600}
 .mbar{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--color-border-strong);border-radius:12px;padding:3px;margin:0 0 8px}
 .mstep{flex:none;width:44px;height:44px;border:0;border-radius:10px;background:var(--bg);color:var(--ink);font-size:24px;font-weight:700;line-height:1}
 .mstep:disabled{opacity:.35;cursor:default}
+.dysel{display:grid;gap:8px;margin-top:6px}
 .dbar{display:flex;gap:6px;align-items:center;background:var(--card);border:1px solid var(--color-border-strong);border-radius:12px;padding:3px;margin:0 0 12px}.dbar input{flex:1;min-width:0;border:0;background:transparent;text-align:center;font-weight:700;min-height:44px}
 .mcur{position:relative;flex:1;min-width:0;height:44px;margin:0;display:flex;align-items:center;justify-content:center;gap:8px;font-size:16px;font-weight:700;color:var(--ink);border-radius:10px}
 .mcur svg{width:18px;height:18px;flex:none}
@@ -300,6 +301,7 @@ function dyPaint(){
     var sel=(isDone?rec:trs).map(function(tr,j){
       return'<select data-s="'+i+'" data-j="'+j+'" aria-label="Тренер">'+cache.trainers.map(function(t){return'<option'+(t===tr?' selected':'')+'>'+esc(t)+'</option>'}).join('')+'</select>';
     }).join('');
+    sel='<div class="dysel">'+sel+'</div>';
     var can=x.status==='open'&&dayHeld[key]===undefined;
     var tb=can?'<div class="grid2" style="margin-top:6px">'
       +(trs.length<3?'<button class="btn" style="background:var(--card);color:var(--ink);border:1px solid var(--line)" data-add="'+i+'">+ тренер</button>':'')
