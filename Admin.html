@@ -33,7 +33,13 @@ li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padd
 .sub{color:var(--mute);font-size:13px}
 .ok{color:var(--color-success)}
 .ext{display:flex;flex-wrap:wrap;gap:8px}
-.ext label{display:flex;gap:6px;align-items:center;margin:0;padding:6px 10px;border:1px solid var(--line);border-radius:999px;color:var(--ink);font-size:14px}
+.ext label{display:flex;gap:6px;align-items:center;margin:0;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:999px;color:var(--ink);font-size:14px;cursor:pointer}
+.ext label:has(input:checked){background:var(--g);border-color:var(--g);color:var(--gi)}
+.ext label:focus-within{outline:2px solid var(--g);outline-offset:2px}
+.ferr{color:var(--a);font-size:14px;margin:4px 0 0}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.frow .btn{margin:0}
+.fhint{margin:10px 0 0;color:var(--mute);font-size:13px}
 .ext input{width:auto;min-height:0}
 .err{color:var(--a)}.msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:8px}
 .res,.prog{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin:8px 0;font-size:14px}
@@ -44,6 +50,8 @@ li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padd
 .chd{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:4px 0 12px}
 .chd .cbk{border:0;background:none;padding:0 8px 0 0;min-height:44px;font-size:17px}
 .chd #cedit{min-height:44px;width:auto;padding:0 14px}
+#bopen{display:none}
+.bdb{min-height:44px;width:auto;margin:0 0 0 8px;padding:0 12px}
 .cprof{display:flex;gap:16px;align-items:center;margin-bottom:14px}
 .cav{flex:none;width:88px;height:88px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--color-primary-subtle,#DDE4F6);color:var(--g);font-weight:800;font-size:28px;border:2px solid var(--line)}
 .cpt{min-width:0}.cpt h1{margin:0 0 4px;font-size:24px;overflow-wrap:break-word}
@@ -56,6 +64,15 @@ li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padd
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .prh>span+span.err{color:#E8806F;background:#3A221E}}
 :root[data-theme="dark"] .prh>span+span.err{color:#E8806F;background:#3A221E}
 .pill.ok:before,.prh>span+span.ok:before,.prh>span+span.err:before{content:'● ';font-size:10px}
+.sk-row{display:flex;gap:12px;align-items:center;padding:12px 14px;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:8px;list-style:none}
+.sk-av{flex:none;width:40px;height:40px;border-radius:50%;background:var(--line)}
+.sk-t{flex:1;min-width:0}
+.sk-l{display:block;height:12px;border-radius:6px;background:var(--line);margin:8px 0;width:100%}
+.sk-l.w60{width:60%}.sk-l.w40{width:40%}
+.sk-card{padding:8px 0}
+.sk-row .sk-l,.sk-card .sk-l{animation:skp 1.2s ease-in-out infinite}
+@keyframes skp{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.sk-row .sk-l,.sk-card .sk-l{animation:none}}
 </style>
 </head>
 <body>
@@ -90,14 +107,14 @@ li.p{background:var(--card);border:1px solid var(--line);border-radius:12px;padd
 <div id="form" class="wrap" hidden>
   <h1 id="ftitle"></h1>
   <div id="rowfun" hidden><label>Из воронки новых игроков (необязательно)</label><select id="ffun"></select></div>
-  <label>ФИ (как в листах месяца)</label><input id="fname">
+  <label>ФИ (как в листах месяца)</label><input id="fname" aria-describedby="fnerr"><div class="ferr" id="fnerr" role="alert" hidden>Поле обязательно</div>
   <label>Основная группа</label><select id="fgrp"></select>
   <div id="rowstat"><label>Статус</label><select id="fstat"></select></div>
   <div id="rowdate"><label id="fdl"></label><input type="date" id="fdate"></div>
   <label>Дополнительные тренировки</label><div class="ext" id="fext"></div>
+  <p class="fhint">Дата рождения указывается отдельно, в карточке игрока.</p>
   <div class="msg err" id="fmsg"></div><div id="warn"></div>
-  <button class="btn" id="save">Сохранить</button>
-  <button class="btn sec" id="cancel">Отмена</button>
+  <div class="frow"><button class="btn sec" id="cancel">Отмена</button><button class="btn" id="save">Сохранить</button></div>
 </div>
 <script>
 var pin='',D=null,cur=null,force=false,flash='',gSel='',sSel='Активен',cardI=-1,FUN=[];
@@ -118,12 +135,21 @@ function fillFilters(){
   $('st').innerHTML=opt('Активен','Активные')+statuses().filter(function(x){return x!='Активен'}).map(function(x){return opt(x)}).join('')+opt('','Все');
   $('st').value=sSel;
 }
+// UI-013 (пустые состояния): скелетон списка при первой загрузке
+function skelList(n){var h='';for(var i=0;i<n;i++)h+='<li class="sk-row" aria-hidden="true"><span class="sk-av"></span><span class="sk-t"><span class="sk-l w60"></span><span class="sk-l w40"></span></span></li>';return h}
+function skelCard(){return'<div class="sk-card" aria-hidden="true"><span class="sk-l w40"></span><span class="sk-l"></span><span class="sk-l w60"></span><span class="sk-l"></span></div><p class="sub" role="status">Загрузка…</p>'}
 function load(){
   setMsg('msg','Загрузка…',false);
+  if(!D&&$('list'))$('list').innerHTML=skelList(5);
   run('appAdminInit',[pin],function(d){
     D=d;$('login').hidden=true;$('form').hidden=true;$('card').hidden=true;$('app').hidden=false;
     fillFilters();fillYears();setMsg('msg',flash,false);flash='';list();
-  },function(m){if(/код (администратора|доступа)/.test(m))showLogin('Неверный код доступа');else{$('app').hidden=false;setMsg('msg',m,true)}});
+  },function(m){
+    if(/код (администратора|доступа)/.test(m))showLogin('Неверный код доступа');
+    else{$('app').hidden=false;
+      if(!D&&$('list')){$('msg').textContent='';$('list').innerHTML=ksEmpty({tag:'li',icon:'alert',title:'Не удалось загрузить данные',text:'Проверьте соединение и попробуйте ещё раз.',btn:'Повторить',id:'eretry'})}
+      else setMsg('msg',m,true)}
+  });
 }
 function yearOf(b){return b?b.slice(6):'none'}
 function chip(v,t){return'<button type="button" data-y="'+esc(v)+'" aria-pressed="'+(ySel.indexOf(v)>=0)+'">'+esc(t)+'</button>'}
@@ -136,10 +162,11 @@ function fillYears(){
   $('ql').innerHTML=D.players.map(function(p){return'<option value="'+esc(p.name)+'">'+esc(p.id+' · '+p.group)+'</option>'}).join('');
 }
 $('list').addEventListener('click',function(e){
-  var b=e.target.closest('#eadd,#ereset');if(!b)return;
+  var b=e.target.closest('#eadd,#ereset,#eretry');if(!b)return;
+  if(b.id=='eretry'){load();return}
   if(b.id=='eadd'){$('add').click();return}
   $('q').value='';$('fg').value='';$('st').value='Активен';ySel=[];fillYears();
-  var t=$('dbt');if(t&&t.getAttribute('aria-pressed')=='true')t.click();else window.list();
+  var t=$('dbt');if(t&&t.getAttribute('aria-checked')=='true')t.click();else window.list();
 });
 $('fyear').onclick=function(e){
   var b=e.target.closest('button');if(!b)return;
@@ -192,34 +219,38 @@ function subCard(i){
     info:'Внесено '+money(i.paid)+' из '+money(i.tariff)+(i.method?' · '+esc(i.method):''),
     paid:i.st=='paid',debt:i.debt,amount:true,type:true,discOK:i.st=='partial'&&!i.disc,month:i.month,group:i.group,paidSum:i.paid,tariff:i.tariff});
 }
-function errp(m){return'<p class="sub err">'+esc(m)+'</p>'}
+var cardErrShown=false;
+function errp(m){return cardErrShown?'':'<p class="sub err">'+esc(m)+'</p>'}
+// Пустая вкладка карточки: иллюстрация «Нет данных» с исходным текстом
+function emptyBox(t){return ksEmpty({tag:'div',icon:'box',title:'Нет данных',text:t})}
 // Получает все данные карточки (pk) и строит её; AdminTabs потом раскладывает блоки по вкладкам
 function renderCard(pk){
   ITEMS=[];
+  cardErrShown=!!(pk.eqErr||pk.subErr||pk.indErr||pk.extErr);
   lastSub=pk.sub||null;
   var h='';
   if(pk.eqErr)h+='<h2>Экипировка</h2>'+errp(pk.eqErr);
   else{
     var c=pk.eq,t=c.totals;
     h+='<div class="tiles"><div class="tile"><b>'+money(t.sum)+'</b><span>заказано</span></div><div class="tile"><b>'+money(t.paid)+'</b><span>оплачено</span></div><div class="tile"><b'+(t.debt>0?' class="err"':'')+'>'+money(t.debt)+'</b><span>долг</span></div></div>';
-    if(!c.orders.length)h+='<p class="sub">Заказов экипировки нет.</p>';
+    if(!c.orders.length)h+=emptyBox('Заказов экипировки нет.');
     c.orders.forEach(function(o){
       h+=card({kind:'eq',row:o.row,title:(o.kit||'Комплект не указан')+(o.inst?' (рассрочка)':''),
         chip:o.debt>0?'<span class="err">долг '+money(o.debt)+'</span>':'<span class="ok">оплачено</span>',
         info:'Сумма '+money(o.sum)+', оплачено '+money(o.paid)+'. Размер: '+esc(o.size||'не указан')+'; надпись: '+esc(o.inscr||'—')+'; номер: '+esc(o.num||'—'),
         paid:!(o.debt>0),debt:o.debt,amount:true});
     });
-    h+='<h2>История оплат</h2>'+(c.payments.length?c.payments.map(function(p){return'<div class="res">'+esc(p.date)+': <b>'+esc(p.amount)+'</b> ('+esc(p.what)+(p.comment?', '+esc(p.comment):'')+')</div>'}).join(''):'<p class="sub">Платежей через приложение пока нет. Оплаты, внесённые раньше, учтены в столбце «Оплачено» файла экипировки.</p>');
+    h+='<h2>История оплат</h2>'+(c.payments.length?c.payments.map(function(p){return'<div class="res">'+esc(p.date)+': <b>'+esc(p.amount)+'</b> ('+esc(p.what)+(p.comment?', '+esc(p.comment):'')+')</div>'}).join(''):emptyBox('Платежей через приложение пока нет. Оплаты, внесённые раньше, учтены в столбце «Оплачено» файла экипировки.'));
   }
   h+='<h2>Абонемент</h2>';
   if(pk.subErr)h+=errp(pk.subErr);
   else{
     var s=pk.sub;
-    h+=s.items.length?s.items.map(subCard).join(''):'<p class="sub">В файле оплат этого игрока пока нет (если он должен быть, проверьте написание ФИ в файле оплат).</p>';
+    h+=s.items.length?s.items.map(subCard).join(''):emptyBox('В файле оплат этого игрока пока нет (если он должен быть, проверьте написание ФИ в файле оплат).');
     h+='<button class="btn sec sn">Внести оплату за другой месяц или группу</button><div class="snf" hidden></div>';
     h+='<h2>История платежей по абонементу</h2>'+(s.hist.length?s.hist.map(function(x){
       return'<div class="res">'+esc(x.date)+': <b>'+esc(x.amount)+'</b> ('+esc(x.month+', '+x.group+', '+x.type+(x.method?', '+x.method:''))+(x.comment?', '+esc(x.comment):'')+')</div>';
-    }).join(''):'<p class="sub">Платежей через приложение пока нет. Суммы, внесённые раньше, видны в списке выше.</p>');
+    }).join(''):emptyBox('Платежей через приложение пока нет. Суммы, внесённые раньше, видны в списке выше.'));
   }
   h+='<h2>Индивидуальные и вратари</h2>';
   if(pk.indErr)h+=errp(pk.indErr);
@@ -228,7 +259,7 @@ function renderCard(pk){
       chip:x.paid?'<span class="ok">оплачено</span>':'<span class="err">'+(x.past?'долг ':'')+money(x.price)+'</span>',
       info:x.paid?'':'Сумма фиксированная. Дата не сохраняется, комментарий сохраняется.',
       paid:!!x.paid,debt:x.price});
-  }).join(''):'<p class="sub">Записей на индивидуальные нет.</p>';
+  }).join(''):emptyBox('Записей на индивидуальные нет.');
   h+='<h2>Дополнительные тренировки</h2>';
   if(pk.extErr)h+=errp(pk.extErr);
   else h+=pk.ext.length?pk.ext.map(function(x){
@@ -237,9 +268,11 @@ function renderCard(pk){
       chip:x.paid?'<span class="ok">оплачено</span>':'<span class="err">'+(priced?money(x.price):'сумма не задана')+'</span>',
       info:x.paid?'':(priced?'Дата не сохраняется, комментарий сохраняется.':'Введите сумму оплаты.'),
       paid:!!x.paid,debt:priced?x.price:0});
-  }).join(''):'<p class="sub">Записей на дополнительные нет.</p>';
+  }).join(''):emptyBox('Записей на дополнительные нет.');
+  if(cardErrShown)h=ksEmpty({tag:'div',icon:'alert',title:'Не удалось загрузить данные',text:'Проверьте соединение и попробуйте ещё раз.',btn:'Повторить',id:'cretry'})+h;
   $('cbody').innerHTML=h;
 }
+$('cbody').addEventListener('click',function(e){if(e.target.closest('#cretry'))openCard(cardI)});
 function openCard(i){
   var n=++cardReq;cardI=i;var p=D.players[i],pk={},left=4;
   $('app').hidden=true;$('form').hidden=true;$('card').hidden=false;
@@ -252,7 +285,7 @@ function openCard(i){
   $('bdt').value=p.birth?p.birth.slice(6)+'-'+p.birth.slice(3,5)+'-'+p.birth.slice(0,2):'';
   if(cardPid!=p.id){cardPid=p.id;setMethod('');$('pdt').value=today();$('pcm').value=''}
   $('pmsg').textContent=pflash;pflash='';
-  $('cbody').innerHTML='<div class="sub">Загрузка…</div>';
+  $('cbody').innerHTML=skelCard();
   function part(key,fn,args){
     function settle(){if(--left===0&&n==cardReq)renderCard(pk)}
     run(fn,args,function(r){pk[key]=r;settle()},function(m){pk[key+'Err']=m;settle()});
@@ -387,7 +420,8 @@ function dl(){$('fdl').textContent=cur?'Дата окончания':'Дата �
 function openForm(i){
   cur=i<0?null:D.players[i];force=false;
   $('app').hidden=true;$('card').hidden=true;$('form').hidden=false;setMsg('fmsg','');$('warn').innerHTML='';
-  $('ftitle').textContent=cur?'Игрок '+cur.id:'Новый игрок';
+  $('ftitle').textContent=cur?'Редактировать данные игрока':'Добавить игрока';
+  $('fnerr').hidden=true;$('fname').removeAttribute('aria-invalid');
   $('fname').value=cur?cur.name:'';
   $('fgrp').innerHTML=D.groups.map(function(g){return opt(g)}).join('');
   if(cur)$('fgrp').value=cur.group;
@@ -407,7 +441,8 @@ function openForm(i){
 }
 function submit(){
   var name=$('fname').value.trim();
-  if(!name){setMsg('fmsg','Введите ФИ',true);return}
+  if(!name){$('fnerr').hidden=false;$('fname').setAttribute('aria-invalid','true');$('fname').focus();return}
+  $('fnerr').hidden=true;$('fname').removeAttribute('aria-invalid');
   var grp=$('fgrp').value;
   var ext=[].map.call(document.querySelectorAll('#fext input:checked'),function(x){return x.value}).filter(function(g){return g!=grp});
   $('save').disabled=true;setMsg('fmsg','Сохраняю…',false);
@@ -437,6 +472,7 @@ $('ffun').onchange=function(){
   if(D.groups.indexOf(k.group)>=0)$('fgrp').value=k.group;
 };
 $('fstat').onchange=dl;
+$('fname').oninput=function(){if(this.value.trim()){$('fnerr').hidden=true;this.removeAttribute('aria-invalid')}};
 $('q').oninput=list;
 $('st').onchange=function(){sSel=this.value;list()};
 $('fg').onchange=function(){gSel=this.value;list()};
