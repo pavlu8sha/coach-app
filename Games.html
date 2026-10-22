@@ -31,6 +31,12 @@ summary{cursor:pointer;list-style:none;min-height:44px;display:flex;flex-directi
 .prh{display:flex;justify-content:space-between;gap:8px;font-size:15px}
 .msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:8px}
 .gform{min-width:0;max-width:100%;padding:3px}.gform input{-webkit-appearance:none;appearance:none;width:100%;min-width:0;max-width:100%;display:block;box-sizing:border-box}
+.sk-row{display:flex;gap:12px;align-items:center;padding:12px 14px;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:8px}
+.sk-t{flex:1;min-width:0}.sk-l{display:block;height:12px;border-radius:6px;background:var(--line);margin:8px 0;width:100%;animation:skp 1.2s ease-in-out infinite}
+.sk-l.w60{width:60%}.sk-l.w40{width:40%}
+#gload{padding-top:16px}
+@keyframes skp{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.sk-l{animation:none}}
 </style>
 </head>
 <body>
@@ -38,14 +44,14 @@ summary{cursor:pointer;list-style:none;min-height:44px;display:flex;flex-directi
   <h1>Вход</h1><label for="pin" class="ks-pinl">Введите код доступа</label>
   <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err" role="alert"></p><button class="btn" id="go">Войти</button>
 </div>
-<div id="gload" class="wrap ks-load" role="status" hidden><span class="ks-spin" aria-hidden="true"></span>Загрузка данных…</div>
-<div id="app" class="wrap" hidden>
+<div id="gload" class="wrap ks-wide-w" role="status" aria-label="Загрузка данных" hidden><div class="sk-row" aria-hidden="true"><span class="sk-t"><span class="sk-l w60"></span><span class="sk-l w40"></span></span></div><div class="sk-row" aria-hidden="true"><span class="sk-t"><span class="sk-l w60"></span><span class="sk-l w40"></span></span></div><div class="sk-row" aria-hidden="true"><span class="sk-t"><span class="sk-l w60"></span><span class="sk-l w40"></span></span></div><div class="sk-row" aria-hidden="true"><span class="sk-t"><span class="sk-l w60"></span><span class="sk-l w40"></span></span></div></div>
+<div id="app" class="wrap ks-wide-w" hidden>
   <h1>Матчи</h1>
   <select id="tm" aria-label="Команда"></select>
   <div class="msg" id="msg" role="status"></div>
   <div id="list"></div>
 </div>
-<div id="panel" class="wrap" hidden>
+<div id="panel" class="wrap ks-wide-w" hidden>
   <button class="btn sec" id="back">К списку</button>
   <h1 id="pt"></h1><div class="sub" id="ps"></div>
   <div class="msg" id="pm" role="status"></div>
@@ -61,7 +67,9 @@ function today(){var d=new Date(),z=function(n){return(n<10?'0':'')+n};return d.
 function fd(s){return s?s.slice(8,10)+'.'+s.slice(5,7)+'.'+s.slice(0,4):'без даты'}
 function setMsg(id,t,bad){$(id).textContent=t||'';$(id).className='msg'+(bad?' err':'')}
 function showLogin(t){$('gload').hidden=true;$('app').hidden=true;$('panel').hidden=true;$('login').hidden=false;$('lerr').textContent=t||''}
-function fail(m){$('gload').hidden=true;if(m.indexOf('Неверный код')>=0)showLogin('Неверный код доступа');else{$('login').hidden=true;$('app').hidden=false;setMsg('msg',m,true)}}
+function fail(m){$('gload').hidden=true;if(m.indexOf('Неверный код')>=0)showLogin('Неверный код доступа');else{$('login').hidden=true;$('app').hidden=false;
+  if(!D){setMsg('msg','');$('list').innerHTML=ksEmpty({tag:'div',icon:'alert',title:'Не удалось загрузить данные',text:'Проверьте соединение и попробуйте ещё раз.',btn:'Повторить',id:'gretry'});return}
+  setMsg('msg',m,true)}}
 function ev(id){return D.events.filter(function(e){return e.id==id})[0]}
 function parts(id){return D.parts.filter(function(p){return p.e==id})}
 function byDate(a,b){return(a.date||'').localeCompare(b.date||'')}
@@ -105,8 +113,9 @@ function list(){feeOpen=false;
     return'<details data-id="'+e.id+'"><summary><div class="top"><span>'+esc(e.name)+'</span><span>'+fd(e.date)+'</span></div><div class="sub">игроков '+ps.length+', сыграли '+ps.filter(function(p){return p.played==1}).length+(adm?', оплатили '+ps.filter(function(p){return p.paid==1}).length:'')+'</div></summary>'
       +'<button class="btn sec gm" data-id="'+e.id+'">Отметки игры</button>'+(adm?'<button class="btn sec fee" data-id="'+e.id+'">Взносы</button>':'')+'</details>';
   }).join('');
-  $('list').innerHTML=h||'<p class="sub">Для этой команды событий нет.</p>';
+  $('list').innerHTML=h||ksEmpty({tag:'div',icon:'box',title:'Событий пока нет',text:'Для этой команды событий нет. Создайте событие кнопкой «+ Новое событие».'});
 }
+$('list').addEventListener('click',function(e){if(e.target.closest('#gretry'))load()});
 function panel(title,sub){feeOpen=false;$('app').hidden=true;$('panel').hidden=false;$('pt').textContent=title;$('ps').textContent=sub||'';setMsg('pm','')}
 function openGame(id){
   cur=ev(id);var par=cur.parent?ev(cur.parent):cur,mine={};
