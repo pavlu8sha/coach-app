@@ -16,7 +16,7 @@ function extraDate_(name) {
 }
 
 // Тест: ничего не пишет
-function extraTest() {
+function extraTest_() {
   var evs = extraParseRaw_();
   Logger.log('Дат (листов) найдено: ' + evs.length);
   evs.slice(0, 6).forEach(function (e) {
@@ -402,7 +402,7 @@ function appExtraEventEdit(pin, id, date, amount, place) {
 }
 
 // Тест ЗАПИСИ — только на копии: создаёт тренировку через 30 дней и убирает её
-function extraWriteTest() {
+function extraWriteTest_() {
   var pin = prop_('APP_ADMIN_PIN'), tz = Session.getScriptTimeZone();
   function ds(d) { return Utilities.formatDate(new Date(Date.now() + d * 86400000), tz, 'yyyy-MM-dd'); }
   var d1 = ds(30), d2 = ds(31), nm = 'ТЕСТ Гость';

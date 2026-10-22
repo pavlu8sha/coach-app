@@ -125,7 +125,7 @@ function appFunnelAdd(pin, name, group, sheetName) {
 }
 
 // Проверка чтения: запустите вручную и посмотрите журнал.
-function funnelTest() {
+function funnelTest_() {
   funnelSS_().getSheets().forEach(function (s) {
     var d = funnelRead_(s);
     Logger.log(s.getName() + ': детей ' + d.kids.length + ', шагов ' + d.steps.length + ' (' + d.steps.join(' | ') + '), строка группы: ' + d.groupRow);

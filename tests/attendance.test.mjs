@@ -387,7 +387,7 @@ test('attJournalCheck: находит расхождение лист/журна
     journal: [jr('KS-1', 'Bagulin Misha', 'Присутствовал'), jr('KS-2', 'Kotov Rodion', 'Присутствовал')],
   });
   const before = snapshot(env);
-  const r = env.ctx.attJournalCheck('10.26');
+  const r = env.ctx.attJournalCheck_('10.26');
   assert.equal(r.diff, 1);          // KS-2: журнал «Присутствовал», лист «Отсутствовал»
   assert.equal(r.bare, 1);          // 09.10: галочки есть, журнала нет
   assert.ok(r.lines.some(l => /РАСХОЖДЕНИЕ: U10-A, 07\.10\.2026, Kotov Rodion/.test(l)));
@@ -420,7 +420,7 @@ test('журнал упал на середине (статусы обновле
   const sh = env.sheets['10.26'];
   assert.deepEqual([6, 7, 8].map(r => sh.cell(r, D)), [false, true, false]);
   assert.deepEqual(marksOf(env.ctx.appRoster('pin', G, DAY)), { 'KS-1': 'a', 'KS-2': 'p', 'KS-3': 'a' });
-  assert.equal(env.ctx.attJournalCheck('10.26').diff, 0);                // лист и журнал согласованы
+  assert.equal(env.ctx.attJournalCheck_('10.26').diff, 0);                // лист и журнал согласованы
 });
 
 test('повторное сохранение три раза подряд: в листе одна колонка даты, в журнале по одной строке на ученика', () => {

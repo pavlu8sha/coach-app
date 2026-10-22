@@ -1,5 +1,5 @@
 // Замер скорости серверных запросов. Ничего не пишет, только читает.
-function perfReport() {
+function perfReport_() {
   var pin = prop_('APP_ADMIN_PIN');
   var today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
   var pid = '';
@@ -33,7 +33,7 @@ function perfReport() {
 }
 
 // Замер сборки страниц (doGet) — сколько сервер собирает каждую страницу
-function perfPage() {
+function perfPage_() {
   ['', 'admin', 'stats', 'equip', 'pay', 'cash', 'debt', 'games', 'camp', 'ind'].forEach(function (p) {
     var s = Date.now();
     try { doGet({ parameter: { page: p } }); Logger.log((p || 'att') + ': ' + (Date.now() - s) + ' мс'); }

@@ -8,7 +8,7 @@ function indSS_() {
 }
 
 // Тест: ничего не пишет, только показывает, что нашлось
-function indTest() {
+function indTest_() {
   var evs = indParse_();
   Logger.log('Занятий найдено: ' + evs.length);
   var players = 0, paid = 0;
@@ -89,7 +89,7 @@ function appIndRemove(pin, id, name) {
 }
 
 // Тест ЗАПИСИ — запускать только на копии
-function indWriteTest() {
+function indWriteTest_() {
   var pin = prop_('APP_ADMIN_PIN');
   var evs = indParse_().filter(indAdmIsNew_);
   if (!evs.length) { Logger.log('Нет новых занятий (лист ИНДИВИДУАЛЬНЫЕ ЗАНЯТИЯ)'); return; }
@@ -280,7 +280,7 @@ function appIndPermOff(pin, name, slot) {
 }
 
 // ----- Автосоздание: каждый вторник на ближайшие выходные -----
-function indWeeklyCreate() {
+function indWeeklyCreate_() {
   if (CONFIG.DRY_RUN) { Logger.log('DRY_RUN: индивидуальные занятия на выходные не созданы'); return { dryRun: true }; }
   var tz = Session.getScriptTimeZone();
   var y = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd').split('-');
@@ -298,9 +298,12 @@ function indWeeklyCreate() {
   });
 }
 
-// Запустить ОДИН раз из редактора: включает ежечасную проверку. Занятия создаются в день и час из настроек
+// Запуск из редактора («Выполнить»), только в окне обслуживания MAINT_UNTIL (см. Maint.js). Ничего не возвращает.
+function indInstallTrigger() { maintCheck_(); indInstallTrigger_(); }
+
+// Включает ежечасную проверку. Занятия создаются в день и час из настроек
 // (ind.autoDay, ind.autoHour), поэтому после смены настройки триггер переустанавливать не нужно.
-function indInstallTrigger() {
+function indInstallTrigger_() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
     var h = t.getHandlerFunction();
     if (h === 'indWeeklyCreate' || h === 'indAutoTick') ScriptApp.deleteTrigger(t);
@@ -309,14 +312,23 @@ function indInstallTrigger() {
   Logger.log('Триггер создан: каждый час; занятия создаются в ' + settingGet_('ind.autoDay') + ', ' + settingGet_('ind.autoHour') + ':00');
 }
 
+// Обработчик ежечасного триггера. Имя не менять: на него ссылается уже установленный триггер (план миграции #15/#16).
+// Внешний вызов безопасен: создаёт занятия только в день и час из настроек и не больше одного раза в день.
+function indAutoTick(e) { indAutoTickRun_(); }
+
 // Ежечасно: в день и час из настроек создаёт занятия на ближайшие выходные (один раз в неделю).
-function indAutoTick() {
+function indAutoTickRun_() {
   var tz = Session.getScriptTimeZone(), now = new Date();
   var wd = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'][Number(Utilities.formatDate(now, tz, 'u')) % 7];
   if (wd !== settingGet_('ind.autoDay') || Number(Utilities.formatDate(now, tz, 'H')) < settingGet_('ind.autoHour')) return;
   var today = Utilities.formatDate(now, tz, 'yyyy-MM-dd'), props = PropertiesService.getScriptProperties();
   if (props.getProperty('IND_AUTO_LAST') === today) return;
-  indWeeklyCreate();
+  var result = indWeeklyCreate_();
+  // Не фиксируем день выполнения, если DRY_RUN пропустил создание: после отключения режима задача должна повториться.
+  if (result && result.dryRun) {
+    Logger.log('DRY_RUN: IND_AUTO_LAST не обновлён; автосоздание будет повторено после отключения режима.');
+    return;
+  }
   props.setProperty('IND_AUTO_LAST', today);
 }
 
@@ -405,7 +417,7 @@ function indFormatBlock_(sh, top, n) {
 }
 
 // Разово привести к этому виду все занятия таблицы (можно не запускать: нужные блоки уже оформлены)
-function indFormatAll() {
+function indFormatAll_() {
   indParse_(true).forEach(function (ev) {
     if (indAdmIsNew_(ev)) return; // новые занятия — строки листа AdminApp, оформление блока не нужно
     indFormatBlock_(indSS_().getSheetByName(ev.sheet), ev.row, ev.last - ev.row + 1);
