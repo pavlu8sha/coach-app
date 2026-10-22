@@ -178,6 +178,9 @@ function newOrderRow_(sh, vals) {
   if (!ok) throw new Error('Строка итогов в файле экипировки изменена. Добавьте строку заказа вручную.');
   if (!CONFIG.DRY_RUN) {
     sh.insertRowsBefore(tot, n);
+    // Лист заказов — «умная таблица» Google: в каждую вставленную строку она сама протягивает формулы соседней строки
+    // (здесь — строки итогов). Новые строки должны быть пустыми: очищаем всё, кроме №, до последней колонки листа.
+    sh.getRange(tot, 2, n, Math.max(sh.getLastColumn(), EQ_QTY_COL) - 1).clearContent();
     sh.getRange(tot + n, 9, 1, 3).setFormulas([fixed]);
     var nums = [];
     for (i = 1; i <= n; i++) nums.push([maxNum + i]);
