@@ -1,6 +1,7 @@
 -- pgTAP: доступ к таблицам из 0003 (платежи, экипировка, пробные). Запуск после 0001–0004.
 begin;
 create extension if not exists pgtap;
+set local search_path = public, extensions;
 select plan(6);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c002', 'Клуб 2');
