@@ -219,34 +219,38 @@ function subCard(i){
     info:'Внесено '+money(i.paid)+' из '+money(i.tariff)+(i.method?' · '+esc(i.method):''),
     paid:i.st=='paid',debt:i.debt,amount:true,type:true,discOK:i.st=='partial'&&!i.disc,month:i.month,group:i.group,paidSum:i.paid,tariff:i.tariff});
 }
-function errp(m){return'<p class="sub err">'+esc(m)+'</p>'}
+var cardErrShown=false;
+function errp(m){return cardErrShown?'':'<p class="sub err">'+esc(m)+'</p>'}
+// Пустая вкладка карточки: иллюстрация «Нет данных» с исходным текстом
+function emptyBox(t){return ksEmpty({tag:'div',icon:'box',title:'Нет данных',text:t})}
 // Получает все данные карточки (pk) и строит её; AdminTabs потом раскладывает блоки по вкладкам
 function renderCard(pk){
   ITEMS=[];
+  cardErrShown=!!(pk.eqErr||pk.subErr||pk.indErr||pk.extErr);
   lastSub=pk.sub||null;
   var h='';
   if(pk.eqErr)h+='<h2>Экипировка</h2>'+errp(pk.eqErr);
   else{
     var c=pk.eq,t=c.totals;
     h+='<div class="tiles"><div class="tile"><b>'+money(t.sum)+'</b><span>заказано</span></div><div class="tile"><b>'+money(t.paid)+'</b><span>оплачено</span></div><div class="tile"><b'+(t.debt>0?' class="err"':'')+'>'+money(t.debt)+'</b><span>долг</span></div></div>';
-    if(!c.orders.length)h+='<p class="sub">Заказов экипировки нет.</p>';
+    if(!c.orders.length)h+=emptyBox('Заказов экипировки нет.');
     c.orders.forEach(function(o){
       h+=card({kind:'eq',row:o.row,title:(o.kit||'Комплект не указан')+(o.inst?' (рассрочка)':''),
         chip:o.debt>0?'<span class="err">долг '+money(o.debt)+'</span>':'<span class="ok">оплачено</span>',
         info:'Сумма '+money(o.sum)+', оплачено '+money(o.paid)+'. Размер: '+esc(o.size||'не указан')+'; надпись: '+esc(o.inscr||'—')+'; номер: '+esc(o.num||'—'),
         paid:!(o.debt>0),debt:o.debt,amount:true});
     });
-    h+='<h2>История оплат</h2>'+(c.payments.length?c.payments.map(function(p){return'<div class="res">'+esc(p.date)+': <b>'+esc(p.amount)+'</b> ('+esc(p.what)+(p.comment?', '+esc(p.comment):'')+')</div>'}).join(''):'<p class="sub">Платежей через приложение пока нет. Оплаты, внесённые раньше, учтены в столбце «Оплачено» файла экипировки.</p>');
+    h+='<h2>История оплат</h2>'+(c.payments.length?c.payments.map(function(p){return'<div class="res">'+esc(p.date)+': <b>'+esc(p.amount)+'</b> ('+esc(p.what)+(p.comment?', '+esc(p.comment):'')+')</div>'}).join(''):emptyBox('Платежей через приложение пока нет. Оплаты, внесённые раньше, учтены в столбце «Оплачено» файла экипировки.'));
   }
   h+='<h2>Абонемент</h2>';
   if(pk.subErr)h+=errp(pk.subErr);
   else{
     var s=pk.sub;
-    h+=s.items.length?s.items.map(subCard).join(''):'<p class="sub">В файле оплат этого игрока пока нет (если он должен быть, проверьте написание ФИ в файле оплат).</p>';
+    h+=s.items.length?s.items.map(subCard).join(''):emptyBox('В файле оплат этого игрока пока нет (если он должен быть, проверьте написание ФИ в файле оплат).');
     h+='<button class="btn sec sn">Внести оплату за другой месяц или группу</button><div class="snf" hidden></div>';
     h+='<h2>История платежей по абонементу</h2>'+(s.hist.length?s.hist.map(function(x){
       return'<div class="res">'+esc(x.date)+': <b>'+esc(x.amount)+'</b> ('+esc(x.month+', '+x.group+', '+x.type+(x.method?', '+x.method:''))+(x.comment?', '+esc(x.comment):'')+')</div>';
-    }).join(''):'<p class="sub">Платежей через приложение пока нет. Суммы, внесённые раньше, видны в списке выше.</p>');
+    }).join(''):emptyBox('Платежей через приложение пока нет. Суммы, внесённые раньше, видны в списке выше.'));
   }
   h+='<h2>Индивидуальные и вратари</h2>';
   if(pk.indErr)h+=errp(pk.indErr);
@@ -255,7 +259,7 @@ function renderCard(pk){
       chip:x.paid?'<span class="ok">оплачено</span>':'<span class="err">'+(x.past?'долг ':'')+money(x.price)+'</span>',
       info:x.paid?'':'Сумма фиксированная. Дата не сохраняется, комментарий сохраняется.',
       paid:!!x.paid,debt:x.price});
-  }).join(''):'<p class="sub">Записей на индивидуальные нет.</p>';
+  }).join(''):emptyBox('Записей на индивидуальные нет.');
   h+='<h2>Дополнительные тренировки</h2>';
   if(pk.extErr)h+=errp(pk.extErr);
   else h+=pk.ext.length?pk.ext.map(function(x){
@@ -264,9 +268,11 @@ function renderCard(pk){
       chip:x.paid?'<span class="ok">оплачено</span>':'<span class="err">'+(priced?money(x.price):'сумма не задана')+'</span>',
       info:x.paid?'':(priced?'Дата не сохраняется, комментарий сохраняется.':'Введите сумму оплаты.'),
       paid:!!x.paid,debt:priced?x.price:0});
-  }).join(''):'<p class="sub">Записей на дополнительные нет.</p>';
+  }).join(''):emptyBox('Записей на дополнительные нет.');
+  if(cardErrShown)h=ksEmpty({tag:'div',icon:'alert',title:'Не удалось загрузить данные',text:'Проверьте соединение и попробуйте ещё раз.',btn:'Повторить',id:'cretry'})+h;
   $('cbody').innerHTML=h;
 }
+$('cbody').addEventListener('click',function(e){if(e.target.closest('#cretry'))openCard(cardI)});
 function openCard(i){
   var n=++cardReq;cardI=i;var p=D.players[i],pk={},left=4;
   $('app').hidden=true;$('form').hidden=true;$('card').hidden=false;
