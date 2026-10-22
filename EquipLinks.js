@@ -1,16 +1,17 @@
 /** Привязка заказов экипировки к игрокам. Только для администратора. */
 
 // Цены комплектов для формы заказа: из каталога; если каталог пуст, запасные KIT_PRICES.
-function kitPrices_() {
+// cat — активные позиции каталога, если вызывающий уже получил их (иначе читаются из кэша каталога)
+function kitPrices_(cat) {
   var m = {}, n = 0;
-  catalog_(true).forEach(function (x) { m[x.name] = x.price; n++; });
+  (cat || catalog_(true)).forEach(function (x) { m[x.name] = x.price; n++; });
   return n ? m : KIT_PRICES;
 }
 
 // Размеры каждой позиции каталога (через запятую в таблице) — для выпадающего списка в форме
-function kitSizes_() {
+function kitSizes_(cat) {
   var m = {};
-  catalog_(true).forEach(function (x) {
+  (cat || catalog_(true)).forEach(function (x) {
     m[x.name] = String(x.sizes || '').split(',').map(function (v) { return v.trim(); }).filter(Boolean);
   });
   return m;
@@ -20,11 +21,14 @@ function appEquipOrders(pin) {
   checkAdmin_(pin);
   var data = cacheGetBig_('eq_v1');
   if (!data) { data = equipOrdersLive_(); cachePutBig_('eq_v1', data, 60); }
-  data.prices = kitPrices_();
+  // Каталог — один раз на запрос (раньше три чтения кэша cat_v1: цены, флаги, размеры). Активные позиции —
+  // тот же фильтр, что catalog_(true); источник и срок кэша не меняются.
+  var all = catalog_(false), active = all.filter(function (x) { return x.active; });
+  data.prices = kitPrices_(active);
   data.disc = equipDiscCfg_();
   data.flags = {};   // что требует позиция каталога: надпись, номер (колонки «Надпись», «Номер»)
-  catalog_(false).forEach(function (x) { data.flags[x.name.toLowerCase()] = { inscr: !!x.inscr, num: !!x.num }; });
-  data.sizes = kitSizes_();
+  all.forEach(function (x) { data.flags[x.name.toLowerCase()] = { inscr: !!x.inscr, num: !!x.num }; });
+  data.sizes = kitSizes_(active);
   return data;
 }
 
