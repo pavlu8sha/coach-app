@@ -31,6 +31,11 @@ summary::-webkit-details-marker{display:none}
 .add{border-top:1px solid var(--line);padding:12px 0 14px;display:grid;gap:8px}
 .full{color:var(--mute);font-size:14px;padding:10px 0 14px;border-top:1px solid var(--line)}
 .msg{color:var(--mute);font-size:14px;min-height:20px;margin:6px 0}.err{color:var(--a,#C0392B)}
+.sk-row{display:flex;gap:12px;align-items:center;padding:12px 14px;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:8px}
+.sk-t{flex:1;min-width:0}.sk-l{display:block;height:12px;border-radius:6px;background:var(--line);margin:8px 0;width:100%;animation:skp 1.2s ease-in-out infinite}
+.sk-l.w60{width:60%}.sk-l.w40{width:40%}
+@keyframes skp{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.sk-l{animation:none}}
 </style>
 </head>
 <body>
@@ -39,8 +44,7 @@ summary::-webkit-details-marker{display:none}
   <input id="pin" type="password" autocomplete="off"><p id="lerr" class="err" role="alert"></p>
   <button class="btn" id="go">Войти</button>
 </div>
-<div id="app" class="wrap" hidden>
-  <h1>Индивидуальные и вратари</h1>
+<div id="app" class="wrap ks-wide-w" hidden>
   <div class="msg" id="msg" role="status"></div>
   <details id="debt"><summary><b>Должники</b><span class="cnt" id="dcnt"></span></summary>
     <div id="dlist"></div>
@@ -83,9 +87,10 @@ function showApp(){$('login').hidden=true;$('app').hidden=false}
 function dl(d){var p=d.split('-'),w=['вс','пн','вт','ср','чт','пт','сб'][new Date(Date.UTC(+p[0],+p[1]-1,+p[2])).getUTCDay()];return w+' '+p[2]+'.'+p[1]}
 function today(){var d=new Date(),z=function(n){return(n<10?'0':'')+n};return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())}
 function fail(m){busy=false;flash='';if(/Неверный код/.test(m))showLogin('Неверный код администратора');else{showApp();msg(m,true)}}
+function skelRows(n){var h='';for(var i=0;i<n;i++)h+='<div class="sk-row" aria-hidden="true"><span class="sk-t"><span class="sk-l w60"></span><span class="sk-l w40"></span></span></div>';return h}
 function load(){
-  msg('Загрузка…');
-  run('appIndData',[pin],function(r){D=r;busy=false;armed='';showApp();msg(flash);flash='';render()},fail);
+  if(!D){msg('');$('list').innerHTML=skelRows(3)}else msg('Загрузка…');
+  run('appIndData',[pin],function(r){D=r;busy=false;armed='';showApp();msg(flash);flash='';render()},function(m){if(!D&&!/Неверный код/.test(String(m))){busy=false;showApp();msg('');$('list').innerHTML=ksEmpty({tag:'div',icon:'alert',title:'Не удалось загрузить данные',text:'Проверьте соединение и попробуйте ещё раз.',btn:'Повторить',id:'iretry'});return}fail(m)});
   if(!PL.length)run('appIndPlayers',[pin],function(r){PL=r;$('dl').innerHTML=r.map(function(p){return'<option value="'+esc(p.name)+'">'+esc(p.group)+'</option>'}).join('')},function(){});
 }
 function renderPerm(){
@@ -158,8 +163,9 @@ function render(){
     else h+='<div class="full">Мест нет: максимум '+e.cap+'</div>';
     h+='</details>';
   });
-  $('list').innerHTML=h||'<p class="th">Занятий пока нет</p>';
+  $('list').innerHTML=h||ksEmpty({tag:'div',icon:'box',title:'Занятий пока нет',text:'Создайте занятие в форме выше.'});
 }
+$('list').addEventListener('click',function(e){if(e.target.closest('#iretry'))load()});
 $('list').addEventListener('toggle',function(ev){var d=ev.target;if(d.dataset&&d.dataset.id)open[d.dataset.id]=d.open},true);
 $('list').onclick=function(ev){
   var b=ev.target.closest('button');if(!b||busy||!b.dataset.a)return;
