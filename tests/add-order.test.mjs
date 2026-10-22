@@ -14,11 +14,18 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 class Sheet {
   constructor(rows, parent) { this.data = rows.map(r => r.slice()); this.parent = parent; this.reads = 0; this.formulas = {}; this.formatCopies = []; this.rules = []; }
   insertRowsBefore(at, n) {
-    for (let i = 0; i < n; i++) this.data.splice(at - 1, 0, Array(14).fill(''));
+    for (let i = 0; i < n; i++) this.data.splice(at - 1, 0, Array(15).fill(''));
     const f = {};
     for (const [k, v] of Object.entries(this.formulas)) { const [a, b] = k.split(':').map(Number); f[(a >= at ? a + n : a) + ':' + b] = v; }
     this.formulas = f;
+    // «Умная таблица» Google протягивает в новые строки формулы соседней строки (здесь — строки итогов): H, I, J, K
+    // H — '=IF(C…;"";1)' (значение пустое), I:K — сдвинутые SUM итогов (#REF!), как в боевом листе 22.10
+    if (this.smart) for (let r = at; r < at + n; r++) {
+      this.put(r, 8, ''); this.formulas[r + ':8'] = '=IF(C' + r + '="";"";1)';
+      for (const c of [9, 10, 11]) { this.put(r, c, '#REF!'); this.formulas[r + ':' + c] = '=SUM(#REF!)'; }
+    }
   }
+  getLastColumn() { return 15; }
   getConditionalFormatRules() { return this.rules; }
   setConditionalFormatRules(r) { this.rules = r; }
   getLastRow() { let n = this.data.length; while (n && this.data[n - 1].every(x => x === '' || x === undefined)) n--; return n; }
@@ -34,7 +41,7 @@ class Sheet {
       getValue: () => { sh.reads++; return sh.cell(r, c); },
       setValues: v => { v.forEach((row, i) => row.forEach((x, j) => sh.put(r + i, c + j, x))); return rg; },
       setValue: x => { sh.put(r, c, x); return rg; },
-      clearContent: () => { for (let i = 0; i < n; i++) for (let j = 0; j < m; j++) sh.put(r + i, c + j, ''); return rg; },
+      clearContent: () => { for (let i = 0; i < n; i++) for (let j = 0; j < m; j++) { sh.put(r + i, c + j, ''); delete sh.formulas[(r + i) + ':' + (c + j)]; } return rg; },
       getNumberFormats: () => grid(() => ''), setNumberFormats: () => rg, setNumberFormat: () => rg,
       setHorizontalAlignment: () => rg, setFontWeight: () => rg,
       getFormula: () => sh.formulas[r + ':' + c] || '',
@@ -189,4 +196,32 @@ test('пачка не выводит строку итогов за просма
   assert.equal(r.row, 249);
   assert.equal(e.eq.data[252][8], 1);                                    // итоги в строке 253 — последней просматриваемой
   assert.equal(e.eq.formulas['253:9'], '=SUM(I4:I252)');
+});
+
+test('«умная таблица» протягивает формулы итогов во вставленные строки — новые строки очищаются, свободны и пусты', () => {
+  const e = fullEnv();
+  e.eq.smart = true;
+  const r = e.ctx.appAddOrder('9', { id: 'KS-3', kit: 'Дождевик', sum: 150, paid: 0, size: '128' });
+  assert.equal(r.row, 7);
+  for (let row = 8; row <= 16; row++) {
+    assert.deepEqual(e.eq.data[row - 1].slice(1, 15).filter(v => v !== ''), [], 'строка ' + row);
+    for (const c of [8, 9, 10, 11]) assert.equal(e.eq.formulas[row + ':' + c], undefined, 'формула ' + row + ':' + c);
+  }
+  assert.deepEqual(e.eq.data.slice(6, 16).map(x => x[0]), [6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);   // № на месте
+  assert.equal(e.eq.formulas['17:9'], '=SUM(I4:I16)');                                              // итоги — правильные
+  assert.equal(e.eq.data[6][2], 'Gamma C');
+  // следующий заказ ложится в первую свободную строку пачки, без новой вставки и без ошибки «итоги изменены»
+  const r2 = e.ctx.appAddOrder('9', { id: 'KS-1', kit: 'Дождевик', sum: 150, paid: 0, size: '128' });
+  assert.equal(r2.row, 8);
+  assert.equal(e.eq.formatCopies.length, 1);
+});
+
+test('протянутые формулы в свободных строках (как в боевом листе 22.10) — новый заказ не пишется, таблица не меняется', () => {
+  const e = fullEnv();
+  e.eq.smart = true;
+  e.ctx.appAddOrder('9', { id: 'KS-3', kit: 'Дождевик', sum: 150, paid: 0, size: '128' });
+  for (let row = 8; row <= 16; row++) for (const c of [9, 10, 11]) { e.eq.put(row, c, '#REF!'); e.eq.formulas[row + ':' + c] = '=SUM(#REF!)'; }  // состояние до исправления
+  const before = JSON.stringify([e.eq.data, e.eq.formulas]);
+  assert.throws(() => e.ctx.appAddOrder('9', { id: 'KS-1', kit: 'Дождевик', sum: 150, paid: 0, size: '128' }), /итогов/);
+  assert.equal(JSON.stringify([e.eq.data, e.eq.formulas]), before);
 });
