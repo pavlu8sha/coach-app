@@ -174,9 +174,12 @@ function syncPayMonthCore_(month) {
   return { ok: true, dryRun: CONFIG.DRY_RUN, month: month, added: added, unmatched: plan.unmatched };
 }
 
-// Запуск из редактора Apps Script: указать месяц и выполнить. Без PIN — функция приватная (с «_»).
-function syncPayMonth_(month) {
+// Запуск из редактора Apps Script (есть в списке «Выполнить»): только в окне обслуживания MAINT_UNTIL, без PIN.
+// Вне окна maintCheck_ бросает ошибку. Месяц задаётся в константе SYNC_PAY_MONTH_ ниже.
+var SYNC_PAY_MONTH_ = '11.26';
+function syncPayMonthRun() {
+  maintCheck_();
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
-  try { return syncPayMonthCore_(month); } finally { lock.releaseLock(); }
+  try { return syncPayMonthCore_(SYNC_PAY_MONTH_); } finally { lock.releaseLock(); }
 }
