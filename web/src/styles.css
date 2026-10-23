@@ -49,3 +49,6 @@ h3 { font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .card.inner { box-shadow: none; margin: 8px 0 0; }
 .link-btn { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; text-align: left; }
+.check.agree { align-items: flex-start; margin-top: 14px; font-size: 0.9rem; line-height: 1.4; }
+.check.agree input { flex: none; margin-top: 2px; }
+.check.agree .link-btn { text-decoration: underline; }
