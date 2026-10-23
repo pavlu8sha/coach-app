@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import type { CoachGroup } from '../lib/coach';
 import { ListRow } from '../ui/components';
+import AdminPayments from './AdminPayments';
+import AdminPrices from './AdminPrices';
 import Coaches from './Coaches';
 import Debtors from './Debtors';
 import Group from './Group';
 import Schedule from './Schedule';
 
-type Sub = 'schedule' | 'debtors' | 'coaches' | 'points';
+type Sub = 'schedule' | 'debtors' | 'coaches' | 'points' | 'payments' | 'prices';
 
 // «Ещё» у администратора: остальные разделы. Вернуться в список можно кнопкой «Ещё» внизу или ссылкой наверху.
 export default function More({ groups }: { groups: CoachGroup[] }) {
@@ -20,7 +22,7 @@ export default function More({ groups }: { groups: CoachGroup[] }) {
             Ещё
           </button>
         </div>
-        {sub === 'schedule' ? <Schedule all /> : sub === 'debtors' ? <Debtors /> : sub === 'coaches' ? <Coaches /> : <Group groups={groups} />}
+        {sub === 'schedule' ? <Schedule all /> : sub === 'debtors' ? <Debtors /> : sub === 'coaches' ? <Coaches /> : sub === 'payments' ? <AdminPayments /> : sub === 'prices' ? <AdminPrices /> : <Group groups={groups} />}
       </>
     );
   }
@@ -29,6 +31,8 @@ export default function More({ groups }: { groups: CoachGroup[] }) {
       <h1>Ещё</h1>
       <ListRow title="Расписание" sub={['Тренировки всех групп, правка слотов']} onClick={() => setSub('schedule')} />
       <ListRow title="Баллы игроков" sub={['Ручные баллы, история, контакты родителей']} onClick={() => setSub('points')} />
+      <ListRow title="Платежи" sub={['Внести платёж, исправить запись']} onClick={() => setSub('payments')} />
+      <ListRow title="Цены" sub={['Абонемент и индивидуальные занятия по месяцам']} onClick={() => setSub('prices')} />
       <ListRow title="Должники" sub={['Долг по абонементам, скидки, показ родителям']} onClick={() => setSub('debtors')} />
       <ListRow title="Тренеры" sub={['Назначение групп тренерам']} onClick={() => setSub('coaches')} />
     </main>
