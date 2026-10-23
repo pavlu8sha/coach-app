@@ -11,14 +11,22 @@ import Schedule from './screens/Schedule';
 import Matches from './screens/Matches';
 import Profile from './screens/Profile';
 import Message from './screens/Message';
+import Coaches from './screens/Coaches';
+import CoachMatches from './screens/CoachMatches';
+import Group from './screens/Group';
+import Sessions from './screens/Sessions';
+import type { CoachGroup } from './lib/coach';
 import { BottomNav } from './ui/components';
 
 type State = { kind: 'loading' } | { kind: 'ready' } | { kind: 'outside' } | { kind: 'config' } | { kind: 'error'; text: string };
 
+type Tab = 'home' | 'schedule' | 'matches' | 'payments' | 'profile' | 'admin' | 'players' | 'coaches' | 'sessions' | 'cmatches' | 'group';
+
 function Shell() {
   const [admin, setAdmin] = useState(false);
+  const [coachGroups, setCoachGroups] = useState<CoachGroup[]>([]);
   const [hasKids, setHasKids] = useState(true); // пока не знаем — не прячем вкладку
-  const [tab, setTab] = useState<'home' | 'schedule' | 'matches' | 'payments' | 'profile' | 'admin' | 'players'>('home');
+  const [tab, setTab] = useState<Tab>('home');
   useEffect(() => {
     void (async () => {
       const { data } = await supabase.auth.getUser();
@@ -29,13 +37,32 @@ function Shell() {
       // у администратора вкладка «Ребёнок» нужна, только если он сам родитель
       const mine = await supabase.from('player_guardians').select('player_id', { count: 'exact', head: true }).eq('user_id', data.user.id).is('consent_revoked_at', null);
       setHasKids((mine.count ?? 0) > 0);
+      // тренер — тот, кому администратор назначил группы (coach_groups); каждый видит только свои строки
+      const cg = await supabase.from('coach_groups').select('groups(id, name)').eq('user_id', data.user.id);
+      const mineGroups = ((cg.data ?? []) as unknown as { groups: CoachGroup | null }[]).map(x => x.groups).filter((g): g is CoachGroup => Boolean(g)).sort((x, y) => x.name.localeCompare(y.name));
+      setCoachGroups(mineGroups);
       setAdmin(isAdm);
       if (isAdm) setTab('admin'); // администратор открывает приложение сразу на запросах
+      else if (mineGroups.length) setTab('sessions'); // тренер — сразу на занятиях
     })();
   }, []);
+  const coach = !admin && coachGroups.length > 0;
+  const screen =
+    admin && tab === 'admin' ? <Admin />
+    : admin && tab === 'players' ? <Players />
+    : admin && tab === 'coaches' ? <Coaches />
+    : coach && tab === 'sessions' ? <Sessions groups={coachGroups} />
+    : coach && tab === 'cmatches' ? <CoachMatches groups={coachGroups} />
+    : coach && tab === 'group' ? <Group groups={coachGroups} />
+    : tab === 'schedule' ? <Schedule all={admin} />
+    : !admin && !coach && tab === 'matches' ? <Matches />
+    : !admin && !coach && tab === 'profile' ? <Profile />
+    : !admin && !coach && tab === 'payments' ? <Payments />
+    : <Home isAdmin={admin} />;
+  const kidsTab = hasKids ? [{ value: 'home' as const, label: 'Ребёнок', icon: 'child' as const }] : [];
   return (
     <>
-      {admin && tab === 'admin' ? <Admin /> : admin && tab === 'players' ? <Players /> : tab === 'schedule' ? <Schedule all={admin} /> : !admin && tab === 'matches' ? <Matches /> : !admin && tab === 'profile' ? <Profile /> : !admin && tab === 'payments' ? <Payments /> : <Home isAdmin={admin} />}
+      {screen}
       <BottomNav
         label="Разделы"
         value={tab}
@@ -46,15 +73,23 @@ function Shell() {
                 { value: 'admin', label: 'Запросы', icon: 'inbox' },
                 { value: 'players', label: 'Дети', icon: 'users' },
                 { value: 'schedule', label: 'Расписание', icon: 'calendar' },
-                ...(hasKids ? [{ value: 'home' as const, label: 'Ребёнок', icon: 'child' as const }] : []),
+                { value: 'coaches', label: 'Тренеры', icon: 'user' },
+                ...kidsTab,
               ]
-            : [
-                { value: 'home', label: 'Ребёнок', icon: 'child' },
-                { value: 'schedule', label: 'Расписание', icon: 'calendar' },
-                { value: 'matches', label: 'Матчи', icon: 'trophy' },
-                { value: 'payments', label: 'Оплата', icon: 'wallet' },
-                { value: 'profile', label: 'Профиль', icon: 'user' },
-              ]
+            : coach
+              ? [
+                  { value: 'sessions', label: 'Занятия', icon: 'calendar' },
+                  { value: 'cmatches', label: 'Матчи', icon: 'trophy' },
+                  { value: 'group', label: 'Группа', icon: 'users' },
+                  ...kidsTab,
+                ]
+              : [
+                  { value: 'home', label: 'Ребёнок', icon: 'child' },
+                  { value: 'schedule', label: 'Расписание', icon: 'calendar' },
+                  { value: 'matches', label: 'Матчи', icon: 'trophy' },
+                  { value: 'payments', label: 'Оплата', icon: 'wallet' },
+                  { value: 'profile', label: 'Профиль', icon: 'user' },
+                ]
         }
       />
     </>
