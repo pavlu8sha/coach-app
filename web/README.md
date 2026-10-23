@@ -9,6 +9,9 @@ Vite + React + TypeScript + supabase-js. Один код для Telegram Mini Ap
 - `VITE_SUPABASE_PUBLISHABLE_KEY` — публичный ключ `sb_publishable_…` (не секретный; доступ ограничивает RLS).
 - `VITE_TG_BOT_USERNAME` — (необязательно) имя бота без `@`: включает вход из обычного браузера. Без неё в браузере показывается просьба открыть из Telegram.
 
+## Тесты экранов
+`npm test` (Vitest + jsdom) запускает тесты экранов с заглушкой вместо Supabase (`src/test/fakeSupabase.ts`): данные задаются в тесте (`fake.db`), ответы функций базы — через `fake.rpc`, вызовы проверяются через `fake.rpcCalls(...)` и `fake.writes(...)`. Тесты проверяют логику (какие вызовы уходят в базу, подтверждения, сообщения об ошибках), а не вёрстку. Образец: `src/screens/Sessions.test.tsx`.
+
 ## Запуск и сборка
 ```
 npm install
