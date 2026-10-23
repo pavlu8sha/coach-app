@@ -17,3 +17,19 @@ jobs:
           node-version: 24
       - name: node --test (приложение, импорт, вход через Telegram)
         run: node --test tests/*.mjs tests/import/*.test.mjs tests/edge/*.test.mjs
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Установка и сборка приложения для родителей
+        run: npm install && npm run build
+        env:
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder
