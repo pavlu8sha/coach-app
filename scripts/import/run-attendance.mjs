@@ -37,6 +37,7 @@ const perMonth = {};
 for (const s of plan.sessions) { const k = s.date.slice(0, 7); perMonth[k] = (perMonth[k] || 0) + 1; }
 console.log('По месяцам (тренировок): ' + Object.entries(perMonth).map(([k, v]) => `${k} ${v}`).join(', '));
 console.log(`Дней без единой галочки (не тренировка): ${plan.skipped.length}${plan.skipped.length ? ' — ' + plan.skipped.map(s => `${s.date} ${s.group}`).join('; ') : ''}`);
+console.log(`Бывшие дети (будут добавлены как неактивные игроки): ${plan.former.length}${plan.former.length ? ' — ' + plan.former.map(f => f.full_name).join('; ') : ''}`);
 console.log(`Не найдены в реестре: ${plan.unmatched.length}${plan.unmatched.length ? ' — ' + plan.unmatched.map(u => `${u.name} (${u.n})`).join('; ') : ''}`);
 console.log(`Время из журнала тренировок (нет слота в расписании): ${plan.fromLog}. Дублей строк в листах с той же отметкой: ${plan.dupSame}`);
 console.log(`Нет слота в расписании: ${plan.noSlot.length}${plan.noSlot.length ? ' — ' + plan.noSlot.slice(0, 15).join('; ') : ''}`);
@@ -68,6 +69,10 @@ const dbGroups = await rest('GET', `groups?club_id=eq.${CLUB_ID}&select=id,name`
 const gid = new Map(dbGroups.map(g => [g.name, g.id]));
 const missing = [...new Set(plan.sessions.map(s => s.group_name).filter(g => !gid.has(g)))];
 if (missing.length) { console.error('Группы не найдены в базе: ' + missing.join(', ')); process.exit(1); }
+// 0) бывшие дети из августа — неактивные игроки без группы
+if (plan.former.length) await rest('POST', 'players?on_conflict=club_id,external_id', plan.former.map(f => ({
+  club_id: CLUB_ID, external_id: f.external_id, full_name: f.full_name, status: 'inactive',
+})), MERGE);
 const dbPlayers = await rest('GET', `players?club_id=eq.${CLUB_ID}&select=id,external_id&limit=2000`);
 const pid = new Map(dbPlayers.map(p => [p.external_id, p.id]));
 const noPlayer = [...new Set(plan.marks.map(m => m.external_id).filter(x => !pid.has(x)))];

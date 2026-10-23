@@ -74,3 +74,12 @@ test('индивидуальные и вратарские слоты распи
   const plan = buildAttendancePlan({ sheets: [{ text: csv, month: '10', year: '2026' }], journalText: '', schedule, registryPlayers: [{ external_id: 'KS-1', full_name: 'Ivanov Ivan' }] });
   assert.deepEqual(plan.noSlot, ['2026-10-19 U7-A']);
 });
+
+test('бывшие дети из августа получают GUEST-… и попадают в план; время из TIME_FIX', () => {
+  const csv = sheet(['U13-A,,,,', '№,ФИ ребёнка,22,,', '1,Bayter Aivi,TRUE,,', '2,Ivanov Ivan,TRUE,,']);
+  const plan = buildAttendancePlan({ sheets: [{ text: csv, month: '08', year: '2026' }], journalText: '', schedule: [], registryPlayers: [{ external_id: 'KS-1', full_name: 'Ivanov Ivan' }] });
+  assert.deepEqual(plan.former.map(f => f.external_id), ['GUEST-BAYTER-AIVI']);
+  assert.equal(plan.unmatched.length, 0);
+  assert.equal(plan.sessions[0].starts_at, '2026-08-22T18:45:00+04:00');
+  assert.equal(plan.noSlot.length, 0);
+});

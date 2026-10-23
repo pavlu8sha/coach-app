@@ -4,6 +4,12 @@
 // Время начала — из расписания (слот «Групповая» для группы и дня недели).
 import { parseCsv } from './registry.mjs';
 import { resolveName } from './events-plan.mjs';
+import { guestExt } from './individual.mjs';
+
+// Дети, которые есть в листе августа, но не в реестре (подтверждено владельцем): заводятся как неактивные игроки GUEST-…
+export const FORMER = ['Bayter Aivi', 'Caregorodcev Lev', 'Dmitriev Nikita', 'Litvinov Bogdan', 'Fedotov Adam', 'Fedotov Shon'];
+// Время тренировок, которых нет ни в расписании, ни в журнале тренировок (сообщено владельцем)
+export const TIME_FIX = { '2026-08-22|U13-A': '18:45' };
 
 const TZ = '+04:00'; // Тбилиси, без перехода на летнее время
 const norm = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -97,8 +103,11 @@ export function buildAttendancePlan({ sheets, journalText, schedule, registryPla
   const allDays = new Set();
   const sessions = [], marks = [], unmatched = new Map(), problems = [], skipped = [], noSlot = [], manySlots = [];
   const resolved = new Map(); // имя из листа → игрок
+  const former = new Map();
   const resolve = name => {
     if (resolved.has(name)) return resolved.get(name);
+    const f = FORMER.find(x => norm(x) === norm(name));
+    if (f) { const p = { external_id: guestExt(f), full_name: f }; former.set(p.external_id, p); resolved.set(name, p); return p; }
     const r = resolveName(name, names);
     const p = r ? byName.get(r.name) : null;
     resolved.set(name, p || null);
@@ -114,6 +123,7 @@ export function buildAttendancePlan({ sheets, journalText, schedule, registryPla
     for (const d of parsed.sessions) {
       let times = slots.get(`${d.group}|${weekdayOf(d.date)}`);
       if (!times && logSlots.has(`${d.group}|${d.date}`)) { times = logSlots.get(`${d.group}|${d.date}`); fromLog++; }
+      if (!times && TIME_FIX[`${d.date}|${d.group}`]) times = new Set([TIME_FIX[`${d.date}|${d.group}`]]);
       if (!times) { noSlot.push(`${d.date} ${d.group}`); continue; }
       const t = [...times].sort();
       if (t.length > 1) manySlots.push(`${d.date} ${d.group}: ${t.join(', ')}`);
@@ -142,7 +152,7 @@ export function buildAttendancePlan({ sheets, journalText, schedule, registryPla
     else journalOnly.push(`${j.date} ${j.group} ${j.name}${sheetDays.has(`${j.group}|${j.date}`) ? '' : ' (дня нет в листе)'}`);
   }
   return {
-    dupSame, fromLog, sessions, marks, unmatched: [...unmatched].map(([name, n]) => ({ name, n })), problems, skipped, noSlot, manySlots,
+    dupSame, fromLog, former: [...former.values()], sessions, marks, unmatched: [...unmatched].map(([name, n]) => ({ name, n })), problems, skipped, noSlot, manySlots,
     journal: { rows: journal.length, both, agree, disagree, journalOnly },
   };
 }
