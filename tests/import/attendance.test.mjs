@@ -83,3 +83,18 @@ test('бывшие дети из августа получают GUEST-… и п
   assert.equal(plan.sessions[0].starts_at, '2026-08-22T18:45:00+04:00');
   assert.equal(plan.noSlot.length, 0);
 });
+
+test('матч вместо тренировки пропускается, сдвинутая дата исправляется, время из TIME_FIX', () => {
+  const csv = sheet(['U13-A,,,,', '№,ФИ ребёнка,20,30,,', '1,Ivanov Ivan,TRUE,TRUE,,', 'ИТОГ ГРУППЫ,,,,', 'U13-B,,,,', '№,ФИ ребёнка,27,,', '1,Ivanov Ivan,TRUE,,']);
+  const schedule = [{ group_name: 'U13-B', weekday: 6, starts_at: '16:45', kind: 'Групповая' }];
+  const mk = (month, text) => ({ text, month, year: '2026' });
+  const aug = buildAttendancePlan({ sheets: [mk('08', sheet(['U13-A,,,,', '№,ФИ ребёнка,30,,', '1,Ivanov Ivan,TRUE,,', 'ИТОГ ГРУППЫ,,,,', 'U13-B,,,,', '№,ФИ ребёнка,30,,', '1,Ivanov Ivan,TRUE,,']))], journalText: '', schedule: [], registryPlayers: [{ external_id: 'KS-1', full_name: 'Ivanov Ivan' }] });
+  const a = Object.fromEntries(aug.sessions.map(s => [s.group_name, s.starts_at]));
+  assert.equal(a['U13-A'], '2026-08-29T18:45:00+04:00');
+  assert.equal(a['U13-B'], '2026-08-29T17:30:00+04:00');
+  assert.equal(aug.shifted.length, 2);
+  const sep = buildAttendancePlan({ sheets: [mk('09', csv)], journalText: '', schedule, registryPlayers: [{ external_id: 'KS-1', full_name: 'Ivanov Ivan' }] });
+  assert.deepEqual(sep.excluded, ['2026-09-20 U13-A']);
+  const b = sep.sessions.find(x => x.group_name === 'U13-B');
+  assert.equal(b.date, '2026-09-26'); assert.equal(b.starts_at, '2026-09-26T16:45:00+04:00'); // суббота — слот расписания
+});
