@@ -68,7 +68,7 @@ select is((select sum(points)::int from point_events where player_id = '00000000
 select is((select count(*)::int from matches where opponent = 'Динамо'), 1, 'правка не создаёт второй матч');
 
 -- Ограничения
-select throws_ok($$select save_match((select id from matches where team = 'U11'), '00000000-0000-0000-0000-0000000000e1', '2026-10-10', 'X', 1, 0, '[]'::jsonb)$$, '42501', 'match is not of this group', 'чужой матч править нельзя');
+select throws_ok($$select save_match('00000000-0000-0000-0000-0000000000f2', '00000000-0000-0000-0000-0000000000e1', '2026-10-10', 'X', 1, 0, '[]'::jsonb)$$, '42501', 'match is not of this group', 'чужой матч править нельзя');
 select throws_ok($$select save_match(null, '00000000-0000-0000-0000-0000000000e1', '2026-10-17', 'X', 1, null, '[]'::jsonb)$$, null, 'score incomplete', 'счёт только из двух чисел');
 select throws_ok($$select save_match(null, '00000000-0000-0000-0000-0000000000e1', (current_date + 7), 'X', 1, 0, '[]'::jsonb)$$, null, 'result for future match', 'результат будущего матча внести нельзя');
 select throws_ok($$select save_match(null, '00000000-0000-0000-0000-0000000000e1', '2026-10-17', 'X', 1, 0, '[{"player_id":"00000000-0000-0000-0000-00000000d001","played":false,"goals":1}]'::jsonb)$$, null, 'goals without playing', 'гол без участия отклоняется');
