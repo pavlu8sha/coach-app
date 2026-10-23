@@ -31,7 +31,7 @@ export default function Schedule() {
       for (const l of (links.data ?? []) as any[]) {
         const p = l.players;
         if (!p?.group_id) continue;
-        const g = byGroup.get(p.group_id) ?? { id: p.group_id, name: p.groups?.name ?? '', kids: [], slots: [], upcoming: [], results: [] };
+        const g: GroupView = byGroup.get(p.group_id) ?? { id: p.group_id, name: p.groups?.name ?? '', kids: [], slots: [], upcoming: [], results: [] };
         g.kids.push(p.full_name);
         byGroup.set(p.group_id, g);
       }
