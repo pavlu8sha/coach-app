@@ -33,6 +33,9 @@ summary{cursor:pointer;list-style:none;min-height:44px;display:flex;flex-directi
 .sub{color:var(--mute);font-size:13px}
 .ok{color:var(--color-success)}.err{color:var(--a)}
 .ord{border-top:1px solid var(--line);margin-top:8px;padding-top:8px;font-size:14px}
+/* Выдача по вещам: строка вещи, ссылка «Отменить» с целью нажатия 44 px */
+.iss{margin-top:8px}.isr{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:44px;border-top:1px dashed var(--line)}
+.lnk{background:none;border:0;color:var(--g);text-decoration:underline;min-height:44px;padding:0 4px;font:inherit;font-size:14px;cursor:pointer;flex:none}
 .msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:8px}
 .swrow{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px;padding:0 14px;border:1px solid var(--color-border-strong,var(--line));border-radius:12px;background:var(--card);font-weight:700;font-size:14px}
 .sw{position:relative;flex:none;width:46px;height:26px;padding:0;border:0;border-radius:13px;background:var(--line);cursor:pointer;min-height:26px;margin:0}
@@ -67,7 +70,7 @@ summary{cursor:pointer;list-style:none;min-height:44px;display:flex;flex-directi
     <select id="fs" aria-label="Показать">
       <option value="all">Все игроки</option><option value="ordered">Заказали форму</option><option value="not">Не заказывали</option>
       <option value="paid">Оплачено полностью</option><option value="debt">Есть долг</option><option value="zero">Ничего не оплачено</option>
-      <option value="miss">Не заполнено или повтор номера</option>
+      <option value="miss">Не заполнено или повтор номера</option><option value="noiss">Выдано не всё</option>
       <option value="unl">Заказы без привязки</option>
     </select>
     <select id="fg" aria-label="Группа"></select>
@@ -102,7 +105,7 @@ summary{cursor:pointer;list-style:none;min-height:44px;display:flex;flex-directi
   <button class="btn sec" id="fcancel">Отмена</button>
 </div>
 <script>
-var pin='',P=[],O=[],UNL=[],PR={},SZ={},DC=null,FL={},flash='';
+var pin='',P=[],O=[],UNL=[],PR={},SZ={},DC=null,FL={},ISS={},flash='';
 function $(i){return document.getElementById(i)}
 function run(fn,args,ok,fail){var r=google.script.run.withSuccessHandler(ok).withFailureHandler(function(e){fail(e&&e.message?e.message:String(e))});r[fn].apply(r,args)}
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
@@ -125,7 +128,7 @@ function load(){
     P=pd.players;
     $('plist').innerHTML=P.filter(function(p){return p.status=='Активен'}).map(function(p){return'<option value="'+esc(p.name+' ('+p.id+')')+'">'}).join('');
     $('qlist').innerHTML=P.filter(function(p){return p.status=='Активен'}).map(function(p){return'<option value="'+esc(p.name)+'">'+esc(p.id+' · '+p.group)+'</option>'}).join('');
-    O=rd.orders;UNL=rd.unl;PR=rd.prices;SZ=rd.sizes||{};DC=rd.disc||null;FL=rd.flags||{};
+    O=rd.orders;UNL=rd.unl;PR=rd.prices;SZ=rd.sizes||{};DC=rd.disc||null;FL=rd.flags||{};ISS=rd.issued||{};
     $('login').hidden=true;$('form').hidden=true;$('app').hidden=false;
     fillGroups();show();
   }
@@ -175,7 +178,8 @@ function rows(){
   });
 }
 var F={all:function(){return true},ordered:function(r){return r.os.length>0},not:function(r){return!r.os.length},
-  paid:function(r){return r.os.length>0&&r.sum>0&&r.debt==0},debt:function(r){return r.debt>0},zero:function(r){return r.sum>0&&r.paid==0},miss:function(r){return r.os.some(function(o){return missOf(o).length||isDup(o,r.p)})}};
+  paid:function(r){return r.os.length>0&&r.sum>0&&r.debt==0},debt:function(r){return r.debt>0},zero:function(r){return r.sum>0&&r.paid==0},miss:function(r){return r.os.some(function(o){return missOf(o).length||isDup(o,r.p)})},
+  noiss:function(r){return r.os.some(function(o){return issState(o)!=='all'})}};
 function tile(t,v,bad){return'<div class="tile"><b'+(bad?' class="err"':'')+'>'+v+'</b><span>'+t+'</span></div>'}
 function relForm(label,withUnlink,row){
   return'<div class="acts"><button class="btn sec rl">'+label+'</button>'+(withUnlink?'<button class="btn sec ul" data-row="'+row+'">Отвязать</button>':'<span></span>')+'</div>'
@@ -216,6 +220,52 @@ function qtyEdit(root,k){var i=root.querySelector('.ekq[data-k="'+k+'"]');var v=
 function qmEdit(root,ks){var m={};ks.forEach(function(k){m[k]=qtyEdit(root,k)});return m}
 function qmNew(ks){var m={};ks.forEach(function(k){var i=document.querySelector('#fkits .kq[data-k="'+k+'"]');var v=parseInt(i&&i.value,10);m[k]=v>=1?v:1});return m}
 function kitsOf(k){return String(k||'').split(' + ').map(function(x){return x.trim()}).filter(Boolean)}
+// Выдача по вещам (EquipIssue.js): ISS = { ORD: { вещь: {date, who} } }. Кто выдал — запоминается на этом устройстве.
+function issOf(o){return o.ord?ISS[o.ord]||{}:{}}
+function issState(o){var ks=kitsOf(o.kit),m=issOf(o),n=ks.filter(function(k){return m[k]}).length;return!ks.length?'all':(n===0?'none':(n===ks.length?'all':'part'))}
+function lastWho(){try{return localStorage.getItem('kitWho')||''}catch(e){return''}}
+function issueHtml(o){
+  var ks=kitsOf(o.kit);if(!ks.length)return'';
+  if(!o.ord)return'<div class="sub iss">Выдача: у заказа нет ID заказа (колонка N в таблице) — отметить выдачу нельзя.</div>';
+  var m=issOf(o),st=issState(o),left=ks.filter(function(k){return!m[k]});
+  return'<div class="iss"><div>Выдача: <b class="'+(st==='all'?'ok':'')+'">'+(st==='all'?'выдано':st==='part'?'выдано частично':'не выдано')+'</b></div>'
+    +ks.map(function(k){var x=m[k];return'<div class="isr"><span>'+esc(k)+(x?'<span class="sub"> — выдано '+esc(x.date)+(x.who?', '+esc(x.who):'')+'</span>':'<span class="sub"> — не выдано</span>')+'</span>'
+      +(x?'<button class="lnk iun" data-row="'+o.row+'" data-k="'+esc(k)+'">Отменить</button>':'')+'</div>'}).join('')
+    +(left.length?'<button class="btn sec iop" style="margin-top:8px">Выдать</button><div class="isf" hidden>'
+      +left.map(function(k){return'<label class="chk"><input type="checkbox" class="ich" value="'+esc(k)+'" checked> '+esc(k)+'</label>'}).join('')
+      +'<label>Дата выдачи</label><input class="idt" type="date" value="'+today()+'">'
+      +'<label>Кто выдал</label><input class="iwho" value="'+esc(lastWho())+'" placeholder="Имя" autocomplete="off">'
+      +'<button class="btn iok" data-row="'+o.row+'">Отметить выдачу</button><div class="msg err im"></div></div>':'')
+    +'</div>';
+}
+function issueOrder(b,ord){
+  var im=ord.querySelector('.im'),items=Array.from(ord.querySelectorAll('.ich:checked')).map(function(c){return c.value});
+  var dt=ord.querySelector('.idt').value,who=ord.querySelector('.iwho').value.trim();
+  if(!items.length){im.textContent='Отметьте, что выдаёте';return}
+  if(!dt){im.textContent='Укажите дату выдачи';return}
+  im.textContent='';
+  try{localStorage.setItem('kitWho',who)}catch(e){}
+  var row=Number(b.dataset.row),o=orderByRow(row)||{};
+  ksConfirm({title:'Отметить выдачу?',ok:'Отметить выдачу',
+    warn:o.debt>0?'По заказу не оплачено '+ksMoney(o.debt)+'. Выдача будет отмечена, долг останется.':'',
+    rows:[['Игрок',playerName(o.id)||o.oname],['Выдаётся',items.join(' + ')],['Дата',ksDateIfNotToday(dt)],['Кто выдал',who]],
+    run:function(ok,bad){
+      run('appEquipIssue',[pin,row,items,true,dt,who],function(r){
+        ok();flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+(r.status==='Да'?'Заказ выдан полностью. ':'Выдача отмечена. ');load();
+      },bad);
+    }});
+}
+function unissue(b){
+  var row=Number(b.dataset.row),k=b.dataset.k,o=orderByRow(row)||{},x=issOf(o)[k]||{};
+  ksConfirm({title:'Отменить выдачу?',ok:'Отменить выдачу',danger:true,
+    text:'Отметка о выдаче будет снята. Запись об отмене останется в журнале изменений.',
+    rows:[['Игрок',playerName(o.id)||o.oname],['Вещь',k],['Было отмечено',(x.date||'')+(x.who?', '+x.who:'')]],
+    run:function(ok,bad){
+      run('appEquipIssue',[pin,row,[k],false],function(r){
+        ok();flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+'Выдача отменена. ';load();
+      },bad);
+    }});
+}
 function orderHtml(o,p,linked){
   var prob=[];var mi=missOf(o);if(mi.length)prob.push('не заполнено: '+mi.join(', '));if(isDup(o,p))prob.push((dupNums(o,p).length>1?'номера ':'номер ')+dupNums(o,p).join(', ')+' повторяется в '+catOf(p.group));
   return'<div class="ord"><b>'+esc(kitShown(o)||'Комплект не указан')+'</b>'+(o.inst?' (рассрочка)':'')+(o.no?'<span class="sub"> · заказ №'+o.no+'</span>':'')
@@ -223,6 +273,7 @@ function orderHtml(o,p,linked){
     +(p&&nn(o.oname)!=nn(p.name)?'<div class="sub err">В файле заказа записано: '+esc(o.oname)+'</div>':'')
     +'<div class="sub">Размер: '+esc(o.size||'не указан')+'; надпись: '+esc(o.inscr||'—')+'; номер: '+esc(o.num||'—')+'</div>'
     +'<div>Сумма '+money(o.sum)+', оплачено '+money(o.paid)+', долг '+money(o.debt)+'</div>'
+    +issueHtml(o)
     +(linked&&o.debt>0?payForm(o):'')
     +'<button class="btn sec ed" style="margin-top:8px">Изменить заказ</button>'
     +'<button class="btn sec delo" data-row="'+o.row+'" style="margin-top:8px">Удалить заказ</button><div class="msg err dm"></div>'
@@ -237,7 +288,8 @@ function orderHtml(o,p,linked){
 function card(r){
   var b=!r.os.length?'<span class="sub">не заказывал</span>':(r.sum<=0?'<span class="err">сумма не указана</span>':(r.debt>0?'<span class="err">долг '+money(r.debt)+'</span>':'<span class="ok">оплачено</span>'));
   var kits=r.os.map(function(o){return o.kit||'без комплекта'}).join(', ');
-  return'<details><summary><div class="top"><span>'+esc(r.p.name)+'</span>'+b+'</div><div class="sub">'+esc(r.p.group+(kits?' / '+kits:''))+'</div></summary>'
+  var st=r.os.map(issState),iss=!r.os.length?'':(st.every(function(x){return x==='all'})?' · выдано':(st.some(function(x){return x!=='none'})?' · выдано частично':' · не выдано'));
+  return'<details><summary><div class="top"><span>'+esc(r.p.name)+'</span>'+b+'</div><div class="sub">'+esc(r.p.group+(kits?' / '+kits:'')+iss)+'</div></summary>'
     +(r.os.map(function(o){return orderHtml(o,r.p,true)}).join('')||'<div class="ord sub">Заказов нет.</div>')+'</details>';
 }
 function ucard(o){
@@ -308,6 +360,9 @@ $('list').onclick=function(e){
   var ord=b.closest('.ord');
   if(b.classList.contains('pay')){var pf=ord.querySelector('.pf');pf.hidden=!pf.hidden;return}
   if(b.classList.contains('pok')){payOrder(b,ord);return}
+  if(b.classList.contains('iop')){var isf=ord.querySelector('.isf');isf.hidden=!isf.hidden;return}
+  if(b.classList.contains('iok')){issueOrder(b,ord);return}
+  if(b.classList.contains('iun')){unissue(b);return}
   if(b.classList.contains('rl')){var f=ord.querySelector('.rlf');f.hidden=!f.hidden;return}
   if(b.classList.contains('ul')){
     if(!b.dataset.sure){b.dataset.sure=1;b.textContent='Точно отвязать?';return}

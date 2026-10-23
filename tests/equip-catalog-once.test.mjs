@@ -22,7 +22,8 @@ function env() {
   for (const f of ['EquipView.js', 'EquipLinks.js']) vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
   Object.assign(ctx, {
     checkAdmin_: p => { if (String(p) !== '9') throw new Error('Неверный код администратора'); },
-    cacheGetBig_: () => ({ orders: [{ id: 'KS-1' }], unl: [], unlinked: 0 }), cachePutBig_() {},
+    cacheGetBig_: () => ({ orders: [{ id: 'KS-1', ord: 'ORD-0001' }], unl: [], unlinked: 0 }), cachePutBig_() {},
+    equipIssues_: () => ({}),
     catalog_: only => { calls.push(only); return JSON.parse(JSON.stringify(only ? CAT.filter(x => x.active) : CAT)); },
     equipDiscCfg_: () => ({ pct: 15 }),
   });
@@ -41,7 +42,7 @@ test('каталог читается один раз, цены / размеры
   assert.deepEqual(d.prices, { 'Тренировочная форма': 100, 'Игровая форма': 200, 'Дождевик': 150 });
   assert.deepEqual(d.sizes['Дождевик'], ['128', '134', '140']);
   assert.deepEqual(d.flags['старая позиция'], { inscr: false, num: false });   // флаги — по всему каталогу, как раньше
-  assert.deepEqual(d.orders, [{ id: 'KS-1' }]);
+  assert.deepEqual(d.orders, [{ id: 'KS-1', ord: 'ORD-0001' }]);
   assert.deepEqual(d.disc, { pct: 15 });
 });
 
