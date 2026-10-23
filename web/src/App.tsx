@@ -18,7 +18,9 @@ function Shell() {
       if (!data.user) return;
       // RLS: пользователь читает только свою строку; флаг — только подсказка для меню, права проверяет база
       const r = await supabase.from('users').select('is_admin').eq('id', data.user.id).maybeSingle();
-      setAdmin(Boolean(r.data?.is_admin));
+      const isAdm = Boolean(r.data?.is_admin);
+      setAdmin(isAdm);
+      if (isAdm) setTab('admin'); // администратор открывает приложение сразу на запросах
     })();
   }, []);
   return (
@@ -29,7 +31,7 @@ function Shell() {
           <button className={tab === 'admin' ? 'on' : ''} onClick={() => setTab('admin')}>Запросы</button>
         </nav>
       )}
-      {tab === 'admin' && admin ? <Admin /> : <Home />}
+      {tab === 'admin' && admin ? <Admin /> : <Home isAdmin={admin} />}
     </>
   );
 }

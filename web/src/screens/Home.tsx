@@ -14,10 +14,11 @@ interface Child {
 const fmtDate = (iso: string) => iso.split('-').reverse().join('.');
 const plural = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'балл' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'балла' : 'баллов');
 
-export default function Home() {
+export default function Home({ isAdmin = false }: { isAdmin?: boolean }) {
   const [children, setChildren] = useState<Child[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [showLink, setShowLink] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -53,6 +54,18 @@ export default function Home() {
   if (error) return <Message title="Не удалось загрузить данные" text={error} />;
   if (!children) return <Message title="Загрузка…" />;
   if (!children.length) {
+    // Администратору форма поиска ребёнка не нужна: он подтверждает запросы родителей во вкладке «Запросы»
+    if (isAdmin && !showLink) {
+      return (
+        <main className="page">
+          <h1>Мой ребёнок</h1>
+          <p className="muted">У вас нет привязанных детей. Запросы родителей — во вкладке «Запросы».</p>
+          <button className="btn ghost" onClick={() => setShowLink(true)}>
+            Привязать своего ребёнка
+          </button>
+        </main>
+      );
+    }
     return (
       <main className="page">
         <h1>Мой ребёнок</h1>
