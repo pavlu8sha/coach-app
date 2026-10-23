@@ -13,7 +13,7 @@ const fmtDate = (iso: string) => iso.split('-').reverse().slice(0, 2).join('.');
 const today = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD по местному времени телефона
 
 // Расписание и матчи групп, в которых играют дети текущего пользователя.
-export default function Schedule({ all = false }: { all?: boolean }) {
+export default function Schedule({ all = false, editable = all }: { all?: boolean; editable?: boolean }) {
   const [groups, setGroups] = useState<GroupView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -59,7 +59,7 @@ export default function Schedule({ all = false }: { all?: boolean }) {
         }
       }
       // у администратора не показываем группы, о которых ничего нет (архивные, пустые)
-      setGroups(all ? list.filter(g => g.slots.length || g.upcoming.length || g.results.length || g.name) : list);
+      setGroups(all ? list.filter(g => g.slots.length || g.upcoming.length || g.results.length || editable) : list);
     })();
   }, [all, reload]);
 
@@ -83,8 +83,8 @@ export default function Schedule({ all = false }: { all?: boolean }) {
           {g.slots.length === 0 && <p className="muted">Расписание пока не заполнено.</p>}
           <ul className="events">
             {g.slots.map(s => (
-              <li key={s.id} style={all && editing?.key === s.id ? { display: 'block' } : undefined}>
-                {all && editing?.key === s.id ? (
+              <li key={s.id} style={editable && editing?.key === s.id ? { display: 'block' } : undefined}>
+                {editable && editing?.key === s.id ? (
                   <SlotEdit groupId={g.id} initial={editing.slot} onDone={done} onCancel={() => setEditing(null)} />
                 ) : (
                   <>
@@ -94,7 +94,7 @@ export default function Schedule({ all = false }: { all?: boolean }) {
                       {s.kind !== 'Групповая' && <span className="muted"> · {s.kind}</span>}
                     </span>
                     <span className="muted">{s.location ?? ''}</span>
-                    {all && (
+                    {editable && (
                       <button className="btn small ghost" onClick={() => setEditing({ group: g.id, key: s.id, slot: s })}>
                         Изменить
                       </button>
@@ -104,7 +104,7 @@ export default function Schedule({ all = false }: { all?: boolean }) {
               </li>
             ))}
           </ul>
-          {all && (editing?.key === `new-${g.id}` ? (
+          {editable && (editing?.key === `new-${g.id}` ? (
             <SlotEdit groupId={g.id} initial={editing.slot} onDone={done} onCancel={() => setEditing(null)} />
           ) : (
             <button className="btn small ghost" style={{ marginTop: 8 }} onClick={() => setEditing({ group: g.id, key: `new-${g.id}`, slot: { weekday: 1, starts_at: '', ends_at: null, location: null, kind: 'Групповая', coaches: null } })}>

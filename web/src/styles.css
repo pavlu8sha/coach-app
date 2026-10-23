@@ -52,3 +52,7 @@ h3 { font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color
 .check.agree { align-items: flex-start; margin-top: 14px; font-size: 0.9rem; line-height: 1.4; }
 .check.agree input { flex: none; margin-top: 2px; }
 .check.agree .link-btn { text-decoration: underline; }
+
+/* выбор роли */
+.ks-row.role { align-items: flex-start; padding: 14px; }
+.role-icon { flex: none; width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; background: var(--bg); color: var(--accent); }
