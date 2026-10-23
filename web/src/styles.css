@@ -36,6 +36,7 @@ p { margin: 0; line-height: 1.45; }
 .reqs { border-top: 1px solid var(--bg); padding-top: 12px; }
 .card .events li > span:first-child { min-width: 0; }
 .consent { margin-top: 14px; padding: 12px; border-radius: 12px; background: var(--bg); font-size: 0.88rem; }
+.policy { margin: 8px 0; padding-left: 18px; display: grid; gap: 8px; line-height: 1.45; }
 .consent ul { margin: 8px 0; padding-left: 18px; display: grid; gap: 6px; line-height: 1.4; }
 .consent .lang { background: transparent; border: 1px solid var(--ks-border-strong); color: var(--fg); border-radius: 8px; padding: 2px 8px; font-size: 0.8rem; }
 .check { display: flex; gap: 8px; align-items: center; font-size: 1rem; }
