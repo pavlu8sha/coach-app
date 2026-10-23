@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
-import { hasSession, signInWithTelegram } from './lib/auth';
+import { hasSession, signInWithTelegram, signInWithWidget } from './lib/auth';
 import { configured } from './lib/supabase';
 import { initData, prepareTelegram } from './lib/telegram';
 import Admin from './screens/Admin';
@@ -11,6 +11,7 @@ import Schedule from './screens/Schedule';
 import Matches from './screens/Matches';
 import Profile from './screens/Profile';
 import Message from './screens/Message';
+import BrowserLogin, { browserLoginEnabled } from './screens/BrowserLogin';
 import About from './screens/About';
 import RoleSelect, { type Role } from './screens/RoleSelect';
 import Coaches from './screens/Coaches';
@@ -165,6 +166,20 @@ export default function App() {
     case 'config':
       return <Message title="Приложение не настроено" text="Не заданы VITE_SUPABASE_URL и VITE_SUPABASE_PUBLISHABLE_KEY." />;
     case 'outside':
+      if (browserLoginEnabled) {
+        // вход из обычного браузера: виджет Telegram Login → tg-login
+        return (
+          <BrowserLogin
+            onUser={u => {
+              setState({ kind: 'loading' });
+              signInWithWidget(u).then(
+                () => setState({ kind: 'ready' }),
+                e => setState({ kind: 'error', text: e instanceof Error ? e.message : 'Неизвестная ошибка' }),
+              );
+            }}
+          />
+        );
+      }
       return (
         <Message
           title="Откройте через Telegram"

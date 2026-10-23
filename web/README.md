@@ -2,11 +2,12 @@
 
 Vite + React + TypeScript + supabase-js. Один код для Telegram Mini App и браузера.
 
-Сейчас: вход через Telegram (`supabase/functions/tg-auth`) и экран «Мой ребёнок» (дети, баллы рейтинга). Вход из обычного браузера — позже.
+Вход: через Telegram Mini App (`supabase/functions/tg-auth`) и из обычного браузера через виджет Telegram Login (`supabase/functions/tg-login`, см. его README: нужны `/setdomain` в BotFather, деплой функции и переменная `VITE_TG_BOT_USERNAME`). Из браузера сайт можно добавить на главный экран (PWA: `public/manifest.webmanifest`, `public/sw.js` без кэширования).
 
 ## Переменные окружения
 - `VITE_SUPABASE_URL` — адрес проекта, без `/rest/v1`.
 - `VITE_SUPABASE_PUBLISHABLE_KEY` — публичный ключ `sb_publishable_…` (не секретный; доступ ограничивает RLS).
+- `VITE_TG_BOT_USERNAME` — (необязательно) имя бота без `@`: включает вход из обычного браузера. Без неё в браузере показывается просьба открыть из Telegram.
 
 ## Запуск и сборка
 ```
