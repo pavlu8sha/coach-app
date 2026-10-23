@@ -21,8 +21,14 @@ export default function Home() {
 
   useEffect(() => {
     void (async () => {
-      // RLS отдаёт только детей, связанных с этим родителем
-      const links = await supabase.from('player_guardians').select('player_id, players(id, full_name, groups(name))');
+      // Администратору RLS отдаёт все связи, поэтому берём только свои: «Мой ребёнок» — это дети текущего пользователя
+      const me = (await supabase.auth.getUser()).data.user?.id;
+      if (!me) return setError('Нет сессии');
+      const links = await supabase
+        .from('player_guardians')
+        .select('player_id, players(id, full_name, groups(name))')
+        .eq('user_id', me)
+        .is('consent_revoked_at', null);
       if (links.error) return setError(links.error.message);
       const kids = (links.data ?? []).map((l: any) => ({
         id: l.players?.id as string,
