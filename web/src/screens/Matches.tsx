@@ -19,6 +19,7 @@ const outcome = (m: Match): { tone: Tone; text: string } => {
 export default function Matches() {
   const [matches, setMatches] = useState<Match[] | null>(null);
   const [multi, setMulti] = useState(false);
+  const [noGroups, setNoGroups] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
 
@@ -30,6 +31,7 @@ export default function Matches() {
       if (links.error) return setError(links.error.message);
       const names = [...new Set(((links.data ?? []) as any[]).map(l => l.players?.groups?.name as string | undefined).filter((n): n is string => Boolean(n)))];
       setMulti(names.length > 1);
+      setNoGroups(!names.length);
       if (!names.length) return setMatches([]);
       const m = await supabase.from('matches').select('id, team, played_on, opponent, goals_for, goals_against').in('team', names).order('played_on', { ascending: false }).limit(100);
       if (m.error) return setError(m.error.message);
@@ -39,7 +41,7 @@ export default function Matches() {
 
   if (error) return <Message title="Не удалось загрузить матчи" text={error} />;
   if (!matches) return <Loading />;
-  if (!matches.length) return <Message title="Матчи" text="Матчи появятся, когда администратор подтвердит связь с ребёнком и в группе будут матчи." />;
+  if (noGroups) return <Message title="Матчи" text="Матчи появятся, когда администратор подтвердит связь с ребёнком." />;
 
   const t = today();
   const upcoming = matches.filter(m => m.played_on >= t && m.goals_for === null).reverse();

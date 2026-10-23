@@ -106,8 +106,7 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
         <div className="reqs">
           <ListRow
             title="Статус запросов"
-            sub={[`Всего: ${reqs.length}`]}
-            end={reqs.some(r => r.status === 'pending') ? <Pill tone={STATUS.pending.tone} dot>{STATUS.pending.label}</Pill> : undefined}
+            sub={[`Всего: ${reqs.length}`, ...(reqs.some(r => r.status === 'pending') ? [<Pill tone={STATUS.pending.tone} dot>{STATUS.pending.label}</Pill>] : [])]}
             onClick={onOpenStatus}
           />
         </div>
