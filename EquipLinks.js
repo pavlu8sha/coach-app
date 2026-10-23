@@ -22,7 +22,8 @@ function appEquipOrders(pin) { return perfSpan_('appEquipOrders', function () { 
 function appEquipOrders0_(pin) {
   checkAdmin_(pin);
   var data = cacheGetBig_('eq_v1');
-  if (!data) { data = equipOrdersLive_(); cachePutBig_('eq_v1', data, 60); }
+  // заказы из кэша до появления ID заказа (ord) в данных — перечитываем, иначе экран не свяжет выдачу с заказом
+  if (!data || (data.orders.length && data.orders[0].ord === undefined)) { data = equipOrdersLive_(); cachePutBig_('eq_v1', data, 60); }
   // Каталог — один раз на запрос (раньше три чтения кэша cat_v1: цены, флаги, размеры). Активные позиции —
   // тот же фильтр, что catalog_(true); источник и срок кэша не меняются.
   var all = catalog_(false), active = all.filter(function (x) { return x.active; });
@@ -31,6 +32,7 @@ function appEquipOrders0_(pin) {
   data.flags = {};   // что требует позиция каталога: надпись, номер (колонки «Надпись», «Номер»)
   all.forEach(function (x) { data.flags[x.name.toLowerCase()] = { inscr: !!x.inscr, num: !!x.num }; });
   data.sizes = kitSizes_(active);
+  data.issued = equipIssues_();   // выдача по вещам: { ORD: { вещь: {date, who} } } (EquipIssue.js)
   return data;
 }
 
@@ -44,7 +46,7 @@ function equipOrdersLive_() {
     var sum = Number(r[8]) || 0, paid = Number(r[9]) || 0;
     var o = {
       id: id, row: EQ_FIRST + i, no: Number(r[0]), oname: name, kit: disp[i][3], size: disp[i][4], inscr: disp[i][5], num: disp[i][6],
-      inst: disp[i][7], sum: sum, paid: paid, debt: Math.max(sum - paid, 0), qtys: qtysOf_(r[EQ_QTY_COL - 1], String(r[3] || '').split(' + ').length)
+      inst: disp[i][7], sum: sum, paid: paid, debt: Math.max(sum - paid, 0), ord: String(r[13] || '').trim(), qtys: qtysOf_(r[EQ_QTY_COL - 1], String(r[3] || '').split(' + ').length)
     };
     if (id) orders.push(o); else unl.push(o);
   });
