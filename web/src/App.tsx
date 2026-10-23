@@ -5,6 +5,7 @@ import { configured } from './lib/supabase';
 import { initData, prepareTelegram } from './lib/telegram';
 import Admin from './screens/Admin';
 import Home from './screens/Home';
+import Payments from './screens/Payments';
 import Players from './screens/Players';
 import Schedule from './screens/Schedule';
 import Message from './screens/Message';
@@ -14,7 +15,7 @@ type State = { kind: 'loading' } | { kind: 'ready' } | { kind: 'outside' } | { k
 function Shell() {
   const [admin, setAdmin] = useState(false);
   const [hasKids, setHasKids] = useState(true); // пока не знаем — не прячем вкладку
-  const [tab, setTab] = useState<'home' | 'schedule' | 'admin' | 'players'>('home');
+  const [tab, setTab] = useState<'home' | 'schedule' | 'payments' | 'admin' | 'players'>('home');
   useEffect(() => {
     void (async () => {
       const { data } = await supabase.auth.getUser();
@@ -43,10 +44,11 @@ function Shell() {
           <>
             <button className={tab === 'home' ? 'on' : ''} onClick={() => setTab('home')}>Ребёнок</button>
             <button className={tab === 'schedule' ? 'on' : ''} onClick={() => setTab('schedule')}>Расписание</button>
+            <button className={tab === 'payments' ? 'on' : ''} onClick={() => setTab('payments')}>Оплата</button>
           </>
         )}
       </nav>
-      {admin && tab === 'admin' ? <Admin /> : admin && tab === 'players' ? <Players /> : tab === 'schedule' ? <Schedule all={admin} /> : <Home isAdmin={admin} />}
+      {admin && tab === 'admin' ? <Admin /> : admin && tab === 'players' ? <Players /> : tab === 'schedule' ? <Schedule all={admin} /> : !admin && tab === 'payments' ? <Payments /> : <Home isAdmin={admin} />}
     </>
   );
 }
