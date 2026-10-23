@@ -51,3 +51,4 @@ p { margin: 0; line-height: 1.45; }
 .consent .lang { background: transparent; border: 1px solid var(--muted); color: var(--fg); border-radius: 8px; padding: 2px 8px; font-size: 0.8rem; }
 .check { display: flex; gap: 8px; align-items: center; font-size: 1rem; }
 .check input { width: 20px; height: 20px; }
+h3 { font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin: 16px 0 8px; }
