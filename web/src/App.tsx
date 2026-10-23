@@ -5,13 +5,14 @@ import { configured } from './lib/supabase';
 import { initData, prepareTelegram } from './lib/telegram';
 import Admin from './screens/Admin';
 import Home from './screens/Home';
+import Schedule from './screens/Schedule';
 import Message from './screens/Message';
 
 type State = { kind: 'loading' } | { kind: 'ready' } | { kind: 'outside' } | { kind: 'config' } | { kind: 'error'; text: string };
 
 function Shell() {
   const [admin, setAdmin] = useState(false);
-  const [tab, setTab] = useState<'home' | 'admin'>('home');
+  const [tab, setTab] = useState<'home' | 'schedule' | 'admin'>('home');
   useEffect(() => {
     void (async () => {
       const { data } = await supabase.auth.getUser();
@@ -25,13 +26,12 @@ function Shell() {
   }, []);
   return (
     <>
-      {admin && (
-        <nav className="tabs">
-          <button className={tab === 'home' ? 'on' : ''} onClick={() => setTab('home')}>Ребёнок</button>
-          <button className={tab === 'admin' ? 'on' : ''} onClick={() => setTab('admin')}>Запросы</button>
-        </nav>
-      )}
-      {tab === 'admin' && admin ? <Admin /> : <Home isAdmin={admin} />}
+      <nav className="tabs">
+        <button className={tab === 'home' ? 'on' : ''} onClick={() => setTab('home')}>Ребёнок</button>
+        <button className={tab === 'schedule' ? 'on' : ''} onClick={() => setTab('schedule')}>Расписание</button>
+        {admin && <button className={tab === 'admin' ? 'on' : ''} onClick={() => setTab('admin')}>Запросы</button>}
+      </nav>
+      {tab === 'admin' && admin ? <Admin /> : tab === 'schedule' ? <Schedule /> : <Home isAdmin={admin} />}
     </>
   );
 }
