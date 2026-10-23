@@ -11,6 +11,8 @@ import Schedule from './screens/Schedule';
 import Matches from './screens/Matches';
 import Profile from './screens/Profile';
 import Message from './screens/Message';
+import About from './screens/About';
+import RoleSelect, { type Role } from './screens/RoleSelect';
 import Coaches from './screens/Coaches';
 import CoachMatches from './screens/CoachMatches';
 import Group from './screens/Group';
@@ -20,19 +22,23 @@ import { BottomNav } from './ui/components';
 
 type State = { kind: 'loading' } | { kind: 'ready' } | { kind: 'outside' } | { kind: 'config' } | { kind: 'error'; text: string };
 
-type Tab = 'home' | 'schedule' | 'matches' | 'payments' | 'profile' | 'admin' | 'players' | 'coaches' | 'sessions' | 'cmatches' | 'group';
+type Tab = 'about' | 'home' | 'schedule' | 'matches' | 'payments' | 'profile' | 'admin' | 'players' | 'coaches' | 'sessions' | 'cmatches' | 'group';
 
 function Shell() {
   const [admin, setAdmin] = useState(false);
   const [coachGroups, setCoachGroups] = useState<CoachGroup[]>([]);
   const [hasKids, setHasKids] = useState(true); // пока не знаем — не прячем вкладку
+  const [loaded, setLoaded] = useState(false);
+  const [role, setRole] = useState<Role | null>(null);
+  const [changingRole, setChangingRole] = useState(false);
   const [tab, setTab] = useState<Tab>('home');
   useEffect(() => {
     void (async () => {
       const { data } = await supabase.auth.getUser();
-      if (!data.user) return;
-      // RLS: пользователь читает только свою строку; флаг — только подсказка для меню, права проверяет база
-      const r = await supabase.from('users').select('is_admin').eq('id', data.user.id).maybeSingle();
+      if (!data.user) return setLoaded(true);
+      // RLS: пользователь читает только свою строку; флаг и роль — только подсказка для меню, права проверяет база
+      const r = await supabase.from('users').select('is_admin, chosen_role').eq('id', data.user.id).maybeSingle();
+      setRole((r.data?.chosen_role as Role | null) ?? null);
       const isAdm = Boolean(r.data?.is_admin);
       // у администратора вкладка «Ребёнок» нужна, только если он сам родитель
       const mine = await supabase.from('player_guardians').select('player_id', { count: 'exact', head: true }).eq('user_id', data.user.id).is('consent_revoked_at', null);
@@ -44,9 +50,42 @@ function Shell() {
       setAdmin(isAdm);
       if (isAdm) setTab('admin'); // администратор открывает приложение сразу на запросах
       else if (mineGroups.length) setTab('sessions'); // тренер — сразу на занятиях
+      else if ((mine.count ?? 0) === 0 && r.data?.chosen_role && r.data.chosen_role !== 'parent') setTab('about');
+      setLoaded(true);
     })();
   }, []);
   const coach = !admin && coachGroups.length > 0;
+  if (!loaded) return <Message title="Загрузка…" />;
+  // Роль спрашиваем при первом входе. Администратора, тренера с группами и тех, у кого уже есть дети, не трогаем.
+  if (!admin && !coach && !hasKids && (role === null || changingRole)) {
+    return (
+      <RoleSelect
+        onDone={r => {
+          setRole(r);
+          setChangingRole(false);
+          setTab(r === 'parent' ? 'home' : 'about');
+        }}
+        onCancel={role ? () => setChangingRole(false) : undefined}
+      />
+    );
+  }
+  // Выбравшие не «Родитель» (и без детей) видят только открытую информацию
+  if (!admin && !coach && !hasKids && role !== 'parent') {
+    return (
+      <>
+        {tab === 'schedule' ? <Schedule all editable={false} /> : <About role={role} onChangeRole={() => setChangingRole(true)} />}
+        <BottomNav
+          label="Разделы"
+          value={tab === 'schedule' ? 'schedule' : 'about'}
+          onChange={setTab}
+          items={[
+            { value: 'about', label: 'О клубе', icon: 'user' },
+            { value: 'schedule', label: 'Расписание', icon: 'calendar' },
+          ]}
+        />
+      </>
+    );
+  }
   const screen =
     admin && tab === 'admin' ? <Admin />
     : admin && tab === 'players' ? <Players />
