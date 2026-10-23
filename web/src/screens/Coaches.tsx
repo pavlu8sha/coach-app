@@ -4,7 +4,7 @@ import { EmptyState, ListRow, Pill, SearchInput } from '../ui/components';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 
-interface User { id: string; telegram_id: number; display_name: string | null }
+interface User { id: string; telegram_id: number; display_name: string | null; chosen_role: string | null }
 interface Group { id: string; name: string }
 
 const label = (u: User) => u.display_name ?? `Telegram ${u.telegram_id}`;
@@ -24,7 +24,7 @@ export default function Coaches() {
 
   useEffect(() => {
     void (async () => {
-      const u = await supabase.from('users').select('id, telegram_id, display_name').eq('is_admin', false).order('display_name').limit(1000);
+      const u = await supabase.from('users').select('id, telegram_id, display_name, chosen_role').eq('is_admin', false).order('display_name').limit(1000);
       if (u.error) return setError(u.error.message);
       const g = await supabase.from('groups').select('id, name').order('name');
       if (g.error) return setError(g.error.message);
@@ -83,7 +83,8 @@ export default function Coaches() {
   const needle = q.trim().toLowerCase();
   const found = users.filter(u => !needle || label(u).toLowerCase().includes(needle) || String(u.telegram_id).includes(needle));
   const coaches = found.filter(u => coachIds.has(u.id));
-  const others = needle ? found.filter(u => !coachIds.has(u.id)) : [];
+  const applicants = found.filter(u => !coachIds.has(u.id) && u.chosen_role === 'coach');
+  const others = needle ? found.filter(u => !coachIds.has(u.id) && u.chosen_role !== 'coach') : [];
   const row = (u: User) => (
     <ListRow key={u.id} avatar={label(u)} title={label(u)} sub={[`Telegram ID ${u.telegram_id}`]} end={coachIds.has(u.id) ? <Pill tone="primary">Тренер</Pill> : undefined} onClick={() => setOpen(u)} />
   );
@@ -95,13 +96,20 @@ export default function Coaches() {
       <div style={{ height: 12 }} />
       {coaches.length > 0 && <h3>Тренеры</h3>}
       {coaches.map(row)}
+      {applicants.length > 0 && (
+        <>
+          <h3>Хотят стать тренерами</h3>
+          <p className="muted" style={{ marginBottom: 8 }}>Выбрали роль тренера при входе. Откройте человека и назначьте группы.</p>
+          {applicants.map(row)}
+        </>
+      )}
       {needle && (
         <>
           <h3>Другие пользователи</h3>
           {others.length === 0 ? <p className="muted">Никого не найдено. Человек должен хотя бы раз открыть приложение из Telegram.</p> : others.map(row)}
         </>
       )}
-      {!needle && coaches.length === 0 && <EmptyState icon="users" title="Тренеров пока нет" text="Найдите человека по имени или Telegram ID: он должен хотя бы раз открыть приложение из Telegram." />}
+      {!needle && coaches.length === 0 && applicants.length === 0 && <EmptyState icon="users" title="Тренеров пока нет" text="Найдите человека по имени или Telegram ID: он должен хотя бы раз открыть приложение из Telegram." />}
     </main>
   );
 }
