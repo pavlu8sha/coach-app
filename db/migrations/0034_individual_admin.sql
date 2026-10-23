@@ -5,6 +5,8 @@
 --   • мест на занятии не больше настройки ind.capIndividual / ind.capGoalkeepers (если задана);
 --   • сумма записи — цена kind = 'individual' на дату занятия (по умолчанию 50 ₾).
 alter table individual_sessions add column if not exists goalkeepers boolean not null default false;
+-- Отметка посещения записанного (null — не отмечено, true — был, false — не пришёл)
+alter table individual_bookings add column if not exists attended boolean;
 
 create table if not exists individual_regulars (
   club_id uuid not null references clubs(id),
@@ -111,6 +113,15 @@ begin
   if not found then raise exception 'session not found' using errcode = 'P0002'; end if;
 end $$;
 
+-- Отметка посещения (раздел «Отметки» старого приложения для индивидуальных и вратарей)
+create or replace function ind_set_attended(s uuid, p uuid, was boolean) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  perform ind_assert_admin();
+  update individual_bookings set attended = was where session_id = s and player_id = p;
+  if not found then raise exception 'booking not found' using errcode = 'P0002'; end if;
+end $$;
+
 -- Постоянные участники: при создании занятия записываются автоматически; кнопка «Записать постоянных» — для уже созданных
 create or replace function ind_set_regular(p uuid, gk boolean, on_ boolean) returns void
 language plpgsql security definer set search_path = public as $$
@@ -125,6 +136,6 @@ end $$;
 
 revoke execute on function ind_price(uuid, date), ind_cap(uuid, boolean), ind_assert_admin(), ind_book(uuid, uuid) from public, anon, authenticated;
 revoke execute on function ind_create_session(date, time, boolean, text), ind_add_player(uuid, uuid), ind_set_paid(uuid, uuid, boolean),
-  ind_remove_player(uuid, uuid), ind_edit_session(uuid, date, time, text), ind_delete_session(uuid), ind_set_regular(uuid, boolean, boolean) from public, anon;
+  ind_remove_player(uuid, uuid), ind_edit_session(uuid, date, time, text), ind_delete_session(uuid), ind_set_regular(uuid, boolean, boolean), ind_set_attended(uuid, uuid, boolean) from public, anon;
 grant execute on function ind_create_session(date, time, boolean, text), ind_add_player(uuid, uuid), ind_set_paid(uuid, uuid, boolean),
-  ind_remove_player(uuid, uuid), ind_edit_session(uuid, date, time, text), ind_delete_session(uuid), ind_set_regular(uuid, boolean, boolean) to authenticated;
+  ind_remove_player(uuid, uuid), ind_edit_session(uuid, date, time, text), ind_delete_session(uuid), ind_set_regular(uuid, boolean, boolean), ind_set_attended(uuid, uuid, boolean) to authenticated;

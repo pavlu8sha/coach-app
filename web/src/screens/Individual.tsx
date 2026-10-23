@@ -5,7 +5,7 @@ import { EmptyState, ListRow, Pill, SearchInput, Segmented } from '../ui/compone
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 
-interface Booking { player_id: string; paid: boolean; amount: number; players: { full_name: string } | null }
+interface Booking { player_id: string; paid: boolean; attended: boolean | null; amount: number; players: { full_name: string } | null }
 interface Session { id: string; starts_at: string; topic: string | null; goalkeepers: boolean; individual_bookings: Booking[] }
 interface DebtRow { player_id: string; amount: number; players: { full_name: string } | null; individual_sessions: { starts_at: string; goalkeepers: boolean } }
 
@@ -35,7 +35,7 @@ export default function Individual() {
         if (r.error) return setError(coachError(r.error.message));
         return setDebts((r.data ?? []) as unknown as DebtRow[]);
       }
-      const q = supabase.from('individual_sessions').select('id, starts_at, topic, goalkeepers, individual_bookings(player_id, paid, amount, players(full_name))');
+      const q = supabase.from('individual_sessions').select('id, starts_at, topic, goalkeepers, individual_bookings(player_id, paid, attended, amount, players(full_name))');
       const r = tab === 'next' ? await q.gte('starts_at', now).order('starts_at').limit(60) : await q.lt('starts_at', now).order('starts_at', { ascending: false }).limit(60);
       if (r.error) return setError(r.error.message.includes('goalkeepers') ? 'Модуль ещё не установлен в базе (миграция 0034).' : coachError(r.error.message));
       setList((r.data ?? []) as unknown as Session[]);
@@ -126,7 +126,7 @@ function SessionView({ session, onBack }: { session: Session; onBack: () => void
   const [gone, setGone] = useState(false);
 
   const refresh = async () => {
-    const r = await supabase.from('individual_bookings').select('player_id, paid, amount, players(full_name)').eq('session_id', session.id);
+    const r = await supabase.from('individual_bookings').select('player_id, paid, attended, amount, players(full_name)').eq('session_id', session.id);
     if (!r.error) setBookings((r.data ?? []) as unknown as Booking[]);
     const g = await supabase.from('individual_regulars').select('player_id').eq('goalkeepers', session.goalkeepers);
     if (!g.error) setRegular(new Set(((g.data ?? []) as { player_id: string }[]).map(x => x.player_id)));
@@ -175,6 +175,9 @@ function SessionView({ session, onBack }: { session: Session; onBack: () => void
           <div className="ks-line">
             <b style={{ overflowWrap: 'anywhere' }}>{b.players?.full_name ?? 'Игрок'}</b>
             <Pill tone={b.paid ? 'success' : 'danger'} dot>{b.paid ? 'Оплачено' : gel(Number(b.amount))}</Pill>
+          </div>
+          <div style={{ marginTop: 8 }}>
+            <Segmented label={`Посещение: ${b.players?.full_name ?? ''}`} value={b.attended === true ? 'yes' : b.attended === false ? 'no' : 'none'} onChange={v => void run('t' + b.player_id, () => supabase.rpc('ind_set_attended', { s: session.id, p: b.player_id, was: v === 'yes' ? true : v === 'no' ? false : null }))} items={[{ value: 'yes', label: 'Был(а)' }, { value: 'no', label: 'Нет' }, { value: 'none', label: '—' }]} />
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
             <button type="button" className="ks-btn secondary" style={{ width: 'auto' }} disabled={busy === b.player_id} onClick={() => void run(b.player_id, () => supabase.rpc('ind_set_paid', { s: session.id, p: b.player_id, is_paid: !b.paid }))}>

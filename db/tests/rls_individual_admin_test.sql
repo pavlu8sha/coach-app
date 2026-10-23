@@ -1,7 +1,7 @@
 -- pgTAP: индивидуальные и вратарские занятия для администратора (0034).
 begin;
 create extension if not exists pgtap;
-select plan(17);
+select plan(19);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -42,6 +42,9 @@ insert into club_settings (club_id, key, value) values ('00000000-0000-0000-0000
 select as_user('00000000-0000-0000-0000-0000000000a1');
 select throws_ok($$select ind_add_player((select id from sid), '00000000-0000-0000-0000-00000000d003')$$, '22023', 'session full', 'мест не больше лимита из настроек');
 
+select ind_set_attended((select id from sid), '00000000-0000-0000-0000-00000000d002', true);
+select is((select attended from individual_bookings where session_id = (select id from sid) and player_id = '00000000-0000-0000-0000-00000000d002'), true, 'посещение отмечается');
+select throws_ok($$select ind_set_attended((select id from sid), '00000000-0000-0000-0000-00000000d003', true)$$, 'P0002', 'booking not found', 'отметить можно только записанного');
 select ind_set_paid((select id from sid), '00000000-0000-0000-0000-00000000d002', true);
 select throws_ok($$select ind_remove_player((select id from sid), '00000000-0000-0000-0000-00000000d002')$$, '22023', 'booking is paid', 'оплаченную запись убрать нельзя');
 select throws_ok($$select ind_delete_session((select id from sid))$$, '22023', 'session has payments', 'занятие с оплатой удалить нельзя');
