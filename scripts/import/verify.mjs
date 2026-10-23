@@ -327,7 +327,8 @@ async function main() {
   check('Индивидуальные: записи', expIndBookings.size, dbIndBookings.size, setDetails(new Set(expIndBookings.keys()), new Set(dbIndBookings.keys())));
   check('Индивидуальные: оплачено', [...expIndBookings.values()].filter(Boolean).length, [...dbIndBookings.values()].filter(Boolean).length);
   const expGuests = new Set(indPlan.guests.map(g => indPlan.bookings.find(b => b.name === g)?.external_id).filter(Boolean));
-  const dbGuests = new Set(players.filter(p => /^GUEST-/.test(p.external_id || '')).map(p => p.external_id));
+  // GUEST-… есть и у других импортов (посещаемость, сборы): сверяем только гостей индивидуальных
+  const dbGuests = new Set(players.filter(p => expGuests.has(p.external_id)).map(p => p.external_id));
   check('Индивидуальные: гости', expGuests.size, dbGuests.size, setDetails(expGuests, dbGuests));
 
   // сборы и настройки
