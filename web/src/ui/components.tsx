@@ -189,6 +189,13 @@ const NAV_ICONS = {
     </>
   ),
   trophy: ICONS.trophy,
+  more: (
+    <>
+      <circle cx="5" cy="12" r="1.5" />
+      <circle cx="12" cy="12" r="1.5" />
+      <circle cx="19" cy="12" r="1.5" />
+    </>
+  ),
   wallet: (
     <>
       <path d="M3 7a2 2 0 0 1 2-2h14v2" />
