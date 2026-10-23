@@ -59,6 +59,8 @@ html:not([data-theme=light]):root:root{--bg:#0D1324;--card:#161F38;--ink:#E8ECF7
 @media(max-width:380px){.ks-sub a{font-size:13px;padding:6px 4px}}
 /* UI-017 (проба): раздел внутри каркаса — своё меню скрыто, меню показывает каркас */
 html[data-embed] #ksnav,html[data-embed] #ksmore{display:none!important}
+/* в окне раздела меню нет — всё, что отступало от меню (закреплённая панель «Отметок», тосты, отступ снизу), прижимается к низу */
+html[data-embed]{--navh:0px}
 @media(max-width:839px){html[data-embed] body{padding-bottom:28px!important}html[data-embed] #kstoast{bottom:calc(18px + env(safe-area-inset-bottom))}}
 html,body{max-width:100%} /* DS-017: overflow-x:hidden снят — проверка на телефоне с реальными данными */
 *,*::before,*::after{box-sizing:border-box}
