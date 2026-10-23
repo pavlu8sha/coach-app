@@ -17,6 +17,8 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [codes, setCodes] = useState<Record<string, string>>({}); // выданные в этой сессии коды для ребёнка
+  const [linkedKids, setLinkedKids] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     void (async () => {
@@ -31,6 +33,33 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
       );
     })();
   }, [reload]);
+
+  useEffect(() => {
+    if (!kids) return;
+    void (async () => {
+      const res = await Promise.all(kids.map(async k => ((await supabase.rpc('child_linked', { p: k.id })).data === true ? k.id : null)));
+      setLinkedKids(new Set(res.filter((x): x is string => x !== null)));
+    })();
+  }, [kids]);
+
+  const makeCode = async (id: string) => {
+    setBusy(true);
+    setMsg(null);
+    const r = await supabase.rpc('create_child_code', { p: id });
+    setBusy(false);
+    if (r.error) return setMsg(r.error.message.includes('Could not find the function') ? 'Это действие пока недоступно.' : r.error.message);
+    setCodes(c => ({ ...c, [id]: r.data as string }));
+  };
+
+  const unlinkChild = async (id: string) => {
+    setBusy(true);
+    setMsg(null);
+    const r = await supabase.rpc('unlink_child', { p: id });
+    setBusy(false);
+    if (r.error) return setMsg(r.error.message);
+    setCodes(c => { const n = { ...c }; delete n[id]; return n; });
+    setReload(n => n + 1);
+  };
 
   const revoke = async (id: string) => {
     setBusy(true);
@@ -56,6 +85,16 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
         kids.map(k => (
           <div key={k.id}>
             <ListRow avatar={k.name} title={k.name} sub={k.group ? [k.group] : undefined} />
+            {codes[k.id] ? (
+              <div className="ks-card" style={{ marginTop: -4, marginBottom: 8 }}>
+                <p className="muted">Код для ребёнка (действует 3 дня): ребёнок выбирает роль «Ребёнок» и вводит его при входе.</p>
+                <p style={{ fontSize: 24, letterSpacing: 4, fontWeight: 600 }}>{codes[k.id]}</p>
+              </div>
+            ) : linkedKids.has(k.id) ? (
+              <button type="button" className="ks-back" style={{ marginBottom: 8 }} disabled={busy} onClick={() => void unlinkChild(k.id)}>Отвязать аккаунт ребёнка</button>
+            ) : (
+              <button type="button" className="ks-back" style={{ marginBottom: 8 }} disabled={busy} onClick={() => void makeCode(k.id)}>Код для ребёнка</button>
+            )}
             {confirmId === k.id ? (
               <div className="ks-card" style={{ marginTop: -4 }}>
                 <p style={{ marginBottom: 10 }}>Отозвать согласие? Ребёнок и все его данные пропадут из вашего приложения. Чтобы вернуть ребёнка, нужно будет подать новый запрос и снова дать согласие.</p>

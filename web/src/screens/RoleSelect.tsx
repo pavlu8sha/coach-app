@@ -29,7 +29,7 @@ const ROLES: { value: Role; title: string; text: string; icon: ReactElement }[] 
   {
     value: 'child',
     title: 'Ребёнок',
-    text: 'Расписание клуба и информация о тренировках',
+    text: 'Свои баллы и матчи по коду от родителя, расписание клуба',
     icon: (
       <>
         <circle cx="12" cy="12" r="9" />

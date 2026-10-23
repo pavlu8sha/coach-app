@@ -18,6 +18,8 @@ import More from './screens/More';
 import CoachMatches from './screens/CoachMatches';
 import Group from './screens/Group';
 import Sessions from './screens/Sessions';
+import ChildHome, { ChildCode, type ChildPlayer } from './screens/ChildHome';
+import ChildMatches from './screens/ChildMatches';
 import type { CoachGroup } from './lib/coach';
 import { BottomNav } from './ui/components';
 
@@ -34,6 +36,9 @@ function Shell() {
   const [loaded, setLoaded] = useState(false);
   const [role, setRole] = useState<Role | null>(null);
   const [changingRole, setChangingRole] = useState(false);
+  const [childPlayer, setChildPlayer] = useState<ChildPlayer | null>(null); // игрок, к которому привязан аккаунт ребёнка
+  const [childLoaded, setChildLoaded] = useState(false);
+  const [childKey, setChildKey] = useState(0);
   const [tab, setTab] = useState<Tab>('home');
   useEffect(() => {
     void (async () => {
@@ -57,10 +62,21 @@ function Shell() {
       setAdmin(isAdm);
       if (isAdm) setTab('admin'); // администратор открывает приложение сразу на запросах
       else if (mineGroups.length) setTab('sessions'); // тренер — сразу на занятиях
+      else if ((mine.count ?? 0) === 0 && r.data?.chosen_role === 'child') setTab('home');
       else if ((mine.count ?? 0) === 0 && r.data?.chosen_role && r.data.chosen_role !== 'parent') setTab('about');
       setLoaded(true);
     })();
   }, []);
+  useEffect(() => {
+    if (role !== 'child') return;
+    void (async () => {
+      const me = (await supabase.auth.getUser()).data.user?.id;
+      const l = me ? await supabase.from('child_links').select('players(id, full_name, groups(name))').eq('user_id', me).maybeSingle() : null;
+      const pl = (l?.data as { players: { id: string; full_name: string | null; groups: { name: string } | null } | null } | null)?.players;
+      setChildPlayer(pl ? { id: pl.id, name: pl.full_name ?? '', group: pl.groups?.name ?? null } : null);
+      setChildLoaded(true);
+    })();
+  }, [role, childKey]);
   const coach = !admin && coachGroups.length > 0;
   if (!loaded) return <Message title="Загрузка…" />;
   // Роль спрашиваем при первом входе. Администратора, тренера с группами и тех, у кого уже есть дети, не трогаем.
@@ -70,10 +86,41 @@ function Shell() {
         onDone={r => {
           setRole(r);
           setChangingRole(false);
-          setTab(r === 'parent' ? 'home' : 'about');
+          setTab(r === 'parent' || r === 'child' ? 'home' : 'about');
         }}
         onCancel={role ? () => setChangingRole(false) : undefined}
       />
+    );
+  }
+  // Ребёнок: свои баллы и матчи после ввода кода от родителя, плюс расписание клуба
+  if (!admin && !coach && !hasKids && role === 'child') {
+    if (!childLoaded) return <Message title="Загрузка…" />;
+    const ct: 'home' | 'matches' | 'schedule' | 'about' = tab === 'matches' || tab === 'schedule' || tab === 'about' ? tab : 'home';
+    const linked = childPlayer !== null;
+    const cur = !linked && ct === 'matches' ? 'home' : ct;
+    return (
+      <>
+        {cur === 'home' ? (
+          childPlayer ? <ChildHome player={childPlayer} /> : <ChildCode onLinked={() => setChildKey(k => k + 1)} />
+        ) : cur === 'matches' && childPlayer ? (
+          <ChildMatches player={childPlayer} />
+        ) : cur === 'schedule' ? (
+          <Schedule all editable={false} />
+        ) : (
+          <About role={role} onChangeRole={() => setChangingRole(true)} />
+        )}
+        <BottomNav
+          label="Разделы"
+          value={cur}
+          onChange={setTab}
+          items={[
+            { value: 'home', label: 'Мои баллы', icon: 'child' },
+            ...(linked ? [{ value: 'matches' as const, label: 'Матчи', icon: 'trophy' as const }] : []),
+            { value: 'schedule', label: 'Расписание', icon: 'calendar' },
+            { value: 'about', label: 'О клубе', icon: 'user' },
+          ]}
+        />
+      </>
     );
   }
   // Выбравшие не «Родитель» (и без детей) видят только открытую информацию
