@@ -15,7 +15,10 @@ export default function Link({ onApproved }: { onApproved?: () => void }) {
   const [busy, setBusy] = useState(false);
 
   const loadReqs = useCallback(async () => {
-    const r = await supabase.from('link_requests').select('id, status, players(full_name)').order('created_at', { ascending: false });
+    const me = (await supabase.auth.getUser()).data.user?.id;
+    if (!me) return;
+    // только свои запросы: администратору RLS отдаёт чужие, они показываются во вкладке «Запросы»
+    const r = await supabase.from('link_requests').select('id, status, players(full_name)').eq('user_id', me).order('created_at', { ascending: false });
     if (r.error) return setError(r.error.message);
     const rows = (r.data ?? []) as unknown as Req[];
     setReqs(rows);
