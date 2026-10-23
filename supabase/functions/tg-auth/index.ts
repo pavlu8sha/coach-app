@@ -13,10 +13,14 @@ const cors = {
   'Access-Control-Max-Age': '86400',
 };
 // Ответ 204 не может иметь тела (иначе Response бросает ошибку и предзапрос браузера падает)
-const json = (body: unknown, status = 200) =>
+const json = (body: unknown, status = 200, extra: Record<string, string> = {}) =>
   status === 204
     ? new Response(null, { status, headers: cors })
-    : new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
+    : new Response(JSON.stringify(body), { status, headers: { ...cors, ...extra, 'Content-Type': 'application/json' } });
+
+// Лимиты (счётчики в таблице rate_limits, функция rate_limit_hit — миграция 0016).
+const PER_USER = { max: 10, seconds: 600 };   // входов с одного Telegram-аккаунта за 10 минут
+const NEW_USERS = { max: 30, seconds: 3600 }; // новых аккаунтов во всём клубе за час
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return json(null, 204);
@@ -41,6 +45,17 @@ async function handle(req: Request): Promise<Response> {
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
   const email = `tg${v.user.id}@telegram.invalid`;
   const name = [v.user.first_name, v.user.last_name].filter(Boolean).join(' ') || v.user.username || null;
+
+  // 0) ограничение частоты: без него один аккаунт может бесконечно создавать ссылки входа, а спам-аккаунты — заводить пользователей
+  const hit = async (key: string, lim: { max: number; seconds: number }) => {
+    const r = await admin.rpc('rate_limit_hit', { k: key, max_hits: lim.max, window_seconds: lim.seconds });
+    if (r.error) throw new Error(`rate_limit: ${r.error.message}`); // при сбое лимитера не пускаем (закрыто по умолчанию)
+    return r.data === true;
+  };
+  if (!(await hit(`tg:${v.user.id}`, PER_USER))) return json({ error: 'rate_limited' }, 429, { 'Retry-After': String(PER_USER.seconds) });
+  const known = await admin.from('users').select('id').eq('telegram_id', v.user.id).maybeSingle();
+  if (known.error) return json({ error: 'users_select', detail: known.error.message }, 500);
+  if (!known.data && !(await hit('new_users', NEW_USERS))) return json({ error: 'rate_limited' }, 429, { 'Retry-After': String(NEW_USERS.seconds) });
 
   // 1) пользователь Auth: создаём, если нет (повторный вход получит ошибку «уже есть» — это нормально)
   const created = await admin.auth.admin.createUser({ email, email_confirm: true, user_metadata: { telegram_id: v.user.id, name } });

@@ -15,6 +15,7 @@ export async function signInWithTelegram(initData: string): Promise<void> {
     body: JSON.stringify({ initData }),
   });
   const body = (await res.json().catch(() => ({}))) as { token_hash?: string; error?: string; reason?: string };
+  if (res.status === 429) throw new AuthError('Слишком много попыток входа. Подождите несколько минут и откройте приложение снова.', 'rate_limited');
   if (!res.ok || !body.token_hash) {
     throw new AuthError(`Не удалось войти (${body.error ?? res.status}${body.reason ? ': ' + body.reason : ''})`, body.error ?? 'http');
   }
