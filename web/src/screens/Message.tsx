@@ -1,3 +1,5 @@
+import { SkeletonRows } from '../ui/components';
+
 export default function Message(props: { title: string; text?: string; action?: { label: string; run: () => void } }) {
   return (
     <main className="page center">
@@ -8,6 +10,15 @@ export default function Message(props: { title: string; text?: string; action?: 
           {props.action.label}
         </button>
       )}
+    </main>
+  );
+}
+
+/** Загрузка: скелетон без выдуманных данных. */
+export function Loading() {
+  return (
+    <main className="page" role="status" aria-label="Загрузка">
+      <SkeletonRows count={4} />
     </main>
   );
 }

@@ -28,7 +28,7 @@ export function Avatar({ name, large = false }: { name: string; large?: boolean 
 }
 
 /** Строка списка: аватар, заголовок, подписи, статус справа, стрелка. С onClick — кнопка. */
-export function ListRow(props: { title: string; sub?: string[]; avatar?: string; end?: ReactNode; onClick?: () => void }) {
+export function ListRow(props: { title: string; sub?: ReactNode[]; avatar?: string; end?: ReactNode; onClick?: () => void }) {
   const inner = (
     <>
       {props.avatar !== undefined && <Avatar name={props.avatar} />}
@@ -116,7 +116,13 @@ export function SkeletonRows({ count = 4, avatar = true }: { count?: number; ava
   );
 }
 
-const ICONS: Record<'users' | 'box' | 'search' | 'alert', ReactNode> = {
+const ICONS: Record<'users' | 'box' | 'search' | 'alert' | 'trophy', ReactNode> = {
+  trophy: (
+    <>
+      <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z" />
+      <path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3" />
+    </>
+  ),
   users: (
     <>
       <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -160,5 +166,63 @@ export function EmptyState(props: { icon: keyof typeof ICONS; title: string; tex
         </button>
       )}
     </div>
+  );
+}
+
+const NAV_ICONS = {
+  child: (
+    <>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21a8 8 0 0 1 16 0" />
+    </>
+  ),
+  calendar: (
+    <>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M3 10h18M8 3v4M16 3v4" />
+    </>
+  ),
+  trophy: ICONS.trophy,
+  wallet: (
+    <>
+      <path d="M3 7a2 2 0 0 1 2-2h14v2" />
+      <rect x="3" y="7" width="18" height="13" rx="2" />
+      <path d="M16 14h2" />
+    </>
+  ),
+  inbox: (
+    <>
+      <path d="M22 12h-6l-2 3h-4l-2-3H2" />
+      <path d="M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z" />
+    </>
+  ),
+  users: ICONS.users,
+};
+
+/** Нижняя навигация: иконка и подпись, текущий раздел — aria-current. Закреплена внизу с учётом безопасной зоны. */
+export function BottomNav<T extends string>(props: { value: T; items: { value: T; label: string; icon: keyof typeof NAV_ICONS }[]; onChange: (v: T) => void; label: string }) {
+  return (
+    <nav className="ks-bottomnav" aria-label={props.label}>
+      <div>
+        {props.items.map(it => (
+          <button key={it.value} type="button" aria-current={it.value === props.value ? 'page' : undefined} onClick={() => props.onChange(it.value)}>
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              {NAV_ICONS[it.icon]}
+            </svg>
+            <span>{it.label}</span>
+          </button>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
+/** Кнопка «Назад» на вложенном экране. */
+export function BackButton(props: { onClick: () => void }) {
+  return (
+    <button type="button" className="ks-back" onClick={props.onClick}>
+      <span className="ks-chev back" aria-hidden="true" />
+      Назад
+    </button>
   );
 }

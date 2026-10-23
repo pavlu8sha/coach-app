@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import Message from './Message';
+import Message, { Loading } from './Message';
 
 interface Kid { id: string; name: string; months: { month: string; sum: number }[] }
 
@@ -41,7 +41,7 @@ export default function Payments() {
   }, []);
 
   if (error) return <Message title="Не удалось загрузить оплаты" text={error} />;
-  if (!kids) return <Message title="Загрузка…" />;
+  if (!kids) return <Loading />;
   if (!kids.length) return <Message title="Оплата" text="Оплаты появятся, когда администратор подтвердит связь с ребёнком." />;
 
   return (
