@@ -87,3 +87,14 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 .ks-row-sub .ks-pill { margin: 4px 0 2px; }
 @media (max-width: 420px) { .ks-bottomnav button { font-size: 11px; letter-spacing: -0.1px; padding-left: 0; padding-right: 0; } }
 @media (max-width: 360px) { .ks-bottomnav button { font-size: 10.5px; letter-spacing: -0.2px; } }
+
+/* Экраны тренера: выбор группы, счётчик, строка «играл» */
+.ks-select { width: 100%; min-height: 46px; padding: 10px 12px; margin-bottom: 12px; font: 16px var(--ks-font); color: var(--ks-text); background: var(--ks-surface); border: 1px solid var(--ks-border-strong); border-radius: var(--ks-radius); }
+.ks-stepper { display: inline-flex; align-items: center; gap: 6px; flex: none; }
+.ks-stepper button { width: 44px; height: 44px; border: 1px solid var(--ks-border-strong); border-radius: 12px; background: var(--ks-surface); color: var(--ks-text); font: 700 20px var(--ks-font); cursor: pointer; }
+.ks-stepper button:disabled { opacity: 0.4; cursor: default; }
+.ks-stepper b { min-width: 24px; text-align: center; font-variant-numeric: tabular-nums; }
+.ks-check { display: flex; align-items: center; gap: 10px; min-height: var(--ks-tap); font-weight: 700; }
+.ks-check input { width: 22px; height: 22px; flex: none; }
+.ks-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.ks-ok { color: var(--ks-success); font-weight: 700; margin: 8px 0; }
