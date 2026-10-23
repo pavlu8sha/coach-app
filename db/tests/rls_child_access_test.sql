@@ -1,7 +1,7 @@
 -- pgTAP: роль «Ребёнок» — доступ по коду от родителя.
 begin;
 create extension if not exists pgtap;
-select plan(16);
+select plan(25);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin, chosen_role) values
@@ -9,7 +9,8 @@ insert into users (id, telegram_id, display_name, is_admin, chosen_role) values
   ('00000000-0000-0000-0000-0000000000b2', 4202, 'Родитель Б', false, 'parent'),
   ('00000000-0000-0000-0000-0000000000d1', 4203, 'Ребёнок А', false, 'child'),
   ('00000000-0000-0000-0000-0000000000d2', 4204, 'Ребёнок Б', false, 'child'),
-  ('00000000-0000-0000-0000-0000000000d3', 4205, 'Гость', false, 'guest');
+  ('00000000-0000-0000-0000-0000000000d3', 4205, 'Гость', false, 'guest'),
+  ('00000000-0000-0000-0000-0000000000d4', 4206, 'Ребёнок для перебора', false, 'child');
 insert into groups (id, club_id, name) values ('00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-00000000c001', 'U9');
 insert into players (id, club_id, group_id, full_name) values
   ('00000000-0000-0000-0000-00000000a001', '00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-0000000000e1', 'Игрок А'),
@@ -44,7 +45,7 @@ select throws_ok($$select redeem_child_code((select c from code_a))$$, '42501', 
 
 select as_user('00000000-0000-0000-0000-0000000000d1');
 select is((select count(*)::int from point_events), 0, 'до привязки баллов не видно');
-select throws_ok($$select redeem_child_code('WRONGCOD')$$, '22023', 'invalid code', 'неверный код отклоняется');
+select is(redeem_child_code('WRONGCOD'), null, 'неверный код возвращает пусто, а не ошибку (счётчик попыток сохраняется)');
 select is(redeem_child_code((select c from code_a)), '00000000-0000-0000-0000-00000000a001'::uuid, 'ребёнок привязывается по коду');
 select is((select array_agg(explanation) from point_events), array['Свой'], 'видны только свои баллы');
 select is((select count(*)::int from players), 1, 'виден только свой игрок');
@@ -52,7 +53,7 @@ select is((select count(*)::int from payments), 0, 'оплаты ребёнку 
 select is((select array_agg(name) from groups), array['U9'], 'название своей группы видно');
 
 select as_user('00000000-0000-0000-0000-0000000000d2');
-select throws_ok($$select redeem_child_code((select c from code_a))$$, '22023', 'invalid code', 'код одноразовый');
+select is(redeem_child_code((select c from code_a)), null, 'код одноразовый');
 
 select as_user('00000000-0000-0000-0000-0000000000b1');
 select is(child_linked('00000000-0000-0000-0000-00000000a001'), true, 'родитель видит, что аккаунт привязан');
@@ -64,6 +65,24 @@ select is((select count(*)::int from point_events), 0, 'после отзыва 
 select as_user('00000000-0000-0000-0000-0000000000b2');
 select throws_ok($$select unlink_child('00000000-0000-0000-0000-00000000a001')$$, '42501', 'forbidden', 'чужой родитель не отвязывает');
 select is(child_linked('00000000-0000-0000-0000-00000000a002'), false, 'у второго игрока ребёнок не привязан');
+
+-- Код: формат и отличие
+select as_user('00000000-0000-0000-0000-0000000000b2');
+select ok((select create_child_code('00000000-0000-0000-0000-00000000a002') ~ '^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$'), 'код: 8 символов из безопасного алфавита');
+select isnt((select create_child_code('00000000-0000-0000-0000-00000000a002')), (select create_child_code('00000000-0000-0000-0000-00000000a002')), 'каждый код новый');
+select is((select count(*)::int from (select create_child_code('00000000-0000-0000-0000-00000000a002') c from generate_series(1, 200)) x where c !~ '^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$'), 0, 'в 200 кодах нет ни одного с недопустимыми символами');
+
+-- Перебор: после 8 попыток аккаунт блокируется, другие аккаунты не страдают
+select as_user('00000000-0000-0000-0000-0000000000d4');
+select is((select count(*)::int from (select redeem_child_code('AAAAAAA' || chr(65 + g)) r from generate_series(0, 7) g) x where r is null), 8, 'восемь неверных кодов подряд возвращают пусто');
+select throws_ok($$select redeem_child_code('BBBBBBBB')$$, '54000', 'too many attempts', 'девятая попытка заблокирована');
+select throws_ok($$select redeem_child_code((select c from code_a))$$, '54000', 'too many attempts', 'заблокированному не помогает и верный код');
+reset role;
+select is((select hits from rate_limits where key = 'child_code:00000000-0000-0000-0000-0000000000d4'), 8, 'счётчик попыток сохранён, а не откатывается вместе с ошибкой');
+select as_user('00000000-0000-0000-0000-0000000000d3');
+select throws_ok($$select redeem_child_code('CCCCCCCC')$$, '42501', 'wrong role', 'гость по-прежнему не может вводить коды и не расходует лимит');
+reset role;
+select is((select count(*)::int from child_links), 1, 'привязан только исходный ребёнок: перебор ничего не дал');
 
 select * from finish();
 rollback;
