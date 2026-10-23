@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseRegistry } from './registry.mjs';
 import { parsePayMonth } from './payments.mjs';
+import { PAY_NAME_ALIAS, PAY_GUESTS, IND_GROUP } from './payments-plan.mjs';
 
 const args = process.argv.slice(2);
 const write = args.includes('--write');
@@ -22,16 +23,13 @@ const reg = parseRegistry(fs.readFileSync(regFile, 'utf8'));
 if (reg.problems.length) { console.error('Сначала исправьте реестр: проблемы в строках ' + reg.problems.length); process.exit(1); }
 const groupNames = new Set(reg.groups.map(g => g.name));
 const norm = s => String(s).replace(/\s+/g, ' ').trim().toLowerCase();
-// Опечатки в листах оплат → как в реестре. Гости (не игроки клуба) сюда не добавляются.
-const NAME_ALIAS = { 'kurbanoiv emin': 'kurbanov emin' };
-const GUESTS = new Set(['gleb']); // разовая индивидуальная тренировка, в абонементы не пишем
-const canon = s => { const k = norm(s); return NAME_ALIAS[k] ?? k; };
+const canon = s => { const k = norm(s); return PAY_NAME_ALIAS[k] ?? k; };
 
 const months = files.map(f => parsePayMonth(fs.readFileSync(f, 'utf8'), path.basename(f), groupNames));
 const all = months.flatMap(m => m.rows);
 const problems = months.flatMap(m => m.problems);
 const regByName = new Map(reg.players.map(p => [norm(p.full_name), p]));
-const unmatched = [...new Set(all.filter(r => !GUESTS.has(norm(r.name)) && !regByName.has(canon(r.name))).map(r => `${r.month.slice(0, 7)} ${r.name}`))];
+const unmatched = [...new Set(all.filter(r => !PAY_GUESTS.has(norm(r.name)) && !regByName.has(canon(r.name))).map(r => `${r.month.slice(0, 7)} ${r.name}`))];
 for (const m of months) console.log(`${path.basename(m.rows[0]?.month ? files[months.indexOf(m)] : files[months.indexOf(m)])}: строк ${m.rows.length}, оплачено ${m.rows.filter(r => r.paid > 0).length}, сумма ${m.rows.reduce((a, r) => a + r.paid, 0)} ₾`);
 console.log(`Проблем разбора: ${problems.length}`);
 for (const p of problems) console.log(`  строка ${p.line}: ${p.name} — ${p.error}`);
@@ -61,9 +59,8 @@ const dbGroups = await rest('GET', `groups?club_id=eq.${CLUB_ID}&select=id,name`
 const groupId = new Map(dbGroups.map(g => [g.name, g.id]));
 
 // Индивидуальные / вратарские тренировки в абонементы не пишем: у них нет месяца-абонемента, их импорт — отдельным шагом с листами IND_ID
-const IND_GROUP = 'Индивидуальные / Вратарские';
 const indCount = all.filter(r => r.group === IND_GROUP).length;
-const rows = all.filter(r => r.group !== IND_GROUP && !GUESTS.has(norm(r.name)) && playerId.has(canon(r.name)) && groupId.has(r.group));
+const rows = all.filter(r => r.group !== IND_GROUP && !PAY_GUESTS.has(norm(r.name)) && playerId.has(canon(r.name)) && groupId.has(r.group));
 console.log(`Индивидуальные строки (не пишутся в этом шаге): ${indCount}`);
 const missingGroups = [...new Set(all.map(r => r.group).filter(g => !groupId.has(g)))];
 if (missingGroups.length) { console.error('Группы не найдены в базе, сначала импортируйте реестр: ' + missingGroups.join(', ')); process.exit(1); }

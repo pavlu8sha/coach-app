@@ -8,8 +8,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseRegistry } from './registry.mjs';
-import { IND_PRICE, GUESTS, parsePayBlock, parseSessionsSheet, replayJournal, parseSessionKey, guestExt, parseIndividualFile } from './individual.mjs';
-import { resolveName } from './events-plan.mjs';
+import { IND_PRICE, parsePayBlock, parseSessionsSheet, replayJournal } from './individual.mjs';
+import { buildIndividualPlan } from './individual-plan.mjs';
 
 const arg = name => { const i = process.argv.indexOf('--' + name); return i >= 0 ? process.argv[i + 1] : null; };
 const write = process.argv.includes('--write');
@@ -19,53 +19,19 @@ if (!regFile || !payDir || !sessFile || !jFile) { console.error('Укажите 
 const reg = parseRegistry(fs.readFileSync(regFile, 'utf8'));
 const names = reg.players.map(p => p.full_name);
 // Записи и оплаты — из блока «Индивидуальные / Вратарские» в файлах оплат (лист месяца)
-const problems = [];
 const payRows = fs.readdirSync(payDir).filter(n => n.endsWith('.csv')).sort()
   .flatMap(f => parsePayBlock(fs.readFileSync(path.join(payDir, f), 'utf8')));
-// Время занятия — из листа ЗАНЯТИЯ и из ID журнала (дата и время в ключе)
-const times = new Map();
-for (const s of parseSessionsSheet(fs.readFileSync(sessFile, 'utf8'))) times.set(s.key.slice(0, 10) + (s.goalkeepers ? ' gk' : ''), s);
+const sessionsSheet = parseSessionsSheet(fs.readFileSync(sessFile, 'utf8'));
 const journal = replayJournal(fs.readFileSync(jFile, 'utf8'), names);
-for (const b of journal.bookings) { const k = b.key.slice(0, 10) + (b.key.endsWith(' gk') ? ' gk' : ''); if (!times.has(k)) times.set(k, parseSessionKey(b.key)); }
-const topics = new Map(parseSessionsSheet(fs.readFileSync(sessFile, 'utf8')).map(s => [s.key.slice(0, 10) + (s.goalkeepers ? ' gk' : ''), s.topic]));
-
-// Время занятий, которых нет в листах приложения, — подтверждено тренером
-const MANUAL_TIMES = {
-  '2026-09-06': '19:00', '2026-09-12': '18:30', '2026-09-13': '18:00', '2026-09-13 gk': '19:00',
-  '2026-09-19': '19:00', '2026-09-20': '18:00', '2026-09-20 gk': '19:00', '2026-09-26': '19:00',
-  '2026-09-27': '18:00', '2026-09-27 gk': '19:00', '2026-10-31': '19:00',
-};
-const sessMap = new Map();
-for (const r of payRows) {
-  const k = r.date + (r.gk ? ' gk' : '');
-  const info = times.get(k) ?? (MANUAL_TIMES[k] ? { starts_at: `${r.date}T${MANUAL_TIMES[k]}:00` } : null);
-  if (!info) problems.push({ error: `нет времени занятия ${k}` });
-  const sid = `IND-${r.date.replace(/-/g, '-')}${r.gk ? '-GK' : ''}`;
-  if (!sessMap.has(sid)) sessMap.set(sid, { external_id: sid, starts_at: info ? info.starts_at : null, topic: topics.get(k) ?? null, people: new Map() });
-  const sess = sessMap.get(sid);
-  const g = GUESTS[r.name.toLowerCase()];
-  const pname = g ?? resolveName(r.name, names)?.name;
-  if (!pname) { problems.push({ error: `имя не найдено в реестре: ${r.name}` }); continue; }
-  const cur = sess.people.get(pname);
-  const guest = !!g;
-  sess.people.set(pname, { name: pname, guest, external_id: guest ? guestExt(pname) : null, paid: (cur?.paid ?? false) || r.paid });
-}
 // Занятия до сентября — из старой таблицы занятий (IND_ID): там история с 18.01, в листах приложения её нет
-if (oldDir) {
-  for (const f of fs.readdirSync(oldDir).filter(n => n.endsWith('.csv')).sort()) {
-    const r = parseIndividualFile(fs.readFileSync(path.join(oldDir, f), 'utf8'), f, names);
-    problems.push(...r.problems);
-    for (const os of r.sessions.filter(x => x.starts_at < '2026-09-01')) {
-      if (sessMap.has(os.external_id)) { problems.push({ error: `занятие уже есть: ${os.external_id}` }); continue; }
-      sessMap.set(os.external_id, { external_id: os.external_id, starts_at: os.starts_at, topic: os.topic, people: new Map(os.people.map(p => [p.name, p])) });
-    }
-  }
-}
-const sessions = [...sessMap.values()].map(s => ({ ...s, people: [...s.people.values()] }));
-const bookings = sessions.flatMap(s => s.people);
+const oldFiles = oldDir
+  ? fs.readdirSync(oldDir).filter(n => n.endsWith('.csv')).sort()
+    .map(n => ({ name: n, text: fs.readFileSync(path.join(oldDir, n), 'utf8') }))
+  : [];
+const plan = buildIndividualPlan({ registryNames: names, payRows, sessionsSheet, journalBookings: journal.bookings, oldFiles });
+const { sessions, bookings, guests, problems } = plan;
 const entries = bookings.length;
 const paid = bookings.filter(p => p.paid).length;
-const guests = [...new Set(bookings.filter(p => p.guest).map(p => p.name))];
 console.log(`Занятий ${sessions.length} (вратарских ${sessions.filter(s => s.external_id.endsWith('GK')).length}), записей ${entries}, оплачено ${paid}, не оплачено ${entries - paid}`);
 console.log(`Гости: ${guests.join(', ')}`);
 console.log(`Проблем: ${problems.length}`);
