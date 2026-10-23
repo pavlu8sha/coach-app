@@ -20,6 +20,7 @@ export default function Home({ isAdmin = false }: { isAdmin?: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [showLink, setShowLink] = useState(false);
+  const [addMore, setAddMore] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
   const retry = () => {
     setError(null);
@@ -115,7 +116,13 @@ export default function Home({ isAdmin = false }: { isAdmin?: boolean }) {
           )}
         </section>
       ))}
-      <Link onApproved={() => setReload(n => n + 1)} onOpenStatus={openStatus} />
+      {addMore ? (
+        <Link onApproved={() => setReload(n => n + 1)} onOpenStatus={openStatus} />
+      ) : (
+        <button className="btn ghost small" onClick={() => setAddMore(true)}>
+          + Добавить ещё одного ребёнка
+        </button>
+      )}
     </main>
   );
 }
