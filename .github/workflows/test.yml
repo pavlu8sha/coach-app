@@ -18,6 +18,19 @@ jobs:
       - name: node --test (приложение, импорт, вход через Telegram)
         run: node --test tests/*.mjs tests/import/*.test.mjs tests/edge/*.test.mjs
 
+  db:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: PostgreSQL и pgTAP
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql postgresql-contrib postgresql-*-pgtap
+          sudo systemctl start postgresql
+          sudo -u postgres psql -c "create role runner superuser login"
+      - name: Миграции и pgTAP-тесты доступа (RLS)
+        run: PSQL="psql -h /var/run/postgresql -U runner" scripts/run-db-tests.sh
+
   web:
     runs-on: ubuntu-latest
     defaults:
