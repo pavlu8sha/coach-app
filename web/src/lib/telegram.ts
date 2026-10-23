@@ -1,3 +1,4 @@
+import { applyTelegramTheme } from '../ui/telegram-theme';
 // Обёртка над Telegram.WebApp (скрипт подключён в index.html). Вне Telegram window.Telegram.WebApp.initData пустой.
 interface TgWebApp {
   initData: string;
@@ -26,18 +27,8 @@ export function prepareTelegram(): void {
   if (!app) return;
   app.ready();
   app.expand();
-  const map: Record<string, string> = {
-    bg_color: '--bg',
-    secondary_bg_color: '--bg-2',
-    text_color: '--fg',
-    hint_color: '--muted',
-    button_color: '--accent',
-    button_text_color: '--accent-fg',
-  };
-  for (const [k, v] of Object.entries(map)) {
-    const val = app.themeParams[k];
-    if (val) document.documentElement.style.setProperty(v, val);
-  }
+  // Решение владельца 2026-10-23: гибрид — светлая/тёмная и фон из Telegram, основной цвет — синий клуба
+  applyTelegramTheme('hybrid');
 }
 
 /** Язык интерфейса: русский, если в Telegram русский, иначе английский. */
