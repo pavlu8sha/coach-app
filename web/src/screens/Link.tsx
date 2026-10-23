@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
+import { CONSENT, CONSENT_VERSION, type Lang } from '../lib/consent';
 import { supabase } from '../lib/supabase';
+import { preferredLang } from '../lib/telegram';
 
 interface Found { player_id: string; full_name: string; group_name: string | null }
 interface Req { id: string; status: 'pending' | 'approved' | 'rejected'; players: { full_name: string } | null }
@@ -13,6 +15,9 @@ export default function Link({ onApproved }: { onApproved?: () => void }) {
   const [reqs, setReqs] = useState<Req[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [agreed, setAgreed] = useState(false);
+  const [lang, setLang] = useState<Lang>(preferredLang());
+  const c = CONSENT[lang];
 
   const loadReqs = useCallback(async () => {
     const me = (await supabase.auth.getUser()).data.user?.id;
@@ -41,9 +46,9 @@ export default function Link({ onApproved }: { onApproved?: () => void }) {
   const request = async (id: string) => {
     setError(null);
     setBusy(true);
-    const r = await supabase.rpc('request_link', { p: id });
+    const r = await supabase.rpc('request_link', { p: id, consent: CONSENT_VERSION });
     setBusy(false);
-    if (r.error) return setError(r.error.message.includes('too many') ? 'Слишком много неподтверждённых запросов. Дождитесь ответа администратора.' : r.error.message);
+    if (r.error) return setError(r.error.message.includes('consent') ? 'Нужно согласие. Отметьте его ниже.' : r.error.message.includes('too many') ? 'Слишком много неподтверждённых запросов. Дождитесь ответа администратора.' : r.error.message);
     setFound(f => (f ?? []).filter(x => x.player_id !== id));
     await loadReqs();
   };
@@ -64,6 +69,23 @@ export default function Link({ onApproved }: { onApproved?: () => void }) {
           Найти
         </button>
       </form>
+      <div className="consent">
+        <div className="row">
+          <strong>{c.title}</strong>
+          <button type="button" className="lang" onClick={() => setLang(lang === 'ru' ? 'en' : 'ru')}>
+            {lang === 'ru' ? 'EN' : 'RU'}
+          </button>
+        </div>
+        <ul>
+          {c.points.map((t, i) => (
+            <li key={i}>{t}</li>
+          ))}
+        </ul>
+        <label className="check">
+          <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} />
+          <span>{c.checkbox}</span>
+        </label>
+      </div>
       {error && <p className="error">{error}</p>}
       {found && found.length === 0 && <p className="muted">Ничего не найдено. Проверьте написание.</p>}
       {found && found.length > 0 && (
@@ -74,7 +96,7 @@ export default function Link({ onApproved }: { onApproved?: () => void }) {
                 {f.full_name}
                 {f.group_name && <span className="muted"> · {f.group_name}</span>}
               </span>
-              <button className="btn small" disabled={busy} onClick={() => void request(f.player_id)}>
+              <button className="btn small" disabled={busy || !agreed} onClick={() => void request(f.player_id)}>
                 Это мой ребёнок
               </button>
             </li>
