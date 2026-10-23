@@ -6,11 +6,29 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { validateInitData } from './init-data.js';
 
+const cors = {
+  'Access-Control-Allow-Origin': Deno.env.get('ALLOWED_ORIGIN') ?? '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'content-type, authorization, apikey, x-client-info',
+  'Access-Control-Max-Age': '86400',
+};
+// Ответ 204 не может иметь тела (иначе Response бросает ошибку и предзапрос браузера падает)
 const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': Deno.env.get('ALLOWED_ORIGIN') ?? '*', 'Access-Control-Allow-Headers': 'content-type, authorization, apikey' } });
+  status === 204
+    ? new Response(null, { status, headers: cors })
+    : new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 
 Deno.serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') return json({}, 204);
+  if (req.method === 'OPTIONS') return json(null, 204);
+  try {
+    return await handle(req);
+  } catch (e) {
+    // любая ошибка — тоже с заголовками CORS, иначе браузер показывает только «Load failed»
+    return json({ error: 'internal', detail: e instanceof Error ? e.message : String(e) }, 500);
+  }
+});
+
+async function handle(req: Request): Promise<Response> {
   if (req.method !== 'POST') return json({ error: 'method' }, 405);
 
   let initData = '';
@@ -42,4 +60,4 @@ Deno.serve(async (req: Request) => {
     if (insErr) return json({ error: 'users_insert', detail: insErr.message }, 500);
   }
   return json({ token_hash: link.data.properties.hashed_token, email });
-});
+}
