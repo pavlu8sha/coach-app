@@ -14,6 +14,7 @@ import Message from './screens/Message';
 import About from './screens/About';
 import RoleSelect, { type Role } from './screens/RoleSelect';
 import Coaches from './screens/Coaches';
+import Debtors from './screens/Debtors';
 import CoachMatches from './screens/CoachMatches';
 import Group from './screens/Group';
 import Sessions from './screens/Sessions';
@@ -22,7 +23,7 @@ import { BottomNav } from './ui/components';
 
 type State = { kind: 'loading' } | { kind: 'ready' } | { kind: 'outside' } | { kind: 'config' } | { kind: 'error'; text: string };
 
-type Tab = 'about' | 'home' | 'schedule' | 'matches' | 'payments' | 'profile' | 'admin' | 'players' | 'coaches' | 'sessions' | 'cmatches' | 'group';
+type Tab = 'about' | 'home' | 'schedule' | 'matches' | 'payments' | 'profile' | 'admin' | 'players' | 'coaches' | 'debtors' | 'sessions' | 'cmatches' | 'group';
 
 function Shell() {
   const [admin, setAdmin] = useState(false);
@@ -90,6 +91,7 @@ function Shell() {
     admin && tab === 'admin' ? <Admin />
     : admin && tab === 'players' ? <Players />
     : admin && tab === 'coaches' ? <Coaches />
+    : admin && tab === 'debtors' ? <Debtors />
     : coach && tab === 'sessions' ? <Sessions groups={coachGroups} />
     : coach && tab === 'cmatches' ? <CoachMatches groups={coachGroups} />
     : coach && tab === 'group' ? <Group groups={coachGroups} />
@@ -112,8 +114,8 @@ function Shell() {
                 { value: 'admin', label: 'Запросы', icon: 'inbox' },
                 { value: 'players', label: 'Дети', icon: 'users' },
                 { value: 'schedule', label: 'Расписание', icon: 'calendar' },
+                { value: 'debtors', label: 'Должники', icon: 'wallet' },
                 { value: 'coaches', label: 'Тренеры', icon: 'user' },
-                ...kidsTab,
               ]
             : coach
               ? [
