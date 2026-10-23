@@ -1,7 +1,7 @@
 -- pgTAP: статистика посещаемости по группам (0033).
 begin;
 create extension if not exists pgtap;
-select plan(9);
+select plan(14);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -52,6 +52,26 @@ select throws_ok($$select * from attendance_stats('2026-10-01', '2026-10-31')$$,
 select as_user('00000000-0000-0000-0000-0000000000a1');
 select throws_ok($$select * from attendance_stats('2026-10-31', '2026-10-01')$$, '22023', 'bad period', 'перевёрнутый период отклоняется');
 select throws_ok($$select * from attendance_stats('2025-01-01', '2026-10-01')$$, '22023', 'period too large', 'слишком большой период отклоняется');
+
+-- Матчи
+reset role;
+insert into matches (id, club_id, played_on, team, opponent, goals_for, goals_against) values
+  ('00000000-0000-0000-0000-0000000008a1', '00000000-0000-0000-0000-00000000c001', '2026-10-10', 'U9', 'А', 3, 1),
+  ('00000000-0000-0000-0000-0000000008a2', '00000000-0000-0000-0000-00000000c001', '2026-10-12', 'U9', 'Б', 1, 1),
+  ('00000000-0000-0000-0000-0000000008a3', '00000000-0000-0000-0000-00000000c001', '2026-10-14', 'U11', 'В', 0, 2),
+  ('00000000-0000-0000-0000-0000000008a4', '00000000-0000-0000-0000-00000000c001', '2026-10-15', 'U9', 'Г', null, null);
+insert into match_players (match_id, player_id, played, goals) values
+  ('00000000-0000-0000-0000-0000000008a1', '00000000-0000-0000-0000-00000000d001', true, 2),
+  ('00000000-0000-0000-0000-0000000008a2', '00000000-0000-0000-0000-00000000d001', true, 0),
+  ('00000000-0000-0000-0000-0000000008a3', '00000000-0000-0000-0000-00000000d003', true, 0);
+select as_user('00000000-0000-0000-0000-0000000000a1');
+select is((select games from match_stats('2026-10-01', '2026-10-31') where kind = 'team' and team = 'U9'), 2, 'матч без счёта не считается: у U9 два матча');
+select is((select array[wins, draws, losses, goals_for, goals_against] from match_stats('2026-10-01', '2026-10-31') where kind = 'team' and team = 'U9'), array[1, 1, 0, 4, 2], 'победа, ничья, голы 4:2');
+select is((select array[played, goals] from match_stats('2026-10-01', '2026-10-31') where kind = 'player' and name = 'Аня'), array[2, 2], 'игрок: два матча, два гола');
+select as_user('00000000-0000-0000-0000-0000000000b1');
+select throws_ok($$select * from match_stats('2026-10-01', '2026-10-31')$$, '42501', 'forbidden', 'родителю статистика матчей недоступна');
+select as_user('00000000-0000-0000-0000-0000000000c1');
+select is((select count(*)::int from match_stats('2026-10-01', '2026-10-31') where kind = 'team' and team = 'U11'), 0, 'тренер U9 не видит матчи U11');
 
 select * from finish();
 rollback;
