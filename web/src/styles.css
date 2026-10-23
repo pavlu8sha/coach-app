@@ -42,3 +42,6 @@ p { margin: 0; line-height: 1.45; }
 .check input { width: 20px; height: 20px; }
 h3 { font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin: 16px 0 8px; }
 .note { margin-top: 4px; font-size: 0.85rem; }
+.debt { margin: 10px 0 14px; padding: 10px 12px; border-radius: 12px; background: var(--ks-warning-subtle); color: var(--ks-warning); }
+.debt-row { margin-top: 8px; }
+.debt-sub { font-size: 0.85rem; opacity: 0.85; }
