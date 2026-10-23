@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import Link from './Link';
 import Message from './Message';
 
 interface Child {
@@ -16,6 +17,7 @@ const plural = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'балл' : n %
 export default function Home() {
   const [children, setChildren] = useState<Child[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     void (async () => {
@@ -40,16 +42,17 @@ export default function Home() {
         }),
       );
     })();
-  }, []);
+  }, [reload]);
 
   if (error) return <Message title="Не удалось загрузить данные" text={error} />;
   if (!children) return <Message title="Загрузка…" />;
   if (!children.length) {
     return (
-      <Message
-        title="Пока нет привязанных детей"
-        text="Вы вошли. Администратор клуба подтвердит, что вы родитель, и здесь появится ваш ребёнок."
-      />
+      <main className="page">
+        <h1>Мой ребёнок</h1>
+        <p className="muted" style={{ marginBottom: 14 }}>Найдите ребёнка, чтобы смотреть его баллы. Администратор клуба подтвердит запрос.</p>
+        <Link onApproved={() => setReload(n => n + 1)} />
+      </main>
     );
   }
   return (
@@ -81,6 +84,7 @@ export default function Home() {
           )}
         </section>
       ))}
+      <Link onApproved={() => setReload(n => n + 1)} />
     </main>
   );
 }
