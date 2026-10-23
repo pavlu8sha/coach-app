@@ -18,7 +18,7 @@ export default function Admin() {
   const load = useCallback(async () => {
     const r = await supabase
       .from('link_requests')
-      .select('id, created_at, users(display_name, telegram_id), players(full_name, groups(name))')
+      .select('id, created_at, users!link_requests_user_id_fkey(display_name, telegram_id), players(full_name, groups(name))')
       .eq('status', 'pending')
       .order('created_at');
     if (r.error) return setError(r.error.message);
