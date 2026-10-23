@@ -14,8 +14,7 @@ import Message from './screens/Message';
 import BrowserLogin, { browserLoginEnabled } from './screens/BrowserLogin';
 import About from './screens/About';
 import RoleSelect, { type Role } from './screens/RoleSelect';
-import Coaches from './screens/Coaches';
-import Debtors from './screens/Debtors';
+import More from './screens/More';
 import CoachMatches from './screens/CoachMatches';
 import Group from './screens/Group';
 import Sessions from './screens/Sessions';
@@ -24,11 +23,13 @@ import { BottomNav } from './ui/components';
 
 type State = { kind: 'loading' } | { kind: 'ready' } | { kind: 'outside' } | { kind: 'config' } | { kind: 'error'; text: string };
 
-type Tab = 'about' | 'home' | 'schedule' | 'matches' | 'payments' | 'profile' | 'admin' | 'players' | 'coaches' | 'debtors' | 'sessions' | 'cmatches' | 'group';
+type Tab = 'about' | 'home' | 'schedule' | 'matches' | 'payments' | 'profile' | 'admin' | 'players' | 'more' | 'sessions' | 'cmatches' | 'group';
 
 function Shell() {
   const [admin, setAdmin] = useState(false);
   const [coachGroups, setCoachGroups] = useState<CoachGroup[]>([]);
+  const [allGroups, setAllGroups] = useState<CoachGroup[]>([]); // для администратора: все группы
+  const [moreKey, setMoreKey] = useState(0);
   const [hasKids, setHasKids] = useState(true); // пока не знаем — не прячем вкладку
   const [loaded, setLoaded] = useState(false);
   const [role, setRole] = useState<Role | null>(null);
@@ -49,6 +50,10 @@ function Shell() {
       const cg = await supabase.from('coach_groups').select('groups(id, name)').eq('user_id', data.user.id);
       const mineGroups = ((cg.data ?? []) as unknown as { groups: CoachGroup | null }[]).map(x => x.groups).filter((g): g is CoachGroup => Boolean(g)).sort((x, y) => x.name.localeCompare(y.name));
       setCoachGroups(mineGroups);
+      if (isAdm) {
+        const ag = await supabase.from('groups').select('id, name').order('name');
+        setAllGroups(((ag.data ?? []) as CoachGroup[]).sort((x, y) => x.name.localeCompare(y.name)));
+      }
       setAdmin(isAdm);
       if (isAdm) setTab('admin'); // администратор открывает приложение сразу на запросах
       else if (mineGroups.length) setTab('sessions'); // тренер — сразу на занятиях
@@ -91,10 +96,9 @@ function Shell() {
   const screen =
     admin && tab === 'admin' ? <Admin />
     : admin && tab === 'players' ? <Players />
-    : admin && tab === 'coaches' ? <Coaches />
-    : admin && tab === 'debtors' ? <Debtors />
-    : coach && tab === 'sessions' ? <Sessions groups={coachGroups} />
-    : coach && tab === 'cmatches' ? <CoachMatches groups={coachGroups} />
+    : admin && tab === 'more' ? <More key={moreKey} groups={allGroups} />
+    : (admin || coach) && tab === 'sessions' ? <Sessions groups={admin ? allGroups : coachGroups} />
+    : (admin || coach) && tab === 'cmatches' ? <CoachMatches groups={admin ? allGroups : coachGroups} admin={admin} />
     : coach && tab === 'group' ? <Group groups={coachGroups} />
     : tab === 'schedule' ? <Schedule all={admin} />
     : !admin && !coach && tab === 'matches' ? <Matches />
@@ -108,15 +112,18 @@ function Shell() {
       <BottomNav
         label="Разделы"
         value={tab}
-        onChange={setTab}
+        onChange={v => {
+          if (v === 'more' && tab === 'more') setMoreKey(k => k + 1); // повторное нажатие «Ещё» — назад к списку
+          setTab(v);
+        }}
         items={
           admin
             ? [
                 { value: 'admin', label: 'Запросы', icon: 'inbox' },
                 { value: 'players', label: 'Дети', icon: 'users' },
-                { value: 'schedule', label: 'Расписание', icon: 'calendar' },
-                { value: 'debtors', label: 'Должники', icon: 'wallet' },
-                { value: 'coaches', label: 'Тренеры', icon: 'user' },
+                { value: 'sessions', label: 'Занятия', icon: 'calendar' },
+                { value: 'cmatches', label: 'Матчи', icon: 'trophy' },
+                { value: 'more', label: 'Ещё', icon: 'more' },
               ]
             : coach
               ? [

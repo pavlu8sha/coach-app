@@ -22,11 +22,11 @@ insert into players (id, club_id, group_id, full_name) values
   ('00000000-0000-0000-0000-00000000d009', '00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-0000000000e2', 'Игрок из U11');
 insert into player_guardians (player_id, user_id, consent_version, consent_given_at)
   values ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000000b1', 'test', now());
--- правила рейтинга: участие 2, победа 3, ничья 1, гол 1
+-- правила рейтинга по новой схеме: участие 1 (поражение, ничья), победа 2, лучший 3, гол 1
 insert into rules (club_id, code, points, explanation, active_from) values
-  ('00000000-0000-0000-0000-00000000c001', 'match_played', 2, 'Участие в матче', '2026-01-01'),
-  ('00000000-0000-0000-0000-00000000c001', 'match_win', 3, 'Победа команды в матче', '2026-01-01'),
-  ('00000000-0000-0000-0000-00000000c001', 'match_draw', 1, 'Ничья в матче', '2026-01-01'),
+  ('00000000-0000-0000-0000-00000000c001', 'match_played', 1, 'Участие в матче', '2026-01-01'),
+  ('00000000-0000-0000-0000-00000000c001', 'match_win', 2, 'Победа команды в матче', '2026-01-01'),
+  ('00000000-0000-0000-0000-00000000c001', 'match_best', 3, 'Лучший игрок матча', '2026-01-01'),
   ('00000000-0000-0000-0000-00000000c001', 'match_goal', 1, 'Гол в матче', '2026-01-01');
 -- матч U11 (чужой для тренера U9), у него участник из U9 по match_fees не нужен
 insert into matches (id, club_id, played_on, team, opponent) values
@@ -53,9 +53,9 @@ select lives_ok($$select save_match(null, '00000000-0000-0000-0000-0000000000e1'
     {"player_id":"00000000-0000-0000-0000-00000000d003","played":false,"goals":0}]'::jsonb)$$, 'тренер добавляет матч своей группы со счётом и составом');
 select is((select team from matches where opponent = 'Динамо'), 'U9', 'команда матча — название группы');
 select is((select count(*)::int from match_players), 3, 'три записи состава');
-select is((select count(*)::int from point_events where source_type = 'match' and player_id = '00000000-0000-0000-0000-00000000d001'), 3, 'у автора голов: участие, победа, голы');
-select is((select sum(points)::int from point_events where player_id = '00000000-0000-0000-0000-00000000d001'), 7, 'баллы: 2 участие + 3 победа + 2 гола');
-select is((select sum(points)::int from point_events where player_id = '00000000-0000-0000-0000-00000000d002'), 5, 'у игрока без голов: 2 + 3');
+select is((select count(*)::int from point_events where source_type = 'match' and player_id = '00000000-0000-0000-0000-00000000d001'), 2, 'у автора голов: победа и голы');
+select is((select sum(points)::int from point_events where player_id = '00000000-0000-0000-0000-00000000d001'), 4, 'баллы: 2 победа + 2 гола');
+select is((select sum(points)::int from point_events where player_id = '00000000-0000-0000-0000-00000000d002'), 2, 'у игрока без голов: 2 за победу');
 select is((select count(*)::int from point_events where player_id = '00000000-0000-0000-0000-00000000d003'), 0, 'тот, кто не играл, баллов не получает');
 select is((select explanation from point_events where points = 2 and rule_id = (select id from rules where code = 'match_goal')), 'Гол в матче: 2', 'объяснение для родителя включает число голов');
 
@@ -63,8 +63,8 @@ select is((select explanation from point_events where points = 2 and rule_id = (
 select lives_ok($$select save_match((select id from matches where opponent = 'Динамо'), '00000000-0000-0000-0000-0000000000e1', '2026-10-17', 'Динамо', 2, 2,
   '[{"player_id":"00000000-0000-0000-0000-00000000d001","played":true,"goals":1},
     {"player_id":"00000000-0000-0000-0000-00000000d002","played":true,"goals":1}]'::jsonb)$$, 'тренер правит результат матча');
-select is((select sum(points)::int from point_events where player_id = '00000000-0000-0000-0000-00000000d001'), 4, 'пересчёт: 2 участие + 1 ничья + 1 гол, без остатков победы');
-select is((select sum(points)::int from point_events where player_id = '00000000-0000-0000-0000-00000000d002'), 4, 'пересчёт у второго игрока: 2 + 1 + 1');
+select is((select sum(points)::int from point_events where player_id = '00000000-0000-0000-0000-00000000d001'), 2, 'пересчёт: 1 за ничью + 1 гол, без остатков победы');
+select is((select sum(points)::int from point_events where player_id = '00000000-0000-0000-0000-00000000d002'), 2, 'пересчёт у второго игрока: 1 + 1 гол');
 select is((select count(*)::int from matches where opponent = 'Динамо'), 1, 'правка не создаёт второй матч');
 
 -- Ограничения
@@ -86,7 +86,7 @@ select lives_ok($$select save_match((select id from matches where opponent = 'Д
 
 -- Родитель видит баллы своего ребёнка
 select as_user('00000000-0000-0000-0000-0000000000b1');
-select is((select sum(points)::int from point_events), 4, 'родитель видит баллы только своего ребёнка');
+select is((select sum(points)::int from point_events), 2, 'родитель видит баллы только своего ребёнка');
 
 select * from finish();
 rollback;
