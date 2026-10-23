@@ -1,20 +1,30 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { closeApp, telegramName } from '../lib/telegram';
 import { supabase } from '../lib/supabase';
 import { getThemePref, saveThemePref, type ThemePref } from '../lib/theme';
 import { applyTelegramTheme } from '../ui/telegram-theme';
-import { Avatar, ListRow, Segmented } from '../ui/components';
+import { Avatar, ListRow, Segmented, SwitchRow } from '../ui/components';
 import MyData from './MyData';
 import MyKids from './MyKids';
 
-// Профиль родителя: только то, что уже есть в приложении. Имя берётся из Telegram и видно только владельцу.
-// Уведомлений в системе нет, поэтому переключателя уведомлений здесь нет.
+// Профиль родителя. Имя берётся из Telegram и видно только владельцу. Уведомления в Telegram — миграция 0026, docs/NOTIFICATIONS.md.
 export default function Profile() {
   const [view, setView] = useState<'main' | 'kids' | 'data'>('main');
   const [pref, setPref] = useState<ThemePref>(getThemePref());
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const name = telegramName();
+  const [notify, setNotify] = useState<boolean | null>(null); // null — ещё не знаем или функция не установлена
+  const [notifyErr, setNotifyErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      const me = (await supabase.auth.getUser()).data.user?.id;
+      if (!me) return;
+      const r = await supabase.from('users').select('notifications_enabled').eq('id', me).maybeSingle();
+      if (!r.error && r.data) setNotify(Boolean((r.data as { notifications_enabled: boolean }).notifications_enabled));
+    })();
+  }, []);
 
   if (view === 'kids') return <MyKids onBack={() => setView('main')} />;
   if (view === 'data') return <MyData onBack={() => setView('main')} />;
@@ -23,6 +33,15 @@ export default function Profile() {
     saveThemePref(p);
     setPref(p);
     applyTelegramTheme('hybrid');
+  };
+  const toggleNotify = async (on: boolean) => {
+    setNotifyErr(null);
+    setNotify(on);
+    const r = await supabase.rpc('set_notifications', { on_: on });
+    if (r.error) {
+      setNotify(!on);
+      setNotifyErr('Не удалось сохранить настройку.');
+    }
   };
   const logout = async () => {
     setBusy(true);
@@ -55,6 +74,15 @@ export default function Profile() {
           { value: 'dark', label: 'Тёмная' },
         ]}
       />
+
+      {notify !== null && (
+        <>
+          <p className="ks-label">Уведомления</p>
+          <SwitchRow id="notify" label="Сообщения от бота в Telegram" checked={notify} onChange={v => void toggleNotify(v)} />
+          <p className="ks-muted" style={{ fontSize: 13, margin: '6px 0 12px' }}>Бот пришлёт сообщение, когда администратор ответит на запрос о ребёнке. Чтобы сообщения приходили, один раз нажмите «Старт» в чате с ботом клуба.</p>
+          {notifyErr && <p className="error">{notifyErr}</p>}
+        </>
+      )}
 
       {confirm ? (
         <div className="ks-card">
