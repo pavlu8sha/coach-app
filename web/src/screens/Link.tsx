@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CONSENT, CONSENT_VERSION, type Lang } from '../lib/consent';
+import { CONSENT, CONSENT_VERSION } from '../lib/consent';
+import Privacy from './Privacy';
 import { supabase } from '../lib/supabase';
 import { preferredLang } from '../lib/telegram';
 import { ListRow, Pill } from '../ui/components';
@@ -17,8 +18,7 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
   const [agreed, setAgreed] = useState(false);
   const [policy, setPolicy] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
-  const [lang, setLang] = useState<Lang>(preferredLang());
-  const c = CONSENT[lang];
+  const c = CONSENT[preferredLang()];
 
   const loadReqs = useCallback(async () => {
     const me = (await supabase.auth.getUser()).data.user?.id;
@@ -60,6 +60,8 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
   // В Telegram запрос отправляет главная кнопка Telegram для выбранного ребёнка; в браузере — кнопка в строке
   const native = useMainButton({ text: 'Отправить запрос', visible: Boolean(selected && found?.some(f => f.player_id === selected)), enabled: agreed && !busy, loading: busy, onClick: () => selected && void request(selected) });
 
+  if (policy) return <Privacy onBack={() => setPolicy(false)} />;
+
   return (
     <section className="card">
       <h2>Добавить ребёнка</h2>
@@ -80,27 +82,12 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
         <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} />
         <span>
           {c.agree[0]}
-          <button type="button" className="link-btn" onClick={() => setPolicy(p => !p)} aria-expanded={policy}>
+          <button type="button" className="link-btn" onClick={() => setPolicy(true)}>
             {c.agree[1]}
           </button>
           {c.agree[2]}
         </span>
       </label>
-      {policy && (
-        <div className="consent">
-          <div className="row">
-            <strong>{c.title}</strong>
-            <button type="button" className="lang" onClick={() => setLang(lang === 'ru' ? 'en' : 'ru')}>
-              {lang === 'ru' ? 'EN' : 'RU'}
-            </button>
-          </div>
-          <ul>
-            {c.points.map((t, i) => (
-              <li key={i}>{t}</li>
-            ))}
-          </ul>
-        </div>
-      )}
       {error && <p className="error">{error}</p>}
       {found && found.length === 0 && <p className="muted">Ничего не найдено. Проверьте написание.</p>}
       {found && found.length > 0 && !native && (
