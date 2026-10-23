@@ -1,6 +1,8 @@
-// Тема UI-kit внутри Telegram. Не вызывается, пока не выбран вариант (docs/MINIAPP_UI_PLAN.md, решение 1).
+// Тема UI-kit внутри Telegram (docs/MINIAPP_UI_PLAN.md, решение 1: гибрид) и личный выбор темы родителем (lib/theme.ts).
 // Рекомендуемый вариант «гибрид»: светлая/тёмная — как в Telegram, фон и поверхности — из темы Telegram,
 // основной цвет (кнопки, выбранные вкладки) — синий клуба, чтобы приложение узнавалось.
+
+import { getThemePref } from '../lib/theme';
 
 interface TgThemeApp {
   colorScheme?: 'light' | 'dark';
@@ -15,20 +17,30 @@ const app = (): TgThemeApp | null => (window as unknown as { Telegram?: { WebApp
 export type ThemeMode = 'club' | 'telegram' | 'hybrid';
 
 /** Применить тему UI-kit. club — только цвета клуба (светлая/тёмная по Telegram); telegram — полностью цвета Telegram;
- *  hybrid — фон из Telegram, основной цвет клуба. Вне Telegram ничего не делает (работает тема устройства). */
+ *  hybrid — фон из Telegram, основной цвет клуба. Вне Telegram «авто» — тема устройства. Личный выбор темы (lib/theme.ts) главнее. */
 export function applyTelegramTheme(mode: ThemeMode = 'hybrid'): void {
   const tg = app();
-  if (!tg) return;
   const root = document.documentElement;
+  if (!tg) {
+    // вне Telegram: «авто» — тема устройства (media-запрос в tokens.css), иначе выбранная
+    const pref = getThemePref();
+    if (pref === 'auto') root.removeAttribute('data-theme');
+    else root.setAttribute('data-theme', pref);
+    return;
+  }
   const run = () => {
-    root.setAttribute('data-theme', tg.colorScheme === 'dark' ? 'dark' : 'light');
+    const pref = getThemePref();
+    const scheme = tg.colorScheme === 'dark' ? 'dark' : 'light';
+    // свой выбор, отличный от схемы Telegram: цвета фона Telegram не подмешиваем, иначе тёмный фон под светлой темой
+    const forced = pref !== 'auto' && pref !== scheme;
+    root.setAttribute('data-theme', pref === 'auto' ? scheme : pref);
     const p = tg.themeParams;
     const set = (v: string, val?: string) => (val ? root.style.setProperty(v, val) : root.style.removeProperty(v));
-    const bg = mode === 'club' ? undefined : p.secondary_bg_color || p.bg_color;
-    const surface = mode === 'club' ? undefined : p.bg_color;
+    const bg = mode === 'club' || forced ? undefined : p.secondary_bg_color || p.bg_color;
+    const surface = mode === 'club' || forced ? undefined : p.bg_color;
     set('--ks-bg', bg);
     set('--ks-surface', surface);
-    if (mode === 'telegram') {
+    if (mode === 'telegram' && !forced) {
       set('--ks-text', p.text_color);
       set('--ks-text-muted', p.hint_color);
       set('--ks-primary', p.button_color);
@@ -48,5 +60,9 @@ export function applyTelegramTheme(mode: ThemeMode = 'hybrid'): void {
     }
   };
   run();
-  tg.onEvent?.('themeChanged', run);
+  if (!applied) {
+    applied = true;
+    tg.onEvent?.('themeChanged', () => applyTelegramTheme(mode));
+  }
 }
+let applied = false;

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, Segmented, type Tone } from '../ui/components';
-import Message, { Loading } from './Message';
+import Message, { Failure, Loading } from './Message';
 
 interface Match { id: string; team: string; played_on: string; opponent: string | null; goals_for: number | null; goals_against: number | null }
 type Filter = 'all' | 'upcoming' | 'past';
@@ -22,6 +22,7 @@ export default function Matches() {
   const [noGroups, setNoGroups] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     void (async () => {
@@ -37,9 +38,9 @@ export default function Matches() {
       if (m.error) return setError(m.error.message);
       setMatches((m.data ?? []) as Match[]);
     })();
-  }, []);
+  }, [reload]);
 
-  if (error) return <Message title="Не удалось загрузить матчи" text={error} />;
+  if (error) return <Failure title="Не удалось загрузить матчи" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   if (!matches) return <Loading />;
   if (noGroups) return <Message title="Матчи" text="Матчи появятся, когда администратор подтвердит связь с ребёнком." />;
 

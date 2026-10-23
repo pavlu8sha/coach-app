@@ -85,3 +85,5 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 /* Счёт матча в строке списка */
 .ks-score { font-weight: 800; font-variant-numeric: tabular-nums; }
 .ks-row-sub .ks-pill { margin: 4px 0 2px; }
+@media (max-width: 420px) { .ks-bottomnav button { font-size: 11px; letter-spacing: -0.1px; padding-left: 0; padding-right: 0; } }
+@media (max-width: 360px) { .ks-bottomnav button { font-size: 10.5px; letter-spacing: -0.2px; } }

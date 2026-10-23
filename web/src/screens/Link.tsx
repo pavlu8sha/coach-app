@@ -3,6 +3,7 @@ import { CONSENT, CONSENT_VERSION, type Lang } from '../lib/consent';
 import { supabase } from '../lib/supabase';
 import { preferredLang } from '../lib/telegram';
 import { ListRow, Pill } from '../ui/components';
+import { useMainButton } from '../ui/nav';
 import { STATUS, type Req } from './LinkStatus';
 
 interface Found { player_id: string; full_name: string; group_name: string | null }
@@ -14,6 +15,7 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [agreed, setAgreed] = useState(false);
+  const [selected, setSelected] = useState<string | null>(null);
   const [lang, setLang] = useState<Lang>(preferredLang());
   const c = CONSENT[lang];
 
@@ -34,6 +36,7 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
 
   const search = async () => {
     setError(null);
+    setSelected(null);
     setBusy(true);
     const r = await supabase.rpc('search_players_for_link', { q });
     setBusy(false);
@@ -48,9 +51,13 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
     setBusy(false);
     if (r.error) return setError(r.error.message.includes('consent') ? 'Нужно согласие. Отметьте его ниже.' : r.error.message.includes('too many') ? 'Слишком много неподтверждённых запросов. Дождитесь ответа администратора.' : r.error.message);
     setFound(f => (f ?? []).filter(x => x.player_id !== id));
+    setSelected(null);
     await loadReqs();
     onOpenStatus?.(); // показать статус только что отправленного запроса
   };
+
+  // В Telegram запрос отправляет главная кнопка Telegram для выбранного ребёнка; в браузере — кнопка в строке
+  const native = useMainButton({ text: 'Отправить запрос', visible: Boolean(selected && found?.some(f => f.player_id === selected)), enabled: agreed && !busy, loading: busy, onClick: () => selected && void request(selected) });
 
   return (
     <section className="card">
@@ -87,7 +94,7 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
       </div>
       {error && <p className="error">{error}</p>}
       {found && found.length === 0 && <p className="muted">Ничего не найдено. Проверьте написание.</p>}
-      {found && found.length > 0 && (
+      {found && found.length > 0 && !native && (
         <ul className="events">
           {found.map(f => (
             <li key={f.player_id}>
@@ -101,6 +108,19 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
             </li>
           ))}
         </ul>
+      )}
+      {found && found.length > 0 && native && (
+        <div style={{ marginTop: 12 }}>
+          {found.map(f => (
+            <ListRow
+              key={f.player_id}
+              title={f.full_name}
+              sub={[...(f.group_name ? [f.group_name] : []), ...(selected === f.player_id ? [<Pill tone="primary" dot>Выбрано</Pill>] : [])]}
+              onClick={() => setSelected(f.player_id)}
+            />
+          ))}
+          {selected && !agreed && <p className="muted">Отметьте согласие, чтобы отправить запрос.</p>}
+        </div>
       )}
       {reqs.length > 0 && onOpenStatus && (
         <div className="reqs">

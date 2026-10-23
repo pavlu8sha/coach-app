@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import Message, { Loading } from './Message';
+import Message, { Failure, Loading } from './Message';
 
 interface Slot { weekday: number; starts_at: string; ends_at: string | null; location: string | null; kind: string; coaches: string | null }
 interface Match { id: string; played_on: string; opponent: string | null; goals_for: number | null; goals_against: number | null }
@@ -15,6 +15,7 @@ const today = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD по �
 export default function Schedule({ all = false }: { all?: boolean }) {
   const [groups, setGroups] = useState<GroupView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     void (async () => {
@@ -58,9 +59,9 @@ export default function Schedule({ all = false }: { all?: boolean }) {
       // у администратора не показываем группы, о которых ничего нет (архивные, пустые)
       setGroups(all ? list.filter(g => g.slots.length || g.upcoming.length || g.results.length) : list);
     })();
-  }, [all]);
+  }, [all, reload]);
 
-  if (error) return <Message title="Не удалось загрузить расписание" text={error} />;
+  if (error) return <Failure title="Не удалось загрузить расписание" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   if (!groups) return <Loading />;
   if (!groups.length) return <Message title="Расписание" text="Расписание появится, когда администратор подтвердит связь с ребёнком." />;
 

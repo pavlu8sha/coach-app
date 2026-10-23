@@ -9,6 +9,7 @@ import Payments from './screens/Payments';
 import Players from './screens/Players';
 import Schedule from './screens/Schedule';
 import Matches from './screens/Matches';
+import Profile from './screens/Profile';
 import Message from './screens/Message';
 import { BottomNav } from './ui/components';
 
@@ -17,7 +18,7 @@ type State = { kind: 'loading' } | { kind: 'ready' } | { kind: 'outside' } | { k
 function Shell() {
   const [admin, setAdmin] = useState(false);
   const [hasKids, setHasKids] = useState(true); // пока не знаем — не прячем вкладку
-  const [tab, setTab] = useState<'home' | 'schedule' | 'matches' | 'payments' | 'admin' | 'players'>('home');
+  const [tab, setTab] = useState<'home' | 'schedule' | 'matches' | 'payments' | 'profile' | 'admin' | 'players'>('home');
   useEffect(() => {
     void (async () => {
       const { data } = await supabase.auth.getUser();
@@ -34,7 +35,7 @@ function Shell() {
   }, []);
   return (
     <>
-      {admin && tab === 'admin' ? <Admin /> : admin && tab === 'players' ? <Players /> : tab === 'schedule' ? <Schedule all={admin} /> : !admin && tab === 'matches' ? <Matches /> : !admin && tab === 'payments' ? <Payments /> : <Home isAdmin={admin} />}
+      {admin && tab === 'admin' ? <Admin /> : admin && tab === 'players' ? <Players /> : tab === 'schedule' ? <Schedule all={admin} /> : !admin && tab === 'matches' ? <Matches /> : !admin && tab === 'profile' ? <Profile /> : !admin && tab === 'payments' ? <Payments /> : <Home isAdmin={admin} />}
       <BottomNav
         label="Разделы"
         value={tab}
@@ -52,6 +53,7 @@ function Shell() {
                 { value: 'schedule', label: 'Расписание', icon: 'calendar' },
                 { value: 'matches', label: 'Матчи', icon: 'trophy' },
                 { value: 'payments', label: 'Оплата', icon: 'wallet' },
+                { value: 'profile', label: 'Профиль', icon: 'user' },
               ]
         }
       />

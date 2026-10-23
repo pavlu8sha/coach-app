@@ -172,6 +172,12 @@ export function EmptyState(props: { icon: keyof typeof ICONS; title: string; tex
 const NAV_ICONS = {
   child: (
     <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M8.5 14a4 4 0 0 0 7 0M9 9.5h.01M15 9.5h.01" />
+    </>
+  ),
+  user: (
+    <>
       <circle cx="12" cy="8" r="4" />
       <path d="M4 21a8 8 0 0 1 16 0" />
     </>
