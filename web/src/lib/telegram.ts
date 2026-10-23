@@ -1,6 +1,7 @@
 // Обёртка над Telegram.WebApp (скрипт подключён в index.html). Вне Telegram window.Telegram.WebApp.initData пустой.
 interface TgWebApp {
   initData: string;
+  initDataUnsafe?: { user?: { language_code?: string } };
   ready(): void;
   expand(): void;
   themeParams: Record<string, string | undefined>;
@@ -38,3 +39,6 @@ export function prepareTelegram(): void {
     if (val) document.documentElement.style.setProperty(v, val);
   }
 }
+
+/** Язык интерфейса: русский, если в Telegram русский, иначе английский. */
+export const preferredLang = (): 'ru' | 'en' => (tgApp()?.initDataUnsafe?.user?.language_code?.startsWith('ru') ? 'ru' : 'en');
