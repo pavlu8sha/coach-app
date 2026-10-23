@@ -42,3 +42,10 @@ p { margin: 0; line-height: 1.45; }
 .check input { width: 20px; height: 20px; }
 h3 { font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin: 16px 0 8px; }
 .note { margin-top: 4px; font-size: 0.85rem; }
+
+/* формы администратора */
+.field { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; font-size: 0.85rem; color: var(--muted, inherit); }
+.field input, .field select { font-size: 1rem; padding: 12px; min-height: var(--ks-tap); border-radius: var(--ks-radius); border: 1px solid var(--ks-border-strong); background: var(--bg-2); color: var(--fg); }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.card.inner { box-shadow: none; margin: 8px 0 0; }
+.link-btn { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; text-align: left; }
