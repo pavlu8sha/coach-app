@@ -4,11 +4,12 @@ import { supabase } from '../lib/supabase';
 import { getThemePref, saveThemePref, type ThemePref } from '../lib/theme';
 import { applyTelegramTheme } from '../ui/telegram-theme';
 import { Avatar, ListRow, Segmented, SwitchRow } from '../ui/components';
+import MyData from './MyData';
 import MyKids from './MyKids';
 
 // Профиль родителя. Имя берётся из Telegram и видно только владельцу. Уведомления в Telegram — миграция 0026, docs/NOTIFICATIONS.md.
 export default function Profile() {
-  const [view, setView] = useState<'main' | 'kids'>('main');
+  const [view, setView] = useState<'main' | 'kids' | 'data'>('main');
   const [pref, setPref] = useState<ThemePref>(getThemePref());
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -26,6 +27,7 @@ export default function Profile() {
   }, []);
 
   if (view === 'kids') return <MyKids onBack={() => setView('main')} />;
+  if (view === 'data') return <MyData onBack={() => setView('main')} />;
 
   const choose = (p: ThemePref) => {
     saveThemePref(p);
@@ -59,6 +61,7 @@ export default function Profile() {
       </div>
 
       <ListRow title="Мои дети" onClick={() => setView('kids')} />
+      <ListRow title="Мои данные" sub={['Скачать, удалить']} onClick={() => setView('data')} />
 
       <p className="ks-label">Тема</p>
       <Segmented

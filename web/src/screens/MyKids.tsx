@@ -14,6 +14,9 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [statusOpen, setStatusOpen] = useState(false);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -29,6 +32,16 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
     })();
   }, [reload]);
 
+  const revoke = async (id: string) => {
+    setBusy(true);
+    setMsg(null);
+    const r = await supabase.rpc('revoke_consent', { p: id });
+    setBusy(false);
+    setConfirmId(null);
+    if (r.error) setMsg(r.error.message.includes('Could not find the function') ? 'Это действие пока недоступно.' : r.error.message);
+    setReload(n => n + 1);
+  };
+
   if (statusOpen) return <LinkStatus onBack={() => { setStatusOpen(false); setReload(n => n + 1); }} />;
   if (error) return <Failure title="Не удалось загрузить детей" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} />} />;
   if (!kids) return <Loading />;
@@ -40,8 +53,23 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
       {kids.length === 0 ? (
         <EmptyState icon="users" title="Нет привязанных детей" text="Найдите ребёнка ниже. Администратор клуба подтвердит запрос." />
       ) : (
-        kids.map(k => <ListRow key={k.id} avatar={k.name} title={k.name} sub={k.group ? [k.group] : undefined} />)
+        kids.map(k => (
+          <div key={k.id}>
+            <ListRow avatar={k.name} title={k.name} sub={k.group ? [k.group] : undefined} />
+            {confirmId === k.id ? (
+              <div className="ks-card" style={{ marginTop: -4 }}>
+                <p style={{ marginBottom: 10 }}>Отозвать согласие? Ребёнок и все его данные пропадут из вашего приложения. Чтобы вернуть ребёнка, нужно будет подать новый запрос и снова дать согласие.</p>
+                <button type="button" className="ks-btn" disabled={busy} onClick={() => void revoke(k.id)}>Отозвать согласие</button>
+                <div style={{ height: 8 }} />
+                <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => setConfirmId(null)}>Не отзывать</button>
+              </div>
+            ) : (
+              <button type="button" className="ks-back" style={{ marginBottom: 8 }} onClick={() => setConfirmId(k.id)}>Отозвать согласие</button>
+            )}
+          </div>
+        ))
       )}
+      {msg && <p className="error">{msg}</p>}
       <div style={{ height: 8 }} />
       <Link onApproved={() => setReload(n => n + 1)} onOpenStatus={() => setStatusOpen(true)} />
     </main>
