@@ -9,7 +9,17 @@ import { guestExt } from './individual.mjs';
 // Дети, которые есть в листе августа, но не в реестре (подтверждено владельцем): заводятся как неактивные игроки GUEST-…
 export const FORMER = ['Bayter Aivi', 'Caregorodcev Lev', 'Dmitriev Nikita', 'Litvinov Bogdan', 'Fedotov Adam', 'Fedotov Shon'];
 // Время тренировок, которых нет ни в расписании, ни в журнале тренировок (сообщено владельцем)
-export const TIME_FIX = { '2026-08-22|U13-A': '18:45' };
+export const TIME_FIX = {
+  '2026-08-22|U13-A': '18:45',
+  '2026-08-29|U13-A': '18:45', '2026-08-29|U13-B': '17:30', '2026-08-29|U13-C': '17:30', // U13-B и U13-C занимались вместе в 17:30–18:45
+};
+// Даты в листах, записанные со сдвигом на день (подтверждено владельцем): исходная дата|группа → верная дата
+export const DATE_FIX = {
+  '2026-08-30|U13-A': '2026-08-29', '2026-08-30|U13-B': '2026-08-29', '2026-08-30|U13-C': '2026-08-29',
+  '2026-09-27|U13-B': '2026-09-26', '2026-09-27|U13-C': '2026-09-26',
+};
+// Дни, где в листе стоят отметки, но это не тренировка: 20.09 у U13-A был матч чемпионата (E-087), тренировки не было
+export const NOT_TRAINING = new Set(['2026-09-20|U13-A']);
 
 const TZ = '+04:00'; // Тбилиси, без перехода на летнее время
 const norm = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -100,6 +110,7 @@ export function buildAttendancePlan({ sheets, journalText, schedule, registryPla
     logSlots.get(k).add(r.starts_at);
   }
   let dupSame = 0, fromLog = 0;
+  const excluded = [], shifted = [];
   const allDays = new Set();
   const sessions = [], marks = [], unmatched = new Map(), problems = [], skipped = [], noSlot = [], manySlots = [];
   const resolved = new Map(); // имя из листа → игрок
@@ -120,7 +131,11 @@ export function buildAttendancePlan({ sheets, journalText, schedule, registryPla
     skipped.push(...parsed.skipped);
     dupSame += parsed.dupSame;
     for (const k of parsed.allDays) allDays.add(k.replace(/^(\d{4}-\d{2}-\d{2})\|(.*)$/, '$2|$1'));
-    for (const d of parsed.sessions) {
+    for (const d0 of parsed.sessions) {
+      if (NOT_TRAINING.has(`${d0.date}|${d0.group}`)) { excluded.push(`${d0.date} ${d0.group}`); continue; }
+      const fixed = DATE_FIX[`${d0.date}|${d0.group}`];
+      const d = fixed ? { ...d0, date: fixed } : d0;
+      if (fixed) shifted.push(`${d0.date} → ${fixed} ${d0.group}`);
       let times = slots.get(`${d.group}|${weekdayOf(d.date)}`);
       if (!times && logSlots.has(`${d.group}|${d.date}`)) { times = logSlots.get(`${d.group}|${d.date}`); fromLog++; }
       if (!times && TIME_FIX[`${d.date}|${d.group}`]) times = new Set([TIME_FIX[`${d.date}|${d.group}`]]);
@@ -152,7 +167,7 @@ export function buildAttendancePlan({ sheets, journalText, schedule, registryPla
     else journalOnly.push(`${j.date} ${j.group} ${j.name}${sheetDays.has(`${j.group}|${j.date}`) ? '' : ' (дня нет в листе)'}`);
   }
   return {
-    dupSame, fromLog, former: [...former.values()], sessions, marks, unmatched: [...unmatched].map(([name, n]) => ({ name, n })), problems, skipped, noSlot, manySlots,
+    excluded, shifted, dupSame, fromLog, former: [...former.values()], sessions, marks, unmatched: [...unmatched].map(([name, n]) => ({ name, n })), problems, skipped, noSlot, manySlots,
     journal: { rows: journal.length, both, agree, disagree, journalOnly },
   };
 }

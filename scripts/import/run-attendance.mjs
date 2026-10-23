@@ -37,6 +37,7 @@ const perMonth = {};
 for (const s of plan.sessions) { const k = s.date.slice(0, 7); perMonth[k] = (perMonth[k] || 0) + 1; }
 console.log('По месяцам (тренировок): ' + Object.entries(perMonth).map(([k, v]) => `${k} ${v}`).join(', '));
 console.log(`Дней без единой галочки (не тренировка): ${plan.skipped.length}${plan.skipped.length ? ' — ' + plan.skipped.map(s => `${s.date} ${s.group}`).join('; ') : ''}`);
+console.log(`Исключено как не тренировки: ${plan.excluded.join('; ') || 'нет'}. Даты исправлены: ${plan.shifted.join('; ') || 'нет'}`);
 console.log(`Бывшие дети (будут добавлены как неактивные игроки): ${plan.former.length}${plan.former.length ? ' — ' + plan.former.map(f => f.full_name).join('; ') : ''}`);
 console.log(`Не найдены в реестре: ${plan.unmatched.length}${plan.unmatched.length ? ' — ' + plan.unmatched.map(u => `${u.name} (${u.n})`).join('; ') : ''}`);
 console.log(`Время из журнала тренировок (нет слота в расписании): ${plan.fromLog}. Дублей строк в листах с той же отметкой: ${plan.dupSame}`);
