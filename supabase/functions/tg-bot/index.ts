@@ -24,7 +24,7 @@ Deno.serve(async (req: Request) => {
   try {
     const update = await req.json();
     for (const call of route(update, APP_URL)) {
-      const r = await fetch(`https://api.telegram.org/bot${token}/${call.method}`, {
+      const r = await fetch(`${Deno.env.get('TELEGRAM_API_BASE') ?? 'https://api.telegram.org'}/bot${token}/${call.method}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(call.body),
