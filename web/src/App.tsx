@@ -5,6 +5,7 @@ import { configured } from './lib/supabase';
 import { initData, prepareTelegram } from './lib/telegram';
 import Admin from './screens/Admin';
 import Home from './screens/Home';
+import Players from './screens/Players';
 import Schedule from './screens/Schedule';
 import Message from './screens/Message';
 
@@ -12,7 +13,8 @@ type State = { kind: 'loading' } | { kind: 'ready' } | { kind: 'outside' } | { k
 
 function Shell() {
   const [admin, setAdmin] = useState(false);
-  const [tab, setTab] = useState<'home' | 'schedule' | 'admin'>('home');
+  const [hasKids, setHasKids] = useState(true); // пока не знаем — не прячем вкладку
+  const [tab, setTab] = useState<'home' | 'schedule' | 'admin' | 'players'>('home');
   useEffect(() => {
     void (async () => {
       const { data } = await supabase.auth.getUser();
@@ -20,6 +22,9 @@ function Shell() {
       // RLS: пользователь читает только свою строку; флаг — только подсказка для меню, права проверяет база
       const r = await supabase.from('users').select('is_admin').eq('id', data.user.id).maybeSingle();
       const isAdm = Boolean(r.data?.is_admin);
+      // у администратора вкладка «Ребёнок» нужна, только если он сам родитель
+      const mine = await supabase.from('player_guardians').select('player_id', { count: 'exact', head: true }).eq('user_id', data.user.id).is('consent_revoked_at', null);
+      setHasKids((mine.count ?? 0) > 0);
       setAdmin(isAdm);
       if (isAdm) setTab('admin'); // администратор открывает приложение сразу на запросах
     })();
@@ -27,11 +32,21 @@ function Shell() {
   return (
     <>
       <nav className="tabs">
-        <button className={tab === 'home' ? 'on' : ''} onClick={() => setTab('home')}>Ребёнок</button>
-        <button className={tab === 'schedule' ? 'on' : ''} onClick={() => setTab('schedule')}>Расписание</button>
-        {admin && <button className={tab === 'admin' ? 'on' : ''} onClick={() => setTab('admin')}>Запросы</button>}
+        {admin ? (
+          <>
+            <button className={tab === 'admin' ? 'on' : ''} onClick={() => setTab('admin')}>Запросы</button>
+            <button className={tab === 'players' ? 'on' : ''} onClick={() => setTab('players')}>Дети</button>
+            <button className={tab === 'schedule' ? 'on' : ''} onClick={() => setTab('schedule')}>Расписание</button>
+            {hasKids && <button className={tab === 'home' ? 'on' : ''} onClick={() => setTab('home')}>Ребёнок</button>}
+          </>
+        ) : (
+          <>
+            <button className={tab === 'home' ? 'on' : ''} onClick={() => setTab('home')}>Ребёнок</button>
+            <button className={tab === 'schedule' ? 'on' : ''} onClick={() => setTab('schedule')}>Расписание</button>
+          </>
+        )}
       </nav>
-      {tab === 'admin' && admin ? <Admin /> : tab === 'schedule' ? <Schedule /> : <Home isAdmin={admin} />}
+      {admin && tab === 'admin' ? <Admin /> : admin && tab === 'players' ? <Players /> : tab === 'schedule' ? <Schedule all={admin} /> : <Home isAdmin={admin} />}
     </>
   );
 }

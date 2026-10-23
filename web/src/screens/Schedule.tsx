@@ -12,28 +12,34 @@ const fmtDate = (iso: string) => iso.split('-').reverse().slice(0, 2).join('.');
 const today = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD по местному времени телефона
 
 // Расписание и матчи групп, в которых играют дети текущего пользователя.
-export default function Schedule() {
+export default function Schedule({ all = false }: { all?: boolean }) {
   const [groups, setGroups] = useState<GroupView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
-      const me = (await supabase.auth.getUser()).data.user?.id;
-      if (!me) return setError('Нет сессии');
-      const links = await supabase
-        .from('player_guardians')
-        .select('players(full_name, group_id, groups(name))')
-        .eq('user_id', me)
-        .is('consent_revoked_at', null);
-      if (links.error) return setError(links.error.message);
-
       const byGroup = new Map<string, GroupView>();
-      for (const l of (links.data ?? []) as any[]) {
-        const p = l.players;
-        if (!p?.group_id) continue;
-        const g: GroupView = byGroup.get(p.group_id) ?? { id: p.group_id, name: p.groups?.name ?? '', kids: [], slots: [], upcoming: [], results: [] };
-        g.kids.push(p.full_name);
-        byGroup.set(p.group_id, g);
+      if (all) {
+        // администратор: расписание всех групп
+        const gr = await supabase.from('groups').select('id, name').order('name');
+        if (gr.error) return setError(gr.error.message);
+        for (const x of (gr.data ?? []) as { id: string; name: string }[]) byGroup.set(x.id, { id: x.id, name: x.name, kids: [], slots: [], upcoming: [], results: [] });
+      } else {
+        const me = (await supabase.auth.getUser()).data.user?.id;
+        if (!me) return setError('Нет сессии');
+        const links = await supabase
+          .from('player_guardians')
+          .select('players(full_name, group_id, groups(name))')
+          .eq('user_id', me)
+          .is('consent_revoked_at', null);
+        if (links.error) return setError(links.error.message);
+        for (const l of (links.data ?? []) as any[]) {
+          const p = l.players;
+          if (!p?.group_id) continue;
+          const g: GroupView = byGroup.get(p.group_id) ?? { id: p.group_id, name: p.groups?.name ?? '', kids: [], slots: [], upcoming: [], results: [] };
+          g.kids.push(p.full_name);
+          byGroup.set(p.group_id, g);
+        }
       }
       const list = [...byGroup.values()];
       for (const g of list) {
@@ -49,9 +55,10 @@ export default function Schedule() {
           g.results = rows.filter(r => r.goals_for !== null && r.goals_against !== null).slice(0, 3);
         }
       }
-      setGroups(list);
+      // у администратора не показываем группы, о которых ничего нет (архивные, пустые)
+      setGroups(all ? list.filter(g => g.slots.length || g.upcoming.length || g.results.length) : list);
     })();
-  }, []);
+  }, [all]);
 
   if (error) return <Message title="Не удалось загрузить расписание" text={error} />;
   if (!groups) return <Message title="Загрузка…" />;
@@ -63,7 +70,7 @@ export default function Schedule() {
       {groups.map(g => (
         <section className="card" key={g.id}>
           <h2>{g.name}</h2>
-          <p className="muted">{g.kids.join(', ')}</p>
+          {g.kids.length > 0 && <p className="muted">{g.kids.join(', ')}</p>}
 
           <h3>Тренировки</h3>
           {g.slots.length === 0 && <p className="muted">Расписание пока не заполнено.</p>}
