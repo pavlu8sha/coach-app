@@ -13,6 +13,7 @@ import { buildPlan } from './events-plan.mjs';
 import { parsePayBlock, parseSessionsSheet, replayJournal } from './individual.mjs';
 import { buildIndividualPlan } from './individual-plan.mjs';
 import { buildPaymentsPlan } from './payments-plan.mjs';
+import { buildCampsPlan } from './camps.mjs';
 import { parseGamesLog } from './games-log.mjs';
 
 const norm = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -141,6 +142,14 @@ async function main() {
     oldFiles,
   });
   const birth = parseBirthDates(read('ADMIN_ID/ДАТЫ РОЖДЕНИЯ.csv'));
+  const campsPlan = buildCampsPlan({
+    campsCsv: read('ADMIN_ID/СБОРЫ.csv'),
+    tariffsCsv: read('ADMIN_ID/ТАРИФЫ СБОРОВ.csv'),
+    participantsCsv: read('ADMIN_ID/УЧАСТНИКИ СБОРОВ.csv'),
+    paymentsCsv: read('ADMIN_ID/ОПЛАТЫ СБОРОВ.csv'),
+    settingsCsv: read('ADMIN_ID/НАСТРОЙКИ.csv'),
+    registryPlayers: reg.players,
+  });
   const prepProblems = [
     ...plan.problems.map(p => `${p.id ?? ''}: ${p.error}`),
     ...plan.gamesProblems,
@@ -148,6 +157,7 @@ async function main() {
     ...equip.problems.map(p => `экипировка строка ${p.line}: ${p.error}`),
     ...paysPlan.problems.map(p => `оплаты строка ${p.line}: ${p.error}`),
     ...indPlan.problems.map(p => p.error),
+    ...campsPlan.problems.map(p => `сборы ${p.id ?? ''}: ${p.error}`),
     ...birth.problems.map(p => `даты рождения ${p.id}: ${p.error}`),
   ];
   if (plan.unmatched.length) prepProblems.push(`не найдены в реестре (события): ${plan.unmatched.join(', ')}`);
@@ -169,6 +179,11 @@ async function main() {
   const payments = await get('payments?select=id,player_id,amount,legacy_ref');
   const indSessions = await get(`individual_sessions?club_id=eq.${CLUB_ID}&select=id,external_id,starts_at`);
   const indBookings = await get('individual_bookings?select=session_id,player_id,paid');
+  const dbCamps = await get(`camps?club_id=eq.${CLUB_ID}&select=id,external_id,booking_fee,active`);
+  const dbCampTariffs = await get('camp_tariffs?select=id,camp_id,name,price,active');
+  const dbCampParticipants = await get('camp_participants?select=id,camp_id,player_id,external_id,tariff_id,amount,status');
+  const dbCampPayments = await get('camp_payments?select=id,camp_id,participant_id,player_id,amount,paid_on,kind,legacy_ref');
+  const dbSettings = await get(`club_settings?club_id=eq.${CLUB_ID}&select=key,scope,value,updated_at`);
 
   const idToExt = new Map(players.map(p => [p.id, p.external_id]));
   const playerExt = id => idToExt.get(id);
@@ -314,6 +329,35 @@ async function main() {
   const expGuests = new Set(indPlan.guests.map(g => indPlan.bookings.find(b => b.name === g)?.external_id).filter(Boolean));
   const dbGuests = new Set(players.filter(p => /^GUEST-/.test(p.external_id || '')).map(p => p.external_id));
   check('Индивидуальные: гости', expGuests.size, dbGuests.size, setDetails(expGuests, dbGuests));
+
+  // сборы и настройки
+  const expCampExt = new Set(campsPlan.camps.map(c => c.external_id));
+  const dbCampExt = new Map(dbCamps.map(c => [c.id, c.external_id]));
+  const campIds = new Set(dbCamps.filter(c => expCampExt.has(c.external_id)).map(c => c.id));
+  check('Сборы', expCampExt.size, dbCamps.length, setDetails(expCampExt, new Set(dbCamps.map(c => c.external_id))));
+
+  const expTariffs = new Set(campsPlan.tariffs.map(t => `${t.camp_ext}|${t.name}`));
+  const dbTariffs = new Set(dbCampTariffs.filter(t => campIds.has(t.camp_id)).map(t => `${dbCampExt.get(t.camp_id)}|${t.name}`));
+  check('Сборы: тарифы', expTariffs.size, dbTariffs.size, setDetails(expTariffs, dbTariffs));
+
+  const expCampParticipants = new Set(campsPlan.participants.map(p => `${p.camp_ext}|${p.external_id}`));
+  const dbCampParticipantsSet = new Set(dbCampParticipants.filter(p => campIds.has(p.camp_id)).map(p => `${dbCampExt.get(p.camp_id)}|${p.external_id}`));
+  check('Сборы: участники', expCampParticipants.size, dbCampParticipantsSet.size, setDetails(expCampParticipants, dbCampParticipantsSet));
+  const dbCampParticipantsClub = dbCampParticipants.filter(p => campIds.has(p.camp_id));
+  check('Сборы: записаны', campsPlan.counts.registered, dbCampParticipantsClub.filter(p => p.status === 'registered').length);
+  check('Сборы: отказ', campsPlan.counts.declined, dbCampParticipantsClub.filter(p => p.status === 'declined').length);
+
+  const expCampPays = new Map(campsPlan.payments.map(p => [p.legacy_ref, p.amount]));
+  const dbCampPays = new Map(dbCampPayments.filter(p => campIds.has(p.camp_id)).map(p => [p.legacy_ref, Number(p.amount)]));
+  check('Сборы: платежи', expCampPays.size, dbCampPays.size, mapDetails(expCampPays, dbCampPays));
+  check('Сборы: сумма платежей', [...expCampPays.values()].reduce((a, n) => a + n, 0), [...dbCampPays.values()].reduce((a, n) => a + n, 0));
+
+  const expSettings = new Map(campsPlan.settings.map(s => [`${s.key}|${s.scope}`, s.value]));
+  const dbSettingsMap = new Map(dbSettings.map(s => [`${s.key}|${s.scope}`, s.value]));
+  check('Настройки', expSettings.size, dbSettingsMap.size, setDetails(new Set(expSettings.keys()), new Set(dbSettingsMap.keys())));
+  const settingsDiff = [...expSettings].filter(([k, v]) => dbSettingsMap.has(k) && dbSettingsMap.get(k) !== v);
+  check('Настройки: значения', expSettings.size, expSettings.size - settingsDiff.length - [...expSettings.keys()].filter(k => !dbSettingsMap.has(k)).length,
+    settingsDiff.slice(0, 20).map(([k, v]) => `${k}: ожидалось ${v ?? 'пусто'}, в базе ${dbSettingsMap.get(k) ?? 'пусто'}`));
 
   // даты рождения — отдельный отчёт, не в основной таблице
   const dbBirth = new Map(players.map(p => [p.external_id, p.birth_date ? String(p.birth_date).slice(0, 10) : null]));
