@@ -19,7 +19,7 @@ select is(
 
 select is(
   (select coalesce(string_agg(p.proname, ', ' order by p.proname), '') from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname in ('apply_match_points', 'claim_notifications', 'enqueue_notification', 'enqueue_to_admins', 'finish_notification', 'notify_link_request', 'notify_data_request', 'rate_limit_hit', 'rule_for', 'tariff_for')
+    where n.nspname = 'public' and p.proname in ('apply_match_points', 'claim_notifications', 'enqueue_notification', 'enqueue_to_admins', 'enqueue_to_guardians', 'notify_coach_group', 'notify_payment', 'notify_bonus', 'lead_submit', 'ind_book', 'ind_assert_admin', 'ind_price', 'ind_cap', 'eq_assert_admin', 'eq_number_taken', 'eq_price', 'camp_assert_admin', 'tl_assert_admin', 'finish_notification', 'notify_link_request', 'notify_data_request', 'rate_limit_hit', 'rule_for', 'tariff_for')
       and has_function_privilege('authenticated', p.oid, 'execute')),
   '', 'служебные функции недоступны из приложения');
 
@@ -32,7 +32,13 @@ select is(
         'is_coach_of_subscription', 'is_guardian_in_group', 'is_guardian_of', 'is_self_player', 'mark_attendance', 'open_session',
         'parent_debts', 'recalc_match_points', 'redeem_child_code', 'reject_data_request', 'request_data_deletion', 'request_link',
         'retry_link', 'revoke_bonus', 'revoke_consent', 'save_match', 'search_players_for_link', 'set_my_role', 'set_notifications',
-        'unlink_child')),
+        'unlink_child',
+        -- функции администратора из следующих миграций (0032–0039): внутри каждой проверяется is_admin()
+        'create_subscription_month', 'ind_create_session', 'ind_add_player', 'ind_set_paid', 'ind_remove_player', 'ind_edit_session', 'ind_delete_session',
+        'ind_set_regular', 'ind_set_attended', 'extra_create_session', 'extra_edit_session', 'extra_delete_session', 'extra_add_player', 'extra_remove_player',
+        'extra_set_paid', 'extra_set_attended', 'eq_create_order', 'eq_edit_order', 'eq_add_payment', 'eq_set_issued', 'eq_delete_order', 'eq_catalog_save',
+        'camp_save', 'camp_tariff_save', 'camp_register', 'camp_update_participant', 'camp_pay', 'camp_cancel_payment', 'tl_add', 'tl_confirm',
+        'tl_set_held', 'tl_replace_coach', 'lead_set_status')),
   '', 'список функций, доступных вошедшим пользователям, не расширился без решения');
 
 select is(
