@@ -1,7 +1,7 @@
 -- pgTAP: ручные баллы тренера и контакты родителей группы.
 begin;
 create extension if not exists pgtap;
-select plan(21);
+select plan(22);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -20,10 +20,13 @@ insert into coach_groups (user_id, group_id) values
 insert into players (id, club_id, group_id, full_name) values
   ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-0000000000e1', 'Игрок 1'),
   ('00000000-0000-0000-0000-00000000d009', '00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-0000000000e2', 'Игрок 9');
+insert into consent_versions (version, coach_contacts) values ('with-contacts', true), ('old-text', false);
+insert into users (id, telegram_id, display_name) values ('00000000-0000-0000-0000-0000000000b4', 7007, 'Мама по старому согласию');
 insert into player_guardians (player_id, user_id, consent_version, consent_given_at, consent_revoked_at) values
-  ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000000b1', 'test', now(), null),
-  ('00000000-0000-0000-0000-00000000d009', '00000000-0000-0000-0000-0000000000b2', 'test', now(), null),
-  ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000000b3', 'test', now(), now());
+  ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000000b1', 'with-contacts', now(), null),
+  ('00000000-0000-0000-0000-00000000d009', '00000000-0000-0000-0000-0000000000b2', 'with-contacts', now(), null),
+  ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000000b3', 'with-contacts', now(), now()),
+  ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000000b4', 'old-text', now(), null);
 insert into rules (club_id, code, points, explanation, active_from) values
   ('00000000-0000-0000-0000-00000000c001', 'coach_bonus', 1, 'Отметка тренера', '2026-01-01'),
   ('00000000-0000-0000-0000-00000000c001', 'attendance_present', 1, 'Пришёл на тренировку', '2026-01-01');
@@ -73,9 +76,10 @@ select lives_ok($$select revoke_bonus((select id from point_events where source_
 select is((select count(*)::int from point_events), 1, 'остаётся только автоначисление');
 
 -- Контакты родителей
-select is((select count(*)::int from group_parents('00000000-0000-0000-0000-0000000000e1')), 1, 'тренер видит родителя своей группы (без отозвавшего согласие)');
+select is((select count(*)::int from group_parents('00000000-0000-0000-0000-0000000000e1')), 1, 'тренер видит родителя своей группы (без отозвавшего согласие и без согласившегося на старый текст)');
 select is((select telegram_id from group_parents('00000000-0000-0000-0000-0000000000e1')), 7004::bigint, 'контакт — Telegram родителя');
 select throws_ok($$select * from group_parents('00000000-0000-0000-0000-0000000000e2')$$, '42501', 'forbidden', 'контакты чужой группы тренеру недоступны');
+select is((select count(*)::int from group_parents('00000000-0000-0000-0000-0000000000e1') where parent_name = 'Мама по старому согласию'), 0, 'родитель, согласившийся на старый текст, в контактах не показывается');
 select as_user('00000000-0000-0000-0000-0000000000b1');
 select throws_ok($$select * from group_parents('00000000-0000-0000-0000-0000000000e1')$$, '42501', 'forbidden', 'родитель не видит контакты других родителей');
 
