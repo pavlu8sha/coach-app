@@ -15,5 +15,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: node --test tests/*.mjs
-        run: node --test tests/*.mjs
+      - name: node --test (приложение, импорт, вход через Telegram)
+        run: node --test tests/*.mjs tests/import/*.test.mjs tests/edge/*.test.mjs
