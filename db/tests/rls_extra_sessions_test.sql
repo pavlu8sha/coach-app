@@ -1,7 +1,7 @@
 -- pgTAP: дополнительные тренировки для администратора (0035).
 begin;
 create extension if not exists pgtap;
-select plan(11);
+select plan(12);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб'), ('00000000-0000-0000-0000-00000000c002', 'Чужой клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -30,6 +30,8 @@ select extra_add_player((select id from sid), '00000000-0000-0000-0000-00000000d
 select throws_ok($$select extra_add_player((select id from sid), '00000000-0000-0000-0000-00000000d001')$$, '23505', 'already booked', 'дважды записать нельзя');
 select throws_ok($$select extra_add_player((select id from sid), '00000000-0000-0000-0000-00000000d009')$$, '22023', 'player not in club', 'игрок чужого клуба отклоняется');
 
+select extra_set_attended((select id from sid), '00000000-0000-0000-0000-00000000d001', true);
+select is((select attended from extra_bookings where session_id = (select id from sid)), true, 'посещение отмечается');
 select extra_set_paid((select id from sid), '00000000-0000-0000-0000-00000000d001', true, 'Наличные');
 select is((select paid_amount from extra_bookings where session_id = (select id from sid)), 20::numeric, 'оплата по умолчанию на сумму тренировки');
 select throws_ok($$select extra_remove_player((select id from sid), '00000000-0000-0000-0000-00000000d001')$$, '22023', 'booking is paid', 'оплаченную запись убрать нельзя');

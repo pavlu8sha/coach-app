@@ -5,7 +5,7 @@ import { EmptyState, ListRow, Pill, SearchInput, Segmented } from '../ui/compone
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 
-interface Booking { player_id: string; paid: boolean; paid_amount: number | null; method: string | null; players: { full_name: string } | null }
+interface Booking { player_id: string; paid: boolean; attended: boolean | null; paid_amount: number | null; method: string | null; players: { full_name: string } | null }
 interface Session { id: string; starts_on: string; amount: number; place: string | null; extra_bookings: Booking[] }
 interface DebtRow { player_id: string; players: { full_name: string } | null; extra_sessions: { starts_on: string; amount: number } }
 
@@ -33,7 +33,7 @@ export default function Extra() {
         if (r.error) return setError(r.error.message.includes('extra_') ? 'Модуль ещё не установлен в базе (миграция 0035).' : coachError(r.error.message));
         return setDebts((r.data ?? []) as unknown as DebtRow[]);
       }
-      const q = supabase.from('extra_sessions').select('id, starts_on, amount, place, extra_bookings(player_id, paid, paid_amount, method, players(full_name))');
+      const q = supabase.from('extra_sessions').select('id, starts_on, amount, place, extra_bookings(player_id, paid, attended, paid_amount, method, players(full_name))');
       const r = tab === 'next' ? await q.gt('starts_on', today()).order('starts_on').limit(60) : await q.lte('starts_on', today()).order('starts_on', { ascending: false }).limit(60);
       if (r.error) return setError(r.error.message.includes('extra_') ? 'Модуль ещё не установлен в базе (миграция 0035).' : coachError(r.error.message));
       setList((r.data ?? []) as unknown as Session[]);
@@ -120,7 +120,7 @@ function View({ session, onBack }: { session: Session; onBack: () => void }) {
   const [gone, setGone] = useState(false);
 
   const refresh = async () => {
-    const r = await supabase.from('extra_bookings').select('player_id, paid, paid_amount, method, players(full_name)').eq('session_id', session.id);
+    const r = await supabase.from('extra_bookings').select('player_id, paid, attended, paid_amount, method, players(full_name)').eq('session_id', session.id);
     if (!r.error) setBookings((r.data ?? []) as unknown as Booking[]);
   };
   useEffect(() => { if (gone) onBack(); }, [gone]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -163,6 +163,9 @@ function View({ session, onBack }: { session: Session; onBack: () => void }) {
           <div className="ks-line">
             <b style={{ overflowWrap: 'anywhere' }}>{b.players?.full_name ?? 'Игрок'}</b>
             <Pill tone={b.paid ? 'success' : 'danger'} dot>{b.paid ? `${gel(Number(b.paid_amount ?? session.amount))}${b.method ? ` · ${b.method}` : ''}` : 'Не оплачено'}</Pill>
+          </div>
+          <div style={{ marginTop: 8 }}>
+            <Segmented label={`Посещение: ${b.players?.full_name ?? ''}`} value={b.attended === true ? 'yes' : b.attended === false ? 'no' : 'none'} onChange={v => void run('t' + b.player_id, () => supabase.rpc('extra_set_attended', { s: session.id, p: b.player_id, was: v === 'yes' ? true : v === 'no' ? false : null }))} items={[{ value: 'yes', label: 'Был(а)' }, { value: 'no', label: 'Нет' }, { value: 'none', label: '—' }]} />
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
             <button type="button" className="ks-btn secondary" style={{ width: 'auto' }} disabled={busy === b.player_id} onClick={() => void run(b.player_id, () => supabase.rpc('extra_set_paid', { s: session.id, p: b.player_id, is_paid: !b.paid, mth: method }))}>

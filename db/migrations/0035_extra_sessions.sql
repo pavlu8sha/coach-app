@@ -15,6 +15,7 @@ create table extra_bookings (
   paid boolean not null default false,
   paid_amount numeric(10,2),
   method text,
+  attended boolean, -- null — не отмечено, true — был, false — не пришёл
   primary key (session_id, player_id)
 );
 alter table extra_sessions enable row level security;
@@ -95,7 +96,15 @@ begin
   if not found then raise exception 'booking not found' using errcode = 'P0002'; end if;
 end $$;
 
+create or replace function extra_set_attended(s uuid, p uuid, was boolean) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not is_admin() then raise exception 'forbidden' using errcode = '42501'; end if;
+  update extra_bookings set attended = was where session_id = s and player_id = p;
+  if not found then raise exception 'booking not found' using errcode = 'P0002'; end if;
+end $$;
+
 revoke execute on function extra_create_session(date, numeric, text), extra_edit_session(uuid, date, numeric, text), extra_delete_session(uuid),
-  extra_add_player(uuid, uuid), extra_remove_player(uuid, uuid), extra_set_paid(uuid, uuid, boolean, text, numeric) from public, anon;
+  extra_add_player(uuid, uuid), extra_remove_player(uuid, uuid), extra_set_paid(uuid, uuid, boolean, text, numeric), extra_set_attended(uuid, uuid, boolean) from public, anon;
 grant execute on function extra_create_session(date, numeric, text), extra_edit_session(uuid, date, numeric, text), extra_delete_session(uuid),
-  extra_add_player(uuid, uuid), extra_remove_player(uuid, uuid), extra_set_paid(uuid, uuid, boolean, text, numeric) to authenticated;
+  extra_add_player(uuid, uuid), extra_remove_player(uuid, uuid), extra_set_paid(uuid, uuid, boolean, text, numeric), extra_set_attended(uuid, uuid, boolean) to authenticated;
