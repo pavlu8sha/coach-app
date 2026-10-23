@@ -37,7 +37,7 @@ export default function Debtors() {
   useEffect(() => {
     void (async () => {
       const d = await supabase.rpc('debtors', { m: month });
-      if (d.error) return setError(d.error.message.includes('Could not find the function') ? 'Функция расчёта долга ещё не установлена в базе (миграция 0022).' : d.error.message);
+      if (d.error) return setError(d.error.message.includes('Could not find the function') ? 'Функция расчёта долга ещё не установлена в базе (миграция 0023).' : d.error.message);
       const s = await supabase.from('subscriptions').select('id, player_id, players(full_name)').eq('month', month).eq('discount', true);
       if (s.error) return setError(s.error.message);
       const c = await supabase.from('clubs').select('id').limit(1);

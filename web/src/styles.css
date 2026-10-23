@@ -45,3 +45,17 @@ h3 { font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color
 .debt { margin: 10px 0 14px; padding: 10px 12px; border-radius: 12px; background: var(--ks-warning-subtle); color: var(--ks-warning); }
 .debt-row { margin-top: 8px; }
 .debt-sub { font-size: 0.85rem; opacity: 0.85; }
+
+/* формы администратора */
+.field { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; font-size: 0.85rem; color: var(--muted, inherit); }
+.field input, .field select { font-size: 1rem; padding: 12px; min-height: var(--ks-tap); border-radius: var(--ks-radius); border: 1px solid var(--ks-border-strong); background: var(--bg-2); color: var(--fg); }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.card.inner { box-shadow: none; margin: 8px 0 0; }
+.link-btn { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; text-align: left; }
+.check.agree { align-items: flex-start; margin-top: 14px; font-size: 0.9rem; line-height: 1.4; }
+.check.agree input { flex: none; margin-top: 2px; }
+.check.agree .link-btn { text-decoration: underline; }
+
+/* выбор роли */
+.ks-row.role { align-items: flex-start; padding: 14px; }
+.role-icon { flex: none; width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; background: var(--bg); color: var(--accent); }

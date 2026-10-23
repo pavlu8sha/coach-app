@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import Message, { Failure, Loading } from './Message';
+import SlotEdit, { type SlotForm } from './SlotEdit';
 
-interface Slot { weekday: number; starts_at: string; ends_at: string | null; location: string | null; kind: string; coaches: string | null }
+interface Slot { id: string; weekday: number; starts_at: string; ends_at: string | null; location: string | null; kind: string; coaches: string | null }
 interface Match { id: string; played_on: string; opponent: string | null; goals_for: number | null; goals_against: number | null }
 interface GroupView { id: string; name: string; kids: string[]; slots: Slot[]; upcoming: Match[]; results: Match[] }
 
@@ -12,10 +13,11 @@ const fmtDate = (iso: string) => iso.split('-').reverse().slice(0, 2).join('.');
 const today = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD по местному времени телефона
 
 // Расписание и матчи групп, в которых играют дети текущего пользователя.
-export default function Schedule({ all = false }: { all?: boolean }) {
+export default function Schedule({ all = false, editable = all }: { all?: boolean; editable?: boolean }) {
   const [groups, setGroups] = useState<GroupView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [editing, setEditing] = useState<{ group: string; slot: SlotForm; key: string } | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -44,7 +46,7 @@ export default function Schedule({ all = false }: { all?: boolean }) {
       }
       const list = [...byGroup.values()];
       for (const g of list) {
-        const sl = await supabase.from('weekly_schedule').select('weekday, starts_at, ends_at, location, kind, coaches').eq('group_id', g.id).order('weekday').order('starts_at');
+        const sl = await supabase.from('weekly_schedule').select('id, weekday, starts_at, ends_at, location, kind, coaches').eq('group_id', g.id).order('weekday').order('starts_at');
         if (sl.error) return setError(sl.error.message);
         g.slots = (sl.data ?? []) as Slot[];
         if (g.name) {
@@ -57,7 +59,7 @@ export default function Schedule({ all = false }: { all?: boolean }) {
         }
       }
       // у администратора не показываем группы, о которых ничего нет (архивные, пустые)
-      setGroups(all ? list.filter(g => g.slots.length || g.upcoming.length || g.results.length) : list);
+      setGroups(all ? list.filter(g => g.slots.length || g.upcoming.length || g.results.length || editable) : list);
     })();
   }, [all, reload]);
 
@@ -65,6 +67,10 @@ export default function Schedule({ all = false }: { all?: boolean }) {
   if (!groups) return <Loading />;
   if (!groups.length) return <Message title="Расписание" text="Расписание появится, когда администратор подтвердит связь с ребёнком." />;
 
+  const done = () => {
+    setEditing(null);
+    setReload(n => n + 1);
+  };
   return (
     <main className="page">
       <h1>Расписание</h1>
@@ -76,17 +82,35 @@ export default function Schedule({ all = false }: { all?: boolean }) {
           <h3>Тренировки</h3>
           {g.slots.length === 0 && <p className="muted">Расписание пока не заполнено.</p>}
           <ul className="events">
-            {g.slots.map((s, i) => (
-              <li key={i}>
-                <span>
-                  <strong>{DAYS[s.weekday]}</strong> {hm(s.starts_at)}
-                  {s.ends_at ? `–${hm(s.ends_at)}` : ''}
-                  {s.kind !== 'Групповая' && <span className="muted"> · {s.kind}</span>}
-                </span>
-                <span className="muted">{s.location ?? ''}</span>
+            {g.slots.map(s => (
+              <li key={s.id} style={editable && editing?.key === s.id ? { display: 'block' } : undefined}>
+                {editable && editing?.key === s.id ? (
+                  <SlotEdit groupId={g.id} initial={editing.slot} onDone={done} onCancel={() => setEditing(null)} />
+                ) : (
+                  <>
+                    <span>
+                      <strong>{DAYS[s.weekday]}</strong> {hm(s.starts_at)}
+                      {s.ends_at ? `–${hm(s.ends_at)}` : ''}
+                      {s.kind !== 'Групповая' && <span className="muted"> · {s.kind}</span>}
+                    </span>
+                    <span className="muted">{s.location ?? ''}</span>
+                    {editable && (
+                      <button className="btn small ghost" onClick={() => setEditing({ group: g.id, key: s.id, slot: s })}>
+                        Изменить
+                      </button>
+                    )}
+                  </>
+                )}
               </li>
             ))}
           </ul>
+          {editable && (editing?.key === `new-${g.id}` ? (
+            <SlotEdit groupId={g.id} initial={editing.slot} onDone={done} onCancel={() => setEditing(null)} />
+          ) : (
+            <button className="btn small ghost" style={{ marginTop: 8 }} onClick={() => setEditing({ group: g.id, key: `new-${g.id}`, slot: { weekday: 1, starts_at: '', ends_at: null, location: null, kind: 'Групповая', coaches: null } })}>
+              Добавить тренировку
+            </button>
+          ))}
 
           {g.upcoming.length > 0 && (
             <>

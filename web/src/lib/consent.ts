@@ -5,7 +5,7 @@ export const CONSENT_VERSION = 'draft-2026-10-v2';
 
 export type Lang = 'ru' | 'en';
 
-export const CONSENT: Record<Lang, { title: string; points: string[]; checkbox: string }> = {
+export const CONSENT: Record<Lang, { title: string; points: string[]; checkbox: string; agree: [string, string, string] }> = {
   ru: {
     title: 'Согласие на показ данных ребёнка',
     points: [
@@ -17,6 +17,7 @@ export const CONSENT: Record<Lang, { title: string; points: string[]; checkbox: 
       'Я могу отозвать согласие в любой момент, написав администратору клуба: связь с ребёнком будет отключена.',
     ],
     checkbox: 'Я прочитал(а) и согласен(на)',
+    agree: ['Отправляя запрос, я соглашаюсь с ', 'Политикой конфиденциальности', ' и даю согласие на показ данных ребёнка.'],
   },
   en: {
     title: 'Consent to show my child’s data',
@@ -29,5 +30,6 @@ export const CONSENT: Record<Lang, { title: string; points: string[]; checkbox: 
       'I can withdraw my consent at any time by writing to the club administrator: the link to my child will be disabled.',
     ],
     checkbox: 'I have read and agree',
+    agree: ['By sending the request, I agree to the ', 'Privacy Policy', ' and consent to my child’s data being shown to me.'],
   },
 };

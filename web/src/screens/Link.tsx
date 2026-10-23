@@ -15,6 +15,7 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [agreed, setAgreed] = useState(false);
+  const [policy, setPolicy] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [lang, setLang] = useState<Lang>(preferredLang());
   const c = CONSENT[lang];
@@ -75,23 +76,31 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
           Найти
         </button>
       </form>
-      <div className="consent">
-        <div className="row">
-          <strong>{c.title}</strong>
-          <button type="button" className="lang" onClick={() => setLang(lang === 'ru' ? 'en' : 'ru')}>
-            {lang === 'ru' ? 'EN' : 'RU'}
+      <label className="check agree">
+        <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} />
+        <span>
+          {c.agree[0]}
+          <button type="button" className="link-btn" onClick={() => setPolicy(p => !p)} aria-expanded={policy}>
+            {c.agree[1]}
           </button>
+          {c.agree[2]}
+        </span>
+      </label>
+      {policy && (
+        <div className="consent">
+          <div className="row">
+            <strong>{c.title}</strong>
+            <button type="button" className="lang" onClick={() => setLang(lang === 'ru' ? 'en' : 'ru')}>
+              {lang === 'ru' ? 'EN' : 'RU'}
+            </button>
+          </div>
+          <ul>
+            {c.points.map((t, i) => (
+              <li key={i}>{t}</li>
+            ))}
+          </ul>
         </div>
-        <ul>
-          {c.points.map((t, i) => (
-            <li key={i}>{t}</li>
-          ))}
-        </ul>
-        <label className="check">
-          <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} />
-          <span>{c.checkbox}</span>
-        </label>
-      </div>
+      )}
       {error && <p className="error">{error}</p>}
       {found && found.length === 0 && <p className="muted">Ничего не найдено. Проверьте написание.</p>}
       {found && found.length > 0 && !native && (
