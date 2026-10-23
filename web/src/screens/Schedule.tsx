@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import Message from './Message';
+import Message, { Loading } from './Message';
 
 interface Slot { weekday: number; starts_at: string; ends_at: string | null; location: string | null; kind: string; coaches: string | null }
 interface Match { id: string; played_on: string; opponent: string | null; goals_for: number | null; goals_against: number | null }
@@ -61,7 +61,7 @@ export default function Schedule({ all = false }: { all?: boolean }) {
   }, [all]);
 
   if (error) return <Message title="Не удалось загрузить расписание" text={error} />;
-  if (!groups) return <Message title="Загрузка…" />;
+  if (!groups) return <Loading />;
   if (!groups.length) return <Message title="Расписание" text="Расписание появится, когда администратор подтвердит связь с ребёнком." />;
 
   return (

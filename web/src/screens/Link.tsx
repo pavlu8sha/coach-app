@@ -2,14 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { CONSENT, CONSENT_VERSION, type Lang } from '../lib/consent';
 import { supabase } from '../lib/supabase';
 import { preferredLang } from '../lib/telegram';
+import { ListRow, Pill } from '../ui/components';
+import { STATUS, type Req } from './LinkStatus';
 
 interface Found { player_id: string; full_name: string; group_name: string | null }
-interface Req { id: string; status: 'pending' | 'approved' | 'rejected'; players: { full_name: string } | null }
-
-const STATUS = { pending: 'ждёт подтверждения', approved: 'подтверждено', rejected: 'отклонено' } as const;
-
 // Родитель ищет ребёнка по имени и отправляет запрос; связь создаёт администратор.
-export default function Link({ onApproved }: { onApproved?: () => void }) {
+export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => void; onOpenStatus?: () => void }) {
   const [q, setQ] = useState('');
   const [found, setFound] = useState<Found[] | null>(null);
   const [reqs, setReqs] = useState<Req[]>([]);
@@ -51,6 +49,7 @@ export default function Link({ onApproved }: { onApproved?: () => void }) {
     if (r.error) return setError(r.error.message.includes('consent') ? 'Нужно согласие. Отметьте его ниже.' : r.error.message.includes('too many') ? 'Слишком много неподтверждённых запросов. Дождитесь ответа администратора.' : r.error.message);
     setFound(f => (f ?? []).filter(x => x.player_id !== id));
     await loadReqs();
+    onOpenStatus?.(); // показать статус только что отправленного запроса
   };
 
   return (
@@ -103,15 +102,14 @@ export default function Link({ onApproved }: { onApproved?: () => void }) {
           ))}
         </ul>
       )}
-      {reqs.length > 0 && (
-        <ul className="events reqs">
-          {reqs.map(r => (
-            <li key={r.id}>
-              <span>{r.players?.full_name ?? 'Игрок'}</span>
-              <span className="muted">{STATUS[r.status]}</span>
-            </li>
-          ))}
-        </ul>
+      {reqs.length > 0 && onOpenStatus && (
+        <div className="reqs">
+          <ListRow
+            title="Статус запросов"
+            sub={[`Всего: ${reqs.length}`, ...(reqs.some(r => r.status === 'pending') ? [<Pill tone={STATUS.pending.tone} dot>{STATUS.pending.label}</Pill>] : [])]}
+            onClick={onOpenStatus}
+          />
+        </div>
       )}
     </section>
   );

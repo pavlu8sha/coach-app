@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import Link from './Link';
-import Message from './Message';
+import LinkStatus from './LinkStatus';
+import Message, { Loading } from './Message';
 
 interface Child {
   id: string;
@@ -19,6 +20,12 @@ export default function Home({ isAdmin = false }: { isAdmin?: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [showLink, setShowLink] = useState(false);
+  const [statusOpen, setStatusOpen] = useState(false);
+  const openStatus = () => setStatusOpen(true);
+  const closeStatus = () => {
+    setStatusOpen(false);
+    setReload(n => n + 1); // после просмотра статусов подтянуть новых детей
+  };
 
   useEffect(() => {
     void (async () => {
@@ -52,7 +59,8 @@ export default function Home({ isAdmin = false }: { isAdmin?: boolean }) {
   }, [reload]);
 
   if (error) return <Message title="Не удалось загрузить данные" text={error} />;
-  if (!children) return <Message title="Загрузка…" />;
+  if (!children) return <Loading />;
+  if (statusOpen) return <LinkStatus onBack={closeStatus} />;
   if (!children.length) {
     // Администратору форма поиска ребёнка не нужна: он подтверждает запросы родителей во вкладке «Запросы»
     if (isAdmin && !showLink) {
@@ -70,7 +78,7 @@ export default function Home({ isAdmin = false }: { isAdmin?: boolean }) {
       <main className="page">
         <h1>Мой ребёнок</h1>
         <p className="muted" style={{ marginBottom: 14 }}>Найдите ребёнка, чтобы смотреть его баллы. Администратор клуба подтвердит запрос.</p>
-        <Link onApproved={() => setReload(n => n + 1)} />
+        <Link onApproved={() => setReload(n => n + 1)} onOpenStatus={openStatus} />
       </main>
     );
   }
@@ -103,7 +111,7 @@ export default function Home({ isAdmin = false }: { isAdmin?: boolean }) {
           )}
         </section>
       ))}
-      <Link onApproved={() => setReload(n => n + 1)} />
+      <Link onApproved={() => setReload(n => n + 1)} onOpenStatus={openStatus} />
     </main>
   );
 }
