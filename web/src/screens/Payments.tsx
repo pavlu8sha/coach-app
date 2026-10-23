@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import Message, { Loading } from './Message';
+import Message, { Failure, Loading } from './Message';
 
 interface Kid { id: string; name: string; months: { month: string; sum: number }[] }
 
@@ -15,6 +15,7 @@ const monthName = (iso: string) => {
 export default function Payments() {
   const [kids, setKids] = useState<Kid[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     void (async () => {
@@ -38,9 +39,9 @@ export default function Payments() {
       }
       setKids(list);
     })();
-  }, []);
+  }, [reload]);
 
-  if (error) return <Message title="Не удалось загрузить оплаты" text={error} />;
+  if (error) return <Failure title="Не удалось загрузить оплаты" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   if (!kids) return <Loading />;
   if (!kids.length) return <Message title="Оплата" text="Оплаты появятся, когда администратор подтвердит связь с ребёнком." />;
 

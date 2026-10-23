@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import Link from './Link';
 import LinkStatus from './LinkStatus';
-import Message, { Loading } from './Message';
+import { Failure, Loading } from './Message';
 
 interface Child {
   id: string;
@@ -21,6 +21,10 @@ export default function Home({ isAdmin = false }: { isAdmin?: boolean }) {
   const [reload, setReload] = useState(0);
   const [showLink, setShowLink] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
+  const retry = () => {
+    setError(null);
+    setReload(n => n + 1);
+  };
   const openStatus = () => setStatusOpen(true);
   const closeStatus = () => {
     setStatusOpen(false);
@@ -58,7 +62,7 @@ export default function Home({ isAdmin = false }: { isAdmin?: boolean }) {
     })();
   }, [reload]);
 
-  if (error) return <Message title="Не удалось загрузить данные" text={error} />;
+  if (error) return <Failure title="Не удалось загрузить данные" text={error} onRetry={retry} />;
   if (!children) return <Loading />;
   if (statusOpen) return <LinkStatus onBack={closeStatus} />;
   if (!children.length) {
