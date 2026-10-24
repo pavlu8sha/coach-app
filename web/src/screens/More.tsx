@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { CoachGroup } from '../lib/coach';
 import { ListRow } from '../ui/components';
+import NotifyToggle from '../ui/NotifyToggle';
 import AdminPayments from './AdminPayments';
 import AdminPrices from './AdminPrices';
 import Coaches from './Coaches';
@@ -39,6 +40,7 @@ export default function More({ groups }: { groups: CoachGroup[] }) {
       <ListRow title="Пересчёт баллов за матчи" sub={['Привести баллы к новой схеме']} onClick={() => setSub('recalc')} />
       <ListRow title="Должники" sub={['Долг по абонементам, скидки, показ родителям']} onClick={() => setSub('debtors')} />
       <ListRow title="Тренеры" sub={['Назначение групп тренерам']} onClick={() => setSub('coaches')} />
+      <NotifyToggle hint="Бот пришлёт сообщение о новых запросах на привязку и на удаление данных. Чтобы сообщения приходили, один раз нажмите «Старт» в чате с ботом клуба." />
     </main>
   );
 }
