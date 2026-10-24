@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import Message from './Message';
+import Message, { Splash } from './Message';
 
 interface Pending {
   id: string;
@@ -62,7 +62,7 @@ export default function Admin() {
   };
 
   if (error) return <Message title="Ошибка" text={error} />;
-  if (!rows) return <Message title="Загрузка…" />;
+  if (!rows) return <Splash />;
   return (
     <main className="page">
       <h1>Запросы родителей</h1>
