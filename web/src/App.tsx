@@ -170,7 +170,7 @@ function Shell() {
           admin
             ? [
                 { value: 'admin', label: 'Запросы', icon: 'inbox' },
-                { value: 'players', label: 'Дети', icon: 'users' },
+                { value: 'players', label: 'Игроки', icon: 'users' },
                 { value: 'sessions', label: 'Занятия', icon: 'calendar' },
                 { value: 'cmatches', label: 'Матчи', icon: 'trophy' },
                 { value: 'more', label: 'Ещё', icon: 'more' },
