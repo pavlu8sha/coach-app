@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { getThemePref, saveThemePref, type ThemePref } from '../lib/theme';
 import { applyTelegramTheme } from '../ui/telegram-theme';
 import { Avatar, ListRow, Segmented } from '../ui/components';
+import HomeScreenPrompt from '../ui/HomeScreenPrompt';
 import NotifyToggle from '../ui/NotifyToggle';
 import MyData from './MyData';
 import MyKids from './MyKids';
@@ -55,6 +56,7 @@ export default function Profile() {
         ]}
       />
 
+      <HomeScreenPrompt />
       <NotifyToggle hint="Бот пришлёт сообщение, когда администратор ответит на запрос о ребёнке, при оплате и при баллах от тренера. Чтобы сообщения приходили, один раз нажмите «Старт» в чате с ботом клуба." />
 
       {confirm ? (
