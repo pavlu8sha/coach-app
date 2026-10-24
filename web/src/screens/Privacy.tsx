@@ -9,7 +9,7 @@ export default function Privacy({ onBack }: { onBack: () => void }) {
   const [lang, setLang] = useState<Lang>(preferredLang());
   const c = CONSENT[lang];
   return (
-    <section className="card">
+    <section className="ks-card">
       <BackNav onBack={onBack} />
       <div className="row">
         <h2>{lang === 'ru' ? 'Политика конфиденциальности' : 'Privacy Policy'}</h2>

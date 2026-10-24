@@ -29,7 +29,7 @@ export function ChildCode({ onLinked }: { onLinked: () => void }) {
   return (
     <main className="page">
       <h1>Мои баллы</h1>
-      <section className="card">
+      <section className="ks-card">
         <h2>Введите код</h2>
         <p className="muted">Код создаёт родитель в приложении: «Профиль», «Мои дети», «Код для ребёнка». Он действует 3 дня.</p>
         <form
@@ -40,7 +40,7 @@ export function ChildCode({ onLinked }: { onLinked: () => void }) {
           }}
         >
           <input value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="КОД" maxLength={8} autoComplete="off" autoCapitalize="characters" aria-label="Код от родителя" />
-          <button className="btn" disabled={busy || code.trim().length < 8}>
+          <button className="ks-btn" disabled={busy || code.trim().length < 8}>
             Привязать
           </button>
         </form>
@@ -73,7 +73,7 @@ export default function ChildHome({ player }: { player: ChildPlayer }) {
   return (
     <main className="page">
       <h1>Мои баллы</h1>
-      <section className="card">
+      <section className="ks-card">
         <div className="row">
           <div>
             <h2>{player.name}</h2>
@@ -86,16 +86,16 @@ export default function ChildHome({ player }: { player: ChildPlayer }) {
         </div>
         <p className="muted">Матчей сыграно: {t.played} · голов: {t.goals}</p>
         {t.recent.length > 0 ? (
-          <ul className="events">
+          <div>
             {t.recent.map((e, i) => (
-              <li key={i}>
+              <div className="ks-slot" key={i}>
                 <span>{e.explanation}</span>
                 <span className="muted">
                   {fmtDate(e.occurred_on)} · {e.points > 0 ? '+' : ''}{e.points}
                 </span>
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
         ) : (
           <EmptyState icon="trophy" title="Пока нет баллов" text="Баллы появятся после тренировок и матчей." />
         )}

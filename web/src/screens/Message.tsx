@@ -7,7 +7,7 @@ export default function Message(props: { title: string; text?: string; action?: 
       <h1>{props.title}</h1>
       {props.text && <p className="muted">{props.text}</p>}
       {props.action && (
-        <button className="btn" onClick={props.action.run}>
+        <button className="ks-btn" onClick={props.action.run}>
           {props.action.label}
         </button>
       )}

@@ -125,3 +125,4 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 .ks-slot-main { min-width: 0; line-height: 1.35; }
 .ks-slot-main .ks-muted { display: block; font-size: 13px; }
 .ks-slot-end { white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--ks-text-muted); }
+.ks-slot > span:last-child:not(:only-child) { white-space: nowrap; font-variant-numeric: tabular-nums; }

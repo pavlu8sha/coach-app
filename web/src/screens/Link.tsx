@@ -63,7 +63,7 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
   if (policy) return <Privacy onBack={() => setPolicy(false)} />;
 
   return (
-    <section className="card">
+    <section className="ks-card">
       <h2>Добавить ребёнка</h2>
       <p className="muted">Введите фамилию или имя (от 3 букв). Администратор клуба подтвердит, что это ваш ребёнок.</p>
       <form
@@ -74,7 +74,7 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
         }}
       >
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="Фамилия Имя" autoComplete="off" />
-        <button className="btn" disabled={busy || q.trim().length < 3}>
+        <button className="ks-btn" disabled={busy || q.trim().length < 3}>
           Найти
         </button>
       </form>
@@ -91,19 +91,19 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
       {error && <p className="error">{error}</p>}
       {found && found.length === 0 && <p className="muted">Ничего не найдено. Проверьте написание.</p>}
       {found && found.length > 0 && !native && (
-        <ul className="events">
+        <div>
           {found.map(f => (
-            <li key={f.player_id}>
+            <div className="ks-slot" key={f.player_id}>
               <span>
                 {f.full_name}
                 {f.group_name && <span className="muted"> · {f.group_name}</span>}
               </span>
-              <button className="btn small" disabled={busy || !agreed} onClick={() => void request(f.player_id)}>
+              <button className="ks-btn sm" disabled={busy || !agreed} onClick={() => void request(f.player_id)}>
                 Это мой ребёнок
               </button>
-            </li>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
       {found && found.length > 0 && native && (
         <div style={{ marginTop: 12 }}>

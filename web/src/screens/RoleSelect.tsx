@@ -83,7 +83,7 @@ export default function RoleSelect({ onDone, onCancel }: { onDone: (r: Role) => 
       ))}
       {error && <p className="error">{error}</p>}
       {onCancel && (
-        <button type="button" className="btn ghost" onClick={onCancel}>
+        <button type="button" className="ks-btn secondary" onClick={onCancel}>
           Назад
         </button>
       )}
