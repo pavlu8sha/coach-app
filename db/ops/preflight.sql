@@ -1,0 +1,30 @@
+-- Что из миграций 0017–0040 уже применено в этой базе. Только чтение, ничего не меняет.
+-- Запустить в SQL Editor целиком. applied = true — применять эту миграцию не нужно (повторный запуск упадёт на create table/trigger).
+-- Применять надо по номерам только те, где applied = false.
+select * from (values
+  ('0017_link_cancel_retry',       to_regprocedure('cancel_link(uuid)') is not null),
+  ('0018_coach_attendance',        to_regprocedure('open_session(uuid,date)') is not null),
+  ('0019_coach_matches',           to_regprocedure('save_match(uuid,uuid,date,text,integer,integer,jsonb)') is not null),
+  ('0020_coach_points_contacts',   to_regprocedure('award_bonus(uuid,integer,text)') is not null),
+  ('0021_consent_coach_contacts',  exists (select 1 from information_schema.columns where table_name = 'consent_versions' and column_name = 'coach_contacts')),
+  ('0022_user_role',               exists (select 1 from information_schema.columns where table_name = 'users' and column_name = 'chosen_role')),
+  ('0023_prices_debt',             to_regprocedure('debtors(date)') is not null),
+  ('0024_narrow_matches_schedule', to_regprocedure('can_see_team(uuid,text)') is not null),
+  ('0025_consent_controls',        to_regclass('data_requests') is not null),
+  ('0026_notifications',           to_regclass('notifications') is not null),
+  ('0027_match_scoring_admin',     to_regprocedure('delete_match(uuid)') is not null),
+  ('0028_child_access',            to_regclass('child_codes') is not null),
+  ('0029_child_code_hardening',    to_regprocedure('create_child_code(uuid)') is not null and pg_get_functiondef(to_regprocedure('create_child_code(uuid)')) like '%gen_random_uuid%'),
+  ('0030_revoke_trigger_function', to_regprocedure('notify_data_request()') is null or not has_function_privilege('authenticated', 'notify_data_request()', 'execute')),
+  ('0031_notifications_v2',        to_regprocedure('enqueue_to_guardians(uuid,text,text)') is not null),
+  ('0032_debt_writeoff_month',     exists (select 1 from information_schema.columns where table_name = 'subscriptions' and column_name = 'written_off')),
+  ('0033_attendance_stats',        to_regprocedure('attendance_stats(date,date)') is not null and to_regprocedure('match_stats(date,date)') is not null),
+  ('0034_individual_admin',        exists (select 1 from information_schema.columns where table_name = 'individual_sessions' and column_name = 'goalkeepers')),
+  ('0035_extra_sessions',          to_regclass('extra_sessions') is not null),
+  ('0036_equipment_admin',         to_regclass('equipment_issues') is not null),
+  ('0037_camps_admin',             to_regprocedure('camp_save(uuid,text,text,date,date,numeric,date,date,boolean)') is not null),
+  ('0038_training_log_admin',      to_regprocedure('tl_add(date,text,text,text,time,time,text,boolean)') is not null),
+  ('0039_bot_leads',               to_regclass('lead_drafts') is not null),
+  ('0040_points_start',            to_regprocedure('points_start()') is not null)
+) as t(migration, applied)
+order by migration;
