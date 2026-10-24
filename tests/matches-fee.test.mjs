@@ -188,3 +188,33 @@ test('путь взноса: событие без настроенного вз
   e.ctx.appSetEventFee('9', r.id, 250);
   assert.equal(e.feeOfEvent(r.id), 250);
 });
+
+test('массовая оплата: несколько игроков за раз, у каждого свой способ и дата; ошибка одного не отменяет остальных', () => {
+  const e = envFull([[F, '', '250']]);
+  const id = e.champ('U9').id;
+  e.parts.data.push([id, 'KS-1', 'Bagulin Misha', true], [id, 'KS-2', 'Ivanov Ivan', true], [id, 'KS-3', 'Petrov Petr', false]);
+  e.newRun();
+  const r = e.ctx.appMatchFeeBulk('9', id, [
+    { p: 'KS-1', amount: 250, method: 'Наличные', date: '2026-10-20' },
+    { p: 'KS-2', amount: 100, method: 'Перевод', date: '2026-10-21' },
+    { p: 'KS-3', amount: 250, method: 'Наличные', date: '2026-10-21' },   // не играл — отклонён
+  ]);
+  assert.equal(r.done, 2); assert.equal(r.failed, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(r.results.map(x => [x.p, x.ok]))), [['KS-1', true], ['KS-2', true], ['KS-3', false]]);
+  assert.equal(r.results[0].full, true); assert.equal(r.results[1].full, false);
+  assert.match(r.results[2].error, /не отмечен как сыгравший/);
+  const rows = e.admin['ВЗНОСЫ МАТЧЕЙ'].data.slice(1);
+  assert.equal(rows.length, 2);
+  assert.deepEqual(JSON.parse(JSON.stringify(rows.map(x => [x[1], x[4]]))), [['KS-1', 250], ['KS-2', 100]]);
+});
+
+test('массовая оплата: проверки входа и права', () => {
+  const e = envFull([[F, '', '250']]);
+  const id = e.champ('U9').id;
+  const ok = { p: 'KS-1', amount: 10, method: 'Наличные', date: '2026-10-20' };
+  assert.throws(() => e.ctx.appMatchFeeBulk('1', id, [ok]), /Неверный код администратора/);
+  assert.throws(() => e.ctx.appMatchFeeBulk('9', id, []), /хотя бы одного/);
+  assert.throws(() => e.ctx.appMatchFeeBulk('9', id, [ok, ok]), /дважды/);
+  assert.throws(() => e.ctx.appMatchFeeBulk('9', id, [{ ...ok, method: '' }]), /способ оплаты/);
+  assert.throws(() => e.ctx.appMatchFeeBulk('9', id, [{ ...ok, amount: 0 }]), /больше нуля/);
+});
