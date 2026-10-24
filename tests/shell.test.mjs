@@ -62,7 +62,7 @@ test('?shell=1 открывает каркас: все разделы, стар�
   assert.match(r.html, /id="kshost"/);
   assert.match(r.html, /START='funnel',URL='https:\/\/example\/exec'/);
   const pages = JSON.parse(/var PAGES=(\[[^\]]*\])/.exec(r.html)[1]);
-  for (const p of ['att', 'admin', 'cash', 'pay', 'debt', 'ind', 'extra', 'equip', 'games', 'camp', 'stats', 'funnel', 'accounting', 'settings']) {
+  for (const p of ['att', 'admin', 'cash', 'pay', 'debt', 'ind', 'extra', 'equip', 'games', 'camp', 'stats', 'funnel', 'accounting', 'tatt', 'settings']) {
     assert.ok(pages.includes(p), 'в каркасе есть ' + p);
   }
   const navof = JSON.parse(/NAVOF=(\{[^}]*\})/.exec(r.html)[1]);

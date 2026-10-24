@@ -30,7 +30,7 @@ type Tab = 'about' | 'home' | 'schedule' | 'matches' | 'payments' | 'profile' | 
 function Shell() {
   const [admin, setAdmin] = useState(false);
   const [coachGroups, setCoachGroups] = useState<CoachGroup[]>([]);
-  const [allGroups, setAllGroups] = useState<CoachGroup[]>([]); // для администратора: все группы
+  const [allGroups, setAllGroups] = useState<CoachGroup[]>([]); // все группы: администратору и тренеру (тренеры ведут все группы, миграция 0042)
   const [moreKey, setMoreKey] = useState(0);
   const [hasKids, setHasKids] = useState(true); // пока не знаем — не прячем вкладку
   const [loaded, setLoaded] = useState(false);
@@ -55,9 +55,12 @@ function Shell() {
       const cg = await supabase.from('coach_groups').select('groups(id, name)').eq('user_id', data.user.id);
       const mineGroups = ((cg.data ?? []) as unknown as { groups: CoachGroup | null }[]).map(x => x.groups).filter((g): g is CoachGroup => Boolean(g)).sort((x, y) => x.name.localeCompare(y.name));
       setCoachGroups(mineGroups);
-      if (isAdm) {
+      if (isAdm || mineGroups.length) {
+        // тренеры видят и ведут все группы (миграция 0042): свои идут первыми
         const ag = await supabase.from('groups').select('id, name').order('name');
-        setAllGroups(((ag.data ?? []) as CoachGroup[]).sort((x, y) => x.name.localeCompare(y.name)));
+        const all = ((ag.data ?? []) as CoachGroup[]).sort((x, y) => x.name.localeCompare(y.name));
+        const mineIds = new Set(mineGroups.map(g => g.id));
+        setAllGroups(isAdm ? all : [...all.filter(g => mineIds.has(g.id)), ...all.filter(g => !mineIds.has(g.id))]);
       }
       setAdmin(isAdm);
       if (isAdm) setTab('admin'); // администратор открывает приложение сразу на запросах
@@ -144,8 +147,8 @@ function Shell() {
     admin && tab === 'admin' ? <Admin />
     : admin && tab === 'players' ? <Players />
     : admin && tab === 'more' ? <More key={moreKey} groups={allGroups} />
-    : (admin || coach) && tab === 'sessions' ? <Sessions groups={admin ? allGroups : coachGroups} />
-    : (admin || coach) && tab === 'cmatches' ? <CoachMatches groups={admin ? allGroups : coachGroups} admin={admin} />
+    : (admin || coach) && tab === 'sessions' ? <Sessions groups={allGroups.length ? allGroups : coachGroups} />
+    : (admin || coach) && tab === 'cmatches' ? <CoachMatches groups={allGroups.length ? allGroups : coachGroups} admin={admin} allTeams={!admin} />
     : coach && tab === 'group' ? <Group groups={coachGroups} notify withStats />
     : tab === 'schedule' ? <Schedule all={admin} />
     : !admin && !coach && tab === 'matches' ? <Matches />

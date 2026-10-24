@@ -96,9 +96,10 @@ img,table,select,input,textarea{max-width:100%}
     camp:'<path d="M3 20L12 4l9 16H3z"/><path d="M12 20v-6"/>',
     funnel:'<path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>',
     ind:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    tatt:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
     more:'<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>'
   };
-  var ITEMS={att:['Отметки',''],stats:['Статистика','stats'],admin:['Игроки','admin'],equip:['Экипировка','equip'],games:['Матчи','games'],pay:['Оплаты','cash'],camp:['Сборы','camp'],ind:['Индивидуальные','ind'],funnel:['Новые игроки','funnel'],accounting:['Посещаемость тренеров','accounting'],settings:['Настройки','settings']};
+  var ITEMS={att:['Отметки',''],stats:['Статистика','stats'],admin:['Игроки','admin'],equip:['Экипировка','equip'],games:['Матчи','games'],pay:['Оплаты','cash'],camp:['Сборы','camp'],ind:['Индивидуальные','ind'],funnel:['Новые игроки','funnel'],accounting:['Посещаемость тренеров','accounting'],tatt:['Тренеры','tatt'],settings:['Настройки','settings']};
   var ADMINP=['admin','equip','pay','camp','ind','funnel','accounting','settings'];
   document.documentElement.setAttribute('data-page',PAGE);
   function get(k){try{return localStorage.getItem(k)||''}catch(e){return''}}
@@ -117,7 +118,7 @@ img,table,select,input,textarea{max-width:100%}
       document.documentElement.removeAttribute('data-ok');
       nav.hidden=true;sheet.hidden=true;blk.hidden=true;document.getElementById('ksadm').hidden=true;return;
     }
-    var tr=asTrainer(),main=tr?['att','games','stats']:['att','admin','pay','games'],more=tr?[]:['stats','equip','camp','ind','funnel','accounting','settings'];
+    var tr=asTrainer(),main=tr?['att','games','stats','tatt']:['att','admin','pay','games'],more=tr?[]:['stats','equip','camp','ind','funnel','accounting','settings'];
     var moreOn=more.indexOf(PAGE)>=0,sh='';
     document.documentElement.setAttribute('data-ok','1');
     nav.innerHTML=main.map(function(k){return link(k,'kst')}).join('')+'<button type="button" class="kst'+(moreOn?' on':'')+'" id="ksmb" aria-haspopup="true" aria-expanded="false" aria-controls="ksmore">'+svg('more')+'<span>Ещё</span></button>';
