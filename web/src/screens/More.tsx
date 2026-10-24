@@ -7,6 +7,7 @@ import AdminPrices from './AdminPrices';
 import Coaches from './Coaches';
 import Debtors from './Debtors';
 import Group from './Group';
+import Camps from './Camps';
 import Equipment from './Equipment';
 import Extra from './Extra';
 import Individual from './Individual';
@@ -14,7 +15,7 @@ import RecalcPoints from './RecalcPoints';
 import Schedule from './Schedule';
 import Stats from './Stats';
 
-type Sub = 'equip' | 'extra' | 'ind' | 'schedule' | 'debtors' | 'coaches' | 'points' | 'payments' | 'prices' | 'recalc' | 'stats';
+type Sub = 'camps' | 'equip' | 'extra' | 'ind' | 'schedule' | 'debtors' | 'coaches' | 'points' | 'payments' | 'prices' | 'recalc' | 'stats';
 
 // «Ещё» у администратора: остальные разделы. Вернуться в список можно кнопкой «Ещё» внизу или ссылкой наверху.
 export default function More({ groups }: { groups: CoachGroup[] }) {
@@ -28,7 +29,7 @@ export default function More({ groups }: { groups: CoachGroup[] }) {
             Ещё
           </button>
         </div>
-        {sub === 'schedule' ? <Schedule all /> : sub === 'debtors' ? <Debtors /> : sub === 'coaches' ? <Coaches /> : sub === 'payments' ? <AdminPayments /> : sub === 'prices' ? <AdminPrices /> : sub === 'recalc' ? <RecalcPoints /> : sub === 'stats' ? <Stats /> : sub === 'ind' ? <Individual /> : sub === 'extra' ? <Extra /> : sub === 'equip' ? <Equipment /> : <Group groups={groups} />}
+        {sub === 'schedule' ? <Schedule all /> : sub === 'debtors' ? <Debtors /> : sub === 'coaches' ? <Coaches /> : sub === 'payments' ? <AdminPayments /> : sub === 'prices' ? <AdminPrices /> : sub === 'recalc' ? <RecalcPoints /> : sub === 'stats' ? <Stats /> : sub === 'ind' ? <Individual /> : sub === 'extra' ? <Extra /> : sub === 'equip' ? <Equipment /> : sub === 'camps' ? <Camps /> : <Group groups={groups} />}
       </>
     );
   }
@@ -40,6 +41,7 @@ export default function More({ groups }: { groups: CoachGroup[] }) {
       <ListRow title="Индивидуальные" sub={['Вратари и индивидуальные: запись, оплата, долги']} onClick={() => setSub('ind')} />
       <ListRow title="Дополнительные" sub={['Доп. тренировки: запись, оплата, долги']} onClick={() => setSub('extra')} />
       <ListRow title="Экипировка" sub={['Заказы, оплата, выдача, каталог']} onClick={() => setSub('equip')} />
+      <ListRow title="Сборы" sub={['Лагеря и сборы: участники, тарифы, платежи']} onClick={() => setSub('camps')} />
       <ListRow title="Баллы игроков" sub={['Ручные баллы, история, контакты родителей']} onClick={() => setSub('points')} />
       <ListRow title="Платежи" sub={['Внести платёж, исправить запись']} onClick={() => setSub('payments')} />
       <ListRow title="Цены" sub={['Абонемент и индивидуальные занятия по месяцам']} onClick={() => setSub('prices')} />
