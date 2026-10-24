@@ -128,6 +128,25 @@ function openGame(id){
       +(u9?'<select class="ft"><option value=""></option><option'+(ft=='U9-A'?' selected':'')+'>U9-A</option><option'+(ft=='U9-B'?' selected':'')+'>U9-B</option></select>':'')+'</div>';
   }).join('')+'<button class="btn" id="sv">Сохранить отметки</button>';
 }
+function feeDone(p,e){return p.paid==1&&(!e.fee||p.sum>=e.fee||!p.sum)}
+// Массовая оплата: отмечаем игроков, у каждого сумма, способ и дата; одно сохранение на всех
+function openBulk(id){
+  if(!isAdm())return;
+  cur=ev(id);feeOpen=true;
+  var kids=D.events.filter(function(g){return g.parent==id}).map(function(g){return g.id});
+  var pl={};D.parts.forEach(function(p){if((p.e==id||kids.indexOf(p.e)>=0)&&p.played==1)pl[p.p]=1});
+  var ps=parts(id).filter(function(p){return pl[p.p]&&!feeDone(p,cur)}).sort(function(a,b){return a.n.localeCompare(b.n)});
+  panel(cur.team+', '+cur.name,'Массовая оплата. Взнос '+(cur.fee?money(cur.fee):'не задан')+'. Отметьте игроков.');feeOpen=true;
+  var opts='<option value="">Выберите…</option><option>Наличные</option><option>Перевод</option>';
+  $('pb').innerHTML='<button class="btn sec" id="bback">Назад к взносам</button>'
+    +'<div class="pr"><label>Способ для выбранных</label><select id="bm0">'+opts+'</select><label>Дата для выбранных</label><input type="date" id="bd0" value="'+today()+'">'
+    +'<button class="btn sec" id="bapply">Применить к выбранным</button><button class="btn sec" id="ball">Выбрать всех</button></div>'
+    +ps.map(function(p){
+      var left=cur.fee?Math.max(cur.fee-(p.sum||0),0):0;
+      return'<div class="pr bpr" data-p="'+esc(p.p)+'" data-n="'+esc(p.n)+'" data-left="'+left+'"><div class="prh"><label><input type="checkbox" class="bc"> '+esc(p.n)+'</label><span class="err">'+(p.sum?'осталось '+money(left):'не оплатил')+'</span></div>'
+      +'<label>Сумма, ₾</label><input type="number" min="0" step="1" class="ba" value="'+(left||'')+'"><label>Способ</label><select class="bm">'+opts+'</select><label>Дата</label><input type="date" class="bd" value="'+today()+'"></div>';
+    }).join('')+'<button class="btn" id="bsave">Сохранить выбранных</button>';
+}
 function openFee(id){
   if(!isAdm())return;
   cur=ev(id);
@@ -135,7 +154,8 @@ function openFee(id){
   var pl={};D.parts.forEach(function(p){if((p.e==id||kids.indexOf(p.e)>=0)&&p.played==1)pl[p.p]=1});
   var ps=parts(id).filter(function(p){return pl[p.p]||p.paid==1}).sort(function(a,b){return(a.paid==1)-(b.paid==1)||a.n.localeCompare(b.n)});
   panel(cur.team+', '+cur.name,'Взнос '+(cur.fee?money(cur.fee):'не задан')+'. Неоплатившие сверху.');feeOpen=true;
-  var head='<div class="pr"><label>Взнос за событие, ₾</label><input type="number" min="0" step="1" id="nfee" value="'+(cur.fee||'')+'"><button class="btn" id="sfee">Сохранить взнос</button></div>';
+  var head='<div class="pr"><label>Взнос за событие, ₾</label><input type="number" min="0" step="1" id="nfee" value="'+(cur.fee||'')+'"><button class="btn" id="sfee">Сохранить взнос</button></div>'
+    +(ps.some(function(p){return!feeDone(p,cur)})?'<button class="btn sec" id="bulk">Массовая оплата</button>':'');
   $('pb').innerHTML=head+ps.map(function(p){
     var left=cur.fee?Math.max(cur.fee-p.sum,0):0,done=p.paid==1&&(!cur.fee||p.sum>=cur.fee||!p.sum);
     var chip=done?'<span class="ok">оплачено'+(p.sum?' '+money(p.sum):'')+'</span>':(p.sum?'<span class="err">осталось '+money(left)+'</span>':'<span class="err">не оплатил</span>');
@@ -146,6 +166,38 @@ function openFee(id){
 $('list').onclick=function(e){var b=e.target.closest('button');if(!b)return;if(b.classList.contains('gm'))openGame(b.dataset.id);else if(b.classList.contains('fee'))openFee(b.dataset.id)};
 $('pb').onclick=function(e){
   var b=e.target.closest('button');if(!b)return;
+  if(b.id=='bulk'){openBulk(cur.id);return}
+  if(b.id=='bback'){openFee(cur.id);return}
+  if(b.id=='ball'){var cs=$('pb').querySelectorAll('.bc'),all=[].every.call(cs,function(c){return c.checked});[].forEach.call(cs,function(c){c.checked=!all});b.textContent=all?'Выбрать всех':'Снять выбор';return}
+  if(b.id=='bapply'){
+    var m0=$('bm0').value,d0=$('bd0').value;
+    if(!m0){setMsg('pm','Выберите способ оплаты',true);return}
+    setMsg('pm','');
+    [].forEach.call($('pb').querySelectorAll('.bpr'),function(r){if(r.querySelector('.bc').checked){r.querySelector('.bm').value=m0;if(d0)r.querySelector('.bd').value=d0}});return}
+  if(b.id=='bsave'){
+    var rowsB=[].filter.call($('pb').querySelectorAll('.bpr'),function(r){return r.querySelector('.bc').checked});
+    if(!rowsB.length){setMsg('pm','Отметьте хотя бы одного игрока',true);return}
+    var items=[],names={},sumAll=0,over=0,evB=cur;
+    for(var i=0;i<rowsB.length;i++){
+      var r=rowsB[i],nm=r.dataset.n,a=Number(r.querySelector('.ba').value),mm=r.querySelector('.bm').value,dd=r.querySelector('.bd').value;
+      if(!mm){setMsg('pm',nm+': выберите способ оплаты',true);return}
+      if(!(a>0)){setMsg('pm',nm+': введите сумму больше нуля',true);return}
+      if(!dd){setMsg('pm',nm+': укажите дату',true);return}
+      items.push({p:r.dataset.p,amount:a,method:mm,date:dd});names[r.dataset.p]=nm;sumAll+=a;
+      if(evB.fee)over+=ksOverpay(a,Number(r.dataset.left)||0);
+    }
+    setMsg('pm','');
+    ksConfirm({title:'Внести взносы ('+items.length+')?',ok:'Внести '+items.length,
+      warn:over?'У части игроков сумма больше остатка (всего на '+ksMoney(over)+'). Платежи будут записаны полностью.':'',
+      rows:[['За что','Взнос: '+evB.name+', '+evB.team]].concat(items.map(function(it){return[names[it.p],ksMoney(it.amount)+', '+it.method+(it.date==today()?'':', '+fd(it.date))]})).concat([['Итого',ksMoney(sumAll),'total']]),
+      run:function(ok,bad){run('appMatchFeeBulk',[pin,evB.id,items],function(r){
+        ok();
+        var fl=r.results.filter(function(x){return!x.ok}).map(function(x){return(names[x.p]||x.p)+' — '+x.error});
+        flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+'Внесено взносов: '+r.done+'.'+(fl.length?' Не внесено ('+fl.length+'): '+fl.join('; '):'');
+        load();
+      },bad)}});
+    return;
+  }
   if(b.id=='sv'){
     var marks=[].map.call($('pb').querySelectorAll('.row'),function(r){var s=r.querySelector('.ft');return{id:r.dataset.p,name:r.dataset.n,played:r.querySelector('.pl').checked,ft:s?s.value:''}});
     b.disabled=true;setMsg('pm','Сохраняю…');

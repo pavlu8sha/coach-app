@@ -27,6 +27,46 @@ function appMatchFee(pin, eventId, playerId, amount, method, dateStr, comment) {
   return { ok: true, dryRun: CONFIG.DRY_RUN, full: res.full, legacy: lg };
 }
 
+/** Массовая оплата взносов: items = [{p: id игрока, amount, method, date}]. Каждый платёж проходит те же проверки,
+ *  что и одиночный (appMatchFee). Ошибка у одного игрока не отменяет остальных: возвращается результат по каждому. */
+function appMatchFeeBulk(pin, eventId, items) {
+  checkAdmin_(pin);
+  if (!Array.isArray(items) || !items.length) throw new Error('Выберите хотя бы одного игрока');
+  if (items.length > 60) throw new Error('За один раз можно внести не более 60 взносов');
+  var seen = {};
+  items.forEach(function (it) {
+    var id = String(it && it.p || '');
+    if (!id) throw new Error('Не указан игрок');
+    if (seen[id]) throw new Error('Игрок указан дважды');
+    seen[id] = true;
+    if (PAY_METHODS.indexOf(it.method) < 0) throw new Error('Выберите способ оплаты у каждого игрока');
+    var a = Math.round(Number(it.amount) * 100) / 100;
+    if (!(a > 0)) throw new Error('Введите сумму больше нуля у каждого игрока');
+  });
+  var results = [];
+  function runAll() {
+    items.forEach(function (it) {
+      var pid = String(it.p), amt = Math.round(Number(it.amount) * 100) / 100;
+      try {
+        var r = matchFeeCore_(eventId, pid, amt, it.method, it.date, '');
+        results.push({ p: pid, ok: true, full: r.full });
+      } catch (e) {
+        results.push({ p: pid, ok: false, error: e && e.message ? e.message : String(e) });
+      }
+    });
+  }
+  if (CONFIG.DRY_RUN) {
+    runAll();
+  } else {
+    var lock = LockService.getScriptLock();
+    lock.waitLock(20000);
+    try { runAll(); } finally { lock.releaseLock(); }
+  }
+  var done = results.filter(function (r) { return r.ok; }).length;
+  var lg = CONFIG.DRY_RUN || !done ? '' : gnSyncGameSafe_(eventId);
+  return { ok: true, dryRun: CONFIG.DRY_RUN, results: results, done: done, failed: results.length - done, legacy: lg };
+}
+
 function matchFeeCore_(eventId, playerId, amount, method, dateStr, comment) {
   var ms = sheetOf_('МАТЧИ'), ps = partsSheet_();
   if (!ms || ms.getLastRow() < 2) throw new Error('Нет листа МАТЧИ: сначала выполните перенос файла матчей');
