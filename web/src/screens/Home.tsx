@@ -73,7 +73,7 @@ export default function Home({ isAdmin = false }: { isAdmin?: boolean }) {
         <main className="page">
           <h1>Мой ребёнок</h1>
           <p className="muted">У вас нет привязанных детей. Запросы родителей — во вкладке «Запросы».</p>
-          <button className="btn ghost" onClick={() => setShowLink(true)}>
+          <button className="ks-btn secondary" onClick={() => setShowLink(true)}>
             Привязать своего ребёнка
           </button>
         </main>
@@ -91,7 +91,7 @@ export default function Home({ isAdmin = false }: { isAdmin?: boolean }) {
     <main className="page">
       <h1>Мой ребёнок</h1>
       {children.map(c => (
-        <section className="card" key={c.id}>
+        <section className="ks-card" key={c.id}>
           <div className="row">
             <div>
               <h2>{c.name}</h2>
@@ -103,23 +103,23 @@ export default function Home({ isAdmin = false }: { isAdmin?: boolean }) {
             </div>
           </div>
           {c.recent.length > 0 && (
-            <ul className="events">
+            <div>
               {c.recent.map((e, i) => (
-                <li key={i}>
+                <div className="ks-slot" key={i}>
                   <span>{e.explanation}</span>
                   <span className="muted">
                     {fmtDate(e.occurred_on)} · +{e.points}
                   </span>
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </section>
       ))}
       {addMore ? (
         <Link onApproved={() => setReload(n => n + 1)} onOpenStatus={openStatus} />
       ) : (
-        <button className="btn ghost small" onClick={() => setAddMore(true)}>
+        <button className="ks-btn secondary sm" onClick={() => setAddMore(true)}>
           + Добавить ещё одного ребёнка
         </button>
       )}

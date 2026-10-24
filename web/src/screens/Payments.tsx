@@ -54,7 +54,7 @@ export default function Payments() {
     <main className="page">
       <h1>Оплата</h1>
       {kids.map(k => (
-        <section className="card" key={k.id}>
+        <section className="ks-card" key={k.id}>
           <h2>{k.name}</h2>
           {debts.some(d => d.player_id === k.id) && (
             <div className="debt">
@@ -75,14 +75,14 @@ export default function Payments() {
           {k.months.length === 0 ? (
             <p className="muted">Платежей пока нет.</p>
           ) : (
-            <ul className="events">
+            <div>
               {k.months.map(m => (
-                <li key={m.month}>
+                <div className="ks-slot" key={m.month}>
                   <span>{monthName(m.month)}</span>
                   <span>{gel(m.sum)}</span>
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </section>
       ))}
