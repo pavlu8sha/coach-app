@@ -59,6 +59,9 @@ h3 { font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color
 .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
 .two > *, .field { min-width: 0; }
 .field input, .field select { width: 100%; min-width: 0; }
+.two > input, .two > select { font-size: 1rem; padding: 12px; min-height: var(--ks-tap); border-radius: var(--ks-radius); border: 1px solid var(--ks-border-strong); background: var(--bg-2); color: var(--fg); width: 100%; min-width: 0; }
+/* кнопка или карточка сразу после поля формы: отступ сверху */
+.field + .ks-btn, .field + button, .two + button, .two + .ks-btn, .field + .ks-card, .field + p.muted { margin-top: 12px; }
 .card.inner { box-shadow: none; margin: 8px 0 0; }
 .link-btn { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; text-align: left; }
 .check.agree { align-items: flex-start; margin-top: 14px; font-size: 0.9rem; line-height: 1.4; }

@@ -40,22 +40,27 @@ export default function More({ groups }: { groups: CoachGroup[] }) {
   return (
     <main className="page">
       <h1>Ещё</h1>
-      <ListRow title="Расписание" sub={['Тренировки всех групп, правка слотов']} onClick={() => setSub('schedule')} />
-      <ListRow title="Статистика" sub={['Посещаемость групп за период']} onClick={() => setSub('stats')} />
+      <p className="ks-label">Деньги</p>
+      <ListRow title="Оплаты за месяц" sub={['Кто сколько внёс по группам, быстрый платёж']} onClick={() => setSub('month')} />
+      <ListRow title="Платежи" sub={['Внести платёж, исправить запись']} onClick={() => setSub('payments')} />
+      <ListRow title="Должники" sub={['Долг по абонементам, скидки, показ родителям']} onClick={() => setSub('debtors')} />
+      <p className="ks-label">Занятия</p>
       <ListRow title="Индивидуальные" sub={['Вратари и индивидуальные: запись, оплата, долги']} onClick={() => setSub('ind')} />
       <ListRow title="Дополнительные" sub={['Доп. тренировки: запись, оплата, долги']} onClick={() => setSub('extra')} />
+      <ListRow title="Расписание" sub={['Тренировки всех групп, правка слотов']} onClick={() => setSub('schedule')} />
+      <p className="ks-label">Клуб</p>
       <ListRow title="Экипировка" sub={['Заказы, оплата, выдача, каталог']} onClick={() => setSub('equip')} />
       <ListRow title="Сборы" sub={['Лагеря и сборы: участники, тарифы, платежи']} onClick={() => setSub('camps')} />
-      <ListRow title="Учёт тренеров" sub={['Проведённые тренировки и часы по месяцам']} onClick={() => setSub('tlog')} />
       <ListRow title="Заявки" sub={['Новые родители из бота «Хочу в KickStart»']} onClick={() => setSub('leads')} />
-      <ListRow title="Оплаты за месяц" sub={['Кто сколько внёс по группам, быстрый платёж']} onClick={() => setSub('month')} />
+      <p className="ks-label">Тренеры и игроки</p>
+      <ListRow title="Статистика" sub={['Посещаемость и матчи за период']} onClick={() => setSub('stats')} />
+      <ListRow title="Учёт тренеров" sub={['Проведённые тренировки и часы по месяцам']} onClick={() => setSub('tlog')} />
       <ListRow title="Баллы игроков" sub={['Ручные баллы, история, контакты родителей']} onClick={() => setSub('points')} />
-      <ListRow title="Платежи" sub={['Внести платёж, исправить запись']} onClick={() => setSub('payments')} />
+      <ListRow title="Тренеры" sub={['Назначение групп тренерам']} onClick={() => setSub('coaches')} />
+      <p className="ks-label">Настройки</p>
       <ListRow title="Цены" sub={['Абонемент и индивидуальные занятия по месяцам']} onClick={() => setSub('prices')} />
       <ListRow title="Старт подсчёта баллов" sub={['С какой даты баллы видны родителям и тренерам']} onClick={() => setSub('pstart')} />
       <ListRow title="Пересчёт баллов за матчи" sub={['Привести баллы к новой схеме']} onClick={() => setSub('recalc')} />
-      <ListRow title="Должники" sub={['Долг по абонементам, скидки, показ родителям']} onClick={() => setSub('debtors')} />
-      <ListRow title="Тренеры" sub={['Назначение групп тренерам']} onClick={() => setSub('coaches')} />
       <NotifyToggle hint="Бот пришлёт сообщение о новых запросах на привязку и на удаление данных. Чтобы сообщения приходили, один раз нажмите «Старт» в чате с ботом клуба." />
     </main>
   );

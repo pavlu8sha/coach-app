@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { coachError, fmtDate, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
-import { EmptyState, ListRow, Pill, SearchInput, Segmented } from '../ui/components';
+import { EmptyState, ListRow, Pill, SearchInput, Segmented, SwitchRow } from '../ui/components';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 
@@ -81,7 +81,7 @@ function CampForm({ camp, onBack, onDone }: { camp: Camp | null; onBack: () => v
         <label className="field">Бронь до<input type="date" value={f.feeBy} onChange={e => setF({ ...f, feeBy: e.target.value })} /></label>
         <label className="field">Оплата до<input type="date" value={f.payBy} onChange={e => setF({ ...f, payBy: e.target.value })} /></label>
       </div>
-      <label className="field"><span><input type="checkbox" checked={f.act} onChange={e => setF({ ...f, act: e.target.checked })} /> Сбор активен</span></label>
+      <div style={{ marginTop: 12 }}><SwitchRow id="act" label="Сбор активен" checked={f.act} onChange={v => setF({ ...f, act: v })} /></div>
       {err && <p className="error">{err}</p>}
       <button type="button" className="ks-btn" disabled={busy || !f.name.trim() || Number.isNaN(num(f.fee))} onClick={() => void save()}>Сохранить</button>
     </main>
@@ -177,7 +177,7 @@ function ListText({ parts }: { parts: Part[] }) {
   return (
     <>
       <p className="muted" style={{ margin: '10px 0' }}>Записавшиеся по группам (U7-A и U7-B объединены). Скопируйте и отправьте.</p>
-      <textarea readOnly rows={Math.min(20, text.split('\n').length + 1)} value={text || 'Пока никого'} style={{ width: '100%' }} aria-label="Список" />
+      <textarea className="ks-input" readOnly rows={Math.min(20, text.split('\n').length + 1)} value={text || 'Пока никого'} style={{ marginBottom: 10 }} aria-label="Список" />
       <button type="button" className="ks-btn" onClick={() => void navigator.clipboard?.writeText(text).then(() => setCopied(true))}>{copied ? 'Скопировано' : 'Скопировать'}</button>
     </>
   );
