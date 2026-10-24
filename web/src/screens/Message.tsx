@@ -15,6 +15,17 @@ export default function Message(props: { title: string; text?: string; action?: 
   );
 }
 
+/** Экран первой загрузки: логотип и индикатор по центру. */
+export function Splash() {
+  return (
+    <main className="ks-splash" role="status" aria-label="Загрузка">
+      <img src="/icon-192.png" alt="" width="96" height="96" />
+      <b>KicksApp</b>
+      <span className="ks-spinner" aria-hidden="true" />
+    </main>
+  );
+}
+
 /** Загрузка: скелетон без выдуманных данных. */
 export function Loading() {
   return (

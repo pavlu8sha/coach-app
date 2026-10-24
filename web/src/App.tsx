@@ -10,7 +10,7 @@ import Players from './screens/Players';
 import Schedule from './screens/Schedule';
 import Matches from './screens/Matches';
 import Profile from './screens/Profile';
-import Message from './screens/Message';
+import Message, { Splash } from './screens/Message';
 import BrowserLogin, { browserLoginEnabled } from './screens/BrowserLogin';
 import About from './screens/About';
 import RoleSelect, { type Role } from './screens/RoleSelect';
@@ -81,7 +81,7 @@ function Shell() {
     })();
   }, [role, childKey]);
   const coach = !admin && coachGroups.length > 0;
-  if (!loaded) return <Message title="Загрузка…" />;
+  if (!loaded) return <Splash />;
   // Роль спрашиваем при первом входе. Администратора, тренера с группами и тех, у кого уже есть дети, не трогаем.
   if (!admin && !coach && !hasKids && (role === null || changingRole)) {
     return (
@@ -97,7 +97,7 @@ function Shell() {
   }
   // Ребёнок: свои баллы и матчи после ввода кода от родителя, плюс расписание клуба
   if (!admin && !coach && !hasKids && role === 'child') {
-    if (!childLoaded) return <Message title="Загрузка…" />;
+    if (!childLoaded) return <Splash />;
     const ct: 'home' | 'matches' | 'schedule' | 'about' = tab === 'matches' || tab === 'schedule' || tab === 'about' ? tab : 'home';
     const linked = childPlayer !== null;
     const cur = !linked && ct === 'matches' ? 'home' : ct;
@@ -219,7 +219,7 @@ export default function App() {
 
   switch (state.kind) {
     case 'loading':
-      return <Message title="Загрузка…" />;
+      return <Splash />;
     case 'config':
       return <Message title="Приложение не настроено" text="Не заданы VITE_SUPABASE_URL и VITE_SUPABASE_PUBLISHABLE_KEY." />;
     case 'outside':

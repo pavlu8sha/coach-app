@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import Message from './Message';
+import Message, { Splash } from './Message';
 import PlayerEdit, { type PlayerForm } from './PlayerEdit';
 
 interface Row { id: string; full_name: string; group_id: string | null; birth_date: string | null; status: 'active' | 'inactive' }
@@ -45,7 +45,7 @@ export default function Players() {
   }, [reload, showInactive]);
 
   if (error) return <Message title="Не удалось загрузить игроков" text={error} />;
-  if (!groups) return <Message title="Загрузка…" />;
+  if (!groups) return <Splash />;
   const done = () => {
     setEdit(null);
     setReload(n => n + 1);
