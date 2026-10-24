@@ -29,7 +29,7 @@ Deno.serve(async (req: Request) => {
       const call = buildCall(n, APP_URL);
       let res: { ok: boolean; giveUp: boolean; stop: boolean; error: string | null };
       try {
-        const r = await fetch(`https://api.telegram.org/bot${token}/${call.method}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(call.body) });
+        const r = await fetch(`${Deno.env.get('TELEGRAM_API_BASE') ?? 'https://api.telegram.org'}/bot${token}/${call.method}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(call.body) });
         res = classify(r.status, r.ok ? '' : await r.text());
       } catch (e) {
         res = { ok: false, giveUp: false, stop: false, error: e instanceof Error ? e.message : String(e) };
