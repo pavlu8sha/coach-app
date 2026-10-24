@@ -56,3 +56,5 @@ jobs:
         env:
           VITE_SUPABASE_URL: https://example.supabase.co
           VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder
+      - name: Тесты экранов (Vitest, заглушка вместо Supabase)
+        run: npm test
