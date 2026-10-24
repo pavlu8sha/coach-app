@@ -66,6 +66,17 @@ describe('«Сборы»', () => {
     expect(fake.rpcCalls('camp_cancel_payment')).toEqual([{ payid: 'pay1' }]);
   });
 
+  it('уже отменённый платёж помечен и повторно отменить его кнопкой нельзя', async () => {
+    seed();
+    fake.db.camp_participants[0].camp_payments.push({ id: 'pay1x', amount: -100, paid_on: '2026-11-02', kind: 'refund', method: 'Наличные', comment: 'Отмена платежа', legacy_ref: 'cancel:pay1' });
+    render(<Camps />);
+    fireEvent.click(await screen.findByText('Зимний лагерь'));
+    fireEvent.click(await screen.findByText('Иванов Пётр'));
+    const pay = (await screen.findByText(/Бронь · 01.11.2026/)).closest('.ks-card') as HTMLElement;
+    expect(within(pay).getByText('Отменён')).toBeInTheDocument();
+    expect(within(pay).queryByRole('button', { name: 'Отменить платёж' })).not.toBeInTheDocument();
+  });
+
   it('запись игрока только на активный тариф', async () => {
     seed();
     fake.db.players = [{ id: 'p9', full_name: 'Новенький Нил' }];
