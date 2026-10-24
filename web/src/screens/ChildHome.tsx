@@ -21,7 +21,8 @@ export function ChildCode({ onLinked }: { onLinked: () => void }) {
     setError(null);
     const r = await supabase.rpc('redeem_child_code', { c: code });
     setBusy(false);
-    if (r.error) return setError(r.error.message.includes('invalid code') ? 'Код не подошёл или устарел. Попросите родителя создать новый.' : r.error.message.includes('already linked') ? 'К этому игроку уже привязан другой аккаунт.' : r.error.message);
+    if (r.error) return setError(r.error.message.includes('too many attempts') ? 'Слишком много попыток. Подождите 10 минут и попробуйте снова.' : r.error.message.includes('invalid code') ? 'Код не подошёл или устарел. Попросите родителя создать новый.' : r.error.message.includes('already linked') ? 'К этому игроку уже привязан другой аккаунт.' : r.error.message);
+    if (!r.data) return setError('Код не подошёл или устарел. Попросите родителя создать новый.');
     onLinked();
   };
 
