@@ -125,4 +125,15 @@ describe('«Матчи» администратора', () => {
     fireEvent.click(await screen.findByText('Удалить матч'));
     expect(fake.rpcCalls('delete_match')).toHaveLength(0);
   });
+
+  it('тренер видит матчи всех команд и может фильтровать по команде', async () => {
+    seed();
+    fake.db.matches = [...(fake.db.matches as any[]), { id: 'm2', team: 'U11', played_on: '2026-10-12', opponent: 'Спартак', goals_for: 1, goals_against: 0 }];
+    render(<CoachMatches groups={allGroups} allTeams />);
+    expect(await screen.findByText('Олимп')).toBeInTheDocument();
+    expect(screen.getByText('Спартак')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Команда'), { target: { value: 'U11' } });
+    expect(screen.queryByText('Олимп')).not.toBeInTheDocument();
+    expect(screen.getByText('Спартак')).toBeInTheDocument();
+  });
 });

@@ -11,7 +11,9 @@ interface Player { id: string; full_name: string }
 interface Line { played: boolean; goals: number }
 
 // «Матчи»: матчи групп тренера (у администратора — всех команд), добавление матча, ввод результата, состава, голов и лучшего игрока.
-export default function CoachMatches({ groups, admin = false }: { groups: CoachGroup[]; admin?: boolean }) {
+// Тренеры видят матчи всех команд (allTeams), как и администратор; взносы и поиск чужих игроков остаются у администратора.
+export default function CoachMatches({ groups, admin = false, allTeams = false }: { groups: CoachGroup[]; admin?: boolean; allTeams?: boolean }) {
+  const showAll = admin || allTeams;
   const [matches, setMatches] = useState<Match[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -21,12 +23,12 @@ export default function CoachMatches({ groups, admin = false }: { groups: CoachG
   useEffect(() => {
     void (async () => {
       let q = supabase.from('matches').select('id, team, played_on, opponent, goals_for, goals_against');
-      if (!admin) q = q.in('team', groups.map(g => g.name));
-      const r = await q.order('played_on', { ascending: false }).limit(admin ? 150 : 60);
+      if (!showAll) q = q.in('team', groups.map(g => g.name));
+      const r = await q.order('played_on', { ascending: false }).limit(showAll ? 150 : 60);
       if (r.error) return setError(r.error.message);
       setMatches((r.data ?? []) as Match[]);
     })();
-  }, [groups, admin, reload]);
+  }, [groups, showAll, reload]);
 
   if (error) return <Failure title="Не удалось загрузить матчи" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   if (form) return <MatchForm groups={groups} match={form.match} admin={admin} onBack={() => { setForm(null); setReload(n => n + 1); }} />;
@@ -39,7 +41,7 @@ export default function CoachMatches({ groups, admin = false }: { groups: CoachG
       <h1>Матчи</h1>
       <button type="button" className="ks-btn" onClick={() => setForm({ match: null })}>Добавить матч</button>
       <div style={{ height: 12 }} />
-      {admin && teams.length > 1 && (
+      {showAll && teams.length > 1 && (
         <select className="ks-select" aria-label="Команда" value={team} onChange={e => setTeam(e.target.value)}>
           <option value="">Все команды</option>
           {teams.map(t => (
@@ -56,7 +58,7 @@ export default function CoachMatches({ groups, admin = false }: { groups: CoachG
             <ListRow
               key={m.id}
               title={m.opponent ?? 'Соперник не указан'}
-              sub={[`${fmtDate(m.played_on)}${admin || groups.length > 1 ? ' · ' + m.team : ''}`]}
+              sub={[`${fmtDate(m.played_on)}${showAll || groups.length > 1 ? ' · ' + m.team : ''}`]}
               end={done ? <span className="ks-score">{m.goals_for}:{m.goals_against}</span> : <Pill tone="primary">{m.played_on > today() ? 'Предстоит' : 'Без счёта'}</Pill>}
               onClick={() => setForm({ match: m })}
             />

@@ -52,9 +52,9 @@ select is((select count(*)::int from matches where team = 'U9' and opponent = '�
 select is((select count(*)::int from weekly_schedule), 1, 'родитель U11 видит расписание только U11');
 
 select as_user('00000000-0000-0000-0000-0000000000c1');
-select is((select count(*)::int from matches), 2, 'тренер U9 видит матчи U9');
-select is((select count(*)::int from matches where team = 'U11'), 0, 'тренер U9 не видит матчи U11');
-select is((select count(*)::int from weekly_schedule), 1, 'тренер U9 видит расписание U9');
+select is((select count(*)::int from matches where team = 'U9'), 2, 'тренер U9 видит матчи U9');
+select is((select count(*)::int from matches where team = 'U11'), 1, 'тренер U9 видит и матчи U11 (тренеры видят все группы)');
+select is((select count(*)::int from weekly_schedule), 2, 'тренер U9 видит расписание всех групп');
 
 select as_user('00000000-0000-0000-0000-0000000000b3');
 select is((select count(*)::int from matches), 0, 'пользователь без детей матчей не видит');

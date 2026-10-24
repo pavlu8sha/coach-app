@@ -36,7 +36,7 @@ end $$;
 
 -- Открытие занятия
 select as_user('00000000-0000-0000-0000-0000000000c2');
-select throws_ok($$select open_session('00000000-0000-0000-0000-0000000000e1', '2026-10-19')$$, '42501', 'forbidden', 'тренер чужой группы не открывает занятие');
+select lives_ok($$select open_session('00000000-0000-0000-0000-0000000000e1', '2026-10-19')$$, 'тренер другой группы открывает занятие (тренеры ведут все группы)');
 select as_user('00000000-0000-0000-0000-0000000000b1');
 select throws_ok($$select open_session('00000000-0000-0000-0000-0000000000e1', '2026-10-19')$$, '42501', 'forbidden', 'родитель не открывает занятие');
 
@@ -74,7 +74,7 @@ select throws_ok($$select mark_attendance((select id from sessions limit 1), '[{
 select throws_ok($$select mark_attendance((select id from sessions limit 1), '[{"player_id":"00000000-0000-0000-0000-00000000d001","status":"late"}]'::jsonb)$$, null, 'invalid status', 'неизвестный статус отклоняется');
 
 select as_user('00000000-0000-0000-0000-0000000000c2');
-select throws_ok($$select mark_attendance((select id from sessions limit 1), '[]'::jsonb)$$, null, null, 'тренер чужой группы не отмечает посещаемость');
+select lives_ok($$select mark_attendance((select id from sessions limit 1), '[]'::jsonb)$$, 'тренер другой группы отмечает посещаемость');
 
 -- Родитель видит баллы своего ребёнка
 select as_user('00000000-0000-0000-0000-0000000000b1');
