@@ -6,6 +6,10 @@
 import { RULES, computeEvents, summarize } from './rating.mjs';
 
 const write = process.argv.includes('--write');
+// Баллы за матчи по схеме v1 (миграция 0012) устарели: после миграции 0027 их считает база (apply_match_points / recalc_match_points).
+// Повторный запуск с матчами добавил бы вторые начисления поверх новой схемы, поэтому по умолчанию импортируются только баллы за тренировки.
+// Старое поведение (один раз, на пустой базе) — флаг --with-matches.
+const withMatches = process.argv.includes('--with-matches');
 const { SUPABASE_URL, SUPABASE_SERVICE_KEY, CLUB_ID } = process.env;
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !CLUB_ID) { console.error('Нужны SUPABASE_URL, SUPABASE_SERVICE_KEY, CLUB_ID'); process.exit(2); }
 const headers = { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`, 'Content-Type': 'application/json' };
@@ -42,7 +46,7 @@ const matches = await all(`matches?club_id=eq.${CLUB_ID}&select=id,played_on,goa
 const mids = new Set(matches.map(m => m.id));
 const matchPlayers = (await all('match_players?select=match_id,player_id,played', 'match_id,player_id')).filter(m => mids.has(m.match_id));
 
-const events = computeEvents({ rulesByCode, sessions, attendance, matches, matchPlayers }).filter(e => clubPlayers.has(e.player_id));
+const events = computeEvents({ rulesByCode, sessions, attendance, matches: withMatches ? matches : [], matchPlayers: withMatches ? matchPlayers : [] }).filter(e => clubPlayers.has(e.player_id));
 const sum = summarize(events);
 console.log(`Тренировок: ${sessions.length}, отметок: ${attendance.length}, матчей: ${matches.length} (с счётом ${matches.filter(m => m.goals_for != null && m.goals_against != null).length}), записей «играл»: ${matchPlayers.filter(m => m.played).length}`);
 console.log('Начисления по правилам:');
