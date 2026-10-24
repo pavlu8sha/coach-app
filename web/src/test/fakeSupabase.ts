@@ -70,7 +70,14 @@ function query(table: string): any {
   q.upsert = (p: any) => ((op = 'upsert'), (payload = p), q);
   q.update = (p: any) => ((op = 'update'), (payload = p), q);
   q.delete = () => ((op = 'delete'), q);
-  q.eq = (c: string, v: any) => (filters.push(r => r[c] === v), q);
+  // Значение колонки; «таблица.колонка» читает вложенный объект (фильтр по связанной таблице)
+  const val = (r: Row, c: string) => c.split('.').reduce((o: any, k) => (o == null ? undefined : o[k]), r);
+  q.eq = (c: string, v: any) => (filters.push(r => val(r, c) === v), q);
+  q.neq = (c: string, v: any) => (filters.push(r => val(r, c) !== v), q);
+  q.gt = (c: string, v: any) => (filters.push(r => val(r, c) > v), q);
+  q.gte = (c: string, v: any) => (filters.push(r => val(r, c) >= v), q);
+  q.lt = (c: string, v: any) => (filters.push(r => val(r, c) < v), q);
+  q.lte = (c: string, v: any) => (filters.push(r => val(r, c) <= v), q);
   q.is = (c: string, v: any) => (filters.push(r => (r[c] ?? null) === v), q);
   q.in = (c: string, vs: any[]) => (filters.push(r => vs.includes(r[c])), q);
   q.ilike = (c: string, p: string) => {

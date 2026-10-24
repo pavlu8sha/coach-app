@@ -7,7 +7,7 @@ import { Failure, Loading } from './Message';
 
 interface Camp { id: string; name: string; location: string | null; starts_on: string; ends_on: string; booking_fee: number; booking_deadline: string | null; full_payment_deadline: string | null; active: boolean }
 interface Tariff { id: string; name: string; price: number; active: boolean }
-interface Pay { id: string; amount: number; paid_on: string; kind: 'booking' | 'payment' | 'refund'; method: string | null; comment: string | null }
+interface Pay { id: string; amount: number; paid_on: string; kind: 'booking' | 'payment' | 'refund'; method: string | null; comment: string | null; legacy_ref?: string | null }
 interface Part {
   id: string; player_id: string; tariff_id: string | null; amount: number; tshirt_size: string | null; comment: string | null; status: 'registered' | 'declined';
   players: { full_name: string; groups: { name: string } | null } | null; camp_tariffs: { name: string } | null; camp_payments: Pay[];
@@ -104,7 +104,7 @@ function CampView({ camp, onBack, onEdit }: { camp: Camp; onBack: () => void; on
       const t = await supabase.from('camp_tariffs').select('id, name, price, active').eq('camp_id', camp.id).order('name');
       if (t.error) return setError(errText(t.error.message));
       setTariffs(((t.data ?? []) as Tariff[]).map(x => ({ ...x, price: Number(x.price) })));
-      const r = await supabase.from('camp_participants').select('id, player_id, tariff_id, amount, tshirt_size, comment, status, players(full_name, groups(name)), camp_tariffs(name), camp_payments(id, amount, paid_on, kind, method, comment)').eq('camp_id', camp.id).limit(500);
+      const r = await supabase.from('camp_participants').select('id, player_id, tariff_id, amount, tshirt_size, comment, status, players(full_name, groups(name)), camp_tariffs(name), camp_payments(id, amount, paid_on, kind, method, comment, legacy_ref)').eq('camp_id', camp.id).limit(500);
       if (r.error) return setError(errText(r.error.message));
       setParts(((r.data ?? []) as unknown as Part[]).map(p => ({ ...p, amount: Number(p.amount) })).sort((a, b) => (a.players?.full_name ?? '').localeCompare(b.players?.full_name ?? '', 'ru')));
     })();
@@ -245,7 +245,7 @@ function PartView({ part, camp, tariffs, onBack }: { part: Part; camp: Camp; tar
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const refresh = async () => {
-    const r = await supabase.from('camp_participants').select('id, player_id, tariff_id, amount, tshirt_size, comment, status, players(full_name, groups(name)), camp_tariffs(name), camp_payments(id, amount, paid_on, kind, method, comment)').eq('id', part.id).maybeSingle();
+    const r = await supabase.from('camp_participants').select('id, player_id, tariff_id, amount, tshirt_size, comment, status, players(full_name, groups(name)), camp_tariffs(name), camp_payments(id, amount, paid_on, kind, method, comment, legacy_ref)').eq('id', part.id).maybeSingle();
     if (!r.error && r.data) setP({ ...(r.data as unknown as Part), amount: Number((r.data as { amount: number }).amount) });
   };
   const run = async (key: string, f: () => PromiseLike<{ error: { message: string } | null }>, ok?: string) => {
@@ -259,6 +259,7 @@ function PartView({ part, camp, tariffs, onBack }: { part: Part; camp: Camp; tar
     return true;
   };
   const pays = [...p.camp_payments].sort((a, b) => b.paid_on.localeCompare(a.paid_on));
+  const cancelled = new Set(p.camp_payments.map(x => x.legacy_ref).filter((r): r is string => !!r && r.startsWith('cancel:')).map(r => r.slice(7)));
   return (
     <main className="page">
       <BackNav onBack={onBack} />
@@ -270,7 +271,8 @@ function PartView({ part, camp, tariffs, onBack }: { part: Part; camp: Camp; tar
       {pays.length === 0 ? <p className="muted">Платежей нет.</p> : pays.map(x => (
         <div className="ks-card" key={x.id}>
           <div className="ks-line"><span>{KIND[x.kind]} · {fmtDate(x.paid_on)}{x.method ? ` · ${x.method}` : ''}</span><b>{gel(Number(x.amount))}</b></div>
-          {x.kind !== 'refund' && Number(x.amount) > 0 && (
+          {cancelled.has(x.id) && <div className="ks-muted" style={{ fontSize: 13 }}>Отменён</div>}
+          {x.kind !== 'refund' && Number(x.amount) > 0 && !cancelled.has(x.id) && (
             <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy === x.id} onClick={() => void run(x.id, () => supabase.rpc('camp_cancel_payment', { payid: x.id }), 'Платёж отменён записью с минусом.')}>Отменить платёж</button>
           )}
         </div>
