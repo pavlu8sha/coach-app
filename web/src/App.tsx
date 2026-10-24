@@ -146,7 +146,7 @@ function Shell() {
     : admin && tab === 'more' ? <More key={moreKey} groups={allGroups} />
     : (admin || coach) && tab === 'sessions' ? <Sessions groups={admin ? allGroups : coachGroups} />
     : (admin || coach) && tab === 'cmatches' ? <CoachMatches groups={admin ? allGroups : coachGroups} admin={admin} />
-    : coach && tab === 'group' ? <Group groups={coachGroups} notify />
+    : coach && tab === 'group' ? <Group groups={coachGroups} notify withStats />
     : tab === 'schedule' ? <Schedule all={admin} />
     : !admin && !coach && tab === 'matches' ? <Matches />
     : !admin && !coach && tab === 'profile' ? <Profile />
