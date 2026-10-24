@@ -5,20 +5,20 @@ import { EmptyState, Pill } from '../ui/components';
 import { Failure, Loading } from './Message';
 
 interface Group { id: string; name: string }
-interface Player { id: string; full_name: string }
+export interface Player { id: string; full_name: string }
 interface Price { group_id: string | null; amount: number; valid_from: string; valid_to: string | null }
-interface Sub { player_id: string; discount: boolean; written_off: boolean }
+export interface Sub { player_id: string; discount: boolean; written_off: boolean }
 
-const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
+export const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
 const METHODS = ['Наличные', 'Перевод', 'Другое'];
-const SEASON_START = '2026-09-01'; // как debt_start() в базе
-const monthIso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
-const monthName = (iso: string) => {
+export const SEASON_START = '2026-09-01'; // как debt_start() в базе
+export const monthIso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+export const monthName = (iso: string) => {
   const [y, m] = iso.split('-').map(Number);
   const s = new Date(y, m - 1, 1).toLocaleDateString('ru', { month: 'long', year: 'numeric' });
   return s.charAt(0).toUpperCase() + s.slice(1);
 };
-const nextMonth = (iso: string) => {
+export const nextMonth = (iso: string) => {
   const [y, m] = iso.split('-').map(Number);
   return monthIso(new Date(y, m, 1));
 };
@@ -113,7 +113,7 @@ export default function MonthPayments() {
   );
 }
 
-function Row({ player, month, tariff, got, sub, paidUp, open, onOpen, onSaved }: { player: Player; month: string; tariff: number | null; got: number; sub?: Sub; paidUp: boolean; open: boolean; onOpen: () => void; onSaved: () => void }) {
+export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOpen, onSaved }: { player: Player; title?: string; month: string; tariff: number | null; got: number; sub?: Sub; paidUp: boolean; open: boolean; onOpen: () => void; onSaved: () => void }) {
   const isCurrent = month === monthIso(new Date());
   const [amount, setAmount] = useState(String(Math.max((tariff ?? 0) - got, 0) || ''));
   const [date, setDate] = useState(isCurrent ? today() : month);
@@ -136,7 +136,7 @@ function Row({ player, month, tariff, got, sub, paidUp, open, onOpen, onSaved }:
   return (
     <div className="ks-card">
       <div className="ks-line">
-        <b style={{ overflowWrap: 'anywhere' }}>{player.full_name}</b>
+        <b style={{ overflowWrap: 'anywhere' }}>{title ?? player.full_name}</b>
         <Pill tone={paidUp ? 'success' : 'danger'} dot>{sub?.written_off ? 'Списано' : sub?.discount && got > 0 ? 'Скидка' : `${gel(got)}${tariff !== null ? ` из ${gel(tariff)}` : ''}`}</Pill>
       </div>
       <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} onClick={onOpen}>{open ? 'Свернуть' : 'Внести платёж'}</button>
