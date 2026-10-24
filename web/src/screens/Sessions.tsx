@@ -7,7 +7,7 @@ import { BackNav, useMainButton } from '../ui/nav';
 import { Failure, Loading } from './Message';
 
 type Status = 'present' | 'absent' | 'excused';
-interface Slot { weekday: number; starts_at: string; location: string | null }
+interface Slot { weekday: number; starts_at: string; location: string | null; kind: string }
 interface Player { id: string; full_name: string }
 
 const DAYS_BACK = 21; // сколько последних дней показываем: занятия можно отметить и задним числом
@@ -23,9 +23,12 @@ export default function Sessions({ groups }: { groups: CoachGroup[] }) {
   useEffect(() => {
     setSlots(null);
     void (async () => {
-      const r = await supabase.from('weekly_schedule').select('weekday, starts_at, location').eq('group_id', gid).eq('kind', 'Групповая').order('starts_at');
+      const r = await supabase.from('weekly_schedule').select('weekday, starts_at, location, kind').eq('group_id', gid).order('starts_at');
       if (r.error) return setError(r.error.message);
-      setSlots((r.data ?? []) as Slot[]);
+      // обычная группа — её групповые тренировки; у групп вроде «Индивидуальные / Вратарские» групповых нет, показываем все слоты
+      const all = (r.data ?? []) as Slot[];
+      const group = all.filter(x => x.kind === 'Групповая');
+      setSlots(group.length ? group : all);
     })();
   }, [gid, reload]);
 
@@ -33,8 +36,7 @@ export default function Sessions({ groups }: { groups: CoachGroup[] }) {
     const out: { date: string; slot: Slot }[] = [];
     for (let i = 0; i < DAYS_BACK && slots; i++) {
       const d = addDays(today(), -i);
-      const slot = slots.find(s => s.weekday === isoDow(d));
-      if (slot) out.push({ date: d, slot });
+      for (const slot of slots) if (slot.weekday === isoDow(d)) out.push({ date: d, slot });
     }
     return out;
   }, [slots]);
@@ -52,7 +54,7 @@ export default function Sessions({ groups }: { groups: CoachGroup[] }) {
         <EmptyState icon="box" title="Нет занятий в расписании" text={`У группы ${group?.name ?? ''} нет тренировок в расписании за последние ${DAYS_BACK} дней.`} />
       ) : (
         days.map(d => (
-          <ListRow key={d.date} title={`${DAYS[isoDow(d.date)]}, ${fmtShort(d.date)}`} sub={[`${hm(d.slot.starts_at)}${d.slot.location ? ' · ' + d.slot.location : ''}`]} end={d.date === today() ? <Pill tone="primary">Сегодня</Pill> : undefined} onClick={() => setDate(d.date)} />
+          <ListRow key={d.date + d.slot.starts_at} title={`${DAYS[isoDow(d.date)]}, ${fmtShort(d.date)}`} sub={[`${hm(d.slot.starts_at)}${d.slot.kind !== 'Групповая' ? ' · ' + d.slot.kind : ''}${d.slot.location ? ' · ' + d.slot.location : ''}`]} end={d.date === today() ? <Pill tone="primary">Сегодня</Pill> : undefined} onClick={() => setDate(d.date)} />
         ))
       )}
     </main>
