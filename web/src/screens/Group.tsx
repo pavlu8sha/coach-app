@@ -3,15 +3,18 @@ import { coachError, fmtDate, plural, type CoachGroup } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, Segmented } from '../ui/components';
 import { GroupPicker } from '../ui/coach';
+import NotifyToggle from '../ui/NotifyToggle';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
+import Stats from './Stats';
 
 interface Player { id: string; full_name: string }
 interface Ev { id: string; points: number; explanation: string; occurred_on: string; source_type: string }
 interface Parent { player_id: string; parent_name: string | null; telegram_id: number }
 
 // «Группа»: игроки группы; карточка игрока с ручными баллами и контактами родителей.
-export default function Group({ groups }: { groups: CoachGroup[] }) {
+export default function Group({ groups, notify = false, withStats = false }: { groups: CoachGroup[]; notify?: boolean; withStats?: boolean }) {
+  const [stats, setStats] = useState(false);
   const [gid, setGid] = useState(groups[0]?.id ?? '');
   const [players, setPlayers] = useState<Player[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +31,7 @@ export default function Group({ groups }: { groups: CoachGroup[] }) {
   }, [gid, reload]);
 
   if (error) return <Failure title="Не удалось загрузить группу" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
+  if (stats) return <><div style={{ maxWidth: 560, margin: '0 auto', padding: '8px 16px 0' }}><button type="button" className="ks-back" onClick={() => setStats(false)}><span className="ks-chev back" aria-hidden="true" />Группа</button></div><Stats /></>;
   if (open) return <PlayerCard gid={gid} player={open} onBack={() => setOpen(null)} />;
   if (!players) return <Loading />;
 
@@ -35,11 +39,13 @@ export default function Group({ groups }: { groups: CoachGroup[] }) {
     <main className="page">
       <h1>Группа</h1>
       <GroupPicker groups={groups} value={gid} onChange={setGid} />
+      {withStats && <ListRow title="Статистика посещаемости" sub={['Ваши группы за период']} onClick={() => setStats(true)} />}
       {players.length === 0 ? (
         <EmptyState icon="users" title="В группе нет игроков" />
       ) : (
         players.map(p => <ListRow key={p.id} avatar={p.full_name} title={p.full_name} onClick={() => setOpen(p)} />)
       )}
+      {notify && <NotifyToggle hint="Бот пришлёт сообщение, когда вам назначат группу. Чтобы сообщения приходили, один раз нажмите «Старт» в чате с ботом клуба." />}
     </main>
   );
 }

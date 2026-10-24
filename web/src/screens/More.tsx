@@ -1,15 +1,24 @@
 import { useState } from 'react';
 import type { CoachGroup } from '../lib/coach';
 import { ListRow } from '../ui/components';
+import NotifyToggle from '../ui/NotifyToggle';
 import AdminPayments from './AdminPayments';
 import AdminPrices from './AdminPrices';
 import Coaches from './Coaches';
 import Debtors from './Debtors';
 import Group from './Group';
+import MonthPayments from './MonthPayments';
+import Leads from './Leads';
+import TrainerLog from './TrainerLog';
+import Camps from './Camps';
+import Equipment from './Equipment';
+import Extra from './Extra';
+import Individual from './Individual';
 import RecalcPoints from './RecalcPoints';
 import Schedule from './Schedule';
+import Stats from './Stats';
 
-type Sub = 'schedule' | 'debtors' | 'coaches' | 'points' | 'payments' | 'prices' | 'recalc';
+type Sub = 'month' | 'leads' | 'tlog' | 'camps' | 'equip' | 'extra' | 'ind' | 'schedule' | 'debtors' | 'coaches' | 'points' | 'payments' | 'prices' | 'recalc' | 'stats';
 
 // «Ещё» у администратора: остальные разделы. Вернуться в список можно кнопкой «Ещё» внизу или ссылкой наверху.
 export default function More({ groups }: { groups: CoachGroup[] }) {
@@ -23,7 +32,7 @@ export default function More({ groups }: { groups: CoachGroup[] }) {
             Ещё
           </button>
         </div>
-        {sub === 'schedule' ? <Schedule all /> : sub === 'debtors' ? <Debtors /> : sub === 'coaches' ? <Coaches /> : sub === 'payments' ? <AdminPayments /> : sub === 'prices' ? <AdminPrices /> : sub === 'recalc' ? <RecalcPoints /> : <Group groups={groups} />}
+        {sub === 'schedule' ? <Schedule all /> : sub === 'debtors' ? <Debtors /> : sub === 'coaches' ? <Coaches /> : sub === 'payments' ? <AdminPayments /> : sub === 'prices' ? <AdminPrices /> : sub === 'recalc' ? <RecalcPoints /> : sub === 'stats' ? <Stats /> : sub === 'ind' ? <Individual /> : sub === 'extra' ? <Extra /> : sub === 'equip' ? <Equipment /> : sub === 'camps' ? <Camps /> : sub === 'tlog' ? <TrainerLog /> : sub === 'leads' ? <Leads /> : sub === 'month' ? <MonthPayments /> : <Group groups={groups} />}
       </>
     );
   }
@@ -31,12 +40,21 @@ export default function More({ groups }: { groups: CoachGroup[] }) {
     <main className="page">
       <h1>Ещё</h1>
       <ListRow title="Расписание" sub={['Тренировки всех групп, правка слотов']} onClick={() => setSub('schedule')} />
+      <ListRow title="Статистика" sub={['Посещаемость групп за период']} onClick={() => setSub('stats')} />
+      <ListRow title="Индивидуальные" sub={['Вратари и индивидуальные: запись, оплата, долги']} onClick={() => setSub('ind')} />
+      <ListRow title="Дополнительные" sub={['Доп. тренировки: запись, оплата, долги']} onClick={() => setSub('extra')} />
+      <ListRow title="Экипировка" sub={['Заказы, оплата, выдача, каталог']} onClick={() => setSub('equip')} />
+      <ListRow title="Сборы" sub={['Лагеря и сборы: участники, тарифы, платежи']} onClick={() => setSub('camps')} />
+      <ListRow title="Учёт тренеров" sub={['Проведённые тренировки и часы по месяцам']} onClick={() => setSub('tlog')} />
+      <ListRow title="Заявки" sub={['Новые родители из бота «Хочу в KickStart»']} onClick={() => setSub('leads')} />
+      <ListRow title="Оплаты за месяц" sub={['Кто сколько внёс по группам, быстрый платёж']} onClick={() => setSub('month')} />
       <ListRow title="Баллы игроков" sub={['Ручные баллы, история, контакты родителей']} onClick={() => setSub('points')} />
       <ListRow title="Платежи" sub={['Внести платёж, исправить запись']} onClick={() => setSub('payments')} />
       <ListRow title="Цены" sub={['Абонемент и индивидуальные занятия по месяцам']} onClick={() => setSub('prices')} />
       <ListRow title="Пересчёт баллов за матчи" sub={['Привести баллы к новой схеме']} onClick={() => setSub('recalc')} />
       <ListRow title="Должники" sub={['Долг по абонементам, скидки, показ родителям']} onClick={() => setSub('debtors')} />
       <ListRow title="Тренеры" sub={['Назначение групп тренерам']} onClick={() => setSub('coaches')} />
+      <NotifyToggle hint="Бот пришлёт сообщение о новых запросах на привязку и на удаление данных. Чтобы сообщения приходили, один раз нажмите «Старт» в чате с ботом клуба." />
     </main>
   );
 }
