@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import Message, { Splash } from './Message';
+import { EmptyState } from '../ui/components';
+import { Failure, Splash } from './Message';
 
 interface Pending {
   id: string;
@@ -61,24 +62,24 @@ export default function Admin() {
     await load();
   };
 
-  if (error) return <Message title="Ошибка" text={error} />;
+  if (error) return <Failure title="Не удалось загрузить запросы" text={error} onRetry={() => { setError(null); void load(); }} />;
   if (!rows) return <Splash />;
   return (
     <main className="page">
       <h1>Запросы родителей</h1>
-      {rows.length === 0 && <p className="muted">Новых запросов нет.</p>}
+      {rows.length === 0 && <EmptyState icon="box" title="Новых запросов нет" text="Когда родитель попросит связать его с ребёнком, запрос появится здесь." />}
       {rows.map(r => (
-        <section className="card" key={r.id}>
+        <section className="ks-card" key={r.id}>
           <h2>{r.players?.full_name}</h2>
           <p className="muted">{r.players?.groups?.name ?? 'без группы'}</p>
           <p>
             Запрашивает: <strong>{r.users?.display_name ?? 'без имени'}</strong> <span className="muted">(Telegram ID {r.users?.telegram_id})</span>
           </p>
-          <div className="actions">
-            <button className="btn" disabled={busy === r.id} onClick={() => void decide(r.id, true)}>
+          <div className="ks-btns">
+            <button className="ks-btn" disabled={busy === r.id} onClick={() => void decide(r.id, true)}>
               Подтвердить
             </button>
-            <button className="btn ghost" disabled={busy === r.id} onClick={() => void decide(r.id, false)}>
+            <button className="ks-btn secondary" disabled={busy === r.id} onClick={() => void decide(r.id, false)}>
               Отклонить
             </button>
           </div>
@@ -86,17 +87,17 @@ export default function Admin() {
       ))}
       {dels.length > 0 && (
         <>
-          <h1 style={{ marginTop: 24 }}>Запросы на удаление данных</h1>
+          <h1 style={{ marginTop: 28 }}>Запросы на удаление данных</h1>
           <p className="muted" style={{ marginBottom: 10 }}>
             «Удалить» убирает связи родителя с детьми, его запросы, отметки о согласии и имя в профиле. Данные игроков остаются у клуба. Учётную запись Telegram в Supabase (Authentication) при необходимости удалите вручную.
           </p>
           {dels.map(d => (
-            <section className="card" key={d.id}>
+            <section className="ks-card" key={d.id}>
               <h2>{d.users?.display_name ?? 'без имени'}</h2>
               <p className="muted">Telegram ID {d.users?.telegram_id} · {d.created_at.slice(0, 10).split('-').reverse().join('.')}</p>
-              <div className="actions">
-                <button className="btn" disabled={busy === d.id} onClick={() => void erase(d)}>Удалить данные</button>
-                <button className="btn ghost" disabled={busy === d.id} onClick={() => void rejectDel(d)}>Отклонить</button>
+              <div className="ks-btns">
+                <button className="ks-btn" disabled={busy === d.id} onClick={() => void erase(d)}>Удалить данные</button>
+                <button className="ks-btn secondary" disabled={busy === d.id} onClick={() => void rejectDel(d)}>Отклонить</button>
               </div>
             </section>
           ))}

@@ -113,3 +113,15 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 .ks-chip[aria-pressed='true'] { background: var(--ks-primary); border-color: var(--ks-primary); color: var(--ks-on-primary); }
 .ks-chip:focus-visible { outline: 3px solid var(--ks-primary); outline-offset: 1px; }
 .ks-list-head { display: flex; justify-content: space-between; margin: 16px 0 8px; padding-bottom: 6px; border-bottom: 2px solid var(--ks-text); }
+
+/* Компактная кнопка, опасное действие, строка слота расписания */
+.ks-btn.sm { width: auto; min-height: 40px; padding: 0 14px; font-size: 14px; flex: none; }
+.ks-btn.danger { background: var(--ks-danger-subtle); color: var(--ks-danger-strong); }
+.ks-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.ks-btns .ks-btn { flex: 1 1 140px; }
+.ks-card h2 { margin: 0 0 4px; }
+.ks-slot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--ks-border); }
+.ks-slot:first-of-type { border-top: 0; }
+.ks-slot-main { min-width: 0; line-height: 1.35; }
+.ks-slot-main .ks-muted { display: block; font-size: 13px; }
+.ks-slot-end { white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--ks-text-muted); }

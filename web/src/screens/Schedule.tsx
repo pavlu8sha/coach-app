@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import Message, { Failure, Loading } from './Message';
+import { EmptyState } from '../ui/components';
+import { Failure, Loading } from './Message';
 import SlotEdit, { type SlotForm } from './SlotEdit';
 
 interface Slot { id: string; weekday: number; starts_at: string; ends_at: string | null; location: string | null; kind: string; coaches: string | null }
@@ -65,7 +66,7 @@ export default function Schedule({ all = false, editable = all }: { all?: boolea
 
   if (error) return <Failure title="Не удалось загрузить расписание" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   if (!groups) return <Loading />;
-  if (!groups.length) return <Message title="Расписание" text="Расписание появится, когда администратор подтвердит связь с ребёнком." />;
+  if (!groups.length) return <main className="page"><h1>Расписание</h1><EmptyState icon="box" title="Пока пусто" text="Расписание появится, когда администратор подтвердит связь с ребёнком." /></main>;
 
   const done = () => {
     setEditing(null);
@@ -75,42 +76,42 @@ export default function Schedule({ all = false, editable = all }: { all?: boolea
     <main className="page">
       <h1>Расписание</h1>
       {groups.map(g => (
-        <section className="card" key={g.id}>
+        <section className="ks-card" key={g.id}>
           <h2>{g.name}</h2>
           {g.kids.length > 0 && <p className="muted">{g.kids.join(', ')}</p>}
 
           <h3>Тренировки</h3>
           {g.slots.length === 0 && <p className="muted">Расписание пока не заполнено.</p>}
-          <ul className="events">
+          <div>
             {g.slots.map(s => (
-              <li key={s.id} style={editable && editing?.key === s.id ? { display: 'block' } : undefined}>
+              <div className="ks-slot" key={s.id} style={editable && editing?.key === s.id ? { display: 'block' } : undefined}>
                 {editable && editing?.key === s.id ? (
                   <SlotEdit groupId={g.id} initial={editing.slot} onDone={done} onCancel={() => setEditing(null)} />
                 ) : (
                   <>
-                    <span>
+                    <span className="ks-slot-main">
                       <strong>{DAYS[s.weekday]}</strong> {hm(s.starts_at)}
                       {s.ends_at ? `–${hm(s.ends_at)}` : ''}
                       {(s.kind !== 'Групповая' || s.location) && (
-                        <span className="muted" style={{ display: 'block' }}>
+                        <span className="ks-muted">
                           {[s.kind !== 'Групповая' ? s.kind : null, s.location].filter(Boolean).join(' · ')}
                         </span>
                       )}
                     </span>
                     {editable && (
-                      <button className="btn small ghost" onClick={() => setEditing({ group: g.id, key: s.id, slot: s })}>
+                      <button className="ks-btn secondary sm" onClick={() => setEditing({ group: g.id, key: s.id, slot: s })}>
                         Изменить
                       </button>
                     )}
                   </>
                 )}
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
           {editable && (editing?.key === `new-${g.id}` ? (
             <SlotEdit groupId={g.id} initial={editing.slot} onDone={done} onCancel={() => setEditing(null)} />
           ) : (
-            <button className="btn small ghost" style={{ marginTop: 8 }} onClick={() => setEditing({ group: g.id, key: `new-${g.id}`, slot: { weekday: 1, starts_at: '', ends_at: null, location: null, kind: 'Групповая', coaches: null } })}>
+            <button className="ks-btn secondary" style={{ marginTop: 10 }} onClick={() => setEditing({ group: g.id, key: `new-${g.id}`, slot: { weekday: 1, starts_at: '', ends_at: null, location: null, kind: 'Групповая', coaches: null } })}>
               Добавить тренировку
             </button>
           ))}
@@ -118,30 +119,30 @@ export default function Schedule({ all = false, editable = all }: { all?: boolea
           {g.upcoming.length > 0 && (
             <>
               <h3>Ближайшие матчи</h3>
-              <ul className="events">
+              <div>
                 {g.upcoming.map(m => (
-                  <li key={m.id}>
-                    <span>{m.opponent ?? 'Соперник уточняется'}</span>
-                    <span className="muted">{fmtDate(m.played_on)}</span>
-                  </li>
+                  <div className="ks-slot" key={m.id}>
+                    <span className="ks-slot-main">{m.opponent ?? 'Соперник уточняется'}</span>
+                    <span className="ks-slot-end">{fmtDate(m.played_on)}</span>
+                  </div>
                 ))}
-              </ul>
+              </div>
             </>
           )}
 
           {g.results.length > 0 && (
             <>
               <h3>Последние результаты</h3>
-              <ul className="events">
+              <div>
                 {g.results.map(m => (
-                  <li key={m.id}>
-                    <span>{m.opponent ?? 'Матч'}</span>
-                    <span className="muted">
+                  <div className="ks-slot" key={m.id}>
+                    <span className="ks-slot-main">{m.opponent ?? 'Матч'}</span>
+                    <span className="ks-slot-end">
                       {m.goals_for}:{m.goals_against} · {fmtDate(m.played_on)}
                     </span>
-                  </li>
+                  </div>
                 ))}
-              </ul>
+              </div>
             </>
           )}
         </section>
