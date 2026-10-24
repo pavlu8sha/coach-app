@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { CoachGroup } from '../lib/coach';
 import { ListRow } from '../ui/components';
+import HomeScreenPrompt from '../ui/HomeScreenPrompt';
 import NotifyToggle from '../ui/NotifyToggle';
 import AdminPayments from './AdminPayments';
 import AdminPrices from './AdminPrices';
@@ -61,6 +62,7 @@ export default function More({ groups }: { groups: CoachGroup[] }) {
       <ListRow title="Цены" sub={['Абонемент и индивидуальные занятия по месяцам']} onClick={() => setSub('prices')} />
       <ListRow title="Старт подсчёта баллов" sub={['С какой даты баллы видны родителям и тренерам']} onClick={() => setSub('pstart')} />
       <ListRow title="Пересчёт баллов за матчи" sub={['Привести баллы к новой схеме']} onClick={() => setSub('recalc')} />
+      <HomeScreenPrompt />
       <NotifyToggle hint="Бот пришлёт сообщение о новых запросах на привязку и на удаление данных. Чтобы сообщения приходили, один раз нажмите «Старт» в чате с ботом клуба." />
     </main>
   );

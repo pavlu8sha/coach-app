@@ -9,7 +9,11 @@ interface TgWebApp {
   close?(): void;
   BackButton?: TgButton;
   MainButton?: TgMainButton;
+  // Bot API 8.0+: ярлык на экран «Домой»; на старых клиентах методов нет
+  addToHomeScreen?(): void;
+  checkHomeScreenStatus?(cb: (status: HomeScreenStatus) => void): void;
 }
+export type HomeScreenStatus = 'unsupported' | 'unknown' | 'added' | 'missed';
 interface TgButton {
   show(): void;
   hide(): void;
@@ -66,3 +70,16 @@ export const closeApp = (): void => {
   if (inTelegram() && app?.close) app.close();
   else location.reload();
 };
+
+/** Можно ли предложить ярлык на экран «Домой»: только в Telegram с поддержкой и если ярлыка ещё нет. */
+export function homeScreenOffer(): Promise<boolean> {
+  const app = tgApp();
+  if (!inTelegram() || !app?.addToHomeScreen || !app.checkHomeScreenStatus) return Promise.resolve(false);
+  return new Promise(res => {
+    const t = setTimeout(() => res(false), 1500); // клиент мог не ответить
+    app.checkHomeScreenStatus!(st => { clearTimeout(t); res(st === 'unknown' || st === 'missed'); });
+  });
+}
+
+/** Показать системное предложение добавить приложение на экран «Домой». */
+export const addToHomeScreen = (): void => tgApp()?.addToHomeScreen?.();
