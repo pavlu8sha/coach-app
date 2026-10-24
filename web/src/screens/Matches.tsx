@@ -8,6 +8,11 @@ interface Kid { id: string; name: string }
 interface Part { played: boolean; goals: number }
 interface Match { id: string; team: string; played_on: string; opponent: string | null; goals_for: number | null; goals_against: number | null }
 type Filter = 'all' | 'upcoming' | 'past';
+interface Tour { match_id: string; tournament_name: string | null; tournament_kind: string | null; match_kind: string | null }
+const KIND_LABEL: Record<string, string> = { championship: 'Чемпионат', festival: 'Фестиваль', cup: 'Кубок' };
+const FRIENDLY = 'friendly';
+// подпись турнира для фильтра: название, иначе тип; товарищеские — отдельным пунктом
+const tourLabel = (t: Tour | undefined) => (t?.match_kind === FRIENDLY ? 'Товарищеские' : t?.tournament_name ?? (t?.tournament_kind ? KIND_LABEL[t.tournament_kind] ?? null : null));
 
 const fmtDate = (iso: string) => iso.split('-').reverse().join('.');
 const today = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD по местному времени телефона
@@ -27,6 +32,8 @@ export default function Matches() {
   const [parts, setParts] = useState<Map<string, Part>>(new Map()); // «матч|ребёнок» → участие
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
+  const [tours, setTours] = useState<Map<string, string>>(new Map()); // матч → подпись турнира
+  const [tour, setTour] = useState('');
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
@@ -59,6 +66,11 @@ export default function Matches() {
         rows.push(...((ex.data ?? []) as Match[]));
         rows.sort((a, b) => (a.played_on < b.played_on ? 1 : -1));
       }
+      // турнир нужен только для фильтра: при ошибке просто не показываем фильтр
+      const tr = await supabase.rpc('match_tournaments');
+      const tm = new Map<string, string>();
+      for (const t of (tr.data ?? []) as Tour[]) { const l = tourLabel(t); if (l) tm.set(t.match_id, l); }
+      setTours(tm);
       setMatches(rows);
     })();
   }, [reload]);
@@ -69,7 +81,8 @@ export default function Matches() {
 
   const t = today();
   const upcoming = matches.filter(m => m.played_on >= t && m.goals_for === null).reverse();
-  const past = matches.filter(isResult);
+  const tourNames = [...new Set(matches.filter(isResult).map(m => tours.get(m.id)).filter((n): n is string => Boolean(n)))].sort();
+  const past = matches.filter(isResult).filter(m => !tour || tours.get(m.id) === tour);
   const res = teamResults(past.map(m => ({ played_on: m.played_on, opponent: m.opponent, goals_for: m.goals_for ?? 0, goals_against: m.goals_against ?? 0 })));
   const showUpcoming = filter !== 'past';
   const showPast = filter !== 'upcoming';
@@ -95,6 +108,13 @@ export default function Matches() {
           { value: 'past', label: 'Прошедшие' },
         ]}
       />
+
+      {tourNames.length > 0 && filter !== 'upcoming' && (
+        <select aria-label="Турнир" value={tour} onChange={e => setTour(e.target.value)} style={{ margin: '10px 0' }}>
+          <option value="">Все турниры</option>
+          {tourNames.map(n => <option key={n} value={n}>{n}</option>)}
+        </select>
+      )}
 
       {filter !== 'upcoming' && res.games > 0 && (
         <div className="ks-card" aria-label="Итоги команды">
