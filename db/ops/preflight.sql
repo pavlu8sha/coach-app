@@ -1,4 +1,4 @@
--- Что из миграций 0017–0040 уже применено в этой базе. Только чтение, ничего не меняет.
+-- Что из миграций 0017–0042 уже применено в этой базе. Только чтение, ничего не меняет.
 -- Запустить в SQL Editor целиком. applied = true — применять эту миграцию не нужно (повторный запуск упадёт на create table/trigger).
 -- Применять надо по номерам только те, где applied = false.
 select * from (values
@@ -25,6 +25,8 @@ select * from (values
   ('0037_camps_admin',             to_regprocedure('camp_save(uuid,text,text,date,date,numeric,date,date,boolean)') is not null),
   ('0038_training_log_admin',      to_regprocedure('tl_add(date,text,text,text,time,time,text,boolean)') is not null),
   ('0039_bot_leads',               to_regclass('lead_drafts') is not null),
-  ('0040_points_start',            to_regprocedure('points_start()') is not null)
+  ('0040_points_start',            to_regprocedure('points_start()') is not null),
+  ('0041_match_tournament_labels', to_regprocedure('match_tournaments()') is not null),
+  ('0042_coach_all_groups',        to_regprocedure('trainer_attendance(date,date)') is not null)
 ) as t(migration, applied)
 order by migration;
