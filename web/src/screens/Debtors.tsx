@@ -27,6 +27,7 @@ export default function Debtors() {
   const [month, setMonth] = useState(months[0] ?? SEASON_START);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [discs, setDiscs] = useState<Disc[]>([]);
+  const [offs, setOffs] = useState<Disc[]>([]);
   const [clubId, setClubId] = useState<string | null>(null);
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -48,18 +49,32 @@ export default function Debtors() {
         if (st.error) return setError(st.error.message);
         setEnabled((st.data as { value: string } | null)?.value === 'true');
       }
+      const w = await supabase.from('subscriptions').select('id, player_id, players(full_name)').eq('month', month).eq('written_off', true);
+      if (w.error) return setError(w.error.message.includes('written_off') ? 'Списание долга ещё не установлено в базе (миграция 0032).' : w.error.message);
+      setOffs((w.data ?? []) as unknown as Disc[]);
       setClubId(cid);
       setRows(((d.data ?? []) as Row[]).map(r => ({ ...r, tariff: Number(r.tariff), paid: Number(r.paid), debt: Number(r.debt) })));
       setDiscs((s.data ?? []) as unknown as Disc[]);
     })();
   }, [month, reload]);
 
-  const setDiscount = async (playerId: string, on: boolean) => {
+  const setFlag = async (playerId: string, field: 'discount' | 'written_off', on: boolean) => {
     setBusy(playerId);
     setMsg(null);
-    const r = await supabase.from('subscriptions').upsert({ player_id: playerId, month, discount: on }, { onConflict: 'player_id,month' });
+    const r = await supabase.from('subscriptions').upsert({ player_id: playerId, month, [field]: on }, { onConflict: 'player_id,month' });
     setBusy(null);
     if (r.error) return setMsg(r.error.message);
+    setReload(n => n + 1);
+  };
+  const setDiscount = (playerId: string, on: boolean) => setFlag(playerId, 'discount', on);
+  const createMonth = async () => {
+    if (!window.confirm(`Создать абонементы на ${monthName(month).toLowerCase()} для всех активных игроков?`)) return;
+    setBusy('month');
+    setMsg(null);
+    const r = await supabase.rpc('create_subscription_month', { m: month });
+    setBusy(null);
+    if (r.error) return setMsg(r.error.message.includes('Could not find the function') ? 'Функция ещё не установлена в базе (миграция 0032).' : r.error.message.includes('out of range') ? 'Для этого месяца абонементы создать нельзя.' : r.error.message);
+    setMsg(`Создано абонементов: ${r.data ?? 0}. Уже существующие не менялись.`);
     setReload(n => n + 1);
   };
   const toggleEnabled = async () => {
@@ -94,7 +109,12 @@ export default function Debtors() {
           {enabled ? 'Выключить показ родителям' : 'Включить показ родителям'}
         </button>
       </div>
-      {msg && <p className="error">{msg}</p>}
+      <div className="ks-card">
+        <b>Абонементы на {monthName(month).toLowerCase()}</b>
+        <p className="ks-muted" style={{ margin: '6px 0 10px' }}>Создаёт строки абонементов для всех активных игроков с группой (кроме индивидуальных). Только после этого прошлый месяц считается в долге у неплательщиков.</p>
+        <button type="button" className="ks-btn secondary" disabled={busy === 'month'} onClick={() => void createMonth()}>Создать абонементы на месяц</button>
+      </div>
+      {msg && <p className={msg.startsWith('Создано') ? 'muted' : 'error'}>{msg}</p>}
       <p className="muted" style={{ margin: '4px 0 10px' }}>{rows.length > 0 ? `Должны: ${rows.length}, всего ${gel(total)}` : ''}</p>
       {rows.length === 0 ? (
         <EmptyState icon="users" title="Должников нет" text="За этот месяц у активных игроков нет неоплаченных абонементов." />
@@ -112,6 +132,9 @@ export default function Debtors() {
                 <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy === r.player_id} onClick={() => void setDiscount(r.player_id, true)}>
                   Отметить «Скидка»
                 </button>
+                <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy === r.player_id} onClick={() => void setFlag(r.player_id, 'written_off', true)}>
+                  Списать долг
+                </button>
               </div>
             ))}
           </section>
@@ -122,6 +145,14 @@ export default function Debtors() {
           <h3>Со скидкой за месяц</h3>
           {discs.map(d => (
             <ListRow key={d.id} avatar={d.players?.full_name ?? '—'} title={d.players?.full_name ?? 'Игрок'} sub={['Если за месяц что-то внесено, долга нет']} end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} disabled={busy === d.player_id} onClick={() => void setDiscount(d.player_id, false)}>Снять</button>} />
+          ))}
+        </>
+      )}
+      {offs.length > 0 && (
+        <>
+          <h3>Долг списан</h3>
+          {offs.map(d => (
+            <ListRow key={d.id} avatar={d.players?.full_name ?? '—'} title={d.players?.full_name ?? 'Игрок'} sub={['Не показывается ни в списке, ни родителю']} end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} disabled={busy === d.player_id} onClick={() => void setFlag(d.player_id, 'written_off', false)}>Вернуть</button>} />
           ))}
         </>
       )}
