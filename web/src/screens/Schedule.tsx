@@ -91,9 +91,12 @@ export default function Schedule({ all = false, editable = all }: { all?: boolea
                     <span>
                       <strong>{DAYS[s.weekday]}</strong> {hm(s.starts_at)}
                       {s.ends_at ? `–${hm(s.ends_at)}` : ''}
-                      {s.kind !== 'Групповая' && <span className="muted"> · {s.kind}</span>}
+                      {(s.kind !== 'Групповая' || s.location) && (
+                        <span className="muted" style={{ display: 'block' }}>
+                          {[s.kind !== 'Групповая' ? s.kind : null, s.location].filter(Boolean).join(' · ')}
+                        </span>
+                      )}
                     </span>
-                    <span className="muted">{s.location ?? ''}</span>
                     {editable && (
                       <button className="btn small ghost" onClick={() => setEditing({ group: g.id, key: s.id, slot: s })}>
                         Изменить
