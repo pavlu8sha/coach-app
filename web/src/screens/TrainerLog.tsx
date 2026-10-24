@@ -88,7 +88,7 @@ function Day() {
   if (error) return <Failure title="Не удалось загрузить тренировки" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   return (
     <>
-      <label className="field">Дата<input type="date" value={date} onChange={e => { setSlots(null); setLogs(null); setDate(e.target.value); }} /></label>
+      <label className="field" style={{ marginBottom: 12 }}>Дата<input type="date" value={date} onChange={e => { setSlots(null); setLogs(null); setDate(e.target.value); }} /></label>
       {msg && <p className="error">{msg}</p>}
       {!slots || !logs ? <Loading /> : items.length === 0 ? (
         <EmptyState icon="users" title="Тренировок нет" text="В этот день нет занятий по расписанию и записей в журнале." />
@@ -109,7 +109,7 @@ function Day() {
                   <div className="ks-line" key={r.id} style={{ marginTop: 8 }}>
                     <span>{r.coach}{r.hours ? ` · ${r.hours} ч` : ''}</span>
                     <span style={{ display: 'flex', gap: 6 }}>
-                      <select aria-label={`Заменить тренера ${r.coach}`} value="" disabled={busy === r.id} onChange={e => e.target.value && void run(r.id, () => supabase.rpc('tl_replace_coach', { i: r.id, new_coach: e.target.value }))}>
+                      <select className="ks-select" style={{ minHeight: 40, width: 150, marginBottom: 0 }} aria-label={`Заменить тренера ${r.coach}`} value="" disabled={busy === r.id} onChange={e => e.target.value && void run(r.id, () => supabase.rpc('tl_replace_coach', { i: r.id, new_coach: e.target.value }))}>
                         <option value="">Заменить…</option>
                         {known.filter(n => n !== r.coach).map(n => <option key={n}>{n}</option>)}
                       </select>
@@ -117,7 +117,7 @@ function Day() {
                     </span>
                   </div>
                 ))}
-                <select aria-label="Добавить тренера" style={{ marginTop: 8 }} value="" disabled={busy === k} onChange={e => e.target.value && void run(k, () => supabase.rpc('tl_add', { d: date, coach: e.target.value, label: it.label, kind: it.kind, st: it.start, en: it.end, loc: it.loc, is_held: true }))}>
+                <select className="ks-select" aria-label="Добавить тренера" style={{ marginTop: 8, marginBottom: 0 }} value="" disabled={busy === k} onChange={e => e.target.value && void run(k, () => supabase.rpc('tl_add', { d: date, coach: e.target.value, label: it.label, kind: it.kind, st: it.start, en: it.end, loc: it.loc, is_held: true }))}>
                   <option value="">Добавить тренера…</option>
                   {known.filter(n => !held.some(r => r.coach === n)).map(n => <option key={n}>{n}</option>)}
                 </select>

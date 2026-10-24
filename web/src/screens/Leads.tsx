@@ -58,7 +58,7 @@ export default function Leads() {
             {l.username ? <> · <a href={`https://t.me/${encodeURIComponent(l.username)}`} target="_blank" rel="noreferrer">@{l.username}</a></> : null}
             {l.phone ? <> · <a href={`tel:${l.phone.replace(/[^+\d]/g, '')}`}>{l.phone}</a></> : null}
           </div>
-          <input aria-label="Заметка" placeholder="Заметка" maxLength={300} style={{ marginTop: 8 }} value={notes[l.id] ?? l.note ?? ''} onChange={e => setNotes({ ...notes, [l.id]: e.target.value })} />
+          <input className="ks-input" aria-label="Заметка" placeholder="Заметка" maxLength={300} style={{ marginTop: 8 }} value={notes[l.id] ?? l.note ?? ''} onChange={e => setNotes({ ...notes, [l.id]: e.target.value })} />
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
             {NEXT.filter(s => s !== l.status).map(s => (
               <button key={s} type="button" className="ks-btn secondary" style={{ width: 'auto' }} disabled={busy === l.id} onClick={() => void setStatus(l, s)}>{LABEL[s]}</button>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { coachError, fmtDate, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
-import { EmptyState, ListRow, Pill, SearchInput, Segmented } from '../ui/components';
+import { EmptyState, ListRow, Pill, SearchInput, Segmented, SwitchRow } from '../ui/components';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 
@@ -194,7 +194,7 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
       <label className="field">Надпись<input value={insc} maxLength={40} onChange={e => setInsc(e.target.value)} /></label>
       <label className="field">Номер<input value={number} maxLength={10} onChange={e => setNumber(e.target.value)} /></label>
       <label className="field">Локация<input value={loc} maxLength={40} onChange={e => setLoc(e.target.value)} /></label>
-      <label className="field"><span><input type="checkbox" checked={inst} onChange={e => setInst(e.target.checked)} /> Рассрочка</span></label>
+      <div style={{ marginTop: 12 }}><SwitchRow id="inst" label="Рассрочка" checked={inst} onChange={setInst} /></div>
       <label className="field">Своя сумма, ₾ (если со скидкой; иначе пусто)<input inputMode="decimal" value={custom} onChange={e => setCustom(e.target.value)} /></label>
       <p className="muted">По каталогу: {gel(total)}</p>
       {err && <p className="error">{err}</p>}
@@ -268,7 +268,7 @@ function OrderView({ order, onBack }: { order: Order; onBack: () => void }) {
       <label className="field">Номер<input value={number} maxLength={10} onChange={e => setNumber(e.target.value)} /></label>
       <label className="field">Локация<input value={loc} maxLength={40} onChange={e => setLoc(e.target.value)} /></label>
       <label className="field">Сумма заказа, ₾<input inputMode="decimal" value={total} onChange={e => setTotal(e.target.value)} /></label>
-      <label className="field"><span><input type="checkbox" checked={inst} onChange={e => setInst(e.target.checked)} /> Рассрочка</span></label>
+      <div style={{ marginTop: 12 }}><SwitchRow id="inst" label="Рассрочка" checked={inst} onChange={setInst} /></div>
       <button type="button" className="ks-btn" disabled={busy === 'edit' || Number.isNaN(num(total))} onClick={() => void run('edit', () => supabase.rpc('eq_edit_order', { o: o.id, insc, num: number, inst, loc, new_total: num(total) }), 'Сохранено.')}>Сохранить</button>
       <div style={{ height: 8 }} />
       {confirmDel ? (
