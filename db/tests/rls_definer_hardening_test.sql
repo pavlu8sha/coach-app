@@ -40,7 +40,9 @@ select is(
         'camp_save', 'camp_tariff_save', 'camp_register', 'camp_update_participant', 'camp_pay', 'camp_cancel_payment', 'tl_add', 'tl_confirm',
         'tl_set_held', 'tl_replace_coach', 'lead_set_status',
         -- 0040: старт подсчёта баллов
-        'points_start', 'set_points_start')),
+        'points_start', 'set_points_start',
+        -- 0041: название и тип турнира (без взносов); вызывается из match_tournaments() с правами пользователя
+        'tournament_label')),
   '', 'список функций, доступных вошедшим пользователям, не расширился без решения');
 
 select is(
