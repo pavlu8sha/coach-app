@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput, SwitchRow, type Tone } from '../ui/components';
 import { Failure, Splash } from './Message';
 import { tariffFor } from './MonthPayments';
+import PlayerCard, { type CardPlayer } from './PlayerCard';
 import PlayerEdit, { type PlayerForm } from './PlayerEdit';
 
 interface Row { id: string; full_name: string; group_id: string | null; birth_date: string | null; status: 'active' | 'inactive'; external_id: string | null }
@@ -41,6 +42,7 @@ export default function Players() {
   const [prices, setPrices] = useState<Price[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [edit, setEdit] = useState<PlayerForm | null>(null);
+  const [card, setCard] = useState<CardPlayer | null>(null);
   const [reload, setReload] = useState(0);
   const [q, setQ] = useState('');
   const [gid, setGid] = useState('');
@@ -90,9 +92,11 @@ export default function Players() {
   if (!players) return <Splash />;
   const done = () => {
     setEdit(null);
+    setCard(null);
     setReload(n => n + 1);
   };
   if (edit) return <main className="page"><PlayerEdit initial={edit} groups={groups} clubId={groups[0]?.club_id ?? null} onDone={done} onCancel={() => setEdit(null)} /></main>;
+  if (card) return <PlayerCard player={card} onBack={() => setCard(null)} onEdit={() => setEdit({ id: card.id, full_name: card.full_name, birth_date: card.birth_date, group_id: card.group_id, status: card.status })} />;
   const toggleYear = (y: string) => setYears(cur => (cur.includes(y) ? cur.filter(x => x !== y) : [...cur, y]));
 
   return (
@@ -138,7 +142,7 @@ export default function Players() {
               title={p.full_name}
               sub={[groupName.get(p.group_id ?? '') ?? 'без группы', [p.external_id, p.birth_date ? `р. ${fmtDate(p.birth_date)}` : null].filter(Boolean).join(' · ')].filter(Boolean)}
               end={p.status === 'inactive' ? <Pill>Не занимается</Pill> : <Pill tone={s.tone} dot>{s.label}</Pill>}
-              onClick={() => setEdit({ id: p.id, full_name: p.full_name, birth_date: p.birth_date, group_id: p.group_id, status: p.status })}
+              onClick={() => setCard({ id: p.id, full_name: p.full_name, birth_date: p.birth_date, group_id: p.group_id, status: p.status, external_id: p.external_id, group_name: groupName.get(p.group_id ?? '') ?? null })}
             />
           );
         })

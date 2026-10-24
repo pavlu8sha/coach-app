@@ -57,4 +57,14 @@ describe('«Игроки»', () => {
     const row = screen.getByText('Старый Игрок').closest('button')!;
     expect(within(row).getByText('Не занимается')).toBeInTheDocument();
   });
+
+  it('нажатие на игрока открывает карточку с абонементом по месяцам', async () => {
+    seed();
+    render(<Players />);
+    fireEvent.click((await screen.findByText('Amodeo Nolan')).closest('button')!);
+    expect(await screen.findByText('Абонемент')).toBeInTheDocument();
+    expect(screen.getByText('Изменить данные')).toBeInTheDocument();
+    expect(screen.getAllByText('Внести платёж').length).toBeGreaterThan(0);
+    expect(screen.getByText(/KS-0002/)).toBeInTheDocument();
+  });
 });
