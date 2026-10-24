@@ -3,6 +3,7 @@ import { coachError, fmtDate, plural, type CoachGroup } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, Segmented } from '../ui/components';
 import { GroupPicker } from '../ui/coach';
+import NotifyToggle from '../ui/NotifyToggle';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 
@@ -11,7 +12,7 @@ interface Ev { id: string; points: number; explanation: string; occurred_on: str
 interface Parent { player_id: string; parent_name: string | null; telegram_id: number }
 
 // «Группа»: игроки группы; карточка игрока с ручными баллами и контактами родителей.
-export default function Group({ groups }: { groups: CoachGroup[] }) {
+export default function Group({ groups, notify = false }: { groups: CoachGroup[]; notify?: boolean }) {
   const [gid, setGid] = useState(groups[0]?.id ?? '');
   const [players, setPlayers] = useState<Player[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +41,7 @@ export default function Group({ groups }: { groups: CoachGroup[] }) {
       ) : (
         players.map(p => <ListRow key={p.id} avatar={p.full_name} title={p.full_name} onClick={() => setOpen(p)} />)
       )}
+      {notify && <NotifyToggle hint="Бот пришлёт сообщение, когда вам назначат группу. Чтобы сообщения приходили, один раз нажмите «Старт» в чате с ботом клуба." />}
     </main>
   );
 }
