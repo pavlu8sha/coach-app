@@ -18,6 +18,16 @@ jobs:
       - name: node --test (приложение, импорт, вход через Telegram)
         run: node --test tests/*.mjs tests/import/*.test.mjs tests/edge/*.test.mjs
 
+  edge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Deno Edge Functions (HTTP -> Supabase/Telegram stubs)
+        run: deno test --allow-env --allow-net --allow-read --allow-run tests/deno/
+
   db:
     runs-on: ubuntu-latest
     steps:
@@ -46,3 +56,5 @@ jobs:
         env:
           VITE_SUPABASE_URL: https://example.supabase.co
           VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder
+      - name: Тесты экранов (Vitest, заглушка вместо Supabase)
+        run: npm test
