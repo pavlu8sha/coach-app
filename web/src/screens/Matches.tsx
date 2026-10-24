@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { teamResults } from '../lib/teamResults';
 import { EmptyState, ListRow, Pill, Segmented, type Tone } from '../ui/components';
 import Message, { Failure, Loading } from './Message';
 
@@ -69,6 +70,7 @@ export default function Matches() {
   const t = today();
   const upcoming = matches.filter(m => m.played_on >= t && m.goals_for === null).reverse();
   const past = matches.filter(isResult);
+  const res = teamResults(past.map(m => ({ played_on: m.played_on, opponent: m.opponent, goals_for: m.goals_for ?? 0, goals_against: m.goals_against ?? 0 })));
   const showUpcoming = filter !== 'past';
   const showPast = filter !== 'upcoming';
   const sub = (m: Match) => [fmtDate(m.played_on), ...(multi ? [m.team] : [])].join(' · ');
@@ -93,6 +95,14 @@ export default function Matches() {
           { value: 'past', label: 'Прошедшие' },
         ]}
       />
+
+      {filter !== 'upcoming' && res.games > 0 && (
+        <div className="ks-card" aria-label="Итоги команды">
+          <div className="ks-line"><span>Сыграно: {res.games}</span><span className="ks-muted">Побед {res.wins} · Ничьих {res.draws} · Поражений {res.losses}</span></div>
+          <div className="ks-line"><span className="ks-muted">Мячи: {res.goalsFor}:{res.goalsAgainst}</span>{res.unbeaten > 1 && <span className="ks-muted">Без поражений: {res.unbeaten}</span>}</div>
+          {res.best && <div className="ks-line"><span className="ks-muted">Лучший матч: {res.best.opponent ?? 'Матч'}</span><span className="ks-score">{res.best.goals_for}:{res.best.goals_against}</span></div>}
+        </div>
+      )}
 
       {showUpcoming && (
         <>
