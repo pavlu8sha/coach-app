@@ -33,7 +33,7 @@ export default function SlotEdit({ groupId, initial, onDone, onCancel }: { group
   };
 
   return (
-    <div className="card inner">
+    <div className="ks-card" style={{ marginTop: 8 }}>
       <label className="field">
         День недели
         <select value={f.weekday} onChange={e => setF({ ...f, weekday: Number(e.target.value) })}>
@@ -67,15 +67,15 @@ export default function SlotEdit({ groupId, initial, onDone, onCancel }: { group
         <input value={f.coaches ?? ''} onChange={e => setF({ ...f, coaches: e.target.value })} />
       </label>
       {error && <p className="error">{error}</p>}
-      <div className="actions">
-        <button className="btn small" disabled={busy} onClick={save}>
+      <div className="ks-btns">
+        <button className="ks-btn" disabled={busy} onClick={save}>
           Сохранить
         </button>
-        <button className="btn small ghost" disabled={busy} onClick={onCancel}>
+        <button className="ks-btn secondary" disabled={busy} onClick={onCancel}>
           Отмена
         </button>
         {initial.id && (
-          <button className="btn small ghost" disabled={busy} onClick={remove}>
+          <button className="ks-btn danger" disabled={busy} onClick={remove}>
             Удалить
           </button>
         )}

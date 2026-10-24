@@ -36,7 +36,7 @@ export default function PlayerEdit({ initial, groups, clubId, onDone, onCancel }
   };
 
   return (
-    <section className="card">
+    <section className="ks-card">
       <h2>{isNew ? 'Новый ребёнок' : 'Данные ребёнка'}</h2>
       <label className="field">
         Фамилия Имя
@@ -66,11 +66,11 @@ export default function PlayerEdit({ initial, groups, clubId, onDone, onCancel }
       </label>
       {dup && <p className="error">Игрок с таким именем уже есть: {dup}. Если это другой ребёнок, нажмите «Всё равно добавить».</p>}
       {error && <p className="error">{error}</p>}
-      <div className="actions">
-        <button className="btn" disabled={busy} onClick={() => void save()}>
+      <div className="ks-btns">
+        <button className="ks-btn" disabled={busy} onClick={() => void save()}>
           {dup ? 'Всё равно добавить' : 'Сохранить'}
         </button>
-        <button className="btn ghost" disabled={busy} onClick={onCancel}>
+        <button className="ks-btn secondary" disabled={busy} onClick={onCancel}>
           Отмена
         </button>
       </div>
