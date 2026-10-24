@@ -9,6 +9,7 @@ interface Part { played: boolean; goals: number }
 interface Match { id: string; team: string; played_on: string; opponent: string | null; goals_for: number | null; goals_against: number | null }
 type Filter = 'all' | 'upcoming' | 'past';
 interface Tour { match_id: string; tournament_name: string | null; tournament_kind: string | null; match_kind: string | null }
+const FORM: Record<'w' | 'd' | 'l', { letter: string; name: string; tone: Tone }> = { w: { letter: 'В', name: 'Победа', tone: 'success' }, d: { letter: 'Н', name: 'Ничья', tone: 'neutral' }, l: { letter: 'П', name: 'Поражение', tone: 'danger' } };
 const KIND_LABEL: Record<string, string> = { championship: 'Чемпионат', festival: 'Фестиваль', cup: 'Кубок' };
 const FRIENDLY = 'friendly';
 // подпись турнира для фильтра: название, иначе тип; товарищеские — отдельным пунктом
@@ -119,6 +120,12 @@ export default function Matches() {
       {filter !== 'upcoming' && res.games > 0 && (
         <div className="ks-card" aria-label="Итоги команды">
           <div className="ks-line"><span>Сыграно: {res.games}</span><span className="ks-muted">Побед {res.wins} · Ничьих {res.draws} · Поражений {res.losses}</span></div>
+          <div className="ks-line">
+            <span className="ks-muted">Последние матчи</span>
+            <span role="list" aria-label="Последние матчи" style={{ display: 'inline-flex', gap: 4 }}>
+              {res.form.map((k, i) => <span role="listitem" key={i} aria-label={FORM[k].name}><Pill tone={FORM[k].tone}>{FORM[k].letter}</Pill></span>)}
+            </span>
+          </div>
           <div className="ks-line"><span className="ks-muted">Мячи: {res.goalsFor}:{res.goalsAgainst}</span>{res.unbeaten > 1 && <span className="ks-muted">Без поражений: {res.unbeaten}</span>}</div>
           {res.best && <div className="ks-line"><span className="ks-muted">Лучший матч: {res.best.opponent ?? 'Матч'}</span><span className="ks-score">{res.best.goals_for}:{res.best.goals_against}</span></div>}
         </div>

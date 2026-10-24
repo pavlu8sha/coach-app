@@ -6,14 +6,16 @@ export interface TeamResults {
   goalsFor: number; goalsAgainst: number;
   unbeaten: number; // матчей подряд без поражений, считая от самого свежего
   best: Played | null; // самая крупная победа (по разнице, затем по забитым)
+  form: ('w' | 'd' | 'l')[]; // исходы пяти последних матчей, свежий первым
 }
 
 export function teamResults(matches: Played[]): TeamResults {
   const sorted = [...matches].sort((a, b) => (a.played_on < b.played_on ? 1 : a.played_on > b.played_on ? -1 : 0)); // свежие первыми
-  const r: TeamResults = { games: sorted.length, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0, unbeaten: 0, best: null };
+  const r: TeamResults = { games: sorted.length, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0, unbeaten: 0, best: null, form: [] };
   let streak = true;
   for (const m of sorted) {
     const d = m.goals_for - m.goals_against;
+    if (r.form.length < 5) r.form.push(d > 0 ? 'w' : d < 0 ? 'l' : 'd');
     r.goalsFor += m.goals_for;
     r.goalsAgainst += m.goals_against;
     if (d > 0) r.wins++; else if (d < 0) r.losses++; else r.draws++;

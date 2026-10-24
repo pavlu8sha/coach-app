@@ -28,6 +28,7 @@ describe('«Матчи» родителя: итоги и турнир', () => {
     expect(within(card).getByText(/Побед 2 · Ничьих 0 · Поражений 1/)).toBeInTheDocument();
     expect(within(card).getByText('Мячи: 7:3')).toBeInTheDocument();
     expect(within(card).getByText(/Лучший матч: Локомотив/)).toBeInTheDocument();
+    expect(within(card).getAllByRole('listitem').map(e => e.getAttribute('aria-label'))).toEqual(['Победа', 'Поражение', 'Победа']);
   });
 
   it('фильтр по турниру сужает список и итоги', async () => {
