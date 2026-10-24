@@ -49,6 +49,14 @@ describe('«Занятия»', () => {
     expect(await screen.findByText('Нет занятий в расписании')).toBeInTheDocument();
   });
 
+  it('у группы без групповых тренировок показывает индивидуальные и вратарские', async () => {
+    seed();
+    fake.db.weekly_schedule = [1, 2, 3, 4, 5, 6, 7].map(w => ({ group_id: 'g1', weekday: w, starts_at: '19:00:00', location: 'Красный парк', kind: 'Вратарская' }));
+    render(<Sessions groups={groups} />);
+    expect(await screen.findByText('Сегодня')).toBeInTheDocument();
+    expect(screen.getAllByText(/Вратарская/).length).toBeGreaterThan(0);
+  });
+
   it('ошибку базы переводит в понятный текст', async () => {
     seed();
     fake.rpc.mark_attendance = () => ({ error: { message: 'player not in group' } });
