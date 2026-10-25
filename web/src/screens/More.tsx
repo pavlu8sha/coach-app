@@ -23,7 +23,7 @@ import Stats from './Stats';
 type Sub = 'pstart' | 'month' | 'leads' | 'tlog' | 'camps' | 'equip' | 'extra' | 'ind' | 'schedule' | 'debtors' | 'coaches' | 'points' | 'payments' | 'prices' | 'recalc' | 'stats';
 
 // «Ещё» у администратора: остальные разделы. Вернуться в список можно кнопкой «Ещё» внизу или ссылкой наверху.
-export default function More({ groups }: { groups: CoachGroup[] }) {
+export default function More({ groups, onPreview }: { groups: CoachGroup[]; onPreview?: (r: 'guest' | 'parent' | 'child') => void }) {
   const [sub, setSub] = useState<Sub | null>(null);
   if (sub) {
     return (
@@ -62,6 +62,14 @@ export default function More({ groups }: { groups: CoachGroup[] }) {
       <ListRow title="Цены" sub={['Абонемент и индивидуальные занятия по месяцам']} onClick={() => setSub('prices')} />
       <ListRow title="Старт подсчёта баллов" sub={['С какой даты баллы видны родителям и тренерам']} onClick={() => setSub('pstart')} />
       <ListRow title="Пересчёт баллов за матчи" sub={['Привести баллы к новой схеме']} onClick={() => setSub('recalc')} />
+      {onPreview && (
+        <>
+          <p className="ks-label">Посмотреть как</p>
+          <ListRow title="Гость" sub={['«О клубе», заявка на пробную, расписание']} onClick={() => onPreview('guest')} />
+          <ListRow title="Родитель" sub={['Экраны родителя без привязанных детей']} onClick={() => onPreview('parent')} />
+          <ListRow title="Ребёнок" sub={['Ввод кода от родителя']} onClick={() => onPreview('child')} />
+        </>
+      )}
       <HomeScreenPrompt />
       <NotifyToggle hint="Бот пришлёт сообщение о новых запросах на привязку и на удаление данных. Чтобы сообщения приходили, один раз нажмите «Старт» в чате с ботом клуба." />
     </main>
