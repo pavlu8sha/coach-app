@@ -13,6 +13,7 @@ import Profile from './screens/Profile';
 import Message, { Splash } from './screens/Message';
 import BrowserLogin, { browserLoginEnabled } from './screens/BrowserLogin';
 import About from './screens/About';
+import ParentSchedule from './screens/ParentSchedule';
 import RoleSelect, { type Role } from './screens/RoleSelect';
 import More from './screens/More';
 import CoachMatches from './screens/CoachMatches';
@@ -27,19 +28,50 @@ type State = { kind: 'loading' } | { kind: 'ready' } | { kind: 'outside' } | { k
 
 type Tab = 'about' | 'home' | 'schedule' | 'matches' | 'payments' | 'profile' | 'admin' | 'players' | 'more' | 'sessions' | 'cmatches' | 'group';
 
-function Shell() {
-  const [admin, setAdmin] = useState(false);
+const PREVIEW_LABEL: Record<Role, string> = { parent: 'Родитель', child: 'Ребёнок', guest: 'Гость', coach: 'Тренер без групп' };
+
+// Администратор может посмотреть экраны гостя, родителя и ребёнка: это только предпросмотр, права остаются администраторскими (проверяет база).
+export function Shell() {
+  const [preview, setPreview] = useState<Role | null>(null);
+  return (
+    <>
+      {preview && (
+        <div role="status" style={{ position: 'sticky', top: 0, zIndex: 20, display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px', background: 'var(--ks-primary, #14213d)', color: '#fff', fontSize: 14 }}>
+          <span>Режим просмотра: {PREVIEW_LABEL[preview]}</span>
+          <button type="button" className="ks-btn sm" style={{ width: 'auto' }} onClick={() => setPreview(null)}>Выйти</button>
+        </div>
+      )}
+      <ShellInner preview={preview} setPreview={setPreview} />
+    </>
+  );
+}
+
+function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview: (r: Role | null) => void }) {
+  const [adminReal, setAdmin] = useState(false);
   const [coachGroups, setCoachGroups] = useState<CoachGroup[]>([]);
   const [allGroups, setAllGroups] = useState<CoachGroup[]>([]); // все группы: администратору и тренеру (тренеры ведут все группы, миграция 0042)
   const [moreKey, setMoreKey] = useState(0);
-  const [hasKids, setHasKids] = useState(true); // пока не знаем — не прячем вкладку
+  const [hasKidsReal, setHasKids] = useState(true); // пока не знаем — не прячем вкладку
   const [loaded, setLoaded] = useState(false);
-  const [role, setRole] = useState<Role | null>(null);
+  const [roleReal, setRole] = useState<Role | null>(null);
   const [changingRole, setChangingRole] = useState(false);
   const [childPlayer, setChildPlayer] = useState<ChildPlayer | null>(null); // игрок, к которому привязан аккаунт ребёнка
   const [childLoaded, setChildLoaded] = useState(false);
   const [childKey, setChildKey] = useState(0);
   const [tab, setTab] = useState<Tab>('home');
+  // в предпросмотре администратор «становится» выбранной ролью без детей и без групп
+  const admin = adminReal && !preview;
+  const hasKids = hasKidsReal && !preview;
+  const role = preview ?? roleReal;
+  const startPreview = (r: Role) => {
+    setPreview(r);
+    setChangingRole(false);
+    setTab(r === 'parent' || r === 'child' ? 'home' : 'about');
+  };
+  const exitPreview = () => {
+    setPreview(null);
+    setTab('more');
+  };
   useEffect(() => {
     void (async () => {
       const { data } = await supabase.auth.getUser();
@@ -80,7 +112,7 @@ function Shell() {
       setChildLoaded(true);
     })();
   }, [role, childKey]);
-  const coach = !admin && coachGroups.length > 0;
+  const coach = !admin && !preview && coachGroups.length > 0;
   if (!loaded) return <Splash />;
   // Роль спрашиваем при первом входе. Администратора, тренера с группами и тех, у кого уже есть дети, не трогаем.
   if (!admin && !coach && !hasKids && (role === null || changingRole)) {
@@ -110,7 +142,7 @@ function Shell() {
         ) : cur === 'schedule' ? (
           <Schedule all editable={false} />
         ) : (
-          <About role={role} onChangeRole={() => setChangingRole(true)} />
+          <About role={role} onChangeRole={() => (preview ? exitPreview() : setChangingRole(true))} />
         )}
         <BottomNav
           label="Разделы"
@@ -130,7 +162,7 @@ function Shell() {
   if (!admin && !coach && !hasKids && role !== 'parent') {
     return (
       <>
-        {tab === 'schedule' ? <Schedule all editable={false} /> : <About role={role} onChangeRole={() => setChangingRole(true)} />}
+        {tab === 'schedule' ? <Schedule all editable={false} /> : <About role={role} onChangeRole={() => (preview ? exitPreview() : setChangingRole(true))} />}
         <BottomNav
           label="Разделы"
           value={tab === 'schedule' ? 'schedule' : 'about'}
@@ -146,11 +178,11 @@ function Shell() {
   const screen =
     admin && tab === 'admin' ? <Admin />
     : admin && tab === 'players' ? <Players />
-    : admin && tab === 'more' ? <More key={moreKey} groups={allGroups} />
+    : admin && tab === 'more' ? <More key={moreKey} groups={allGroups} onPreview={startPreview} />
     : (admin || coach) && tab === 'sessions' ? <Sessions groups={allGroups.length ? allGroups : coachGroups} />
     : (admin || coach) && tab === 'cmatches' ? <CoachMatches groups={allGroups.length ? allGroups : coachGroups} admin={admin} allTeams={!admin} />
     : coach && tab === 'group' ? <Group groups={coachGroups} notify withStats />
-    : tab === 'schedule' ? <Schedule all={admin} />
+    : tab === 'schedule' ? (admin || coach || !hasKids ? <Schedule all={admin} /> : <ParentSchedule />)
     : !admin && !coach && tab === 'matches' ? <Matches />
     : !admin && !coach && tab === 'profile' ? <Profile />
     : !admin && !coach && tab === 'payments' ? <Payments />
