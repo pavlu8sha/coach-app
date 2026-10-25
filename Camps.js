@@ -35,11 +35,13 @@ function campAll_() {
   var hit = cacheGetBig_(CAMP_CACHE);
   if (hit) return hit;
   var s = campSheets_(), out = { camps: [], tariffs: [], parts: [], pays: [] };
+  // Даты читаем в часовом поясе файла AdminApp, а не таблицы посещаемости: иначе даты сдвигаются на день
+  var tz = campSS_().getSpreadsheetTimeZone();
   function rows(sh, cols) { return sh && sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, cols).getValues() : []; }
   rows(s.cs, 9).forEach(function (r) {
     if (!r[0]) return;
-    out.camps.push({ id: String(r[0]), name: String(r[1]), place: String(r[2]), start: isoOf_(r[3]), end: isoOf_(r[4]),
-      deposit: Number(r[5]) || 0, depositBy: isoOf_(r[6]), payBy: isoOf_(r[7]), active: campOn_(r[8]) });
+    out.camps.push({ id: String(r[0]), name: String(r[1]), place: String(r[2]), start: isoOf_(r[3], tz), end: isoOf_(r[4], tz),
+      deposit: Number(r[5]) || 0, depositBy: isoOf_(r[6], tz), payBy: isoOf_(r[7], tz), active: campOn_(r[8]) });
   });
   rows(s.ts, 5).forEach(function (r, i) {
     if (!r[0] || !r[1]) return;
@@ -49,11 +51,11 @@ function campAll_() {
     if (!r[0]) return;
     out.parts.push({ row: i + 2, id: String(r[0]), camp: String(r[1]), pid: String(r[2] || ''), name: String(r[3]), grp: String(r[4] || ''),
       tariff: String(r[5]), sum: Number(r[6]) || 0, size: String(r[7] || ''), comment: String(r[8] || ''),
-      status: String(r[9] || 'Записан'), date: isoOf_(r[10]), guest: String(r[11] || '') === 'да' });
+      status: String(r[9] || 'Записан'), date: isoOf_(r[10], tz), guest: String(r[11] || '') === 'да' });
   });
   rows(s.ys, 10).forEach(function (r, i) {
     if (!r[0]) return;
-    out.pays.push({ row: i + 2, date: isoOf_(r[1]), camp: String(r[2]), part: String(r[3]), name: String(r[5]),
+    out.pays.push({ row: i + 2, date: isoOf_(r[1], tz), camp: String(r[2]), part: String(r[3]), name: String(r[5]),
       amount: Number(r[6]) || 0, type: String(r[7]), method: String(r[8] || ''), comment: String(r[9] || '') });
   });
   cachePutBig_(CAMP_CACHE, out, 60);

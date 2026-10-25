@@ -18,9 +18,10 @@ function today_() {
   return Utilities.formatDate(new Date(), attSS_().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
 }
 
-function isoOf_(v) {
+// tz — часовой пояс таблицы, из которой прочитано значение (по умолчанию таблица посещаемости)
+function isoOf_(v, tz) {
   if (v === '' || v === null || v === undefined) return '';
-  if (v instanceof Date) return Utilities.formatDate(v, attSS_().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
+  if (v instanceof Date) return Utilities.formatDate(v, tz || attSS_().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
   var n = Number(v);
   if (isNaN(n) || n < 1000) return '';
   return Utilities.formatDate(new Date(Date.UTC(1899, 11, 30) + Math.round(n) * 86400000), 'GMT', 'yyyy-MM-dd');
