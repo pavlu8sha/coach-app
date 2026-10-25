@@ -68,7 +68,7 @@ export default function TrialForm() {
         <input className="ks-input" style={{ marginTop: 8 }} value={phone} onChange={e => setPhone(e.target.value)} placeholder="Телефон" aria-label="Телефон" inputMode="tel" autoComplete="tel" />
         <select className="ks-select" style={{ marginTop: 8 }} value={branch} onChange={e => setBranch(e.target.value)} aria-label="Удобный филиал">
           <option value="">Удобный филиал (необязательно)</option>
-          {BRANCHES.map(b => <option key={b}>{b}</option>)}
+          {BRANCHES.map(b => <option key={b.name}>{b.name}</option>)}
         </select>
         <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 12 }}>
           <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} style={{ marginTop: 4 }} />

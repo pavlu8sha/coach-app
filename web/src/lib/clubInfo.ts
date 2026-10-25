@@ -3,7 +3,11 @@ export const CLUB_CHANNEL = 'https://t.me/fc_kickstart_tbs';
 export const ADMIN_CHAT = 'https://t.me/fc_kickstart_tbs_admin';
 export const INSTALLMENT_CHAT = 'https://t.me/coach_siordia';
 
-export const BRANCHES = ['Red Garden', 'Ortachala', 'Isani'];
+export const BRANCHES: { name: string; map: string }[] = [
+  { name: 'Red Garden', map: 'https://www.google.com/maps?q=41.724328,44.755409' },
+  { name: 'Ortachala', map: 'https://maps.app.goo.gl/o1VdhsCw8cdAWUq4A' },
+  { name: 'Isani', map: 'https://maps.app.goo.gl/cSQRGNk3Ug1UBedx8' },
+];
 
 // Чемпионаты сезона: команды по возрастам
 export const CHAMPIONSHIPS: { name: string; teams: string }[] = [

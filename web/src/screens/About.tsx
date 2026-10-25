@@ -27,7 +27,9 @@ export default function About({ role, onChangeRole }: { role: Role | null; onCha
       <section className="ks-card">
         <h2>Филиалы</h2>
         <p className="muted">У клуба три филиала. Время тренировок смотрите во вкладке «Расписание».</p>
-        <List items={BRANCHES} />
+        {BRANCHES.map(b => (
+          <p key={b.name}><b>{b.name}</b><br /><a href={b.map} target="_blank" rel="noreferrer">Открыть на карте</a></p>
+        ))}
       </section>
       <section className="ks-card">
         <h2>Чемпионаты сезона 2026/27</h2>

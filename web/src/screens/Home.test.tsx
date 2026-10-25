@@ -53,7 +53,7 @@ describe('главная родителя', () => {
     fake.db.link_requests = [{ id: 'r1', user_id: 'u', status: 'pending', players: { full_name: 'Алексей Петров' } }];
     render(<Home />);
     expect(await screen.findByText(/Запрос отправлен/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Статус запросов/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Статус запросов/ }));
     expect(await screen.findByText('Статус привязки')).toBeInTheDocument();
   });
 

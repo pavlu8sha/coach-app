@@ -10,6 +10,9 @@ describe('«О клубе» для гостя', () => {
       expect(screen.getByRole('heading', { name: t })).toBeInTheDocument();
     }
     expect(screen.getByText('Red Garden')).toBeInTheDocument();
+    const maps = screen.getAllByRole('link', { name: 'Открыть на карте' });
+    expect(maps).toHaveLength(3);
+    expect(maps[0]).toHaveAttribute('href', 'https://www.google.com/maps?q=41.724328,44.755409');
     expect(screen.getByText('U9-A, U9-B, U10, U11')).toBeInTheDocument();
     expect(screen.getByText(/525 GEL вместо 620/)).toBeInTheDocument();
   });

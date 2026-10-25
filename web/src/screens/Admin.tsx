@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { EmptyState } from '../ui/components';
+import { EmptyState, Segmented } from '../ui/components';
 import { Failure, Splash } from './Message';
+import ParentsRoster from './ParentsRoster';
 
 interface Pending {
   id: string;
@@ -18,6 +19,7 @@ export default function Admin() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [dels, setDels] = useState<Del[]>([]);
+  const [tab, setTab] = useState<'requests' | 'parents'>('requests');
 
   const load = useCallback(async () => {
     const r = await supabase
@@ -67,8 +69,10 @@ export default function Admin() {
   return (
     <main className="page">
       <h1>Запросы родителей</h1>
-      {rows.length === 0 && <EmptyState icon="box" title="Новых запросов нет" text="Когда родитель попросит связать его с ребёнком, запрос появится здесь." />}
-      {rows.map(r => (
+      <Segmented label="Раздел" value={tab} onChange={setTab} items={[{ value: 'requests', label: `Запросы${rows.length ? ` (${rows.length})` : ''}` }, { value: 'parents', label: 'Родители' }]} />
+      {tab === 'parents' && <ParentsRoster />}
+      {tab === 'requests' && rows.length === 0 && <EmptyState icon="box" title="Новых запросов нет" text="Когда родитель попросит связать его с ребёнком, запрос появится здесь." />}
+      {tab === 'requests' && rows.map(r => (
         <section className="ks-card" key={r.id}>
           <h2>{r.players?.full_name}</h2>
           <p className="muted">{r.players?.groups?.name ?? 'без группы'}</p>
@@ -85,7 +89,7 @@ export default function Admin() {
           </div>
         </section>
       ))}
-      {dels.length > 0 && (
+      {tab === 'requests' && dels.length > 0 && (
         <>
           <h1 style={{ marginTop: 28 }}>Запросы на удаление данных</h1>
           <p className="muted" style={{ marginBottom: 10 }}>
