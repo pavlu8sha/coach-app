@@ -179,3 +179,39 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 .ks-state p { max-width: 36ch; margin: 0 auto 16px; text-wrap: balance; }
 .ks-ico.warning { background: var(--ks-warning-subtle); color: var(--ks-warning); }
 .ks-ico.danger { background: var(--ks-danger-subtle); color: var(--ks-danger-strong); }
+
+/* Кнопки-ссылки: тот же вид и выравнивание, что у кнопок */
+a.ks-btn { text-decoration: none; }
+.ks-card > .ks-btn, .ks-card > .ks-btns { margin-top: 14px; }
+.ks-card > .ks-btn + .ks-btn { margin-top: 8px; }
+
+/* «О клубе»: заголовок раздела, списки, цены, плитки */
+.ks-sec-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.ks-sec-head .ks-ico { width: 36px; height: 36px; border-radius: 10px; }
+.ks-sec-head h2 { margin: 0; font-size: 1.1rem; }
+.ks-lead { margin: 0 0 12px; color: var(--ks-text-muted); line-height: 1.45; }
+.ks-checks { list-style: none; margin: 0 0 4px; padding: 0; display: grid; gap: 8px; }
+.ks-checks li { position: relative; padding-left: 26px; line-height: 1.4; }
+.ks-checks li::before { content: ''; position: absolute; left: 2px; top: 5px; width: 14px; height: 8px; border-left: 2.5px solid var(--ks-success); border-bottom: 2.5px solid var(--ks-success); transform: rotate(-45deg) scale(0.85); }
+.ks-checks.plain li::before { left: 7px; top: 8px; width: 6px; height: 6px; border: 0; border-radius: 50%; background: var(--ks-border-strong); transform: none; }
+.ks-label { margin: 14px 0 8px; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ks-text-muted); }
+.ks-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ks-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ks-tile { padding: 10px 12px; border-radius: 12px; background: var(--ks-primary-subtle); color: var(--ks-text); font-size: 0.92rem; line-height: 1.3; }
+.ks-tile b { display: block; color: var(--ks-primary); font-size: 0.8rem; margin-bottom: 2px; }
+.ks-price { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; padding: 10px 0; border-top: 1px solid var(--ks-border); }
+.ks-sec-head + .ks-price { border-top: 0; padding-top: 0; }
+.ks-price .nm { font-weight: 700; }
+.ks-price .nt { display: block; margin-top: 2px; font-weight: 400; font-size: 0.88rem; color: var(--ks-text-muted); line-height: 1.35; }
+.ks-price .pr { flex: none; font-weight: 800; color: var(--ks-primary); white-space: nowrap; }
+.ks-callout { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: var(--ks-success-subtle); color: var(--ks-text); line-height: 1.4; }
+.ks-callout b { color: var(--ks-success); }
+.ks-details { margin-top: 12px; border-top: 1px solid var(--ks-border); padding-top: 4px; }
+.ks-details summary { cursor: pointer; font-weight: 700; color: var(--ks-primary); padding: 10px 0; list-style: none; display: flex; justify-content: space-between; }
+.ks-details summary::-webkit-details-marker { display: none; }
+.ks-details summary::after { content: ''; width: 8px; height: 8px; margin: 6px 4px 0 0; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); transition: transform 0.15s; }
+.ks-details[open] summary::after { transform: rotate(-135deg); margin-top: 10px; }
+a.ks-row { text-decoration: none; color: inherit; }
+.ks-card > a.ks-row { width: auto; margin: 0 -14px; padding: 12px 14px; border: 0; border-top: 1px solid var(--ks-border); border-radius: 0; box-shadow: none; background: transparent; }
+.ks-card > a.ks-row:last-child { margin-bottom: 0; }
+.ks-hint { margin: 12px 0 0; font-size: 0.88rem; color: var(--ks-text-muted); }
