@@ -16,8 +16,8 @@ const err = (m: string) =>
   : coachError(m);
 
 // Заявка на пробную тренировку из приложения (миграция 0044): попадает администратору в «Ещё → Заявки».
-export default function TrialForm() {
-  const [open, setOpen] = useState(false);
+export default function TrialForm({ startOpen = false }: { startOpen?: boolean }) {
+  const [open, setOpen] = useState(startOpen);
   const [parent, setParent] = useState('');
   const [child, setChild] = useState('');
   const [year, setYear] = useState('');

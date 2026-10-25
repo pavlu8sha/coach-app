@@ -215,3 +215,28 @@ a.ks-row { text-decoration: none; color: inherit; }
 .ks-card > a.ks-row { width: auto; margin: 0 -14px; padding: 12px 14px; border: 0; border-top: 1px solid var(--ks-border); border-radius: 0; box-shadow: none; background: transparent; }
 .ks-card > a.ks-row:last-child { margin-bottom: 0; }
 .ks-hint { margin: 12px 0 0; font-size: 0.88rem; color: var(--ks-text-muted); }
+
+/* Обложки разделов «О клубе» */
+.ks-hub { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
+.ks-cover { position: relative; overflow: hidden; border: 0; border-radius: 20px; color: #fff; text-align: left; font: inherit; cursor: pointer; padding: 0; }
+.ks-cover .art { position: absolute; right: -14px; top: -10px; opacity: 0.28; color: #fff; display: flex; transform: rotate(-8deg); }
+.ks-cover .txt { position: relative; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; padding: 14px; }
+.ks-cover b { font-size: 1.05rem; line-height: 1.2; }
+.ks-cover small { display: block; margin-top: 3px; font-size: 0.82rem; opacity: 0.9; line-height: 1.3; }
+.ks-cover.tile { min-height: 132px; box-shadow: var(--ks-shadow); }
+.ks-cover.tile.wide { grid-column: 1 / -1; min-height: 120px; }
+.ks-cover.tile:active { transform: scale(0.98); }
+.ks-cover.tile:focus-visible { outline: 3px solid var(--ks-primary); outline-offset: 2px; }
+.ks-cover.banner { min-height: 150px; margin-bottom: 14px; }
+.ks-cover.banner h1 { margin: 0; font-size: 1.5rem; color: #fff; }
+.ks-cover.banner .art { right: -6px; top: -4px; opacity: 0.3; }
+.ks-intro { margin-bottom: 4px; }
+.ks-intro h1 { margin-bottom: 4px; }
+.ks-intro p { margin: 0 0 14px; }
+.ks-intro .ks-btn + .ks-btn { margin-top: 8px; }
+.ks-chan { margin-top: 4px; }
+.ks-card h2.ks-h { margin: 0 0 10px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+a.ks-cover { text-decoration: none; display: block; }
+.ks-cover.banner { display: flex; align-items: flex-end; }
+.ks-cover.banner .txt { height: auto; }
