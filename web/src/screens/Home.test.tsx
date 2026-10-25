@@ -7,9 +7,10 @@ const kid = (id: string, name: string, group: string | null) => ({ player_id: id
 const ev = (player_id: string, points: number, explanation: string, day: number) => ({ player_id, points, explanation, occurred_on: `2026-10-${String(day).padStart(2, '0')}` });
 
 describe('главная родителя', () => {
-  it('карточка ребёнка: сумма баллов и история со знаками, без голов и сравнения', async () => {
+  it('карточка ребёнка: баллы, история со знаками, свои матчи и голы; без рейтингов', async () => {
     fake.db.player_guardians = [kid('p1', 'Алексей Петров', 'U10-A')];
     fake.db.point_events = [ev('p1', 2, 'Победа', 3), ev('p1', 1, 'Тренировка', 2), ev('p1', -1, 'Пропуск', 1)];
+    fake.db.match_players = [{ player_id: 'p1', played: true, goals: 2 }, { player_id: 'p1', played: true, goals: 1 }, { player_id: 'p1', played: false, goals: 0 }];
     render(<Home />);
     expect(await screen.findByText('Алексей Петров')).toBeInTheDocument();
     expect(screen.getByText('U10-A')).toBeInTheDocument();
@@ -17,7 +18,7 @@ describe('главная родителя', () => {
     expect(screen.getByText('История начислений')).toBeInTheDocument();
     expect(screen.getByText('+2')).toBeInTheDocument();
     expect(screen.getByText('−1')).toBeInTheDocument();
-    expect(screen.queryByText(/гол/i)).toBeNull();
+    expect(screen.getByText('Матчей сыграно: 2 · голов: 3')).toBeInTheDocument();
   });
 
   it('длинная история сворачивается и раскрывается', async () => {

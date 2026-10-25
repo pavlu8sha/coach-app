@@ -12,6 +12,8 @@ interface Child {
   group: string | null;
   points: number;
   events: Event[];
+  played: number;
+  goals: number;
 }
 
 const SHORT = 5; // сколько начислений видно сразу
@@ -40,6 +42,7 @@ function ChildCard({ c }: { c: Child }) {
           <span>{plural(c.points)}</span>
         </div>
       </div>
+      <p className="muted ks-kid-stats">Матчей сыграно: {c.played} · голов: {c.goals}</p>
       {c.events.length === 0 ? (
         <EmptyState icon="trophy" title="Баллов пока нет" text="Они появятся после тренировок и матчей." />
       ) : (
@@ -109,13 +112,20 @@ export default function Home({ isAdmin = false }: { isAdmin?: boolean }) {
         : { data: [], error: null };
       if (events.error) return setError(events.error.message);
       const rows = (events.data ?? []) as (Event & { player_id: string })[];
+      // Голы и матчи видны только своему ребёнку: чужие карточки родитель не получает (RLS), других детей здесь нет
+      const mp = ids.length
+        ? await supabase.from('match_players').select('player_id, played, goals').in('player_id', ids)
+        : { data: [], error: null };
+      if (mp.error) return setError(mp.error.message);
+      const parts = (mp.data ?? []) as { player_id: string; played: boolean; goals: number }[];
       // Запросы нужны только для строки «ждёт подтверждения»; сбой этой выборки не мешает показать детей
       const rq = await supabase.from('link_requests').select('id, status, players(full_name)').eq('user_id', me).order('created_at', { ascending: false });
       setReqs(rq.error ? [] : ((rq.data ?? []) as unknown as Req[]));
       setChildren(
         kids.map(k => {
           const mine = rows.filter(r => r.player_id === k.id);
-          return { ...k, points: mine.reduce((s, r) => s + r.points, 0), events: mine };
+          const played = parts.filter(p => p.player_id === k.id);
+          return { ...k, points: mine.reduce((s, r) => s + r.points, 0), events: mine, played: played.filter(p => p.played).length, goals: played.reduce((s, p) => s + (p.goals ?? 0), 0) };
         }),
       );
     })();

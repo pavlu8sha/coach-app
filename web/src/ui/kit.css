@@ -140,3 +140,4 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 .ks-consent { margin-top: 12px; padding-top: 4px; border-top: 1px solid var(--ks-border); }
 .search .ks-btn.sm { min-height: 46px; }
 @media (max-width: 360px) { .ks-kid-head { gap: 10px; } .ks-kid-score strong { font-size: 1.4rem; } }
+.ks-kid-stats { margin-top: 8px; font-size: 14px; }
