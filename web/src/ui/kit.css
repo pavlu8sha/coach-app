@@ -126,3 +126,17 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 .ks-slot-main .ks-muted { display: block; font-size: 13px; }
 .ks-slot-end { white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--ks-text-muted); }
 .ks-slot > span:last-child:not(:only-child) { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* Главная родителя: карточка ребёнка с суммой баллов, согласие при привязке. Узкие экраны от 320 px. */
+.ks-kid-head { display: flex; align-items: center; gap: 12px; }
+.ks-kid-who { flex: 1; min-width: 0; }
+.ks-kid-who h2 { overflow-wrap: anywhere; }
+.ks-kid-score { flex: none; display: flex; flex-direction: column; align-items: flex-end; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.ks-kid-score strong { font-size: 1.6rem; }
+.ks-kid-score span { font-size: 13px; color: var(--ks-text-muted); }
+.ks-kid h3 { margin-top: 14px; }
+.ks-kid .ks-empty { padding: 16px 8px 8px; }
+.ks-slot-main { overflow-wrap: anywhere; }
+.ks-consent { margin-top: 12px; padding-top: 4px; border-top: 1px solid var(--ks-border); }
+.search .ks-btn.sm { min-height: 46px; }
+@media (max-width: 360px) { .ks-kid-head { gap: 10px; } .ks-kid-score strong { font-size: 1.4rem; } }

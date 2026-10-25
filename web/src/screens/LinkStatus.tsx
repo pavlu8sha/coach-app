@@ -8,7 +8,7 @@ export interface Req { id: string; status: 'pending' | 'approved' | 'rejected'; 
 
 // Статус и пояснение показываем только те, что следуют из самого статуса: сроков не обещаем, причин отказа не знаем.
 export const STATUS: Record<Req['status'], { label: string; tone: Tone; text: string }> = {
-  pending: { label: 'Ждёт подтверждения', tone: 'warning', text: 'Администратор клуба проверит запрос.' },
+  pending: { label: 'Ждёт подтверждения', tone: 'warning', text: 'Администратор клуба проверит запрос. Пока ждёте, приложением можно пользоваться: ребёнок появится на вкладке «Ребёнок» после подтверждения.' },
   approved: { label: 'Подтверждено', tone: 'success', text: 'Ребёнок привязан и виден на вкладке «Ребёнок».' },
   rejected: { label: 'Отклонено', tone: 'danger', text: 'Можно попробовать снова или спросить администратора клуба.' },
 };
