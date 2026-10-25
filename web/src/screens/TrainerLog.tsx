@@ -3,6 +3,7 @@ import { coachError, fmtShort, hm, isoDow, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, Pill, Segmented } from '../ui/components';
 import { Failure, Loading } from './Message';
+import { monthPeriod, StaffGames, StaffStats } from './TrainerStaff';
 
 interface Slot { weekday: number; starts_at: string; ends_at: string | null; location: string | null; coaches: string | null; kind: string; source_key: string }
 interface Log { id: string; held_on: string; coach: string; location: string | null; group_label: string; kind: string; starts_at: string | null; ends_at: string | null; hours: number | null; held: boolean }
@@ -19,7 +20,7 @@ const monthName = (ym: string) => {
 };
 const planCoaches = (s: string | null) => (s ?? '').split(/[,;]/).map(x => x.trim()).filter(Boolean);
 
-type Tab = 'day' | 'month';
+type Tab = 'day' | 'month' | 'games' | 'stats';
 
 // Учёт проведённых тренировок и часов тренеров для администратора (миграция 0038).
 export default function TrainerLog() {
@@ -27,8 +28,8 @@ export default function TrainerLog() {
   return (
     <main className="page">
       <h1>Учёт тренеров</h1>
-      <Segmented label="Раздел" value={tab} onChange={setTab} items={[{ value: 'day', label: 'День' }, { value: 'month', label: 'Месяц' }]} />
-      {tab === 'day' ? <Day /> : <Month />}
+      <Segmented label="Раздел" value={tab} onChange={setTab} items={[{ value: 'day', label: 'День' }, { value: 'month', label: 'Месяц' }, { value: 'games', label: 'Игры' }, { value: 'stats', label: 'Статистика' }]} />
+      {tab === 'day' ? <Day /> : tab === 'month' ? <Month /> : <StaffMonth tab={tab} />}
     </main>
   );
 }
@@ -126,6 +127,24 @@ function Day() {
           </div>
         );
       })}
+    </>
+  );
+}
+
+function StaffMonth({ tab }: { tab: 'games' | 'stats' }) {
+  const [ym, setYm] = useState(monthIso(today()));
+  const months = useMemo(() => {
+    const out: string[] = [];
+    const now = new Date();
+    for (let i = 0; i < 14; i++) out.push(new Date(now.getFullYear(), now.getMonth() - i, 1).toLocaleDateString('en-CA').slice(0, 7));
+    return out;
+  }, []);
+  return (
+    <>
+      <select className="ks-select" aria-label="Месяц" value={ym} onChange={e => setYm(e.target.value)}>
+        {months.map(m => <option key={m} value={m}>{monthName(m)}</option>)}
+      </select>
+      {tab === 'games' ? <StaffGames period={monthPeriod(ym)} admin /> : <StaffStats period={monthPeriod(ym)} />}
     </>
   );
 }

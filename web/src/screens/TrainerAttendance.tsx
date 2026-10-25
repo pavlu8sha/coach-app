@@ -3,6 +3,7 @@ import { addDays, coachError, fmtShort, hm, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, Segmented } from '../ui/components';
 import { Failure, Loading } from './Message';
+import { StaffGames, StaffStats } from './TrainerStaff';
 
 interface Row { held_on: string; coach: string; group_label: string; kind: string; starts_at: string | null; ends_at: string | null; location: string | null; held: boolean }
 
@@ -14,10 +15,12 @@ const prevMonthStart = (iso: string) => {
   return d.toLocaleDateString('en-CA');
 };
 type Range = 'month' | 'prev';
+type Section = 'train' | 'games' | 'stats';
 
 // Посещаемость тренеров для тренера: только просмотр (кто и когда проводил занятия), без часов и денег (миграция 0042).
 export default function TrainerAttendance() {
   const [range, setRange] = useState<Range>('month');
+  const [section, setSection] = useState<Section>('train');
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -41,8 +44,9 @@ export default function TrainerAttendance() {
   return (
     <main className="page">
       <h1>Посещаемость тренеров</h1>
+      <Segmented label="Раздел" value={section} onChange={setSection} items={[{ value: 'train', label: 'Тренировки' }, { value: 'games', label: 'Игры' }, { value: 'stats', label: 'Статистика' }]} />
       <Segmented label="Период" value={range} onChange={v => { setRows(null); setRange(v); }} items={[{ value: 'month', label: 'Месяц' }, { value: 'prev', label: 'Прошлый' }]} />
-      {!rows ? (
+      {section === 'games' ? <StaffGames period={period} admin={false} /> : section === 'stats' ? <StaffStats period={period} /> : !rows ? (
         <Loading />
       ) : days.length === 0 ? (
         <EmptyState icon="users" title="Нет записей" text="За выбранный период в журнале нет проведённых тренировок." />
