@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { ADMIN_CHAT, BRANCHES, CAMP, CAMP_MORE, CHAMPIONSHIPS, CLUB_CHANNEL, EQUIPMENT, GOALKEEPERS, INDIVIDUAL, INSTALLMENT_CHAT, PRODUCTS, SUIT_SIZES, type Product } from '../lib/clubInfo';
 import { Photo } from '../lib/photos';
+import { Gallery, ZoomPhoto } from '../ui/Lightbox';
 import { Art, CoverBanner, CoverTile, type CoverId } from '../ui/Cover';
 import { Pill, Segmented } from '../ui/components';
 import { BackNav } from '../ui/nav';
@@ -120,9 +121,7 @@ function ProductDetail({ p }: { p: Product }) {
       <h1 className="ks-ptitle">{p.name}</h1>
       <p className="ks-pprice">{p.price} GEL</p>
       {p.photos.length > 0 && (
-        <div className="ks-gallery flush" aria-label="Фото">
-          {p.photos.map(k => <Photo key={k} name={k} alt={p.name} />)}
-        </div>
+        <Gallery className="ks-gallery flush" keys={p.photos} alt={p.name} />
       )}
       <Card title="Описание">
         <p className="ks-lead" style={{ marginBottom: 0 }}>{p.lead}</p>
@@ -164,7 +163,7 @@ function Equipment({ product, setProduct }: { product: Product['id'] | null; set
 }
 
 type CampTab = 'about' | 'program' | 'hotel' | 'price';
-const photo = (n: string, alt: string) => <Photo name={n} alt={alt} className="ks-photo" />;
+const photo = (n: string, alt: string) => <ZoomPhoto name={n} alt={alt} className="ks-photo" />;
 
 function Camp() {
   const [tab, setTab] = useState<CampTab>('about');
@@ -187,9 +186,7 @@ function Camp() {
             <p className="ks-lead" style={{ marginBottom: 0 }}>{M.lead}</p>
           </Card>
           <Card>
-            <div className="ks-gallery" aria-label="Фото сборов">
-              {['camp-resort', 'camp-team', 'camp-garden', 'camp-play', 'camp-sunset'].map(n => <Photo key={n} name={n} alt="Фото сборов" />)}
-            </div>
+            <Gallery className="ks-gallery" keys={['camp-resort', 'camp-team', 'camp-garden', 'camp-play', 'camp-sunset']} alt="Фото сборов" />
             {M.idea.map(i => <Price key={i.title} name={i.title} note={i.text} price="" />)}
           </Card>
           <Card title={M.fields.title}>
@@ -237,9 +234,7 @@ function Camp() {
             <p className="ks-lead" style={{ marginBottom: 0 }}>Отель на берегу моря в Уреки: поля, питание и отдых рядом.</p>
           </Card>
           <Card title="Номера">
-            <div className="ks-gallery" aria-label="Фото номеров">
-              {['camp-room1', 'camp-room2'].map(n => <Photo key={n} name={n} alt="Номер отеля" />)}
-            </div>
+            <Gallery className="ks-gallery" keys={['camp-room1', 'camp-room2']} alt="Номер отеля" />
             <p className="ks-hint"><b>{M.rooms.title}.</b> {M.rooms.text}</p>
           </Card>
           <Card title="На территории">

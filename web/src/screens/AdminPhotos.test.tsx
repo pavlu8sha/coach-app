@@ -64,4 +64,17 @@ describe('Фото клуба', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Экипировка/ }));
     await waitFor(() => expect(container.innerHTML).toContain('data:image/jpeg;base64,GK'));
   });
+
+  it('фото экипировки открывается на весь экран и листается', () => {
+    render(<About role="guest" onChangeRole={() => undefined} />);
+    fireEvent.click(screen.getByRole('button', { name: /^Экипировка/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Вратарский комплект/ }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Открыть фото: Вратарский комплект' })[0]);
+    const box = screen.getByRole('dialog');
+    expect(box.querySelector('img')).toHaveAttribute('src', '/img/kit-gk.jpg');
+    fireEvent.click(screen.getByRole('button', { name: 'Следующее фото' }));
+    expect(box.querySelector('img')).toHaveAttribute('src', '/img/kit-gk-detail.jpg');
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
 });
