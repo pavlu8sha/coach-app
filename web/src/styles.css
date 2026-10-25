@@ -34,6 +34,9 @@ p { margin: 0; line-height: 1.45; }
 .search { display: flex; gap: 8px; margin-top: 12px; }
 .search input { flex: 1; min-width: 0; font-size: 1rem; padding: 12px; border-radius: var(--ks-radius); border: 1px solid var(--ks-border-strong); background: var(--bg-2); color: var(--fg); }
 .search .btn { margin-top: 0; }
+/* кнопка в строке поиска не растягивается на всю ширину и не сжимает поле */
+.search .ks-btn { width: auto; flex: none; min-height: 46px; padding: 0 16px; }
+.search input { min-height: 46px; background: var(--ks-surface); color: var(--ks-text); font-family: var(--ks-font); }
 .btn:disabled { opacity: 0.5; }
 .btn.small { margin-top: 0; padding: 8px 12px; font-size: 0.85rem; min-height: var(--ks-tap); }
 .btn.ghost { background: var(--bg-2); color: var(--accent); border: 1px solid var(--ks-border); }

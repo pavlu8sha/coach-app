@@ -44,7 +44,7 @@ export default function TrialForm() {
         <h2>Записаться на пробную тренировку</h2>
         <p className="muted">Оставьте данные ребёнка, и администратор подберёт группу и время.</p>
         <button type="button" className="ks-btn" onClick={() => setOpen(true)}>Записаться на пробную</button>
-        <a className="ks-btn secondary" style={{ display: 'inline-block', textDecoration: 'none', marginTop: 8 }} href={ADMIN_CHAT} target="_blank" rel="noreferrer">Написать администратору</a>
+        <a className="ks-btn secondary" href={ADMIN_CHAT} target="_blank" rel="noreferrer">Написать администратору</a>
       </section>
     );
   }
