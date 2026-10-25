@@ -37,7 +37,7 @@ const AdminLink = ({ children }: { children: string }) => (
 
 // Родитель вошёл, но ребёнок не привязан: один понятный путь вместо пустых блоков.
 // Новые данные не запрашиваются: запросы родителя уже загружены главной.
-export default function LinkOnboarding({ reqs, onApproved, onOpenStatus }: { reqs: Req[]; onApproved: () => void; onOpenStatus: () => void }) {
+export default function LinkOnboarding({ reqs, onApproved, onOpenStatus, onGuest }: { reqs: Req[]; onApproved: () => void; onOpenStatus: () => void; onGuest?: () => void }) {
   const [searching, setSearching] = useState(false);
   const waiting = reqs.filter(r => r.status === 'pending').length;
   const rejected = reqs.some(r => r.status === 'rejected');
@@ -95,6 +95,14 @@ export default function LinkOnboarding({ reqs, onApproved, onOpenStatus }: { req
           Найти ребёнка
         </button>
         {statusRow && <div style={{ marginTop: 12 }}>{statusRow}</div>}
+        {onGuest && (
+          <p className="muted note" style={{ textAlign: 'center', marginTop: 16 }}>
+            Нет ребёнка в клубе?{' '}
+            <button type="button" className="link-btn" onClick={onGuest}>
+              Просто посмотреть клуб
+            </button>
+          </p>
+        )}
       </main>
     );
   }

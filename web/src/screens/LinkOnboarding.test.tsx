@@ -20,6 +20,16 @@ describe('родитель без привязанного ребёнка', () =
     expect(screen.getByLabelText('Фамилия или имя ребёнка')).toBeInTheDocument();
   });
 
+  it('нет запросов: «Просто посмотреть клуб» только если передан обработчик', () => {
+    const onGuest = vi.fn();
+    const { unmount } = render(<LinkOnboarding reqs={[]} onApproved={() => {}} onOpenStatus={() => {}} onGuest={onGuest} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Просто посмотреть клуб' }));
+    expect(onGuest).toHaveBeenCalled();
+    unmount();
+    show([]);
+    expect(screen.queryByRole('button', { name: 'Просто посмотреть клуб' })).toBeNull();
+  });
+
   it('запрос ждёт: поиск скрыт, повторный запрос не предлагается, есть статус', () => {
     const open = show([req('pending')]);
     expect(screen.getByRole('heading', { name: 'Запрос отправлен' })).toBeInTheDocument();
