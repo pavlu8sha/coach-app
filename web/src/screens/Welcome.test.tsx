@@ -6,8 +6,7 @@ describe('страница без входа', () => {
   it('предложение, главная кнопка и пример с пометкой; без голов и рейтингов', () => {
     render(<Welcome />);
     expect(screen.getByRole('link', { name: 'Подключиться к школе' })).toHaveAttribute('href', expect.stringContaining('t.me/'));
-    expect(screen.getByText('Пример')).toBeInTheDocument();
-    expect(screen.getByText('Вымышленные данные')).toBeInTheDocument();
+    expect(screen.getByText('Пример · вымышленные данные')).toBeInTheDocument();
     expect(screen.queryByText(/гол|рейтинг/i)).toBeNull();
     expect(screen.queryByText(/Уже есть аккаунт/)).toBeNull();
   });

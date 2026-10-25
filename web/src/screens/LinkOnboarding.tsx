@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ADMIN_CHAT } from '../lib/clubInfo';
 import { ListRow, Pill } from '../ui/components';
 import Link from './Link';
@@ -7,14 +7,29 @@ import { STATUS, type Req } from './LinkStatus';
 const STEPS = ['Найдите ребёнка по фамилии и имени', 'Отметьте согласие на обработку данных', 'Дождитесь подтверждения администратора клуба'];
 
 const Steps = ({ current }: { current: number }) => (
-  <ol className="ks-card" style={{ margin: '0 0 12px', paddingLeft: 36 }} aria-label="Шаги подключения">
+  <ol className="ks-card ks-steps" aria-label="Шаги подключения">
     {STEPS.map((s, i) => (
-      <li key={s} aria-current={i === current ? 'step' : undefined} style={{ margin: '6px 0', fontWeight: i === current ? 600 : 400 }}>
-        {s}
+      <li key={s} className={i < current ? 'done' : undefined} aria-current={i === current ? 'step' : undefined}>
+        <span className="n" aria-hidden="true">{i < current ? '✓' : i + 1}</span>
+        <span className="tx">{s}</span>
       </li>
     ))}
   </ol>
 );
+
+// Заголовок состояния: иконка, заголовок и пояснение по центру
+const Head = ({ tone, title, children, icon }: { tone?: 'warning' | 'danger'; title: string; children: ReactNode; icon: ReactNode }) => (
+  <div className="ks-state">
+    <span className={`ks-ico${tone ? ` ${tone}` : ''}`} aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{icon}</svg>
+    </span>
+    <h1>{title}</h1>
+    <p className="muted">{children}</p>
+  </div>
+);
+const I_USER = <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>;
+const I_CLOCK = <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>;
+const I_ALERT = <><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16.5h.01" /></>;
 
 const AdminLink = ({ children }: { children: string }) => (
   <a href={ADMIN_CHAT} target="_blank" rel="noreferrer">{children}</a>
@@ -40,8 +55,7 @@ export default function LinkOnboarding({ reqs, onApproved, onOpenStatus }: { req
   if (waiting > 0 && !searching) {
     return (
       <main className="page">
-        <h1>Запрос отправлен</h1>
-        <p className="muted" style={{ marginBottom: 14 }}>Как только администратор клуба его подтвердит, здесь появятся баллы ребёнка. Отправлять запрос ещё раз не нужно.</p>
+        <Head tone="warning" title="Запрос отправлен" icon={I_CLOCK}>Как только администратор клуба его подтвердит, здесь появятся баллы ребёнка. Отправлять запрос ещё раз не нужно.</Head>
         <Steps current={2} />
         {statusRow}
         <button type="button" className="ks-btn secondary" style={{ marginTop: 12 }} onClick={() => setSearching(true)}>
@@ -54,10 +68,9 @@ export default function LinkOnboarding({ reqs, onApproved, onOpenStatus }: { req
   if (approvedNoAccess && !searching) {
     return (
       <main className="page">
-        <h1>Ребёнок пока не отображается</h1>
-        <p className="muted" style={{ marginBottom: 14 }}>
+        <Head tone="danger" title="Ребёнок пока не отображается" icon={I_ALERT}>
           Запрос подтверждён, но доступ к профилю не виден. Закройте приложение и откройте снова. Если не помогло, <AdminLink>напишите администратору клуба</AdminLink>: он восстановит доступ.
-        </p>
+        </Head>
         {statusRow}
         <button type="button" className="ks-btn secondary" style={{ marginTop: 12 }} onClick={() => setSearching(true)}>
           Найти другого ребёнка
@@ -69,11 +82,12 @@ export default function LinkOnboarding({ reqs, onApproved, onOpenStatus }: { req
   if (!searching) {
     return (
       <main className="page">
-        <h1>Подключите профиль ребёнка</h1>
-        <p className="muted" style={{ marginBottom: 14 }}>Расписание, баллы и матчи появятся после того, как администратор клуба подтвердит, что это ваш ребёнок.</p>
+        <Head title="Подключите профиль ребёнка" icon={I_USER}>Расписание, баллы и матчи появятся после того, как администратор клуба подтвердит, что это ваш ребёнок.</Head>
         <Steps current={0} />
         {rejected && (
-          <p className="muted note" style={{ marginBottom: 12 }}>
+          <p className="ks-card note" role="status">
+            <Pill tone="danger" dot>Отклонено</Pill>
+            <br />
             Прошлый запрос был отклонён. Можно попробовать снова или <AdminLink>написать администратору клуба</AdminLink>.
           </p>
         )}
