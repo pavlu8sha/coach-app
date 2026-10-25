@@ -57,8 +57,10 @@ describe('главная родителя', () => {
     expect(await screen.findByText('Статус привязки')).toBeInTheDocument();
   });
 
-  it('нет детей и запросов: форма поиска', async () => {
+  it('нет детей и запросов: шаги и «Найти ребёнка», затем форма поиска', async () => {
     render(<Home />);
+    expect(await screen.findByRole('heading', { name: 'Подключите профиль ребёнка' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Найти ребёнка' }));
     expect(await screen.findByText('Добавить ребёнка')).toBeInTheDocument();
   });
 
@@ -68,6 +70,6 @@ describe('главная родителя', () => {
     expect(await screen.findByText('нет связи')).toBeInTheDocument();
     delete fake.errors.player_guardians;
     fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
-    await waitFor(() => expect(screen.getByText('Добавить ребёнка')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Найти ребёнка' })).toBeInTheDocument());
   });
 });

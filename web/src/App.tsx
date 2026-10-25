@@ -13,6 +13,7 @@ import Profile from './screens/Profile';
 import Message, { Splash } from './screens/Message';
 import BrowserLogin, { browserLoginEnabled } from './screens/BrowserLogin';
 import About from './screens/About';
+import Welcome from './screens/Welcome';
 import ParentSchedule from './screens/ParentSchedule';
 import RoleSelect, { type Role } from './screens/RoleSelect';
 import More from './screens/More';
@@ -227,6 +228,24 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
   );
 }
 
+// Без входа: приветственная страница; вход через виджет Telegram Login включается отдельно (имя бота и домен в BotFather)
+function OutsideGate({ onUser }: { onUser: (u: Record<string, unknown>) => void }) {
+  const [login, setLogin] = useState(false);
+  if (login) {
+    return (
+      <>
+        <BrowserLogin onUser={onUser} />
+        <main className="page center">
+          <button type="button" className="ks-btn secondary" onClick={() => setLogin(false)}>
+            Назад
+          </button>
+        </main>
+      </>
+    );
+  }
+  return <Welcome onLogin={browserLoginEnabled ? () => setLogin(true) : undefined} />;
+}
+
 export default function App() {
   const [state, setState] = useState<State>({ kind: 'loading' });
 
@@ -255,24 +274,15 @@ export default function App() {
     case 'config':
       return <Message title="Приложение не настроено" text="Не заданы VITE_SUPABASE_URL и VITE_SUPABASE_PUBLISHABLE_KEY." />;
     case 'outside':
-      if (browserLoginEnabled) {
-        // вход из обычного браузера: виджет Telegram Login → tg-login
-        return (
-          <BrowserLogin
-            onUser={u => {
-              setState({ kind: 'loading' });
-              signInWithWidget(u).then(
-                () => setState({ kind: 'ready' }),
-                e => setState({ kind: 'error', text: e instanceof Error ? e.message : 'Неизвестная ошибка' }),
-              );
-            }}
-          />
-        );
-      }
       return (
-        <Message
-          title="Откройте через Telegram"
-          text="Вход пока работает только из Telegram: откройте приложение кнопкой в чате с ботом клуба."
+        <OutsideGate
+          onUser={u => {
+            setState({ kind: 'loading' });
+            signInWithWidget(u).then(
+              () => setState({ kind: 'ready' }),
+              e => setState({ kind: 'error', text: e instanceof Error ? e.message : 'Неизвестная ошибка' }),
+            );
+          }}
         />
       );
     case 'error':

@@ -141,3 +141,41 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 .search .ks-btn.sm { min-height: 46px; }
 @media (max-width: 360px) { .ks-kid-head { gap: 10px; } .ks-kid-score strong { font-size: 1.4rem; } }
 .ks-kid-stats { margin-top: 8px; font-size: 14px; }
+
+/* Онбординг: страница без входа и подключение ребёнка */
+.ks-hero { text-align: center; padding: 28px 20px 22px; border-radius: 20px; color: var(--ks-on-primary); background: linear-gradient(160deg, var(--ks-primary), color-mix(in srgb, var(--ks-primary) 62%, #000)); margin-bottom: 16px; }
+.ks-hero img { display: block; margin: 0 auto 14px; border-radius: 20px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25); }
+.ks-hero h1 { margin: 0 0 6px; font-size: 1.6rem; }
+.ks-hero p { margin: 0 0 18px; opacity: 0.88; text-wrap: balance; }
+.ks-hero .ks-btn { background: var(--ks-surface); color: var(--ks-primary); text-decoration: none; }
+.ks-hero .ks-login { margin: 12px 0 0; font-size: 0.9rem; opacity: 1; }
+.ks-hero .link-btn { color: inherit; font-weight: 700; text-decoration: underline; }
+.ks-benefit { display: flex; gap: 12px; align-items: flex-start; padding: 6px 0; }
+.ks-benefit + .ks-benefit { border-top: 1px solid var(--ks-border); padding-top: 12px; margin-top: 6px; }
+.ks-ico { flex: none; width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: var(--ks-primary-subtle); color: var(--ks-primary); }
+.ks-benefit b, .ks-benefit span.t { display: block; }
+.ks-benefit .t { color: var(--ks-text-muted); font-size: 0.92rem; }
+.ks-demo { position: relative; border-style: dashed; border-color: var(--ks-border-strong); }
+.ks-demo-head { display: flex; gap: 12px; align-items: center; margin: 10px 0 12px; }
+.ks-demo-head .name { flex: 1; font-weight: 700; }
+.ks-demo-head .name small { display: block; font-weight: 400; color: var(--ks-text-muted); }
+.ks-demo-pts { font-size: 1.8rem; font-weight: 800; color: var(--ks-primary); line-height: 1; text-align: right; }
+.ks-demo-pts small { display: block; font-size: 0.75rem; font-weight: 600; color: var(--ks-text-muted); }
+.ks-demo-ev { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px solid var(--ks-border); font-size: 0.95rem; }
+.ks-demo-ev b { color: var(--ks-success); }
+.ks-steps { list-style: none; margin: 0 0 14px; padding: 14px; }
+.ks-steps li { position: relative; display: flex; gap: 12px; align-items: flex-start; padding: 0 0 16px; color: var(--ks-text-muted); }
+.ks-steps li:last-child { padding-bottom: 0; }
+.ks-steps li::before { content: ''; position: absolute; left: 15px; top: 32px; bottom: 2px; width: 2px; background: var(--ks-border); }
+.ks-steps li:last-child::before { display: none; }
+.ks-steps .n { flex: none; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; background: var(--ks-neutral-fill); color: var(--ks-neutral-strong); }
+.ks-steps .tx { padding-top: 5px; }
+.ks-steps li[aria-current='step'] { color: var(--ks-text); font-weight: 600; }
+.ks-steps li[aria-current='step'] .n { background: var(--ks-primary); color: var(--ks-on-primary); }
+.ks-steps li.done .n { background: var(--ks-success-subtle); color: var(--ks-success); }
+.ks-state { text-align: center; padding: 8px 0 4px; }
+.ks-state .ks-ico { width: 64px; height: 64px; border-radius: 20px; margin: 0 auto 12px; }
+.ks-state h1 { margin-bottom: 6px; }
+.ks-state p { max-width: 36ch; margin: 0 auto 16px; text-wrap: balance; }
+.ks-ico.warning { background: var(--ks-warning-subtle); color: var(--ks-warning); }
+.ks-ico.danger { background: var(--ks-danger-subtle); color: var(--ks-danger-strong); }

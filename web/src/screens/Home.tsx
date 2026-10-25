@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Avatar, EmptyState, ListRow, Pill } from '../ui/components';
 import Link from './Link';
+import LinkOnboarding from './LinkOnboarding';
 import LinkStatus, { STATUS, type Req } from './LinkStatus';
 import { Failure, Loading } from './Message';
 
@@ -161,17 +162,7 @@ export default function Home({ isAdmin = false }: { isAdmin?: boolean }) {
         </main>
       );
     }
-    return (
-      <main className="page">
-        <h1>Мой ребёнок</h1>
-        {waiting > 0 ? (
-          <p className="muted" style={{ marginBottom: 14 }}>Запрос отправлен. Как только администратор клуба его подтвердит, здесь появятся баллы ребёнка.</p>
-        ) : (
-          <p className="muted" style={{ marginBottom: 14 }}>Найдите ребёнка, чтобы смотреть его баллы. Администратор клуба подтвердит запрос.</p>
-        )}
-        <Link onApproved={refresh} onOpenStatus={openStatus} />
-      </main>
-    );
+    return <LinkOnboarding reqs={reqs} onApproved={refresh} onOpenStatus={openStatus} />;
   }
   return (
     <main className="page">
