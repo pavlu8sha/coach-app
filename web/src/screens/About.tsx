@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { ADMIN_CHAT, BRANCHES, CAMP, CAMP_MORE, CHAMPIONSHIPS, CLUB_CHANNEL, EQUIPMENT, GOALKEEPERS, INDIVIDUAL, INSTALLMENT_CHAT, PRODUCTS, SUIT_SIZES, type Product } from '../lib/clubInfo';
+import { Photo } from '../lib/photos';
 import { Art, CoverBanner, CoverTile, type CoverId } from '../ui/Cover';
 import { Pill, Segmented } from '../ui/components';
 import { BackNav } from '../ui/nav';
@@ -103,7 +104,7 @@ function Goalkeepers() {
 function ProductCard({ p, onOpen }: { p: Product; onOpen: () => void }) {
   return (
     <button type="button" className="ks-prod" onClick={onOpen}>
-      {p.photos[0] ? <img src={p.photos[0]} alt="" loading="lazy" /> : <span className="ph" aria-hidden="true"><Art id="equipment" size={44} /></span>}
+      {p.photos[0] ? <Photo name={p.photos[0]} alt="" /> : <span className="ph" aria-hidden="true"><Art id="equipment" size={44} /></span>}
       <span className="ks-row-main">
         <span className="ks-row-title">{p.name}</span>
         <span className="ks-row-sub">{p.lead}</span>
@@ -120,7 +121,7 @@ function ProductDetail({ p }: { p: Product }) {
       <p className="ks-pprice">{p.price} GEL</p>
       {p.photos.length > 0 && (
         <div className="ks-gallery flush" aria-label="Фото">
-          {p.photos.map(src => <img key={src} src={src} alt={p.name} loading="lazy" />)}
+          {p.photos.map(k => <Photo key={k} name={k} alt={p.name} />)}
         </div>
       )}
       <Card title="Описание">
@@ -148,7 +149,7 @@ function Equipment({ product, setProduct }: { product: Product['id'] | null; set
   if (cur) return <ProductDetail p={cur} />;
   return (
     <>
-      <CoverBanner id="equipment" title="Экипировка 2026/27" sub="Выберите товар" photo="/img/kit-game.jpg" />
+      <CoverBanner id="equipment" title="Экипировка 2026/27" sub="Выберите товар" photo="kit-game" />
       <section className="ks-card" style={{ padding: 0 }}>
         {PRODUCTS.map(p => <ProductCard key={p.id} p={p} onOpen={() => setProduct(p.id)} />)}
       </section>
@@ -163,14 +164,14 @@ function Equipment({ product, setProduct }: { product: Product['id'] | null; set
 }
 
 type CampTab = 'about' | 'program' | 'hotel' | 'price';
-const photo = (n: string, alt: string) => <img className="ks-photo" src={`/img/${n}.jpg`} alt={alt} loading="lazy" />;
+const photo = (n: string, alt: string) => <Photo name={n} alt={alt} className="ks-photo" />;
 
 function Camp() {
   const [tab, setTab] = useState<CampTab>('about');
   const M = CAMP_MORE;
   return (
     <>
-      <CoverBanner id="camp" title={CAMP.title} sub={CAMP.when} photo="/img/camp-hero.jpg" />
+      <CoverBanner id="camp" title={CAMP.title} sub={CAMP.when} photo="camp-hero" />
       <div className="ks-tabs">
         <Segmented<CampTab>
           label="Разделы сборов"
@@ -187,7 +188,7 @@ function Camp() {
           </Card>
           <Card>
             <div className="ks-gallery" aria-label="Фото сборов">
-              {['camp-resort', 'camp-team', 'camp-garden', 'camp-play', 'camp-sunset'].map(n => <img key={n} src={`/img/${n}.jpg`} alt="Фото сборов" loading="lazy" />)}
+              {['camp-resort', 'camp-team', 'camp-garden', 'camp-play', 'camp-sunset'].map(n => <Photo key={n} name={n} alt="Фото сборов" />)}
             </div>
             {M.idea.map(i => <Price key={i.title} name={i.title} note={i.text} price="" />)}
           </Card>
@@ -237,7 +238,7 @@ function Camp() {
           </Card>
           <Card title="Номера">
             <div className="ks-gallery" aria-label="Фото номеров">
-              {['camp-room1', 'camp-room2'].map(n => <img key={n} src={`/img/${n}.jpg`} alt="Номер отеля" loading="lazy" />)}
+              {['camp-room1', 'camp-room2'].map(n => <Photo key={n} name={n} alt="Номер отеля" />)}
             </div>
             <p className="ks-hint"><b>{M.rooms.title}.</b> {M.rooms.text}</p>
           </Card>
@@ -266,12 +267,12 @@ function Camp() {
 }
 
 const TILES: { id: Exclude<CoverId, 'channel'>; title: string; sub: string; wide?: boolean; photo?: string }[] = [
-  { id: 'camp', title: CAMP.title, sub: `${CAMP.when.split(' · ')[0]} · Уреки`, wide: true, photo: '/img/camp-hero.jpg' },
+  { id: 'camp', title: CAMP.title, sub: `${CAMP.when.split(' · ')[0]} · Уреки`, wide: true, photo: 'camp-hero' },
   { id: 'branches', title: 'Филиалы', sub: 'Три филиала и карты' },
   { id: 'champ', title: 'Чемпионаты', sub: 'Сезон 2026/27' },
   { id: 'individual', title: 'Индивидуальные', sub: 'До 3 футболистов на тренера' },
   { id: 'gk', title: 'Вратарские', sub: 'Отдельные тренировки' },
-  { id: 'equipment', title: 'Экипировка', sub: 'Комплекты от 100 GEL', photo: '/img/kit-game.jpg' },
+  { id: 'equipment', title: 'Экипировка', sub: 'Комплекты от 100 GEL', photo: 'kit-game' },
 ];
 const SCREENS: Record<Exclude<CoverId, 'channel'>, () => ReactNode> = { branches: Branches, champ: Championships, individual: Individual, gk: Goalkeepers, equipment: () => null, camp: Camp };
 

@@ -72,7 +72,7 @@ function ChildCard({ c }: { c: Child }) {
   );
 }
 
-export default function Home({ isAdmin = false }: { isAdmin?: boolean }) {
+export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; onGuest?: () => void }) {
   const [children, setChildren] = useState<Child[] | null>(null);
   const [reqs, setReqs] = useState<Req[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -162,7 +162,7 @@ export default function Home({ isAdmin = false }: { isAdmin?: boolean }) {
         </main>
       );
     }
-    return <LinkOnboarding reqs={reqs} onApproved={refresh} onOpenStatus={openStatus} />;
+    return <LinkOnboarding reqs={reqs} onApproved={refresh} onOpenStatus={openStatus} onGuest={onGuest} />;
   }
   return (
     <main className="page">

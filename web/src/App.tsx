@@ -69,6 +69,13 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
     setChangingRole(false);
     setTab(r === 'parent' || r === 'child' ? 'home' : 'about');
   };
+  // Родитель без ребёнка может стать гостем: роль только подсказка интерфейса, права она не меняет
+  const becomeGuest = async () => {
+    const res = await supabase.rpc('set_my_role', { r: 'guest' });
+    if (res.error) return;
+    setRole('guest');
+    setTab('about');
+  };
   const exitPreview = () => {
     setPreview(null);
     setTab('more');
@@ -187,7 +194,7 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
     : !admin && !coach && tab === 'matches' ? <Matches />
     : !admin && !coach && tab === 'profile' ? <Profile />
     : !admin && !coach && tab === 'payments' ? <Payments />
-    : <Home isAdmin={admin} />;
+    : <Home isAdmin={admin} onGuest={admin || coach || preview ? undefined : becomeGuest} />;
   const kidsTab = hasKids ? [{ value: 'home' as const, label: 'Ребёнок', icon: 'child' as const }] : [];
   return (
     <>
