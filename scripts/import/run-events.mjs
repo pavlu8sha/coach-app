@@ -26,9 +26,11 @@ const journal = parseGamesLog(fs.readFileSync(logFile, 'utf8'), reg.players.map(
 const extByTD = new Map(plan.matches.map(m => [m.team + '|' + m.played_on, m.external_id]));
 const scoreBy = new Map();   // match_ext → {goals_for, goals_against}
 const goalsBy = new Map();   // match_ext|полное имя → голы
+const staffBy = new Map();   // match_ext → [{name, role, reg}] (штат игры: столбцы F–H листа «Игры»)
 for (const g of journal.games) {
   const ext = extByTD.get(g.team + '|' + g.date);
   if (!ext) { journal.problems.push({ team: g.team, date: g.date, error: 'игры нет в МАТЧАХ' }); continue; }
+  if (g.staff.length) staffBy.set(ext, g.staff);
   scoreBy.set(ext, { goals_for: g.goals_for, goals_against: g.goals_against });
   for (const s of g.scorers) goalsBy.set(ext + '|' + s.registry_name, (goalsBy.get(ext + '|' + s.registry_name) || 0) + s.goals);
 }
@@ -105,4 +107,7 @@ await upsertAll('match_fees', 'match_id,player_id', plan.matchFees.map(x => ({
 await upsertAll('tournament_fees', 'tournament_id,player_id', plan.tFees.map(x => ({
   tournament_id: tid.get(x.tournament_ext), player_id: playerId(x.name), amount: x.amount, paid: !!x.paid,
 })));
+// штат игр (тренер, оператор): слияние по (матч, сотрудник, роль)
+await upsertAll('match_staff', 'match_id,coach,role', [...staffBy].flatMap(([ext, list]) => list.map(x => ({ match_id: mid.get(ext), coach: x.name, role: x.role, reg: x.reg }))));
+console.log(`Штат игр: ${[...staffBy.values()].reduce((n, l) => n + l.length, 0)} записей в ${staffBy.size} играх.`);
 console.log(`Записано: счёт ${scoreBy.size} игр, голы ${goalsBy.size} записей; турниры ${plan.tournaments.length}, матчи ${plan.matches.length}, игроки матчей ${plan.matchPlayers.length}, взносы за товарищеские ${plan.matchFees.length}, взносы за турниры ${plan.tFees.length}.`);

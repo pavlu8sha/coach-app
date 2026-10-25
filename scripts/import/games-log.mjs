@@ -24,8 +24,12 @@ export function parseScorers(text) {
 export function parseGamesLog(text, registryNames) {
   const rows = parseCsv(text).slice(1);
   const games = [], problems = [];
+  let cur = null;   // игра, к которой относятся строки штата (объединённые ячейки A–E дают пустые строки ниже)
   for (const r of rows) {
     const date = sdate(r[0]); const team = (r[1] || '').trim(); const score = (r[3] || '').trim();
+    const staffRow = () => { const name = (r[5] || '').trim(), role = (r[6] || '').trim(); return name && ['Тренер', 'Оператор'].includes(role) ? { name, role, reg: (r[7] || '').trim() !== 'Нет' } : null; };
+    if (!date && !team && cur) { const st = staffRow(); if (st) cur.staff.push(st); continue; }
+    cur = null;
     if (!date || !team || !score) continue;   // строки тренировок и пустые — не игры
     const m = score.match(/^(\d+):(\d+)\s*(\((.*)\))?$/);
     if (!m) { problems.push({ team, date, error: `счёт не разобран: ${score}` }); continue; }
@@ -35,7 +39,9 @@ export function parseGamesLog(text, registryNames) {
       if (!res) problems.push({ team, date, error: `бомбардир не найден в реестре: ${s.name}` });
       return { ...s, registry_name: res ? res.name : null };
     });
-    games.push({ team, date, opponent: (r[2] || '').trim() || null, goals_for: Number(m[1]), goals_against: Number(m[2]), note: m[4] || null, scorers });
+    games.push({ team, date, opponent: (r[2] || '').trim() || null, goals_for: Number(m[1]), goals_against: Number(m[2]), note: m[4] || null, scorers, staff: [] });
+    cur = games[games.length - 1];
+    const st = staffRow(); if (st) cur.staff.push(st);
   }
   return { games, problems };
 }
