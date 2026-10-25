@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { preferredLang } from '../lib/telegram';
 import { EmptyState, ListRow, Pill } from '../ui/components';
 import { useMainButton } from '../ui/nav';
+import { ADMIN_CHAT } from '../lib/clubInfo';
 import { STATUS, type Req } from './LinkStatus';
 
 interface Found { player_id: string; full_name: string; group_name: string | null }
@@ -102,8 +103,18 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
       </form>
       <p id="link-hint" className="muted note">{short && q.trim().length > 0 ? `Введите ещё ${MIN - q.trim().length} ${MIN - q.trim().length === 1 ? 'букву' : 'буквы'}: поиск начинается от ${MIN} букв.` : `Поиск начинается от ${MIN} букв.`}</p>
       {error && <p className="error" role="alert">{error}</p>}
+      {error && found === null && !short && (
+        <button type="button" className="ks-btn secondary sm" disabled={busy} onClick={() => void search()}>
+          Повторить поиск
+        </button>
+      )}
       {found && found.length === 0 && (
         <EmptyState icon="search" title="Ничего не найдено" text="Проверьте написание. Ребёнка, на которого уже отправлен запрос, в поиске нет: смотрите «Статус запросов». Если не получается, напишите администратору клуба." />
+      )}
+      {found && found.length === 0 && (
+        <p className="note">
+          <a href={ADMIN_CHAT} target="_blank" rel="noreferrer">Написать администратору клуба</a>
+        </p>
       )}
       {found && found.length > 0 && (
         <div style={{ marginTop: 12 }}>
