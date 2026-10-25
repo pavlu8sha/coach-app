@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { usePhoto } from '../lib/photos';
 
 export type CoverId = 'branches' | 'champ' | 'individual' | 'gk' | 'equipment' | 'camp' | 'channel';
 
@@ -60,8 +61,9 @@ export const Art = ({ id, size = 96 }: { id: CoverId; size?: number }) => (
 );
 
 /** Плитка раздела на хабе: цвет, крупный значок, название и короткая подпись. */
-export function CoverTile({ id, title, sub, wide = false, onClick, href, photo }: { id: CoverId; title: string; sub: string; wide?: boolean; onClick?: () => void; href?: string; photo?: string }) {
+export function CoverTile({ id, title, sub, wide = false, onClick, href, photo: photoKey }: { id: CoverId; title: string; sub: string; wide?: boolean; onClick?: () => void; href?: string; photo?: string }) {
   const [a, b] = COLORS[id];
+  const photo = usePhoto(photoKey);
   const cls = `ks-cover tile${wide ? ' wide' : ''}`;
   const style = { background: photo ? withPhoto(photo) : `linear-gradient(145deg, ${a}, ${b})` };
   const inner = (
@@ -82,8 +84,9 @@ export function CoverTile({ id, title, sub, wide = false, onClick, href, photo }
 }
 
 /** Шапка раздела: та же обложка, но во всю ширину. */
-export function CoverBanner({ id, title, sub, photo }: { id: CoverId; title: string; sub?: string; photo?: string }) {
+export function CoverBanner({ id, title, sub, photo: photoKey }: { id: CoverId; title: string; sub?: string; photo?: string }) {
   const [a, b] = COLORS[id];
+  const photo = usePhoto(photoKey);
   return (
     <header className={`ks-cover banner${photo ? ' photo' : ''}`} style={{ background: photo ? withPhoto(photo) : `linear-gradient(145deg, ${a}, ${b})` }}>
       {!photo && <span className="art"><Art id={id} size={110} /></span>}

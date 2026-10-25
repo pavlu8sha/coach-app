@@ -50,7 +50,8 @@ select is(
         -- 0044: заявка на пробную из приложения (лимит 3 в сутки, вызывает lead_submit)
         'lead_submit_app',
         -- 0045: запись родителей на индивидуальные, вратарские и дополнительные
-        'booking_is_parent', 'booking_board', 'booking_signup', 'booking_cancel')),
+        'booking_is_parent', 'booking_board', 'booking_signup', 'booking_cancel',
+        'club_photo_set', 'club_photo_clear')),
   '', 'список функций, доступных вошедшим пользователям, не расширился без решения');
 
 select is(

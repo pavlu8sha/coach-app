@@ -4,6 +4,7 @@ import { ListRow } from '../ui/components';
 import HomeScreenPrompt from '../ui/HomeScreenPrompt';
 import NotifyToggle from '../ui/NotifyToggle';
 import AdminPayments from './AdminPayments';
+import AdminPhotos from './AdminPhotos';
 import AdminPrices from './AdminPrices';
 import Coaches from './Coaches';
 import Debtors from './Debtors';
@@ -20,7 +21,7 @@ import RecalcPoints from './RecalcPoints';
 import Schedule from './Schedule';
 import Stats from './Stats';
 
-type Sub = 'pstart' | 'month' | 'leads' | 'tlog' | 'camps' | 'equip' | 'extra' | 'ind' | 'schedule' | 'debtors' | 'coaches' | 'points' | 'payments' | 'prices' | 'recalc' | 'stats';
+type Sub = 'pstart' | 'month' | 'leads' | 'tlog' | 'camps' | 'equip' | 'extra' | 'ind' | 'schedule' | 'debtors' | 'coaches' | 'points' | 'payments' | 'prices' | 'recalc' | 'stats' | 'photos';
 
 // «Ещё» у администратора: остальные разделы. Вернуться в список можно кнопкой «Ещё» внизу или ссылкой наверху.
 export default function More({ groups, onPreview }: { groups: CoachGroup[]; onPreview?: (r: 'guest' | 'parent' | 'child') => void }) {
@@ -34,7 +35,7 @@ export default function More({ groups, onPreview }: { groups: CoachGroup[]; onPr
             Ещё
           </button>
         </div>
-        {sub === 'schedule' ? <Schedule all /> : sub === 'debtors' ? <Debtors /> : sub === 'coaches' ? <Coaches /> : sub === 'payments' ? <AdminPayments /> : sub === 'prices' ? <AdminPrices /> : sub === 'recalc' ? <RecalcPoints /> : sub === 'stats' ? <Stats /> : sub === 'ind' ? <Individual /> : sub === 'extra' ? <Extra /> : sub === 'equip' ? <Equipment /> : sub === 'camps' ? <Camps /> : sub === 'tlog' ? <TrainerLog /> : sub === 'leads' ? <Leads /> : sub === 'month' ? <MonthPayments /> : sub === 'pstart' ? <PointsStart /> : <Group groups={groups} />}
+        {sub === 'schedule' ? <Schedule all /> : sub === 'debtors' ? <Debtors /> : sub === 'coaches' ? <Coaches /> : sub === 'payments' ? <AdminPayments /> : sub === 'photos' ? <AdminPhotos /> : sub === 'prices' ? <AdminPrices /> : sub === 'recalc' ? <RecalcPoints /> : sub === 'stats' ? <Stats /> : sub === 'ind' ? <Individual /> : sub === 'extra' ? <Extra /> : sub === 'equip' ? <Equipment /> : sub === 'camps' ? <Camps /> : sub === 'tlog' ? <TrainerLog /> : sub === 'leads' ? <Leads /> : sub === 'month' ? <MonthPayments /> : sub === 'pstart' ? <PointsStart /> : <Group groups={groups} />}
       </>
     );
   }
@@ -52,6 +53,7 @@ export default function More({ groups, onPreview }: { groups: CoachGroup[]; onPr
       <p className="ks-label">Клуб</p>
       <ListRow title="Экипировка" sub={['Заказы, оплата, выдача, каталог']} onClick={() => setSub('equip')} />
       <ListRow title="Сборы" sub={['Лагеря и сборы: участники, тарифы, платежи']} onClick={() => setSub('camps')} />
+      <ListRow title="Фото клуба" sub={['Заменить фото в «О клубе» и экипировке']} onClick={() => setSub('photos')} />
       <ListRow title="Заявки" sub={['Новые родители из бота «Хочу в KickStart»']} onClick={() => setSub('leads')} />
       <p className="ks-label">Тренеры и игроки</p>
       <ListRow title="Статистика" sub={['Посещаемость и матчи за период']} onClick={() => setSub('stats')} />
