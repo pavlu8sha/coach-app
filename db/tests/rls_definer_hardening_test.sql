@@ -46,7 +46,9 @@ select is(
         -- 0042: тренеры видят все группы; журнал тренировок без часов
         'is_any_coach', 'trainer_attendance',
         -- 0043: штат матча и статистика тренеров (запись только админ, чтение админ и тренеры)
-        'match_staff_set', 'match_staff_list', 'trainer_stats')),
+        'match_staff_set', 'match_staff_list', 'trainer_stats',
+        -- 0044: заявка на пробную из приложения (лимит 3 в сутки, вызывает lead_submit)
+        'lead_submit_app')),
   '', 'список функций, доступных вошедшим пользователям, не расширился без решения');
 
 select is(
