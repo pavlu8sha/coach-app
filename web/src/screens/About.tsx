@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ADMIN_CHAT, BRANCHES, CAMP, CHAMPIONSHIPS, CLUB_CHANNEL, EQUIPMENT, GOALKEEPERS, INDIVIDUAL, INSTALLMENT_CHAT } from '../lib/clubInfo';
-import { CoverBanner, CoverTile, type CoverId } from '../ui/Cover';
-import { Pill } from '../ui/components';
+import { ADMIN_CHAT, BRANCHES, CAMP, CAMP_MORE, CHAMPIONSHIPS, CLUB_CHANNEL, EQUIPMENT, GOALKEEPERS, INDIVIDUAL, INSTALLMENT_CHAT, PRODUCTS, SUIT_SIZES, type Product } from '../lib/clubInfo';
+import { Art, CoverBanner, CoverTile, type CoverId } from '../ui/Cover';
+import { Pill, Segmented } from '../ui/components';
 import { BackNav } from '../ui/nav';
 import type { Role } from './RoleSelect';
 import TrialForm from './TrialForm';
@@ -100,13 +100,58 @@ function Goalkeepers() {
   );
 }
 
-function Equipment() {
+function ProductCard({ p, onOpen }: { p: Product; onOpen: () => void }) {
+  return (
+    <button type="button" className="ks-prod" onClick={onOpen}>
+      {p.photos[0] ? <img src={p.photos[0]} alt="" loading="lazy" /> : <span className="ph" aria-hidden="true"><Art id="equipment" size={44} /></span>}
+      <span className="ks-row-main">
+        <span className="ks-row-title">{p.name}</span>
+        <span className="ks-row-sub">{p.lead}</span>
+      </span>
+      <span className="pr">{p.price} GEL</span>
+    </button>
+  );
+}
+
+function ProductDetail({ p }: { p: Product }) {
   return (
     <>
-      <CoverBanner id="equipment" title="Экипировка 2026/27" sub="Комплекты клуба" />
-      <Card title="Цены">
-        {EQUIPMENT.items.map(i => <Price key={i.name} name={i.name} note={i.note} price={`${i.price} GEL`} />)}
+      <h1 className="ks-ptitle">{p.name}</h1>
+      <p className="ks-pprice">{p.price} GEL</p>
+      {p.photos.length > 0 && (
+        <div className="ks-gallery flush" aria-label="Фото">
+          {p.photos.map(src => <img key={src} src={src} alt={p.name} loading="lazy" />)}
+        </div>
+      )}
+      <Card title="Описание">
+        <p className="ks-lead" style={{ marginBottom: 0 }}>{p.lead}</p>
       </Card>
+      <Card title="Особенности">
+        <Checks items={p.features} />
+      </Card>
+      {p.id === 'suit' && (
+        <Card title="Размерная таблица">
+          <table className="ks-table">
+            <thead><tr><th>Рост, см</th><th>Длина кофты</th><th>Брюки, внутр.</th><th>Брюки, внеш.</th></tr></thead>
+            <tbody>{SUIT_SIZES.map(r => <tr key={r[0]}><th scope="row">{r[0]}</th><td>{r[3]}</td><td>{r[1]}</td><td>{r[2]}</td></tr>)}</tbody>
+          </table>
+          <p className="ks-hint">Длины в сантиметрах, включают пояс и манжеты. Допуск ±1 см. Размеры можно примерить на тренировке.</p>
+        </Card>
+      )}
+      <Sign text="Заказать" />
+    </>
+  );
+}
+
+function Equipment({ product, setProduct }: { product: Product['id'] | null; setProduct: (id: Product['id'] | null) => void }) {
+  const cur = PRODUCTS.find(p => p.id === product);
+  if (cur) return <ProductDetail p={cur} />;
+  return (
+    <>
+      <CoverBanner id="equipment" title="Экипировка 2026/27" sub="Выберите товар" photo="/img/kit-game.jpg" />
+      <section className="ks-card" style={{ padding: 0 }}>
+        {PRODUCTS.map(p => <ProductCard key={p.id} p={p} onOpen={() => setProduct(p.id)} />)}
+      </section>
       <Card title="Скидка и рассрочка">
         <p className="ks-callout" style={{ marginTop: 0 }}>{EQUIPMENT.bundle}</p>
         <p className="ks-hint">{EQUIPMENT.installment} {EQUIPMENT.fitting}</p>
@@ -117,50 +162,132 @@ function Equipment() {
   );
 }
 
+type CampTab = 'about' | 'program' | 'hotel' | 'price';
+const photo = (n: string, alt: string) => <img className="ks-photo" src={`/img/${n}.jpg`} alt={alt} loading="lazy" />;
+
 function Camp() {
+  const [tab, setTab] = useState<CampTab>('about');
+  const M = CAMP_MORE;
   return (
     <>
-      <CoverBanner id="camp" title={CAMP.title} sub={CAMP.when} />
-      <Card title="Программа">
-        <p className="ks-lead">Группы: {CAMP.groups}</p>
-        <Checks items={CAMP.facts} />
-      </Card>
-      <Card title="Стоимость">
-        {CAMP.prices.map(p => <Price key={p.name} name={p.name} note={p.note} price={p.price} />)}
-      </Card>
-      <Card>
-        <details className="ks-details" style={{ marginTop: 0, borderTop: 0 }}>
-          <summary>Условия бронирования и возврата</summary>
-          <Checks items={CAMP.terms} plain />
-        </details>
-        <Sign text="Забронировать место" />
-      </Card>
+      <CoverBanner id="camp" title={CAMP.title} sub={CAMP.when} photo="/img/camp-hero.jpg" />
+      <div className="ks-tabs">
+        <Segmented<CampTab>
+          label="Разделы сборов"
+          value={tab}
+          onChange={setTab}
+          items={[{ value: 'about', label: 'Обзор' }, { value: 'program', label: 'Программа' }, { value: 'hotel', label: 'Отель' }, { value: 'price', label: 'Стоимость' }]}
+        />
+      </div>
+      {tab === 'about' && (
+        <>
+          <Card title={M.tagline}>
+            <p className="ks-lead">Группы: {CAMP.groups}</p>
+            <p className="ks-lead" style={{ marginBottom: 0 }}>{M.lead}</p>
+          </Card>
+          <Card>
+            <div className="ks-gallery" aria-label="Фото сборов">
+              {['camp-resort', 'camp-team', 'camp-garden', 'camp-play', 'camp-sunset'].map(n => <img key={n} src={`/img/${n}.jpg`} alt="Фото сборов" loading="lazy" />)}
+            </div>
+            {M.idea.map(i => <Price key={i.title} name={i.title} note={i.text} price="" />)}
+          </Card>
+          <Card title={M.fields.title}>
+            <p className="ks-lead" style={{ marginBottom: 0 }}>{M.fields.text}</p>
+          </Card>
+          <Card title="Опыт FC KickStart">
+            <div className="ks-nums">{M.experience.numbers.map(([n, l]) => <div key={l}><b>{n}</b><span>{l}</span></div>)}</div>
+            <p className="ks-hint">{M.experience.note}</p>
+            <p className="ks-label">В конце: письменные рекомендации каждому игроку</p>
+            <Checks items={M.experience.report} />
+          </Card>
+          <Card title="Футболка участника">
+            <p className="ks-lead" style={{ marginBottom: 0 }}>{M.shirt}</p>
+          </Card>
+          <Sign text="Забронировать место" />
+        </>
+      )}
+      {tab === 'program' && (
+        <>
+          <Card title="Каждому возрасту своя задача">
+            <p className="ks-lead">{M.agesNote}</p>
+            <ul className="ks-steps2">
+              {M.ages.map(a => <li key={a.group}><b>{a.group}</b>{a.items.join(' · ')}</li>)}
+            </ul>
+          </Card>
+          <Card title="7 дней в режиме футболиста">
+            <ul className="ks-steps2">
+              {M.day.map(d => <li key={d.title}><b>{d.title}</b>{d.text}</li>)}
+            </ul>
+            <p className="ks-hint">{M.dayNote}</p>
+          </Card>
+          <Card title="Один отпуск, два сценария">
+            <div className="ks-two">
+              <div><h3>Для ребёнка</h3><Checks items={M.family.child} /></div>
+              <div><h3>Для родителей</h3><Checks items={M.family.parents} /></div>
+            </div>
+            <p className="ks-hint">{M.family.note}</p>
+          </Card>
+        </>
+      )}
+      {tab === 'hotel' && (
+        <>
+          <Card title="Kolkhida Resort & Spa">
+            {photo('camp-resort', 'Территория отеля')}
+            <p className="ks-lead" style={{ marginBottom: 0 }}>Отель на берегу моря в Уреки: поля, питание и отдых рядом.</p>
+          </Card>
+          <Card title="Номера">
+            <div className="ks-gallery" aria-label="Фото номеров">
+              {['camp-room1', 'camp-room2'].map(n => <img key={n} src={`/img/${n}.jpg`} alt="Номер отеля" loading="lazy" />)}
+            </div>
+            <p className="ks-hint"><b>{M.rooms.title}.</b> {M.rooms.text}</p>
+          </Card>
+          <Card title="На территории">
+            {M.services.map(x => <Price key={x.title} name={x.title} note={x.text} price="" />)}
+            {photo('camp-garden', 'Территория отеля')}
+          </Card>
+        </>
+      )}
+      {tab === 'price' && (
+        <>
+          <Card title="Тарифы Winter Camp 2027">
+            {CAMP.prices.map(p => <Price key={p.name} name={p.name} note={p.note} price={p.price} />)}
+            {M.priceNotes.slice(0, 2).map(n => <p className="ks-hint" key={n}>{n}</p>)}
+          </Card>
+          <Card title="Бронь и отмена">
+            <p className="ks-callout" style={{ marginTop: 0 }}><b>500 GEL</b> бронь до 1 декабря, полная оплата до 20 декабря.</p>
+            <Checks items={CAMP.terms.slice(1, 5)} plain />
+            <p className="ks-hint">{M.priceNotes[2]}</p>
+          </Card>
+          <Sign text="Забронировать место" />
+        </>
+      )}
     </>
   );
 }
 
-const TILES: { id: Exclude<CoverId, 'channel'>; title: string; sub: string; wide?: boolean }[] = [
-  { id: 'camp', title: CAMP.title, sub: `${CAMP.when.split(' · ')[0]} · Уреки`, wide: true },
+const TILES: { id: Exclude<CoverId, 'channel'>; title: string; sub: string; wide?: boolean; photo?: string }[] = [
+  { id: 'camp', title: CAMP.title, sub: `${CAMP.when.split(' · ')[0]} · Уреки`, wide: true, photo: '/img/camp-hero.jpg' },
   { id: 'branches', title: 'Филиалы', sub: 'Три филиала и карты' },
   { id: 'champ', title: 'Чемпионаты', sub: 'Сезон 2026/27' },
   { id: 'individual', title: 'Индивидуальные', sub: 'До 3 футболистов на тренера' },
   { id: 'gk', title: 'Вратарские', sub: 'Отдельные тренировки' },
-  { id: 'equipment', title: 'Экипировка', sub: 'Комплекты от 100 GEL' },
+  { id: 'equipment', title: 'Экипировка', sub: 'Комплекты от 100 GEL', photo: '/img/kit-game.jpg' },
 ];
-const SCREENS: Record<Exclude<CoverId, 'channel'>, () => ReactNode> = { branches: Branches, champ: Championships, individual: Individual, gk: Goalkeepers, equipment: Equipment, camp: Camp };
+const SCREENS: Record<Exclude<CoverId, 'channel'>, () => ReactNode> = { branches: Branches, champ: Championships, individual: Individual, gk: Goalkeepers, equipment: () => null, camp: Camp };
 
 // «О клубе» для гостя, ребёнка и тренера без назначенных групп: только открытая информация, без данных детей и результатов игроков.
 // Главный экран — плитки-разделы; каждый раздел открывается отдельным экраном.
 export default function About({ role, onChangeRole }: { role: Role | null; onChangeRole: () => void }) {
   const [open, setOpen] = useState<Id | null>(null);
-  useEffect(() => { document.documentElement.scrollTop = 0; }, [open]);
+  const [product, setProduct] = useState<Product['id'] | null>(null);
+  useEffect(() => { document.documentElement.scrollTop = 0; }, [open, product]);
 
   if (open) {
     const Screen = open === 'trial' ? null : SCREENS[open];
     return (
       <main className="page">
-        <BackNav onBack={() => setOpen(null)} />
-        {Screen ? <Screen /> : <TrialForm startOpen />}
+        <BackNav onBack={() => (product ? setProduct(null) : setOpen(null))} />
+        {open === 'equipment' ? <Equipment product={product} setProduct={setProduct} /> : Screen ? <Screen /> : <TrialForm startOpen />}
       </main>
     );
   }

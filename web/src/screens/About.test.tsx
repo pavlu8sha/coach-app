@@ -47,7 +47,27 @@ describe('«О клубе» для гостя', () => {
     expect(screen.getByText(/525 GEL вместо 620/)).toBeInTheDocument();
     back();
     open(/Winter Camp 2027/);
+    expect(screen.getByText(/Новый год\. Новое место/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Стоимость' }));
     expect(screen.getByText('1 500 GEL')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Программа' }));
+    expect(screen.getByText('U10–U11')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Отель' }));
+    expect(screen.getAllByAltText('Номер отеля').length).toBeGreaterThan(0);
+  });
+
+  it('экипировка: карточки товаров, размерная таблица костюма и возврат к списку', () => {
+    render(<About role="guest" onChangeRole={() => undefined} />);
+    open(/^Экипировка/);
+    for (const n of ['Тренировочный комплект', 'Игровой комплект', 'Вратарский комплект', 'Спортивный костюм', 'Дождевик']) expect(screen.getByRole('button', { name: new RegExp(n) })).toBeInTheDocument();
+    open(/Спортивный костюм/);
+    expect(screen.getByRole('heading', { name: 'Спортивный костюм' })).toBeInTheDocument();
+    expect(screen.getByRole('rowheader', { name: '128' })).toBeInTheDocument();
+    expect(screen.getByText(/Допуск ±1 см/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(screen.getByRole('button', { name: /Дождевик/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(screen.getByRole('button', { name: /^Экипировка/ })).toBeInTheDocument();
   });
 
   it('кнопки «Записаться» ведут в чат администратора', () => {

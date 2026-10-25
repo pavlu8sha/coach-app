@@ -50,6 +50,9 @@ const COLORS: Record<CoverId, [string, string]> = {
   channel: ['#2a8fd6', '#1a5f99'],
 };
 
+// Фото с тёмным градиентом снизу, чтобы белый текст читался
+const withPhoto = (url: string) => `linear-gradient(to top, rgba(8,14,30,0.78), rgba(8,14,30,0.08) 70%), url(${url}) center / cover no-repeat`;
+
 export const Art = ({ id, size = 96 }: { id: CoverId; size?: number }) => (
   <svg viewBox="0 0 100 100" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     {ART[id]}
@@ -57,13 +60,13 @@ export const Art = ({ id, size = 96 }: { id: CoverId; size?: number }) => (
 );
 
 /** Плитка раздела на хабе: цвет, крупный значок, название и короткая подпись. */
-export function CoverTile({ id, title, sub, wide = false, onClick, href }: { id: CoverId; title: string; sub: string; wide?: boolean; onClick?: () => void; href?: string }) {
+export function CoverTile({ id, title, sub, wide = false, onClick, href, photo }: { id: CoverId; title: string; sub: string; wide?: boolean; onClick?: () => void; href?: string; photo?: string }) {
   const [a, b] = COLORS[id];
   const cls = `ks-cover tile${wide ? ' wide' : ''}`;
-  const style = { background: `linear-gradient(145deg, ${a}, ${b})` };
+  const style = { background: photo ? withPhoto(photo) : `linear-gradient(145deg, ${a}, ${b})` };
   const inner = (
     <>
-      <span className="art"><Art id={id} size={wide ? 120 : 92} /></span>
+      {!photo && <span className="art"><Art id={id} size={wide ? 120 : 92} /></span>}
       <span className="txt">
         <b>{title}</b>
         <small>{sub}</small>
@@ -79,11 +82,11 @@ export function CoverTile({ id, title, sub, wide = false, onClick, href }: { id:
 }
 
 /** Шапка раздела: та же обложка, но во всю ширину. */
-export function CoverBanner({ id, title, sub }: { id: CoverId; title: string; sub?: string }) {
+export function CoverBanner({ id, title, sub, photo }: { id: CoverId; title: string; sub?: string; photo?: string }) {
   const [a, b] = COLORS[id];
   return (
-    <header className="ks-cover banner" style={{ background: `linear-gradient(145deg, ${a}, ${b})` }}>
-      <span className="art"><Art id={id} size={110} /></span>
+    <header className={`ks-cover banner${photo ? ' photo' : ''}`} style={{ background: photo ? withPhoto(photo) : `linear-gradient(145deg, ${a}, ${b})` }}>
+      {!photo && <span className="art"><Art id={id} size={110} /></span>}
       <span className="txt">
         <h1>{title}</h1>
         {sub && <small>{sub}</small>}
