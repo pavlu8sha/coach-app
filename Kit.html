@@ -46,6 +46,8 @@ summary{cursor:pointer;list-style:none;min-height:44px;display:flex;flex-directi
 .srch{position:relative}.srch svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--mute);pointer-events:none}
 .srch input{padding-left:40px}
 .fkl{margin-top:10px}
+.ln{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:44px;padding:6px 14px;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:6px}.ln>span:first-child{min-width:0;overflow-wrap:anywhere}.ln b{font-weight:700}
+.lh{font-weight:800;margin:14px 0 6px}
 /* На телефоне — обычное поле выбора высотой 44 px; на компьютере — список строк */
 #fks{min-height:44px;padding:10px 12px}
 @media (pointer:fine){#fks{padding:4px 0;height:auto}#fks option{padding:10px 12px;min-height:44px}}
@@ -81,6 +83,10 @@ summary{cursor:pointer;list-style:none;min-height:44px;display:flex;flex-directi
     <option value="">Все локации: сначала красный парк</option><option value="red">Только красный парк</option>
     <option value="oth">Только ортачала и исани</option><option value="none">Без локации в реестре</option>
   </select>
+  <select id="fi" aria-label="Выдача" style="margin-top:8px">
+    <option value="">Выдача: любая</option><option value="no">Не выдано (должны выдать)</option><option value="yes">Выдано</option>
+  </select>
+  <div class="swrow" style="margin-top:8px"><span id="kll">Показать списком</span><button type="button" class="sw" id="klbt" role="switch" aria-checked="false" aria-labelledby="kll"><span class="knob" aria-hidden="true"></span></button></div>
   <button class="btn" id="new">+ Новый заказ</button>
   <div class="tiles" id="sum"></div>
   <p class="sub" id="fileSum"></p>
@@ -295,6 +301,34 @@ function card(r){
 function ucard(o){
   return'<details open><summary><div class="top"><span>'+esc(o.oname)+'</span><span class="err">не привязан</span></div><div class="sub">строка '+o.row+', '+esc(o.kit||'без комплекта')+'</div></summary>'+orderHtml(o,null,false)+'</details>';
 }
+// Вещи заказов игрока: по одной записи на вещь (с количеством и отметкой выдачи); kits — выбранные товары (пусто — все)
+function entries(r,kits){
+  var out=[];
+  r.os.forEach(function(o){kitsOf(o.kit).forEach(function(k){
+    if(kits.length&&kits.indexOf(k)<0)return;
+    out.push({r:r,o:o,k:k,q:qtyOfKit(o,k),x:issOf(o)[k]||null});
+  })});
+  return out;
+}
+function issueMatch(e,fi){return fi==='no'?!e.x:(fi==='yes'?!!e.x:true)}
+// Режим «Списком»: кто что получил и кому ещё должны выдать (по вещам, с количеством)
+function issueListHtml(a,kits,fi){
+  var all=[];a.forEach(function(r){entries(r,kits).forEach(function(e){all.push(e)})});
+  var byK={};all.forEach(function(e){var b=byK[e.k]=byK[e.k]||{d:0,t:0};b.t+=e.q;if(e.x)b.d+=e.q});
+  var h='<div class="lh">По товарам</div>'+Object.keys(byK).sort().map(function(k){var b=byK[k];
+    return'<div class="ln"><span><b>'+esc(k)+'</b></span><span class="'+(b.d===b.t?'ok':'')+'">выдано '+b.d+' из '+b.t+(b.t-b.d?', осталось '+(b.t-b.d):'')+'</span></div>'}).join('');
+  var rest=all.filter(function(e){return issueMatch(e,fi)}).sort(function(x,y){return x.r.p.name.localeCompare(y.r.p.name)||x.k.localeCompare(y.k)});
+  function sect(title,arr,isDone){
+    if(!arr.length)return'';
+    var n=0;arr.forEach(function(e){n+=e.q});
+    return'<div class="lh">'+title+' ('+n+' шт., '+arr.length+' поз.)</div>'+arr.slice(0,400).map(function(e){
+      var d=isDone?'<span class="sub">'+esc(e.x.date||'')+(e.x.who?', '+esc(e.x.who):'')+'</span>'
+        :'<span class="'+(e.r.debt>0?'err':'sub')+'">'+(e.o.ord?'не выдано':'нет ID заказа')+(e.r.debt>0?', долг '+money(e.r.debt):'')+'</span>';
+      return'<div class="ln"><span><b>'+esc(e.r.p.name)+'</b><span class="sub"> · '+esc(e.r.p.group)+'<br>'+esc(e.k)+(e.q>1?' × '+e.q:'')+'</span></span>'+d+'</div>';
+    }).join('')+(arr.length>400?'<p class="sub">Показаны первые 400, уточните фильтры.</p>':'');
+  }
+  return h+sect('Не выдано',rest.filter(function(e){return!e.x}),false)+sect('Выдано',rest.filter(function(e){return!!e.x}),true);
+}
 function show(){
   var q=nn($('q').value),g=$('fg').value,fv=$('fs').value;
   // Итог по всему файлу экипировки (все заказы, и с привязкой, и без): совпадает с итогами в таблице
@@ -321,7 +355,8 @@ function show(){
   }
   var kits=[].map.call($('fks').selectedOptions,function(o){return o.value});
   $('fksh').textContent=kits.length?'Выбрано: '+kits.join(', '):'Все товары';
-  var a=rows().filter(function(r){
+  var fi=$('fi').value;
+  var a0=rows().filter(function(r){
     if(!f(r))return false;
     if(kOnly&&!(r.debt>0))return false;
     if(kits.length&&!r.os.some(function(o){return kitsOf(o.kit).some(function(k){return kits.indexOf(k)>=0})}))return false;
@@ -329,13 +364,19 @@ function show(){
     if(g&&r.p.group!=g&&r.p.extras.indexOf(g)<0)return false;
     return !q||(r.p.name+' '+r.p.id).toLowerCase().indexOf(q)>=0;
   });
+  // Выдача считается по выбранным товарам: «не выдано» — у игрока есть невыданная вещь (из выбранных)
+  var a=fi?a0.filter(function(r){return entries(r,kits).some(function(e){return issueMatch(e,fi)})}):a0;
   // Порядок: сначала красный парк, потом ортачала и исани, затем остальные; внутри категории по реестру
   a=a.map(function(r,i){return{r:r,i:i}}).sort(function(x,y){
     return (LOC_ORD[locBucket(x.r.p.loc)]-LOC_ORD[locBucket(y.r.p.loc)])||(x.i-y.i)}).map(function(x){return x.r});
   var S=0,Pd=0,Dt=0;a.forEach(function(r){S+=r.sum;Pd+=r.paid;Dt+=r.debt});
   $('sum').innerHTML=tile('игроков в списке',a.length)+tile('заказано',money(S))+tile('оплачено',money(Pd))+tile('долг',money(Dt),Dt>0);
+  if(kits.length||fi||kList){   // штуки по выбранным товарам, независимо от фильтра «Выдача»
+    var ud=0,ul=0;a0.forEach(function(r){entries(r,kits).forEach(function(e){if(e.x)ud+=e.q;else ul+=e.q})});
+    $('sum').innerHTML+=tile('выдано, шт.',ud)+tile('осталось выдать, шт.',ul,ul>0);
+  }
   setMsg(flash+(UNL.length?'Заказов без привязки: '+UNL.length+' (фильтр «Заказы без привязки»).':''));flash='';
-  $('list').innerHTML=a.slice(0,150).map(card).join('')+(a.length>150?'<p class="sub">Показаны первые 150, уточните поиск.</p>':'');
+  $('list').innerHTML=kList?issueListHtml(a,kits,fi):a.slice(0,150).map(card).join('')+(a.length>150?'<p class="sub">Показаны первые 150, уточните поиск.</p>':'');
   // UI-010: пустые состояния — заказов нет совсем / по фильтрам никого
   if(!a.length){
     var noOrd=!O.length&&!UNL.length&&!q&&fv!='not';
@@ -526,13 +567,15 @@ function submit(){
 $('list').addEventListener('click',function(e){
   var b=e.target.closest('#enew,#ereset');if(!b)return;
   if(b.id=='enew'){$('new').click();return}
-  $('q').value='';$('fs').value='all';$('fg').value='';$('fl').value='';kOnly=false;$('kdbt').setAttribute('aria-checked','false');[].forEach.call($('fks').options,function(o){o.selected=false});show();
+  $('q').value='';$('fs').value='all';$('fg').value='';$('fl').value='';$('fi').value='';kList=false;$('klbt').setAttribute('aria-checked','false');kOnly=false;$('kdbt').setAttribute('aria-checked','false');[].forEach.call($('fks').options,function(o){o.selected=false});show();
 });
-var kOnly=false;
+var kOnly=false,kList=false;
 $('fks').addEventListener('mousedown',function(e){
   var o=e.target;if(!o||o.tagName!=='OPTION'||matchMedia('(pointer:coarse)').matches)return;
   e.preventDefault();var t=this.scrollTop;o.selected=!o.selected;this.focus();this.scrollTop=t;show();
 });
+$('klbt').onclick=function(){kList=!kList;this.setAttribute('aria-checked',String(kList));show()};
+$('fi').onchange=show;
 $('kdbt').onclick=function(){kOnly=!kOnly;this.setAttribute('aria-checked',String(kOnly));show()};
 $('q').oninput=show;$('fs').onchange=show;$('fg').onchange=show;$('fl').onchange=show;
 $('new').onclick=openForm;
