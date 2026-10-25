@@ -28,7 +28,7 @@ describe('Предпросмотр в приложении', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Ещё/ }));
     fireEvent.click(await screen.findByText('Гость'));
     expect(await screen.findByText('Режим просмотра: Гость')).toBeInTheDocument();
-    expect(await screen.findByRole('heading', { name: 'Филиалы' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /^Филиалы/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Выйти' }));
     await waitFor(() => expect(screen.queryByText('Режим просмотра: Гость')).toBeNull());
   });
