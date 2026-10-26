@@ -136,7 +136,7 @@ function View({ session, onBack }: { session: Session; onBack: () => void }) {
   const [date, setDate] = useState(session.starts_on);
   const [amount, setAmount] = useState(String(session.amount));
   const [place, setPlace] = useState(session.place ?? '');
-  const [method, setMethod] = useState(METHODS[0]);
+  const [method, setMethod] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirmDel, setConfirmDel] = useState(false);
@@ -180,7 +180,7 @@ function View({ session, onBack }: { session: Session; onBack: () => void }) {
       {msg && <p className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}
 
       <h3>Записанные</h3>
-      <label className="field">Способ оплаты<select value={method} onChange={e => setMethod(e.target.value)}>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>
+      <label className="field">Способ оплаты<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>
       {sorted.length === 0 ? <p className="muted">Пока никого.</p> : sorted.map(b => (
         <div className="ks-card" key={b.player_id}>
           <div className="ks-line">
@@ -191,7 +191,7 @@ function View({ session, onBack }: { session: Session; onBack: () => void }) {
             <Segmented label={`Посещение: ${b.players?.full_name ?? ''}`} value={b.attended === true ? 'yes' : b.attended === false ? 'no' : 'none'} onChange={v => void run('t' + b.player_id, () => supabase.rpc('extra_set_attended', { s: session.id, p: b.player_id, was: v === 'yes' ? true : v === 'no' ? false : null }))} items={[{ value: 'yes', label: 'Был(а)' }, { value: 'no', label: 'Нет' }, { value: 'none', label: '—' }]} />
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-            <button type="button" className="ks-btn secondary" style={{ width: 'auto' }} disabled={busy === b.player_id} onClick={() => void run(b.player_id, () => supabase.rpc('extra_set_paid', { s: session.id, p: b.player_id, is_paid: !b.paid, mth: method }))}>
+            <button type="button" className="ks-btn secondary" style={{ width: 'auto' }} disabled={busy === b.player_id || (!b.paid && !method)} onClick={() => void run(b.player_id, () => supabase.rpc('extra_set_paid', { s: session.id, p: b.player_id, is_paid: !b.paid, mth: method }))}>
               {b.paid ? 'Отменить оплату' : 'Отметить оплату'}
             </button>
             {!b.paid && (

@@ -187,13 +187,14 @@ function DueCard({ due, open, onOpen, onPaid }: { due: Due; open: boolean; onOpe
   const left = r2(due.due - due.paid);
   const isCurrent = due.month === monthIso(new Date());
   const [amount, setAmount] = useState(String(left));
-  const [method, setMethod] = useState(METHODS[0]);
+  const [method, setMethod] = useState('');
   const [date, setDate] = useState(due.month && !isCurrent ? due.month : today());
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const fixedAmount = due.kind === 'ind'; // индивидуальное занятие отмечается оплаченным целиком
   const num = Number(amount.replace(',', '.'));
   const save = async () => {
+    if (!method) return setErr('Выберите способ оплаты.');
     if (!fixedAmount && (!Number.isFinite(num) || num <= 0 || num > 100000)) return setErr('Введите сумму больше нуля.');
     if (due.month && (date > today() || date < due.month || date >= nextMonth(due.month))) return setErr('Дата должна быть в этом месяце и не в будущем: оплата считается по месяцу даты.');
     setBusy(true);
@@ -213,7 +214,7 @@ function DueCard({ due, open, onOpen, onPaid }: { due: Due; open: boolean; onOpe
           {!fixedAmount && <label className="field">Сумма, ₾ (меньше остатка — частичный платёж, останется долг)<input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /></label>}
           <div className="two">
             {due.kind === 'sub' || due.kind === 'camp' ? <label className="field">Дата<input type="date" value={date} min={due.month} max={today()} onChange={e => setDate(e.target.value)} /></label> : <span />}
-            <label className="field">Способ<select value={method} onChange={e => setMethod(e.target.value)}>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>
+            <label className="field">Способ<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>
           </div>
           {err && <p className="error">{err}</p>}
           <button type="button" className="ks-btn" disabled={busy} onClick={() => void save()}>{fixedAmount ? `Отметить оплаченным (${gel(left)})` : 'Записать платёж'}</button>

@@ -240,7 +240,7 @@ function PartView({ part, camp, tariffs, onBack }: { part: Part; camp: Camp; tar
   const [payAmount, setPayAmount] = useState('');
   const [kind, setKind] = useState<'booking' | 'payment'>(camp.booking_fee > 0 && part.camp_payments.length === 0 ? 'booking' : 'payment');
   const [date, setDate] = useState(today());
-  const [method, setMethod] = useState(METHODS[0]);
+  const [method, setMethod] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -282,9 +282,9 @@ function PartView({ part, camp, tariffs, onBack }: { part: Part; camp: Camp; tar
       <label className="field">Сумма, ₾<input inputMode="decimal" value={payAmount} onChange={e => setPayAmount(e.target.value)} /></label>
       <div className="two">
         <label className="field">Дата<input type="date" value={date} max={today()} onChange={e => setDate(e.target.value)} /></label>
-        <label className="field">Способ<select value={method} onChange={e => setMethod(e.target.value)}>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>
+        <label className="field">Способ<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>
       </div>
-      <button type="button" className="ks-btn" disabled={busy === 'pay' || payAmount.trim() === '' || Number.isNaN(num(payAmount)) || num(payAmount) <= 0} onClick={() => void run('pay', () => supabase.rpc('camp_pay', { pid: p.id, amt: num(payAmount), k: kind, d: date, mth: method, cmt: null }), 'Платёж записан.').then(ok => { if (ok) setPayAmount(''); })}>Записать платёж</button>
+      <button type="button" className="ks-btn" disabled={busy === 'pay' || !method || payAmount.trim() === '' || Number.isNaN(num(payAmount)) || num(payAmount) <= 0} onClick={() => void run('pay', () => supabase.rpc('camp_pay', { pid: p.id, amt: num(payAmount), k: kind, d: date, mth: method, cmt: null }), 'Платёж записан.').then(ok => { if (ok) setPayAmount(''); })}>Записать платёж</button>
 
       <h3>Данные участника</h3>
       <label className="field">Тариф<select value={tid} onChange={e => setTid(e.target.value)}>{tariffs.map(t => <option key={t.id} value={t.id}>{t.name} — {gel(t.price)}{t.active ? '' : ' (не активен)'}</option>)}</select></label>

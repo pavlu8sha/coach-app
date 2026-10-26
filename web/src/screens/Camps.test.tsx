@@ -49,6 +49,7 @@ describe('«Сборы»', () => {
     fireEvent.click(await screen.findByText('Сидоров Ян'));
     fireEvent.click(await screen.findByRole('tab', { name: 'Оплата' }));
     fireEvent.change(screen.getAllByLabelText('Сумма, ₾')[0], { target: { value: '250,5' } });
+    fireEvent.change(screen.getByLabelText(/^Способ/), { target: { value: 'Наличные' } });
     fireEvent.click(screen.getByRole('button', { name: 'Записать платёж' }));
     await waitFor(() => expect(fake.rpcCalls('camp_pay')).toHaveLength(1));
     expect(fake.rpcCalls('camp_pay')[0]).toMatchObject({ pid: 'cp2', amt: 250.5, k: 'payment', mth: 'Наличные' });

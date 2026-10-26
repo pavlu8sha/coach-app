@@ -64,6 +64,7 @@ describe('«Приём оплат»', () => {
       await screen.findByText(title);
       const c = card(title);
       fireEvent.click(within(c).getByRole('button', { name: 'Принять оплату' }));
+      fireEvent.change(within(c).getByLabelText(/^Способ/), { target: { value: 'Наличные' } });
       fireEvent.click(within(c).getByRole('button', { name: btn }));
     };
     await pay('Форма + Куртка', 'Записать платёж');
@@ -114,6 +115,7 @@ describe('«Приём оплат»', () => {
     const sub = card(/Внесено 50 ₾ из 165 ₾/);
     fireEvent.click(within(sub).getByRole('button', { name: 'Принять оплату' }));
     fireEvent.change(within(sub).getByLabelText('Дата'), { target: { value: '2020-01-05' } });
+    fireEvent.change(within(sub).getByLabelText(/^Способ/), { target: { value: 'Наличные' } });
     fireEvent.click(within(sub).getByRole('button', { name: 'Записать платёж' }));
     expect(await screen.findByText(/Дата должна быть в этом месяце/)).toBeInTheDocument();
     expect(fake.writes('payments', 'insert')).toHaveLength(0);

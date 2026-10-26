@@ -233,6 +233,7 @@ describe('Взносы события (администратор)', () => {
     expect(screen.getByText('Оплачен')).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText('Платит: Сидоров Ян'));
     fireEvent.change(screen.getByLabelText('Способ'), { target: { value: 'Наличные' } });
+    fireEvent.change(screen.getByLabelText(/^Способ/), { target: { value: 'Наличные' } });
     fireEvent.click(screen.getByText('Записать оплату (1)'));
     await waitFor(() => expect(fake.rpcCalls('event_pay')).toHaveLength(1));
     expect(fake.rpcCalls('event_pay')[0]).toMatchObject({ t: 'e1', ids: ['p2'], amt: null, mth: 'Наличные' });
@@ -278,6 +279,7 @@ describe('Взносы за матч (администратор)', () => {
     await waitFor(() => expect(fake.rpcCalls('match_fee_add')).toHaveLength(1));
     expect(fake.rpcCalls('match_fee_add')[0]).toMatchObject({ m: 'm1', ids: ['p9', 'p1'], amt: 20 });
     fireEvent.click(await screen.findByLabelText('Платит: Иванов Пётр'));
+    fireEvent.change(screen.getByLabelText(/^Способ/), { target: { value: 'Наличные' } });
     fireEvent.click(screen.getByText(/Записать оплату/));
     await waitFor(() => expect(fake.rpcCalls('match_pay')).toHaveLength(1));
     expect(fake.rpcCalls('match_pay')[0]).toMatchObject({ m: 'm1', amt: null });
