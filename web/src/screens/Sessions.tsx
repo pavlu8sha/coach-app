@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, Segmented } from '../ui/components';
 import { GroupPicker } from '../ui/coach';
 import { BackNav, useMainButton } from '../ui/nav';
+import IndMarks, { indDay, indTitle, type IndSession } from './IndMarks';
 import { Failure, Loading } from './Message';
 
 type Status = 'present' | 'absent' | 'excused';
@@ -19,9 +20,13 @@ export default function Sessions({ groups }: { groups: CoachGroup[] }) {
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [date, setDate] = useState<string | null>(null);
+  // группа без групповых тренировок («Индивидуальные / Вратарские»): вместо состава группы — реальные занятия и записавшиеся на них
+  const [indList, setIndList] = useState<IndSession[] | null>(null);
+  const [indOpen, setIndOpen] = useState<string | null>(null);
 
   useEffect(() => {
     setSlots(null);
+    setIndList(null);
     void (async () => {
       const r = await supabase.from('weekly_schedule').select('weekday, starts_at, location, kind').eq('group_id', gid).order('starts_at');
       if (r.error) return setError(r.error.message);
@@ -29,6 +34,11 @@ export default function Sessions({ groups }: { groups: CoachGroup[] }) {
       const all = (r.data ?? []) as Slot[];
       const group = all.filter(x => x.kind === 'Групповая');
       setSlots(group.length ? group : all);
+      if (!group.length && all.length) {
+        const t = today();
+        const ind = await supabase.from('individual_sessions').select('id, starts_at, topic, goalkeepers, individual_bookings(player_id, attended, players(full_name))').gte('starts_at', addDays(t, -DAYS_BACK)).lte('starts_at', t + 'T23:59:59').order('starts_at', { ascending: false });
+        setIndList(ind.error ? [] : ((ind.data ?? []) as unknown as IndSession[]));
+      }
     })();
   }, [gid, reload]);
 
@@ -43,14 +53,22 @@ export default function Sessions({ groups }: { groups: CoachGroup[] }) {
 
   const group = groups.find(g => g.id === gid);
   if (error) return <Failure title="Не удалось загрузить расписание" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
+  const openInd = indList?.find(x => x.id === indOpen);
+  if (openInd) return <IndMarks session={openInd} onBack={() => { setIndOpen(null); setReload(n => n + 1); }} />;
   if (date && group) return <Roster gid={gid} date={date} onBack={() => setDate(null)} />;
   if (!slots) return <Loading />;
+  const indMode = slots.length > 0 && slots.every(x => x.kind !== 'Групповая');
+  if (indMode && !indList) return <Loading />;
 
   return (
     <main className="page">
       <h1>Занятия</h1>
       <GroupPicker groups={groups} value={gid} onChange={setGid} />
-      {days.length === 0 ? (
+      {indMode ? (
+        indList && indList.length > 0 ? indList.map(x => (
+          <ListRow key={x.id} title={indTitle(x)} sub={[x.topic ?? 'без темы', `Записано: ${x.individual_bookings.length}`]} end={indDay(x) === today() ? <Pill tone="primary">Сегодня</Pill> : undefined} onClick={() => setIndOpen(x.id)} />
+        )) : <EmptyState icon="box" title="Занятий нет" text="За последние дни индивидуальных и вратарских занятий не было (их ведёт администратор в «Ещё → Индивидуальные»)." />
+      ) : days.length === 0 ? (
         <EmptyState icon="box" title="Нет занятий в расписании" text={`У группы ${group?.name ?? ''} нет тренировок в расписании за последние ${DAYS_BACK} дней.`} />
       ) : (
         days.map(d => (
