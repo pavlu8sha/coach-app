@@ -164,4 +164,14 @@ describe('«Приём оплат»: платежи дня', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Отменить оплату: Иванов Пётр' }));
     await waitFor(() => expect(fake.writes('payments', 'insert')).toEqual([expect.objectContaining({ player_id: 'p1', amount: -50, paid_on: today(), method: 'Исправление' })]));
   });
+  it('отмена платежа вперёд записывается в тот же месяц; отменённый платёж не отменить дважды', async () => {
+    seed();
+    fake.db.payments = [{ id: 'a1', player_id: 'p1', amount: 165, paid_on: today(), for_month: '2099-11-01', method: 'Перевод', players: { full_name: 'Иванов Пётр' } }];
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<CashDesk />);
+    await screen.findByRole('heading', { name: /Внесено сегодня.*165 ₾/ });
+    fireEvent.click(screen.getByRole('button', { name: 'Отменить оплату: Иванов Пётр' }));
+    await waitFor(() => expect(fake.writes('payments', 'insert')).toEqual([expect.objectContaining({ amount: -165, for_month: '2099-11-01', method: 'Исправление' })]));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Отменить оплату: Иванов Пётр' })).toBeNull());
+  });
 });
