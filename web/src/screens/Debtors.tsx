@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill } from '../ui/components';
 import { Failure, Loading } from './Message';
@@ -6,6 +7,8 @@ import { Failure, Loading } from './Message';
 interface Row { group_name: string; player_id: string; full_name: string; tariff: number; paid: number; debt: number }
 interface Disc { id: string; player_id: string; players: { full_name: string } | null }
 
+const METHODS = ['Наличные', 'Перевод', 'Другое'];
+const DEFAULT_TPL = 'Добрый день\nУ вас не оплачен абонемент за {месяц}';
 const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
 const SEASON_START = '2026-09-01'; // как debt_start() в базе
 const monthIso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
@@ -34,6 +37,9 @@ export default function Debtors() {
   const [reload, setReload] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [gname, setGname] = useState(''); // фильтр по группе
+  const [payKey, setPayKey] = useState<string | null>(null); // строка с открытой формой оплаты
+  const [tpl, setTpl] = useState(() => { try { return localStorage.getItem('debtTpl') || DEFAULT_TPL; } catch { return DEFAULT_TPL; } });
 
   useEffect(() => {
     void (async () => {
@@ -67,6 +73,16 @@ export default function Debtors() {
     setReload(n => n + 1);
   };
   const setDiscount = (playerId: string, on: boolean) => setFlag(playerId, 'discount', on);
+  const changeTpl = (v: string) => { setTpl(v); try { localStorage.setItem('debtTpl', v); } catch { /* без сохранения шаблон работает на этом экране */ } };
+  const textFor = (name: string) => tpl.replace(/\{месяц\}/g, monthName(month).split(' ')[0].toLowerCase()).replace(/\{имя\}/g, name);
+  const copy = async (text: string, what: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setMsg(`Скопировано: ${what}.`);
+    } catch {
+      setMsg('Не удалось скопировать: выделите текст вручную.');
+    }
+  };
   const createMonth = async () => {
     if (!window.confirm(`Создать абонементы на ${monthName(month).toLowerCase()} для всех активных игроков?`)) return;
     setBusy('month');
@@ -90,8 +106,10 @@ export default function Debtors() {
   if (error) return <Failure title="Не удалось загрузить должников" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   if (!rows) return <Loading />;
 
-  const groups = [...new Set(rows.map(r => r.group_name))];
-  const total = rows.reduce((s, r) => s + r.debt, 0);
+  const allGroups = [...new Set(rows.map(r => r.group_name))];
+  const shown = rows.filter(r => !gname || r.group_name === gname);
+  const groups = [...new Set(shown.map(r => r.group_name))];
+  const total = shown.reduce((s, r) => s + r.debt, 0);
   return (
     <main className="page">
       <h1>Должники</h1>
@@ -114,21 +132,36 @@ export default function Debtors() {
         <p className="ks-muted" style={{ margin: '6px 0 10px' }}>Создаёт строки абонементов для всех активных игроков с группой (кроме индивидуальных). Только после этого прошлый месяц считается в долге у неплательщиков.</p>
         <button type="button" className="ks-btn secondary" disabled={busy === 'month'} onClick={() => void createMonth()}>Создать абонементы на месяц</button>
       </div>
-      {msg && <p className={msg.startsWith('Создано') ? 'muted' : 'error'}>{msg}</p>}
-      <p className="muted" style={{ margin: '4px 0 10px' }}>{rows.length > 0 ? `Должны: ${rows.length}, всего ${gel(total)}` : ''}</p>
-      {rows.length === 0 ? (
+      {msg && <p className={/^(Создано|Скопировано|Платёж записан)/.test(msg) ? 'muted' : 'error'}>{msg}</p>}
+      <div className="ks-card">
+        <b>Текст сообщения родителям</b>
+        <p className="ks-muted" style={{ margin: '6px 0' }}>{'{месяц}'} и {'{имя}'} подставятся сами. Шаблон запоминается на этом устройстве.</p>
+        <textarea className="ks-input" rows={3} aria-label="Текст сообщения" value={tpl} onChange={e => changeTpl(e.target.value)} />
+        <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} onClick={() => void copy(textFor(''), 'текст сообщения')}>Скопировать текст</button>
+      </div>
+      {allGroups.length > 1 && (
+        <select className="ks-select" aria-label="Группа" value={gname} onChange={e => setGname(e.target.value)}>
+          <option value="">Все группы</option>
+          {allGroups.map(g => <option key={g} value={g}>{g}</option>)}
+        </select>
+      )}
+      <p className="muted" style={{ margin: '4px 0 10px' }}>{shown.length > 0 ? `Должны: ${shown.length}, всего ${gel(total)}` : ''}</p>
+      {shown.length === 0 ? (
         <EmptyState icon="users" title="Должников нет" text="За этот месяц у активных игроков нет неоплаченных абонементов." />
       ) : (
         groups.map(g => (
           <section key={g}>
             <h3>{g}</h3>
-            {rows.filter(r => r.group_name === g).map(r => (
+            {shown.filter(r => r.group_name === g).map(r => (
               <div className="ks-card" key={r.player_id}>
                 <div className="ks-line">
                   <b style={{ overflowWrap: 'anywhere' }}>{r.full_name}</b>
                   <Pill tone="danger" dot>{gel(r.debt)}</Pill>
                 </div>
                 <div className="ks-muted" style={{ fontSize: 13 }}>Внесено {gel(r.paid)} из {gel(r.tariff)}</div>
+                <button type="button" className="ks-btn" style={{ marginTop: 8 }} onClick={() => setPayKey(payKey === r.player_id ? null : r.player_id)}>{payKey === r.player_id ? 'Свернуть' : 'Принять оплату'}</button>
+                {payKey === r.player_id && <PayInline playerId={r.player_id} month={month} debt={r.debt} onSaved={() => { setPayKey(null); setMsg('Платёж записан.'); setRows(null); setReload(n => n + 1); }} />}
+                <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} onClick={() => void copy(textFor(r.full_name), `сообщение для ${r.full_name}`)}>Скопировать сообщение</button>
                 <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy === r.player_id} onClick={() => void setDiscount(r.player_id, true)}>
                   Отметить «Скидка»
                 </button>
@@ -157,5 +190,39 @@ export default function Debtors() {
         </>
       )}
     </main>
+  );
+}
+
+// Платёж прямо из строки должника: сумма по умолчанию — долг (меньше — частичный, останется остаток); дата в выбранном месяце.
+function PayInline({ playerId, month, debt, onSaved }: { playerId: string; month: string; debt: number; onSaved: () => void }) {
+  const isCurrent = month === monthIso(new Date());
+  const [amount, setAmount] = useState(String(debt));
+  const [method, setMethod] = useState(METHODS[0]);
+  const [date, setDate] = useState(isCurrent ? today() : month);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const num = Number(amount.replace(',', '.'));
+  const nextMonth = () => { const [y, m] = month.split('-').map(Number); return monthIso(new Date(y, m, 1)); };
+  const save = async () => {
+    if (!Number.isFinite(num) || num <= 0 || num > 100000) return setErr('Введите сумму больше нуля.');
+    if (date > today() || date < month || date >= nextMonth()) return setErr('Дата должна быть в этом месяце и не в будущем: оплата считается по месяцу даты.');
+    setBusy(true);
+    setErr(null);
+    const me = (await supabase.auth.getUser()).data.user?.id ?? null;
+    const r = await supabase.from('payments').insert({ player_id: playerId, amount: Math.round(num * 100) / 100, paid_on: date, method, recorded_by: me });
+    setBusy(false);
+    if (r.error) return setErr(r.error.message);
+    onSaved();
+  };
+  return (
+    <div style={{ marginTop: 8 }}>
+      <label className="field">Сумма, ₾ (меньше долга — частичный платёж, останется остаток)<input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /></label>
+      <div className="two">
+        <label className="field">Дата<input type="date" value={date} min={month} max={today()} onChange={e => setDate(e.target.value)} /></label>
+        <label className="field">Способ<select value={method} onChange={e => setMethod(e.target.value)}>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>
+      </div>
+      {err && <p className="error">{err}</p>}
+      <button type="button" className="ks-btn" disabled={busy} onClick={() => void save()}>Записать платёж</button>
+    </div>
   );
 }
