@@ -151,6 +151,14 @@ export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOp
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const num = Number(amount.replace(',', '.'));
+  const discount = async () => {
+    setBusy(true);
+    setErr(null);
+    const r = await supabase.from('subscriptions').upsert({ player_id: player.id, month, discount: true }, { onConflict: 'player_id,month' });
+    setBusy(false);
+    if (r.error) return setErr(r.error.message);
+    onSaved();
+  };
   const save = async () => {
     if (!amount.trim() || !Number.isFinite(num) || num === 0 || Math.abs(num) > 100000) return setErr('Введите сумму (не ноль).');
     if (date > today()) return setErr('Дата платежа не может быть в будущем.');
@@ -170,6 +178,9 @@ export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOp
         <Pill tone={paidUp ? 'success' : 'danger'} dot>{sub?.written_off ? 'Списано' : sub?.discount && got > 0 ? 'Скидка' : `${gel(got)}${tariff !== null ? ` из ${gel(tariff)}` : ''}`}</Pill>
       </div>
       <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} onClick={onOpen}>{open ? 'Свернуть' : 'Внести платёж'}</button>
+      {!paidUp && got > 0 && (
+        <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy} onClick={() => void discount()}>Считать оплаченным (скидка)</button>
+      )}
       {open && (
         <div style={{ marginTop: 8 }}>
           <label className="field">Сумма, ₾ (минус — исправление)<input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /></label>

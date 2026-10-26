@@ -61,6 +61,15 @@ describe('«Оплаты за месяц»', () => {
     expect(screen.queryByText('Иванов Пётр')).toBeNull();
   });
 
+  it('«Считать оплаченным (скидка)» есть у частично оплативших и ставит скидку', async () => {
+    seed();
+    render(<MonthPayments />);
+    await screen.findByText('100 ₾ из 165 ₾');
+    expect(screen.getAllByRole('button', { name: 'Считать оплаченным (скидка)' })).toHaveLength(1); // Иванов: внесено 100 из 165
+    fireEvent.click(screen.getByRole('button', { name: 'Считать оплаченным (скидка)' }));
+    await waitFor(() => expect(fake.writes('subscriptions', 'upsert')).toEqual([{ player_id: 'p1', month: monthIso(), discount: true }]));
+  });
+
   it('быстрый платёж: сумма по умолчанию — остаток, запись в журнал', async () => {
     seed();
     render(<MonthPayments />);
