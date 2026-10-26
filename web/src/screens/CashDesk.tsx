@@ -126,7 +126,7 @@ export default function CashDesk() {
   );
 }
 
-function PlayerDues({ player, onBack }: { player: Pl; onBack: () => void }) {
+export function PlayerDues({ player, onBack, embedded = false }: { player: Pl; onBack?: () => void; embedded?: boolean }) {
   const [dues, setDues] = useState<Due[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openKey, setOpenKey] = useState<string | null>(null);
@@ -138,11 +138,12 @@ function PlayerDues({ player, onBack }: { player: Pl; onBack: () => void }) {
 
   if (error) return <Failure title="Не удалось загрузить долги игрока" text={coachError(error)} onRetry={() => { setError(null); setDues(null); setReload(n => n + 1); }} />;
   const sum = (dues ?? []).reduce((s, d) => s + (d.due - d.paid), 0);
+  const Wrap = embedded ? 'div' : 'main';
   return (
-    <main className="page">
-      <BackNav onBack={onBack} />
-      <h1 style={{ overflowWrap: 'anywhere' }}>{player.full_name}</h1>
-      <p className="muted">{player.groups?.name ?? 'без группы'}{dues ? ` · к оплате: ${gel(sum)}` : ''}</p>
+    <Wrap className={embedded ? undefined : 'page'}>
+      {!embedded && onBack && <BackNav onBack={onBack} />}
+      {!embedded && <h1 style={{ overflowWrap: 'anywhere' }}>{player.full_name}</h1>}
+      <p className="muted">{embedded ? '' : `${player.groups?.name ?? 'без группы'}`}{dues ? `${embedded ? '' : ' · '}к оплате: ${gel(sum)}` : ''}</p>
       {msg && <p className="ks-ok">{msg}</p>}
       {!dues ? <Loading /> : dues.length === 0 ? (
         <EmptyState icon="users" title="Долгов нет" text="По абонементу, экипировке, занятиям и сборам всё оплачено." />
@@ -156,7 +157,7 @@ function PlayerDues({ player, onBack }: { player: Pl; onBack: () => void }) {
           </section>
         ))
       )}
-    </main>
+    </Wrap>
   );
 }
 

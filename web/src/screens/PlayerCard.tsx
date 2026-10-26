@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fmtDate } from '../lib/coach';
 import { supabase } from '../lib/supabase';
-import { Avatar, Pill } from '../ui/components';
+import { Avatar, Pill, Segmented } from '../ui/components';
 import { BackNav } from '../ui/nav';
+import { PlayerDues } from './CashDesk';
 import { Failure, Loading } from './Message';
+import { EquipmentTab, MatchesTab, PointsTab, SessionsTab } from './PlayerCardTabs';
 import { monthIso, monthName, nextMonth, Row, SEASON_START, tariffFor, type Sub } from './MonthPayments';
 import type { PlayerForm } from './PlayerEdit';
 
@@ -26,6 +28,7 @@ export default function PlayerCard({ player, onBack, onEdit }: { player: CardPla
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [openMonth, setOpenMonth] = useState<string | null>(null);
+  const [tab, setTab] = useState<'sub' | 'dues' | 'sessions' | 'equip' | 'matches' | 'points'>('sub');
 
   useEffect(() => {
     void (async () => {
@@ -57,8 +60,17 @@ export default function PlayerCard({ player, onBack, onEdit }: { player: CardPla
       <p style={{ margin: '8px 0 12px' }}><Pill tone={player.status === 'active' ? 'success' : 'neutral'} dot>{player.status === 'active' ? 'Занимается' : 'Не занимается'}</Pill></p>
       <button type="button" className="ks-btn secondary" onClick={onEdit}>Изменить данные</button>
 
-      <h3>Абонемент</h3>
-      {pays === null ? <Loading /> : months.map(m => {
+      <Segmented label="Раздел карточки" value={tab} onChange={setTab} items={[
+        { value: 'sub', label: 'Абонемент' }, { value: 'dues', label: 'К оплате' }, { value: 'sessions', label: 'Занятия' },
+        { value: 'equip', label: 'Экипировка' }, { value: 'matches', label: 'Матчи' }, { value: 'points', label: 'Баллы' },
+      ]} />
+      <div style={{ height: 12 }} />
+      {tab === 'dues' && <PlayerDues embedded player={{ id: player.id, full_name: player.full_name, group_id: player.group_id, groups: player.group_name ? { name: player.group_name } : null }} />}
+      {tab === 'sessions' && <SessionsTab playerId={player.id} />}
+      {tab === 'equip' && <EquipmentTab playerId={player.id} />}
+      {tab === 'matches' && <MatchesTab playerId={player.id} />}
+      {tab === 'points' && <PointsTab playerId={player.id} />}
+      {tab === 'sub' && (pays === null ? <Loading /> : months.map(m => {
         const tariff = player.group_id ? tariffFor(prices, player.group_id, m) : null;
         const got = gotIn(m);
         const sub = subs.get(m);
@@ -66,7 +78,7 @@ export default function PlayerCard({ player, onBack, onEdit }: { player: CardPla
         return (
           <Row key={`${m}|${got}`} player={{ id: player.id, full_name: player.full_name }} title={monthName(m)} month={m} tariff={tariff} got={got} sub={sub} paidUp={paidUp} open={openMonth === m} onOpen={() => setOpenMonth(openMonth === m ? null : m)} onSaved={() => { setOpenMonth(null); setReload(n => n + 1); }} />
         );
-      })}
+      }))}
     </main>
   );
 }
