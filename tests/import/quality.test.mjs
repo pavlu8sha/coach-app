@@ -8,6 +8,7 @@ import {
   checkDuplicatePlayers,
   checkFuturePayments,
   isPrepayment,
+  KNOWN_NO_ROSTER,
   checkGoalsVsScore,
   checkGoalsWithoutPlaying,
   checkGroupPrices,
@@ -490,4 +491,18 @@ test('матчи: весенние матчи с составом и без сч
   }));
   assert.equal(c.items.length, 1);
   assert.match(c.items[0], /M2|2026-09-12/);
+});
+
+test('матчи: известные матчи без состава (KNOWN_NO_ROSTER) не считаются проблемой, остальные считаются', () => {
+  const [known] = [...KNOWN_NO_ROSTER.keys()];
+  const c = checkLineups(make({
+    today: '2026-10-26',
+    matches: [
+      { id: known, club_id: 'C1', played_on: '2026-09-12', team: 'U9', goals_for: 3, goals_against: 0 },
+      { id: 'M2', club_id: 'C1', played_on: '2026-09-13', team: 'U9', goals_for: 1, goals_against: 2 },
+    ],
+  }));
+  assert.equal(c.items.length, 1);
+  assert.match(c.items[0], /без состава/);
+  assert.equal(KNOWN_NO_ROSTER.size, 8);
 });
