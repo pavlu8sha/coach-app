@@ -99,7 +99,7 @@ export default function MonthPayments() {
   return (
     <main className="page">
       <h1>Оплаты за месяц</h1>
-      <div className="ks-two">
+      <div className="ks-pair">
         <select className="ks-select" aria-label="Месяц" value={month} onChange={e => { setPlayers(null); setOpenId(null); setMonth(e.target.value); }}>
           {months.map(m => <option key={m} value={m}>{monthName(m)}</option>)}
         </select>

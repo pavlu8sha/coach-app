@@ -7,7 +7,7 @@ import { Failure, Loading } from './Message';
 
 interface Booking { player_id: string; paid: boolean; attended: boolean | null; paid_amount: number | null; method: string | null; players: { full_name: string } | null }
 interface Session { id: string; starts_on: string; amount: number; place: string | null; extra_bookings: Booking[] }
-interface DebtRow { player_id: string; players: { full_name: string } | null; extra_sessions: { starts_on: string; amount: number } }
+interface DebtRow { session_id: string; player_id: string; players: { full_name: string } | null; extra_sessions: { starts_on: string; amount: number; place: string | null } }
 
 const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
 const METHODS = ['Наличные', 'Перевод', 'Другое'];
@@ -25,11 +25,12 @@ export default function Extra() {
   const [reload, setReload] = useState(0);
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [paying, setPaying] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
       if (tab === 'debt') {
-        const r = await supabase.from('extra_bookings').select('player_id, players(full_name), extra_sessions!inner(starts_on, amount)').eq('paid', false).lte('extra_sessions.starts_on', today()).limit(1000);
+        const r = await supabase.from('extra_bookings').select('session_id, player_id, players(full_name), extra_sessions!inner(starts_on, amount, place)').eq('paid', false).lte('extra_sessions.starts_on', today()).limit(1000);
         if (r.error) return setError(r.error.message.includes('extra_') ? 'Модуль ещё не установлен в базе (миграция 0035).' : coachError(r.error.message));
         return setDebts((r.data ?? []) as unknown as DebtRow[]);
       }
@@ -46,11 +47,21 @@ export default function Extra() {
   const open = list?.find(s => s.id === openId);
   if (open) return <View session={open} onBack={() => { setOpenId(null); done(); }} />;
 
-  const byPlayer = new Map<string, { name: string; sum: number; n: number }>();
+  const byPlayer = new Map<string, { name: string; sum: number; n: number; rows: DebtRow[] }>();
   (debts ?? []).forEach(d => {
-    const cur = byPlayer.get(d.player_id) ?? { name: d.players?.full_name ?? 'Игрок', sum: 0, n: 0 };
-    byPlayer.set(d.player_id, { ...cur, sum: cur.sum + Number(d.extra_sessions.amount), n: cur.n + 1 });
+    const cur = byPlayer.get(d.player_id) ?? { name: d.players?.full_name ?? 'Игрок', sum: 0, n: 0, rows: [] };
+    byPlayer.set(d.player_id, { ...cur, sum: cur.sum + Number(d.extra_sessions.amount), n: cur.n + 1, rows: [...cur.rows, d] });
   });
+  // Оплата тренировки прямо из списка долгов
+  const payDebt = async (d: DebtRow, mth: string) => {
+    if (!window.confirm(`Принять оплату ${gel(Number(d.extra_sessions.amount))} (${mth}) от ${d.players?.full_name ?? 'игрока'} за тренировку ${fmtDate(d.extra_sessions.starts_on)}?`)) return;
+    setPaying(d.session_id + d.player_id + mth);
+    const r = await supabase.rpc('extra_set_paid', { s: d.session_id, p: d.player_id, is_paid: true, mth });
+    setPaying(null);
+    if (r.error) return setError(coachError(r.error.message));
+    setDebts(null);
+    setReload(n => n + 1);
+  };
 
   return (
     <main className="page">
@@ -62,8 +73,20 @@ export default function Extra() {
         !debts ? <Loading /> : byPlayer.size === 0 ? (
           <EmptyState icon="users" title="Долгов нет" text="Все записанные на прошедшие тренировки оплатили." />
         ) : (
-          [...byPlayer.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name, 'ru')).filter(([, v]) => v.sum > 0).map(([id, v]) => (
-            <ListRow key={id} avatar={v.name} title={v.name} sub={[`Неоплаченных тренировок: ${v.n}`]} end={<Pill tone="danger" dot>{gel(v.sum)}</Pill>} />
+          [...byPlayer.entries()].sort((x, y) => x[1].name.localeCompare(y[1].name, 'ru')).filter(([, v]) => v.sum > 0).map(([id, v]) => (
+            <div className="ks-card" key={id}>
+              <div className="ks-line"><b style={{ overflowWrap: 'anywhere' }}>{v.name}</b><Pill tone="danger" dot>{gel(v.sum)}</Pill></div>
+              {[...v.rows].sort((x, y) => x.extra_sessions.starts_on.localeCompare(y.extra_sessions.starts_on)).map(d => (
+                <div key={d.session_id} style={{ marginTop: 8 }}>
+                  <span>{fmtDate(d.extra_sessions.starts_on)} · Дополнительная{d.extra_sessions.place ? ` · ${d.extra_sessions.place}` : ''} · {gel(Number(d.extra_sessions.amount))}</span>
+                  <div className="ks-line" style={{ marginTop: 4 }}>
+                    {['Наличные', 'Перевод'].map(m => (
+                      <button type="button" key={m} className="ks-btn secondary sm" style={{ flex: 1 }} disabled={paying !== null} aria-label={`${m}: ${v.name}, ${fmtDate(d.extra_sessions.starts_on)}`} onClick={() => void payDebt(d, m)}>{m}</button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
           ))
         )
       ) : !list ? (

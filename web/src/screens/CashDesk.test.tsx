@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { today } from '../lib/coach';
 import { fake } from '../test/fakeSupabase';
 import CashDesk from './CashDesk';
@@ -109,7 +109,7 @@ describe('«Приём оплат»', () => {
     render(<CashDesk />);
     expect(await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Найти игрока'), { target: { value: 'Иванов' } });
-    fireEvent.click(await screen.findByRole('button', { name: /Иванов Пётр/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Иванов Пётр/ }));
     await screen.findByText(/Внесено 50 ₾ из 165 ₾/);
     const sub = card(/Внесено 50 ₾ из 165 ₾/);
     fireEvent.click(within(sub).getByRole('button', { name: 'Принять оплату' }));
@@ -117,5 +117,18 @@ describe('«Приём оплат»', () => {
     fireEvent.click(within(sub).getByRole('button', { name: 'Записать платёж' }));
     expect(await screen.findByText(/Дата должна быть в этом месяце/)).toBeInTheDocument();
     expect(fake.writes('payments', 'insert')).toHaveLength(0);
+  });
+});
+
+describe('«Приём оплат»: платежи дня', () => {
+  it('показывает наличные/перевод и отменяет оплату записью с минусом', async () => {
+    seed();
+    fake.db.payments = [{ id: 'x1', player_id: 'p1', amount: 50, paid_on: today(), method: 'Наличные', players: { full_name: 'Иванов Пётр' } }];
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<CashDesk />);
+    await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
+    expect(screen.getByText('Наличные').nextSibling?.textContent).toBe('50 ₾');
+    fireEvent.click(screen.getByRole('button', { name: 'Отменить оплату: Иванов Пётр' }));
+    await waitFor(() => expect(fake.writes('payments', 'insert')).toEqual([expect.objectContaining({ player_id: 'p1', amount: -50, paid_on: today(), method: 'Исправление' })]));
   });
 });

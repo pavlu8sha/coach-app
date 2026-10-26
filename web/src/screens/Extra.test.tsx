@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import Extra from './Extra';
 
@@ -26,8 +26,19 @@ describe('«Дополнительные»', () => {
     seed();
     render(<Extra />);
     fireEvent.click(await screen.findByRole('tab', { name: 'Долги' }));
-    expect(await screen.findByText('Неоплаченных тренировок: 1')).toBeInTheDocument();
-    expect(screen.getByText('20 ₾')).toBeInTheDocument();
+    expect(await screen.findByText('Иванов Пётр')).toBeInTheDocument();
+    expect(screen.getByText(/01.01.2020 · Дополнительная/)).toBeInTheDocument(); // видно, за какую тренировку долг
+  });
+
+  it('долг гасится из вкладки «Долги» со способом оплаты', async () => {
+    seed();
+    fake.rpc.extra_set_paid = () => null;
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<Extra />);
+    fireEvent.click(await screen.findByRole('tab', { name: 'Долги' }));
+    fireEvent.click(await screen.findByRole('button', { name: /Перевод: Иванов Пётр/ }));
+    await waitFor(() => expect(fake.rpcCalls('extra_set_paid')).toHaveLength(1));
+    expect(fake.rpcCalls('extra_set_paid')[0]).toMatchObject({ p: 'p1', is_paid: true, mth: 'Перевод' });
   });
 
   it('создание: сумма с запятой превращается в число; дубль даты — сообщение', async () => {

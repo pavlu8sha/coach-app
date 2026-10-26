@@ -79,7 +79,8 @@ export default function CashDesk() {
   const [found, setFound] = useState<Pl[]>([]);
   const [player, setPlayer] = useState<Pl | null>(null);
   const [day, setDay] = useState(today());
-  const [todayRows, setTodayRows] = useState<{ id: string; amount: number; method: string | null; what: string; players: { full_name: string } | null }[] | null>(null);
+  const [todayRows, setTodayRows] = useState<{ id: string; amount: number; method: string | null; what: string; player_id?: string; players: { full_name: string } | null }[] | null>(null);
+  const [cancelling, setCancelling] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
@@ -96,15 +97,24 @@ export default function CashDesk() {
   useEffect(() => {
     setTodayRows(null);
     void (async () => {
-      const a = await supabase.from('payments').select('id, amount, method, players(full_name)').eq('paid_on', day).limit(500);
+      const a = await supabase.from('payments').select('id, amount, method, player_id, players(full_name)').eq('paid_on', day).limit(500);
       const c = await supabase.from('camp_payments').select('id, amount, method, kind, players(full_name)').eq('paid_on', day).limit(500);
       if (a.error) return;
-      const rows = ((a.data ?? []) as unknown as { id: string; amount: number; method: string | null; players: { full_name: string } | null }[]).map(x => ({ ...x, what: 'Абонемент' }));
+      const rows = ((a.data ?? []) as unknown as { id: string; amount: number; method: string | null; player_id: string; players: { full_name: string } | null }[]).map(x => ({ ...x, what: 'Абонемент' }));
       const camp = c.error ? [] : ((c.data ?? []) as unknown as { id: string; amount: number; method: string | null; kind: string; players: { full_name: string } | null }[]).map(x => ({ ...x, what: 'Сбор' }));
       setTodayRows([...rows, ...camp]);
     })();
   }, [reload, player, day]);
 
+  // Отмена оплаты абонемента — записью с минусом (журнал платежей только добавляется)
+  const cancelPay = async (x: { id: string; amount: number; player_id?: string }) => {
+    if (!x.player_id || !window.confirm('Отменить эту оплату? Будет записана запись с минусом.')) return;
+    setCancelling(x.id);
+    const me = (await supabase.auth.getUser()).data.user?.id ?? null;
+    await supabase.from('payments').insert({ player_id: x.player_id, amount: -Number(x.amount), paid_on: day, method: 'Исправление', recorded_by: me });
+    setCancelling(null);
+    setReload(n => n + 1);
+  };
   if (player) return <PlayerDues player={player} onBack={() => { setPlayer(null); setReload(n => n + 1); }} />;
   const total = (todayRows ?? []).reduce((s, x) => s + Number(x.amount), 0);
   return (
@@ -118,8 +128,20 @@ export default function CashDesk() {
       )}
       <h3 className="ks-list-head"><span>{day === today() ? 'Внесено сегодня' : `Внесено ${fmtDate(day)}`}</span><span>{todayRows ? gel(total) : ''}</span></h3>
       <label className="field" style={{ marginBottom: 8 }}>Дата<input type="date" aria-label="Дата платежей" value={day} max={today()} onChange={e => e.target.value && setDay(e.target.value)} /></label>
+      {todayRows && todayRows.length > 0 && (
+        <div className="ks-tiles" style={{ marginBottom: 12, gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+          <div className="ks-tile"><b>Наличные</b>{gel(todayRows.filter(x => x.method === 'Наличные').reduce((s, x) => s + Number(x.amount), 0))}</div>
+          <div className="ks-tile"><b>Перевод</b>{gel(todayRows.filter(x => x.method === 'Перевод').reduce((s, x) => s + Number(x.amount), 0))}</div>
+          <div className="ks-tile"><b>Всего</b>{gel(total)}</div>
+        </div>
+      )}
       {!todayRows ? <Loading /> : todayRows.length === 0 ? <p className="muted">В этот день платежей по абонементам и сборам нет.</p> : todayRows.map(x => (
-        <ListRow key={x.what + x.id} title={x.players?.full_name ?? 'Игрок'} sub={[[x.what, x.method].filter(Boolean).join(' · ')]} end={<Pill tone={Number(x.amount) < 0 ? 'danger' : 'success'}>{gel(Number(x.amount))}</Pill>} />
+        <div key={x.what + x.id}>
+          <ListRow title={x.players?.full_name ?? 'Игрок'} sub={[[x.what, x.method].filter(Boolean).join(' · ')]} end={<Pill tone={Number(x.amount) < 0 ? 'danger' : 'success'}>{gel(Number(x.amount))}</Pill>} />
+          {x.what === 'Абонемент' && Number(x.amount) > 0 && (
+            <button type="button" className="ks-btn secondary" style={{ marginTop: -2, marginBottom: 8 }} aria-label={`Отменить оплату: ${x.players?.full_name ?? 'игрок'}`} disabled={cancelling === x.id} onClick={() => void cancelPay(x)}>Отменить оплату</button>
+          )}
+        </div>
       ))}
       <p className="ks-muted" style={{ fontSize: 13 }}>В списке платежи по абонементам и сборам. Оплаты экипировки и занятий дат не хранят, их видно в своих разделах.</p>
     </main>
