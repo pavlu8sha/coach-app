@@ -51,7 +51,9 @@ select is(
         'lead_submit_app',
         -- 0045: запись родителей на индивидуальные, вратарские и дополнительные
         'booking_is_parent', 'booking_board', 'booking_signup', 'booking_cancel',
-        'club_photo_set', 'club_photo_clear')),
+        'club_photo_set', 'club_photo_clear',
+        -- 0051: события (чемпионат, фестиваль, кубок): тренеры и админ, без сумм
+        'event_list', 'event_create', 'event_roster', 'event_roster_add', 'event_roster_remove', 'event_add_game')),
   '', 'список функций, доступных вошедшим пользователям, не расширился без решения');
 
 select is(
