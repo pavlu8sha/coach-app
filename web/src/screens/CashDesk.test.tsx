@@ -21,8 +21,9 @@ function seed() {
 }
 async function openPlayer() {
   render(<CashDesk />);
-  fireEvent.change(screen.getByLabelText('Найти игрока'), { target: { value: 'Иванов' } });
+  fireEvent.change(screen.getByLabelText(/^Игрок/), { target: { value: 'Иванов' } });
   fireEvent.click(await screen.findByRole('button', { name: /Иванов Пётр/ }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Наличные' }));
 }
 const card = (t: string | RegExp) => screen.getByText(t).closest('.ks-card') as HTMLElement;
 
@@ -46,7 +47,7 @@ describe('«Приём оплат»', () => {
     fireEvent.click(within(sub).getByRole('button', { name: 'Принять оплату' }));
     expect(within(sub).getByLabelText(/Сумма/)).toHaveValue('115');
     fireEvent.change(within(sub).getByLabelText(/Сумма/), { target: { value: '60' } });
-    fireEvent.change(within(sub).getByLabelText('Способ'), { target: { value: 'Перевод' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Перевод' }));
     fireEvent.click(within(sub).getByRole('button', { name: 'Записать платёж' }));
     await waitFor(() => expect(fake.writes('payments', 'insert')).toHaveLength(1));
     expect(fake.writes('payments', 'insert')[0]).toMatchObject({ player_id: 'p1', amount: 60, method: 'Перевод', paid_on: today() });
@@ -59,12 +60,11 @@ describe('«Приём оплат»', () => {
     fake.rpc.extra_set_paid = () => null;
     fake.rpc.camp_pay = () => 'id';
     await openPlayer();
-    await screen.findByText(/к оплате/);
+    await screen.findByText(/к оплате:/);
     const pay = async (title: string | RegExp, btn: string) => {
       await screen.findByText(title);
       const c = card(title);
       fireEvent.click(within(c).getByRole('button', { name: 'Принять оплату' }));
-      fireEvent.change(within(c).getByLabelText(/^Способ/), { target: { value: 'Наличные' } });
       fireEvent.click(within(c).getByRole('button', { name: btn }));
     };
     await pay('Форма + Куртка', 'Записать платёж');
@@ -100,7 +100,7 @@ describe('«Приём оплат»', () => {
     const next = nextMonth(M);
     const c = card(/\(вперёд\)/);
     fireEvent.click(within(c).getByRole('button', { name: 'Принять оплату' }));
-    fireEvent.change(within(c).getByLabelText(/^Способ/), { target: { value: 'Перевод' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Перевод' }));
     fireEvent.click(within(c).getByRole('button', { name: 'Записать платёж' }));
     await waitFor(() => expect(fake.writes('payments', 'insert')).toHaveLength(1));
     expect(fake.writes('payments', 'insert')[0]).toMatchObject({ player_id: 'p1', amount: 165, paid_on: next, method: 'Перевод' });
@@ -122,18 +122,31 @@ describe('«Приём оплат»', () => {
     expect(screen.queryByText('Другой День')).not.toBeInTheDocument();
   });
 
+  it('без выбранного способа вверху экрана платёж не записывается', async () => {
+    seed();
+    render(<CashDesk />);
+    fireEvent.change(screen.getByLabelText(/^Игрок/), { target: { value: 'Иванов' } });
+    fireEvent.click(await screen.findByRole('button', { name: /^Иванов Пётр/ }));
+    await screen.findByText(/Внесено 50 ₾ из 165 ₾/);
+    const sub = card(/Внесено 50 ₾ из 165 ₾/);
+    fireEvent.click(within(sub).getByRole('button', { name: 'Принять оплату' }));
+    fireEvent.click(within(sub).getByRole('button', { name: 'Записать платёж' }));
+    expect(await screen.findByText(/Выберите способ оплаты вверху экрана/)).toBeInTheDocument();
+    expect(fake.writes('payments', 'insert')).toHaveLength(0);
+  });
+
   it('дата абонемента вне месяца отклоняется без записи; «Внесено сегодня» показывает итог', async () => {
     seed();
     fake.db.payments = [{ id: 'x1', player_id: 'p1', amount: 50, paid_on: today(), method: 'Наличные', players: { full_name: 'Иванов Пётр' } }];
     render(<CashDesk />);
     expect(await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ })).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Найти игрока'), { target: { value: 'Иванов' } });
+    fireEvent.change(screen.getByLabelText(/^Игрок/), { target: { value: 'Иванов' } });
     fireEvent.click(await screen.findByRole('button', { name: /^Иванов Пётр/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Наличные' }));
     await screen.findByText(/Внесено 50 ₾ из 165 ₾/);
     const sub = card(/Внесено 50 ₾ из 165 ₾/);
     fireEvent.click(within(sub).getByRole('button', { name: 'Принять оплату' }));
     fireEvent.change(within(sub).getByLabelText('Дата'), { target: { value: '2020-01-05' } });
-    fireEvent.change(within(sub).getByLabelText(/^Способ/), { target: { value: 'Наличные' } });
     fireEvent.click(within(sub).getByRole('button', { name: 'Записать платёж' }));
     expect(await screen.findByText(/Дата должна быть в этом месяце/)).toBeInTheDocument();
     expect(fake.writes('payments', 'insert')).toHaveLength(0);

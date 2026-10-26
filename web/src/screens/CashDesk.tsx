@@ -6,10 +6,15 @@ import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 import { gel, monthIso, monthName, nextMonth, SEASON_START, tariffFor } from './MonthPayments';
 
-interface Pl { id: string; full_name: string; group_id: string | null; groups: { name: string } | null }
+interface Pl { id: string; full_name: string; group_id: string | null; groups: { name: string } | null; external_id?: string | null; birth_date?: string | null }
 interface Due { key: string; kind: 'sub' | 'eq' | 'ind' | 'extra' | 'camp'; section: string; title: string; sub?: string; due: number; paid: number; month?: string; advance?: boolean; pay: (amount: number, method: string, date: string) => PromiseLike<{ error: { message: string } | null }> }
 
 const METHODS = ['Наличные', 'Перевод', 'Другое'];
+const PAY_METHODS = ['Наличные', 'Перевод'];
+const JUMPS = [
+  { label: 'Абонемент', section: 'Абонемент' }, { label: 'Экипировка', section: 'Экипировка' },
+  { label: 'Индивидуальные', section: 'Индивидуальные и вратари' }, { label: 'Дополнительные', section: 'Дополнительные тренировки' },
+];
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const SECTIONS = ['Абонемент', 'Экипировка', 'Индивидуальные и вратари', 'Дополнительные тренировки', 'Сборы'];
 const errText = (m: string) => (m.includes('paid above total') ? 'Оплата больше суммы заказа.' : m.includes('bad amount') ? 'Сумма указана неверно.' : coachError(m));
@@ -79,6 +84,7 @@ export default function CashDesk() {
   const [found, setFound] = useState<Pl[]>([]);
   const [player, setPlayer] = useState<Pl | null>(null);
   const [day, setDay] = useState(today());
+  const [payMethod, setPayMethod] = useState('');
   const [todayRows, setTodayRows] = useState<{ id: string; amount: number; method: string | null; what: string; player_id?: string; players: { full_name: string } | null }[] | null>(null);
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -86,7 +92,7 @@ export default function CashDesk() {
   useEffect(() => {
     if (q.trim().length < 2) return setFound([]);
     const t = setTimeout(() => {
-      void supabase.from('players').select('id, full_name, group_id, groups(name)').ilike('full_name', `%${q.trim()}%`).order('full_name').limit(10).then(r => {
+      void supabase.from('players').select('id, full_name, group_id, external_id, birth_date, groups(name)').ilike('full_name', `%${q.trim()}%`).order('full_name').limit(10).then(r => {
         if (!r.error) setFound((r.data ?? []) as unknown as Pl[]);
       });
     }, 250);
@@ -115,16 +121,41 @@ export default function CashDesk() {
     setCancelling(null);
     setReload(n => n + 1);
   };
-  if (player) return <PlayerDues player={player} onBack={() => { setPlayer(null); setReload(n => n + 1); }} />;
   const total = (todayRows ?? []).reduce((s, x) => s + Number(x.amount), 0);
   return (
     <main className="page">
       <h1>Приём оплат</h1>
-      <SearchInput label="Найти игрока" placeholder="Фамилия или имя (от 2 букв)" value={q} onChange={setQ} />
-      {q.trim().length >= 2 && found.length === 0 ? (
-        <EmptyState icon="search" title="Никого не найдено" text="Проверьте написание." />
+      {player ? (
+        <>
+          <div className="ks-card">
+            <div className="ks-line">
+              <span style={{ minWidth: 0 }}><b style={{ overflowWrap: 'anywhere' }}>{player.full_name}</b><br /><span className="muted">{[player.external_id, player.groups?.name ?? 'без группы', player.birth_date ? `${player.birth_date.slice(0, 4)} г.` : null].filter(Boolean).join(' · ')}</span></span>
+              <button type="button" className="ks-btn secondary sm" onClick={() => { setPlayer(null); setReload(n => n + 1); }}>Сменить</button>
+            </div>
+          </div>
+          <p className="ks-label">Способ оплаты</p>
+          <div className="two" role="group" aria-label="Способ оплаты">
+            {PAY_METHODS.map(m => (
+              <button type="button" key={m} className={payMethod === m ? 'ks-btn' : 'ks-btn secondary'} aria-pressed={payMethod === m} onClick={() => setPayMethod(m)}>{m}</button>
+            ))}
+          </div>
+          <p className="ks-label">Перейти к оплате</p>
+          <div className="two">
+            {JUMPS.map(j => (
+              <button type="button" key={j.label} className="ks-btn secondary" onClick={() => document.querySelector(`[data-sec="${j.section}"]`)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })}>{j.label}</button>
+            ))}
+          </div>
+          <PlayerDues embedded player={player} sharedMethod={payMethod} />
+        </>
       ) : (
-        found.map(p => <ListRow key={p.id} avatar={p.full_name} title={p.full_name} sub={[p.groups?.name ?? 'без группы']} onClick={() => setPlayer(p)} />)
+        <>
+          <SearchInput label="Игрок (введите ФИ и выберите из списка)" placeholder="Фамилия или имя (от 2 букв)" value={q} onChange={setQ} />
+          {q.trim().length >= 2 && found.length === 0 ? (
+            <EmptyState icon="search" title="Никого не найдено" text="Проверьте написание." />
+          ) : (
+            found.map(p => <ListRow key={p.id} avatar={p.full_name} title={p.full_name} sub={[p.groups?.name ?? 'без группы']} onClick={() => setPlayer(p)} />)
+          )}
+        </>
       )}
       <h3 className="ks-list-head"><span>{day === today() ? 'Внесено сегодня' : `Внесено ${fmtDate(day)}`}</span><span>{todayRows ? gel(total) : ''}</span></h3>
       <label className="field" style={{ marginBottom: 8 }}>Дата<input type="date" aria-label="Дата платежей" value={day} max={today()} onChange={e => e.target.value && setDay(e.target.value)} /></label>
@@ -148,7 +179,7 @@ export default function CashDesk() {
   );
 }
 
-export function PlayerDues({ player, onBack, embedded = false }: { player: Pl; onBack?: () => void; embedded?: boolean }) {
+export function PlayerDues({ player, onBack, embedded = false, sharedMethod }: { player: Pl; onBack?: () => void; embedded?: boolean; sharedMethod?: string }) {
   const [dues, setDues] = useState<Due[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openKey, setOpenKey] = useState<string | null>(null);
@@ -172,10 +203,10 @@ export function PlayerDues({ player, onBack, embedded = false }: { player: Pl; o
         <EmptyState icon="users" title="Долгов нет" text="По абонементу, экипировке, занятиям и сборам всё оплачено." />
       ) : (
         SECTIONS.filter(s => dues.some(d => d.section === s)).map(s => (
-          <section key={s}>
+          <section key={s} data-sec={s}>
             <h3>{s}</h3>
             {dues.filter(d => d.section === s).map(d => (
-              <DueCard key={d.key} due={d} open={openKey === d.key} onOpen={() => setOpenKey(openKey === d.key ? null : d.key)} onPaid={() => { setOpenKey(null); setMsg('Платёж записан.'); setDues(null); setReload(n => n + 1); }} />
+              <DueCard key={d.key} due={d} sharedMethod={sharedMethod} open={openKey === d.key} onOpen={() => setOpenKey(openKey === d.key ? null : d.key)} onPaid={() => { setOpenKey(null); setMsg('Платёж записан.'); setDues(null); setReload(n => n + 1); }} />
             ))}
           </section>
         ))
@@ -184,11 +215,12 @@ export function PlayerDues({ player, onBack, embedded = false }: { player: Pl; o
   );
 }
 
-function DueCard({ due, open, onOpen, onPaid }: { due: Due; open: boolean; onOpen: () => void; onPaid: () => void }) {
+function DueCard({ due, open, onOpen, onPaid, sharedMethod }: { due: Due; open: boolean; onOpen: () => void; onPaid: () => void; sharedMethod?: string }) {
   const left = r2(due.due - due.paid);
   const isCurrent = due.month === monthIso(new Date());
   const [amount, setAmount] = useState(String(left));
-  const [method, setMethod] = useState('');
+  const [ownMethod, setMethod] = useState('');
+  const method = sharedMethod !== undefined ? sharedMethod : ownMethod;
   const [date, setDate] = useState(due.month && !isCurrent ? due.month : today());
   const advance = Boolean(due.advance);
   const [busy, setBusy] = useState(false);
@@ -196,7 +228,7 @@ function DueCard({ due, open, onOpen, onPaid }: { due: Due; open: boolean; onOpe
   const fixedAmount = due.kind === 'ind'; // индивидуальное занятие отмечается оплаченным целиком
   const num = Number(amount.replace(',', '.'));
   const save = async () => {
-    if (!method) return setErr('Выберите способ оплаты.');
+    if (!method) return setErr(sharedMethod !== undefined ? 'Выберите способ оплаты вверху экрана: «Наличные» или «Перевод».' : 'Выберите способ оплаты.');
     if (!fixedAmount && (!Number.isFinite(num) || num <= 0 || num > 100000)) return setErr('Введите сумму больше нуля.');
     if (due.month && ((date > today() && !advance) || date < due.month || date >= nextMonth(due.month))) return setErr('Дата должна быть в этом месяце и не в будущем: оплата считается по месяцу даты.');
     setBusy(true);
@@ -216,7 +248,7 @@ function DueCard({ due, open, onOpen, onPaid }: { due: Due; open: boolean; onOpe
           {!fixedAmount && <label className="field">Сумма, ₾ (меньше остатка — частичный платёж, останется долг)<input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /></label>}
           <div className="two">
             {due.kind === 'sub' || due.kind === 'camp' ? <label className="field">Дата<input type="date" value={date} min={due.month} max={advance ? undefined : today()} disabled={advance} onChange={e => setDate(e.target.value)} /></label> : <span />}
-            <label className="field">Способ<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>
+            {sharedMethod !== undefined ? <span /> : <label className="field">Способ<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>}
           </div>
           {err && <p className="error">{err}</p>}
           <button type="button" className="ks-btn" disabled={busy} onClick={() => void save()}>{fixedAmount ? `Отметить оплаченным (${gel(left)})` : 'Записать платёж'}</button>
