@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { coachError, fmtDate, today, type CoachGroup } from '../lib/coach';
+import { coachError, fmtDate, matchTeam, playsMatches, today, type CoachGroup } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill } from '../ui/components';
 import { GroupPicker, Stepper } from '../ui/coach';
@@ -53,7 +53,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
       setEventView({ event: list.find(e => e.id === id) ?? null });
       if (!list.some(e => e.id === id)) setReload(n => n + 1);
     };
-    const allTeams2 = [...new Set([...groups.map(g => g.name), ...(matches ?? []).map(m => m.team), ...events.map(e => e.team)])].sort();
+    const allTeams2 = [...new Set([...groups.map(g => g.name), ...(matches ?? []).map(m => m.team), ...events.map(e => e.team)].filter(playsMatches).map(matchTeam))].sort();
     return <EventForm teams={allTeams2} events={events} admin={admin} onBack={back} onCreated={id => void openCreated(id)} />;
   }
   if (form) return <MatchForm groups={groups} match={form.match} admin={admin} feeMode={!form.match || !tours.get(form.match.id)?.tournament_id || tours.get(form.match.id)?.match_kind === 'friendly' || tours.get(form.match.id)?.tournament_kind === 'cup'} onBack={() => { setForm(null); setReload(n => n + 1); }} />;
@@ -78,7 +78,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   }
   // события без игр тоже показываем (для своих команд), чтобы вести состав до первого матча
   for (const e of events) {
-    if (byTour.has(e.id) || (team && e.team !== team) || !(showAll || groups.some(g => g.name === e.team))) continue;
+    if (byTour.has(e.id) || (team && e.team !== team) || !(showAll || groups.some(g => g.name === e.team || matchTeam(g.name) === e.team))) continue;
     byTour.set(e.id, { title: `${eventTitle(e)}${multi ? ' · ' + e.team : ''}`, items: [], event: e });
   }
   for (const [id, g] of byTour) sections.push({ key: id, ...g });
@@ -128,9 +128,10 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
 
 // feeMode: у товарищеских и кубковых матчей взнос свой (на матч); у чемпионатов и фестивалей он на событие
 function MatchForm({ groups, match, admin, feeMode, onBack }: { groups: CoachGroup[]; match: Match | null; admin: boolean; feeMode: boolean; onBack: () => void }) {
-  const matched = match ? groups.find(g => g.name === match.team)?.id : undefined;
+  const matchGroups = groups.filter(g => playsMatches(g.name));
+  const matched = match ? (groups.find(g => g.name === match.team) ?? groups.find(g => matchTeam(g.name) === match.team))?.id : undefined;
   // у тренера матч всегда своей группы; у администратора название команды может не совпасть ни с одной группой — тогда группа не нужна
-  const initialGid = match ? matched ?? (admin ? '' : groups[0]?.id ?? '') : groups[0]?.id ?? '';
+  const initialGid = match ? matched ?? (admin ? '' : groups[0]?.id ?? '') : matchGroups[0]?.id ?? '';
   const [gid, setGid] = useState(initialGid);
   const [date, setDate] = useState(match?.played_on ?? today());
   const [opp, setOpp] = useState(match?.opponent ?? '');
@@ -237,7 +238,7 @@ function MatchForm({ groups, match, admin, feeMode, onBack }: { groups: CoachGro
     <main className="page">
       <BackNav onBack={onBack} />
       <h1>{match ? 'Матч' : 'Новый матч'}</h1>
-      {canPickGroup && <GroupPicker groups={groups} value={gid} onChange={setGid} />}
+      {canPickGroup && <GroupPicker groups={matchGroups} value={gid} onChange={setGid} />}
       {match && admin && <p className="muted" style={{ marginBottom: 8 }}>Команда: {match.team}</p>}
       <label className="ks-label" htmlFor="m-date">Дата</label>
       <input id="m-date" className="ks-input" type="date" value={date} onChange={e => { setDate(e.target.value); setMsg(null); }} />

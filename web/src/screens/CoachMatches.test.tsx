@@ -171,7 +171,7 @@ describe('«Новое событие»', () => {
     expect(await screen.findByText('Фестиваль осени · U9')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Состав и игры события'));
     await screen.findByText('Сидоров Ян');
-    fireEvent.click(screen.getByText('Добавить всю группу U9'));
+    fireEvent.click(screen.getByText('Добавить всю команду U9'));
     await waitFor(() => expect(fake.rpcCalls('event_roster_add')).toHaveLength(1));
     expect(await screen.findByText('Иванов Пётр')).toBeInTheDocument();
   });
@@ -269,5 +269,17 @@ describe('Взносы за матч (администратор)', () => {
     fireEvent.click(await screen.findByText('Олимп'));
     await screen.findByText('Иванов Пётр');
     expect(screen.queryByText('Взносы')).toBeNull();
+  });
+});
+
+describe('Команды для матчей и событий', () => {
+  it('в «Новом событии» нет индивидуальных, вратарских, weekends, Isani и суффиксов -A/-B', async () => {
+    fake.db.matches = [];
+    fake.rpc.event_list = () => [];
+    const all = ['Isani', 'Ortachala U9', 'U10-A', 'U10-B', 'U7-A', 'U7-B', 'U13-C', 'weekends', 'Индивидуальные / Вратарские'].map((name, i) => ({ id: `g${i}`, name }));
+    render(<CoachMatches groups={all} admin />);
+    fireEvent.click(await screen.findByText('Новое событие'));
+    const opts = within(await screen.findByLabelText('Команда')).getAllByRole('option').map(o => o.textContent);
+    expect(opts).toEqual(['Ortachala U9', 'U10', 'U13', 'U7']);
   });
 });
