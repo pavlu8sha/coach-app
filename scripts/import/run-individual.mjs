@@ -68,7 +68,7 @@ if (absent.length) { console.error('Игроки не найдены в базе
 
 // 3) занятия
 await rest('POST', 'individual_sessions?on_conflict=club_id,external_id', sessions.map(s => ({
-  club_id: CLUB_ID, external_id: s.external_id, starts_at: s.starts_at, topic: s.topic,
+  club_id: CLUB_ID, external_id: s.external_id, starts_at: s.starts_at, topic: s.topic, goalkeepers: s.external_id.endsWith('-GK'),
 })), MERGE);
 const dbS = await rest('GET', `individual_sessions?club_id=eq.${CLUB_ID}&select=id,external_id`);
 const sid = new Map(dbS.map(s => [s.external_id, s.id]));
