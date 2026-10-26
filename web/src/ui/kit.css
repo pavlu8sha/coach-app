@@ -245,7 +245,8 @@ a.ks-cover { text-decoration: none; display: block; }
 .ks-photo { display: block; width: 100%; height: auto; border-radius: 14px; margin: 0 0 10px; background: var(--ks-neutral-fill); }
 .ks-gallery { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 -14px 4px; padding: 0 14px 6px; -webkit-overflow-scrolling: touch; }
 .ks-gallery img { flex: none; width: 78%; max-width: 320px; height: 190px; object-fit: cover; border-radius: 14px; scroll-snap-align: start; }
-.ks-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ks-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 480px) { .ks-two { grid-template-columns: minmax(0, 1fr); gap: 14px; } }
 .ks-two h3 { margin: 0 0 8px; font-size: 0.95rem; color: var(--ks-primary); }
 .ks-steps2 { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .ks-steps2 li { padding: 10px 12px; border-radius: 12px; background: var(--ks-primary-subtle); }
