@@ -88,7 +88,7 @@ export default function Sessions({ groups }: { groups: CoachGroup[] }) {
   if (error) return <Failure title="Не удалось загрузить расписание" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   const openInd = indList?.find(x => x.id === indOpen);
   if (openInd) return <IndMarks session={openInd} onBack={() => { setIndOpen(null); setReload(n => n + 1); }} />;
-  if (!slots) return <Loading />;
+  if (!slots) return <main className="page"><h1>Отметки</h1><Loading /></main>;
 
   const dow = isoDow(date);
   const scheduled = (g: CoachGroup) => slots.some(x => x.group_id === g.id && x.weekday === dow && x.kind === 'Групповая');

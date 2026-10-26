@@ -10,7 +10,7 @@ interface Session { id: string; starts_on: string; amount: number; place: string
 interface DebtRow { session_id: string; player_id: string; players: { full_name: string } | null; extra_sessions: { starts_on: string; amount: number; place: string | null } }
 
 const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
-const METHODS = ['Наличные', 'Перевод', 'Другое'];
+const METHODS = ['Наличные', 'Перевод'];
 const errText = (m: string) =>
   m.includes('already booked') ? 'Игрок уже записан.' : m.includes('booking is paid') ? 'Сначала отмените оплату.' : m.includes('session has payments') ? 'На тренировке есть оплаты: дату и сумму менять и удалять нельзя.' : m.includes('session exists') ? 'Тренировка на эту дату уже есть.' : m.includes('bad amount') ? 'Сумма указана неверно.' : coachError(m);
 

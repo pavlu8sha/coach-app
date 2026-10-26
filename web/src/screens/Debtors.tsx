@@ -7,7 +7,7 @@ import { Failure, Loading } from './Message';
 interface Row { group_name: string; player_id: string; full_name: string; tariff: number; paid: number; debt: number }
 interface Disc { id: string; player_id: string; players: { full_name: string } | null }
 
-const METHODS = ['Наличные', 'Перевод', 'Другое'];
+const METHODS = ['Наличные', 'Перевод'];
 const DEFAULT_TPL = 'Добрый день\nУ вас не оплачен абонемент за {месяц}';
 const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
 const SEASON_START = '2026-09-01'; // как debt_start() в базе

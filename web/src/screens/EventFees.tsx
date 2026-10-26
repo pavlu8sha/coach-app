@@ -6,7 +6,7 @@ import { ListRow, Pill } from '../ui/components';
 interface FeeRow { player_id: string; full_name: string; group_name: string | null; due: number; paid: number }
 interface PayRow { id: string; player_id: string; full_name: string; amount: number; paid_on: string; method: string | null; comment: string | null; cancelled: boolean }
 
-const METHODS = ['Наличные', 'Перевод', 'Карта'];
+const METHODS = ['Наличные', 'Перевод'];
 const money = (n: number) => `${Number(n)} ₾`;
 
 const API = {

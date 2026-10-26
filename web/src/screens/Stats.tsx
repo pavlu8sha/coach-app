@@ -63,20 +63,28 @@ function Matches() {
   const [rows, setRows] = useState<MRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [cat, setCat] = useState('');
   useEffect(() => {
     void (async () => {
       if (period.f > period.t) return setError('Начало периода позже конца.');
-      const r = await supabase.rpc('match_stats', { p_from: period.f, p_to: period.t });
+      const r = await supabase.rpc('match_stats', cat ? { p_from: period.f, p_to: period.t, p_cat: cat } : { p_from: period.f, p_to: period.t });
       if (r.error) return setError(r.error.message.includes('period too large') ? 'Период слишком большой: не больше 13 месяцев.' : coachError(r.error.message));
       setRows((r.data ?? []) as MRow[]);
     })();
-  }, [period, reload]);
+  }, [period, cat, reload]);
   if (error) return <Failure title="Не удалось загрузить статистику матчей" text={error} onRetry={() => { setError(null); setRows(null); setReload(n => n + 1); }} />;
   const teams = (rows ?? []).filter(r => r.kind === 'team');
   return (
     <main className="page">
       <h1>Матчи</h1>
       {picker(() => setRows(null))}
+      <select className="ks-select" aria-label="Вид матчей" value={cat} onChange={e => { setRows(null); setCat(e.target.value); }}>
+        <option value="">Все матчи</option>
+        <option value="championship">Чемпионат</option>
+        <option value="festival">Фестиваль</option>
+        <option value="cup">Кубок</option>
+        <option value="friendly">Товарищеские</option>
+      </select>
       {!rows ? <Loading /> : teams.length === 0 ? (
         <EmptyState icon="trophy" title="Нет матчей со счётом" text="За выбранный период нет сыгранных матчей с внесённым счётом." />
       ) : teams.map(t => (

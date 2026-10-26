@@ -305,3 +305,15 @@ describe('Команды для матчей и событий', () => {
     expect(opts).toEqual(['Ortachala U9', 'U10', 'U13', 'U7']);
   });
 });
+
+describe('Состав сохранённого матча', () => {
+  it('после сохранения видны только сыгравшие; остальных можно показать кнопкой', async () => {
+    seed();
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText('Олимп'));
+    expect(await screen.findByRole('checkbox', { name: 'Иванов Пётр' })).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'Сидоров Ян' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Показать всех игроков команды/ }));
+    expect(await screen.findByRole('checkbox', { name: 'Сидоров Ян' })).toBeInTheDocument();
+  });
+});
