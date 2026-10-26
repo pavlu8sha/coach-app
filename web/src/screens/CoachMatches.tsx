@@ -153,7 +153,14 @@ function MatchForm({ groups, match, admin, feeMode, onBack }: { groups: CoachGro
     void (async () => {
       let list: Player[] = [];
       if (gid) {
-        const p = await supabase.from('players').select('id, full_name').eq('group_id', gid).eq('status', 'active').order('full_name');
+        // команда «U10» объединяет группы U10-A и U10-B: в составе игроки всех её групп
+        const sel = groups.find(g => g.id === gid)?.name;
+        let ids = [gid];
+        if (sel) {
+          const gr = await supabase.from('groups').select('id, name');
+          if (!gr.error) ids = [...new Set([gid, ...((gr.data ?? []) as CoachGroup[]).filter(g => playsMatches(g.name) && matchTeam(g.name) === matchTeam(sel)).map(g => g.id)])];
+        }
+        const p = await supabase.from('players').select('id, full_name').in('group_id', ids).eq('status', 'active').order('full_name');
         if (p.error) return setError(p.error.message);
         list = (p.data ?? []) as Player[];
       }
@@ -169,7 +176,7 @@ function MatchForm({ groups, match, admin, feeMode, onBack }: { groups: CoachGro
         }
         // в составе бывают игроки не из группы (гости, старые записи): администратор их видит и правит
         const extra = rows.map(r => r.player_id).filter(id => !list.some(p => p.id === id));
-        if (extra.length && admin) {
+        if (extra.length) {
           const ex = await supabase.from('players').select('id, full_name').in('id', extra);
           if (ex.error) return setError(ex.error.message);
           list = [...list, ...((ex.data ?? []) as Player[])].sort((a, b) => a.full_name.localeCompare(b.full_name));
@@ -183,16 +190,16 @@ function MatchForm({ groups, match, admin, feeMode, onBack }: { groups: CoachGro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gid, reload]);
 
-  // Администратор: найти любого игрока клуба и добавить в состав
+  // Найти любого игрока клуба и добавить в состав (тренеры и администратор)
   useEffect(() => {
-    if (!admin || q.trim().length < 2) return setFound([]);
+    if (q.trim().length < 2) return setFound([]);
     const t = setTimeout(() => {
       void supabase.from('players').select('id, full_name').ilike('full_name', `%${q.trim()}%`).order('full_name').limit(8).then(r => {
         if (!r.error) setFound((r.data ?? []) as Player[]);
       });
     }, 250);
     return () => clearTimeout(t);
-  }, [q, admin]);
+  }, [q]);
 
   const line = (id: string): Line => lines[id] ?? { played: false, goals: 0 };
   const setLine = (id: string, l: Line) => {
@@ -255,7 +262,7 @@ function MatchForm({ groups, match, admin, feeMode, onBack }: { groups: CoachGro
         Баллы начисляются автоматически, когда внесён счёт: победа — 2 играющим, лучшему игроку — 3; поражение или ничья — 1 играющим; за каждый гол +1. Лучший игрок учитывается только при победе.
       </p>
       {players.length === 0 ? (
-        <EmptyState icon="users" title="В составе пока никого" text={admin ? 'Найдите игрока ниже, чтобы добавить его в состав.' : 'В группе нет игроков.'} />
+        <EmptyState icon="users" title="В составе пока никого" text="Найдите игрока ниже, чтобы добавить его в состав." />
       ) : (
         players.map(p => (
           <div className="ks-card" key={p.id}>
@@ -277,15 +284,13 @@ function MatchForm({ groups, match, admin, feeMode, onBack }: { groups: CoachGro
           </div>
         ))
       )}
-      {admin && (
-        <>
-          <h3>Добавить в состав</h3>
-          <input className="ks-input" value={q} onChange={e => setQ(e.target.value)} placeholder="Фамилия или имя игрока (от 2 букв)" aria-label="Найти игрока" />
-          {found.filter(f => !players.some(p => p.id === f.id)).map(f => (
-            <ListRow key={f.id} avatar={f.full_name} title={f.full_name} end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} onClick={() => { setPlayers(list => [...(list ?? []), f].sort((a, b) => a.full_name.localeCompare(b.full_name))); setQ(''); setFound([]); }}>Добавить</button>} />
-          ))}
-        </>
-      )}
+      <>
+      <h3>Добавить в состав</h3>
+      <input className="ks-input" value={q} onChange={e => setQ(e.target.value)} placeholder="Фамилия или имя игрока (от 2 букв)" aria-label="Найти игрока" />
+      {found.filter(f => !players.some(p => p.id === f.id)).map(f => (
+        <ListRow key={f.id} avatar={f.full_name} title={f.full_name} end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} onClick={() => { setPlayers(list => [...(list ?? []), f].sort((a, b) => a.full_name.localeCompare(b.full_name))); setQ(''); setFound([]); }}>Добавить</button>} />
+      ))}
+      </>
       {msg && <p className={msg.ok ? 'ks-ok' : 'error'}>{msg.text}</p>}
       {admin && feeMode && savedId && (
         <EventFees mode="match" eventId={savedId} reloadKey={reload} onChanged={() => undefined} addable={players.filter(p => line(p.id).played).map(p => ({ id: p.id, name: p.full_name }))} />

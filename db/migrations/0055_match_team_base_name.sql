@@ -1,5 +1,6 @@
 -- 0055: команда нового матча записывается без суффикса группы (U10-A → U10), как в играх (решение владельца 2026-10-26).
--- Заодно тренер группы U10-A может править матч команды «U10»: раньше проверка сравнивала команду с полным названием группы.
+-- Заодно тренер может править матч любой команды клуба (как решено в 0042: тренеры ведут матчи всех команд): раньше проверка требовала совпадения команды с его группой («Этот матч принадлежит другой группе»).
+-- Тренер, как и администратор, может включить в состав любого игрока клуба (не только своей группы): игроков всех групп он и так видит (0042).
 -- Остальное в save_match без изменений (см. 0042).
 create or replace function save_match(m uuid, g uuid, d date, opp text, gf int, ga int, roster jsonb) returns uuid
 language plpgsql security definer set search_path = public as $$
@@ -29,7 +30,7 @@ begin
     insert into matches (club_id, played_on, team, opponent, goals_for, goals_against)
       values (club, d, regexp_replace(grp.name, '-[A-Z]$', ''), nullif(trim(opp), ''), gf, ga) returning * into mt;
   else
-    if not adm and (mt.club_id <> grp.club_id or mt.team not in (grp.name, regexp_replace(grp.name, '-[A-Z]$', ''))) then raise exception 'match is not of this group' using errcode = '42501'; end if;
+    if not adm and mt.club_id <> grp.club_id then raise exception 'match is not of this group' using errcode = '42501'; end if;
     update matches set played_on = d, opponent = nullif(trim(opp), ''), goals_for = gf, goals_against = ga where id = m returning * into mt;
   end if;
 
@@ -48,7 +49,7 @@ begin
     if v_best and not v_played then raise exception 'best player must have played'; end if;
     if v_best then bests := bests + 1; end if;
     if bests > 1 then raise exception 'only one best player'; end if;
-    if adm then
+    if adm or is_any_coach() then
       if not exists (select 1 from players where id = pid and club_id = club) then raise exception 'player not in club'; end if;
     elsif not (exists (select 1 from players where id = pid and group_id = g) or exists (select 1 from match_fees where match_id = mt.id and player_id = pid)) then
       raise exception 'player not in group';
