@@ -89,7 +89,7 @@ export default function Payments() {
           )}
           {dues.some(d => d.player_id === k.id && d.paid > 0) && (
             <div>
-              <h3>Другие оплаты</h3>
+              <h3>Оплаты по другим видам</h3>
               {dues.filter(d => d.player_id === k.id && d.paid > 0).map((d, i) => (
                 <div className="ks-slot" key={d.kind + i}>
                   <span>{d.title}{d.on_date ? ` · ${fmt(d.on_date)}` : ''}</span>
@@ -104,7 +104,7 @@ export default function Payments() {
             <div>
               {k.months.map(m => (
                 <div className="ks-slot" key={m.month}>
-                  <span>{monthName(m.month)}</span>
+                  <span>Абонемент · {monthName(m.month)}</span>
                   <span>{gel(m.sum)}</span>
                 </div>
               ))}

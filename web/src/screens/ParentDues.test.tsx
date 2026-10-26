@@ -15,7 +15,7 @@ describe('Оплата у родителя: все виды', () => {
     render(<Payments />);
     expect(await screen.findByText('К оплате: 200 ₾')).toBeInTheDocument();
     expect(screen.getAllByText(/Форма · 10.09.2026/).length).toBeGreaterThan(0);
-    expect(screen.getByText('Другие оплаты')).toBeInTheDocument();
+    expect(screen.getByText('Оплаты по другим видам')).toBeInTheDocument();
     expect(screen.getByText(/Дополнительная тренировка · 17.10.2026/)).toBeInTheDocument();
   });
 });
