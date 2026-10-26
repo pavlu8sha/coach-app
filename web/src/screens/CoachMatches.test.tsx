@@ -18,6 +18,27 @@ function seed() {
 }
 const stepper = (name: string, label: string) => within(screen.getByRole('group', { name })).getByRole('button', { name: label });
 
+describe('«Матчи» по категориям', () => {
+  it('чемпионаты и фестивали идут отдельными разделами, товарищеские и кубки одним', async () => {
+    fake.db.matches = [
+      { id: 'a', team: 'U9', played_on: '2026-10-10', opponent: 'Олимп', goals_for: 3, goals_against: 1 },
+      { id: 'b', team: 'U9', played_on: '2026-10-03', opponent: 'Динамо', goals_for: 0, goals_against: 0 },
+      { id: 'c', team: 'U9', played_on: '2026-09-05', opponent: 'Локо', goals_for: 2, goals_against: 2 },
+      { id: 'd', team: 'U9', played_on: '2026-08-16', opponent: 'Newton', goals_for: 1, goals_against: 0 },
+    ];
+    fake.rpc.match_tournaments = () => [
+      { match_id: 'a', tournament_id: 't1', tournament_name: 'Championship 1', tournament_kind: 'championship', match_kind: 'game' },
+      { match_id: 'b', tournament_id: 't1', tournament_name: 'Championship 1', tournament_kind: 'championship', match_kind: 'game' },
+      { match_id: 'c', tournament_id: null, tournament_name: null, tournament_kind: null, match_kind: 'friendly' },
+      { match_id: 'd', tournament_id: 't9', tournament_name: 'Newton cup', tournament_kind: 'cup', match_kind: 'game' },
+    ];
+    render(<CoachMatches groups={groups} />);
+    expect(await screen.findByText('Championship 1')).toBeInTheDocument();
+    expect(screen.getByText('Товарищеские и кубки')).toBeInTheDocument();
+    expect(screen.getByText(/Newton cup/)).toBeInTheDocument();
+  });
+});
+
 describe('«Матчи» тренера', () => {
   it('лучший игрок уходит в запрос, играющие и голы сохраняются', async () => {
     seed();
