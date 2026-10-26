@@ -97,7 +97,7 @@ export default function Debtors() {
     if (!clubId) return;
     setBusy('flag');
     setMsg(null);
-    const r = await supabase.from('club_settings').upsert({ club_id: clubId, key: 'parent_debt_enabled', value: enabled ? 'false' : 'true' }, { onConflict: 'club_id,key' });
+    const r = await supabase.from('club_settings').upsert({ club_id: clubId, key: 'parent_debt_enabled', scope: '', value: enabled ? 'false' : 'true' }, { onConflict: 'club_id,key,scope' });
     setBusy(null);
     if (r.error) return setMsg(r.error.message);
     setEnabled(!enabled);

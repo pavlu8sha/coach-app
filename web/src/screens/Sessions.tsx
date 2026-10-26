@@ -99,7 +99,7 @@ export default function Sessions({ groups }: { groups: CoachGroup[] }) {
     <main className="page">
       <h1>Отметки</h1>
       <Segmented label="Тип занятий" value={tab} onChange={setTab} items={[{ value: 'grp', label: 'Группы' }, { value: 'ind', label: 'Индивидуальные' }]} />
-      <div className={tab === 'grp' && shown.length > 0 ? 'ks-pair' : undefined}>
+      <div className={tab === 'grp' && shown.length > 0 ? 'ks-pair' : undefined} style={{ marginBottom: 12 }}>
         {tab === 'grp' && shown.length > 0 && <GroupPicker groups={shown} value={gid} onChange={setGidPick} />}
         <input className="ks-input" type="date" aria-label="Дата" value={date} onChange={e => e.target.value && setDate(e.target.value)} />
       </div>
