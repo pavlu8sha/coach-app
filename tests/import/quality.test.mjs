@@ -458,3 +458,12 @@ test('CLI: в скрипте нет запросов, кроме GET', () => {
   assert.doesNotMatch(source, /\b(POST|PATCH|PUT|DELETE)\b/);
   assert.doesNotMatch(source, /\brpc\b/);
 });
+
+test('отчёт: limit Infinity выводит все строки, по умолчанию 20', () => {
+  const items = Array.from({ length: 29 }, (_, i) => `матч ${i}`);
+  const checks = [{ id: 'x', title: 'Проверка', severity: 'staff', description: 'д', items }];
+  assert.match(formatReport(checks), /… ещё 9/);
+  const all = formatReport(checks, { limit: Infinity });
+  assert.doesNotMatch(all, /… ещё/);
+  assert.match(all, /матч 28/);
+});

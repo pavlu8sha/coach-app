@@ -2,7 +2,8 @@ import { pathToFileURL } from 'node:url';
 import { formatReport, hasActionable, runChecks, tbilisiToday } from './quality-checks.mjs';
 
 function usage() {
-  console.log('Использование: node scripts/import/quality.mjs');
+  console.log('Использование: node scripts/import/quality.mjs [--all]');
+  console.log('--all — вывести все строки каждой проверки (по умолчанию первые 20).');
   console.log('Только чтение. Нужны SUPABASE_URL (без /rest/v1), SUPABASE_SERVICE_KEY, CLUB_ID.');
   console.log('Коды выхода: 0 — только гигиена, 1 — проблемы для родителей/тренеров, 2 — ошибка.');
 }
@@ -27,7 +28,8 @@ async function main() {
     return;
   }
   if (argv.includes('--write')) throw new Error('quality.mjs только читает; ключ --write не поддерживается');
-  if (argv.length) throw new Error(`quality.mjs запускается без аргументов: ${argv.join(' ')}`);
+  const rest = argv.filter(a => a !== '--all');
+  if (rest.length) throw new Error(`quality.mjs: неизвестные аргументы: ${rest.join(' ')}`);
 
   const { SUPABASE_URL, SUPABASE_SERVICE_KEY, CLUB_ID } = process.env;
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !CLUB_ID) {
@@ -96,7 +98,7 @@ async function main() {
     coachGroups,
   });
 
-  console.log(formatReport(checks));
+  console.log(formatReport(checks, argv.includes('--all') ? { limit: Infinity } : undefined));
   process.exitCode = hasActionable(checks) ? 1 : 0;
 }
 
