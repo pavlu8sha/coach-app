@@ -56,7 +56,7 @@ export default function Players() {
       const g = await supabase.from('groups').select('id, name, club_id').order('name');
       const p = await supabase.from('players').select('id, full_name, group_id, birth_date, status, external_id').order('full_name').limit(1000);
       const pr = await supabase.from('prices').select('group_id, amount, valid_from, valid_to').eq('kind', 'subscription');
-      const pay = await supabase.from('payments').select('player_id, amount').gte('paid_on', month).lt('paid_on', nextMonthStart()).limit(1000);
+      const pay = await supabase.from('payments').select('player_id, amount').eq('pay_month', month).limit(1000);
       const sb = await supabase.from('subscriptions').select('player_id, discount, written_off').eq('month', month).limit(1000);
       const bad = g.error ?? p.error ?? pr.error ?? pay.error ?? sb.error;
       if (bad) return setError(bad.message);

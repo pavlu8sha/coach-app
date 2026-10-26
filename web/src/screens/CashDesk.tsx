@@ -26,7 +26,7 @@ async function loadDues(p: Pl): Promise<Due[]> {
   const noSub = (p.groups?.name ?? '').trim().toLowerCase() === 'индивидуальные / вратарские';
   const [prices, pays, subs, orders, ind, extra, camps] = await Promise.all([
     supabase.from('prices').select('group_id, amount, valid_from, valid_to').eq('kind', 'subscription'),
-    supabase.from('payments').select('amount, paid_on').eq('player_id', p.id).limit(1000),
+    supabase.from('payments').select('amount, paid_on, pay_month').eq('player_id', p.id).limit(1000),
     supabase.from('subscriptions').select('month, group_id, discount, written_off').eq('player_id', p.id),
     supabase.from('equipment_orders').select('id, ordered_on, total, paid, equipment_order_lines(kit)').eq('player_id', p.id),
     supabase.from('individual_bookings').select('session_id, amount, paid, individual_sessions(starts_at, goalkeepers)').eq('player_id', p.id).eq('paid', false),
@@ -39,7 +39,7 @@ async function loadDues(p: Pl): Promise<Due[]> {
   if (!noSub) {
     const pr = ((prices.data ?? []) as { group_id: string | null; amount: number; valid_from: string; valid_to: string | null }[]).map(x => ({ ...x, amount: Number(x.amount) }));
     const paidBy = new Map<string, number>();
-    ((pays.data ?? []) as { amount: number; paid_on: string }[]).forEach(x => paidBy.set(monthIso(new Date(x.paid_on + 'T12:00:00')), (paidBy.get(monthIso(new Date(x.paid_on + 'T12:00:00'))) ?? 0) + Number(x.amount)));
+    ((pays.data ?? []) as { amount: number; paid_on: string; pay_month?: string | null }[]).forEach(x => { const m = x.pay_month ?? monthIso(new Date(x.paid_on + 'T12:00:00')); paidBy.set(m, (paidBy.get(m) ?? 0) + Number(x.amount)); });
     const sb = new Map(((subs.data ?? []) as { month: string; group_id: string | null; discount: boolean; written_off: boolean }[]).map(s => [s.month, s]));
     const cur = monthIso(new Date());
     for (let m = SEASON_START; m <= nextMonth(cur); m = nextMonth(m)) {
@@ -52,8 +52,8 @@ async function loadDues(p: Pl): Promise<Due[]> {
       if (s?.discount && got > 0) continue;
       if (got >= tariff) continue;
       out.push({
-        key: 'sub' + m, kind: 'sub', section: SECTIONS[0], title: m > cur ? `${monthName(m)} (вперёд)` : monthName(m), sub: s?.discount ? 'скидка по договорённости: оплатите любую сумму' : m > cur ? 'оплата вперёд, запись датируется 1-м числом' : undefined, due: tariff, paid: got, month: m, advance: m > cur,
-        pay: (amount, method, date) => supabase.from('payments').insert({ player_id: p.id, amount: r2(amount), paid_on: date, method, recorded_by: me }),
+        key: 'sub' + m, kind: 'sub', section: SECTIONS[0], title: m > cur ? `${monthName(m)} (вперёд)` : monthName(m), sub: s?.discount ? 'скидка по договорённости: оплатите любую сумму' : m > cur ? 'оплата вперёд: дата — день, когда внесли деньги' : undefined, due: tariff, paid: got, month: m, advance: m > cur,
+        pay: (amount, method, date) => supabase.from('payments').insert({ player_id: p.id, amount: r2(amount), paid_on: date, for_month: m, method, recorded_by: me }),
       });
     }
   }
@@ -217,12 +217,10 @@ export function PlayerDues({ player, onBack, embedded = false, sharedMethod }: {
 
 function DueCard({ due, open, onOpen, onPaid, sharedMethod }: { due: Due; open: boolean; onOpen: () => void; onPaid: () => void; sharedMethod?: string }) {
   const left = r2(due.due - due.paid);
-  const isCurrent = due.month === monthIso(new Date());
   const [amount, setAmount] = useState(String(left));
   const [ownMethod, setMethod] = useState('');
   const method = sharedMethod !== undefined ? sharedMethod : ownMethod;
-  const [date, setDate] = useState(due.month && !isCurrent ? due.month : today());
-  const advance = Boolean(due.advance);
+  const [date, setDate] = useState(today());
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const fixedAmount = due.kind === 'ind'; // индивидуальное занятие отмечается оплаченным целиком
@@ -230,7 +228,7 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod }: { due: Due; open: 
   const save = async () => {
     if (!method) return setErr(sharedMethod !== undefined ? 'Выберите способ оплаты вверху экрана: «Наличные» или «Перевод».' : 'Выберите способ оплаты.');
     if (!fixedAmount && (!Number.isFinite(num) || num <= 0 || num > 100000)) return setErr('Введите сумму больше нуля.');
-    if (due.month && ((date > today() && !advance) || date < due.month || date >= nextMonth(due.month))) return setErr('Дата должна быть в этом месяце и не в будущем: оплата считается по месяцу даты.');
+    if (date > today()) return setErr('Дата платежа не может быть в будущем.');
     setBusy(true);
     setErr(null);
     const r = await due.pay(fixedAmount ? left : num, method, date);
@@ -247,7 +245,7 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod }: { due: Due; open: 
         <div style={{ marginTop: 8 }}>
           {!fixedAmount && <label className="field">Сумма, ₾ (меньше остатка — частичный платёж, останется долг)<input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /></label>}
           <div className="two">
-            {due.kind === 'sub' || due.kind === 'camp' ? <label className="field">Дата<input type="date" value={date} min={due.month} max={advance ? undefined : today()} disabled={advance} onChange={e => setDate(e.target.value)} /></label> : <span />}
+            {due.kind === 'sub' || due.kind === 'camp' ? <label className="field">Дата<input type="date" value={date} max={today()} onChange={e => setDate(e.target.value)} /></label> : <span />}
             {sharedMethod !== undefined ? <span /> : <label className="field">Способ<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>}
           </div>
           {err && <p className="error">{err}</p>}

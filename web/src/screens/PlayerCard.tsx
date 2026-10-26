@@ -10,7 +10,7 @@ import { monthIso, monthName, nextMonth, Row, SEASON_START, tariffFor, type Sub 
 import type { PlayerForm } from './PlayerEdit';
 
 interface Price { group_id: string | null; amount: number; valid_from: string; valid_to: string | null }
-interface Pay { amount: number; paid_on: string }
+interface Pay { amount: number; paid_on: string; pay_month?: string | null }
 
 export interface CardPlayer extends PlayerForm { id: string; external_id: string | null; group_name: string | null }
 
@@ -33,7 +33,7 @@ export default function PlayerCard({ player, onBack, onEdit }: { player: CardPla
   useEffect(() => {
     void (async () => {
       const pr = await supabase.from('prices').select('group_id, amount, valid_from, valid_to').eq('kind', 'subscription');
-      const pay = await supabase.from('payments').select('amount, paid_on').eq('player_id', player.id).gte('paid_on', SEASON_START).limit(1000);
+      const pay = await supabase.from('payments').select('amount, paid_on, pay_month').eq('player_id', player.id).gte('pay_month', SEASON_START).limit(1000);
       const sb = await supabase.from('subscriptions').select('player_id, month, discount, written_off').eq('player_id', player.id);
       const bad = pr.error ?? pay.error ?? sb.error;
       if (bad) return setError(bad.message);
@@ -44,7 +44,7 @@ export default function PlayerCard({ player, onBack, onEdit }: { player: CardPla
   }, [player.id, reload]);
 
   if (error) return <Failure title="Не удалось загрузить игрока" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} />} />;
-  const gotIn = (m: string) => (pays ?? []).filter(p => p.paid_on >= m && p.paid_on < nextMonth(m)).reduce((s, p) => s + p.amount, 0);
+  const gotIn = (m: string) => (pays ?? []).filter(p => (p.pay_month ?? p.paid_on.slice(0, 7) + '-01') === m).reduce((s, p) => s + p.amount, 0);
 
   return (
     <main className="page">

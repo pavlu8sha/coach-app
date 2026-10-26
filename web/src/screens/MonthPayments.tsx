@@ -69,7 +69,7 @@ export default function MonthPayments() {
     setPlayers(null);
     void (async () => {
       const pl = await supabase.from('players').select('id, full_name, group_id').eq('status', 'active').order('full_name').limit(1000);
-      const pay = await supabase.from('payments').select('player_id, amount').gte('paid_on', month).lt('paid_on', nextMonth(month)).limit(5000);
+      const pay = await supabase.from('payments').select('player_id, amount').eq('pay_month', month).limit(5000);
       const sb = await supabase.from('subscriptions').select('player_id, discount, written_off').eq('month', month).limit(5000);
       if (pl.error) return setError(pl.error.message);
       if (pay.error) return setError(pay.error.message);
@@ -145,10 +145,8 @@ export default function MonthPayments() {
 }
 
 export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOpen, onSaved }: { player: Player; title?: string; month: string; tariff: number | null; got: number; sub?: Sub; paidUp: boolean; open: boolean; onOpen: () => void; onSaved: () => void }) {
-  const isCurrent = month === monthIso(new Date());
-  const isFuture = month > monthIso(new Date());
   const [amount, setAmount] = useState(String(Math.max((tariff ?? 0) - got, 0) || ''));
-  const [date, setDate] = useState(isCurrent ? today() : month);
+  const [date, setDate] = useState(today());
   const [method, setMethod] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -164,12 +162,11 @@ export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOp
   const save = async () => {
     if (!method) return setErr('Выберите способ оплаты.');
     if (!amount.trim() || !Number.isFinite(num) || num === 0 || Math.abs(num) > 100000) return setErr('Введите сумму (не ноль).');
-    if (date > today() && !isFuture) return setErr('Дата платежа не может быть в будущем.');
-    if (date < month || date >= nextMonth(month)) return setErr('Дата должна быть в выбранном месяце: оплата считается по месяцу даты.');
+    if (date > today()) return setErr('Дата платежа не может быть в будущем.');
     setBusy(true);
     setErr(null);
     const me = (await supabase.auth.getUser()).data.user?.id ?? null;
-    const r = await supabase.from('payments').insert({ player_id: player.id, amount: Math.round(num * 100) / 100, paid_on: date, method, recorded_by: me });
+    const r = await supabase.from('payments').insert({ player_id: player.id, amount: Math.round(num * 100) / 100, paid_on: date, for_month: month, method, recorded_by: me });
     setBusy(false);
     if (r.error) return setErr(r.error.message);
     onSaved();
@@ -188,10 +185,9 @@ export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOp
         <div style={{ marginTop: 8 }}>
           <label className="field">Сумма, ₾ (минус — исправление)<input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /></label>
           <div className="two">
-            <label className="field">Дата<input type="date" value={date} min={month} max={isFuture ? undefined : today()} disabled={isFuture} onChange={e => setDate(e.target.value)} /></label>
+            <label className="field">Дата<input type="date" value={date} max={today()} onChange={e => setDate(e.target.value)} /></label>
             <label className="field">Способ<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>
           </div>
-          {isFuture && <p className="ks-muted" style={{ fontSize: 13 }}>Оплата вперёд: запись датируется 1-м числом месяца, в списках «Внесено» она будет на эту дату.</p>}
           {err && <p className="error">{err}</p>}
           <button type="button" className="ks-btn" disabled={busy} onClick={() => void save()}>Записать платёж</button>
           <p className="ks-muted" style={{ fontSize: 13, marginTop: 6 }}>Запись нельзя изменить или удалить: ошибку исправляют записью с минусом.</p>
