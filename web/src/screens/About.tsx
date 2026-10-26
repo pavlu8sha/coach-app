@@ -190,6 +190,7 @@ function Camp() {
             {M.idea.map(i => <Price key={i.title} name={i.title} note={i.text} price="" />)}
           </Card>
           <Card title={M.fields.title}>
+            {photo('camp-fields', 'Футбольные поля на территории отеля')}
             <p className="ks-lead" style={{ marginBottom: 0 }}>{M.fields.text}</p>
           </Card>
           <Card title="Опыт FC KickStart">
@@ -198,7 +199,8 @@ function Camp() {
             <p className="ks-label">В конце: письменные рекомендации каждому игроку</p>
             <Checks items={M.experience.report} />
           </Card>
-          <Card title="Футболка участника">
+          <Card title="Эксклюзивная футболка только для участников Winter Camp 2027">
+            {photo('camp-shirt', 'Футболка участника сборов с кикбарсом')}
             <p className="ks-lead" style={{ marginBottom: 0 }}>{M.shirt}</p>
           </Card>
           <Sign text="Забронировать место" />
@@ -213,6 +215,7 @@ function Camp() {
             </ul>
           </Card>
           <Card title="7 дней в режиме футболиста">
+            {photo('camp-class', 'Теория и разбор игровых ситуаций')}
             <ul className="ks-steps2">
               {M.day.map(d => <li key={d.title}><b>{d.title}</b>{d.text}</li>)}
             </ul>
@@ -234,7 +237,7 @@ function Camp() {
             <p className="ks-lead" style={{ marginBottom: 0 }}>Отель на берегу моря в Уреки: поля, питание и отдых рядом.</p>
           </Card>
           <Card title="Номера">
-            <Gallery className="ks-gallery" keys={['camp-room1', 'camp-room2']} alt="Номер отеля" />
+            <Gallery className="ks-gallery" keys={['camp-room1', 'camp-room2', 'camp-room3']} alt="Номер отеля" />
             <p className="ks-hint"><b>{M.rooms.title}.</b> {M.rooms.text}</p>
           </Card>
           <Card title="На территории">
