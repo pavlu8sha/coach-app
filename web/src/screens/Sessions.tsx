@@ -11,6 +11,18 @@ type Status = 'present' | 'absent' | 'excused';
 interface Slot { weekday: number; starts_at: string; location: string | null; kind: string }
 interface Player { id: string; full_name: string }
 
+interface RosterRow { session_id: string; starts_at: string; topic: string | null; goalkeepers: boolean; player_id: string | null; full_name: string | null; attended: boolean | null }
+/** Строки функции ind_roster_list (занятие × игрок) → занятия с составом, в том же порядке (позже — выше). */
+export function groupRoster(rows: RosterRow[]): IndSession[] {
+  const out = new Map<string, IndSession>();
+  for (const r of rows) {
+    let s = out.get(r.session_id);
+    if (!s) out.set(r.session_id, (s = { id: r.session_id, starts_at: r.starts_at, topic: r.topic, goalkeepers: r.goalkeepers, individual_bookings: [] }));
+    if (r.player_id) s.individual_bookings.push({ player_id: r.player_id, attended: r.attended, players: { full_name: r.full_name ?? '' } });
+  }
+  return [...out.values()];
+}
+
 const DAYS_BACK = 21; // сколько последних дней показываем: занятия можно отметить и задним числом
 
 // «Занятия»: занятия группы по расписанию за последние дни; тренер открывает день и отмечает, кто был.
@@ -36,8 +48,9 @@ export default function Sessions({ groups }: { groups: CoachGroup[] }) {
       setSlots(group.length ? group : all);
       if (!group.length && all.length) {
         const t = today();
-        const ind = await supabase.from('individual_sessions').select('id, starts_at, topic, goalkeepers, individual_bookings(player_id, attended, players(full_name))').gte('starts_at', addDays(t, -DAYS_BACK)).lte('starts_at', t + 'T23:59:59').order('starts_at', { ascending: false });
-        setIndList(ind.error ? [] : ((ind.data ?? []) as unknown as IndSession[]));
+        // Тренер читает занятия через функцию базы (без сумм и оплаты); таблицы записей с деньгами ему закрыты
+        const ind = await supabase.rpc('ind_roster_list', { d_from: addDays(t, -DAYS_BACK), d_to: t });
+        setIndList(ind.error ? [] : groupRoster((ind.data ?? []) as RosterRow[]));
       }
     })();
   }, [gid, reload]);
