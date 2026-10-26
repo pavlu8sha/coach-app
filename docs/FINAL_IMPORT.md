@@ -21,6 +21,11 @@ $env:CLUB_ID = "<id клуба>"
 .\scripts\import\final-import.ps1 -Dir "C:\путь\migration-export 2026-10-31 19-05" -Mode Final -ShowOnly   # показать команды
 .\scripts\import\final-import.ps1 -Dir "C:\путь\migration-export 2026-10-31 19-05" -Mode Final              # проверка (ключ спросит)
 ```
+Если на компьютере политика `AllSigned` и `.ps1` не запускается, используйте то же на Node (подпись не нужна), `--write` вместо `-Write`:
+```powershell
+node scripts/import/final-import.mjs --dir "C:\путь\migration-export 2026-10-31 19-05" --mode Final --show-only
+node scripts/import/final-import.mjs --dir "C:\путь\migration-export 2026-10-31 19-05" --mode Final
+```
 Без `-Write` ничего не записывается. Посмотрите вывод каждого шага: числа игроков, посещаемости, матчей. Любая ошибка «Остановка: шаг …» — пришлите мне текст (ключ в нём не бывает).
 
 ## 3. Запись
