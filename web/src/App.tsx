@@ -3,7 +3,7 @@ import { supabase } from './lib/supabase';
 import { hasSession, signInWithTelegram, signInWithWidget } from './lib/auth';
 import { configured } from './lib/supabase';
 import { initData, prepareTelegram } from './lib/telegram';
-import Admin from './screens/Admin';
+import Money from './screens/Money';
 import Home from './screens/Home';
 import Payments from './screens/Payments';
 import Players from './screens/Players';
@@ -27,7 +27,7 @@ import { BottomNav } from './ui/components';
 
 type State = { kind: 'loading' } | { kind: 'ready' } | { kind: 'outside' } | { kind: 'config' } | { kind: 'error'; text: string };
 
-type Tab = 'about' | 'home' | 'schedule' | 'matches' | 'payments' | 'profile' | 'admin' | 'players' | 'more' | 'sessions' | 'cmatches' | 'group';
+type Tab = 'about' | 'home' | 'schedule' | 'matches' | 'payments' | 'profile' | 'money' | 'players' | 'more' | 'sessions' | 'cmatches' | 'group';
 
 const PREVIEW_LABEL: Record<Role, string> = { parent: 'Родитель', child: 'Ребёнок', guest: 'Гость', coach: 'Тренер без групп' };
 
@@ -103,7 +103,7 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
         setAllGroups(isAdm ? all : [...all.filter(g => mineIds.has(g.id)), ...all.filter(g => !mineIds.has(g.id))]);
       }
       setAdmin(isAdm);
-      if (isAdm) setTab('admin'); // администратор открывает приложение сразу на запросах
+      if (isAdm) setTab('players');
       else if (mineGroups.length) setTab('sessions'); // тренер — сразу на занятиях
       else if ((mine.count ?? 0) === 0 && r.data?.chosen_role === 'child') setTab('home');
       else if ((mine.count ?? 0) === 0 && r.data?.chosen_role && r.data.chosen_role !== 'parent') setTab('about');
@@ -184,7 +184,7 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
     );
   }
   const screen =
-    admin && tab === 'admin' ? <Admin />
+    admin && tab === 'money' ? <Money />
     : admin && tab === 'players' ? <Players />
     : admin && tab === 'more' ? <More key={moreKey} groups={allGroups} onPreview={startPreview} />
     : (admin || coach) && tab === 'sessions' ? <Sessions groups={allGroups.length ? allGroups : coachGroups} />
@@ -209,7 +209,7 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
         items={
           admin
             ? [
-                { value: 'admin', label: 'Запросы', icon: 'inbox' },
+                { value: 'money', label: 'Оплаты', icon: 'wallet' },
                 { value: 'players', label: 'Игроки', icon: 'users' },
                 { value: 'sessions', label: 'Занятия', icon: 'calendar' },
                 { value: 'cmatches', label: 'Матчи', icon: 'trophy' },
