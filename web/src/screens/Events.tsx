@@ -3,6 +3,7 @@ import { coachError, fmtDate, today, type CoachGroup } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Segmented } from '../ui/components';
 import { BackNav } from '../ui/nav';
+import EventFees from './EventFees';
 import { Failure, Loading } from './Message';
 
 export interface EventRow { id: string; team: string; kind: string; name: string | null; starts_on: string | null; players: number; games: number }
@@ -70,7 +71,7 @@ export function EventForm({ teams, events, admin, onBack, onCreated }: { teams: 
 }
 
 // Событие: состав участников (добавить группу или игрока, убрать) и добавление игры.
-export function EventScreen({ event, groups, onBack }: { event: EventRow; groups: CoachGroup[]; onBack: () => void }) {
+export function EventScreen({ event, groups, admin = false, onBack }: { event: EventRow; groups: CoachGroup[]; admin?: boolean; onBack: () => void }) {
   const [roster, setRoster] = useState<RosterRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -147,6 +148,7 @@ export function EventScreen({ event, groups, onBack }: { event: EventRow; groups
       {found.filter(f => !roster.some(r => r.player_id === f.id)).map(f => (
         <ListRow key={f.id} avatar={f.full_name} title={f.full_name} end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} disabled={busy} onClick={() => { setQ(''); setFound([]); void add([f.id]); }}>Добавить</button>} />
       ))}
+      {admin && <EventFees eventId={event.id} reloadKey={reload} onChanged={() => setReload(n => n + 1)} />}
       <h3>Добавить игру</h3>
       <label className="ks-label" htmlFor="g-date">Дата</label>
       <input id="g-date" className="ks-input" type="date" value={gameDate} onChange={e => setGameDate(e.target.value)} />

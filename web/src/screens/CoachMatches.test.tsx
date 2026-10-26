@@ -189,3 +189,55 @@ describe('«Новое событие»', () => {
     expect(fake.rpcCalls('event_create')[0]).toMatchObject({ k: 'championship', tm: 'U9', nm: 'Чемпионат 2', fee: null });
   });
 });
+
+describe('Взносы события (администратор)', () => {
+  const setup = () => {
+    fake.db.matches = [];
+    fake.rpc.event_list = () => [{ id: 'e1', team: 'U9', kind: 'championship', name: 'Ч1', starts_on: '2026-11-01', players: 2, games: 0 }];
+    fake.rpc.event_roster = () => [{ player_id: 'p1', full_name: 'Иванов Пётр', group_name: 'U9' }, { player_id: 'p2', full_name: 'Сидоров Ян', group_name: 'U9' }];
+    fake.rpc.event_fees = () => [
+      { player_id: 'p1', full_name: 'Иванов Пётр', group_name: 'U9', due: 50, paid: 50 },
+      { player_id: 'p2', full_name: 'Сидоров Ян', group_name: 'U9', due: 50, paid: 20 },
+    ];
+    fake.rpc.event_payments = () => [{ id: 'x1', player_id: 'p1', full_name: 'Иванов Пётр', amount: 50, paid_on: '2026-10-20', method: 'Перевод', comment: null, cancelled: false }];
+    fake.rpc.event_pay = () => 1;
+    fake.rpc.event_discount = () => null;
+    fake.rpc.event_cancel_payment = () => null;
+  };
+
+  it('показывает долги и записывает оплату выбранным со способом и датой', async () => {
+    setup();
+    render(<CoachMatches groups={groups} admin />);
+    fireEvent.click(await screen.findByText('Состав и игры события'));
+    expect(await screen.findByText('Долг 30 ₾')).toBeInTheDocument();
+    expect(screen.getByText('Оплачен')).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Платит: Сидоров Ян'));
+    fireEvent.change(screen.getByLabelText('Способ'), { target: { value: 'Наличные' } });
+    fireEvent.click(screen.getByText('Записать оплату (1)'));
+    await waitFor(() => expect(fake.rpcCalls('event_pay')).toHaveLength(1));
+    expect(fake.rpcCalls('event_pay')[0]).toMatchObject({ t: 'e1', ids: ['p2'], amt: null, mth: 'Наличные' });
+  });
+
+  it('скидка и отмена оплаты уходят в базу', async () => {
+    setup();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<CoachMatches groups={groups} admin />);
+    fireEvent.click(await screen.findByText('Состав и игры события'));
+    await screen.findByText('Долг 30 ₾');
+    fireEvent.click(screen.getByLabelText('Скидка: Сидоров Ян'));
+    fireEvent.change(screen.getByLabelText('Сумма к оплате'), { target: { value: '40' } });
+    fireEvent.click(screen.getByText('Применить'));
+    await waitFor(() => expect(fake.rpcCalls('event_discount')).toHaveLength(1));
+    expect(fake.rpcCalls('event_discount')[0]).toMatchObject({ t: 'e1', pid: 'p2', due: 40 });
+    fireEvent.click(screen.getByLabelText('Отменить оплату: Иванов Пётр'));
+    await waitFor(() => expect(fake.rpcCalls('event_cancel_payment')).toHaveLength(1));
+  });
+
+  it('тренер блока взносов не видит', async () => {
+    setup();
+    render(<CoachMatches groups={groups} allTeams />);
+    fireEvent.click(await screen.findByText('Состав и игры события'));
+    await screen.findByText('Сидоров Ян');
+    expect(screen.queryByText('Взносы')).toBeNull();
+  });
+});

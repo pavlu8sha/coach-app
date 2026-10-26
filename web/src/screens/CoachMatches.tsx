@@ -44,7 +44,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   if (error) return <Failure title="Не удалось загрузить матчи" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   if (eventView) {
     const back = () => { setEventView(null); setReload(n => n + 1); };
-    if (eventView.event) return <EventScreen event={eventView.event} groups={groups} onBack={back} />;
+    if (eventView.event) return <EventScreen event={eventView.event} groups={groups} admin={admin} onBack={back} />;
     const openCreated = async (id: string) => {
       const ev = await supabase.rpc('event_list');
       const list = ev.error ? [] : ((ev.data ?? []) as EventRow[]);
