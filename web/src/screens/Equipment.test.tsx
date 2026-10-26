@@ -23,7 +23,7 @@ describe('«Экипировка»', () => {
     seed();
     render(<Equipment />);
     expect(await screen.findByText('Иванов Пётр')).toBeInTheDocument();
-    expect(screen.getByText('60 ₾ из 160 ₾')).toBeInTheDocument();
+    expect(screen.getByText('60 из 160 ₾')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: 'Не оплачены' }));
     expect(screen.queryByText('Иванов Пётр')).not.toBeInTheDocument();
     expect(screen.getByText('Сидоров Ян')).toBeInTheDocument();

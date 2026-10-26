@@ -118,6 +118,8 @@ export default function Debtors() {
           <option key={m} value={m}>{monthName(m)}</option>
         ))}
       </select>
+      <details className="ks-card ks-details" style={{ marginTop: 0, paddingTop: 0 }}>
+        <summary>Показ родителям, абонементы на месяц, текст сообщения</summary>
       <div className="ks-card">
         <b>Показ долга родителям: {enabled ? 'включён' : 'выключен'}</b>
         <p className="ks-muted" style={{ margin: '6px 0 10px' }}>
@@ -139,6 +141,7 @@ export default function Debtors() {
         <textarea className="ks-input" rows={3} aria-label="Текст сообщения" value={tpl} onChange={e => changeTpl(e.target.value)} />
         <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} onClick={() => void copy(textFor(''), 'текст сообщения')}>Скопировать текст</button>
       </div>
+      </details>
       {allGroups.length > 1 && (
         <select className="ks-select" aria-label="Группа" value={gname} onChange={e => setGname(e.target.value)}>
           <option value="">Все группы</option>
@@ -161,13 +164,15 @@ export default function Debtors() {
                 <div className="ks-muted" style={{ fontSize: 13 }}>Внесено {gel(r.paid)} из {gel(r.tariff)}</div>
                 <button type="button" className="ks-btn" style={{ marginTop: 8 }} onClick={() => setPayKey(payKey === r.player_id ? null : r.player_id)}>{payKey === r.player_id ? 'Свернуть' : 'Принять оплату'}</button>
                 {payKey === r.player_id && <PayInline playerId={r.player_id} month={month} debt={r.debt} onSaved={() => { setPayKey(null); setMsg('Платёж записан.'); setRows(null); setReload(n => n + 1); }} />}
-                <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} onClick={() => void copy(textFor(r.full_name), `сообщение для ${r.full_name}`)}>Скопировать сообщение</button>
-                <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy === r.player_id} onClick={() => void setDiscount(r.player_id, true)}>
+                <div className="ks-actions" style={{ flexWrap: 'wrap', marginTop: 8, marginBottom: 0 }}>
+                <button type="button" className="ks-btn secondary sm" onClick={() => void copy(textFor(r.full_name), `сообщение для ${r.full_name}`)}>Скопировать сообщение</button>
+                <button type="button" className="ks-btn secondary sm" disabled={busy === r.player_id} onClick={() => void setDiscount(r.player_id, true)}>
                   Отметить «Скидка»
                 </button>
-                <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy === r.player_id} onClick={() => void setFlag(r.player_id, 'written_off', true)}>
+                <button type="button" className="ks-btn secondary sm" disabled={busy === r.player_id} onClick={() => void setFlag(r.player_id, 'written_off', true)}>
                   Списать долг
                 </button>
+                </div>
               </div>
             ))}
           </section>

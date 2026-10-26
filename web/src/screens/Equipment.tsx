@@ -110,7 +110,7 @@ export default function Equipment() {
             avatar={o.players?.full_name ?? '—'}
             title={o.players?.full_name ?? 'Игрок'}
             sub={[[...new Set(o.equipment_order_lines.map(l => l.kit))].join(' + ') || 'без позиций', `${o.ordered_on ? fmtDate(o.ordered_on) : 'без даты'} · выдано: ${issueState(o)}`]}
-            end={<Pill tone={o.paid >= o.total ? 'success' : 'danger'} dot>{o.paid >= o.total ? 'Оплачен' : `${gel(o.paid)} из ${gel(o.total)}`}</Pill>}
+            end={<Pill tone={o.paid >= o.total ? 'success' : 'danger'} dot>{o.paid >= o.total ? 'Оплачен' : `${o.paid} из ${gel(o.total)}`}</Pill>}
             onClick={() => setOpenId(o.id)}
           />
         ))

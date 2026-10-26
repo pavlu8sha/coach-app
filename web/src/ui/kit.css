@@ -332,3 +332,7 @@ a.ks-cover { text-decoration: none; display: block; }
 .ks-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px; align-items: stretch; }
 .ks-pair .ks-switch-row { margin: 0; }
 .ks-pair > .ks-select, .ks-pair > .ks-input { margin: 0; }
+
+/* Два пояснения подряд (основной и мелкий текст): небольшой отступ */
+.muted + .ks-muted, .ks-muted + .ks-muted { margin-top: 6px; }
+.ks-details.ks-card > summary { padding: 12px 0; }
