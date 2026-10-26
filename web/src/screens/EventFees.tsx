@@ -9,8 +9,15 @@ interface PayRow { id: string; player_id: string; full_name: string; amount: num
 const METHODS = ['Наличные', 'Перевод', 'Карта'];
 const money = (n: number) => `${Number(n)} ₾`;
 
-// Взносы события (только администратор): сумма, оплата одному или нескольким со способом и датой, скидка, отмена оплаты.
-export default function EventFees({ eventId, reloadKey, onChanged }: { eventId: string; reloadKey: number; onChanged: () => void }) {
+const API = {
+  event: { key: 't', fees: 'event_fees', pays: 'event_payments', pay: 'event_pay', discount: 'event_discount', cancel: 'event_cancel_payment', setFee: 'event_set_fee', add: null },
+  match: { key: 'm', fees: 'match_fees_list', pays: 'match_payments_list', pay: 'match_pay', discount: 'match_discount', cancel: 'match_cancel_payment', setFee: 'match_set_fee', add: 'match_fee_add' },
+} as const;
+
+// Взносы события или матча (только администратор): сумма, оплата одному или нескольким со способом и датой, скидка, отмена оплаты.
+// Для матча участников взноса добавляют из состава (addable): сумма берётся из поля «Взнос с игрока».
+export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event', addable = [] }: { eventId: string; reloadKey: number; onChanged: () => void; mode?: 'event' | 'match'; addable?: { id: string; name: string }[] }) {
+  const api = API[mode];
   const [fees, setFees] = useState<FeeRow[] | null>(null);
   const [pays, setPays] = useState<PayRow[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -28,12 +35,13 @@ export default function EventFees({ eventId, reloadKey, onChanged }: { eventId: 
 
   useEffect(() => {
     void (async () => {
-      const [f, p] = await Promise.all([supabase.rpc('event_fees', { t: eventId }), supabase.rpc('event_payments', { t: eventId })]);
+      const [f, p] = await Promise.all([supabase.rpc(api.fees, { [api.key]: eventId }), supabase.rpc(api.pays, { [api.key]: eventId })]);
       if (f.error) return setError(f.error.message);
       setFees(((f.data ?? []) as FeeRow[]).map(x => ({ ...x, due: Number(x.due), paid: Number(x.paid) })));
       setPays(p.error ? [] : ((p.data ?? []) as PayRow[]).map(x => ({ ...x, amount: Number(x.amount) })));
     })();
-  }, [eventId, reloadKey, n]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId, reloadKey, n, mode]);
 
   const run = async (p: PromiseLike<{ error: { message: string } | null }>, ok: string, after?: () => void) => {
     setBusy(true);
@@ -51,10 +59,15 @@ export default function EventFees({ eventId, reloadKey, onChanged }: { eventId: 
   if (!fees) return null;
   const debt = fees.reduce((s, f) => s + Math.max(0, f.due - f.paid), 0);
   const toggle = (id: string) => setSel(s => { const c = new Set(s); if (c.has(id)) c.delete(id); else c.add(id); return c; });
+  const missing = addable.filter(a => !fees.some(f => f.player_id === a.id));
+  const addAll = () => {
+    if (feeInput === '' || !(Number(feeInput) >= 0)) return setMsg({ ok: false, text: 'Укажите взнос с игрока.' });
+    void run(supabase.rpc('match_fee_add', { m: eventId, ids: missing.map(a => a.id), amt: Number(feeInput) }), 'Игроки добавлены во взнос.');
+  };
   const pay = () => {
     if (sel.size === 0) return setMsg({ ok: false, text: 'Отметьте игроков, которые платят.' });
     if (amt !== '' && !(Number(amt) > 0)) return setMsg({ ok: false, text: 'Сумма должна быть больше нуля.' });
-    void run(supabase.rpc('event_pay', { t: eventId, ids: [...sel], amt: amt === '' ? null : Number(amt), d: date, mth: method, cmt: note }), 'Оплата записана.', () => { setSel(new Set()); setAmt(''); setNote(''); });
+    void run(supabase.rpc(api.pay, { [api.key]: eventId, ids: [...sel], amt: amt === '' ? null : Number(amt), d: date, mth: method, cmt: note }), 'Оплата записана.', () => { setSel(new Set()); setAmt(''); setNote(''); });
   };
 
   return (
@@ -64,8 +77,12 @@ export default function EventFees({ eventId, reloadKey, onChanged }: { eventId: 
       <label className="ks-label" htmlFor="ef-fee">Взнос с игрока, ₾</label>
       <div className="ks-line">
         <input id="ef-fee" className="ks-input" inputMode="decimal" value={feeInput} onChange={e => setFeeInput(e.target.value.replace(/[^\d.]/g, '').slice(0, 7))} placeholder="Сумма" />
-        <button type="button" className="ks-btn secondary" style={{ width: 'auto' }} disabled={busy || feeInput === ''} onClick={() => void run(supabase.rpc('event_set_fee', { t: eventId, amt: Number(feeInput) }), 'Взнос обновлён (у тех, кому не делали скидку и кто не платил).', () => setFeeInput(''))}>Сохранить</button>
+        <button type="button" className="ks-btn secondary" style={{ width: 'auto' }} disabled={busy || feeInput === ''} onClick={() => void run(supabase.rpc(api.setFee, { [api.key]: eventId, amt: Number(feeInput) }), 'Взнос обновлён (у тех, кому не делали скидку и кто не платил).', () => setFeeInput(''))}>Сохранить</button>
       </div>
+      {api.add && missing.length > 0 && (
+        <button type="button" className="ks-btn secondary" style={{ marginBottom: 8 }} disabled={busy} onClick={addAll}>Добавить игроков состава во взнос ({missing.length})</button>
+      )}
+      {fees.length === 0 && api.add && <p className="muted">Взнос за этот матч пока никому не назначен. Укажите сумму и добавьте игроков состава.</p>}
       {fees.map(f => {
         const left = f.due - f.paid;
         return (
@@ -86,7 +103,7 @@ export default function EventFees({ eventId, reloadKey, onChanged }: { eventId: 
             {discountFor === f.player_id && (
               <div className="ks-line" style={{ marginBottom: 8 }}>
                 <input className="ks-input" inputMode="decimal" aria-label="Сумма к оплате" value={discount} onChange={e => setDiscount(e.target.value.replace(/[^\d.]/g, '').slice(0, 7))} />
-                <button type="button" className="ks-btn" style={{ width: 'auto' }} disabled={busy || discount === ''} onClick={() => void run(supabase.rpc('event_discount', { t: eventId, pid: f.player_id, due: Number(discount) }), 'Сумма к оплате изменена.', () => setDiscountFor(null))}>Применить</button>
+                <button type="button" className="ks-btn" style={{ width: 'auto' }} disabled={busy || discount === ''} onClick={() => void run(supabase.rpc(api.discount, { [api.key]: eventId, pid: f.player_id, due: Number(discount) }), 'Сумма к оплате изменена.', () => setDiscountFor(null))}>Применить</button>
               </div>
             )}
           </div>
@@ -114,7 +131,7 @@ export default function EventFees({ eventId, reloadKey, onChanged }: { eventId: 
               key={p.id}
               title={`${p.full_name} · ${money(p.amount)}`}
               sub={[`${fmtDate(p.paid_on)}${p.method ? ' · ' + p.method : ''}${p.comment ? ' · ' + p.comment : ''}`]}
-              end={p.amount > 0 && !p.cancelled ? <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 36 }} aria-label={`Отменить оплату: ${p.full_name}`} disabled={busy} onClick={() => { if (window.confirm('Отменить эту оплату?')) void run(supabase.rpc('event_cancel_payment', { payid: p.id }), 'Оплата отменена.'); }}>Отменить</button> : p.cancelled ? <Pill tone="neutral">Отменён</Pill> : undefined}
+              end={p.amount > 0 && !p.cancelled ? <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 36 }} aria-label={`Отменить оплату: ${p.full_name}`} disabled={busy} onClick={() => { if (window.confirm('Отменить эту оплату?')) void run(supabase.rpc(api.cancel, { payid: p.id }), 'Оплата отменена.'); }}>Отменить</button> : p.cancelled ? <Pill tone="neutral">Отменён</Pill> : undefined}
             />
           ))}
         </>

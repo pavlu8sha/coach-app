@@ -241,3 +241,33 @@ describe('Взносы события (администратор)', () => {
     expect(screen.queryByText('Взносы')).toBeNull();
   });
 });
+
+describe('Взносы за матч (администратор)', () => {
+  it('у товарищеского матча можно назначить взнос играющим и принять оплату', async () => {
+    seed();
+    let fees: { player_id: string; full_name: string; group_name: string; due: number; paid: number }[] = [];
+    fake.rpc.match_fees_list = () => fees;
+    fake.rpc.match_payments_list = () => [];
+    fake.rpc.match_fee_add = a => { fees = (a.ids as string[]).map(id => ({ player_id: id, full_name: id === 'p1' ? 'Иванов Пётр' : 'Гость Игорь', group_name: 'U9', due: Number(a.amt), paid: 0 })); return fees.length; };
+    fake.rpc.match_pay = () => 1;
+    render(<CoachMatches groups={groups} admin />);
+    fireEvent.click(await screen.findByText('Олимп'));
+    await screen.findByText('Взносы');
+    fireEvent.change(screen.getByLabelText('Взнос с игрока, ₾'), { target: { value: '20' } });
+    fireEvent.click(await screen.findByText(/Добавить игроков состава во взнос/));
+    await waitFor(() => expect(fake.rpcCalls('match_fee_add')).toHaveLength(1));
+    expect(fake.rpcCalls('match_fee_add')[0]).toMatchObject({ m: 'm1', ids: ['p9', 'p1'], amt: 20 });
+    fireEvent.click(await screen.findByLabelText('Платит: Иванов Пётр'));
+    fireEvent.click(screen.getByText(/Записать оплату/));
+    await waitFor(() => expect(fake.rpcCalls('match_pay')).toHaveLength(1));
+    expect(fake.rpcCalls('match_pay')[0]).toMatchObject({ m: 'm1', amt: null });
+  });
+
+  it('тренеру блок взносов не показывается, у чемпионата взнос на событие', async () => {
+    seed();
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText('Олимп'));
+    await screen.findByText('Иванов Пётр');
+    expect(screen.queryByText('Взносы')).toBeNull();
+  });
+});
