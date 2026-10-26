@@ -4,9 +4,11 @@ import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill } from '../ui/components';
 import { GroupPicker, Stepper } from '../ui/coach';
 import { BackNav, useMainButton } from '../ui/nav';
+import { EventForm, EventScreen, eventCounts, eventTitle, type EventRow } from './Events';
 import { Failure, Loading } from './Message';
 
 interface Match { id: string; team: string; played_on: string; opponent: string | null; goals_for: number | null; goals_against: number | null }
+interface Tour { match_id: string; tournament_id: string | null; tournament_name: string | null; tournament_kind: string | null; match_kind: string | null }
 interface Player { id: string; full_name: string }
 interface Line { played: boolean; goals: number }
 
@@ -19,9 +21,18 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   const [reload, setReload] = useState(0);
   const [form, setForm] = useState<{ match: Match | null } | null>(null);
   const [team, setTeam] = useState('');
+  const [tours, setTours] = useState<Map<string, Tour>>(new Map());
+  const [events, setEvents] = useState<EventRow[]>([]);
+  const [eventView, setEventView] = useState<{ event: EventRow | null } | null>(null);
 
   useEffect(() => {
     void (async () => {
+      // турниры матчей: без них (старая база, нет связи) список остаётся плоским
+      const t = await supabase.rpc('match_tournaments');
+      if (!t.error) setTours(new Map(((t.data ?? []) as Tour[]).map(x => [x.match_id, x])));
+      // события (чемпионаты, фестивали, кубки) со счётчиками; без миграции 0051 список остаётся прежним
+      const ev = await supabase.rpc('event_list');
+      setEvents(ev.error ? [] : ((ev.data ?? []) as EventRow[]));
       let q = supabase.from('matches').select('id, team, played_on, opponent, goals_for, goals_against');
       if (!showAll) q = q.in('team', groups.map(g => g.name));
       const r = await q.order('played_on', { ascending: false }).limit(showAll ? 150 : 60);
@@ -31,15 +42,52 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   }, [groups, showAll, reload]);
 
   if (error) return <Failure title="Не удалось загрузить матчи" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
+  if (eventView) {
+    const back = () => { setEventView(null); setReload(n => n + 1); };
+    if (eventView.event) return <EventScreen event={eventView.event} groups={groups} onBack={back} />;
+    const openCreated = async (id: string) => {
+      const ev = await supabase.rpc('event_list');
+      const list = ev.error ? [] : ((ev.data ?? []) as EventRow[]);
+      setEvents(list);
+      setEventView({ event: list.find(e => e.id === id) ?? null });
+      if (!list.some(e => e.id === id)) setReload(n => n + 1);
+    };
+    const allTeams2 = [...new Set([...groups.map(g => g.name), ...(matches ?? []).map(m => m.team), ...events.map(e => e.team)])].sort();
+    return <EventForm teams={allTeams2} events={events} admin={admin} onBack={back} onCreated={id => void openCreated(id)} />;
+  }
   if (form) return <MatchForm groups={groups} match={form.match} admin={admin} onBack={() => { setForm(null); setReload(n => n + 1); }} />;
   if (!matches) return <Loading />;
 
   const teams = [...new Set(matches.map(m => m.team))].sort();
   const shown = team ? matches.filter(m => m.team === team) : matches;
+  // чемпионаты и фестивали — по турниру (самый свежий сверху), товарищеские и кубки — одним разделом
+  const evById = new Map(events.map(e => [e.id, e]));
+  const sections: { key: string; title: string; items: Match[]; event?: EventRow }[] = [];
+  const byTour = new Map<string, { title: string; items: Match[]; event?: EventRow }>();
+  const other: Match[] = [];
+  const multi = showAll || groups.length > 1;
+  for (const m of shown) {
+    const t = tours.get(m.id);
+    const ev = t?.tournament_id ? evById.get(t.tournament_id) : undefined;
+    if (t?.tournament_id && t.match_kind !== 'friendly' && (ev || t.tournament_kind !== 'cup')) {
+      const g = byTour.get(t.tournament_id) ?? { title: `${t.tournament_name ?? (t.tournament_kind === 'festival' ? 'Фестиваль' : t.tournament_kind === 'cup' ? 'Кубок' : 'Чемпионат')}${multi ? ' · ' + m.team : ''}`, items: [], event: ev };
+      g.items.push(m);
+      byTour.set(t.tournament_id, g);
+    } else other.push(m);
+  }
+  // события без игр тоже показываем (для своих команд), чтобы вести состав до первого матча
+  for (const e of events) {
+    if (byTour.has(e.id) || (team && e.team !== team) || !(showAll || groups.some(g => g.name === e.team))) continue;
+    byTour.set(e.id, { title: `${eventTitle(e)}${multi ? ' · ' + e.team : ''}`, items: [], event: e });
+  }
+  for (const [id, g] of byTour) sections.push({ key: id, ...g });
+  if (other.length) sections.push({ key: 'other', title: byTour.size ? 'Товарищеские и кубки' : 'Матчи', items: other });
   return (
     <main className="page">
       <h1>Матчи</h1>
       <button type="button" className="ks-btn" onClick={() => setForm({ match: null })}>Добавить матч</button>
+      <div style={{ height: 8 }} />
+      <button type="button" className="ks-btn secondary" onClick={() => setEventView({ event: null })}>Новое событие</button>
       <div style={{ height: 12 }} />
       {showAll && teams.length > 1 && (
         <select className="ks-select" aria-label="Команда" value={team} onChange={e => setTeam(e.target.value)}>
@@ -49,21 +97,29 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
           ))}
         </select>
       )}
-      {shown.length === 0 ? (
+      {shown.length === 0 && sections.length === 0 ? (
         <EmptyState icon="trophy" title="Матчей пока нет" text="Добавьте матч, чтобы внести состав, счёт и голы." />
       ) : (
-        shown.map(m => {
-          const done = m.goals_for !== null && m.goals_against !== null;
-          return (
-            <ListRow
-              key={m.id}
-              title={m.opponent ?? 'Соперник не указан'}
-              sub={[`${fmtDate(m.played_on)}${showAll || groups.length > 1 ? ' · ' + m.team : ''}`]}
-              end={done ? <span className="ks-score">{m.goals_for}:{m.goals_against}</span> : <Pill tone="primary">{m.played_on > today() ? 'Предстоит' : 'Без счёта'}</Pill>}
-              onClick={() => setForm({ match: m })}
-            />
-          );
-        })
+        sections.map(sec => (
+          <section key={sec.key}>
+            <p className="ks-label">{sec.title}</p>
+            {sec.event && <ListRow title="Состав и игры события" sub={[eventCounts(sec.event)]} onClick={() => setEventView({ event: sec.event ?? null })} />}
+            {sec.items.map(m => {
+              const done = m.goals_for !== null && m.goals_against !== null;
+              const cup = sec.key === 'other' ? tours.get(m.id) : undefined;
+              const cupName = cup && cup.match_kind !== 'friendly' ? cup.tournament_name : null;
+              return (
+                <ListRow
+                  key={m.id}
+                  title={m.opponent ?? 'Соперник не указан'}
+                  sub={[`${fmtDate(m.played_on)}${showAll || groups.length > 1 ? ' · ' + m.team : ''}${cupName ? ' · ' + cupName : ''}`]}
+                  end={done ? <span className="ks-score">{m.goals_for}:{m.goals_against}</span> : <Pill tone="primary">{m.played_on > today() ? 'Предстоит' : 'Без счёта'}</Pill>}
+                  onClick={() => setForm({ match: m })}
+                />
+              );
+            })}
+          </section>
+        ))
       )}
     </main>
   );

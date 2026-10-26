@@ -18,6 +18,27 @@ function seed() {
 }
 const stepper = (name: string, label: string) => within(screen.getByRole('group', { name })).getByRole('button', { name: label });
 
+describe('«Матчи» по категориям', () => {
+  it('чемпионаты и фестивали идут отдельными разделами, товарищеские и кубки одним', async () => {
+    fake.db.matches = [
+      { id: 'a', team: 'U9', played_on: '2026-10-10', opponent: 'Олимп', goals_for: 3, goals_against: 1 },
+      { id: 'b', team: 'U9', played_on: '2026-10-03', opponent: 'Динамо', goals_for: 0, goals_against: 0 },
+      { id: 'c', team: 'U9', played_on: '2026-09-05', opponent: 'Локо', goals_for: 2, goals_against: 2 },
+      { id: 'd', team: 'U9', played_on: '2026-08-16', opponent: 'Newton', goals_for: 1, goals_against: 0 },
+    ];
+    fake.rpc.match_tournaments = () => [
+      { match_id: 'a', tournament_id: 't1', tournament_name: 'Championship 1', tournament_kind: 'championship', match_kind: 'game' },
+      { match_id: 'b', tournament_id: 't1', tournament_name: 'Championship 1', tournament_kind: 'championship', match_kind: 'game' },
+      { match_id: 'c', tournament_id: null, tournament_name: null, tournament_kind: null, match_kind: 'friendly' },
+      { match_id: 'd', tournament_id: 't9', tournament_name: 'Newton cup', tournament_kind: 'cup', match_kind: 'game' },
+    ];
+    render(<CoachMatches groups={groups} />);
+    expect(await screen.findByText('Championship 1')).toBeInTheDocument();
+    expect(screen.getByText('Товарищеские и кубки')).toBeInTheDocument();
+    expect(screen.getByText(/Newton cup/)).toBeInTheDocument();
+  });
+});
+
 describe('«Матчи» тренера', () => {
   it('лучший игрок уходит в запрос, играющие и голы сохраняются', async () => {
     seed();
@@ -135,5 +156,36 @@ describe('«Матчи» администратора', () => {
     fireEvent.change(screen.getByLabelText('Команда'), { target: { value: 'U11' } });
     expect(screen.queryByText('Олимп')).not.toBeInTheDocument();
     expect(screen.getByText('Спартак')).toBeInTheDocument();
+  });
+});
+
+describe('«Новое событие»', () => {
+  it('событие без игр показывается со счётчиками, состав открывается и меняется', async () => {
+    fake.db.matches = [];
+    fake.db.players = [{ id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'active' }];
+    let roster = [{ player_id: 'p2', full_name: 'Сидоров Ян', group_name: 'U9' }];
+    fake.rpc.event_list = () => [{ id: 'e1', team: 'U9', kind: 'festival', name: 'Фестиваль осени', starts_on: '2026-11-01', players: roster.length, games: 0 }];
+    fake.rpc.event_roster = () => roster;
+    fake.rpc.event_roster_add = a => { roster = [...roster, { player_id: (a.ids as string[])[0], full_name: 'Иванов Пётр', group_name: 'U9' }]; return null; };
+    render(<CoachMatches groups={groups} allTeams />);
+    expect(await screen.findByText('Фестиваль осени · U9')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Состав и игры события'));
+    await screen.findByText('Сидоров Ян');
+    fireEvent.click(screen.getByText('Добавить всю группу U9'));
+    await waitFor(() => expect(fake.rpcCalls('event_roster_add')).toHaveLength(1));
+    expect(await screen.findByText('Иванов Пётр')).toBeInTheDocument();
+  });
+
+  it('создание события уходит в базу без взноса от тренера', async () => {
+    fake.db.matches = [];
+    fake.rpc.event_list = () => [];
+    fake.rpc.event_create = () => 'e-new';
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText('Новое событие'));
+    fireEvent.change(await screen.findByLabelText('Название'), { target: { value: 'Чемпионат 2' } });
+    expect(screen.queryByLabelText(/Взнос/)).toBeNull();
+    fireEvent.click(screen.getByText('Создать событие'));
+    await waitFor(() => expect(fake.rpcCalls('event_create')).toHaveLength(1));
+    expect(fake.rpcCalls('event_create')[0]).toMatchObject({ k: 'championship', tm: 'U9', nm: 'Чемпионат 2', fee: null });
   });
 });
