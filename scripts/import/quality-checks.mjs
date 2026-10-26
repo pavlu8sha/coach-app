@@ -59,11 +59,14 @@ const clubSessionIds = data => {
   return new Set(arr(data.sessions).filter(s => groupIds.has(s.group_id)).map(s => s.id));
 };
 
+// Команды матчей без группы: U12 играла только на Newton cup, записанном как матч (решение владельца, #172)
+export const TEAMS_WITHOUT_GROUP = ['U12'];
+
 export function checkMatchTeams(data = {}) {
   // как в can_see_team (миграция 0048): команда = название группы или название без суффикса -A/-B/-C
   const names = new Set(clubGroups(data).flatMap(g => [normalizeName(g.name), normalizeName(g.name).replace(/-[abc]$/, '')]).filter(Boolean));
   const items = clubMatches(data)
-    .filter(m => !names.has(normalizeName(m.team)))
+    .filter(m => !names.has(normalizeName(m.team)) && !TEAMS_WITHOUT_GROUP.map(normalizeName).includes(normalizeName(m.team)))
     .map(m => `${matchText(m)}: команда «${m.team || ''}» не совпадает с названием группы клуба`);
   return issue(
     'match-team',
