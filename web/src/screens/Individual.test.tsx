@@ -93,3 +93,18 @@ describe('«Индивидуальные»', () => {
     expect(screen.getByLabelText('Дата')).toBeDisabled();
   });
 });
+
+describe('«Индивидуальные»: сводка как в прежнем приложении', () => {
+  it('над списком видна сводка «Должники», сумма оплаты у занятия и копирование списка записавшихся', async () => {
+    seed();
+    const writes: string[] = [];
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: (t: string) => { writes.push(t); return Promise.resolve(); } }, configurable: true });
+    render(<Individual />);
+    expect(await screen.findByText('Игроков: 1')).toBeInTheDocument();
+    expect(screen.getByText('100 ₾')).toBeInTheDocument(); // долг по прошедшим
+    expect(screen.getByText('50 ₾')).toBeInTheDocument(); // оплачено на занятии
+    fireEvent.click(await screen.findByText('10.01.2099 12:00 · Индивидуальные'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Скопировать список записавшихся' }));
+    await waitFor(() => expect(writes).toEqual(['1. Иванов Пётр\n2. Сидоров Ян']));
+  });
+});
