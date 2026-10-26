@@ -6,7 +6,7 @@ import More from './More';
 describe('Администратор: «Посмотреть как»', () => {
   it('пункты предпросмотра вызывают смену режима', async () => {
     const calls: string[] = [];
-    render(<More groups={[]} onPreview={r => calls.push(r)} />);
+    render(<More groups={[]} bar={[]} onMenuChanged={() => {}} onPreview={r => calls.push(r)} />);
     fireEvent.click(screen.getByText('Гость'));
     fireEvent.click(screen.getByText('Родитель'));
     fireEvent.click(screen.getByText('Ребёнок'));
