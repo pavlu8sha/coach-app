@@ -1,0 +1,54 @@
+/* Адаптивная вёрстка для планшета и ноутбука. Действует только на широких экранах: телефонный вид (до 768 px) не меняется.
+   Планшет (≥ 768 px): шире колонка, строки и карточки списков в две колонки. Ноутбук (≥ 1100 px): боковое меню слева вместо нижнего,
+   контент до 1040 px, списки в три колонки. Заголовки, поля форм, переключатели и абзацы всегда на всю ширину.
+   Подключается в main.tsx после остальных стилей. */
+
+:root { --cols: 1; }
+
+@media (min-width: 768px) {
+  :root { --cols: 2; }
+  .page, .ks-page { max-width: 880px; padding-left: 24px; padding-right: 24px; }
+  h1 { font-size: 1.75rem; }
+  .two { gap: 12px; }
+  .ks-bottomnav > div { max-width: 880px; }
+
+  /* Страница — сетка: всё на всю ширину, а строки списков, карточки и отметки — в колонках */
+  .page { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); column-gap: 12px; align-content: start; }
+  .page > * { grid-column: 1 / -1; }
+  .page > .ks-row, .page > .ks-card, .page > .ks-mark, .page > .card { grid-column: auto; }
+  /* Разделы внутри страницы (группы должников, команды в статистике) — такая же сетка */
+  .page > section { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); column-gap: 12px; align-content: start; }
+  .page > section > * { grid-column: 1 / -1; }
+  .page > section > .ks-row, .page > section > .ks-card, .page > section > .ks-mark { grid-column: auto; }
+  /* Выбор месяца и группы не растягиваем на всю ширину планшета */
+  .page > .ks-select { max-width: 420px; }
+  /* Явный контейнер списка там, где строки лежат не прямо в странице */
+  .ks-cols { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); column-gap: 12px; align-items: start; }
+}
+/* Экраны входа и «по центру» остаются колонкой */
+@media (min-width: 768px) { .page.center { display: flex; } }
+
+@media (min-width: 1100px) {
+  .page, .ks-page { max-width: 1040px; }
+  /* Меню «Ещё» — короткие карточки, им хватает трёх колонок; остальные списки — две (длинные имена не ломаются) */
+  .page.ks-menu { --cols: 3; }
+  /* Боковое меню вместо нижней панели: закреплено слева, пункты друг под другом */
+  .ks-bottomnav { top: 0; right: auto; bottom: 0; width: 220px; border-top: 0; border-right: 1px solid var(--ks-border); padding: 16px 10px; overflow-y: auto; }
+  .ks-bottomnav > div { display: flex; flex-direction: column; gap: 4px; max-width: none; margin: 0; }
+  .ks-bottomnav button { flex-direction: row; justify-content: flex-start; gap: 12px; min-height: 48px; padding: 8px 14px; border-radius: 12px; font-size: 15px; letter-spacing: 0; text-align: left; }
+  .ks-bottomnav button span { overflow: visible; white-space: normal; }
+  .ks-bottomnav button[aria-current='page'] { background: var(--ks-primary-subtle, rgba(30, 80, 200, 0.1)); }
+  /* Освобождаем место под меню; снизу отступ под панель больше не нужен */
+  body:has(.ks-bottomnav) { padding-left: 220px; }
+  .page { padding-bottom: 32px; }
+  /* Закреплённая снизу панель действий выровнена по контенту, а не по всему экрану */
+  .ks-savebar { left: 220px; bottom: 0; padding-left: 24px; padding-right: 24px; }
+}
+
+/* Планшет/ноутбук с мышью: видимое наведение на строках списков и пунктах меню */
+@media (hover: hover) and (min-width: 768px) {
+  .ks-row:hover { background: var(--ks-primary-subtle, rgba(30, 80, 200, 0.05)); }
+}
+@media (hover: hover) and (min-width: 1100px) {
+  .ks-bottomnav button:hover { background: var(--ks-primary-subtle, rgba(30, 80, 200, 0.06)); }
+}

@@ -5,6 +5,7 @@ import { inTelegram } from './lib/telegram';
 import './ui/tokens.css';
 import './ui/kit.css';
 import './styles.css';
+import './ui/responsive.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

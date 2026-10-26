@@ -40,7 +40,7 @@ export default function More({ groups, onPreview }: { groups: CoachGroup[]; onPr
     );
   }
   return (
-    <main className="page">
+    <main className="page ks-menu">
       <h1>Ещё</h1>
       <p className="ks-label">Деньги</p>
       <ListRow title="Оплаты за месяц" sub={['Кто сколько внёс по группам, быстрый платёж']} onClick={() => setSub('month')} />
