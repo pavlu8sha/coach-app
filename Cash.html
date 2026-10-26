@@ -49,6 +49,7 @@ button{font:inherit;cursor:pointer}
 .fd .amt.neg{color:var(--color-danger-strong)}.fd .amt.rev{color:var(--mute);text-decoration:line-through}
 .res .cnl{min-height:44px}
 h2{scroll-margin-top:12px}
+#fdt{-webkit-appearance:none;appearance:none;width:0;min-width:100%;max-width:100%;display:block;box-sizing:border-box;margin-bottom:8px}
 </style>
 </head>
 <body>
@@ -70,7 +71,8 @@ h2{scroll-margin-top:12px}
   <div class="msg" id="msg" role="status"></div>
   <div id="kinds"></div>
   <div id="progs"></div>
-  <h2>Внесено сегодня</h2>
+  <h2 id="fh">Внесено сегодня</h2>
+  <input type="date" id="fdt" aria-label="Дата платежей">
   <div class="tiles" id="tot"></div>
   <div id="feed"></div>
 </div>
@@ -95,15 +97,21 @@ function orders(cb){
   run('appEquipOrders',[pin],function(r){O=r.orders;eqErr='';cb&&cb()},function(m){O=[];eqErr=m;cb&&cb()});
 }
 function load(){
-  $('dt').value=today();
+  $('dt').value=today();$('fdt').value=today();
   run('appAdminInit',[pin],function(d){
     P=d.players;$('login').hidden=true;$('app').hidden=false;if(!cur)hint();
     $('plist').innerHTML=P.filter(function(p){return p.status=='Активен'}).map(function(p){return'<option value="'+esc(p.name+' ('+p.id+')')+'">'}).join('');
   },fail);
   feed();orders();
 }
+function feedDay(){var v=$('fdt').value;return!v||v>today()?today():v}
+function dmy(v){return v.slice(8,10)+'.'+v.slice(5,7)+'.'+v.slice(0,4)}
 function feed(){
-  run('appTodayPayments',[pin],function(r){
+  var day=feedDay(),isToday=day===today();
+  $('fdt').max=today();$('fdt').value=day;
+  $('fh').textContent=isToday?'Внесено сегодня':'Внесено '+dmy(day);
+  run('appTodayPayments',[pin,isToday?'':day],function(r){
+    if(day!==feedDay())return;   // пока грузилось, выбрали другую дату
     var t=r.totals,sum=t['Наличные']+t['Перевод']+t.other;
     $('tot').innerHTML='<div class="tile"><b>'+money(t['Наличные'])+'</b><span>наличные</span></div><div class="tile"><b>'+money(t['Перевод'])+'</b><span>перевод</span></div><div class="tile"><b>'+money(sum)+'</b><span>всего</span></div>';
     FEED=r.items;
@@ -113,7 +121,7 @@ function feed(){
       var cls=x.neg?' neg':(x.reversed?' rev':'');
       return'<div class="res"><div class="fd"><div class="l"><b>'+esc(x.name)+'</b>'+tag+'<div class="sub">'+esc(x.what+(x.kind?', '+x.kind:'')+(x.method?', '+x.method:''))+'</div></div>'
         +'<span class="amt'+cls+'">'+(x.neg?'−':'+')+money(Math.abs(x.amount))+'</span></div>'+btn+'</div>';
-    }).join(''):'<p class="sub">Сегодня платежей через приложение пока нет.</p>';
+    }).join(''):'<p class="sub">'+(isToday?'Сегодня платежей через приложение пока нет.':'За этот день платежей через приложение нет.')+'</p>';
   },function(m){$('feed').innerHTML='<p class="err">'+esc(m)+'</p>'});
 }
 var reqN=0;
@@ -315,6 +323,7 @@ $('feed').onclick=function(e){
     }});
 };
 $('go').onclick=function(){pin=$('pin').value.trim();if(!pin)return;try{localStorage.setItem('kspin',pin)}catch(e){}load()};
+$('fdt').onchange=function(){if(!this.value)this.value=today();feed()};
 try{pin=localStorage.getItem('kspin')||''}catch(e){}
 if(pin)load();else showLogin('');
 </script>

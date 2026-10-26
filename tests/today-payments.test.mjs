@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 function sheet(rows) { return { getLastRow: () => rows.length + 1, getRange: (r, c, n, m) => ({ getValues: () => rows.slice(r - 2, r - 2 + n).map(x => x.slice(0, m)) }) }; }
 
-function run(extraRows = 0) {
+function run(extraRows = 0, date) {
   let fmt = 0;
   const ctx = { console: { log() {} }, CONFIG: { DRY_RUN: false },
     Utilities: { formatDate: (d) => { fmt++; return d.toISOString().slice(0, 10); } } };
@@ -31,7 +31,7 @@ function run(extraRows = 0) {
     checkAdmin_() {}, adminSS_: () => ({ getSpreadsheetTimeZone: () => 'UTC' }), dbRead_: n => sheets[n] || null,
     indDayStr_: () => '',
   });
-  const r = JSON.parse(JSON.stringify(ctx.appTodayPayments('9')));
+  const r = JSON.parse(JSON.stringify(date === undefined ? ctx.appTodayPayments('9') : ctx.appTodayPayments('9', date)));
   return { r, fmt };
 }
 
@@ -47,4 +47,18 @@ test('300 старых строк за 3 дня: результат тот же,
   assert.deepEqual(b.r.totals, a.r.totals);
   assert.deepEqual(b.r.items.map(x => [x.src, x.amount]).sort(), a.r.items.map(x => [x.src, x.amount]).sort());
   assert.ok(b.fmt - a.fmt <= 3, 'лишних вызовов formatDate: ' + (b.fmt - a.fmt));   // +3 новых дня, а не +300 строк
+});
+
+test('лента за выбранный день: платежи только этого дня, отмена недоступна; будущая дата и мусор — ошибка', () => {
+  const { r } = run(0, '2000-01-01');
+  assert.deepEqual(r.items.map(x => [x.src, x.amount, x.canCancel]), [['sub', 165, false]]);   // Bob за 01.01.2000
+  assert.deepEqual(r.totals, { 'Наличные': 0, 'Перевод': 165, other: 0 });
+  assert.equal(run(0, '').r.items.length, 5);                  // пусто — сегодня, как раньше
+  assert.throws(() => run(0, '2999-01-01'), /в будущем/);
+  assert.throws(() => run(0, '01.01.2000'), /гггг-мм-дд/);
+});
+
+test('лента за прошлый день читает журнал глубже последних 400 строк', () => {
+  const { r } = run(600, '2026-09-01');
+  assert.ok(r.items.length >= 200, 'строк за 01.09: ' + r.items.length);   // каждая третья из 600
 });

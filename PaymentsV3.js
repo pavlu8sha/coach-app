@@ -38,11 +38,16 @@ function appAddPayment(pin, id, row, amount, dateStr, comment, method) {
 // Платежи за сегодня (по дате оплаты): абонемент и экипировка, с итогами по способам.
 // Читаем только хвост журналов: новые записи всегда дописываются в конец.
 // Замер (PerfLog.js): обёртка не меняет результат; при PERF_LOG = false ничего не пишет
-function appTodayPayments(pin) { return perfSpan_('appTodayPayments', function () { return appTodayPayments0_(pin); }); }
-function appTodayPayments0_(pin) {
+// date — «гггг-мм-дд»: платежи за этот день (по дате платежа); пусто — сегодня. Отмена платежа доступна только в ленте за сегодня.
+function appTodayPayments(pin, date) { return perfSpan_('appTodayPayments', function () { return appTodayPayments0_(pin, date); }); }
+function appTodayPayments0_(pin, date) {
   checkAdmin_(pin);
   // журналы оплат лежат в админ-файле: даты берём в его часовом поясе (файл посещаемости в UTC сдвигает дату на сутки)
   var ss = adminSS_(), tz = ss.getSpreadsheetTimeZone(), td = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+  var want = String(date || '') || td;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(want)) throw new Error('Дата в формате гггг-мм-дд');
+  if (want > td) throw new Error('Дата не может быть в будущем');
+  var isToday = want === td;
   var out = [], tot = { 'Наличные': 0, 'Перевод': 0, other: 0 }, rev = {};
   // Дата → «гггг-мм-дд» в поясе AdminApp. Результат зависит только от момента времени, а дней в журналах мало,
   // поэтому запоминаем по getTime(): Utilities.formatDate вызывается один раз на день, а не на каждую строку.
@@ -52,10 +57,12 @@ function appTodayPayments0_(pin) {
     var k = v.getTime();
     return dayMemo.hasOwnProperty(k) ? dayMemo[k] : (dayMemo[k] = Utilities.formatDate(v, tz, 'yyyy-MM-dd'));
   }
+  // за сегодня хватает последних 400 строк журнала, за прошлый день читаем глубже
+  var DEPTH = isToday ? 400 : 3000;
   function tail(sh, cols) {
     var last = sh ? sh.getLastRow() : 0;
     if (last < 2) return { from: 2, rows: [] };
-    var from = Math.max(2, last - 399);
+    var from = Math.max(2, last - DEPTH + 1);
     return { from: from, rows: sh.getRange(from, 1, last - from + 1, cols).getValues() };
   }
   var st = tail(dbRead_(SUB_SHEET), 10), et = tail(dbRead_(PAY_SHEET), 9), m;
@@ -68,15 +75,15 @@ function appTodayPayments0_(pin) {
   function add(r, what, kind, method, amt, src, row) {
     if (tot.hasOwnProperty(method)) tot[method] += amt; else tot.other += amt;
     var done = amt > 0 && !!rev[src + '|' + row];
-    var can = amt > 0 && !done && (src === 'eq' || kind === 'Оплата' || kind === 'Частичный');
+    var can = isToday && amt > 0 && !done && (src === 'eq' || kind === 'Оплата' || kind === 'Частичный');
     out.push({ t: r[0] instanceof Date ? r[0].getTime() : 0, name: String(r[3]), what: what, kind: kind, method: method,
       amount: amt, src: src, row: row, canCancel: can, reversed: done, neg: amt < 0 });
   }
   st.rows.forEach(function (r, i) {
-    if (day(r[1]) === td) add(r, 'Абонемент ' + r[4] + ', ' + r[5], String(r[7]), String(r[9] || ''), Number(r[6]) || 0, 'sub', st.from + i);
+    if (day(r[1]) === want) add(r, 'Абонемент ' + r[4] + ', ' + r[5], String(r[7]), String(r[9] || ''), Number(r[6]) || 0, 'sub', st.from + i);
   });
   et.rows.forEach(function (r, i) {
-    if (day(r[1]) === td) add(r, String(r[4]), '', String(r[8] || ''), Number(r[6]) || 0, 'eq', et.from + i);
+    if (day(r[1]) === want) add(r, String(r[4]), '', String(r[8] || ''), Number(r[6]) || 0, 'eq', et.from + i);
   });
   var it = tail(dbRead_(IND_LOG), 7);
   var xt = tail(dbRead_(EXTRA_LOG), 7);
@@ -84,7 +91,7 @@ function appTodayPayments0_(pin) {
     var amt = Number(r[3]) || 0;
     if (!amt) return; // записи, снятия, создание тренировки без денег не показываем
     var d = r[0] instanceof Date ? day(r[0]) : indDayStr_(r[0]);
-    if (d !== td) return;
+    if (d !== want) return;
     var m3 = /^(\d{2}\.\d{2})\|/.exec(String(r[1]));
     var method = String(r[4] || '');
     if (tot.hasOwnProperty(method)) tot[method] += amt; else tot.other += amt;
@@ -95,7 +102,7 @@ function appTodayPayments0_(pin) {
     var amt = Number(r[3]) || 0;
     if (!amt) return; // записи и снятия без денег не показываем
     var d = r[0] instanceof Date ? day(r[0]) : indDayStr_(r[0]);
-    if (d !== td) return;
+    if (d !== want) return;
     var m2 = /\|(\d{4})-(\d{2})-(\d{2}) (\d{2}:\d{2})( gk)?$/.exec(String(r[1]));
     var what = m2 ? (m2[5] ? 'Вратарские ' : 'Индивидуальное ') + m2[3] + '.' + m2[2] + ' ' + m2[4] : 'Индивидуальное';
     var method = String(r[4] || '');
