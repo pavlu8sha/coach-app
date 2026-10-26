@@ -310,8 +310,8 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, onBack }: { groups
       </div>
       </>
       {msg && <p className={msg.ok ? 'ks-ok' : 'error'}>{msg.text}</p>}
-      {admin && feeMode && savedId && (
-        <EventFees mode="match" eventId={savedId} reloadKey={reload} onChanged={() => undefined} addable={players.filter(p => line(p.id).played).map(p => ({ id: p.id, name: p.full_name }))} />
+      {feeMode && savedId && (
+        <EventFees mode="match" coach={!admin} eventId={savedId} reloadKey={reload} onChanged={() => undefined} addable={players.filter(p => line(p.id).played).map(p => ({ id: p.id, name: p.full_name }))} />
       )}
       {!native && (
         <button type="button" className="ks-btn" disabled={busy} onClick={() => void save()}>

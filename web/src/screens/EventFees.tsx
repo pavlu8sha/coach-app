@@ -16,7 +16,7 @@ const API = {
 
 // Взносы события или матча (только администратор): сумма, оплата одному или нескольким со способом и датой, скидка, отмена оплаты.
 // Для матча участников взноса добавляют из состава (addable): сумма берётся из поля «Взнос с игрока».
-export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event', addable = [] }: { eventId: string; reloadKey: number; onChanged: () => void; mode?: 'event' | 'match'; addable?: { id: string; name: string }[] }) {
+export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event', addable = [], coach = false }: { eventId: string; reloadKey: number; onChanged: () => void; mode?: 'event' | 'match'; coach?: boolean; addable?: { id: string; name: string }[] }) {
   const api = API[mode];
   const [fees, setFees] = useState<FeeRow[] | null>(null);
   const [pays, setPays] = useState<PayRow[]>([]);
@@ -117,9 +117,9 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
                 <input type="checkbox" checked={sel.has(f.player_id)} onChange={() => toggle(f.player_id)} aria-label={`Платит: ${f.full_name}`} />
                 <span>Платит</span>
               </label>
-              <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 36 }} aria-label={`Скидка: ${f.full_name}`} onClick={() => { setDiscountFor(discountFor === f.player_id ? null : f.player_id); setDiscount(String(f.due)); }}>Скидка</button>
+              {!coach && <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 36 }} aria-label={`Скидка: ${f.full_name}`} onClick={() => { setDiscountFor(discountFor === f.player_id ? null : f.player_id); setDiscount(String(f.due)); }}>Скидка</button>}
             </div>}
-            {discountFor === f.player_id && (
+            {!coach && discountFor === f.player_id && (
               <div className="ks-line" style={{ marginBottom: 8 }}>
                 <input className="ks-input" inputMode="decimal" aria-label="Сумма к оплате" value={discount} onChange={e => setDiscount(e.target.value.replace(/[^\d.]/g, '').slice(0, 7))} />
                 <button type="button" className="ks-btn" style={{ width: 'auto' }} disabled={busy || discount === ''} onClick={() => void run(supabase.rpc(api.discount, { [api.key]: eventId, pid: f.player_id, due: Number(discount) }), 'Сумма к оплате изменена.', () => setDiscountFor(null))}>Применить</button>
@@ -155,7 +155,7 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
               key={p.id}
               title={`${p.full_name} · ${money(p.amount)}`}
               sub={[`${fmtDate(p.paid_on)}${p.method ? ' · ' + p.method : ''}${p.comment ? ' · ' + p.comment : ''}`]}
-              end={p.amount > 0 && !p.cancelled ? <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 36 }} aria-label={`Отменить оплату: ${p.full_name}`} disabled={busy} onClick={() => { if (window.confirm('Отменить эту оплату?')) void run(supabase.rpc(api.cancel, { payid: p.id }), 'Оплата отменена.'); }}>Отменить</button> : p.cancelled ? <Pill tone="neutral">Отменён</Pill> : undefined}
+              end={!coach && p.amount > 0 && !p.cancelled ? <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 36 }} aria-label={`Отменить оплату: ${p.full_name}`} disabled={busy} onClick={() => { if (window.confirm('Отменить эту оплату?')) void run(supabase.rpc(api.cancel, { payid: p.id }), 'Оплата отменена.'); }}>Отменить</button> : p.cancelled ? <Pill tone="neutral">Отменён</Pill> : undefined}
             />
           ))}
         </>
