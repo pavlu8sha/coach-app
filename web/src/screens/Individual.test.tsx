@@ -73,6 +73,18 @@ describe('«Индивидуальные»', () => {
     expect(await screen.findByText('Сначала отмените оплату.')).toBeInTheDocument();
   });
 
+  it('тип занятия меняется в форме: уходит в ind_edit_session, заголовок обновляется', async () => {
+    seed();
+    fake.rpc.ind_edit_session = () => null;
+    render(<Individual />);
+    fireEvent.click(await screen.findByText('10.01.2099 12:00 · Индивидуальные'));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Вратари' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() => expect(fake.rpcCalls('ind_edit_session')).toHaveLength(1));
+    expect(fake.rpcCalls('ind_edit_session')[0]).toMatchObject({ s: 's1', gk: true });
+    expect(await screen.findByRole('heading', { name: '10.01.2099 12:00 · Вратари' })).toBeInTheDocument();
+  });
+
   it('у занятия с оплатой нельзя удалить, дата и время закрыты', async () => {
     seed();
     render(<Individual />);
