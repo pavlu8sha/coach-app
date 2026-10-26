@@ -185,7 +185,7 @@ function gnStats_(games, trainings, month) {
 
 // Для админа: игры и статистика за месяц
 function appGamesData(pin, month) {
-  checkAdmin_(pin);
+  checkPin_(pin);
   var games = gnParseGames_(gnValues_('Игры')).matches;
   var trainings = gnParseTrainings_(gnTrainingsRows_());
   var m = month || '';
@@ -338,7 +338,7 @@ function appTrainingAdd(pin, o) {
 
 // Месяцы, по которым есть игры или тренировки, по возрастанию
 function appAccountMonths(pin) {
-  checkAdmin_(pin);
+  checkPin_(pin);
   var set = {};
   gnParseGames_(gnValues_('Игры')).matches.forEach(function (m) { set[gnMonthOf_(m.date)] = 1; });
   gnTrainingsRows_().slice(1).forEach(function (r) { if (/^\d{2}\.\d{2}\.\d{4}$/.test(r[0])) set[gnMonthOf_(r[0])] = 1; });
@@ -350,35 +350,14 @@ function appAccountMonths(pin) {
 
 // Тренировки месяца для таблицы на странице
 function appTrainingsList(pin, month) {
-  checkAdmin_(pin);
-  return gnParseTrainings_(gnTrainingsRows_()).filter(function (t) {
-    return !month || gnMonthOf_(t.date) === month;
-  });
-}
-
-// ---- Посещаемость тренеров: только просмотр, для тренера и администратора (код тренера подходит) ----
-// Часы не отдаются: они нужны для расчётов администратору (страница «Учёт», только админ).
-
-// Месяцы, в которых есть тренировки, по возрастанию
-function appTrainerMonths(pin) {
-  checkPin_(pin);
-  var set = {};
-  gnTrainingsRows_().slice(1).forEach(function (r) { if (/^\d{2}\.\d{2}\.\d{4}$/.test(r[0])) set[gnMonthOf_(r[0])] = 1; });
-  return Object.keys(set).filter(Boolean).sort(function (a, b) {
-    var x = a.split('.'), y = b.split('.');
-    return (x[1] + x[0]) < (y[1] + y[0]) ? -1 : ((x[1] + x[0]) > (y[1] + y[0]) ? 1 : 0);
-  });
-}
-
-// Тренировки месяца: дата, тренер, группа, время, место, проведена ли
-function appTrainerAttendance(pin, month) {
   checkPin_(pin);
   return gnParseTrainings_(gnTrainingsRows_()).filter(function (t) {
     return !month || gnMonthOf_(t.date) === month;
-  }).map(function (t) {
-    return { date: t.date, trainer: t.trainer, group: t.group, type: t.type, start: t.start, end: t.end, location: t.location, held: t.held };
   });
 }
+
+// Чтение «Учёта тренеров» (месяцы, тренировки с часами, игры со штатом, статистика, расписание дня) открыто и тренеру (checkPin_):
+// решение Павла 26.10. Изменение (добавить тренировку, штат матча, подтвердить день, добавить тренера) — только checkAdmin_.
 
 // ---- Справочники для форм ----
 
@@ -446,7 +425,7 @@ function gnGroupOf_(t, wd) {
 // Замер (PerfLog.js): обёртка не меняет результат; при PERF_LOG = false ничего не пишет
 function appDailySchedule(pin, date) { return perfSpan_('appDailySchedule', function () { return appDailySchedule0_(pin, date); }); }
 function appDailySchedule0_(pin, date) {
-  checkAdmin_(pin);
+  checkPin_(pin);
   date = gnDmy_(date);
   if (!/^\d{2}\.\d{2}\.\d{4}$/.test(date)) throw new Error('Дата в формате дд.мм.гггг');
   var wd = gnWeekday_(date);
