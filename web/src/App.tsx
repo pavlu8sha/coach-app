@@ -103,7 +103,7 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
         setAllGroups(isAdm ? all : [...all.filter(g => mineIds.has(g.id)), ...all.filter(g => !mineIds.has(g.id))]);
       }
       setAdmin(isAdm);
-      if (isAdm) setTab('players');
+      if (isAdm) setTab('sessions');
       else if (mineGroups.length) setTab('sessions'); // тренер — сразу на занятиях
       else if ((mine.count ?? 0) === 0 && r.data?.chosen_role === 'child') setTab('home');
       else if ((mine.count ?? 0) === 0 && r.data?.chosen_role && r.data.chosen_role !== 'parent') setTab('about');
@@ -209,9 +209,9 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
         items={
           admin
             ? [
-                { value: 'money', label: 'Оплаты', icon: 'wallet' },
+                { value: 'sessions', label: 'Отметки', icon: 'calendar' },
                 { value: 'players', label: 'Игроки', icon: 'users' },
-                { value: 'sessions', label: 'Занятия', icon: 'calendar' },
+                { value: 'money', label: 'Оплаты', icon: 'wallet' },
                 { value: 'cmatches', label: 'Матчи', icon: 'trophy' },
                 { value: 'more', label: 'Ещё', icon: 'more' },
               ]
