@@ -208,11 +208,10 @@ function Roster({ gid, date }: { gid: string; date: string }) {
             <button type="button" className="ks-btn secondary sm" onClick={() => setAll('present')}>Все были</button>
             <button type="button" className="ks-btn secondary sm" disabled={Object.keys(marks).length === 0} onClick={() => setAll(null)}>Сбросить</button>
           </div>
-          <p className="muted note">«Уваж.» — пропуск по уважительной причине (баллы не снижаются).</p>
           {players.map(p => (
             <div className="ks-mark" key={p.id} role="group" aria-label={`Посещаемость: ${p.full_name}`}>
               <b>{p.full_name}</b>
-              {([['present', 'Был'], ['absent', 'Не был'], ['excused', 'Уваж.']] as [Status, string][]).map(([st, label]) => (
+              {([['present', 'Был'], ['absent', 'Не был']] as [Status, string][]).map(([st, label]) => (
                 <button key={st} type="button" className={`mk ${st}${marks[p.id] === st ? ' on' : ''}`} aria-pressed={marks[p.id] === st} onClick={() => set(p.id, st)}>
                   {label}
                 </button>

@@ -46,7 +46,19 @@ describe('«Оплаты за месяц»', () => {
     expect(await screen.findByText('100 ₾ из 165 ₾')).toBeInTheDocument();
     expect(screen.getByText('0 ₾ из 165 ₾')).toBeInTheDocument();
     expect(screen.getByText('Скидка')).toBeInTheDocument();
-    expect(screen.getByText(/Оплатили 1 из 3 · внесено 150 ₾/)).toBeInTheDocument();
+    expect(screen.getAllByText('1 из 3')).toHaveLength(2); // плитка «Оплатили» и заголовок группы
+    expect(screen.getByText(/внесено 150 ₾ из 495 ₾/)).toBeInTheDocument(); // итог группы
+  });
+
+  it('«Только должники» прячет оплативших, поиск ищет по фамилии', async () => {
+    seed();
+    render(<MonthPayments />);
+    await screen.findByText('100 ₾ из 165 ₾');
+    fireEvent.click(screen.getByRole('switch', { name: 'Только должники' }));
+    expect(screen.queryByText('Скидка')).toBeNull();
+    fireEvent.change(screen.getByLabelText('Поиск по ФИ'), { target: { value: 'сидор' } });
+    expect(screen.getByText('Сидоров Ян')).toBeInTheDocument();
+    expect(screen.queryByText('Иванов Пётр')).toBeNull();
   });
 
   it('быстрый платёж: сумма по умолчанию — остаток, запись в журнал', async () => {
