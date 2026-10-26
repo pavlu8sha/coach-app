@@ -43,6 +43,8 @@ select * from (values
   ('0055_match_team_base_name',    pg_get_functiondef(to_regprocedure('save_match(uuid,uuid,date,text,integer,integer,jsonb)')) like '%regexp_replace%'),
   ('0056_coach_ind_marks',         to_regprocedure('ind_roster_list(date,date)') is not null),
   ('0057_coach_extra_marks',       to_regprocedure('extra_roster_list(date,date)') is not null),
-  ('0058_parent_dues',             to_regprocedure('parent_dues()') is not null)
+  ('0058_parent_dues',             to_regprocedure('parent_dues()') is not null),
+  ('0059_payment_for_month',       exists (select 1 from information_schema.columns where table_name = 'payments' and column_name = 'pay_month')),
+  ('0060_event_roster_stats_kind', to_regprocedure('match_stats(date,date,text)') is not null)
 ) as t(migration, applied)
 order by migration;

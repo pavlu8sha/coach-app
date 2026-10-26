@@ -38,7 +38,10 @@ function query(table: string): any {
 
   const run = () => {
     if (fake.errors[table]) return { data: null, error: { message: fake.errors[table] } };
-    const rows = fake.db[table] ?? [];
+    // как в базе: pay_month — вычисляемый месяц платежа (for_month или месяц paid_on)
+    const rows = op === 'select' && table === 'payments'
+      ? (fake.db[table] ?? []).map((r: any) => ({ pay_month: r.for_month ?? (r.paid_on ? String(r.paid_on).slice(0, 7) + '-01' : undefined), ...r }))
+      : fake.db[table] ?? [];
     const rowsOf = (p: any) => (Array.isArray(p) ? p : [p]);
     if (op === 'insert') {
       fake.calls.push({ kind: 'insert', name: table, args: payload });

@@ -31,13 +31,13 @@ export default function Payments() {
       if (links.error) return setError(links.error.message);
       const list: Kid[] = ((links.data ?? []) as any[]).filter(l => l.players).map(l => ({ id: l.players.id as string, name: l.players.full_name as string, months: [] }));
       if (list.length) {
-        const pay = await supabase.from('payments').select('player_id, amount, paid_on').in('player_id', list.map(k => k.id)).order('paid_on', { ascending: false }).limit(1000);
+        const pay = await supabase.from('payments').select('player_id, amount, paid_on, pay_month').in('player_id', list.map(k => k.id)).order('paid_on', { ascending: false }).limit(1000);
         if (pay.error) return setError(pay.error.message);
         for (const k of list) {
           const byMonth = new Map<string, number>();
-          for (const p of (pay.data ?? []) as { player_id: string; amount: number | string; paid_on: string }[]) {
+          for (const p of (pay.data ?? []) as { player_id: string; amount: number | string; paid_on: string; pay_month?: string | null }[]) {
             if (p.player_id !== k.id) continue;
-            const month = p.paid_on.slice(0, 7) + '-01';
+            const month = p.pay_month ?? p.paid_on.slice(0, 7) + '-01';
             byMonth.set(month, (byMonth.get(month) ?? 0) + Number(p.amount));
           }
           k.months = [...byMonth.entries()].map(([month, sum]) => ({ month, sum })).sort((a, b) => (a.month < b.month ? 1 : -1));

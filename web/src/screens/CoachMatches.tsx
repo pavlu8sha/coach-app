@@ -147,6 +147,9 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, onBack }: { groups
   const [savedId, setSavedId] = useState<string | null>(match?.id ?? null);
   const [q, setQ] = useState('');
   const [found, setFound] = useState<Player[]>([]);
+  // после первого сохранения в составе остаются только сыгравшие; остальных можно показать кнопкой, чтобы добавить забытого
+  const [shownIds, setShownIds] = useState<string[] | null>(null);
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     setPlayers(null);
@@ -189,6 +192,8 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, onBack }: { groups
       }
       setLines(init);
       setBestId(best);
+      const playedIds = Object.entries(init).filter(([, l]) => l.played).map(([id]) => id);
+      setShownIds(playedIds.length ? playedIds : null);
       setPlayers(list);
     })();
     // состав подгружается при смене группы и при повторной попытке; сохранённый матч не перезагружаем из-за savedId
@@ -230,6 +235,9 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, onBack }: { groups
     setBusy(false);
     if (r.error) return setMsg({ ok: false, text: coachError(r.error.message) });
     setSavedId(r.data as string);
+    const playedNow = Object.entries(lines).filter(([, l]) => l.played).map(([id]) => id);
+    setShownIds(playedNow.length ? playedNow : null);
+    setShowAll(false);
     setMsg({ ok: true, text: 'Матч сохранён. Баллы за матч начислены автоматически.' });
   };
   const remove = async () => {
@@ -269,7 +277,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, onBack }: { groups
       {players.length === 0 ? (
         <EmptyState icon="users" title="В составе пока никого" text="Найдите игрока ниже, чтобы добавить его в состав." />
       ) : (
-        players.map(p => (
+        (shownIds && !showAll ? players.filter(p => shownIds.includes(p.id) || line(p.id).played) : players).map(p => (
           <div className="ks-card" key={p.id}>
             <label className="ks-check">
               <input type="checkbox" checked={line(p.id).played} onChange={e => setLine(p.id, { played: e.target.checked, goals: e.target.checked ? line(p.id).goals : 0 })} />
@@ -289,12 +297,15 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, onBack }: { groups
           </div>
         ))
       )}
+      {shownIds && !showAll && players.some(p => !shownIds.includes(p.id) && !line(p.id).played) && (
+        <button type="button" className="ks-btn secondary" onClick={() => setShowAll(true)}>Показать всех игроков команды ({players.filter(p => !shownIds.includes(p.id) && !line(p.id).played).length})</button>
+      )}
       <>
       <h3>Добавить в состав</h3>
       <input className="ks-input" value={q} onChange={e => setQ(e.target.value)} placeholder="Фамилия или имя игрока (от 2 букв)" aria-label="Найти игрока" />
       <div style={{ marginTop: 8, marginBottom: 16, display: 'grid', gap: 8 }}>
       {found.filter(f => !players.some(p => p.id === f.id)).map(f => (
-        <ListRow key={f.id} avatar={f.full_name} title={f.full_name} end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} onClick={() => { setPlayers(list => [...(list ?? []), f].sort((a, b) => a.full_name.localeCompare(b.full_name))); setQ(''); setFound([]); }}>Добавить</button>} />
+        <ListRow key={f.id} avatar={f.full_name} title={f.full_name} end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} onClick={() => { setPlayers(list => [...(list ?? []), f].sort((a, b) => a.full_name.localeCompare(b.full_name))); setShownIds(ids => (ids ? [...ids, f.id] : ids)); setQ(''); setFound([]); }}>Добавить</button>} />
       ))}
       </div>
       </>

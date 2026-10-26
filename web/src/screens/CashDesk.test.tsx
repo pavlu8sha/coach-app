@@ -88,7 +88,7 @@ describe('«Приём оплат»', () => {
     expect(await screen.findByText(/Долгов нет/)).toBeInTheDocument(); // скидка и что-то внесено — месяц закрыт
   });
 
-  it('оплата вперёд: следующий месяц виден, в сумму долга не входит, платёж датируется 1-м числом', async () => {
+  it('оплата вперёд: следующий месяц виден, в сумму долга не входит, платёж с реальной датой и месяцем-назначением', async () => {
     seed();
     fake.db.equipment_orders = [];
     fake.db.individual_bookings = [];
@@ -103,7 +103,7 @@ describe('«Приём оплат»', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Перевод' }));
     fireEvent.click(within(c).getByRole('button', { name: 'Записать платёж' }));
     await waitFor(() => expect(fake.writes('payments', 'insert')).toHaveLength(1));
-    expect(fake.writes('payments', 'insert')[0]).toMatchObject({ player_id: 'p1', amount: 165, paid_on: next, method: 'Перевод' });
+    expect(fake.writes('payments', 'insert')[0]).toMatchObject({ player_id: 'p1', amount: 165, paid_on: today(), for_month: next, method: 'Перевод' });
   });
 
   it('«Внесено» за выбранную дату: платежи абонемента и сборов, итог по дню', async () => {
@@ -135,7 +135,7 @@ describe('«Приём оплат»', () => {
     expect(fake.writes('payments', 'insert')).toHaveLength(0);
   });
 
-  it('дата абонемента вне месяца отклоняется без записи; «Внесено сегодня» показывает итог', async () => {
+  it('будущая дата платежа отклоняется без записи; «Внесено сегодня» показывает итог', async () => {
     seed();
     fake.db.payments = [{ id: 'x1', player_id: 'p1', amount: 50, paid_on: today(), method: 'Наличные', players: { full_name: 'Иванов Пётр' } }];
     render(<CashDesk />);
@@ -146,9 +146,9 @@ describe('«Приём оплат»', () => {
     await screen.findByText(/Внесено 50 ₾ из 165 ₾/);
     const sub = card(/Внесено 50 ₾ из 165 ₾/);
     fireEvent.click(within(sub).getByRole('button', { name: 'Принять оплату' }));
-    fireEvent.change(within(sub).getByLabelText('Дата'), { target: { value: '2020-01-05' } });
+    fireEvent.change(within(sub).getByLabelText('Дата'), { target: { value: '2999-01-05' } });
     fireEvent.click(within(sub).getByRole('button', { name: 'Записать платёж' }));
-    expect(await screen.findByText(/Дата должна быть в этом месяце/)).toBeInTheDocument();
+    expect(await screen.findByText(/Дата платежа не может быть в будущем/)).toBeInTheDocument();
     expect(fake.writes('payments', 'insert')).toHaveLength(0);
   });
 });

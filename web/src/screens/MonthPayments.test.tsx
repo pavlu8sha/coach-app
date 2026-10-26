@@ -82,7 +82,7 @@ describe('«Оплаты за месяц»', () => {
     expect(fake.writes('payments', 'insert')[0]).toMatchObject({ player_id: 'p1', amount: 65, method: 'Наличные' });
   });
 
-  it('нулевая сумма и дата вне месяца отклоняются без записи', async () => {
+  it('нулевая сумма и будущая дата отклоняются без записи', async () => {
     seed();
     render(<MonthPayments />);
     await screen.findByText('100 ₾ из 165 ₾');
@@ -92,10 +92,10 @@ describe('«Оплаты за месяц»', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Записать платёж' }));
     expect(await screen.findByText('Введите сумму (не ноль).')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(/Сумма/), { target: { value: '10' } });
-    fireEvent.change(screen.getByLabelText('Дата'), { target: { value: '2020-01-05' } });
+    fireEvent.change(screen.getByLabelText('Дата'), { target: { value: '2999-01-05' } });
     fireEvent.change(screen.getByLabelText(/^Способ/), { target: { value: 'Наличные' } });
     fireEvent.click(screen.getByRole('button', { name: 'Записать платёж' }));
-    expect(await screen.findByText(/Дата должна быть в выбранном месяце/)).toBeInTheDocument();
+    expect(await screen.findByText(/Дата платежа не может быть в будущем/)).toBeInTheDocument();
     expect(fake.writes('payments', 'insert')).toHaveLength(0);
   });
 });

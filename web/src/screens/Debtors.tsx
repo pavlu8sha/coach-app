@@ -7,7 +7,7 @@ import { Failure, Loading } from './Message';
 interface Row { group_name: string; player_id: string; full_name: string; tariff: number; paid: number; debt: number }
 interface Disc { id: string; player_id: string; players: { full_name: string } | null }
 
-const METHODS = ['Наличные', 'Перевод', 'Другое'];
+const METHODS = ['Наличные', 'Перевод'];
 const DEFAULT_TPL = 'Добрый день\nУ вас не оплачен абонемент за {месяц}';
 const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
 const SEASON_START = '2026-09-01'; // как debt_start() в базе
@@ -195,10 +195,9 @@ export default function Debtors() {
 
 // Платёж прямо из строки должника: сумма по умолчанию — долг (меньше — частичный, останется остаток); дата в выбранном месяце.
 function PayInline({ playerId, month, debt, onSaved }: { playerId: string; month: string; debt: number; onSaved: () => void }) {
-  const isCurrent = month === monthIso(new Date());
   const [amount, setAmount] = useState(String(debt));
   const [method, setMethod] = useState('');
-  const [date, setDate] = useState(isCurrent ? today() : month);
+  const [date, setDate] = useState(today());
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const num = Number(amount.replace(',', '.'));
@@ -206,11 +205,11 @@ function PayInline({ playerId, month, debt, onSaved }: { playerId: string; month
   const save = async () => {
     if (!method) return setErr('Выберите способ оплаты.');
     if (!Number.isFinite(num) || num <= 0 || num > 100000) return setErr('Введите сумму больше нуля.');
-    if (date > today() || date < month || date >= nextMonth()) return setErr('Дата должна быть в этом месяце и не в будущем: оплата считается по месяцу даты.');
+    if (date > today()) return setErr('Дата платежа не может быть в будущем.');
     setBusy(true);
     setErr(null);
     const me = (await supabase.auth.getUser()).data.user?.id ?? null;
-    const r = await supabase.from('payments').insert({ player_id: playerId, amount: Math.round(num * 100) / 100, paid_on: date, method, recorded_by: me });
+    const r = await supabase.from('payments').insert({ player_id: playerId, amount: Math.round(num * 100) / 100, paid_on: date, for_month: month, method, recorded_by: me });
     setBusy(false);
     if (r.error) return setErr(r.error.message);
     onSaved();
@@ -219,7 +218,7 @@ function PayInline({ playerId, month, debt, onSaved }: { playerId: string; month
     <div style={{ marginTop: 8 }}>
       <label className="field">Сумма, ₾ (меньше долга — частичный платёж, останется остаток)<input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /></label>
       <div className="two">
-        <label className="field">Дата<input type="date" value={date} min={month} max={today()} onChange={e => setDate(e.target.value)} /></label>
+        <label className="field">Дата<input type="date" value={date} max={today()} onChange={e => setDate(e.target.value)} /></label>
         <label className="field">Способ<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>
       </div>
       {err && <p className="error">{err}</p>}
