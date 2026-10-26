@@ -93,13 +93,13 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
               sub={[`К оплате ${money(f.due)} · оплачено ${money(f.paid)}`]}
               end={f.due === 0 ? <Pill tone="neutral">Без взноса</Pill> : left <= 0 ? <Pill tone="success">Оплачен</Pill> : <Pill tone="danger">Долг {money(left)}</Pill>}
             />
-            <div className="ks-line" style={{ marginBottom: 8 }}>
+            {left > 0 && <div className="ks-line" style={{ marginBottom: 8 }}>
               <label className="ks-check">
                 <input type="checkbox" checked={sel.has(f.player_id)} onChange={() => toggle(f.player_id)} aria-label={`Платит: ${f.full_name}`} />
                 <span>Платит</span>
               </label>
               <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 36 }} aria-label={`Скидка: ${f.full_name}`} onClick={() => { setDiscountFor(discountFor === f.player_id ? null : f.player_id); setDiscount(String(f.due)); }}>Скидка</button>
-            </div>
+            </div>}
             {discountFor === f.player_id && (
               <div className="ks-line" style={{ marginBottom: 8 }}>
                 <input className="ks-input" inputMode="decimal" aria-label="Сумма к оплате" value={discount} onChange={e => setDiscount(e.target.value.replace(/[^\d.]/g, '').slice(0, 7))} />
