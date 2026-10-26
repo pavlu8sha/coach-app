@@ -29,7 +29,8 @@ summary{cursor:pointer;list-style:none;min-height:44px;display:flex;flex-directi
 .row input[type=checkbox]{width:24px;height:24px;min-height:0;flex:none}
 .row select{width:96px;min-height:40px;padding:6px 8px}
 .pr{border-top:1px solid var(--line);padding:8px 0;font-size:14px}
-.prh{display:flex;justify-content:space-between;gap:8px;font-size:15px}
+.prh{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:15px}
+.chk{display:flex;gap:10px;align-items:center;min-height:44px;margin:0;color:var(--ink);font-size:15px}.chk input{width:22px;height:22px;min-height:0;margin:0;padding:0;flex:none}
 .msg{color:var(--mute);font-size:14px;min-height:20px;margin-top:8px}
 .gform{min-width:0;max-width:100%;padding:3px}.gform input{-webkit-appearance:none;appearance:none;width:100%;min-width:0;max-width:100%;display:block;box-sizing:border-box}
 .sk-row{display:flex;gap:12px;align-items:center;padding:12px 14px;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:8px}
@@ -144,7 +145,7 @@ function openBulk(id){
     +'<button class="btn sec" id="bapply">Применить к выбранным</button><button class="btn sec" id="ball">Выбрать всех</button></div>'
     +ps.map(function(p){
       var left=cur.fee?Math.max(cur.fee-(p.sum||0),0):0;
-      return'<div class="pr bpr" data-p="'+esc(p.p)+'" data-n="'+esc(p.n)+'" data-left="'+left+'"><div class="prh"><label><input type="checkbox" class="bc"> '+esc(p.n)+'</label><span class="err">'+(p.sum?'осталось '+money(left):'не оплатил')+'</span></div>'
+      return'<div class="pr bpr" data-p="'+esc(p.p)+'" data-n="'+esc(p.n)+'" data-left="'+left+'"><div class="prh"><label class="chk"><input type="checkbox" class="bc"><span>'+esc(p.n)+'</span></label><span class="err">'+(p.sum?'осталось '+money(left):'не оплатил')+'</span></div>'
       +'<label>Сумма, ₾</label><input type="number" min="0" step="1" class="ba" value="'+(left||'')+'"><label>Способ</label><select class="bm">'+opts+'</select><label>Дата</label><input type="date" class="bd" value="'+today()+'"></div>';
     }).join('')+'<button class="btn" id="bsave">Сохранить выбранных</button>';
 }
