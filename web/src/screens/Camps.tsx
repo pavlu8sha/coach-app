@@ -15,7 +15,7 @@ interface Part {
 
 const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
 const num = (s: string) => Number(s.replace(',', '.'));
-const METHODS = ['Наличные', 'Перевод', 'Другое'];
+const METHODS = ['Наличные', 'Перевод'];
 const KIND: Record<Pay['kind'], string> = { booking: 'Бронь', payment: 'Оплата', refund: 'Возврат' };
 const errText = (m: string) =>
   m.includes('already registered') ? 'Игрок уже записан на этот сбор.' : m.includes('already cancelled') ? 'Этот платёж уже отменён.' : m.includes('not cancellable') ? 'Этот платёж отменить нельзя.' : m.includes('paid below zero') ? 'Отмена увела бы оплату ниже нуля.' :

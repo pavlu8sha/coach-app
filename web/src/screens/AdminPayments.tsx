@@ -9,7 +9,7 @@ interface Pay { id: string; amount: number; paid_on: string; method: string | nu
 
 const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
 const fmt = (iso: string) => iso.split('-').reverse().join('.');
-const METHODS = ['Наличные', 'Перевод', 'Другое'];
+const METHODS = ['Наличные', 'Перевод'];
 
 // Для администратора: платежи игрока. Журнал платежей только добавляется (даже администратору нельзя менять и удалять записи):
 // ошибку исправляют записью с минусом («Исправление»). Расчёт долга берёт платежи по месяцу даты платежа.

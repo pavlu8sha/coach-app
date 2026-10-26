@@ -10,7 +10,7 @@ interface Price { group_id: string | null; amount: number; valid_from: string; v
 export interface Sub { player_id: string; discount: boolean; written_off: boolean }
 
 export const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
-const METHODS = ['Наличные', 'Перевод', 'Другое'];
+const METHODS = ['Наличные', 'Перевод'];
 export const SEASON_START = '2026-09-01'; // как debt_start() в базе
 export const monthIso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
 export const monthName = (iso: string) => {
