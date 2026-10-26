@@ -151,3 +151,29 @@
 | fix/rls-grants | #37 | 2c667350d4f4445ab72852f08211377b82470657 |
 | fix/sync-month-options | #32 | 64c76e73e61906a13fd8973224854c4e14a765e2 |
 | prep/miniapp-ui | #80 | 888788270443b4b88a4824c8fe56dcf85e672414 |
+
+## Ветки без PR, содержимое которых в master: к удалению (2026-10-26)
+
+19 веток правок интерфейса старого приложения (`design-*`, `fix-*`, `ui017-*`); ≥95% добавленных строк уже в `master`. У веток нет PR, но их коммиты достижимы из `master`, из PR (`refs/pull/*`) и из оставшихся веток, при удалении ничего не теряется. Удаляет владелец (из сессии Claude удаление запрещено, 403). Восстановить ветку: `git push origin <SHA>:refs/heads/<имя>`.
+
+| Ветка | SHA |
+|---|---|
+| design-camp | 76752f27ed429b41f9230967d7ebc7559edd6d00 |
+| design-funnel | 350f61102cf2f7a16909fca619db05eded43a1c4 |
+| design-games | febdbb0844a2c73cd0a44430db8a3d8833c65fdf |
+| design-ind-extra | 7fd54a211565a553afdddc0c41ed50a6d0e5d93a |
+| design-payments-sub | 7d4667ff4212648a5a07de49ed9a9850e052e32b |
+| design-schedule-gap | b6d04304603f3d2594a4952bd8b7ed28b2cb344d |
+| fix-att-footer-embed | 76743022aed2dd3f03b7c9e48875aae106ae9ebe |
+| fix-camp-list | ba1a05718a047badd2f4fdd46a2c0c57c879a455 |
+| fix-card-tabs-overflow | a78dc86192aed676e32c90181cd597ee7af165a3 |
+| fix-login-skeleton | 0536c09c838fb7b4be8cbae62d10e5a2477b722a |
+| fix-more-outside | 83390d699363bdd2accb86781b62048420847a26 |
+| fix-multiselect-height | 44b1465796e690fbd2252f982d90bb4e306eccdd |
+| fix-saving-color | 897a9f15888e4b943e4dcb3154c8b22b4d5b61bb |
+| fix-stats-period | 926d1efb584d0b61a639cf626114ebe9f0d3c641 |
+| fix-subtabs-gap | 79e6020b09e96c59f1c37fe049e9638874304a9b |
+| fix/quality-sub-amounts | 991faf6438482656ba16c4644df01cb5792958dc |
+| ui017-fast-nav | 44809bf296efd990c6e06d358241b9946a097dfc |
+| ui017-shell-all | ee3b2145d974617f5cd42bdfc97a188bd8622339 |
+| ui017-shell-default | 35a85e81e27bdb66078737590d96a9aa967560a1 |
