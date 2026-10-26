@@ -1,6 +1,6 @@
 /* UI-kit Mini App: компоненты по образцу приложения тренеров (UI-013 и др.). Классы с префиксом ks-.
    Цели нажатия ≥ 44 px, статусы различимы не только цветом (текст в пилюле), обе темы. */
-.ks-page { max-width: 560px; margin: 0 auto; padding: 16px 16px max(32px, env(safe-area-inset-bottom)); font-family: var(--ks-font); color: var(--ks-text); }
+.ks-page { max-width: 560px; margin: 0 auto; padding: 16px 16px max(32px, var(--ks-safe-b)); font-family: var(--ks-font); color: var(--ks-text); }
 .ks-h1 { font-size: 24px; letter-spacing: -0.01em; margin: 4px 0 12px; }
 .ks-muted { color: var(--ks-text-muted); }
 
@@ -70,7 +70,7 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 .ks-empty .ks-btn { width: auto; margin-top: 6px; }
 
 /* Нижняя навигация: закреплена, учитывает безопасную зону; подписи не переносятся, цель нажатия ≥ 44 px */
-.ks-bottomnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; background: var(--ks-surface); border-top: 1px solid var(--ks-border); padding-bottom: env(safe-area-inset-bottom); }
+.ks-bottomnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; background: var(--ks-surface); border-top: 1px solid var(--ks-border); padding-bottom: var(--ks-safe-b); }
 .ks-bottomnav > div { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; max-width: 560px; margin: 0 auto; }
 .ks-bottomnav button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 0; min-height: 56px; padding: 6px 2px; border: 0; background: none; color: var(--ks-text-muted); font: 700 12px var(--ks-font); cursor: pointer; }
 .ks-bottomnav button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -245,7 +245,8 @@ a.ks-cover { text-decoration: none; display: block; }
 .ks-photo { display: block; width: 100%; height: auto; border-radius: 14px; margin: 0 0 10px; background: var(--ks-neutral-fill); }
 .ks-gallery { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 -14px 4px; padding: 0 14px 6px; -webkit-overflow-scrolling: touch; }
 .ks-gallery img { flex: none; width: 78%; max-width: 320px; height: 190px; object-fit: cover; border-radius: 14px; scroll-snap-align: start; }
-.ks-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ks-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 480px) { .ks-two { grid-template-columns: minmax(0, 1fr); gap: 14px; } }
 .ks-two h3 { margin: 0 0 8px; font-size: 0.95rem; color: var(--ks-primary); }
 .ks-steps2 { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .ks-steps2 li { padding: 10px 12px; border-radius: 12px; background: var(--ks-primary-subtle); }
@@ -282,7 +283,7 @@ a.ks-cover { text-decoration: none; display: block; }
 .ks-lb-nav { top: 50%; transform: translateY(-50%); }
 .ks-lb-nav.prev { left: 8px; }
 .ks-lb-nav.next { right: 8px; }
-.ks-lb-count { position: absolute; bottom: max(16px, env(safe-area-inset-bottom)); left: 0; right: 0; text-align: center; color: #fff; font-size: 14px; }
+.ks-lb-count { position: absolute; bottom: max(16px, var(--ks-safe-b)); left: 0; right: 0; text-align: center; color: #fff; font-size: 14px; }
 
 /* Отметки посещаемости: счётчики, компактные строки, нижняя панель сохранения */
 .page.has-bar { padding-bottom: 120px; }
@@ -303,6 +304,6 @@ a.ks-cover { text-decoration: none; display: block; }
 .ks-mark .mk.on.absent { background: var(--ks-danger-subtle); border-color: var(--ks-danger); color: var(--ks-danger); }
 .ks-mark .mk.on.excused { background: var(--ks-warning-subtle); border-color: var(--ks-warning); color: var(--ks-warning); }
 @media (max-width: 380px) { .ks-mark { flex-wrap: wrap; } .ks-mark b { flex-basis: 100%; } .ks-mark .mk { flex: 1; } }
-.ks-savebar { position: fixed; left: 0; right: 0; bottom: calc(58px + env(safe-area-inset-bottom)); z-index: 5; display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--ks-surface); border-top: 1px solid var(--ks-border); }
+.ks-savebar { position: fixed; left: 0; right: 0; bottom: calc(58px + var(--ks-safe-b)); z-index: 5; display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--ks-surface); border-top: 1px solid var(--ks-border); }
 .ks-savebar span { flex: 1; color: var(--ks-text-muted); }
 .ks-savebar .ks-btn { width: auto; flex: none; }
