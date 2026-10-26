@@ -2,6 +2,7 @@
 //   node scripts/import/final-import.mjs --dir "C:\...\migration-export 2026-10-31 19-05" --mode Final              # проверка без записи
 //   node scripts/import/final-import.mjs --dir "..." --mode Final --write                                         # запись
 //   node scripts/import/final-import.mjs --dir "..." --mode Final --show-only                                     # только показать команды
+//   node scripts/import/final-import.mjs --dir "..." --staff-only [--write]                                       # только штат игр (тренер, оператор)
 // Режимы: Final — полный импорт (с посещаемостью и матчами); Daily (по умолчанию) — без них.
 // Нужны SUPABASE_URL (без /rest/v1), CLUB_ID; ключ SUPABASE_SERVICE_KEY спросит скрипт (ввод скрыт) или возьмёт из окружения.
 import { spawnSync } from 'node:child_process';
@@ -16,6 +17,7 @@ const dirArg = opt('--dir');
 const mode = opt('--mode') ?? 'Daily';
 const write = flag('--write');
 const showOnly = flag('--show-only');
+const staffOnly = flag('--staff-only'); // только штат игр (тренер, оператор) у матчей, где его ещё нет; остальное не трогается
 if (!dirArg || !['Final', 'Daily'].includes(mode)) { console.error('Использование: --dir <папка выгрузки> [--mode Final|Daily] [--write] [--show-only]'); process.exit(2); }
 const dir = resolve(dirArg);
 if (!existsSync(dir)) { console.error(`Нет папки: ${dir}`); process.exit(2); }
@@ -52,6 +54,10 @@ try {
   const reg = csv('РЕЕСТР ИГРОКОВ.csv'), sched = csv('РАСПИСАНИЕ.csv'), log = csv('Тренировки.csv');
   const S = 'scripts/import';
   const pay = sub('PAY_ID');
+  if (staffOnly) {
+    run('Штат игр (только добавление недостающего)', [`${S}/run-events.mjs`, '--registry', reg, '--events', csv('МАТЧИ.csv'), '--fees', csv('ВЗНОСЫ МАТЧЕЙ.csv'), '--games', sub('GAMES_ID'), '--log', csv('Игры.csv'), '--staff-only']);
+    process.exit(0);
+  }
   run('Игроки и группы', [`${S}/run-players.mjs`, reg]);
   run('Даты рождения', [`${S}/run-birth.mjs`, '--registry', reg, '--overrides', csv('ДАТЫ РОЖДЕНИЯ.csv'), '--pay-dir', pay]);
   run('Расписание и журнал тренировок', [`${S}/run-schedule-log.mjs`, '--registry', reg, '--schedule', sched, '--log', log]);
