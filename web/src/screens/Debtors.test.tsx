@@ -34,7 +34,7 @@ describe('«Должники» (администратор)', () => {
     render(<Debtors />);
     expect(await screen.findByText('Показ долга родителям: выключен')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Включить показ родителям'));
-    await waitFor(() => expect(fake.writes('club_settings', 'upsert')).toEqual([{ club_id: 'c1', key: 'parent_debt_enabled', value: 'true' }]));
+    await waitFor(() => expect(fake.writes('club_settings', 'upsert')).toEqual([{ club_id: 'c1', key: 'parent_debt_enabled', scope: '', value: 'true' }]));
     expect(await screen.findByText('Показ долга родителям: включён')).toBeInTheDocument();
   });
 
