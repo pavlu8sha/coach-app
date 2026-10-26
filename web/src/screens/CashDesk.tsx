@@ -78,7 +78,8 @@ export default function CashDesk() {
   const [q, setQ] = useState('');
   const [found, setFound] = useState<Pl[]>([]);
   const [player, setPlayer] = useState<Pl | null>(null);
-  const [todayRows, setTodayRows] = useState<{ id: string; amount: number; method: string | null; players: { full_name: string } | null }[] | null>(null);
+  const [day, setDay] = useState(today());
+  const [todayRows, setTodayRows] = useState<{ id: string; amount: number; method: string | null; what: string; players: { full_name: string } | null }[] | null>(null);
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
@@ -91,11 +92,18 @@ export default function CashDesk() {
     return () => clearTimeout(t);
   }, [q]);
 
+  // Платежи за выбранный день: абонемент (payments) и сборы (camp_payments); у экипировки и занятий даты платежа не хранятся
   useEffect(() => {
-    void supabase.from('payments').select('id, amount, method, players(full_name)').eq('paid_on', today()).limit(200).then(r => {
-      if (!r.error) setTodayRows((r.data ?? []) as unknown as { id: string; amount: number; method: string | null; players: { full_name: string } | null }[]);
-    });
-  }, [reload, player]);
+    setTodayRows(null);
+    void (async () => {
+      const a = await supabase.from('payments').select('id, amount, method, players(full_name)').eq('paid_on', day).limit(500);
+      const c = await supabase.from('camp_payments').select('id, amount, method, kind, players(full_name)').eq('paid_on', day).limit(500);
+      if (a.error) return;
+      const rows = ((a.data ?? []) as unknown as { id: string; amount: number; method: string | null; players: { full_name: string } | null }[]).map(x => ({ ...x, what: 'Абонемент' }));
+      const camp = c.error ? [] : ((c.data ?? []) as unknown as { id: string; amount: number; method: string | null; kind: string; players: { full_name: string } | null }[]).map(x => ({ ...x, what: 'Сбор' }));
+      setTodayRows([...rows, ...camp]);
+    })();
+  }, [reload, player, day]);
 
   if (player) return <PlayerDues player={player} onBack={() => { setPlayer(null); setReload(n => n + 1); }} />;
   const total = (todayRows ?? []).reduce((s, x) => s + Number(x.amount), 0);
@@ -108,11 +116,12 @@ export default function CashDesk() {
       ) : (
         found.map(p => <ListRow key={p.id} avatar={p.full_name} title={p.full_name} sub={[p.groups?.name ?? 'без группы']} onClick={() => setPlayer(p)} />)
       )}
-      <h3 className="ks-list-head"><span>Внесено сегодня</span><span>{todayRows ? gel(total) : ''}</span></h3>
-      {!todayRows ? <Loading /> : todayRows.length === 0 ? <p className="muted">Сегодня абонементных платежей ещё не было.</p> : todayRows.map(x => (
-        <ListRow key={x.id} title={x.players?.full_name ?? 'Игрок'} sub={[x.method ?? '']} end={<Pill tone={Number(x.amount) < 0 ? 'danger' : 'success'}>{gel(Number(x.amount))}</Pill>} />
+      <h3 className="ks-list-head"><span>{day === today() ? 'Внесено сегодня' : `Внесено ${fmtDate(day)}`}</span><span>{todayRows ? gel(total) : ''}</span></h3>
+      <label className="field" style={{ marginBottom: 8 }}>Дата<input type="date" aria-label="Дата платежей" value={day} max={today()} onChange={e => e.target.value && setDay(e.target.value)} /></label>
+      {!todayRows ? <Loading /> : todayRows.length === 0 ? <p className="muted">В этот день платежей по абонементам и сборам нет.</p> : todayRows.map(x => (
+        <ListRow key={x.what + x.id} title={x.players?.full_name ?? 'Игрок'} sub={[[x.what, x.method].filter(Boolean).join(' · ')]} end={<Pill tone={Number(x.amount) < 0 ? 'danger' : 'success'}>{gel(Number(x.amount))}</Pill>} />
       ))}
-      <p className="ks-muted" style={{ fontSize: 13 }}>В списке абонементные платежи. Оплаты экипировки, занятий и сборов видны в своих разделах.</p>
+      <p className="ks-muted" style={{ fontSize: 13 }}>В списке платежи по абонементам и сборам. Оплаты экипировки и занятий дат не хранят, их видно в своих разделах.</p>
     </main>
   );
 }

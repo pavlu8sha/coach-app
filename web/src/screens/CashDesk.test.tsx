@@ -87,6 +87,22 @@ describe('«Приём оплат»', () => {
     expect(await screen.findByText('Долгов нет')).toBeInTheDocument(); // скидка и что-то внесено — месяц закрыт
   });
 
+  it('«Внесено» за выбранную дату: платежи абонемента и сборов, итог по дню', async () => {
+    seed();
+    fake.db.payments = [
+      { id: 'a1', player_id: 'p1', amount: 100, paid_on: '2026-10-05', method: 'Наличные', players: { full_name: 'Иванов Пётр' } },
+      { id: 'a2', player_id: 'p2', amount: -20, paid_on: '2026-10-05', method: 'Исправление', players: { full_name: 'Сидоров Ян' } },
+      { id: 'a3', player_id: 'p3', amount: 999, paid_on: '2026-10-06', method: 'Наличные', players: { full_name: 'Другой День' } },
+    ];
+    fake.db.camp_payments = [{ id: 'c1', player_id: 'p1', amount: 250, paid_on: '2026-10-05', method: 'Перевод', kind: 'payment', players: { full_name: 'Иванов Пётр' } }];
+    render(<CashDesk />);
+    fireEvent.change(screen.getByLabelText('Дата платежей'), { target: { value: '2026-10-05' } });
+    expect(await screen.findByRole('heading', { name: /Внесено 05.10.2026.*330 ₾/ })).toBeInTheDocument();
+    expect(screen.getByText('Абонемент · Наличные')).toBeInTheDocument();
+    expect(screen.getByText('Сбор · Перевод')).toBeInTheDocument();
+    expect(screen.queryByText('Другой День')).not.toBeInTheDocument();
+  });
+
   it('дата абонемента вне месяца отклоняется без записи; «Внесено сегодня» показывает итог', async () => {
     seed();
     fake.db.payments = [{ id: 'x1', player_id: 'p1', amount: 50, paid_on: today(), method: 'Наличные', players: { full_name: 'Иванов Пётр' } }];
