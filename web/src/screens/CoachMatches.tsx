@@ -56,7 +56,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
     const allTeams2 = [...new Set([...groups.map(g => g.name), ...(matches ?? []).map(m => m.team), ...events.map(e => e.team)].filter(playsMatches).map(matchTeam))].sort();
     return <EventForm teams={allTeams2} events={events} admin={admin} onBack={back} onCreated={id => void openCreated(id)} />;
   }
-  if (form) return <MatchForm groups={groups} match={form.match} admin={admin} feeMode={!form.match || !tours.get(form.match.id)?.tournament_id || tours.get(form.match.id)?.match_kind === 'friendly' || tours.get(form.match.id)?.tournament_kind === 'cup'} onBack={() => { setForm(null); setReload(n => n + 1); }} />;
+  if (form) return <MatchForm groups={groups} match={form.match} admin={admin} rosterOf={form.match && !(!tours.get(form.match.id)?.tournament_id || tours.get(form.match.id)?.match_kind === 'friendly' || tours.get(form.match.id)?.tournament_kind === 'cup') ? tours.get(form.match.id)?.tournament_id ?? null : null} feeMode={!form.match || !tours.get(form.match.id)?.tournament_id || tours.get(form.match.id)?.match_kind === 'friendly' || tours.get(form.match.id)?.tournament_kind === 'cup'} onBack={() => { setForm(null); setReload(n => n + 1); }} />;
   if (!matches) return <Loading />;
 
   const teams = [...new Set(matches.map(m => m.team))].sort();
@@ -127,7 +127,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
 }
 
 // feeMode: у товарищеских и кубковых матчей взнос свой (на матч); у чемпионатов и фестивалей он на событие
-function MatchForm({ groups, match, admin, feeMode, onBack }: { groups: CoachGroup[]; match: Match | null; admin: boolean; feeMode: boolean; onBack: () => void }) {
+function MatchForm({ groups, match, admin, feeMode, rosterOf, onBack }: { groups: CoachGroup[]; match: Match | null; admin: boolean; feeMode: boolean; rosterOf: string | null; onBack: () => void }) {
   const matchGroups = groups.filter(g => playsMatches(g.name));
   const matched = match ? (groups.find(g => g.name === match.team) ?? groups.find(g => matchTeam(g.name) === match.team))?.id : undefined;
   // у тренера матч всегда своей группы; у администратора название команды может не совпасть ни с одной группой — тогда группа не нужна
@@ -152,7 +152,12 @@ function MatchForm({ groups, match, admin, feeMode, onBack }: { groups: CoachGro
     setPlayers(null);
     void (async () => {
       let list: Player[] = [];
-      if (gid) {
+      if (rosterOf) {
+        // матч чемпионата или фестиваля: в составе только заявленные на событие
+        const r = await supabase.rpc('event_roster', { t: rosterOf });
+        if (r.error) return setError(r.error.message);
+        list = ((r.data ?? []) as { player_id: string; full_name: string }[]).map(x => ({ id: x.player_id, full_name: x.full_name }));
+      } else if (gid) {
         // команда «U10» объединяет группы U10-A и U10-B: в составе игроки всех её групп
         const sel = groups.find(g => g.id === gid)?.name;
         let ids = [gid];
@@ -287,9 +292,11 @@ function MatchForm({ groups, match, admin, feeMode, onBack }: { groups: CoachGro
       <>
       <h3>Добавить в состав</h3>
       <input className="ks-input" value={q} onChange={e => setQ(e.target.value)} placeholder="Фамилия или имя игрока (от 2 букв)" aria-label="Найти игрока" />
+      <div style={{ marginTop: 8, marginBottom: 16, display: 'grid', gap: 8 }}>
       {found.filter(f => !players.some(p => p.id === f.id)).map(f => (
         <ListRow key={f.id} avatar={f.full_name} title={f.full_name} end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} onClick={() => { setPlayers(list => [...(list ?? []), f].sort((a, b) => a.full_name.localeCompare(b.full_name))); setQ(''); setFound([]); }}>Добавить</button>} />
       ))}
+      </div>
       </>
       {msg && <p className={msg.ok ? 'ks-ok' : 'error'}>{msg.text}</p>}
       {admin && feeMode && savedId && (
