@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill } from '../ui/components';
 import { GroupPicker, Stepper } from '../ui/coach';
 import { BackNav, useMainButton } from '../ui/nav';
+import EventFees from './EventFees';
 import { EventForm, EventScreen, eventCounts, eventTitle, type EventRow } from './Events';
 import { Failure, Loading } from './Message';
 
@@ -55,7 +56,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
     const allTeams2 = [...new Set([...groups.map(g => g.name), ...(matches ?? []).map(m => m.team), ...events.map(e => e.team)])].sort();
     return <EventForm teams={allTeams2} events={events} admin={admin} onBack={back} onCreated={id => void openCreated(id)} />;
   }
-  if (form) return <MatchForm groups={groups} match={form.match} admin={admin} onBack={() => { setForm(null); setReload(n => n + 1); }} />;
+  if (form) return <MatchForm groups={groups} match={form.match} admin={admin} feeMode={!form.match || !tours.get(form.match.id)?.tournament_id || tours.get(form.match.id)?.match_kind === 'friendly' || tours.get(form.match.id)?.tournament_kind === 'cup'} onBack={() => { setForm(null); setReload(n => n + 1); }} />;
   if (!matches) return <Loading />;
 
   const teams = [...new Set(matches.map(m => m.team))].sort();
@@ -125,7 +126,8 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   );
 }
 
-function MatchForm({ groups, match, admin, onBack }: { groups: CoachGroup[]; match: Match | null; admin: boolean; onBack: () => void }) {
+// feeMode: у товарищеских и кубковых матчей взнос свой (на матч); у чемпионатов и фестивалей он на событие
+function MatchForm({ groups, match, admin, feeMode, onBack }: { groups: CoachGroup[]; match: Match | null; admin: boolean; feeMode: boolean; onBack: () => void }) {
   const matched = match ? groups.find(g => g.name === match.team)?.id : undefined;
   // у тренера матч всегда своей группы; у администратора название команды может не совпасть ни с одной группой — тогда группа не нужна
   const initialGid = match ? matched ?? (admin ? '' : groups[0]?.id ?? '') : groups[0]?.id ?? '';
@@ -284,6 +286,9 @@ function MatchForm({ groups, match, admin, onBack }: { groups: CoachGroup[]; mat
         </>
       )}
       {msg && <p className={msg.ok ? 'ks-ok' : 'error'}>{msg.text}</p>}
+      {admin && feeMode && savedId && (
+        <EventFees mode="match" eventId={savedId} reloadKey={reload} onChanged={() => undefined} addable={players.filter(p => line(p.id).played).map(p => ({ id: p.id, name: p.full_name }))} />
+      )}
       {!native && (
         <button type="button" className="ks-btn" disabled={busy} onClick={() => void save()}>
           Сохранить матч
