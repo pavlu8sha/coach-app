@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { coachError, fmtDate, today, type CoachGroup } from '../lib/coach';
+import { coachError, fmtDate, matchTeam, today, type CoachGroup } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Segmented } from '../ui/components';
 import { BackNav } from '../ui/nav';
@@ -81,7 +81,8 @@ export function EventScreen({ event, groups, admin = false, onBack }: { event: E
   const [gameDate, setGameDate] = useState(today());
   const [opp, setOpp] = useState('');
   const [busy, setBusy] = useState(false);
-  const group = groups.find(g => g.name === event.team);
+  // команда «U10» объединяет группы U10-A и U10-B
+  const teamGroups = groups.filter(g => g.name === event.team || matchTeam(g.name) === event.team);
 
   useEffect(() => {
     void (async () => {
@@ -112,8 +113,8 @@ export function EventScreen({ event, groups, admin = false, onBack }: { event: E
   };
   const add = (ids: string[]) => run(supabase.rpc('event_roster_add', { t: event.id, ids }));
   const addGroup = async () => {
-    if (!group) return;
-    const p = await supabase.from('players').select('id').eq('group_id', group.id).eq('status', 'active');
+    if (teamGroups.length === 0) return;
+    const p = await supabase.from('players').select('id').in('group_id', teamGroups.map(g => g.id)).eq('status', 'active');
     if (p.error) return setMsg(coachError(p.error.message));
     await add(((p.data ?? []) as { id: string }[]).map(x => x.id));
   };
@@ -134,7 +135,7 @@ export function EventScreen({ event, groups, admin = false, onBack }: { event: E
       <h1>{eventTitle(event)}</h1>
       <p className="muted">{KIND_TITLE[event.kind]} · {event.team}{event.starts_on ? ` · ${fmtDate(event.starts_on)}` : ''}</p>
       <h3>Состав: {roster.length}</h3>
-      {group && <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => void addGroup()}>Добавить всю группу {group.name}</button>}
+      {teamGroups.length > 0 && <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => void addGroup()}>Добавить всю команду {event.team}</button>}
       {roster.length === 0 ? (
         <EmptyState icon="users" title="В составе пока никого" text="Добавьте игроков группы или найдите игрока по имени." />
       ) : (

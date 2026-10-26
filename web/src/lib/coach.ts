@@ -1,6 +1,11 @@
 // Общее для экранов тренера и администратора.
 export interface CoachGroup { id: string; name: string }
 
+/** Команда матча: название группы без суффикса -A/-B/-C (U10-A → U10). */
+export const matchTeam = (groupName: string) => groupName.replace(/-[A-Z]$/, '');
+/** Группы, которые не играют матчи: индивидуальные, вратарские, выходного дня, Isani. */
+export const playsMatches = (groupName: string) => !/индивидуальн|вратарск|weekends|isani/i.test(groupName);
+
 export const DAYS = ['', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 export const fmtDate = (iso: string) => iso.split('-').reverse().join('.');
 export const fmtShort = (iso: string) => iso.split('-').reverse().slice(0, 2).join('.');
