@@ -21,8 +21,9 @@ import PointsStart from './PointsStart';
 import RecalcPoints from './RecalcPoints';
 import Schedule from './Schedule';
 import Stats from './Stats';
+import Admin from './Admin';
 
-type Sub = 'cash' | 'pstart' | 'month' | 'leads' | 'tlog' | 'camps' | 'equip' | 'extra' | 'ind' | 'schedule' | 'debtors' | 'coaches' | 'points' | 'payments' | 'prices' | 'recalc' | 'stats' | 'photos';
+type Sub = 'requests' | 'cash' | 'pstart' | 'month' | 'leads' | 'tlog' | 'camps' | 'equip' | 'extra' | 'ind' | 'schedule' | 'debtors' | 'coaches' | 'points' | 'payments' | 'prices' | 'recalc' | 'stats' | 'photos';
 
 // «Ещё» у администратора: остальные разделы. Вернуться в список можно кнопкой «Ещё» внизу или ссылкой наверху.
 export default function More({ groups, onPreview }: { groups: CoachGroup[]; onPreview?: (r: 'guest' | 'parent' | 'child') => void }) {
@@ -36,18 +37,14 @@ export default function More({ groups, onPreview }: { groups: CoachGroup[]; onPr
             Ещё
           </button>
         </div>
-        {sub === 'schedule' ? <Schedule all /> : sub === 'debtors' ? <Debtors /> : sub === 'coaches' ? <Coaches /> : sub === 'payments' ? <AdminPayments /> : sub === 'photos' ? <AdminPhotos /> : sub === 'prices' ? <AdminPrices /> : sub === 'recalc' ? <RecalcPoints /> : sub === 'stats' ? <Stats /> : sub === 'ind' ? <Individual /> : sub === 'extra' ? <Extra /> : sub === 'equip' ? <Equipment /> : sub === 'camps' ? <Camps /> : sub === 'tlog' ? <TrainerLog /> : sub === 'leads' ? <Leads /> : sub === 'month' ? <MonthPayments /> : sub === 'pstart' ? <PointsStart /> : sub === 'cash' ? <CashDesk /> : <Group groups={groups} />}
+        {sub === 'requests' ? <Admin /> : sub === 'schedule' ? <Schedule all /> : sub === 'debtors' ? <Debtors /> : sub === 'coaches' ? <Coaches /> : sub === 'payments' ? <AdminPayments /> : sub === 'photos' ? <AdminPhotos /> : sub === 'prices' ? <AdminPrices /> : sub === 'recalc' ? <RecalcPoints /> : sub === 'stats' ? <Stats /> : sub === 'ind' ? <Individual /> : sub === 'extra' ? <Extra /> : sub === 'equip' ? <Equipment /> : sub === 'camps' ? <Camps /> : sub === 'tlog' ? <TrainerLog /> : sub === 'leads' ? <Leads /> : sub === 'month' ? <MonthPayments /> : sub === 'pstart' ? <PointsStart /> : sub === 'cash' ? <CashDesk /> : <Group groups={groups} />}
       </>
     );
   }
   return (
     <main className="page ks-menu">
       <h1>Ещё</h1>
-      <p className="ks-label">Деньги</p>
-      <ListRow title="Приём оплат" sub={['Игрок: всё, что к оплате, и платёж в один шаг']} onClick={() => setSub('cash')} />
-      <ListRow title="Оплаты за месяц" sub={['Кто сколько внёс по группам, быстрый платёж']} onClick={() => setSub('month')} />
-      <ListRow title="Платежи" sub={['Внести платёж, исправить запись']} onClick={() => setSub('payments')} />
-      <ListRow title="Должники" sub={['Долг по абонементам, скидки, показ родителям']} onClick={() => setSub('debtors')} />
+      <ListRow title="Запросы" sub={['Связи родителей с детьми, согласия, родители по группам']} onClick={() => setSub('requests')} />
       <p className="ks-label">Занятия</p>
       <ListRow title="Индивидуальные" sub={['Вратари и индивидуальные: запись, оплата, долги']} onClick={() => setSub('ind')} />
       <ListRow title="Дополнительные" sub={['Доп. тренировки: запись, оплата, долги']} onClick={() => setSub('extra')} />
