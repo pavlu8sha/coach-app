@@ -39,6 +39,8 @@ select is(
         'extra_set_paid', 'extra_set_attended', 'eq_create_order', 'eq_edit_order', 'eq_add_payment', 'eq_set_issued', 'eq_delete_order', 'eq_catalog_save',
         'camp_save', 'camp_tariff_save', 'camp_register', 'camp_update_participant', 'camp_pay', 'camp_cancel_payment', 'tl_add', 'tl_confirm',
         'tl_set_held', 'tl_replace_coach', 'lead_set_status', 'ind_roster_list', 'extra_roster_list',
+        -- 0058: родителю долги и оплаты по всем видам
+        'parent_dues',
         -- 0040: старт подсчёта баллов
         'points_start', 'set_points_start',
         -- 0041: название и тип турнира (без взносов); вызывается из match_tournaments() с правами пользователя
