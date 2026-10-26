@@ -23,7 +23,7 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
   const [error, setError] = useState<string | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [amt, setAmt] = useState('');
-  const [method, setMethod] = useState(METHODS[0]);
+  const [method, setMethod] = useState('');
   const [date, setDate] = useState(today());
   const [note, setNote] = useState('');
   const [feeInput, setFeeInput] = useState('');
@@ -84,6 +84,7 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
   };
   const pay = () => {
     if (sel.size === 0) return setMsg({ ok: false, text: 'Отметьте игроков, которые платят.' });
+    if (!method) return setMsg({ ok: false, text: 'Выберите способ оплаты.' });
     if (amt !== '' && !(Number(amt) > 0)) return setMsg({ ok: false, text: 'Сумма должна быть больше нуля.' });
     void run(supabase.rpc(api.pay, { [api.key]: eventId, ids: [...sel], amt: amt === '' ? null : Number(amt), d: date, mth: method, cmt: note }), 'Оплата записана.', () => { setSel(new Set()); setAmt(''); setNote(''); });
   };
@@ -137,6 +138,7 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
       <input id="ef-amt" className="ks-input" inputMode="decimal" value={amt} onChange={e => setAmt(e.target.value.replace(/[^\d.]/g, '').slice(0, 7))} placeholder="Остаток" />
       <label className="ks-label" htmlFor="ef-method">Способ</label>
       <select id="ef-method" className="ks-select" value={method} onChange={e => setMethod(e.target.value)}>
+        <option value="">Выберите способ</option>
         {METHODS.map(m => <option key={m}>{m}</option>)}
       </select>
       <label className="ks-label" htmlFor="ef-date">Дата</label>

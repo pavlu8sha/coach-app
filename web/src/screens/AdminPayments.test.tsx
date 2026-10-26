@@ -22,6 +22,9 @@ describe('«Платежи» (администратор)', () => {
     await openPlayer();
     fireEvent.change(screen.getByLabelText(/Сумма/), { target: { value: '65,5' } });
     fireEvent.click(screen.getByRole('button', { name: 'Внести платёж' }));
+    expect(await screen.findByText('Выберите способ оплаты.')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/^Способ/), { target: { value: 'Наличные' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Внести платёж' }));
     expect(screen.getByText(/Записать 65\.50 ₾/)).toBeInTheDocument();
     expect(fake.writes('payments', 'insert')).toHaveLength(0);
     fireEvent.click(screen.getByRole('button', { name: 'Записать платёж' }));

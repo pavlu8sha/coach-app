@@ -22,6 +22,7 @@ describe('взносы матча: массовая оплата', () => {
     expect(screen.getByLabelText('Платит: Петров Иван')).toBeChecked();
     const paidBox = screen.queryByLabelText('Платит: Сидоров Ян') as HTMLInputElement | null;
     expect(paidBox === null || !paidBox.checked).toBe(true); // уже оплатил: отметки нет (или поля нет совсем)
+    fireEvent.change(screen.getByLabelText(/^Способ/), { target: { value: 'Наличные' } });
     fireEvent.click(screen.getByRole('button', { name: 'Записать оплату (2)' }));
     await waitFor(() => expect(fake.rpcCalls('match_pay')).toHaveLength(1));
     expect(fake.rpcCalls('match_pay')[0]).toMatchObject({ m: 'm1', ids: ['p1', 'p3'], amt: null, mth: 'Наличные' });

@@ -49,7 +49,7 @@ function PlayerPayments({ player, onBack }: { player: Player; onBack: () => void
   const [reload, setReload] = useState(0);
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(today());
-  const [method, setMethod] = useState(METHODS[0]);
+  const [method, setMethod] = useState('');
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -68,6 +68,7 @@ function PlayerPayments({ player, onBack }: { player: Player; onBack: () => void
     if (!amount.trim() || !Number.isFinite(num) || num === 0) return 'Введите сумму (не ноль).';
     if (Math.abs(num) > 100000) return 'Сумма слишком большая.';
     if (date > today()) return 'Дата платежа не может быть в будущем.';
+    if (!method) return 'Выберите способ оплаты.';
     return null;
   };
   const add = async (row: { amount: number; paid_on: string; method: string }) => {
@@ -105,6 +106,7 @@ function PlayerPayments({ player, onBack }: { player: Player; onBack: () => void
         <input id="pay-date" className="ks-input" type="date" value={date} onChange={e => { setDate(e.target.value); setConfirm(false); }} />
         <label className="ks-label" htmlFor="pay-method">Способ</label>
         <select id="pay-method" className="ks-select" value={method} onChange={e => setMethod(e.target.value)}>
+          <option value="">Выберите способ</option>
           {METHODS.map(m => (
             <option key={m}>{m}</option>
           ))}

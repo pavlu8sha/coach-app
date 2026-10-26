@@ -76,6 +76,7 @@ describe('«Оплаты за месяц»', () => {
     await screen.findByText('100 ₾ из 165 ₾');
     fireEvent.click(screen.getAllByRole('button', { name: 'Внести платёж' })[0]); // Иванов: внесено 100
     expect(screen.getByLabelText(/Сумма/)).toHaveValue('65');
+    fireEvent.change(screen.getByLabelText(/^Способ/), { target: { value: 'Наличные' } });
     fireEvent.click(screen.getByRole('button', { name: 'Записать платёж' }));
     await waitFor(() => expect(fake.writes('payments', 'insert')).toHaveLength(1));
     expect(fake.writes('payments', 'insert')[0]).toMatchObject({ player_id: 'p1', amount: 65, method: 'Наличные' });
@@ -87,10 +88,12 @@ describe('«Оплаты за месяц»', () => {
     await screen.findByText('100 ₾ из 165 ₾');
     fireEvent.click(screen.getAllByRole('button', { name: 'Внести платёж' })[0]);
     fireEvent.change(screen.getByLabelText(/Сумма/), { target: { value: '0' } });
+    fireEvent.change(screen.getByLabelText(/^Способ/), { target: { value: 'Наличные' } });
     fireEvent.click(screen.getByRole('button', { name: 'Записать платёж' }));
     expect(await screen.findByText('Введите сумму (не ноль).')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(/Сумма/), { target: { value: '10' } });
     fireEvent.change(screen.getByLabelText('Дата'), { target: { value: '2020-01-05' } });
+    fireEvent.change(screen.getByLabelText(/^Способ/), { target: { value: 'Наличные' } });
     fireEvent.click(screen.getByRole('button', { name: 'Записать платёж' }));
     expect(await screen.findByText(/Дата должна быть в выбранном месяце/)).toBeInTheDocument();
     expect(fake.writes('payments', 'insert')).toHaveLength(0);

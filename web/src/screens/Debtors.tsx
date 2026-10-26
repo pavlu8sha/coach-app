@@ -197,13 +197,14 @@ export default function Debtors() {
 function PayInline({ playerId, month, debt, onSaved }: { playerId: string; month: string; debt: number; onSaved: () => void }) {
   const isCurrent = month === monthIso(new Date());
   const [amount, setAmount] = useState(String(debt));
-  const [method, setMethod] = useState(METHODS[0]);
+  const [method, setMethod] = useState('');
   const [date, setDate] = useState(isCurrent ? today() : month);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const num = Number(amount.replace(',', '.'));
   const nextMonth = () => { const [y, m] = month.split('-').map(Number); return monthIso(new Date(y, m, 1)); };
   const save = async () => {
+    if (!method) return setErr('Выберите способ оплаты.');
     if (!Number.isFinite(num) || num <= 0 || num > 100000) return setErr('Введите сумму больше нуля.');
     if (date > today() || date < month || date >= nextMonth()) return setErr('Дата должна быть в этом месяце и не в будущем: оплата считается по месяцу даты.');
     setBusy(true);
@@ -219,7 +220,7 @@ function PayInline({ playerId, month, debt, onSaved }: { playerId: string; month
       <label className="field">Сумма, ₾ (меньше долга — частичный платёж, останется остаток)<input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /></label>
       <div className="two">
         <label className="field">Дата<input type="date" value={date} min={month} max={today()} onChange={e => setDate(e.target.value)} /></label>
-        <label className="field">Способ<select value={method} onChange={e => setMethod(e.target.value)}>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>
+        <label className="field">Способ<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>
       </div>
       {err && <p className="error">{err}</p>}
       <button type="button" className="ks-btn" disabled={busy} onClick={() => void save()}>Записать платёж</button>

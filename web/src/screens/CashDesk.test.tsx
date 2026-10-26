@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { today } from '../lib/coach';
 import { fake } from '../test/fakeSupabase';
 import CashDesk from './CashDesk';
-import { monthIso } from './MonthPayments';
+import { monthIso, nextMonth } from './MonthPayments';
 
 const M = monthIso(new Date());
 function seed() {
@@ -64,6 +64,7 @@ describe('«Приём оплат»', () => {
       await screen.findByText(title);
       const c = card(title);
       fireEvent.click(within(c).getByRole('button', { name: 'Принять оплату' }));
+      fireEvent.change(within(c).getByLabelText(/^Способ/), { target: { value: 'Наличные' } });
       fireEvent.click(within(c).getByRole('button', { name: btn }));
     };
     await pay('Форма + Куртка', 'Записать платёж');
@@ -84,7 +85,25 @@ describe('«Приём оплат»', () => {
     fake.db.extra_bookings = [];
     fake.db.camp_participants = [];
     await openPlayer();
-    expect(await screen.findByText('Долгов нет')).toBeInTheDocument(); // скидка и что-то внесено — месяц закрыт
+    expect(await screen.findByText(/Долгов нет/)).toBeInTheDocument(); // скидка и что-то внесено — месяц закрыт
+  });
+
+  it('оплата вперёд: следующий месяц виден, в сумму долга не входит, платёж датируется 1-м числом', async () => {
+    seed();
+    fake.db.equipment_orders = [];
+    fake.db.individual_bookings = [];
+    fake.db.extra_bookings = [];
+    fake.db.camp_participants = [];
+    fake.db.payments = [{ id: 'x1', player_id: 'p1', amount: 165, paid_on: M, method: 'Наличные', players: { full_name: 'Иванов Пётр' } }];
+    await openPlayer();
+    expect(await screen.findByText(/Долгов нет/)).toBeInTheDocument();
+    const next = nextMonth(M);
+    const c = card(/\(вперёд\)/);
+    fireEvent.click(within(c).getByRole('button', { name: 'Принять оплату' }));
+    fireEvent.change(within(c).getByLabelText(/^Способ/), { target: { value: 'Перевод' } });
+    fireEvent.click(within(c).getByRole('button', { name: 'Записать платёж' }));
+    await waitFor(() => expect(fake.writes('payments', 'insert')).toHaveLength(1));
+    expect(fake.writes('payments', 'insert')[0]).toMatchObject({ player_id: 'p1', amount: 165, paid_on: next, method: 'Перевод' });
   });
 
   it('«Внесено» за выбранную дату: платежи абонемента и сборов, итог по дню', async () => {
@@ -114,6 +133,7 @@ describe('«Приём оплат»', () => {
     const sub = card(/Внесено 50 ₾ из 165 ₾/);
     fireEvent.click(within(sub).getByRole('button', { name: 'Принять оплату' }));
     fireEvent.change(within(sub).getByLabelText('Дата'), { target: { value: '2020-01-05' } });
+    fireEvent.change(within(sub).getByLabelText(/^Способ/), { target: { value: 'Наличные' } });
     fireEvent.click(within(sub).getByRole('button', { name: 'Записать платёж' }));
     expect(await screen.findByText(/Дата должна быть в этом месяце/)).toBeInTheDocument();
     expect(fake.writes('payments', 'insert')).toHaveLength(0);

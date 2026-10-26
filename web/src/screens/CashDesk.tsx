@@ -7,7 +7,7 @@ import { Failure, Loading } from './Message';
 import { gel, monthIso, monthName, nextMonth, SEASON_START, tariffFor } from './MonthPayments';
 
 interface Pl { id: string; full_name: string; group_id: string | null; groups: { name: string } | null }
-interface Due { key: string; kind: 'sub' | 'eq' | 'ind' | 'extra' | 'camp'; section: string; title: string; sub?: string; due: number; paid: number; month?: string; pay: (amount: number, method: string, date: string) => PromiseLike<{ error: { message: string } | null }> }
+interface Due { key: string; kind: 'sub' | 'eq' | 'ind' | 'extra' | 'camp'; section: string; title: string; sub?: string; due: number; paid: number; month?: string; advance?: boolean; pay: (amount: number, method: string, date: string) => PromiseLike<{ error: { message: string } | null }> }
 
 const METHODS = ['Наличные', 'Перевод', 'Другое'];
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -37,9 +37,9 @@ async function loadDues(p: Pl): Promise<Due[]> {
     ((pays.data ?? []) as { amount: number; paid_on: string }[]).forEach(x => paidBy.set(monthIso(new Date(x.paid_on + 'T12:00:00')), (paidBy.get(monthIso(new Date(x.paid_on + 'T12:00:00'))) ?? 0) + Number(x.amount)));
     const sb = new Map(((subs.data ?? []) as { month: string; group_id: string | null; discount: boolean; written_off: boolean }[]).map(s => [s.month, s]));
     const cur = monthIso(new Date());
-    for (let m = SEASON_START; m <= cur; m = nextMonth(m)) {
+    for (let m = SEASON_START; m <= nextMonth(cur); m = nextMonth(m)) {
       const s = sb.get(m);
-      if (m !== cur && !s && !paidBy.has(m)) continue; // прошлый месяц без строки абонемента долгом не считается
+      if (m < cur && !s && !paidBy.has(m)) continue; // прошлый месяц без строки абонемента долгом не считается
       const gid = s?.group_id ?? p.group_id;
       const tariff = gid ? tariffFor(pr, gid, m) : null;
       if (tariff === null || s?.written_off) continue;
@@ -47,7 +47,7 @@ async function loadDues(p: Pl): Promise<Due[]> {
       if (s?.discount && got > 0) continue;
       if (got >= tariff) continue;
       out.push({
-        key: 'sub' + m, kind: 'sub', section: SECTIONS[0], title: monthName(m), sub: s?.discount ? 'скидка по договорённости: оплатите любую сумму' : undefined, due: tariff, paid: got, month: m,
+        key: 'sub' + m, kind: 'sub', section: SECTIONS[0], title: m > cur ? `${monthName(m)} (вперёд)` : monthName(m), sub: s?.discount ? 'скидка по договорённости: оплатите любую сумму' : m > cur ? 'оплата вперёд, запись датируется 1-м числом' : undefined, due: tariff, paid: got, month: m, advance: m > cur,
         pay: (amount, method, date) => supabase.from('payments').insert({ player_id: p.id, amount: r2(amount), paid_on: date, method, recorded_by: me }),
       });
     }
@@ -159,7 +159,7 @@ export function PlayerDues({ player, onBack, embedded = false }: { player: Pl; o
   useEffect(() => { load(); }, [load, reload]);
 
   if (error) return <Failure title="Не удалось загрузить долги игрока" text={coachError(error)} onRetry={() => { setError(null); setDues(null); setReload(n => n + 1); }} />;
-  const sum = (dues ?? []).reduce((s, d) => s + (d.due - d.paid), 0);
+  const sum = (dues ?? []).filter(d => !d.advance).reduce((s, d) => s + (d.due - d.paid), 0);
   const Wrap = embedded ? 'div' : 'main';
   return (
     <Wrap className={embedded ? undefined : 'page'}>
@@ -167,6 +167,7 @@ export function PlayerDues({ player, onBack, embedded = false }: { player: Pl; o
       {!embedded && <h1 style={{ overflowWrap: 'anywhere' }}>{player.full_name}</h1>}
       <p className="muted">{embedded ? '' : `${player.groups?.name ?? 'без группы'}`}{dues ? `${embedded ? '' : ' · '}к оплате: ${gel(sum)}` : ''}</p>
       {msg && <p className="ks-ok">{msg}</p>}
+      {dues && dues.length > 0 && !dues.some(d => !d.advance) && <p className="muted">Долгов нет. Ниже можно принять оплату вперёд.</p>}
       {!dues ? <Loading /> : dues.length === 0 ? (
         <EmptyState icon="users" title="Долгов нет" text="По абонементу, экипировке, занятиям и сборам всё оплачено." />
       ) : (
@@ -187,15 +188,17 @@ function DueCard({ due, open, onOpen, onPaid }: { due: Due; open: boolean; onOpe
   const left = r2(due.due - due.paid);
   const isCurrent = due.month === monthIso(new Date());
   const [amount, setAmount] = useState(String(left));
-  const [method, setMethod] = useState(METHODS[0]);
+  const [method, setMethod] = useState('');
   const [date, setDate] = useState(due.month && !isCurrent ? due.month : today());
+  const advance = Boolean(due.advance);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const fixedAmount = due.kind === 'ind'; // индивидуальное занятие отмечается оплаченным целиком
   const num = Number(amount.replace(',', '.'));
   const save = async () => {
+    if (!method) return setErr('Выберите способ оплаты.');
     if (!fixedAmount && (!Number.isFinite(num) || num <= 0 || num > 100000)) return setErr('Введите сумму больше нуля.');
-    if (due.month && (date > today() || date < due.month || date >= nextMonth(due.month))) return setErr('Дата должна быть в этом месяце и не в будущем: оплата считается по месяцу даты.');
+    if (due.month && ((date > today() && !advance) || date < due.month || date >= nextMonth(due.month))) return setErr('Дата должна быть в этом месяце и не в будущем: оплата считается по месяцу даты.');
     setBusy(true);
     setErr(null);
     const r = await due.pay(fixedAmount ? left : num, method, date);
@@ -212,8 +215,8 @@ function DueCard({ due, open, onOpen, onPaid }: { due: Due; open: boolean; onOpe
         <div style={{ marginTop: 8 }}>
           {!fixedAmount && <label className="field">Сумма, ₾ (меньше остатка — частичный платёж, останется долг)<input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /></label>}
           <div className="two">
-            {due.kind === 'sub' || due.kind === 'camp' ? <label className="field">Дата<input type="date" value={date} min={due.month} max={today()} onChange={e => setDate(e.target.value)} /></label> : <span />}
-            <label className="field">Способ<select value={method} onChange={e => setMethod(e.target.value)}>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>
+            {due.kind === 'sub' || due.kind === 'camp' ? <label className="field">Дата<input type="date" value={date} min={due.month} max={advance ? undefined : today()} disabled={advance} onChange={e => setDate(e.target.value)} /></label> : <span />}
+            <label className="field">Способ<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>
           </div>
           {err && <p className="error">{err}</p>}
           <button type="button" className="ks-btn" disabled={busy} onClick={() => void save()}>{fixedAmount ? `Отметить оплаченным (${gel(left)})` : 'Записать платёж'}</button>

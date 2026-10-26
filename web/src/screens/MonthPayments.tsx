@@ -36,10 +36,11 @@ export default function MonthPayments() {
   const months = useMemo(() => {
     const out: string[] = [];
     const now = new Date();
-    for (let d = new Date(now.getFullYear(), now.getMonth(), 1); monthIso(d) >= SEASON_START; d.setMonth(d.getMonth() - 1)) out.push(monthIso(d));
+    // следующий месяц тоже доступен: родители платят вперёд
+    for (let d = new Date(now.getFullYear(), now.getMonth() + 1, 1); monthIso(d) >= SEASON_START; d.setMonth(d.getMonth() - 1)) out.push(monthIso(d));
     return out;
   }, []);
-  const [month, setMonth] = useState(months[0] ?? SEASON_START);
+  const [month, setMonth] = useState(monthIso(new Date()));
   const [groups, setGroups] = useState<Group[]>([]);
   const [prices, setPrices] = useState<Price[]>([]);
   const [players, setPlayers] = useState<Pl[] | null>(null);
@@ -145,9 +146,10 @@ export default function MonthPayments() {
 
 export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOpen, onSaved }: { player: Player; title?: string; month: string; tariff: number | null; got: number; sub?: Sub; paidUp: boolean; open: boolean; onOpen: () => void; onSaved: () => void }) {
   const isCurrent = month === monthIso(new Date());
+  const isFuture = month > monthIso(new Date());
   const [amount, setAmount] = useState(String(Math.max((tariff ?? 0) - got, 0) || ''));
   const [date, setDate] = useState(isCurrent ? today() : month);
-  const [method, setMethod] = useState(METHODS[0]);
+  const [method, setMethod] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const num = Number(amount.replace(',', '.'));
@@ -160,8 +162,9 @@ export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOp
     onSaved();
   };
   const save = async () => {
+    if (!method) return setErr('Выберите способ оплаты.');
     if (!amount.trim() || !Number.isFinite(num) || num === 0 || Math.abs(num) > 100000) return setErr('Введите сумму (не ноль).');
-    if (date > today()) return setErr('Дата платежа не может быть в будущем.');
+    if (date > today() && !isFuture) return setErr('Дата платежа не может быть в будущем.');
     if (date < month || date >= nextMonth(month)) return setErr('Дата должна быть в выбранном месяце: оплата считается по месяцу даты.');
     setBusy(true);
     setErr(null);
@@ -185,9 +188,10 @@ export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOp
         <div style={{ marginTop: 8 }}>
           <label className="field">Сумма, ₾ (минус — исправление)<input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /></label>
           <div className="two">
-            <label className="field">Дата<input type="date" value={date} min={month} max={today()} onChange={e => setDate(e.target.value)} /></label>
-            <label className="field">Способ<select value={method} onChange={e => setMethod(e.target.value)}>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>
+            <label className="field">Дата<input type="date" value={date} min={month} max={isFuture ? undefined : today()} disabled={isFuture} onChange={e => setDate(e.target.value)} /></label>
+            <label className="field">Способ<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>
           </div>
+          {isFuture && <p className="ks-muted" style={{ fontSize: 13 }}>Оплата вперёд: запись датируется 1-м числом месяца, в списках «Внесено» она будет на эту дату.</p>}
           {err && <p className="error">{err}</p>}
           <button type="button" className="ks-btn" disabled={busy} onClick={() => void save()}>Записать платёж</button>
           <p className="ks-muted" style={{ fontSize: 13, marginTop: 6 }}>Запись нельзя изменить или удалить: ошибку исправляют записью с минусом.</p>
