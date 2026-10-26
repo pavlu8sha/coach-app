@@ -7,7 +7,7 @@ import { Failure, Loading } from './Message';
 
 interface Booking { player_id: string; paid: boolean; attended: boolean | null; amount: number; players: { full_name: string } | null }
 interface Session { id: string; starts_at: string; topic: string | null; goalkeepers: boolean; individual_bookings: Booking[] }
-interface DebtRow { player_id: string; amount: number; players: { full_name: string } | null; individual_sessions: { starts_at: string; goalkeepers: boolean } }
+interface DebtRow { session_id: string; player_id: string; amount: number; players: { full_name: string } | null; individual_sessions: { starts_at: string; goalkeepers: boolean; topic: string | null } }
 
 const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
 const dayOf = (ts: string) => ts.slice(0, 10);
@@ -26,6 +26,7 @@ export default function Individual() {
   const [reload, setReload] = useState(0);
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [paying, setPaying] = useState<string | null>(null);
   const [debtTotal, setDebtTotal] = useState<{ n: number; sum: number } | null>(null);
 
   // сводка «Должники» над списком занятий, как в прежнем приложении
@@ -41,7 +42,7 @@ export default function Individual() {
     void (async () => {
       const now = nowLocal();
       if (tab === 'debt') {
-        const r = await supabase.from('individual_bookings').select('player_id, amount, players(full_name), individual_sessions!inner(starts_at, goalkeepers)').eq('paid', false).lt('individual_sessions.starts_at', now).limit(1000);
+        const r = await supabase.from('individual_bookings').select('session_id, player_id, amount, players(full_name), individual_sessions!inner(starts_at, goalkeepers, topic)').eq('paid', false).lt('individual_sessions.starts_at', now).limit(1000);
         if (r.error) return setError(coachError(r.error.message));
         return setDebts((r.data ?? []) as unknown as DebtRow[]);
       }
@@ -58,11 +59,21 @@ export default function Individual() {
   const open = list?.find(s => s.id === openId);
   if (open) return <SessionView session={open} onBack={() => { setOpenId(null); done(); }} />;
 
-  const byPlayer = new Map<string, { name: string; sum: number; n: number }>();
+  const byPlayer = new Map<string, { name: string; sum: number; n: number; rows: DebtRow[] }>();
   (debts ?? []).forEach(d => {
-    const cur = byPlayer.get(d.player_id) ?? { name: d.players?.full_name ?? 'Игрок', sum: 0, n: 0 };
-    byPlayer.set(d.player_id, { ...cur, sum: cur.sum + Number(d.amount), n: cur.n + 1 });
+    const cur = byPlayer.get(d.player_id) ?? { name: d.players?.full_name ?? 'Игрок', sum: 0, n: 0, rows: [] };
+    byPlayer.set(d.player_id, { ...cur, sum: cur.sum + Number(d.amount), n: cur.n + 1, rows: [...cur.rows, d] });
   });
+  // Оплата занятия прямо из списка долгов
+  const payDebt = async (d: DebtRow) => {
+    if (!window.confirm(`Принять оплату ${gel(Number(d.amount))} от ${d.players?.full_name ?? 'игрока'} за ${title(d.individual_sessions)}?`)) return;
+    setPaying(d.session_id + d.player_id);
+    const r = await supabase.rpc('ind_set_paid', { s: d.session_id, p: d.player_id, is_paid: true });
+    setPaying(null);
+    if (r.error) return setError(coachError(r.error.message));
+    setDebts(null);
+    setReload(n => n + 1);
+  };
 
   return (
     <main className="page">
@@ -78,7 +89,15 @@ export default function Individual() {
           <EmptyState icon="users" title="Долгов нет" text="Все записанные на прошедшие занятия оплатили." />
         ) : (
           [...byPlayer.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name, 'ru')).map(([id, v]) => (
-            <ListRow key={id} avatar={v.name} title={v.name} sub={[`Неоплаченных занятий: ${v.n}`]} end={<Pill tone="danger" dot>{gel(v.sum)}</Pill>} />
+            <div className="ks-card" key={id}>
+              <div className="ks-line"><b style={{ overflowWrap: 'anywhere' }}>{v.name}</b><Pill tone="danger" dot>{gel(v.sum)}</Pill></div>
+              {[...v.rows].sort((a, b) => a.individual_sessions.starts_at.localeCompare(b.individual_sessions.starts_at)).map(d => (
+                <div className="ks-line" key={d.session_id} style={{ marginTop: 8 }}>
+                  <span style={{ flex: 1, minWidth: 0 }}>{title(d.individual_sessions)}{d.individual_sessions.topic ? ` · ${d.individual_sessions.topic}` : ''}<br /><span className="muted">{gel(Number(d.amount))}</span></span>
+                  <button type="button" className="ks-btn secondary sm" disabled={paying === d.session_id + d.player_id} aria-label={`Принять оплату: ${v.name}, ${title(d.individual_sessions)}`} onClick={() => void payDebt(d)}>Оплачено</button>
+                </div>
+              ))}
+            </div>
           ))
         )
       ) : !list ? (

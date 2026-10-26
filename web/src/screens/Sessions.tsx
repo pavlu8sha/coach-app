@@ -96,11 +96,11 @@ export default function Sessions({ groups }: { groups: CoachGroup[] }) {
   const gid = shown.some(g => g.id === gidPick) ? gidPick : shown[0]?.id ?? '';
 
   return (
-    <main className="page has-bar">
+    <main className="page">
       <h1>Отметки</h1>
       <Segmented label="Тип занятий" value={tab} onChange={setTab} items={[{ value: 'grp', label: 'Группы' }, { value: 'ind', label: 'Индивидуальные' }]} />
-      <div className="ks-two">
-        {tab === 'grp' && shown.length > 0 ? <GroupPicker groups={shown} value={gid} onChange={setGidPick} /> : <span />}
+      <div className={tab === 'grp' && shown.length > 0 ? 'ks-pair' : undefined}>
+        {tab === 'grp' && shown.length > 0 && <GroupPicker groups={shown} value={gid} onChange={setGidPick} />}
         <input className="ks-input" type="date" aria-label="Дата" value={date} onChange={e => e.target.value && setDate(e.target.value)} />
       </div>
       {tab === 'grp' && (
@@ -219,6 +219,7 @@ function Roster({ gid, date }: { gid: string; date: string }) {
             </div>
           ))}
           {msg && <p className={msg.ok ? 'ks-ok' : 'error'}>{msg.text}</p>}
+          {!native && <div style={{ height: 96 }} aria-hidden="true" />}
           {!native && (
             <div className="ks-savebar">
               <span>{left > 0 ? <>Осталось отметить: <b>{left}</b></> : <>Отмечено: <b>{players.length}</b> из {players.length}</>}</span>
