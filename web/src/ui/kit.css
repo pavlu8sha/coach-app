@@ -95,7 +95,11 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 .ks-stepper button:disabled { opacity: 0.4; cursor: default; }
 .ks-stepper b { min-width: 24px; text-align: center; font-variant-numeric: tabular-nums; }
 .ks-check { display: flex; align-items: center; gap: 10px; min-height: var(--ks-tap); font-weight: 700; }
-.ks-check input { width: 22px; height: 22px; flex: none; }
+.ks-check input { appearance: none; -webkit-appearance: none; width: 24px; height: 24px; flex: none; margin: 0; display: grid; place-content: center; border: 2px solid var(--ks-border-strong); border-radius: 8px; background: var(--ks-surface); cursor: pointer; transition: background 0.12s, border-color 0.12s; }
+.ks-check input:checked { background: var(--ks-primary); border-color: var(--ks-primary); }
+.ks-check input::after { content: ''; width: 6px; height: 11px; border: solid var(--ks-on-primary); border-width: 0 2.5px 2.5px 0; transform: translateY(-1px) rotate(45deg) scale(0); transition: transform 0.12s; }
+.ks-check input:checked::after { transform: translateY(-1px) rotate(45deg) scale(1); }
+.ks-check input:focus-visible { outline: 3px solid var(--ks-primary); outline-offset: 2px; }
 .ks-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .ks-ok { color: var(--ks-success); font-weight: 700; margin: 8px 0; }
 

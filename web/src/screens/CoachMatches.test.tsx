@@ -42,10 +42,11 @@ describe('«Матчи» по категориям', () => {
 describe('«Матчи» тренера', () => {
   it('лучший игрок уходит в запрос, играющие и голы сохраняются', async () => {
     seed();
+    fake.db.match_players = (fake.db.match_players as { player_id: string }[]).filter(r => r.player_id !== 'p9');
     render(<CoachMatches groups={groups} />);
     fireEvent.click(await screen.findByText('Олимп'));
     await screen.findByText('Иванов Пётр');
-    fireEvent.click(screen.getByRole('button', { name: 'Назначить лучшим игроком' })); // кнопка есть только у сыгравшего
+    fireEvent.click(within(screen.getByText('Иванов Пётр').closest('.ks-card') as HTMLElement).getByRole('button', { name: 'Назначить лучшим игроком' }));
     fireEvent.click(screen.getByText('Сохранить матч'));
     await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
     const a = fake.rpcCalls('save_match')[0];
@@ -56,14 +57,14 @@ describe('«Матчи» тренера', () => {
     ]);
   });
 
-  it('у тренера нет поиска игроков и удаления матча, а чужих игроков он не видит', async () => {
+  it('у тренера есть поиск игроков клуба, но нет удаления матча', async () => {
     seed();
     render(<CoachMatches groups={groups} />);
     fireEvent.click(await screen.findByText('Олимп'));
     await screen.findByText('Иванов Пётр');
-    expect(screen.queryByLabelText('Найти игрока')).toBeNull();
+    expect(screen.getByLabelText('Найти игрока')).toBeInTheDocument();
     expect(screen.queryByText('Удалить матч')).toBeNull();
-    expect(screen.queryByText('Гость Игорь')).toBeNull();
+    expect(screen.getByText('Гость Игорь')).toBeInTheDocument(); // игрок из состава, не из группы
   });
 
   it('новый матч: голов у игроков больше счёта — ошибка до обращения к базе', async () => {
@@ -94,6 +95,7 @@ describe('«Матчи» тренера', () => {
 
   it('снятие отметки «играл» снимает и лучшего игрока', async () => {
     seed();
+    fake.db.match_players = (fake.db.match_players as { player_id: string }[]).filter(r => r.player_id !== 'p9');
     render(<CoachMatches groups={groups} />);
     fireEvent.click(await screen.findByText('Олимп'));
     await screen.findByText('Иванов Пётр');
@@ -171,7 +173,7 @@ describe('«Новое событие»', () => {
     expect(await screen.findByText('Фестиваль осени · U9')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Состав и игры события'));
     await screen.findByText('Сидоров Ян');
-    fireEvent.click(screen.getByText('Добавить всю группу U9'));
+    fireEvent.click(screen.getByText('Добавить всю команду U9'));
     await waitFor(() => expect(fake.rpcCalls('event_roster_add')).toHaveLength(1));
     expect(await screen.findByText('Иванов Пётр')).toBeInTheDocument();
   });
@@ -269,5 +271,17 @@ describe('Взносы за матч (администратор)', () => {
     fireEvent.click(await screen.findByText('Олимп'));
     await screen.findByText('Иванов Пётр');
     expect(screen.queryByText('Взносы')).toBeNull();
+  });
+});
+
+describe('Команды для матчей и событий', () => {
+  it('в «Новом событии» нет индивидуальных, вратарских, weekends, Isani и суффиксов -A/-B', async () => {
+    fake.db.matches = [];
+    fake.rpc.event_list = () => [];
+    const all = ['Isani', 'Ortachala U9', 'U10-A', 'U10-B', 'U7-A', 'U7-B', 'U13-C', 'weekends', 'Индивидуальные / Вратарские'].map((name, i) => ({ id: `g${i}`, name }));
+    render(<CoachMatches groups={all} admin />);
+    fireEvent.click(await screen.findByText('Новое событие'));
+    const opts = within(await screen.findByLabelText('Команда')).getAllByRole('option').map(o => o.textContent);
+    expect(opts).toEqual(['Ortachala U9', 'U10', 'U13', 'U7']);
   });
 });
