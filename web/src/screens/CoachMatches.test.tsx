@@ -248,7 +248,7 @@ describe('Взносы за матч (администратор)', () => {
     let fees: { player_id: string; full_name: string; group_name: string; due: number; paid: number }[] = [];
     fake.rpc.match_fees_list = () => fees;
     fake.rpc.match_payments_list = () => [];
-    fake.rpc.match_fee_add = a => { fees = (a.ids as string[]).map(id => ({ player_id: id, full_name: 'Иванов Пётр', group_name: 'U9', due: Number(a.amt), paid: 0 })); return fees.length; };
+    fake.rpc.match_fee_add = a => { fees = (a.ids as string[]).map(id => ({ player_id: id, full_name: id === 'p1' ? 'Иванов Пётр' : 'Гость Игорь', group_name: 'U9', due: Number(a.amt), paid: 0 })); return fees.length; };
     fake.rpc.match_pay = () => 1;
     render(<CoachMatches groups={groups} admin />);
     fireEvent.click(await screen.findByText('Олимп'));
