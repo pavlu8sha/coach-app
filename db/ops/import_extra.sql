@@ -367,9 +367,23 @@ insert into x_b values
 ('2026-10-17'::date,'Zolotarev Bogdan',true,'Наличные',15),
 ('2026-10-17'::date,'Vukolov Vasiliy',true,'Наличные',15);
 
+-- Старые написания → ФИ в реестре (первое найденное в базе)
+create temp table x_a(name text, target text) on commit drop;
+insert into x_a values ('Sechko Vova','Siachko Vladimir'),('Sechko Vova','Sechko Vladimir'),('Sechko Ilia','Siachko Ilia'),('Sechko Ilya','Siachko Ilia'),('Chernyshov Petr','Chernyshov Peter'),('Daniel Demuria','Demuria Daniel'),('Degtyarenko Danil','Degtyarenko Daniil'),('Holubov Denis','Holubov Denys'),('Imnaiishvili George','Imnaishvili Giorgi'),('Imnaishvili Gosha','Imnaishvili Giorgi'),('Kobylskyi Misha','Kobylskiy Misha'),('Kulinich Denys','Kulinich Denis'),('Maltsev Aleksey','Maltsev Alexey'),('Shashin Aaron','Shashyn Aaron'),('Yarovoy Vasya','Yarovoy Vasiliy'),('Zaporozhets Egor','Zaporozhetc Egor');
+-- Игроки, которых нет в реестре (ушли из клуба): заводятся как неактивные гости, как для индивидуальных. Повтор не дублирует.
+insert into players (club_id, external_id, full_name, status)
+  select (select club_id from players limit 1), 'GUEST-' || upper(regexp_replace(g.name, '[^A-Za-z]+', '-', 'g')), g.name, 'inactive'
+  from (values ('Daniel van Rhoon'),('Luitikov Mart'),('Luitikov Platon'),('Rak Dorian'),('Rybchinskiy Nikita'),('Sokovets Semen')) g(name)
+  where not exists (select 1 from players p where lower(p.full_name) = lower(g.name))
+  on conflict (club_id, external_id) do nothing;
+
 create temp table x_m on commit drop as
-  select b.*, p.id as player_id, p.club_id
-  from x_b b left join players p on lower(regexp_replace(trim(p.full_name), '\s+', ' ', 'g')) = lower(regexp_replace(trim(b.name), '\s+', ' ', 'g'));
+  select distinct on (b.starts_on, b.name) b.*, p.id as player_id, p.club_id
+  from x_b b
+  left join players p on lower(regexp_replace(trim(p.full_name), '\s+', ' ', 'g')) in (
+    lower(regexp_replace(trim(b.name), '\s+', ' ', 'g')),
+    (select lower(a.target) from x_a a where lower(a.name) = lower(b.name) and exists (select 1 from players q where lower(q.full_name) = lower(a.target)) limit 1))
+  order by b.starts_on, b.name, (lower(p.full_name) = lower(b.name)) desc;
 
 insert into extra_sessions (club_id, starts_on, amount, place)
   select c.club_id, s.starts_on, s.amount, s.place
