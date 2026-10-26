@@ -32,6 +32,9 @@ select * from (values
   ('0044_lead_submit_app',         to_regprocedure('lead_submit_app(text,text,integer,text,text,boolean)') is not null),
   ('0045_booking_parents',         to_regprocedure('booking_signup(text,uuid,uuid)') is not null),
   ('0046_club_photos',             to_regprocedure('club_photo_set(text,text)') is not null),
-  ('0047_ind_no_autobook',         pg_get_functiondef(to_regprocedure('ind_create_session(date,time,boolean,text)')) not like '%individual_regulars%')
+  ('0047_ind_no_autobook',         pg_get_functiondef(to_regprocedure('ind_create_session(date,time,boolean,text)')) not like '%individual_regulars%'),
+  ('0048_can_see_team_group_suffix', pg_get_functiondef(to_regprocedure('can_see_team(uuid,text)')) like '%-[ABC]$%'),
+  ('0049_rename_u12_match_team',   not exists (select 1 from matches m where m.team = 'U12' and exists (select 1 from groups g where g.club_id = m.club_id and g.name = 'Ortachala U12'))),
+  ('0050_ind_goalkeepers_backfill', not exists (select 1 from individual_sessions where external_id like '%-GK' and not goalkeepers))
 ) as t(migration, applied)
 order by migration;
