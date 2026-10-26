@@ -74,7 +74,9 @@ export default function Players() {
   const allYears = useMemo(() => [...new Set((players ?? []).map(p => p.birth_date?.slice(0, 4)).filter((y): y is string => Boolean(y)))].sort().reverse(), [players]);
   const hasNoDate = (players ?? []).some(p => !p.birth_date);
 
-  const state = (p: Row) => payState(paid.get(p.id) ?? 0, p.group_id ? tariffFor(prices, p.group_id, monthStart()) : null, subs.get(p.id));
+  // игроки индивидуальных и вратарских платят за занятия, абонемента у них нет
+  const noSub = (p: Row) => (groupName.get(p.group_id ?? '') ?? '').trim().toLowerCase() === 'индивидуальные / вратарские';
+  const state = (p: Row) => noSub(p) ? { tone: 'neutral' as Tone, label: 'Без абонемента' } : payState(paid.get(p.id) ?? 0, p.group_id ? tariffFor(prices, p.group_id, monthStart()) : null, subs.get(p.id));
   const list = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return (players ?? []).filter(p => {

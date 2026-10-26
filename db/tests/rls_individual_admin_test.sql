@@ -28,7 +28,8 @@ select throws_ok($$select ind_create_session('2026-11-07', '12:00', false, 'Др
 select as_user('00000000-0000-0000-0000-0000000000a1');
 select ind_set_regular('00000000-0000-0000-0000-00000000d001', false, true);
 insert into sid select ind_create_session('2026-11-07', '12:00', false, 'Дриблинг');
-select is((select count(*)::int from individual_bookings where session_id = (select id from sid)), 1, 'постоянный записан автоматически');
+select is((select count(*)::int from individual_bookings where session_id = (select id from sid)), 0, 'на новое занятие никто не записывается автоматически');
+select ind_add_player((select id from sid), '00000000-0000-0000-0000-00000000d001');
 select is((select amount from individual_bookings where session_id = (select id from sid)), 50::numeric, 'цена по умолчанию 50');
 select throws_ok($$select ind_create_session('2026-11-07', '12:00', false, 'Ещё раз')$$, '23505', 'session exists', 'дубль занятия отклоняется');
 select lives_ok($$select ind_create_session('2026-11-07', '12:00', true, null)$$, 'вратарское в то же время — отдельное занятие');

@@ -17,7 +17,7 @@ const nowLocal = () => `${today()}T${new Date().toTimeString().slice(0, 5)}`;
 
 type Tab = 'next' | 'past' | 'debt';
 
-// Индивидуальные и вратарские занятия для администратора (миграция 0034): записи, оплата, постоянные участники.
+// Индивидуальные и вратарские занятия для администратора (миграция 0034): запись на каждое занятие отдельно, оплата, посещение.
 export default function Individual() {
   const [tab, setTab] = useState<Tab>('next');
   const [list, setList] = useState<Session[] | null>(null);
@@ -105,7 +105,7 @@ function SessionForm({ onBack, onDone }: { onBack: () => void; onDone: () => voi
       <label className="field">Дата<input type="date" value={date} onChange={e => setDate(e.target.value)} /></label>
       <label className="field">Время<input type="time" value={time} onChange={e => setTime(e.target.value)} /></label>
       <label className="field">Тема (необязательно)<input value={theme} maxLength={80} onChange={e => setTheme(e.target.value)} /></label>
-      <p className="muted">Постоянные участники этого типа запишутся автоматически.</p>
+      <p className="muted">Занятие создаётся пустым: игроков записывайте на каждое занятие отдельно.</p>
       {err && <p className="error">{err}</p>}
       <button type="button" className="ks-btn" disabled={busy || !date || !time} onClick={() => void save()}>Создать</button>
     </main>
@@ -114,7 +114,6 @@ function SessionForm({ onBack, onDone }: { onBack: () => void; onDone: () => voi
 
 function SessionView({ session, onBack }: { session: Session; onBack: () => void }) {
   const [bookings, setBookings] = useState<Booking[]>(session.individual_bookings);
-  const [regular, setRegular] = useState<Set<string>>(new Set());
   const [q, setQ] = useState('');
   const [found, setFound] = useState<{ id: string; full_name: string }[]>([]);
   const [date, setDate] = useState(dayOf(session.starts_at));
@@ -128,8 +127,6 @@ function SessionView({ session, onBack }: { session: Session; onBack: () => void
   const refresh = async () => {
     const r = await supabase.from('individual_bookings').select('player_id, paid, attended, amount, players(full_name)').eq('session_id', session.id);
     if (!r.error) setBookings((r.data ?? []) as unknown as Booking[]);
-    const g = await supabase.from('individual_regulars').select('player_id').eq('goalkeepers', session.goalkeepers);
-    if (!g.error) setRegular(new Set(((g.data ?? []) as { player_id: string }[]).map(x => x.player_id)));
   };
   useEffect(() => { void refresh(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (gone) onBack(); }, [gone]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -188,9 +185,6 @@ function SessionView({ session, onBack }: { session: Session; onBack: () => void
                 Убрать
               </button>
             )}
-            <button type="button" className="ks-btn secondary" style={{ width: 'auto' }} disabled={busy === 'r' + b.player_id} onClick={() => void run('r' + b.player_id, () => supabase.rpc('ind_set_regular', { p: b.player_id, gk: session.goalkeepers, on_: !regular.has(b.player_id) }), regular.has(b.player_id) ? 'Убран из постоянных.' : 'Добавлен в постоянные: будет записываться на новые занятия.')}>
-              {regular.has(b.player_id) ? 'Не постоянный' : 'Сделать постоянным'}
-            </button>
           </div>
         </div>
       ))}

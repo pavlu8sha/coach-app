@@ -1,4 +1,4 @@
--- Что из миграций 0017–0046 уже применено в этой базе. Только чтение, ничего не меняет.
+-- Что из миграций 0017–0047 уже применено в этой базе. Только чтение, ничего не меняет.
 -- Запустить в SQL Editor целиком. applied = true — применять эту миграцию не нужно (повторный запуск упадёт на create table/trigger).
 -- Применять надо по номерам только те, где applied = false.
 select * from (values
@@ -31,6 +31,7 @@ select * from (values
   ('0043_match_staff',             to_regprocedure('trainer_stats(date,date)') is not null),
   ('0044_lead_submit_app',         to_regprocedure('lead_submit_app(text,text,integer,text,text,boolean)') is not null),
   ('0045_booking_parents',         to_regprocedure('booking_signup(text,uuid,uuid)') is not null),
-  ('0046_club_photos',             to_regprocedure('club_photo_set(text,text)') is not null)
+  ('0046_club_photos',             to_regprocedure('club_photo_set(text,text)') is not null),
+  ('0047_ind_no_autobook',         pg_get_functiondef(to_regprocedure('ind_create_session(date,time,boolean,text)')) not like '%individual_regulars%')
 ) as t(migration, applied)
 order by migration;
