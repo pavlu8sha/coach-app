@@ -117,6 +117,18 @@ export function checkGoalsWithoutPlaying(data = {}) {
 // Матчи до этой даты (весна 2026, перенос из старого файла): счёта нет и в старых таблицах, пустым оставлен намеренно (решение владельца, #179)
 export const SCORE_ARCHIVE_BEFORE = '2026-09-01';
 
+// Матчи, у которых состава нет и не будет (решение владельца, 2026-10-26, #179): причина указана у каждого.
+export const KNOWN_NO_ROSTER = new Map([
+  ['1ed57f8e-44bd-47cc-b427-5d5c37a49668', '2026-09-12 U9 — FC Junker: техническая победа, никто не играл'],
+  ['d81f5dfe-1831-4aa1-bdd6-1a0ddf84cc32', '2026-09-13 U9 — FC Tbilisi 2025: игра была, состав не записан'],
+  ['511cc924-a29a-465a-bee1-80bef5a4ab77', '2026-09-20 U13-A — FC Sulalvelidze: игра была, состав не записан'],
+  ['61e688ab-c083-4bda-85ae-1f76c7268fcb', '2026-09-27 U9-A — FC Tbilisi-2025: игра была, состав не записан'],
+  ['eed3fffe-3c70-4c20-a377-10e8f9894e67', '2026-10-05 U13-A — FC Gantiadi (Kaspi): состав не записан, гол автогол'],
+  ['e7ed4a9f-9f3c-481c-b2ce-bc61166d22d9', '2026-10-10 U9-A — U9-B: игра была, состав не записан'],
+  ['b884bcae-1e2b-47d9-b8d5-db50d0c9fa15', '2026-10-10 U9-B — U9-A: игра была, состав не записан'],
+  ['19e28921-9dce-4f08-973e-b2c5f2f4d06b', '2026-10-18 U13-B — FC Sairme: игра была, состав не записан'],
+]);
+
 export function checkLineups(data = {}) {
   const roster = new Set(arr(data.matchPlayers).map(row => row.match_id));
   const today = data.today || tbilisiToday();
@@ -124,7 +136,7 @@ export function checkLineups(data = {}) {
   for (const m of clubMatches(data)) {
     const hasScore = m.goals_for !== null && m.goals_for !== undefined && m.goals_against !== null && m.goals_against !== undefined;
     const hasRoster = roster.has(m.id);
-    if (String(m.played_on || '') < today && hasScore && !hasRoster) {
+    if (String(m.played_on || '') < today && hasScore && !hasRoster && !KNOWN_NO_ROSTER.has(m.id)) {
       items.push(`${matchText(m)}: матч в прошлом со счётом, но без состава`);
     }
     if (hasRoster && !hasScore && String(m.played_on || '') >= SCORE_ARCHIVE_BEFORE) {
