@@ -285,8 +285,26 @@ describe('Взносы за матч (администратор)', () => {
     expect(fake.rpcCalls('match_pay')[0]).toMatchObject({ m: 'm1', amt: null });
   });
 
-  it('тренеру блок взносов не показывается, у чемпионата взнос на событие', async () => {
+  it('тренер принимает взносы за товарищеский матч, без скидки и отмены платежа', async () => {
     seed();
+    fake.rpc.match_fees_list = () => [{ player_id: 'p1', full_name: 'Иванов Пётр', group_name: 'U9', due: 20, paid: 0 }];
+    fake.rpc.match_payments_list = () => [{ id: 'x1', player_id: 'p1', full_name: 'Иванов Пётр', amount: 5, paid_on: '2026-10-10', method: 'Наличные', comment: null, cancelled: false }];
+    fake.rpc.match_pay = () => 1;
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText('Олимп'));
+    await screen.findByText('Взносы');
+    expect(screen.queryByLabelText('Скидка: Иванов Пётр')).toBeNull();
+    expect(screen.queryByLabelText('Отменить оплату: Иванов Пётр')).toBeNull();
+    fireEvent.click(await screen.findByLabelText('Платит: Иванов Пётр'));
+    fireEvent.change(screen.getByLabelText(/^Способ/), { target: { value: 'Перевод' } });
+    fireEvent.click(screen.getByText(/Записать оплату/));
+    await waitFor(() => expect(fake.rpcCalls('match_pay')).toHaveLength(1));
+  });
+
+  it('у матча чемпионата тренеру взносов нет: только посещаемость и состав', async () => {
+    seed();
+    fake.rpc.match_tournaments = () => [{ match_id: 'm1', tournament_id: 't1', tournament_name: 'Ч1', tournament_kind: 'championship', match_kind: 'game' }];
+    fake.rpc.event_roster = () => [{ player_id: 'p1', full_name: 'Иванов Пётр', group_name: 'U9' }];
     render(<CoachMatches groups={groups} />);
     fireEvent.click(await screen.findByText('Олимп'));
     await screen.findByText('Иванов Пётр');
