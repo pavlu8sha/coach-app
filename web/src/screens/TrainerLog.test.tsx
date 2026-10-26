@@ -41,6 +41,35 @@ describe('«Учёт тренеров»', () => {
     expect(fake.rpcCalls('tl_add')[0]).toMatchObject({ d: today(), coach: 'Соприк', label: 'U9' });
   });
 
+  it('до подтверждения правка времени, места и тренеров уходит в «Проведена»', async () => {
+    seed();
+    fake.rpc.tl_confirm = () => 1;
+    render(<TrainerLog />);
+    fireEvent.click(await screen.findByRole('button', { name: /Изменить время, место, тренеров/ }));
+    fireEvent.change(screen.getByLabelText('Начало'), { target: { value: '18:00' } });
+    fireEvent.change(screen.getByLabelText('Конец'), { target: { value: '19:30' } });
+    fireEvent.change(screen.getByLabelText('Место'), { target: { value: 'Стадион' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Соприк' })); // снять Соприка из плана
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    expect(await screen.findByText('U9 · 18:00–19:30')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Проведена' }));
+    await waitFor(() => expect(fake.rpcCalls('tl_confirm')).toHaveLength(1));
+    expect(fake.rpcCalls('tl_confirm')[0]).toMatchObject({ st: '18:00', en: '19:30', loc: 'Стадион', coaches: ['Павел'] });
+  });
+
+  it('у проведённой тренировки время и место меняются в базе', async () => {
+    seed([row('l1', 'Павел'), row('l2', 'Соприк')]);
+    fake.rpc.tl_edit_session = () => 2;
+    render(<TrainerLog />);
+    fireEvent.click(await screen.findByRole('button', { name: /Изменить время, место/ }));
+    fireEvent.change(screen.getByLabelText('Начало'), { target: { value: '18:30' } });
+    fireEvent.change(screen.getByLabelText('Конец'), { target: { value: '20:00' } });
+    fireEvent.change(screen.getByLabelText('Место'), { target: { value: 'Другой зал' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() => expect(fake.rpcCalls('tl_edit_session')).toHaveLength(1));
+    expect(fake.rpcCalls('tl_edit_session')[0]).toMatchObject({ d: today(), label: 'U9', old_st: '17:00', new_st: '18:30', new_loc: 'Другой зал' });
+  });
+
   it('будущую тренировку подтвердить нельзя — понятное сообщение', async () => {
     seed();
     fake.rpc.tl_confirm = () => ({ error: { message: 'date in the future' } });
