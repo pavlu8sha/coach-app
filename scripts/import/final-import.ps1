@@ -50,7 +50,7 @@ Run 'Даты рождения' @("$S/run-birth.mjs", '--registry', $reg, '--ove
 Run 'Расписание и журнал тренировок' @("$S/run-schedule-log.mjs", '--registry', $reg, '--schedule', $sched, '--log', $log)
 if ($Mode -eq 'Final') {
   Run 'Посещаемость' @("$S/run-attendance.mjs", '--registry', $reg, '--schedule', $sched, '--log', $log, '--att-dir', (Find-Dir 'ATT_ID'))
-  Run 'Матчи, составы, взносы' @("$S/run-events.mjs", '--registry', $reg, '--events', (Find-Csv 'МАТЧИ.csv'), '--fees', (Find-Csv 'ВЗНОСЫ МАТЧЕЙ.csv'), '--games', (Find-Dir 'GAMES_ID'), '--log', (Find-Csv 'Игры.csv'))
+  Run 'Матчи: только новые, составы новых, взносы' @("$S/run-events.mjs", '--registry', $reg, '--events', (Find-Csv 'МАТЧИ.csv'), '--fees', (Find-Csv 'ВЗНОСЫ МАТЧЕЙ.csv'), '--games', (Find-Dir 'GAMES_ID'), '--log', (Find-Csv 'Игры.csv'), '--new-only')
 }
 $months = @(Get-ChildItem -LiteralPath (Find-Dir 'PAY_ID') -File -Filter '*.csv' | Sort-Object Name | ForEach-Object { $_.FullName })
 Run 'Оплаты абонементов' (@("$S/run-payments.mjs", '--registry', $reg) + $months)

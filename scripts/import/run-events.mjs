@@ -12,6 +12,8 @@ import { parseGamesLog } from './games-log.mjs';
 
 const arg = name => { const i = process.argv.indexOf('--' + name); return i >= 0 ? process.argv[i + 1] : null; };
 const write = process.argv.includes('--write');
+// --new-only: матчи, турниры и составы, которые уже есть в базе, не трогаем (их правят в новом приложении: переименование команд, составы, голы); добавляются только новые.
+const newOnly = process.argv.includes('--new-only');
 const regFile = arg('registry'), evFile = arg('events'), feeFile = arg('fees'), gamesDir = arg('games'), logFile = arg('log');
 if (!regFile || !evFile || !feeFile || !gamesDir || !logFile) {
   console.error('Укажите --registry, --events, --fees, --games (папка GAMES_ID), --log (Игры.csv)'); process.exit(2);
@@ -75,15 +77,20 @@ const playerId = name => pid.get(regByName.get(name));
 const absent = [...new Set([...plan.matchPlayers, ...plan.matchFees, ...plan.tFees].map(x => x.name).filter(n => !playerId(n)))];
 if (absent.length) { console.error('Игроки не найдены в базе (сначала реестр): ' + absent.join(', ')); process.exit(1); }
 
+// существующие матчи и турниры (для --new-only)
+const existingM = newOnly ? new Set((await rest('GET', `matches?club_id=eq.${CLUB_ID}&select=external_id&limit=5000`)).map(m => m.external_id)) : new Set();
+const existingT = newOnly ? new Set((await rest('GET', `tournaments?club_id=eq.${CLUB_ID}&select=external_id&limit=5000`)).map(t => t.external_id)) : new Set();
+const skipM = ext => existingM.has(ext);
+
 // 1) турниры
-await upsertAll('tournaments', 'club_id,external_id', plan.tournaments.map(t => ({
+await upsertAll('tournaments', 'club_id,external_id', plan.tournaments.filter(t => !existingT.has(t.external_id)).map(t => ({
   club_id: CLUB_ID, external_id: t.external_id, team: t.team, kind: t.kind, name: t.name, fee: t.fee, starts_on: t.starts_on || null,
 })));
 const dbT = await rest('GET', `tournaments?club_id=eq.${CLUB_ID}&select=id,external_id`);
 const tid = new Map(dbT.map(t => [t.external_id, t.id]));
 
 // 2) матчи
-await upsertAll('matches', 'club_id,external_id', plan.matches.map(m => ({
+await upsertAll('matches', 'club_id,external_id', plan.matches.filter(m => !skipM(m.external_id)).map(m => ({
   club_id: CLUB_ID, external_id: m.external_id, team: m.team, kind: m.kind, played_on: m.played_on,
   opponent: m.opponent || null, goals_for: scoreBy.get(m.external_id)?.goals_for ?? m.goals_for ?? null,
   goals_against: scoreBy.get(m.external_id)?.goals_against ?? m.goals_against ?? null,
@@ -95,9 +102,10 @@ const mid = new Map(dbM.map(m => [m.external_id, m.id]));
 // 3) игроки матчей, взносы за товарищеские, взносы за турниры
 // игроки матчей: составу из листа добавляем голы; бомбардиры, которых не отметили «играл», тоже попадают в состав
 const mpKeys = new Set(plan.matchPlayers.map(x => x.match_ext + '|' + x.name));
-const mpRows = plan.matchPlayers.map(x => ({ match_id: mid.get(x.match_ext), player_id: playerId(x.name), played: true, goals: goalsBy.get(x.match_ext + '|' + x.name) || 0 }));
+const mpRows = plan.matchPlayers.filter(x => !skipM(x.match_ext)).map(x => ({ match_id: mid.get(x.match_ext), player_id: playerId(x.name), played: true, goals: goalsBy.get(x.match_ext + '|' + x.name) || 0 }));
 for (const [k, g] of goalsBy) {
   const [ext, name] = k.split('|');
+  if (skipM(ext)) continue;
   if (!mpKeys.has(ext + '|' + name)) mpRows.push({ match_id: mid.get(ext), player_id: playerId(name), played: true, goals: g });
 }
 await upsertAll('match_players', 'match_id,player_id', mpRows);
@@ -108,6 +116,7 @@ await upsertAll('tournament_fees', 'tournament_id,player_id', plan.tFees.map(x =
   tournament_id: tid.get(x.tournament_ext), player_id: playerId(x.name), amount: x.amount, paid: !!x.paid,
 })));
 // штат игр (тренер, оператор): слияние по (матч, сотрудник, роль)
-await upsertAll('match_staff', 'match_id,coach,role', [...staffBy].flatMap(([ext, list]) => list.map(x => ({ match_id: mid.get(ext), coach: x.name, role: x.role, reg: x.reg }))));
+await upsertAll('match_staff', 'match_id,coach,role', [...staffBy].filter(([ext]) => !skipM(ext)).flatMap(([ext, list]) => list.map(x => ({ match_id: mid.get(ext), coach: x.name, role: x.role, reg: x.reg }))));
+if (newOnly) console.log(`Режим --new-only: существующих матчей пропущено ${existingM.size}, турниров ${existingT.size}; их состав, счёт и названия не менялись.`);
 console.log(`Штат игр: ${[...staffBy.values()].reduce((n, l) => n + l.length, 0)} записей в ${staffBy.size} играх.`);
 console.log(`Записано: счёт ${scoreBy.size} игр, голы ${goalsBy.size} записей; турниры ${plan.tournaments.length}, матчи ${plan.matches.length}, игроки матчей ${plan.matchPlayers.length}, взносы за товарищеские ${plan.matchFees.length}, взносы за турниры ${plan.tFees.length}.`);
