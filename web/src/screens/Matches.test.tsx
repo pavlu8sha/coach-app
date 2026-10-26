@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
-import Matches from './Matches';
+import Matches, { teamNames } from './Matches';
 
 function seed() {
   fake.user = { id: 'u1' } as any;
@@ -47,5 +47,42 @@ describe('«Матчи» родителя: итоги и турнир', () => {
     render(<Matches />);
     await screen.findByLabelText('Итоги команды');
     expect(screen.queryByLabelText('Турнир')).not.toBeInTheDocument();
+  });
+});
+
+describe('«Матчи» родителя: команда без суффикса группы', () => {
+  function seedGroup(group: string) {
+    fake.user = { id: 'u1' } as any;
+    fake.db.player_guardians = [{ user_id: 'u1', consent_revoked_at: null, players: { id: 'p1', full_name: 'Иванов Пётр', groups: { name: group } } }];
+    fake.db.match_players = [];
+    fake.db.matches = [
+      { id: 'm1', team: 'U10', played_on: '2026-10-01', opponent: 'Олимп', goals_for: 3, goals_against: 1 },
+      { id: 'm2', team: 'U13-A', played_on: '2026-10-05', opponent: 'Динамо', goals_for: 0, goals_against: 2 },
+      { id: 'm3', team: 'U9', played_on: '2026-10-09', opponent: 'Локомотив', goals_for: 4, goals_against: 0 },
+    ];
+    fake.rpc.match_tournaments = () => [];
+  }
+
+  it('ребёнок из U10-A видит матч команды U10, но не U13-A и не U9', async () => {
+    seedGroup('U10-A');
+    render(<Matches />);
+    await screen.findByLabelText('Итоги команды');
+    expect(screen.getAllByText('Олимп', { exact: false }).length).toBeGreaterThan(0);
+    expect(screen.queryByText('Динамо', { exact: false })).not.toBeInTheDocument();
+    expect(screen.queryByText('Локомотив', { exact: false })).not.toBeInTheDocument();
+  });
+
+  it('ребёнок из Ortachala U9 не видит матч команды U9 (суффикса нет, не склеивается с U9-A/U9-B)', async () => {
+    seedGroup('Ortachala U9');
+    render(<Matches />);
+    await waitFor(() => expect(screen.queryByLabelText('Итоги команды')).not.toBeInTheDocument());
+    expect(screen.queryByText('Локомотив', { exact: false })).not.toBeInTheDocument();
+  });
+
+  it('teamNames: название группы и название без суффикса -A/-B/-C только в конце', () => {
+    expect(teamNames(['U10-A', 'U10-B'])).toEqual(['U10-A', 'U10', 'U10-B']);
+    expect(teamNames(['U13-C'])).toEqual(['U13-C', 'U13']);
+    expect(teamNames(['Ortachala U9', 'U11', 'weekends'])).toEqual(['Ortachala U9', 'U11', 'weekends']);
+    expect(teamNames(['U9-AB', 'A-B-x'])).toEqual(['U9-AB', 'A-B-x']);
   });
 });

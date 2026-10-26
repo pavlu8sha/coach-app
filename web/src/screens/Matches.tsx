@@ -7,6 +7,10 @@ import Message, { Failure, Loading } from './Message';
 interface Kid { id: string; name: string }
 interface Part { played: boolean; goals: number }
 interface Match { id: string; team: string; played_on: string; opponent: string | null; goals_for: number | null; goals_against: number | null }
+// Команда матча совпадает с группой по названию или по названию без суффикса -A/-B/-C («U10-A» → «U10»); то же правило в can_see_team (миграция 0048)
+export function teamNames(groupNames: string[]): string[] {
+  return [...new Set(groupNames.flatMap(n => [n, n.replace(/-[ABC]$/, '')]))];
+}
 type Filter = 'all' | 'upcoming' | 'past';
 interface Tour { match_id: string; tournament_name: string | null; tournament_kind: string | null; match_kind: string | null }
 const FORM: Record<'w' | 'd' | 'l', { letter: string; name: string; tone: Tone }> = { w: { letter: 'В', name: 'Победа', tone: 'success' }, d: { letter: 'Н', name: 'Ничья', tone: 'neutral' }, l: { letter: 'П', name: 'Поражение', tone: 'danger' } };
@@ -56,7 +60,7 @@ export default function Matches() {
       const map = new Map<string, Part>();
       for (const r of (mp.data ?? []) as { match_id: string; player_id: string; played: boolean; goals: number }[]) map.set(`${r.match_id}|${r.player_id}`, { played: r.played, goals: r.goals });
       setParts(map);
-      const m = await supabase.from('matches').select('id, team, played_on, opponent, goals_for, goals_against').in('team', names).order('played_on', { ascending: false }).limit(100);
+      const m = await supabase.from('matches').select('id, team, played_on, opponent, goals_for, goals_against').in('team', teamNames(names)).order('played_on', { ascending: false }).limit(100);
       if (m.error) return setError(m.error.message);
       const rows = (m.data ?? []) as Match[];
       // матчи другой команды, в которых играл ребёнок (например, гостем)
