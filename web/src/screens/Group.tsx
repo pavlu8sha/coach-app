@@ -22,15 +22,30 @@ export default function Group({ groups, notify = false, withStats = false }: { g
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [open, setOpen] = useState<Player | null>(null);
+  const [totals, setTotals] = useState<Record<string, number> | null>(null);
 
   useEffect(() => {
     setPlayers(null);
+    setTotals(null);
     void (async () => {
       const p = await supabase.from('players').select('id, full_name').eq('group_id', gid).eq('status', 'active').order('full_name');
       if (p.error) return setError(p.error.message);
-      setPlayers((p.data ?? []) as Player[]);
+      const list = (p.data ?? []) as Player[];
+      setPlayers(list);
+      // Рейтинг по баллам: если баллы не загрузились, список остаётся по алфавиту
+      const sums: Record<string, number> = {};
+      const ids = list.map(x => x.id);
+      for (let i = 0; i < ids.length; i += 100) {
+        for (let from = 0; ; from += 1000) {
+          const e = await supabase.from('point_events').select('player_id, points').in('player_id', ids.slice(i, i + 100)).order('id').range(from, from + 999);
+          if (e.error) return;
+          for (const r of (e.data ?? []) as { player_id: string; points: number }[]) sums[r.player_id] = (sums[r.player_id] ?? 0) + r.points;
+          if ((e.data ?? []).length < 1000) break;
+        }
+      }
+      setTotals(sums);
     })();
-  }, [gid, reload]);
+  }, [gid, reload, open]);
 
   if (error) return <Failure title="Не удалось загрузить группу" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   if (stats) return <><div style={{ maxWidth: 560, margin: '0 auto', padding: '8px 16px 0' }}><button type="button" className="ks-back" onClick={() => setStats(false)}><span className="ks-chev back" aria-hidden="true" />Группа</button></div><Stats /></>;
@@ -47,7 +62,16 @@ export default function Group({ groups, notify = false, withStats = false }: { g
       {players.length === 0 ? (
         <EmptyState icon="users" title="В группе нет игроков" />
       ) : (
-        players.map(p => <ListRow key={p.id} avatar={p.full_name} title={p.full_name} onClick={() => setOpen(p)} />)
+        (totals ? [...players].sort((a, b) => (totals[b.id] ?? 0) - (totals[a.id] ?? 0) || a.full_name.localeCompare(b.full_name, 'ru')) : players).map((p, i) => (
+          <ListRow
+            key={p.id}
+            avatar={p.full_name}
+            title={p.full_name}
+            sub={totals ? [`Место ${i + 1}`] : undefined}
+            end={totals && <Pill tone="primary">{totals[p.id] ?? 0}</Pill>}
+            onClick={() => setOpen(p)}
+          />
+        ))
       )}
       {notify && <NotifyToggle hint="Бот пришлёт сообщение, когда вам назначат группу. Чтобы сообщения приходили, один раз нажмите «Старт» в чате с ботом клуба." />}
     </main>
