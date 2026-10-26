@@ -128,6 +128,10 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
         );
       })}
       <h3>Принять оплату</h3>
+      <div className="ks-actions" style={{ marginBottom: 8 }}>
+        <button type="button" className="ks-btn secondary sm" disabled={fees.every(f => f.due - f.paid <= 0)} onClick={() => setSel(new Set(fees.filter(f => f.due - f.paid > 0).map(f => f.player_id)))}>Выбрать всех должников</button>
+        <button type="button" className="ks-btn secondary sm" disabled={sel.size === 0} onClick={() => setSel(new Set())}>Снять выбор</button>
+      </div>
       <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>Отметьте «Платит» у нужных игроков. Если сумму не указать, запишется остаток каждого.</p>
       <label className="ks-label" htmlFor="ef-amt">Сумма с каждого, ₾ (необязательно)</label>
       <input id="ef-amt" className="ks-input" inputMode="decimal" value={amt} onChange={e => setAmt(e.target.value.replace(/[^\d.]/g, '').slice(0, 7))} placeholder="Остаток" />
