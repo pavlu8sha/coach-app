@@ -37,6 +37,7 @@ select * from (values
   ('0049_rename_u12_match_team',   not exists (select 1 from matches m where m.team = 'U12' and exists (select 1 from groups g where g.club_id = m.club_id and g.name = 'Ortachala U12'))),
   ('0050_ind_goalkeepers_backfill', not exists (select 1 from individual_sessions where external_id like '%-GK' and not goalkeepers)),
   ('0051_events',                  to_regprocedure('event_create(text,text,text,date,numeric,uuid)') is not null),
-  ('0052_ind_change_type',         to_regprocedure('ind_edit_session(uuid,date,time,text,boolean)') is not null)
+  ('0052_ind_change_type',         to_regprocedure('ind_edit_session(uuid,date,time,text,boolean)') is not null),
+  ('0053_event_fees',              to_regprocedure('event_pay(uuid,uuid[],numeric,date,text,text)') is not null)
 ) as t(migration, applied)
 order by migration;

@@ -53,7 +53,9 @@ select is(
         'booking_is_parent', 'booking_board', 'booking_signup', 'booking_cancel',
         'club_photo_set', 'club_photo_clear',
         -- 0051: события (чемпионат, фестиваль, кубок): тренеры и админ, без сумм
-        'event_list', 'event_create', 'event_roster', 'event_roster_add', 'event_roster_remove', 'event_add_game')),
+        'event_list', 'event_create', 'event_roster', 'event_roster_add', 'event_roster_remove', 'event_add_game',
+        -- 0053: взносы за события (только админ; проверка внутри)
+        'event_set_fee', 'event_fees', 'event_payments', 'event_pay', 'event_discount', 'event_cancel_payment')),
   '', 'список функций, доступных вошедшим пользователям, не расширился без решения');
 
 select is(
