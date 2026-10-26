@@ -43,6 +43,10 @@ function Day() {
   const [reload, setReload] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  // правка конкретной тренировки: время, место и (до подтверждения) тренеры; пока не подтверждена, правка хранится на экране
+  const [ov, setOv] = useState<Record<string, { start: string; end: string | null; loc: string | null; coaches: string[] }>>({});
+  const [editKey, setEditKey] = useState<string | null>(null);
+  const [form, setForm] = useState<{ start: string; end: string; loc: string; coaches: string[] }>({ start: '', end: '', loc: '', coaches: [] });
 
   useEffect(() => {
     void (async () => {
@@ -93,13 +97,52 @@ function Day() {
       {msg && <p className="error">{msg}</p>}
       {!slots || !logs ? <Loading /> : items.length === 0 ? (
         <EmptyState icon="users" title="Тренировок нет" text="В этот день нет занятий по расписанию и записей в журнале." />
-      ) : items.map(it => {
+      ) : items.map(orig => {
+        const k = `${orig.label}|${orig.start}`;
+        const o = ov[k];
+        const it: Item = o ? { ...orig, start: o.start, end: o.end, loc: o.loc, plan: o.coaches } : orig;
         const held = it.rows.filter(r => r.held);
-        const k = `${it.label}|${it.start}`;
+        const startEdit = () => {
+          setEditKey(k);
+          setForm({ start: it.start ?? '', end: it.end ?? '', loc: it.loc ?? '', coaches: it.plan });
+        };
+        const saveEdit = () => {
+          if (!form.start) return setMsg('Укажите время начала.');
+          if (form.end && form.end <= form.start) return setMsg('Конец должен быть позже начала.');
+          setMsg(null);
+          if (held.length > 0) {
+            void run(k, () => supabase.rpc('tl_edit_session', { d: date, label: it.label, old_st: orig.start, new_st: form.start, new_en: form.end || null, new_loc: form.loc })).then(() => setEditKey(null));
+          } else {
+            setOv(x => ({ ...x, [k]: { start: form.start, end: form.end || null, loc: form.loc.trim() || null, coaches: form.coaches } }));
+            setEditKey(null);
+          }
+        };
         return (
           <div className="ks-card" key={k}>
             <div className="ks-line"><b>{it.label} · {it.start}{it.end ? `–${it.end}` : ''}</b><Pill tone={held.length ? 'success' : 'neutral'} dot>{held.length ? 'Проведена' : 'Не отмечена'}</Pill></div>
             <div className="ks-muted" style={{ fontSize: 13 }}>{it.kind}{it.loc ? ` · ${it.loc}` : ''}{!held.length && it.plan.length ? ` · по плану: ${it.plan.join(', ')}` : ''}</div>
+            <button type="button" className="ks-btn secondary sm" style={{ marginTop: 8 }} onClick={() => (editKey === k ? setEditKey(null) : startEdit())}>{editKey === k ? 'Свернуть' : 'Изменить время, место' + (held.length ? '' : ', тренеров')}</button>
+            {editKey === k && (
+              <div style={{ marginTop: 8 }}>
+                <div className="two">
+                  <label className="field">Начало<input type="time" value={form.start} onChange={e => setForm({ ...form, start: e.target.value })} /></label>
+                  <label className="field">Конец<input type="time" value={form.end} onChange={e => setForm({ ...form, end: e.target.value })} /></label>
+                </div>
+                <label className="field">Место<input value={form.loc} maxLength={80} onChange={e => setForm({ ...form, loc: e.target.value })} /></label>
+                {held.length === 0 && (
+                  <>
+                    <p className="ks-label">Кто проводит</p>
+                    <div className="ks-actions" style={{ flexWrap: 'wrap' }}>
+                      {[...new Set([...known, ...form.coaches])].sort((a, b) => a.localeCompare(b, 'ru')).map(n => (
+                        <button type="button" key={n} className={form.coaches.includes(n) ? 'ks-btn sm' : 'ks-btn secondary sm'} aria-pressed={form.coaches.includes(n)} onClick={() => setForm({ ...form, coaches: form.coaches.includes(n) ? form.coaches.filter(c => c !== n) : [...form.coaches, n] })}>{n}</button>
+                      ))}
+                    </div>
+                  </>
+                )}
+                <button type="button" className="ks-btn" style={{ marginTop: 8 }} disabled={busy === k} onClick={saveEdit}>Сохранить</button>
+                {held.length > 0 && <p className="ks-muted" style={{ fontSize: 13, marginTop: 6 }}>Тренеров проведённой тренировки меняют ниже: заменить, добавить или снять.</p>}
+              </div>
+            )}
             {held.length === 0 ? (
               <button type="button" className="ks-btn" style={{ marginTop: 8 }} disabled={busy === k || it.plan.length === 0 || !it.start} onClick={() => void run(k, () => supabase.rpc('tl_confirm', { d: date, label: it.label, kind: it.kind, st: it.start, en: it.end, loc: it.loc, coaches: it.plan }))}>
                 {it.plan.length ? 'Проведена' : 'В плане нет тренеров'}

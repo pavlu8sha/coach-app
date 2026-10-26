@@ -116,7 +116,11 @@ await upsertAll('tournament_fees', 'tournament_id,player_id', plan.tFees.map(x =
   tournament_id: tid.get(x.tournament_ext), player_id: playerId(x.name), amount: x.amount, paid: !!x.paid,
 })));
 // штат игр (тренер, оператор): слияние по (матч, сотрудник, роль)
-await upsertAll('match_staff', 'match_id,coach,role', [...staffBy].filter(([ext]) => !skipM(ext)).flatMap(([ext, list]) => list.map(x => ({ match_id: mid.get(ext), coach: x.name, role: x.role, reg: x.reg }))));
+// у существующих матчей штат добавляем только если в базе его ещё нет (правки штата в приложении не затираем)
+const haveStaff = newOnly ? new Set((await rest('GET', 'match_staff?select=match_id&limit=20000')).map(r => r.match_id)) : new Set();
+const staffTodo = [...staffBy].filter(([ext]) => mid.get(ext) && (!skipM(ext) || !haveStaff.has(mid.get(ext))));
+await upsertAll('match_staff', 'match_id,coach,role', staffTodo.flatMap(([ext, list]) => list.map(x => ({ match_id: mid.get(ext), coach: x.name, role: x.role, reg: x.reg }))));
+if (newOnly) console.log(`Штат игр: добавлен в ${staffTodo.length} играх (у существующих матчей только там, где штата в базе не было).`);
 if (newOnly) console.log(`Режим --new-only: существующих матчей пропущено ${existingM.size}, турниров ${existingT.size}; их состав, счёт и названия не менялись.`);
 console.log(`Штат игр: ${[...staffBy.values()].reduce((n, l) => n + l.length, 0)} записей в ${staffBy.size} играх.`);
 console.log(`Записано: счёт ${scoreBy.size} игр, голы ${goalsBy.size} записей; турниры ${plan.tournaments.length}, матчи ${plan.matches.length}, игроки матчей ${plan.matchPlayers.length}, взносы за товарищеские ${plan.matchFees.length}, взносы за турниры ${plan.tFees.length}.`);
