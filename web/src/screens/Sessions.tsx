@@ -113,42 +113,56 @@ function Roster({ gid, date, onBack }: { gid: string; date: string; onBack: () =
   if (error) return <Failure title="Не удалось загрузить занятие" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} />} />;
   if (!players) return <Loading />;
 
-  const was = Object.values(marks).filter(s => s === 'present').length;
+  const count = (st: Status) => players.filter(p => marks[p.id] === st).length;
+  const was = count('present'), absent = count('absent'), excused = count('excused');
+  const left = players.length - was - absent - excused;
+  const setAll = (st: Status | null) => {
+    const all: Record<string, Status> = {};
+    if (st) players.forEach(p => (all[p.id] = st));
+    setMarks(all);
+    setDirty(true);
+    setMsg(null);
+  };
   return (
-    <main className="page">
+    <main className="page has-bar">
       <BackNav onBack={onBack} />
       <h1>{`${DAYS[isoDow(date)]}, ${fmtShort(date)}`}</h1>
       {players.length === 0 ? (
         <EmptyState icon="users" title="В группе нет игроков" text="Активных игроков в этой группе нет." />
       ) : (
         <>
-          <p className="muted" style={{ marginBottom: 4 }}>Был: {was} из {players.length}</p>
-          <p className="muted" style={{ marginBottom: 10, fontSize: 13 }}>«Уваж.» — пропуск по уважительной причине (баллы не снижаются).</p>
-          <button type="button" className="ks-btn secondary" onClick={() => { const all: Record<string, Status> = {}; players.forEach(p => (all[p.id] = 'present')); setMarks(all); setDirty(true); setMsg(null); }}>
-            Отметить всех «Был»
-          </button>
-          <div style={{ height: 12 }} />
+          <div className="ks-progress" aria-hidden="true">
+            {players.map(p => <span key={p.id} className={marks[p.id] ?? ''} />)}
+          </div>
+          <p className="ks-counts">
+            <span><b>{was}</b> были</span>
+            <span><b>{absent}</b> не были</span>
+            {excused > 0 && <span><b>{excused}</b> уваж.</span>}
+            <span><b>{left}</b> осталось</span>
+          </p>
+          <div className="ks-actions">
+            <button type="button" className="ks-btn secondary sm" onClick={() => setAll('present')}>Отметить всех «Был»</button>
+            <button type="button" className="ks-btn secondary sm" disabled={Object.keys(marks).length === 0} onClick={() => setAll(null)}>Сбросить</button>
+          </div>
+          <p className="muted note">«Уваж.» — пропуск по уважительной причине (баллы не снижаются).</p>
           {players.map(p => (
-            <div className="ks-card" key={p.id}>
-              <b style={{ overflowWrap: 'anywhere' }}>{p.full_name}</b>
-              <div style={{ height: 8 }} />
-              <Segmented<Status | ''>
-                label={`Посещаемость: ${p.full_name}`}
-                value={marks[p.id] ?? ''}
-                onChange={v => v && set(p.id, v)}
-                items={[
-                  { value: 'present', label: 'Был' },
-                  { value: 'absent', label: 'Не был' },
-                  { value: 'excused', label: 'Уваж.' },
-                ]}
-              />
+            <div className="ks-mark" key={p.id} role="group" aria-label={`Посещаемость: ${p.full_name}`}>
+              <b>{p.full_name}</b>
+              {([['present', 'Был'], ['absent', 'Не был'], ['excused', 'Уваж.']] as [Status, string][]).map(([st, label]) => (
+                <button key={st} type="button" className={`mk ${st}${marks[p.id] === st ? ' on' : ''}`} aria-pressed={marks[p.id] === st} onClick={() => set(p.id, st)}>
+                  {label}
+                </button>
+              ))}
             </div>
           ))}
           {msg && <p className={msg.ok ? 'ks-ok' : 'error'}>{msg.text}</p>}
           {!native && (
-            <button type="button" className="ks-btn" disabled={!canSave} onClick={() => void save()}>
-              Сохранить отметки
-            </button>
+            <div className="ks-savebar">
+              <span>{left > 0 ? <>Осталось отметить: <b>{left}</b></> : <>Отмечено: <b>{players.length}</b> из {players.length}</>}</span>
+              <button type="button" className="ks-btn" disabled={!canSave} onClick={() => void save()}>
+                Сохранить отметки
+              </button>
+            </div>
           )}
         </>
       )}

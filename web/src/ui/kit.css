@@ -283,3 +283,26 @@ a.ks-cover { text-decoration: none; display: block; }
 .ks-lb-nav.prev { left: 8px; }
 .ks-lb-nav.next { right: 8px; }
 .ks-lb-count { position: absolute; bottom: max(16px, env(safe-area-inset-bottom)); left: 0; right: 0; text-align: center; color: #fff; font-size: 14px; }
+
+/* Отметки посещаемости: счётчики, компактные строки, нижняя панель сохранения */
+.page.has-bar { padding-bottom: 120px; }
+.ks-progress { display: flex; gap: 3px; margin: 4px 0 8px; }
+.ks-progress span { flex: 1; height: 8px; border-radius: 4px; background: var(--ks-neutral-fill); min-width: 4px; }
+.ks-progress .present { background: var(--ks-success); }
+.ks-progress .absent { background: var(--ks-danger); }
+.ks-progress .excused { background: var(--ks-warning); }
+.ks-counts { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 12px; color: var(--ks-text-muted); }
+.ks-counts b { color: var(--ks-text); font-size: 20px; font-weight: 800; margin-right: 3px; }
+.ks-actions { display: flex; gap: 8px; margin-bottom: 8px; }
+.ks-actions .ks-btn { width: auto; flex: none; }
+.ks-mark { display: flex; align-items: center; gap: 6px; padding: 8px 10px; margin-bottom: 8px; background: var(--ks-surface); border: 1px solid var(--ks-border); border-radius: var(--ks-radius-card); }
+.ks-mark b { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ks-mark .mk { flex: none; min-height: 44px; padding: 0 12px; border: 1px solid var(--ks-border); border-radius: 12px; background: var(--ks-bg, transparent); color: var(--ks-text-muted); font: 700 14px var(--ks-font); cursor: pointer; }
+.ks-mark .mk.on { border-width: 2px; }
+.ks-mark .mk.on.present { background: var(--ks-success-subtle); border-color: var(--ks-success); color: var(--ks-success); }
+.ks-mark .mk.on.absent { background: var(--ks-danger-subtle); border-color: var(--ks-danger); color: var(--ks-danger); }
+.ks-mark .mk.on.excused { background: var(--ks-warning-subtle); border-color: var(--ks-warning); color: var(--ks-warning); }
+@media (max-width: 380px) { .ks-mark { flex-wrap: wrap; } .ks-mark b { flex-basis: 100%; } .ks-mark .mk { flex: 1; } }
+.ks-savebar { position: fixed; left: 0; right: 0; bottom: calc(58px + env(safe-area-inset-bottom)); z-index: 5; display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--ks-surface); border-top: 1px solid var(--ks-border); }
+.ks-savebar span { flex: 1; color: var(--ks-text-muted); }
+.ks-savebar .ks-btn { width: auto; flex: none; }
