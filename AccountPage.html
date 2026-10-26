@@ -19,7 +19,9 @@ button{font:inherit;cursor:pointer}
 .tabs button{flex:1;min-height:44px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink)}
 .tabs button.on{background:var(--g);color:var(--gi);border-color:var(--g)}
 /* DS-017: на 360 px четыре вкладки не помещались в ряд (документ шире экрана на 48 px) — на экране до 400 px — 2 × 2 */
-@media (max-width:400px){.tabs{flex-wrap:wrap}.tabs button{flex:1 1 calc(50% - 3px)}}
+/* вкладки переносятся на вторую строку, если не помещаются (на 430 px четыре вкладки выходили за экран) */
+.tabs{flex-wrap:wrap}.tabs button{flex:1 1 auto;min-width:0;padding:0 10px}
+@media (max-width:480px){.tabs button{flex:1 1 calc(50% - 3px)}}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;min-width:0}
 .grid2>*{min-width:0}
 .pair{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
