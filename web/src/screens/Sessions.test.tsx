@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import { today } from '../lib/coach';
-import Sessions from './Sessions';
+import Sessions, { groupRoster } from './Sessions';
 
 const groups = [{ id: 'g1', name: 'U9' }];
 function seed() {
@@ -51,7 +51,7 @@ describe('«Занятия»', () => {
 
   it('у группы без групповых тренировок вместо состава показывает занятия (пока их нет — пояснение)', async () => {
     seed();
-    fake.db.individual_sessions = [];
+    fake.rpc.ind_roster_list = () => [];
     fake.db.weekly_schedule = [1, 2, 3, 4, 5, 6, 7].map(w => ({ group_id: 'g1', weekday: w, starts_at: '19:00:00', location: 'Красный парк', kind: 'Вратарская' }));
     render(<Sessions groups={groups} />);
     expect(await screen.findByText('Занятий нет')).toBeInTheDocument();
@@ -74,13 +74,10 @@ describe('«Занятия» группы «Индивидуальные / Вр�
     const t = today();
     fake.db.weekly_schedule = [{ group_id: 'gi', weekday: 7, starts_at: '19:00:00', location: null, kind: 'Вратари' }];
     fake.db.players = [{ id: 'pa', full_name: 'Постоянный Гость', group_id: 'gi', status: 'active' }];
-    fake.db.individual_sessions = [{
-      id: 's1', starts_at: `${t}T19:00:00`, topic: 'Дриблинг', goalkeepers: true,
-      individual_bookings: [
-        { player_id: 'p1', attended: null, players: { full_name: 'Иванов Пётр' } },
-        { player_id: 'p2', attended: false, players: { full_name: 'Сидоров Ян' } },
-      ],
-    }];
+    fake.rpc.ind_roster_list = () => [
+      { session_id: 's1', starts_at: `${t}T19:00:00`, topic: 'Дриблинг', goalkeepers: true, player_id: 'p1', full_name: 'Иванов Пётр', attended: null },
+      { session_id: 's1', starts_at: `${t}T19:00:00`, topic: 'Дриблинг', goalkeepers: true, player_id: 'p2', full_name: 'Сидоров Ян', attended: false },
+    ];
     fake.rpc.ind_set_attended = () => null;
     render(<Sessions groups={[{ id: 'gi', name: 'Индивидуальные / Вратарские' }]} />);
     fireEvent.click(await screen.findByText('Записано: 2'));
@@ -89,5 +86,20 @@ describe('«Занятия» группы «Индивидуальные / Вр�
     fireEvent.click(within(screen.getByRole('group', { name: 'Посещаемость: Иванов Пётр' })).getByRole('button', { name: 'Был' }));
     fireEvent.click(screen.getByText('Сохранить отметки'));
     await waitFor(() => expect(fake.rpcCalls('ind_set_attended')).toEqual([{ s: 's1', p: 'p1', was: true }]));
+  });
+});
+
+describe('groupRoster (строки функции ind_roster_list → занятия)', () => {
+  it('группирует по занятию, сохраняет порядок и не теряет занятие без записавшихся', () => {
+    const rows = [
+      { session_id: 'b', starts_at: '2026-10-21T12:00:00', topic: null, goalkeepers: false, player_id: null, full_name: null, attended: null },
+      { session_id: 'a', starts_at: '2026-10-20T12:00:00', topic: 'Ловля', goalkeepers: true, player_id: 'p1', full_name: 'Аня', attended: true },
+      { session_id: 'a', starts_at: '2026-10-20T12:00:00', topic: 'Ловля', goalkeepers: true, player_id: 'p2', full_name: 'Боря', attended: null },
+    ];
+    const out = groupRoster(rows);
+    expect(out.map(s => s.id)).toEqual(['b', 'a']);
+    expect(out[0].individual_bookings).toEqual([]);
+    expect(out[1].individual_bookings.map(b => [b.player_id, b.attended, b.players?.full_name])).toEqual([['p1', true, 'Аня'], ['p2', null, 'Боря']]);
+    expect(out[1].goalkeepers).toBe(true);
   });
 });
