@@ -55,6 +55,11 @@ if ($Mode -eq 'Final') {
 $months = @(Get-ChildItem -LiteralPath (Find-Dir 'PAY_ID') -File -Filter '*.csv' | Sort-Object Name | ForEach-Object { $_.FullName })
 Run 'Оплаты абонементов' (@("$S/run-payments.mjs", '--registry', $reg) + $months)
 Run 'Индивидуальные и вратарские' @("$S/run-individual.mjs", '--registry', $reg, '--pay-dir', (Find-Dir 'PAY_ID'), '--sessions', (Find-Csv 'ИНДИВИДУАЛЬНЫЕ ЗАНЯТИЯ.csv'), '--journal', (Find-Csv 'ИНДИВИДУАЛЬНЫЕ ОПЛАТЫ.csv'), '--old-dir', (Find-Dir 'IND_ID'))
+$extraDir = Find-Dir 'EXTRA_ID'
+$extraArgs = @("$S/run-extra.mjs", '--registry', $reg, '--dir', $extraDir, '--year', (Get-Date).Year)
+$ep = @(Get-ChildItem -LiteralPath $Dir -Recurse -File -Filter 'ДОПОЛНИТЕЛЬНЫЕ ТРЕНИРОВКИ.csv'); if ($ep.Count -eq 1) { $extraArgs += @('--prices', $ep[0].FullName) }
+$ej = @(Get-ChildItem -LiteralPath $Dir -Recurse -File -Filter 'ДОПОЛНИТЕЛЬНЫЕ ОПЛАТЫ.csv'); if ($ej.Count -eq 1) { $extraArgs += @('--journal', $ej[0].FullName) }
+Run 'Дополнительные тренировки' $extraArgs
 Run 'Экипировка' @("$S/run-equipment.mjs", (Find-Csv 'КАТАЛОГ ЭКИПИРОВКИ.csv'), (Find-Csv 'СЕЗОН 2026-2027.csv'))
 Run 'Сборы и настройки' @("$S/run-camps-settings.mjs", $Dir)
 Run 'Баллы за тренировки (без матчей)' @("$S/run-rating.mjs")
