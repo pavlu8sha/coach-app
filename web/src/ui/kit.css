@@ -311,3 +311,11 @@ a.ks-cover { text-decoration: none; display: block; }
 .ks-savebar { position: fixed; left: 0; right: 0; bottom: calc(58px + var(--ks-safe-b)); z-index: 5; display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--ks-surface); border-top: 1px solid var(--ks-border); }
 .ks-savebar span { flex: 1; color: var(--ks-text-muted); }
 .ks-savebar .ks-btn { width: auto; flex: none; }
+
+/* Оплаты за месяц: группы раскрываются списком игроков */
+.ks-group { margin-bottom: 8px; padding: 12px; background: var(--ks-surface); border: 1px solid var(--ks-border); border-radius: var(--ks-radius-card); }
+.ks-group > summary { cursor: pointer; list-style: none; }
+.ks-group > summary::-webkit-details-marker { display: none; }
+.ks-group .ks-card { margin: 8px 0 0; box-shadow: none; background: transparent; }
+.ks-bar { height: 8px; margin: 8px 0 4px; border-radius: 4px; background: var(--ks-neutral-fill); overflow: hidden; }
+.ks-bar i { display: block; height: 100%; border-radius: 4px; background: var(--ks-success); }

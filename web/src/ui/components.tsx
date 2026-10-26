@@ -213,7 +213,9 @@ const NAV_ICONS = {
 };
 
 /** Нижняя навигация: иконка и подпись, текущий раздел — aria-current. Закреплена внизу с учётом безопасной зоны. */
-export function BottomNav<T extends string>(props: { value: T; items: { value: T; label: string; icon: keyof typeof NAV_ICONS }[]; onChange: (v: T) => void; label: string }) {
+export type NavIcon = keyof typeof NAV_ICONS;
+
+export function BottomNav<T extends string>(props: { value: T; items: { value: T; label: string; icon: NavIcon }[]; onChange: (v: T) => void; label: string }) {
   return (
     <nav className="ks-bottomnav" aria-label={props.label}>
       <div>

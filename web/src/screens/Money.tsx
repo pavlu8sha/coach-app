@@ -1,35 +1,21 @@
 import { useState } from 'react';
-import { ListRow } from '../ui/components';
+import { Segmented } from '../ui/components';
 import AdminPayments from './AdminPayments';
 import CashDesk from './CashDesk';
 import Debtors from './Debtors';
 import MonthPayments from './MonthPayments';
 
-type Sub = 'cash' | 'month' | 'payments' | 'debtors';
+type Sub = 'month' | 'cash' | 'debtors' | 'payments';
 
-// Вкладка «Оплаты» администратора: приём оплат, оплаты за месяц, платежи игрока, должники
+// Вкладка «Оплаты» администратора: по умолчанию месяц по группам (как в старом приложении), рядом приём оплат, должники и журнал платежей игрока
 export default function Money() {
-  const [sub, setSub] = useState<Sub | null>(null);
-  if (sub) {
-    return (
-      <>
-        <div style={{ maxWidth: 560, margin: '0 auto', padding: '8px 16px 0' }}>
-          <button type="button" className="ks-back" onClick={() => setSub(null)}>
-            <span className="ks-chev back" aria-hidden="true" />
-            Оплаты
-          </button>
-        </div>
-        {sub === 'cash' ? <CashDesk /> : sub === 'month' ? <MonthPayments /> : sub === 'payments' ? <AdminPayments /> : <Debtors />}
-      </>
-    );
-  }
+  const [sub, setSub] = useState<Sub>('month');
   return (
-    <main className="page ks-menu">
-      <h1>Оплаты</h1>
-      <ListRow title="Приём оплат" sub={['Игрок: всё, что к оплате, и платёж в один шаг']} onClick={() => setSub('cash')} />
-      <ListRow title="Оплаты за месяц" sub={['Кто сколько внёс по группам, быстрый платёж']} onClick={() => setSub('month')} />
-      <ListRow title="Платежи" sub={['Внести платёж, исправить запись']} onClick={() => setSub('payments')} />
-      <ListRow title="Должники" sub={['Долг по абонементам, скидки, показ родителям']} onClick={() => setSub('debtors')} />
-    </main>
+    <>
+      <div style={{ maxWidth: 560, margin: '0 auto', padding: '12px 16px 0' }}>
+        <Segmented label="Раздел оплат" value={sub} onChange={setSub} items={[{ value: 'month', label: 'Месяц' }, { value: 'cash', label: 'Приём' }, { value: 'debtors', label: 'Долги' }, { value: 'payments', label: 'Платежи' }]} />
+      </div>
+      {sub === 'month' ? <MonthPayments /> : sub === 'cash' ? <CashDesk /> : sub === 'debtors' ? <Debtors /> : <AdminPayments />}
+    </>
   );
 }
