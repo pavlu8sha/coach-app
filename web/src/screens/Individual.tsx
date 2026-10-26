@@ -119,6 +119,8 @@ function SessionView({ session, onBack }: { session: Session; onBack: () => void
   const [date, setDate] = useState(dayOf(session.starts_at));
   const [time, setTime] = useState(timeOf(session.starts_at));
   const [theme, setTheme] = useState(session.topic ?? '');
+  const [gk, setGk] = useState(session.goalkeepers); // тип занятия: выбранный в форме
+  const [saved, setSaved] = useState({ starts_at: session.starts_at, goalkeepers: session.goalkeepers, topic: session.topic });
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirmDel, setConfirmDel] = useState(false);
@@ -162,8 +164,8 @@ function SessionView({ session, onBack }: { session: Session; onBack: () => void
   return (
     <main className="page">
       <BackNav onBack={onBack} />
-      <h1>{title(session)}</h1>
-      <p className="muted">{session.topic ?? 'Тема не указана'}</p>
+      <h1>{title(saved)}</h1>
+      <p className="muted">{saved.topic ?? 'Тема не указана'}</p>
       {msg && <p className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}
 
       <h3>Записанные</h3>
@@ -196,10 +198,11 @@ function SessionView({ session, onBack }: { session: Session; onBack: () => void
       ))}
 
       <h3>Занятие</h3>
+      <Segmented label="Тип занятия" value={gk ? 'gk' : 'ind'} onChange={v => setGk(v === 'gk')} items={[{ value: 'ind', label: 'Индивидуальное' }, { value: 'gk', label: 'Вратари' }]} />
       <label className="field">Дата<input type="date" value={date} disabled={anyPaid} onChange={e => setDate(e.target.value)} /></label>
       <label className="field">Время<input type="time" value={time} disabled={anyPaid} onChange={e => setTime(e.target.value)} /></label>
       <label className="field">Тема<input value={theme} maxLength={80} onChange={e => setTheme(e.target.value)} /></label>
-      <button type="button" className="ks-btn" disabled={busy === 'edit' || !date || !time} onClick={() => void run('edit', () => supabase.rpc('ind_edit_session', { s: session.id, d: date, t: time, theme }), 'Сохранено.')}>Сохранить</button>
+      <button type="button" className="ks-btn" disabled={busy === 'edit' || !date || !time} onClick={() => void run('edit', () => supabase.rpc('ind_edit_session', { s: session.id, d: date, t: time, theme, gk }), 'Сохранено.').then(ok => { if (ok) setSaved({ starts_at: `${date}T${time}:00`, goalkeepers: gk, topic: theme.trim() || null }); })}>Сохранить</button>
       <div style={{ height: 8 }} />
       {confirmDel ? (
         <>

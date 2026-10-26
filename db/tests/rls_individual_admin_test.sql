@@ -1,7 +1,7 @@
 -- pgTAP: индивидуальные и вратарские занятия для администратора (0034).
 begin;
 create extension if not exists pgtap;
-select plan(19);
+select plan(23);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -60,6 +60,16 @@ select lives_ok($$select ind_delete_session((select id from sid))$$, 'без о�
 select as_user('00000000-0000-0000-0000-0000000000c1');
 select throws_ok($$select ind_set_paid('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-00000000d001', true)$$, '42501', 'forbidden', 'тренер не отмечает оплату');
 select throws_ok($$select ind_book('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-00000000d001')$$, '42501', null, 'служебная ind_book недоступна из приложения');
+
+-- смена типа (0051)
+select as_user('00000000-0000-0000-0000-0000000000a1');
+create temp table sid2 (id uuid); grant all on sid2 to authenticated;
+insert into sid2 select ind_create_session('2026-12-05', '11:00', false, 'Тип');
+select lives_ok($$select ind_edit_session((select id from sid2), '2026-12-05', '11:00', 'Тип', true)$$, 'тип можно сменить на вратарский');
+select is((select external_id from individual_sessions where id = (select id from sid2)), 'IND-2026-12-05-1100-GK', 'внешний ключ получил суффикс -GK');
+insert into sid2 select ind_create_session('2026-12-05', '11:00', false, 'Дубль');
+select throws_ok($$select ind_edit_session((select id from individual_sessions where external_id = 'IND-2026-12-05-1100'), '2026-12-05', '11:00', 'Тип', true)$$, '23505', 'session exists', 'в то же время вратарское занятие уже есть');
+select lives_ok($$select ind_edit_session((select id from individual_sessions where external_id = 'IND-2026-12-05-1100-GK'), '2026-12-05', '11:00', 'Тип')$$, 'вызов без типа (четыре параметра) тип не меняет');
 
 select * from finish();
 rollback;

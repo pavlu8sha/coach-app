@@ -35,6 +35,7 @@ select * from (values
   ('0047_ind_no_autobook',         pg_get_functiondef(to_regprocedure('ind_create_session(date,time,boolean,text)')) not like '%individual_regulars%'),
   ('0048_can_see_team_group_suffix', pg_get_functiondef(to_regprocedure('can_see_team(uuid,text)')) like '%-[ABC]$%'),
   ('0049_rename_u12_match_team',   not exists (select 1 from matches m where m.team = 'U12' and exists (select 1 from groups g where g.club_id = m.club_id and g.name = 'Ortachala U12'))),
-  ('0050_ind_goalkeepers_backfill', not exists (select 1 from individual_sessions where external_id like '%-GK' and not goalkeepers))
+  ('0050_ind_goalkeepers_backfill', not exists (select 1 from individual_sessions where external_id like '%-GK' and not goalkeepers)),
+  ('0051_ind_change_type',         to_regprocedure('ind_edit_session(uuid,date,time,text,boolean)') is not null)
 ) as t(migration, applied)
 order by migration;
