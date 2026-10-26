@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 import { inTelegram, tgApp } from '../lib/telegram';
 import { BackButton } from './components';
 
-/** «Назад»: в Telegram — нативная кнопка в шапке, в браузере — своя кнопка на экране. */
+/** «Назад»: кнопка на экране всегда (в клиентах Telegram шапка её может не показывать); в Telegram дополнительно нативная кнопка в шапке. */
 export function BackNav({ onBack }: { onBack: () => void }) {
   const native = inTelegram();
   useEffect(() => {
@@ -16,7 +16,7 @@ export function BackNav({ onBack }: { onBack: () => void }) {
       b.hide();
     };
   }, [native, onBack]);
-  return native ? null : <BackButton onClick={onBack} />;
+  return <BackButton onClick={onBack} />;
 }
 
 /** Главная кнопка Telegram для единственного главного действия экрана. Возвращает true, если кнопка Telegram доступна;
