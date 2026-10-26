@@ -60,7 +60,8 @@ const clubSessionIds = data => {
 };
 
 export function checkMatchTeams(data = {}) {
-  const names = new Set(clubGroups(data).map(g => normalizeName(g.name)).filter(Boolean));
+  // как в can_see_team (миграция 0048): команда = название группы или название без суффикса -A/-B/-C
+  const names = new Set(clubGroups(data).flatMap(g => [normalizeName(g.name), normalizeName(g.name).replace(/-[abc]$/, '')]).filter(Boolean));
   const items = clubMatches(data)
     .filter(m => !names.has(normalizeName(m.team)))
     .map(m => `${matchText(m)}: команда «${m.team || ''}» не совпадает с названием группы клуба`);

@@ -73,6 +73,24 @@ test('матчи: команда сравнивается с названием 
   assert.match(c.items[0], /M2/);
 });
 
+test('матчи: команда без суффикса группы (U10 = U10-A + U10-B), Ortachala U9 не склеивается с U9', () => {
+  const c = checkMatchTeams(make({
+    groups: [
+      { id: 'G1', club_id: 'C1', name: 'U10-A' }, { id: 'G2', club_id: 'C1', name: 'U10-B' },
+      { id: 'G3', club_id: 'C1', name: 'Ortachala U9' }, { id: 'G4', club_id: 'C1', name: 'U7-A' },
+    ],
+    matches: [
+      { id: 'M1', club_id: 'C1', played_on: '2026-10-01', team: 'U10' },
+      { id: 'M2', club_id: 'C1', played_on: '2026-10-02', team: 'U7' },
+      { id: 'M3', club_id: 'C1', played_on: '2026-10-03', team: 'U9' },
+      { id: 'M4', club_id: 'C1', played_on: '2026-10-04', team: 'U12' },
+    ],
+  }));
+  assert.equal(c.items.length, 2);
+  assert.match(c.items[0], /M3|U9/);
+  assert.match(c.items[1], /U12/);
+});
+
 test('матчи: голы игроков не больше счёта', () => {
   const c = checkGoalsVsScore(make({
     matches: [{ id: 'M1', club_id: 'C1', played_on: '2026-10-01', goals_for: 1, goals_against: 0 }],
