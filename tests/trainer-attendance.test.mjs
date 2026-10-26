@@ -1,4 +1,4 @@
-// Посещаемость тренеров для тренера: только просмотр, без часов; код тренера подходит, неверный — нет.
+// «Учёт тренеров» для тренера: только просмотр (тренировки с часами, игры, статистика, расписание); код тренера подходит, неверный — нет.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -31,29 +31,33 @@ function env() {
   return ctx;
 }
 
-test('тренер видит месяцы и тренировки по коду тренера', () => {
+test('тренер видит тренировки месяца вместе с часами по коду тренера', () => {
   const c = env();
-  assert.deepEqual(Array.from(c.appTrainerMonths('trainer')), ['09.2026', '10.2026']);
-  const list = c.appTrainerAttendance('trainer', '10.2026');
+  const list = c.appTrainingsList('trainer', '10.2026');
   assert.equal(list.length, 2);
   assert.equal(list[0].trainer, 'Дима');
   assert.equal(list[0].held, true);
+  assert.equal(list[0].hours, 1.5);   // решение Павла 26.10: часы тренерам видны
   assert.equal(list[1].held, false);
 });
 
-test('часы и прочие расчётные поля тренеру не отдаются', () => {
-  const list = env().appTrainerAttendance('trainer', '');
-  assert.equal(list.length, 3);
-  for (const t of list) {
-    assert.deepEqual(Object.keys(t).sort(), ['date', 'end', 'group', 'held', 'location', 'start', 'trainer', 'type']);
-    assert.ok(!('hours' in t));
-  }
+test('без кода доступа ничего не отдаётся', () => {
+  const c = env();
+  assert.throws(() => c.appTrainingsList('x', ''), /код доступа/);
 });
 
-test('без кода доступа ничего не отдаётся, а редактирующая страница «Учёт» остаётся только для администратора', () => {
-  const c = env();
-  assert.throws(() => c.appTrainerAttendance('x', ''), /код доступа/);
-  assert.throws(() => c.appTrainerMonths('x'), /код доступа/);
-  assert.throws(() => c.appTrainingsList('trainer', '10.2026'), /код администратора/);
-  assert.throws(() => c.appAccountMonths('trainer'), /код администратора/);
+// Какая проверка кода стоит в начале функции
+const SRC = fs.readFileSync(path.join(ROOT, 'GamesNew.js'), 'utf8');
+function guard(name) {
+  const i = SRC.indexOf('function ' + name + '(');
+  assert.ok(i >= 0, name);
+  return /check(Admin|Pin)_\(pin\)/.exec(SRC.slice(i, i + 400))[1];
+}
+
+test('чтение «Учёта тренеров» открыто и тренеру (checkPin_)', () => {
+  for (const f of ['appAccountMonths', 'appTrainingsList', 'appGamesData', 'appDailySchedule0_']) assert.equal(guard(f), 'Pin', f);
+});
+
+test('изменения в «Учёте тренеров» остаются только для администратора (checkAdmin_)', () => {
+  for (const f of ['appTrainingAdd', 'appGameStaffSet', 'appConfirmDaily', 'appAddTrainer', 'appTrainingReplaceTrainers', 'appAddTrainerDaily', 'appTrainingOptions']) assert.equal(guard(f), 'Admin', f);
 });
