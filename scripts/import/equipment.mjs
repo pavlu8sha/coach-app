@@ -3,7 +3,8 @@ import { parseCsv } from './registry.mjs';
 import { parseAmount } from './payments.mjs';
 
 // Опечатки и наборы: полный набор — отдельная цена (скидка), остальное — позиции каталога.
-export const KIT_ALIAS = { 'Полный комлпект': 'Дождевик + Тренировочная форма + Спортивный костюм + Игровая форма' };
+const FULL_SET_ITEMS = 'Дождевик + Тренировочная форма + Спортивный костюм + Игровая форма';
+export const KIT_ALIAS = { 'Полный комлпект': FULL_SET_ITEMS, 'Полный комплект': FULL_SET_ITEMS };
 export const FULL_SET_PRICE = 525; // сумма полного набора из листа, как в заказах 32, 36, 37, 44, 57, 94
 
 // «Тренировочная форма» … каталог → [{kit, price}]

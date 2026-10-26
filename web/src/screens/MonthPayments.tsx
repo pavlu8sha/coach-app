@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
-import { EmptyState, Pill } from '../ui/components';
+import { EmptyState, Pill, SearchInput, SwitchRow } from '../ui/components';
 import { Failure, Loading } from './Message';
 
 interface Group { id: string; name: string }
@@ -29,7 +29,9 @@ export function tariffFor(prices: Price[], group: string, month: string): number
   return ok[0] ? Number(ok[0].amount) : null;
 }
 
-// «Оплаты» по месяцам и группам: кто сколько внёс из абонемента, быстрый платёж. Журнал платежей только добавляется.
+interface Pl extends Player { group_id: string }
+
+// «Оплаты»: весь клуб за месяц — итоги плиткой, группы раскрываются списком игроков (как в старом приложении). Журнал платежей только добавляется.
 export default function MonthPayments() {
   const months = useMemo(() => {
     const out: string[] = [];
@@ -40,13 +42,14 @@ export default function MonthPayments() {
   const [month, setMonth] = useState(months[0] ?? SEASON_START);
   const [groups, setGroups] = useState<Group[]>([]);
   const [prices, setPrices] = useState<Price[]>([]);
-  const [gid, setGid] = useState('');
-  const [players, setPlayers] = useState<Player[] | null>(null);
+  const [players, setPlayers] = useState<Pl[] | null>(null);
   const [paid, setPaid] = useState<Map<string, number>>(new Map());
   const [subs, setSubs] = useState<Map<string, Sub>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [q, setQ] = useState('');
+  const [onlyDebt, setOnlyDebt] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -57,57 +60,83 @@ export default function MonthPayments() {
       const gs = ((g.data ?? []) as Group[]).filter(x => x.name.trim().toLowerCase() !== 'индивидуальные / вратарские');
       setGroups(gs);
       setPrices(((p.data ?? []) as Price[]).map(x => ({ ...x, amount: Number(x.amount) })));
-      setGid(cur => cur || gs[0]?.id || '');
     })();
   }, []);
 
   useEffect(() => {
-    if (!gid) return;
+    if (!groups.length) return;
+    setPlayers(null);
     void (async () => {
-      const pl = await supabase.from('players').select('id, full_name').eq('group_id', gid).eq('status', 'active').order('full_name').limit(200);
+      const pl = await supabase.from('players').select('id, full_name, group_id').eq('status', 'active').order('full_name').limit(1000);
+      const pay = await supabase.from('payments').select('player_id, amount').gte('paid_on', month).lt('paid_on', nextMonth(month)).limit(5000);
+      const sb = await supabase.from('subscriptions').select('player_id, discount, written_off').eq('month', month).limit(5000);
       if (pl.error) return setError(pl.error.message);
-      const list = (pl.data ?? []) as Player[];
-      const ids = list.map(x => x.id);
-      const pay = ids.length ? await supabase.from('payments').select('player_id, amount').in('player_id', ids).gte('paid_on', month).lt('paid_on', nextMonth(month)).limit(2000) : { data: [], error: null };
-      const sb = ids.length ? await supabase.from('subscriptions').select('player_id, discount, written_off').in('player_id', ids).eq('month', month) : { data: [], error: null };
       if (pay.error) return setError(pay.error.message);
       if (sb.error) return setError(sb.error.message);
+      const ok = new Set(groups.map(x => x.id));
       const m = new Map<string, number>();
       ((pay.data ?? []) as { player_id: string; amount: number }[]).forEach(x => m.set(x.player_id, (m.get(x.player_id) ?? 0) + Number(x.amount)));
       setPaid(m);
       setSubs(new Map(((sb.data ?? []) as Sub[]).map(x => [x.player_id, x])));
-      setPlayers(list);
+      setPlayers(((pl.data ?? []) as Pl[]).filter(x => ok.has(x.group_id)));
     })();
-  }, [gid, month, reload]);
+  }, [groups, month, reload]);
 
   if (error) return <Failure title="Не удалось загрузить оплаты" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
-  const tariff = gid ? tariffFor(prices, gid, month) : null;
-  const done = (p: Player) => {
+  const tariffOf = (p: Pl) => tariffFor(prices, p.group_id, month);
+  const gotOf = (p: Pl) => paid.get(p.id) ?? 0;
+  const done = (p: Pl) => {
     const s = subs.get(p.id);
-    const got = paid.get(p.id) ?? 0;
-    return !!s?.written_off || (!!s?.discount && got > 0) || (tariff !== null && got >= tariff);
+    const t = tariffOf(p);
+    return !!s?.written_off || (!!s?.discount && gotOf(p) > 0) || (t !== null && gotOf(p) >= t);
   };
-  const total = (players ?? []).reduce((s, p) => s + (paid.get(p.id) ?? 0), 0);
-  const nPaid = (players ?? []).filter(done).length;
+  const all = players ?? [];
+  const total = all.reduce((s, p) => s + gotOf(p), 0);
+  const expected = all.reduce((s, p) => s + (tariffOf(p) ?? 0), 0);
+  const nPaid = all.filter(done).length;
+  const needle = q.trim().toLowerCase();
 
   return (
     <main className="page">
       <h1>Оплаты за месяц</h1>
-      <select className="ks-select" aria-label="Месяц" value={month} onChange={e => { setPlayers(null); setOpenId(null); setMonth(e.target.value); }}>
-        {months.map(m => <option key={m} value={m}>{monthName(m)}</option>)}
-      </select>
-      <div style={{ height: 8 }} />
-      <select className="ks-select" aria-label="Группа" value={gid} onChange={e => { setPlayers(null); setOpenId(null); setGid(e.target.value); }}>
-        {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-      </select>
-      {!players ? <Loading /> : players.length === 0 ? <EmptyState icon="users" title="В группе нет активных игроков" /> : (
+      <div className="ks-pair">
+        <select className="ks-select" aria-label="Месяц" value={month} onChange={e => { setPlayers(null); setOpenId(null); setMonth(e.target.value); }}>
+          {months.map(m => <option key={m} value={m}>{monthName(m)}</option>)}
+        </select>
+        <SwitchRow id="md" label="Только должники" checked={onlyDebt} onChange={setOnlyDebt} />
+      </div>
+      <SearchInput value={q} onChange={setQ} placeholder="Поиск по ФИ" label="Поиск по ФИ" />
+      {!players ? <Loading /> : (
         <>
-          <p className="muted" style={{ margin: '10px 0' }}>
-            {tariff === null ? 'Цена абонемента для группы не задана («Ещё → Цены»). ' : `Абонемент ${gel(tariff)}. `}Оплатили {nPaid} из {players.length} · внесено {gel(total)}
-          </p>
-          {players.map(p => (
-            <Row key={`${p.id}|${paid.get(p.id) ?? 0}|${month}`} player={p} month={month} tariff={tariff} got={paid.get(p.id) ?? 0} sub={subs.get(p.id)} paidUp={done(p)} open={openId === p.id} onOpen={() => setOpenId(openId === p.id ? null : p.id)} onSaved={() => { setOpenId(null); setReload(n => n + 1); }} />
-          ))}
+          <div className="ks-tiles" style={{ margin: '12px 0' }}>
+            <div className="ks-tile"><b>Внесено</b>{gel(total)}</div>
+            <div className="ks-tile"><b>Ожидается по тарифам</b>{gel(expected)}</div>
+            <div className="ks-tile"><b>Оплатили</b>{nPaid} из {all.length}</div>
+            <div className="ks-tile"><b>Должников</b>{all.length - nPaid}</div>
+          </div>
+          {groups.map(g => {
+            const gp = all.filter(x => x.group_id === g.id);
+            const shown = gp.filter(x => (!onlyDebt || !done(x)) && (!needle || x.full_name.toLowerCase().includes(needle)));
+            if (!shown.length) return null;
+            const gDone = gp.filter(done).length;
+            const gTotal = gp.reduce((s, x) => s + gotOf(x), 0);
+            const gExp = gp.reduce((s, x) => s + (tariffOf(x) ?? 0), 0);
+            return (
+              <details className="ks-group" key={g.id} open={onlyDebt || !!needle}>
+                <summary>
+                  <div className="ks-line"><b>{g.name}</b><span className="muted">{gDone} из {gp.length}</span></div>
+                  <div className="ks-bar" aria-hidden="true"><i style={{ width: `${gp.length ? Math.round((gDone * 100) / gp.length) : 0}%` }} /></div>
+                  <p className="muted" style={{ fontSize: 13 }}>внесено {gel(gTotal)} из {gel(gExp)}</p>
+                </summary>
+                {shown.map(p => (
+                  <Row key={`${p.id}|${gotOf(p)}|${month}`} player={p} month={month} tariff={tariffOf(p)} got={gotOf(p)} sub={subs.get(p.id)} paidUp={done(p)} open={openId === p.id} onOpen={() => setOpenId(openId === p.id ? null : p.id)} onSaved={() => { setOpenId(null); setReload(n => n + 1); }} />
+                ))}
+              </details>
+            );
+          })}
+          {all.length > 0 && !all.some(x => (!onlyDebt || !done(x)) && (!needle || x.full_name.toLowerCase().includes(needle))) && (
+            <EmptyState icon="users" title="Ничего не найдено" text="Измените запрос или сбросьте фильтр." />
+          )}
         </>
       )}
     </main>
@@ -122,6 +151,14 @@ export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOp
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const num = Number(amount.replace(',', '.'));
+  const discount = async () => {
+    setBusy(true);
+    setErr(null);
+    const r = await supabase.from('subscriptions').upsert({ player_id: player.id, month, discount: true }, { onConflict: 'player_id,month' });
+    setBusy(false);
+    if (r.error) return setErr(r.error.message);
+    onSaved();
+  };
   const save = async () => {
     if (!amount.trim() || !Number.isFinite(num) || num === 0 || Math.abs(num) > 100000) return setErr('Введите сумму (не ноль).');
     if (date > today()) return setErr('Дата платежа не может быть в будущем.');
@@ -141,6 +178,9 @@ export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOp
         <Pill tone={paidUp ? 'success' : 'danger'} dot>{sub?.written_off ? 'Списано' : sub?.discount && got > 0 ? 'Скидка' : `${gel(got)}${tariff !== null ? ` из ${gel(tariff)}` : ''}`}</Pill>
       </div>
       <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} onClick={onOpen}>{open ? 'Свернуть' : 'Внести платёж'}</button>
+      {!paidUp && got > 0 && (
+        <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy} onClick={() => void discount()}>Считать оплаченным (скидка)</button>
+      )}
       {open && (
         <div style={{ marginTop: 8 }}>
           <label className="field">Сумма, ₾ (минус — исправление)<input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /></label>

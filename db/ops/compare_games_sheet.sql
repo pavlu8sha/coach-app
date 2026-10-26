@@ -2,8 +2,7 @@
 -- Что сверяется: наличие матча (дата + команда) и счёт «наши:соперник». Голы игроков здесь не сверяются.
 -- Листы сняты 2026-10-26; если в таблице что-то изменится, строки ниже надо обновить.
 -- Как запускать: SQL Editor в Supabase, целиком. Пустой результат (кроме последней строки со сводкой) = полное совпадение.
--- В листе «Игры» «U12» (строки от 24.10, матч U13-B против Ortachala U12) означает группу «Ortachala U12» и сопоставляется с ней.
--- В приложении команда «U12» — это Newton cup (записан как матч), в листе «Игры» его нет: строка «НЕТ В ТАБЛИЦЕ» для него ожидаема. Пометки «(техн.)» и «(пен.)» отбрасываются, сверяется счёт.
+-- Команда «U12» из таблицы сопоставляется с «Ortachala U12» (миграция 0049). Пометки «(техн.)» и «(пен.)» отбрасываются, сверяется счёт.
 with sheet(played_on, team, opponent, score) as (values
   ('2026-03-08', 'U9-A', '', ''),
   ('2026-03-08', 'U9-B', '', ''),
@@ -106,7 +105,7 @@ with sheet(played_on, team, opponent, score) as (values
 s as (
   select played_on::date as played_on,
          case team when 'U12' then 'Ortachala U12' else team end as team,
-         case opponent when 'U12' then 'Ortachala U12' else opponent end as opponent,
+         opponent,
          nullif(score, '') as score,
          (regexp_match(score, '^(\d+):(\d+)'))[1]::int as gf,
          (regexp_match(score, '^(\d+):(\d+)'))[2]::int as ga

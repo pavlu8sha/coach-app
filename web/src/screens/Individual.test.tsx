@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import Individual from './Individual';
 
@@ -20,7 +20,7 @@ function seed() {
   fake.db.individual_bookings = [
     { session_id: 's1', player_id: 'p1', paid: false, attended: null, amount: 50, players: { full_name: 'Иванов Пётр' }, individual_sessions: { starts_at: future, goalkeepers: false } },
     { session_id: 's1', player_id: 'p2', paid: true, attended: true, amount: 50, players: { full_name: 'Сидоров Ян' }, individual_sessions: { starts_at: future, goalkeepers: false } },
-    { session_id: 'old', player_id: 'p1', amount: 50, paid: false, players: { full_name: 'Иванов Пётр' }, individual_sessions: { starts_at: past, goalkeepers: false } },
+    { session_id: 'old', player_id: 'p1', amount: 50, paid: false, players: { full_name: 'Иванов Пётр' }, individual_sessions: { starts_at: past, goalkeepers: false, topic: null } },
     { session_id: 'old2', player_id: 'p1', amount: 50, paid: false, players: { full_name: 'Иванов Пётр' }, individual_sessions: { starts_at: past, goalkeepers: false } },
     { session_id: 'f', player_id: 'p9', amount: 50, paid: false, players: { full_name: 'Будущий' }, individual_sessions: { starts_at: future, goalkeepers: false } },
   ];
@@ -39,9 +39,21 @@ describe('«Индивидуальные»', () => {
     seed();
     render(<Individual />);
     fireEvent.click(await screen.findByRole('tab', { name: 'Долги' }));
-    expect(await screen.findByText('Неоплаченных занятий: 2')).toBeInTheDocument();
+    expect(await screen.findByText('Иванов Пётр')).toBeInTheDocument();
     expect(screen.getByText('100 ₾')).toBeInTheDocument();
+    expect(screen.getAllByText(/10.01.2020 12:00 · Индивидуальные/)).toHaveLength(2); // видно, за какие занятия долг
     expect(screen.queryByText('Будущий')).not.toBeInTheDocument();
+  });
+
+  it('долг гасится прямо из вкладки «Долги» по конкретному занятию', async () => {
+    seed();
+    fake.rpc.ind_set_paid = () => null;
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<Individual />);
+    fireEvent.click(await screen.findByRole('tab', { name: 'Долги' }));
+    fireEvent.click((await screen.findAllByRole('button', { name: /Принять оплату: Иванов Пётр/ }))[0]);
+    await waitFor(() => expect(fake.rpcCalls('ind_set_paid')).toHaveLength(1));
+    expect(fake.rpcCalls('ind_set_paid')[0]).toMatchObject({ p: 'p1', is_paid: true });
   });
 
   it('создание занятия: параметры уходят в ind_create_session, дубль даёт понятное сообщение', async () => {
@@ -91,5 +103,20 @@ describe('«Индивидуальные»', () => {
     fireEvent.click(await screen.findByText('10.01.2099 12:00 · Индивидуальные'));
     expect(await screen.findByRole('button', { name: 'Удалить нельзя: есть оплаты' })).toBeDisabled();
     expect(screen.getByLabelText('Дата')).toBeDisabled();
+  });
+});
+
+describe('«Индивидуальные»: сводка как в прежнем приложении', () => {
+  it('над списком видна сводка «Должники», сумма оплаты у занятия и копирование списка записавшихся', async () => {
+    seed();
+    const writes: string[] = [];
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: (t: string) => { writes.push(t); return Promise.resolve(); } }, configurable: true });
+    render(<Individual />);
+    expect(await screen.findByText('Игроков: 1')).toBeInTheDocument();
+    expect(screen.getByText('100 ₾')).toBeInTheDocument(); // долг по прошедшим
+    expect(screen.getByText('50 ₾')).toBeInTheDocument(); // оплачено на занятии
+    fireEvent.click(await screen.findByText('10.01.2099 12:00 · Индивидуальные'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Скопировать список записавшихся' }));
+    await waitFor(() => expect(writes).toEqual(['1. Иванов Пётр\n2. Сидоров Ян']));
   });
 });

@@ -3,7 +3,8 @@ import { supabase } from './lib/supabase';
 import { hasSession, signInWithTelegram, signInWithWidget } from './lib/auth';
 import { configured } from './lib/supabase';
 import { initData, prepareTelegram } from './lib/telegram';
-import Admin from './screens/Admin';
+import AdminSection from './screens/AdminSection';
+import { DEFAULT_BAR, MENU_KEY, isSection, parseBar, sectionById, type SectionId } from './lib/adminMenu';
 import Home from './screens/Home';
 import Payments from './screens/Payments';
 import Players from './screens/Players';
@@ -27,7 +28,7 @@ import { BottomNav } from './ui/components';
 
 type State = { kind: 'loading' } | { kind: 'ready' } | { kind: 'outside' } | { kind: 'config' } | { kind: 'error'; text: string };
 
-type Tab = 'about' | 'home' | 'schedule' | 'matches' | 'payments' | 'profile' | 'admin' | 'players' | 'more' | 'sessions' | 'cmatches' | 'group';
+type Tab = 'about' | 'home' | 'schedule' | 'matches' | 'payments' | 'profile' | 'more' | 'group' | SectionId;
 
 const PREVIEW_LABEL: Record<Role, string> = { parent: 'Родитель', child: 'Ребёнок', guest: 'Гость', coach: 'Тренер без групп' };
 
@@ -52,6 +53,8 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
   const [coachGroups, setCoachGroups] = useState<CoachGroup[]>([]);
   const [allGroups, setAllGroups] = useState<CoachGroup[]>([]); // все группы: администратору и тренеру (тренеры ведут все группы, миграция 0042)
   const [moreKey, setMoreKey] = useState(0);
+  const [bar, setBar] = useState<SectionId[]>(DEFAULT_BAR); // разделы администратора на нижней панели (настройка «Меню»)
+  const [menuKey, setMenuKey] = useState(0);
   const [hasKidsReal, setHasKids] = useState(true); // пока не знаем — не прячем вкладку
   const [loaded, setLoaded] = useState(false);
   const [roleReal, setRole] = useState<Role | null>(null);
@@ -103,13 +106,23 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
         setAllGroups(isAdm ? all : [...all.filter(g => mineIds.has(g.id)), ...all.filter(g => !mineIds.has(g.id))]);
       }
       setAdmin(isAdm);
-      if (isAdm) setTab('admin'); // администратор открывает приложение сразу на запросах
+      if (isAdm) setTab('sessions');
       else if (mineGroups.length) setTab('sessions'); // тренер — сразу на занятиях
       else if ((mine.count ?? 0) === 0 && r.data?.chosen_role === 'child') setTab('home');
       else if ((mine.count ?? 0) === 0 && r.data?.chosen_role && r.data.chosen_role !== 'parent') setTab('about');
       setLoaded(true);
     })();
   }, []);
+  useEffect(() => {
+    if (!adminReal) return;
+    void (async () => {
+      const c = await supabase.from('clubs').select('id').limit(1);
+      const cid = ((c.data ?? []) as { id: string }[])[0]?.id;
+      if (!cid) return;
+      const st = await supabase.from('club_settings').select('value').eq('club_id', cid).eq('key', MENU_KEY).maybeSingle();
+      if (!st.error) setBar(parseBar((st.data as { value: string } | null)?.value));
+    })();
+  }, [adminReal, menuKey]);
   useEffect(() => {
     if (role !== 'child') return;
     void (async () => {
@@ -184,9 +197,8 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
     );
   }
   const screen =
-    admin && tab === 'admin' ? <Admin />
-    : admin && tab === 'players' ? <Players />
-    : admin && tab === 'more' ? <More key={moreKey} groups={allGroups} onPreview={startPreview} />
+    admin && tab === 'more' ? <More key={moreKey} groups={allGroups} bar={bar} onMenuChanged={() => setMenuKey(k => k + 1)} onPreview={startPreview} />
+    : admin && isSection(tab) ? <AdminSection key={tab} id={tab} groups={allGroups} onMenuChanged={() => setMenuKey(k => k + 1)} />
     : (admin || coach) && tab === 'sessions' ? <Sessions groups={allGroups.length ? allGroups : coachGroups} />
     : (admin || coach) && tab === 'cmatches' ? <CoachMatches groups={allGroups.length ? allGroups : coachGroups} admin={admin} allTeams={!admin} />
     : coach && tab === 'group' ? <Group groups={coachGroups} notify withStats />
@@ -209,10 +221,7 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
         items={
           admin
             ? [
-                { value: 'admin', label: 'Запросы', icon: 'inbox' },
-                { value: 'players', label: 'Игроки', icon: 'users' },
-                { value: 'sessions', label: 'Занятия', icon: 'calendar' },
-                { value: 'cmatches', label: 'Матчи', icon: 'trophy' },
+                ...bar.map(id => ({ value: id as Tab, label: sectionById(id)?.title ?? id, icon: sectionById(id)?.icon ?? ('more' as const) })),
                 { value: 'more', label: 'Ещё', icon: 'more' },
               ]
             : coach

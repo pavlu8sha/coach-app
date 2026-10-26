@@ -24,7 +24,7 @@ describe('«Должники» (администратор)', () => {
     seed();
     render(<Debtors />);
     expect(await screen.findByText('Должны: 3, всего 360 ₾')).toBeInTheDocument();
-    expect(screen.getByText('weekends')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'weekends' })).toBeInTheDocument();
     expect(screen.getByText('Внесено 100 ₾ из 165 ₾')).toBeInTheDocument();
     expect(fake.rpcCalls('debtors')).toEqual([{ m: monthIso() }]);
   });

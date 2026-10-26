@@ -38,7 +38,7 @@ select is(
         'ind_set_regular', 'ind_set_attended', 'extra_create_session', 'extra_edit_session', 'extra_delete_session', 'extra_add_player', 'extra_remove_player',
         'extra_set_paid', 'extra_set_attended', 'eq_create_order', 'eq_edit_order', 'eq_add_payment', 'eq_set_issued', 'eq_delete_order', 'eq_catalog_save',
         'camp_save', 'camp_tariff_save', 'camp_register', 'camp_update_participant', 'camp_pay', 'camp_cancel_payment', 'tl_add', 'tl_confirm',
-        'tl_set_held', 'tl_replace_coach', 'lead_set_status',
+        'tl_set_held', 'tl_replace_coach', 'lead_set_status', 'ind_roster_list', 'extra_roster_list',
         -- 0040: старт подсчёта баллов
         'points_start', 'set_points_start',
         -- 0041: название и тип турнира (без взносов); вызывается из match_tournaments() с правами пользователя
@@ -55,7 +55,9 @@ select is(
         -- 0051: события (чемпионат, фестиваль, кубок): тренеры и админ, без сумм
         'event_list', 'event_create', 'event_roster', 'event_roster_add', 'event_roster_remove', 'event_add_game',
         -- 0053: взносы за события (только админ; проверка внутри)
-        'event_set_fee', 'event_fees', 'event_payments', 'event_pay', 'event_discount', 'event_cancel_payment')),
+        'event_set_fee', 'event_fees', 'event_payments', 'event_pay', 'event_discount', 'event_cancel_payment',
+        -- 0054: взносы за матч (только админ; проверка внутри)
+        'match_fees_list', 'match_payments_list', 'match_fee_add', 'match_set_fee', 'match_fee_remove', 'match_pay', 'match_discount', 'match_cancel_payment')),
   '', 'список функций, доступных вошедшим пользователям, не расширился без решения');
 
 select is(

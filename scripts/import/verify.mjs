@@ -104,7 +104,7 @@ async function main() {
 
   const catalog = parseCatalog(read('EQUIP_ID/КАТАЛОГ ЭКИПИРОВКИ.csv'));
   const equip = parseSeason(read('EQUIP_ID/СЕЗОН 2026-2027.csv'), new Map(catalog.map(k => [k.kit, k.price])));
-  if (equip.problems.length) throw new Error(`Экипировка разобрана с ошибками: ${equip.problems.length}`);
+  if (equip.problems.length) throw new Error(`Экипировка разобрана с ошибками: ${equip.problems.length}; ${equip.problems.slice(0, 5).map(p => `строка ${p.line}${p.id ? ` (${p.id})` : ''}: ${p.error}`).join('; ')}`);
 
   const gamesFiles = fs.readdirSync(path.join(dir, 'GAMES_ID')).filter(n => n.endsWith('.csv')).sort()
     .map(n => ({ name: n, text: read(`GAMES_ID/${n}`) }));

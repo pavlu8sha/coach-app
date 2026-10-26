@@ -7,7 +7,7 @@ import { Failure, Loading } from './Message';
 
 interface Booking { player_id: string; paid: boolean; attended: boolean | null; amount: number; players: { full_name: string } | null }
 interface Session { id: string; starts_at: string; topic: string | null; goalkeepers: boolean; individual_bookings: Booking[] }
-interface DebtRow { player_id: string; amount: number; players: { full_name: string } | null; individual_sessions: { starts_at: string; goalkeepers: boolean } }
+interface DebtRow { session_id: string; player_id: string; amount: number; players: { full_name: string } | null; individual_sessions: { starts_at: string; goalkeepers: boolean; topic: string | null } }
 
 const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
 const dayOf = (ts: string) => ts.slice(0, 10);
@@ -26,12 +26,23 @@ export default function Individual() {
   const [reload, setReload] = useState(0);
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [paying, setPaying] = useState<string | null>(null);
+  const [debtTotal, setDebtTotal] = useState<{ n: number; sum: number } | null>(null);
+
+  // сводка «Должники» над списком занятий, как в прежнем приложении
+  useEffect(() => {
+    void supabase.from('individual_bookings').select('player_id, amount, individual_sessions!inner(starts_at)').eq('paid', false).lt('individual_sessions.starts_at', nowLocal()).limit(1000).then(r => {
+      if (r.error) return;
+      const rows = (r.data ?? []) as unknown as { player_id: string; amount: number }[];
+      setDebtTotal({ n: new Set(rows.map(x => x.player_id)).size, sum: rows.reduce((a, x) => a + Number(x.amount), 0) });
+    });
+  }, [reload]);
 
   useEffect(() => {
     void (async () => {
       const now = nowLocal();
       if (tab === 'debt') {
-        const r = await supabase.from('individual_bookings').select('player_id, amount, players(full_name), individual_sessions!inner(starts_at, goalkeepers)').eq('paid', false).lt('individual_sessions.starts_at', now).limit(1000);
+        const r = await supabase.from('individual_bookings').select('session_id, player_id, amount, players(full_name), individual_sessions!inner(starts_at, goalkeepers, topic)').eq('paid', false).lt('individual_sessions.starts_at', now).limit(1000);
         if (r.error) return setError(coachError(r.error.message));
         return setDebts((r.data ?? []) as unknown as DebtRow[]);
       }
@@ -48,24 +59,45 @@ export default function Individual() {
   const open = list?.find(s => s.id === openId);
   if (open) return <SessionView session={open} onBack={() => { setOpenId(null); done(); }} />;
 
-  const byPlayer = new Map<string, { name: string; sum: number; n: number }>();
+  const byPlayer = new Map<string, { name: string; sum: number; n: number; rows: DebtRow[] }>();
   (debts ?? []).forEach(d => {
-    const cur = byPlayer.get(d.player_id) ?? { name: d.players?.full_name ?? 'Игрок', sum: 0, n: 0 };
-    byPlayer.set(d.player_id, { ...cur, sum: cur.sum + Number(d.amount), n: cur.n + 1 });
+    const cur = byPlayer.get(d.player_id) ?? { name: d.players?.full_name ?? 'Игрок', sum: 0, n: 0, rows: [] };
+    byPlayer.set(d.player_id, { ...cur, sum: cur.sum + Number(d.amount), n: cur.n + 1, rows: [...cur.rows, d] });
   });
+  // Оплата занятия прямо из списка долгов
+  const payDebt = async (d: DebtRow) => {
+    if (!window.confirm(`Принять оплату ${gel(Number(d.amount))} от ${d.players?.full_name ?? 'игрока'} за ${title(d.individual_sessions)}?`)) return;
+    setPaying(d.session_id + d.player_id);
+    const r = await supabase.rpc('ind_set_paid', { s: d.session_id, p: d.player_id, is_paid: true });
+    setPaying(null);
+    if (r.error) return setError(coachError(r.error.message));
+    setDebts(null);
+    setReload(n => n + 1);
+  };
 
   return (
     <main className="page">
       <h1>Индивидуальные</h1>
       <Segmented label="Раздел" value={tab} onChange={v => { setList(null); setDebts(null); setTab(v); }} items={[{ value: 'next', label: 'Предстоящие' }, { value: 'past', label: 'Прошедшие' }, { value: 'debt', label: 'Долги' }]} />
       <div style={{ height: 10 }} />
+      {tab !== 'debt' && debtTotal && debtTotal.n > 0 && (
+        <ListRow title="Должники" sub={[`Игроков: ${debtTotal.n}`]} end={<Pill tone="danger" dot>{gel(debtTotal.sum)}</Pill>} onClick={() => { setList(null); setDebts(null); setTab('debt'); }} />
+      )}
       {tab !== 'debt' && <button type="button" className="ks-btn" onClick={() => setCreating(true)}>Новое занятие</button>}
       {tab === 'debt' ? (
         !debts ? <Loading /> : byPlayer.size === 0 ? (
           <EmptyState icon="users" title="Долгов нет" text="Все записанные на прошедшие занятия оплатили." />
         ) : (
           [...byPlayer.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name, 'ru')).map(([id, v]) => (
-            <ListRow key={id} avatar={v.name} title={v.name} sub={[`Неоплаченных занятий: ${v.n}`]} end={<Pill tone="danger" dot>{gel(v.sum)}</Pill>} />
+            <div className="ks-card" key={id}>
+              <div className="ks-line"><b style={{ overflowWrap: 'anywhere' }}>{v.name}</b><Pill tone="danger" dot>{gel(v.sum)}</Pill></div>
+              {[...v.rows].sort((a, b) => a.individual_sessions.starts_at.localeCompare(b.individual_sessions.starts_at)).map(d => (
+                <div className="ks-line" key={d.session_id} style={{ marginTop: 8 }}>
+                  <span style={{ flex: 1, minWidth: 0 }}>{title(d.individual_sessions)}{d.individual_sessions.topic ? ` · ${d.individual_sessions.topic}` : ''}<br /><span className="muted">{gel(Number(d.amount))}</span></span>
+                  <button type="button" className="ks-btn secondary sm" disabled={paying === d.session_id + d.player_id} aria-label={`Принять оплату: ${v.name}, ${title(d.individual_sessions)}`} onClick={() => void payDebt(d)}>Оплачено</button>
+                </div>
+              ))}
+            </div>
           ))
         )
       ) : !list ? (
@@ -75,7 +107,7 @@ export default function Individual() {
       ) : (
         list.map(s => {
           const paid = s.individual_bookings.filter(b => b.paid).length;
-          return <ListRow key={s.id} avatar={s.goalkeepers ? 'В' : 'И'} title={title(s)} sub={[s.topic ?? 'без темы', `Записано: ${s.individual_bookings.length}, оплатили: ${paid}`]} onClick={() => setOpenId(s.id)} />;
+          return <ListRow key={s.id} avatar={s.goalkeepers ? 'В' : 'И'} title={title(s)} sub={[s.topic ?? 'без темы', `Записано: ${s.individual_bookings.length}, оплатили: ${paid}`]} end={paid > 0 ? <Pill tone="success">{gel(s.individual_bookings.filter(b => b.paid).reduce((a, b) => a + Number(b.amount), 0))}</Pill> : undefined} onClick={() => setOpenId(s.id)} />;
         })
       )}
     </main>
@@ -125,6 +157,7 @@ function SessionView({ session, onBack }: { session: Session; onBack: () => void
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirmDel, setConfirmDel] = useState(false);
   const [gone, setGone] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const refresh = async () => {
     const r = await supabase.from('individual_bookings').select('player_id, paid, attended, amount, players(full_name)').eq('session_id', session.id);
@@ -169,6 +202,12 @@ function SessionView({ session, onBack }: { session: Session; onBack: () => void
       {msg && <p className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}
 
       <h3>Записанные</h3>
+      {sorted.length > 0 && (
+        <button type="button" className="ks-btn secondary" style={{ marginBottom: 8 }} onClick={() => {
+          const text = sorted.map((b, i) => `${i + 1}. ${b.players?.full_name ?? 'Игрок'}`).join('\n');
+          void navigator.clipboard?.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800); }, () => setMsg({ ok: false, text: 'Не удалось скопировать список.' }));
+        }}>{copied ? 'Скопировано' : 'Скопировать список записавшихся'}</button>
+      )}
       {sorted.length === 0 ? <p className="muted">Пока никого.</p> : sorted.map(b => (
         <div className="ks-card" key={b.player_id}>
           <div className="ks-line">

@@ -8,6 +8,7 @@ import {
   checkDuplicatePlayers,
   checkFuturePayments,
   isPrepayment,
+  KNOWN_NO_ROSTER,
   checkGoalsVsScore,
   checkGoalsWithoutPlaying,
   checkGroupPrices,
@@ -84,12 +85,12 @@ test('матчи: команда без суффикса группы (U10 = U10
       { id: 'M1', club_id: 'C1', played_on: '2026-10-01', team: 'U10' },
       { id: 'M2', club_id: 'C1', played_on: '2026-10-02', team: 'U7' },
       { id: 'M3', club_id: 'C1', played_on: '2026-10-03', team: 'U9' },
-      { id: 'M4', club_id: 'C1', played_on: '2026-10-04', team: 'U15' },
+      { id: 'M4', club_id: 'C1', played_on: '2026-10-04', team: 'U12' },
     ],
   }));
   assert.equal(c.items.length, 2);
   assert.match(c.items[0], /M3|U9/);
-  assert.match(c.items[1], /U15/);
+  assert.match(c.items[1], /U12/);
 });
 
 test('матчи: голы игроков не больше счёта', () => {
@@ -492,14 +493,16 @@ test('матчи: весенние матчи с составом и без сч
   assert.match(c.items[0], /M2|2026-09-12/);
 });
 
-test('матчи: команда U12 (Newton cup) без группы не считается ошибкой, Ortachala U12 не подменяет её', () => {
-  const c = checkMatchTeams(make({
-    groups: [{ id: 'G1', club_id: 'C1', name: 'Ortachala U12' }],
+test('матчи: известные матчи без состава (KNOWN_NO_ROSTER) не считаются проблемой, остальные считаются', () => {
+  const [known] = [...KNOWN_NO_ROSTER.keys()];
+  const c = checkLineups(make({
+    today: '2026-10-26',
     matches: [
-      { id: 'M1', club_id: 'C1', played_on: '2026-06-14', team: 'U12' },
-      { id: 'M2', club_id: 'C1', played_on: '2026-06-15', team: 'U15' },
+      { id: known, club_id: 'C1', played_on: '2026-09-12', team: 'U9', goals_for: 3, goals_against: 0 },
+      { id: 'M2', club_id: 'C1', played_on: '2026-09-13', team: 'U9', goals_for: 1, goals_against: 2 },
     ],
   }));
   assert.equal(c.items.length, 1);
-  assert.match(c.items[0], /U15/);
+  assert.match(c.items[0], /без состава/);
+  assert.equal(KNOWN_NO_ROSTER.size, 8);
 });

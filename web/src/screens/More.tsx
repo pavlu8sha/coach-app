@@ -1,31 +1,14 @@
 import { useState } from 'react';
 import type { CoachGroup } from '../lib/coach';
+import { SECTIONS, type SectionId } from '../lib/adminMenu';
 import { ListRow } from '../ui/components';
 import HomeScreenPrompt from '../ui/HomeScreenPrompt';
 import NotifyToggle from '../ui/NotifyToggle';
-import AdminPayments from './AdminPayments';
-import AdminPhotos from './AdminPhotos';
-import AdminPrices from './AdminPrices';
-import Coaches from './Coaches';
-import Debtors from './Debtors';
-import Group from './Group';
-import MonthPayments from './MonthPayments';
-import Leads from './Leads';
-import TrainerLog from './TrainerLog';
-import Camps from './Camps';
-import Equipment from './Equipment';
-import Extra from './Extra';
-import Individual from './Individual';
-import PointsStart from './PointsStart';
-import RecalcPoints from './RecalcPoints';
-import Schedule from './Schedule';
-import Stats from './Stats';
+import AdminSection from './AdminSection';
 
-type Sub = 'pstart' | 'month' | 'leads' | 'tlog' | 'camps' | 'equip' | 'extra' | 'ind' | 'schedule' | 'debtors' | 'coaches' | 'points' | 'payments' | 'prices' | 'recalc' | 'stats' | 'photos';
-
-// «Ещё» у администратора: остальные разделы. Вернуться в список можно кнопкой «Ещё» внизу или ссылкой наверху.
-export default function More({ groups, onPreview }: { groups: CoachGroup[]; onPreview?: (r: 'guest' | 'parent' | 'child') => void }) {
-  const [sub, setSub] = useState<Sub | null>(null);
+// «Ещё» у администратора: разделы, которых нет на нижней панели. Вернуться в список можно кнопкой «Ещё» внизу или ссылкой наверху.
+export default function More({ groups, bar, onMenuChanged, onPreview }: { groups: CoachGroup[]; bar: SectionId[]; onMenuChanged: () => void; onPreview?: (r: 'guest' | 'parent' | 'child') => void }) {
+  const [sub, setSub] = useState<SectionId | null>(null);
   if (sub) {
     return (
       <>
@@ -35,35 +18,23 @@ export default function More({ groups, onPreview }: { groups: CoachGroup[]; onPr
             Ещё
           </button>
         </div>
-        {sub === 'schedule' ? <Schedule all /> : sub === 'debtors' ? <Debtors /> : sub === 'coaches' ? <Coaches /> : sub === 'payments' ? <AdminPayments /> : sub === 'photos' ? <AdminPhotos /> : sub === 'prices' ? <AdminPrices /> : sub === 'recalc' ? <RecalcPoints /> : sub === 'stats' ? <Stats /> : sub === 'ind' ? <Individual /> : sub === 'extra' ? <Extra /> : sub === 'equip' ? <Equipment /> : sub === 'camps' ? <Camps /> : sub === 'tlog' ? <TrainerLog /> : sub === 'leads' ? <Leads /> : sub === 'month' ? <MonthPayments /> : sub === 'pstart' ? <PointsStart /> : <Group groups={groups} />}
+        <AdminSection id={sub} groups={groups} onMenuChanged={onMenuChanged} />
       </>
     );
   }
+  const items = SECTIONS.filter(s => !bar.includes(s.id));
+  const groupsOrder = [...new Set(items.map(s => s.group))];
   return (
     <main className="page ks-menu">
       <h1>Ещё</h1>
-      <p className="ks-label">Деньги</p>
-      <ListRow title="Оплаты за месяц" sub={['Кто сколько внёс по группам, быстрый платёж']} onClick={() => setSub('month')} />
-      <ListRow title="Платежи" sub={['Внести платёж, исправить запись']} onClick={() => setSub('payments')} />
-      <ListRow title="Должники" sub={['Долг по абонементам, скидки, показ родителям']} onClick={() => setSub('debtors')} />
-      <p className="ks-label">Занятия</p>
-      <ListRow title="Индивидуальные" sub={['Вратари и индивидуальные: запись, оплата, долги']} onClick={() => setSub('ind')} />
-      <ListRow title="Дополнительные" sub={['Доп. тренировки: запись, оплата, долги']} onClick={() => setSub('extra')} />
-      <ListRow title="Расписание" sub={['Тренировки всех групп, правка слотов']} onClick={() => setSub('schedule')} />
-      <p className="ks-label">Клуб</p>
-      <ListRow title="Экипировка" sub={['Заказы, оплата, выдача, каталог']} onClick={() => setSub('equip')} />
-      <ListRow title="Сборы" sub={['Лагеря и сборы: участники, тарифы, платежи']} onClick={() => setSub('camps')} />
-      <ListRow title="Фото клуба" sub={['Заменить фото в «О клубе» и экипировке']} onClick={() => setSub('photos')} />
-      <ListRow title="Заявки" sub={['Новые родители из бота «Хочу в KickStart»']} onClick={() => setSub('leads')} />
-      <p className="ks-label">Тренеры и игроки</p>
-      <ListRow title="Статистика" sub={['Посещаемость и матчи за период']} onClick={() => setSub('stats')} />
-      <ListRow title="Учёт тренеров" sub={['Проведённые тренировки и часы по месяцам']} onClick={() => setSub('tlog')} />
-      <ListRow title="Баллы игроков" sub={['Ручные баллы, история, контакты родителей']} onClick={() => setSub('points')} />
-      <ListRow title="Тренеры" sub={['Назначение групп тренерам']} onClick={() => setSub('coaches')} />
-      <p className="ks-label">Настройки</p>
-      <ListRow title="Цены" sub={['Абонемент и индивидуальные занятия по месяцам']} onClick={() => setSub('prices')} />
-      <ListRow title="Старт подсчёта баллов" sub={['С какой даты баллы видны родителям и тренерам']} onClick={() => setSub('pstart')} />
-      <ListRow title="Пересчёт баллов за матчи" sub={['Привести баллы к новой схеме']} onClick={() => setSub('recalc')} />
+      {groupsOrder.map(g => (
+        <div key={g}>
+          <p className="ks-label">{g}</p>
+          {items.filter(s => s.group === g).map(s => (
+            <ListRow key={s.id} title={s.title} sub={[s.sub]} onClick={() => setSub(s.id)} />
+          ))}
+        </div>
+      ))}
       {onPreview && (
         <>
           <p className="ks-label">Посмотреть как</p>
