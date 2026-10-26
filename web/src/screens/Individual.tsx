@@ -26,6 +26,16 @@ export default function Individual() {
   const [reload, setReload] = useState(0);
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [debtTotal, setDebtTotal] = useState<{ n: number; sum: number } | null>(null);
+
+  // сводка «Должники» над списком занятий, как в прежнем приложении
+  useEffect(() => {
+    void supabase.from('individual_bookings').select('player_id, amount, individual_sessions!inner(starts_at)').eq('paid', false).lt('individual_sessions.starts_at', nowLocal()).limit(1000).then(r => {
+      if (r.error) return;
+      const rows = (r.data ?? []) as unknown as { player_id: string; amount: number }[];
+      setDebtTotal({ n: new Set(rows.map(x => x.player_id)).size, sum: rows.reduce((a, x) => a + Number(x.amount), 0) });
+    });
+  }, [reload]);
 
   useEffect(() => {
     void (async () => {
@@ -59,6 +69,9 @@ export default function Individual() {
       <h1>Индивидуальные</h1>
       <Segmented label="Раздел" value={tab} onChange={v => { setList(null); setDebts(null); setTab(v); }} items={[{ value: 'next', label: 'Предстоящие' }, { value: 'past', label: 'Прошедшие' }, { value: 'debt', label: 'Долги' }]} />
       <div style={{ height: 10 }} />
+      {tab !== 'debt' && debtTotal && debtTotal.n > 0 && (
+        <ListRow title="Должники" sub={[`Игроков: ${debtTotal.n}`]} end={<Pill tone="danger" dot>{gel(debtTotal.sum)}</Pill>} onClick={() => { setList(null); setDebts(null); setTab('debt'); }} />
+      )}
       {tab !== 'debt' && <button type="button" className="ks-btn" onClick={() => setCreating(true)}>Новое занятие</button>}
       {tab === 'debt' ? (
         !debts ? <Loading /> : byPlayer.size === 0 ? (
@@ -75,7 +88,7 @@ export default function Individual() {
       ) : (
         list.map(s => {
           const paid = s.individual_bookings.filter(b => b.paid).length;
-          return <ListRow key={s.id} avatar={s.goalkeepers ? 'В' : 'И'} title={title(s)} sub={[s.topic ?? 'без темы', `Записано: ${s.individual_bookings.length}, оплатили: ${paid}`]} onClick={() => setOpenId(s.id)} />;
+          return <ListRow key={s.id} avatar={s.goalkeepers ? 'В' : 'И'} title={title(s)} sub={[s.topic ?? 'без темы', `Записано: ${s.individual_bookings.length}, оплатили: ${paid}`]} end={paid > 0 ? <Pill tone="success">{gel(s.individual_bookings.filter(b => b.paid).reduce((a, b) => a + Number(b.amount), 0))}</Pill> : undefined} onClick={() => setOpenId(s.id)} />;
         })
       )}
     </main>
@@ -125,6 +138,7 @@ function SessionView({ session, onBack }: { session: Session; onBack: () => void
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirmDel, setConfirmDel] = useState(false);
   const [gone, setGone] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const refresh = async () => {
     const r = await supabase.from('individual_bookings').select('player_id, paid, attended, amount, players(full_name)').eq('session_id', session.id);
@@ -169,6 +183,12 @@ function SessionView({ session, onBack }: { session: Session; onBack: () => void
       {msg && <p className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}
 
       <h3>Записанные</h3>
+      {sorted.length > 0 && (
+        <button type="button" className="ks-btn secondary" style={{ marginBottom: 8 }} onClick={() => {
+          const text = sorted.map((b, i) => `${i + 1}. ${b.players?.full_name ?? 'Игрок'}`).join('\n');
+          void navigator.clipboard?.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800); }, () => setMsg({ ok: false, text: 'Не удалось скопировать список.' }));
+        }}>{copied ? 'Скопировано' : 'Скопировать список записавшихся'}</button>
+      )}
       {sorted.length === 0 ? <p className="muted">Пока никого.</p> : sorted.map(b => (
         <div className="ks-card" key={b.player_id}>
           <div className="ks-line">
