@@ -41,6 +41,7 @@ select * from (values
   ('0053_event_fees',              to_regprocedure('event_pay(uuid,uuid[],numeric,date,text,text)') is not null),
   ('0054_match_fees',              to_regprocedure('match_pay(uuid,uuid[],numeric,date,text,text)') is not null),
   ('0055_match_team_base_name',    pg_get_functiondef(to_regprocedure('save_match(uuid,uuid,date,text,integer,integer,jsonb)')) like '%regexp_replace%'),
-  ('0056_coach_ind_marks',         to_regprocedure('ind_roster_list(date,date)') is not null)
+  ('0056_coach_ind_marks',         to_regprocedure('ind_roster_list(date,date)') is not null),
+  ('0057_coach_extra_marks',       to_regprocedure('extra_roster_list(date,date)') is not null)
 ) as t(migration, applied)
 order by migration;

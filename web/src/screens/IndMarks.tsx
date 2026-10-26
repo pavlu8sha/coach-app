@@ -4,12 +4,13 @@ import { supabase } from '../lib/supabase';
 import { EmptyState } from '../ui/components';
 import { BackNav, useMainButton } from '../ui/nav';
 
-export interface IndSession { id: string; starts_at: string; topic: string | null; goalkeepers: boolean; individual_bookings: { player_id: string; attended: boolean | null; players: { full_name: string } | null }[] }
+export interface IndSession { id: string; kind?: 'ind' | 'extra'; starts_at: string; topic: string | null; goalkeepers: boolean; individual_bookings: { player_id: string; attended: boolean | null; players: { full_name: string } | null }[] }
 type Mark = 'present' | 'absent' | null;
 
 const toMark = (a: boolean | null): Mark => (a === true ? 'present' : a === false ? 'absent' : null);
 export const indDay = (s: IndSession) => s.starts_at.slice(0, 10);
-export const indTitle = (s: IndSession) => `${DAYS[isoDow(indDay(s))]}, ${fmtShort(indDay(s))} · ${hm(s.starts_at.slice(11, 16))} · ${s.goalkeepers ? 'Вратари' : 'Индивидуальные'}`;
+export const indTitle = (s: IndSession) =>
+  s.kind === 'extra' ? `${DAYS[isoDow(indDay(s))]}, ${fmtShort(indDay(s))} · Дополнительная` : `${DAYS[isoDow(indDay(s))]}, ${fmtShort(indDay(s))} · ${hm(s.starts_at.slice(11, 16))} · ${s.goalkeepers ? 'Вратари' : 'Индивидуальные'}`;
 
 // Отметка посещения индивидуального или вратарского занятия: только записавшиеся на это занятие (не вся «группа»).
 export default function IndMarks({ session, onBack }: { session: IndSession; onBack: () => void }) {
@@ -26,7 +27,7 @@ export default function IndMarks({ session, onBack }: { session: IndSession; onB
     for (const p of players) {
       if (marks[p.player_id] === toMark(p.attended)) continue;
       const m = marks[p.player_id];
-      const r = await supabase.rpc('ind_set_attended', { s: session.id, p: p.player_id, was: m === 'present' ? true : m === 'absent' ? false : null });
+      const r = await supabase.rpc(session.kind === 'extra' ? 'extra_set_attended' : 'ind_set_attended', { s: session.id, p: p.player_id, was: m === 'present' ? true : m === 'absent' ? false : null });
       if (r.error) { setBusy(false); return setMsg({ ok: false, text: coachError(r.error.message) }); }
       p.attended = m === 'present' ? true : m === 'absent' ? false : null;
     }
@@ -44,7 +45,7 @@ export default function IndMarks({ session, onBack }: { session: IndSession; onB
       <h1>{indTitle(session)}</h1>
       {session.topic && <p className="muted">{session.topic}</p>}
       {players.length === 0 ? (
-        <EmptyState icon="users" title="На занятие никто не записан" text="Запись ведётся в разделе «Ещё → Индивидуальные»." />
+        <EmptyState icon="users" title="На занятие никто не записан" text="Запись ведётся у администратора: «Ещё → Индивидуальные» или «Дополнительные»." />
       ) : (
         <>
           <div className="ks-progress" aria-hidden="true">{players.map(p => <span key={p.player_id} className={marks[p.player_id] ?? ''} />)}</div>

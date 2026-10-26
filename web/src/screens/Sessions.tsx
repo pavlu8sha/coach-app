@@ -23,6 +23,18 @@ export function groupRoster(rows: RosterRow[]): IndSession[] {
   return [...out.values()];
 }
 
+interface ExtraRosterRow { session_id: string; starts_on: string; place: string | null; player_id: string | null; full_name: string | null; attended: boolean | null }
+/** Строки функции extra_roster_list (тренировка × игрок) → тренировки с составом; для общего списка со временем 00:00. */
+export function groupExtraRoster(rows: ExtraRosterRow[]): IndSession[] {
+  const out = new Map<string, IndSession>();
+  for (const r of rows) {
+    let s = out.get(r.session_id);
+    if (!s) out.set(r.session_id, (s = { id: r.session_id, kind: 'extra', starts_at: `${r.starts_on}T00:00:00`, topic: r.place, goalkeepers: false, individual_bookings: [] }));
+    if (r.player_id) s.individual_bookings.push({ player_id: r.player_id, attended: r.attended, players: { full_name: r.full_name ?? '' } });
+  }
+  return [...out.values()];
+}
+
 const DAYS_BACK = 21; // сколько последних дней показываем: занятия можно отметить и задним числом
 
 // «Занятия»: занятия группы по расписанию за последние дни; тренер открывает день и отмечает, кто был.
@@ -50,7 +62,9 @@ export default function Sessions({ groups }: { groups: CoachGroup[] }) {
         const t = today();
         // Тренер читает занятия через функцию базы (без сумм и оплаты); таблицы записей с деньгами ему закрыты
         const ind = await supabase.rpc('ind_roster_list', { d_from: addDays(t, -DAYS_BACK), d_to: t });
-        setIndList(ind.error ? [] : groupRoster((ind.data ?? []) as RosterRow[]));
+        const ext = await supabase.rpc('extra_roster_list', { d_from: addDays(t, -DAYS_BACK), d_to: t });
+        const all = [...(ind.error ? [] : groupRoster((ind.data ?? []) as RosterRow[])), ...(ext.error ? [] : groupExtraRoster((ext.data ?? []) as ExtraRosterRow[]))];
+        setIndList(all.sort((a, b) => b.starts_at.localeCompare(a.starts_at)));
       }
     })();
   }, [gid, reload]);
@@ -80,7 +94,7 @@ export default function Sessions({ groups }: { groups: CoachGroup[] }) {
       {indMode ? (
         indList && indList.length > 0 ? indList.map(x => (
           <ListRow key={x.id} title={indTitle(x)} sub={[x.topic ?? 'без темы', `Записано: ${x.individual_bookings.length}`]} end={indDay(x) === today() ? <Pill tone="primary">Сегодня</Pill> : undefined} onClick={() => setIndOpen(x.id)} />
-        )) : <EmptyState icon="box" title="Занятий нет" text="За последние дни индивидуальных и вратарских занятий не было (их ведёт администратор в «Ещё → Индивидуальные»)." />
+        )) : <EmptyState icon="box" title="Занятий нет" text="За последние дни индивидуальных, вратарских и дополнительных занятий не было (их ведёт администратор в «Ещё → Индивидуальные»)." />
       ) : days.length === 0 ? (
         <EmptyState icon="box" title="Нет занятий в расписании" text={`У группы ${group?.name ?? ''} нет тренировок в расписании за последние ${DAYS_BACK} дней.`} />
       ) : (
