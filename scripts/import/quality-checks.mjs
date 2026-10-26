@@ -114,6 +114,9 @@ export function checkGoalsWithoutPlaying(data = {}) {
   );
 }
 
+// Матчи до этой даты (весна 2026, перенос из старого файла): счёта нет и в старых таблицах, пустым оставлен намеренно (решение владельца, #179)
+export const SCORE_ARCHIVE_BEFORE = '2026-09-01';
+
 export function checkLineups(data = {}) {
   const roster = new Set(arr(data.matchPlayers).map(row => row.match_id));
   const today = data.today || tbilisiToday();
@@ -124,7 +127,7 @@ export function checkLineups(data = {}) {
     if (String(m.played_on || '') < today && hasScore && !hasRoster) {
       items.push(`${matchText(m)}: матч в прошлом со счётом, но без состава`);
     }
-    if (hasRoster && !hasScore) {
+    if (hasRoster && !hasScore && String(m.played_on || '') >= SCORE_ARCHIVE_BEFORE) {
       items.push(`${matchText(m)}: состав есть, но счёт не заполнен`);
     }
   }
@@ -243,18 +246,26 @@ export function checkPaymentsWithoutPlayer(data = {}) {
   );
 }
 
+// Оплата за следующий месяц принимается с 22-го числа и записывается 1-м числом следующего месяца: это не ошибка
+export function isPrepayment(paidOn, today) {
+  const t = String(today || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(t) || Number(t.slice(8)) < 22) return false;
+  const next = new Date(Date.UTC(Number(t.slice(0, 4)), Number(t.slice(5, 7)), 1)).toISOString().slice(0, 10);
+  return String(paidOn || '') === next;
+}
+
 export function checkFuturePayments(data = {}) {
   const today = data.today || tbilisiToday();
   const players = new Map(arr(data.players).map(p => [p.id, p]));
   const items = arr(data.payments)
     .filter(p => players.get(p.player_id)?.club_id === data.clubId)
-    .filter(p => String(p.paid_on || '') > today)
+    .filter(p => String(p.paid_on || '') > today && !isPrepayment(p.paid_on, today))
     .map(p => `платёж ${p.id}: ${playerText(players.get(p.player_id))}, дата ${p.paid_on} в будущем (сегодня ${today})`);
   return issue(
     'future-payments',
     'Платежи с датой в будущем',
     'staff',
-    'Дата payments.paid_on не должна быть позже сегодняшнего дня по Тбилиси.',
+    'Дата payments.paid_on не должна быть позже сегодняшнего дня по Тбилиси (кроме оплаты за следующий месяц с 22-го числа: дата 1-е следующего месяца).',
     items,
   );
 }

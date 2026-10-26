@@ -7,6 +7,7 @@ import {
   checkCoachesOutsideClub,
   checkDuplicatePlayers,
   checkFuturePayments,
+  isPrepayment,
   checkGoalsVsScore,
   checkGoalsWithoutPlaying,
   checkGroupPrices,
@@ -466,4 +467,27 @@ test('отчёт: limit Infinity выводит все строки, по умо
   const all = formatReport(checks, { limit: Infinity });
   assert.doesNotMatch(all, /… ещё/);
   assert.match(all, /матч 28/);
+});
+
+test('платежи: оплата за следующий месяц с 22-го числа не ошибка', () => {
+  const players = [{ id: 'P1', club_id: 'C1', full_name: 'Игрок' }];
+  const payments = [{ id: 'PAY1', player_id: 'P1', amount: 100, paid_on: '2026-11-01' }, { id: 'PAY2', player_id: 'P1', amount: 100, paid_on: '2026-11-02' }];
+  const c = checkFuturePayments(make({ players, payments, today: '2026-10-26' }));
+  assert.equal(c.items.length, 1);
+  assert.match(c.items[0], /PAY2/);
+  assert.equal(checkFuturePayments(make({ players, payments: [payments[0]], today: '2026-10-21' })).items.length, 1);
+  assert.equal(isPrepayment('2027-01-01', '2026-12-31'), true);
+});
+
+test('матчи: весенние матчи с составом и без счёта не считаются проблемой, осенние считаются', () => {
+  const c = checkLineups(make({
+    today: '2026-10-26',
+    matches: [
+      { id: 'M1', club_id: 'C1', played_on: '2026-05-17', team: 'U9-A' },
+      { id: 'M2', club_id: 'C1', played_on: '2026-09-12', team: 'U9-A' },
+    ],
+    matchPlayers: [{ match_id: 'M1', player_id: 'P1' }, { match_id: 'M2', player_id: 'P1' }],
+  }));
+  assert.equal(c.items.length, 1);
+  assert.match(c.items[0], /M2|2026-09-12/);
 });
