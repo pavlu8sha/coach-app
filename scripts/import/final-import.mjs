@@ -28,6 +28,7 @@ const csv = name => {
   if (f.length !== 1) throw new Error(`В выгрузке нужен ровно один файл '${name}', найдено: ${f.length}.`);
   return f[0];
 };
+const csvOpt = name => { const f = all.filter(p => p.split(/[\\/]/).pop() === name); return f.length === 1 ? f[0] : null; };
 const sub = name => {
   const d = join(dir, name);
   if (!existsSync(d) || !statSync(d).isDirectory()) throw new Error(`В выгрузке нет папки '${name}'.`);
@@ -61,6 +62,8 @@ try {
   const months = readdirSync(pay, { withFileTypes: true }).filter(e => e.isFile() && e.name.endsWith('.csv')).map(e => e.name).sort().map(n => join(pay, n));
   run('Оплаты абонементов', [`${S}/run-payments.mjs`, '--registry', reg, ...months]);
   run('Индивидуальные и вратарские', [`${S}/run-individual.mjs`, '--registry', reg, '--pay-dir', pay, '--sessions', csv('ИНДИВИДУАЛЬНЫЕ ЗАНЯТИЯ.csv'), '--journal', csv('ИНДИВИДУАЛЬНЫЕ ОПЛАТЫ.csv'), '--old-dir', sub('IND_ID')]);
+  const extraPrices = csvOpt('ДОПОЛНИТЕЛЬНЫЕ ТРЕНИРОВКИ.csv'), extraJournal = csvOpt('ДОПОЛНИТЕЛЬНЫЕ ОПЛАТЫ.csv');
+  run('Дополнительные тренировки', [`${S}/run-extra.mjs`, '--registry', reg, '--dir', sub('EXTRA_ID'), ...(extraPrices ? ['--prices', extraPrices] : []), ...(extraJournal ? ['--journal', extraJournal] : []), '--year', String(new Date().getFullYear())]);
   run('Экипировка', [`${S}/run-equipment.mjs`, csv('КАТАЛОГ ЭКИПИРОВКИ.csv'), csv('СЕЗОН 2026-2027.csv')]);
   run('Сборы и настройки', [`${S}/run-camps-settings.mjs`, dir]);
   run('Баллы за тренировки (без матчей)', [`${S}/run-rating.mjs`]);
