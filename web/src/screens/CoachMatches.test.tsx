@@ -190,6 +190,24 @@ describe('«Новое событие»', () => {
     await waitFor(() => expect(fake.rpcCalls('event_create')).toHaveLength(1));
     expect(fake.rpcCalls('event_create')[0]).toMatchObject({ k: 'championship', tm: 'U9', nm: 'Чемпионат 2', fee: null });
   });
+
+  it('состав копируется из выбранного события, по умолчанию не копируется', async () => {
+    fake.db.matches = [];
+    fake.rpc.event_list = () => [{ id: 'e1', team: 'U9', kind: 'championship', name: 'Ч1', starts_on: '2026-11-01', players: 2, games: 0 }];
+    fake.rpc.event_create = () => 'e-new';
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText('Новое событие'));
+    fireEvent.change(await screen.findByLabelText('Название'), { target: { value: 'Ч2' } });
+    fireEvent.click(screen.getByText('Создать событие'));
+    await waitFor(() => expect(fake.rpcCalls('event_create')).toHaveLength(1));
+    expect(fake.rpcCalls('event_create')[0]).toMatchObject({ copy_from: null });
+    fireEvent.click(await screen.findByText('Новое событие'));
+    fireEvent.change(await screen.findByLabelText('Название'), { target: { value: 'Ч3' } });
+    fireEvent.change(screen.getByLabelText('Скопировать состав из события'), { target: { value: 'e1' } });
+    fireEvent.click(screen.getByText('Создать событие'));
+    await waitFor(() => expect(fake.rpcCalls('event_create')).toHaveLength(2));
+    expect(fake.rpcCalls('event_create')[1]).toMatchObject({ nm: 'Ч3', copy_from: 'e1' });
+  });
 });
 
 describe('Взносы события (администратор)', () => {
