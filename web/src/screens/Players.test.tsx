@@ -27,6 +27,16 @@ describe('«Игроки»', () => {
     expect(screen.queryByText('Старый Игрок')).not.toBeInTheDocument();
   });
 
+  it('игрок индивидуальных и вратарских без абонемента: не должник', async () => {
+    seed();
+    fake.db.groups.push({ id: 'g3', name: 'Индивидуальные / вратарские', club_id: 'c1' });
+    fake.db.players.push({ id: 'p4', full_name: 'Только Индивидуальные', group_id: 'g3', birth_date: null, status: 'active', external_id: 'KS-0100' });
+    render(<Players />);
+    await screen.findByText('Только Индивидуальные');
+    expect(screen.getByText('Без абонемента')).toBeInTheDocument();
+    expect(screen.getAllByText('Не платил')).toHaveLength(1);
+  });
+
   it('ищет по ID и фильтрует по году рождения', async () => {
     seed();
     render(<Players />);

@@ -53,7 +53,8 @@ export default function MonthPayments() {
       const g = await supabase.from('groups').select('id, name').order('name');
       const p = await supabase.from('prices').select('group_id, amount, valid_from, valid_to').eq('kind', 'subscription');
       if (g.error || p.error) return setError((g.error ?? p.error)!.message);
-      const gs = (g.data ?? []) as Group[];
+      // игроки индивидуальных и вратарских платят за занятия, а не абонементом
+      const gs = ((g.data ?? []) as Group[]).filter(x => x.name.trim().toLowerCase() !== 'индивидуальные / вратарские');
       setGroups(gs);
       setPrices(((p.data ?? []) as Price[]).map(x => ({ ...x, amount: Number(x.amount) })));
       setGid(cur => cur || gs[0]?.id || '');
