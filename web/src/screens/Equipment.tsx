@@ -8,7 +8,7 @@ import { Failure, Loading } from './Message';
 interface Line { kit: string; size: string | null; quantity: number }
 interface Order {
   id: string; ordered_on: string | null; total: number; paid: number; installment: boolean; number: string | null; inscription: string | null; location: string | null;
-  players: { full_name: string } | null; equipment_order_lines: Line[]; equipment_issues: { kit: string; issued_on: string; issued_by: string | null }[];
+  players: { full_name: string; groups?: { name: string } | null } | null; equipment_order_lines: Line[]; equipment_issues: { kit: string; issued_on: string; issued_by: string | null }[];
 }
 interface Kit { kit: string; price: number }
 
@@ -27,6 +27,10 @@ export default function Equipment() {
   const [tab, setTab] = useState<Tab>('all');
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [q, setQ] = useState('');
+  const [fGroup, setFGroup] = useState('');
+  const [fKit, setFKit] = useState('');
+  const [fLoc, setFLoc] = useState('');
+  const [fIssue, setFIssue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -36,7 +40,7 @@ export default function Equipment() {
     void (async () => {
       const r = await supabase
         .from('equipment_orders')
-        .select('id, ordered_on, total, paid, installment, number, inscription, location, players(full_name), equipment_order_lines(kit, size, quantity), equipment_issues(kit, issued_on, issued_by)')
+        .select('id, ordered_on, total, paid, installment, number, inscription, location, players(full_name, groups(name)), equipment_order_lines(kit, size, quantity), equipment_issues(kit, issued_on, issued_by)')
         .order('ordered_on', { ascending: false, nullsFirst: false })
         .limit(500);
       if (r.error) return setError(errText(r.error.message));
@@ -46,8 +50,25 @@ export default function Equipment() {
 
   const shown = useMemo(() => {
     const t = q.trim().toLowerCase();
-    return (orders ?? []).filter(o => (!t || (o.players?.full_name ?? '').toLowerCase().includes(t)) && (tab === 'unpaid' ? o.paid < o.total : tab === 'noissue' ? issueState(o) !== 'Да' : true));
-  }, [orders, q, tab]);
+    return (orders ?? []).filter(o => (!t || (o.players?.full_name ?? '').toLowerCase().includes(t))
+      && (tab === 'unpaid' ? o.paid < o.total : tab === 'noissue' ? issueState(o) !== 'Да' : true)
+      && (!fGroup || o.players?.groups?.name === fGroup)
+      && (!fKit || o.equipment_order_lines.some(l => l.kit === fKit))
+      && (!fLoc || (o.location ?? '') === fLoc)
+      && (!fIssue || (fIssue === 'yes' ? issueState(o) === 'Да' : issueState(o) !== 'Да')));
+  }, [orders, q, tab, fGroup, fKit, fLoc, fIssue]);
+  const options = useMemo(() => {
+    const uniq = (xs: (string | null | undefined)[]) => [...new Set(xs.filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'ru'));
+    return {
+      groups: uniq((orders ?? []).map(o => o.players?.groups?.name)),
+      kits: uniq((orders ?? []).flatMap(o => o.equipment_order_lines.map(l => l.kit))),
+      locs: uniq((orders ?? []).map(o => o.location)),
+    };
+  }, [orders]);
+  const sums = useMemo(() => {
+    const total = shown.reduce((s, o) => s + o.total, 0), paid = shown.reduce((s, o) => s + Math.min(o.paid, o.total), 0);
+    return { players: new Set(shown.map(o => o.players?.full_name ?? o.id)).size, total, paid, debt: total - paid };
+  }, [shown]);
 
   const done = () => { setCreating(false); setOrders(null); setReload(n => n + 1); };
   if (error) return <Failure title="Не удалось загрузить заказы" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
@@ -64,6 +85,22 @@ export default function Equipment() {
       <button type="button" className="ks-btn" onClick={() => setCreating(true)}>Новый заказ</button>
       <div style={{ height: 10 }} />
       <SearchInput label="Найти игрока" placeholder="Фамилия или имя" value={q} onChange={setQ} />
+      <div className="ks-pair">
+        <select className="ks-select" aria-label="Группа" value={fGroup} onChange={e => setFGroup(e.target.value)}><option value="">Все группы</option>{options.groups.map(g => <option key={g}>{g}</option>)}</select>
+        <select className="ks-select" aria-label="Товар" value={fKit} onChange={e => setFKit(e.target.value)}><option value="">Все товары</option>{options.kits.map(k => <option key={k}>{k}</option>)}</select>
+      </div>
+      <div className="ks-pair">
+        <select className="ks-select" aria-label="Локация" value={fLoc} onChange={e => setFLoc(e.target.value)}><option value="">Все локации</option>{options.locs.map(l => <option key={l}>{l}</option>)}</select>
+        <select className="ks-select" aria-label="Выдача" value={fIssue} onChange={e => setFIssue(e.target.value)}><option value="">Выдача: любая</option><option value="yes">Выдано</option><option value="no">Не выдано</option></select>
+      </div>
+      {orders && (
+        <div className="ks-tiles" style={{ marginBottom: 12, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+          <div className="ks-tile"><b>{sums.players}</b>игроков в списке</div>
+          <div className="ks-tile"><b>{gel(sums.total)}</b>заказано</div>
+          <div className="ks-tile"><b>{gel(sums.paid)}</b>оплачено</div>
+          <div className="ks-tile"><b style={{ color: sums.debt > 0 ? 'var(--ks-danger, #b3261e)' : undefined }}>{gel(sums.debt)}</b>долг</div>
+        </div>
+      )}
       {!orders ? <Loading /> : shown.length === 0 ? (
         <EmptyState icon="box" title="Заказов нет" text="Измените фильтр или создайте заказ." />
       ) : (

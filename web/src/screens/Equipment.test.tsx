@@ -93,3 +93,22 @@ describe('«Экипировка»', () => {
     expect(await screen.findByText(/сначала верните её записью с минусом/)).toBeInTheDocument();
   });
 });
+
+describe('Экипировка: фильтры как в старом приложении', () => {
+  it('фильтры по группе, товару и выдаче сужают список, сводка считает по видимому', async () => {
+    fake.db.equipment_orders = [
+      { id: 'o1', ordered_on: '2026-09-10', total: 160, paid: 60, installment: false, number: null, inscription: null, location: 'Красный парк', players: { full_name: 'Иванов Пётр', groups: { name: 'U9-A' } }, equipment_order_lines: [{ kit: 'Форма', size: 'M', quantity: 1 }], equipment_issues: [] },
+      { id: 'o2', ordered_on: '2026-09-11', total: 100, paid: 100, installment: false, number: null, inscription: null, location: 'Исани', players: { full_name: 'Сидоров Ян', groups: { name: 'U11' } }, equipment_order_lines: [{ kit: 'Куртка', size: 'L', quantity: 1 }], equipment_issues: [{ kit: 'Куртка', issued_on: '2026-09-12', issued_by: null }] },
+    ];
+    render(<Equipment />);
+    expect(await screen.findByText('Иванов Пётр')).toBeInTheDocument();
+    expect(screen.getByText('Сидоров Ян')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Группа'), { target: { value: 'U11' } });
+    expect(screen.queryByText('Иванов Пётр')).toBeNull();
+    fireEvent.change(screen.getByLabelText('Группа'), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText('Выдача'), { target: { value: 'no' } });
+    expect(screen.queryByText('Сидоров Ян')).toBeNull();
+    expect(screen.getByText('Иванов Пётр')).toBeInTheDocument();
+    expect(screen.getByText('100 ₾')).toBeInTheDocument(); // долг по видимому заказу: 160 − 60
+  });
+});
