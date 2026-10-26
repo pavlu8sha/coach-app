@@ -64,6 +64,24 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
     if (feeInput === '' || !(Number(feeInput) >= 0)) return setMsg({ ok: false, text: 'Укажите взнос с игрока.' });
     void run(supabase.rpc('match_fee_add', { m: eventId, ids: missing.map(a => a.id), amt: Number(feeInput) }), 'Игроки добавлены во взнос.');
   };
+  const saveFee = () => {
+    const amount = Number(feeInput);
+    if (feeInput === '' || !(amount >= 0)) return setMsg({ ok: false, text: 'Укажите взнос с игрока.' });
+    if (!api.add) return void run(supabase.rpc(api.setFee, { [api.key]: eventId, amt: amount }), 'Взнос обновлён (у тех, кому не делали скидку и кто не платил).');
+    // у матча взнос хранится у каждого игрока: сначала назначаем его тем, кого ещё нет, затем обновляем остальных
+    if (fees.length === 0 && missing.length === 0) return setMsg({ ok: false, text: 'Сначала отметьте в составе игроков «Играл» и сохраните матч: взнос назначается им.' });
+    void (async () => {
+      setBusy(true);
+      setMsg(null);
+      let r: { error: { message: string } | null } = { error: null };
+      if (missing.length) r = await supabase.rpc('match_fee_add', { m: eventId, ids: missing.map(a => a.id), amt: amount });
+      if (!r.error && fees.length) r = await supabase.rpc(api.setFee, { m: eventId, amt: amount });
+      setBusy(false);
+      if (r.error) return setMsg({ ok: false, text: coachError(r.error.message) });
+      setMsg({ ok: true, text: 'Взнос сохранён.' });
+      setN(x => x + 1);
+    })();
+  };
   const pay = () => {
     if (sel.size === 0) return setMsg({ ok: false, text: 'Отметьте игроков, которые платят.' });
     if (amt !== '' && !(Number(amt) > 0)) return setMsg({ ok: false, text: 'Сумма должна быть больше нуля.' });
@@ -77,7 +95,7 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
       <label className="ks-label" htmlFor="ef-fee">Взнос с игрока, ₾</label>
       <div className="ks-line">
         <input id="ef-fee" className="ks-input" inputMode="decimal" value={feeInput} onChange={e => setFeeInput(e.target.value.replace(/[^\d.]/g, '').slice(0, 7))} placeholder="Сумма" />
-        <button type="button" className="ks-btn secondary" style={{ width: 'auto' }} disabled={busy || feeInput === ''} onClick={() => void run(supabase.rpc(api.setFee, { [api.key]: eventId, amt: Number(feeInput) }), 'Взнос обновлён (у тех, кому не делали скидку и кто не платил).', () => setFeeInput(''))}>Сохранить</button>
+        <button type="button" className="ks-btn secondary" style={{ width: 'auto' }} disabled={busy || feeInput === ''} onClick={saveFee}>Сохранить</button>
       </div>
       {api.add && missing.length > 0 && (
         <button type="button" className="ks-btn secondary" style={{ marginBottom: 8 }} disabled={busy} onClick={addAll}>Добавить игроков состава во взнос ({missing.length})</button>
