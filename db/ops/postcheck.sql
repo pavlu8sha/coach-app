@@ -1,4 +1,4 @@
--- Проверка после применения миграций 0028–0040. Только чтение. Каждая строка должна быть ok = true.
+-- Проверка ключевых функций и прав доступа после применения миграций. Только чтение. Каждая строка должна быть ok = true.
 with expected(fn, for_app) as (values
   ('create_child_code(uuid)', true), ('redeem_child_code(text)', true),
   ('enqueue_to_guardians(uuid,text,text)', false), ('notify_payment()', false), ('notify_bonus()', false), ('notify_coach_group()', false),
@@ -9,6 +9,7 @@ with expected(fn, for_app) as (values
   ('eq_create_order(uuid,jsonb,text,text,boolean,text,numeric)', true), ('eq_add_payment(uuid,numeric)', true), ('eq_set_issued(uuid,text,boolean,text,date)', true), ('eq_catalog_save(text,numeric,date)', true),
   ('camp_save(uuid,text,text,date,date,numeric,date,date,boolean)', true), ('camp_pay(uuid,numeric,text,date,text,text)', true), ('camp_cancel_payment(uuid)', true),
   ('tl_add(date,text,text,text,time,time,text,boolean)', true), ('tl_confirm(date,text,text,time,time,text,text[])', true),
+  ('parent_calendar(uuid,date,date)', true),
   ('lead_set_status(uuid,text,text)', true), ('points_start()', true), ('set_points_start(date)', true)
 )
 select fn,
