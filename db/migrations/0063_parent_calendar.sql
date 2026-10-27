@@ -113,6 +113,8 @@ begin
     where ex.club_id = player_club
       and ex.starts_on between p_from and p_to
 
+    union all
+
     select
       ('schedule:' || ws.id::text || ':' || cal.day::date::text)::text,
       cal.day::date, ws.starts_at, 'training'::text,
