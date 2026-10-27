@@ -1,7 +1,7 @@
 -- pgTAP: календарь родителя показывает события своего ребёнка и не обходит согласие/RLS.
 begin;
 create extension if not exists pgtap;
-select plan(7);
+select plan(8);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -54,6 +54,12 @@ select is((select count(*)::int from parent_calendar(
   (now() at time zone 'Asia/Tbilisi')::date - 2,
   (now() at time zone 'Asia/Tbilisi')::date + 1
 )), 4, 'календарь содержит матч, архивную и фактическую тренировки и будущую запись расписания');
+select is((select count(*)::int from parent_calendar(
+  '00000000-0000-0000-0000-00000000d001',
+  (now() at time zone 'Asia/Tbilisi')::date - 2,
+  (now() at time zone 'Asia/Tbilisi')::date - 2
+) where title = 'Тренировка'), 1, 'архив тренировки отображается отдельным событием');
+
 select is((select attendance_status from parent_calendar(
   '00000000-0000-0000-0000-00000000d001',
   (now() at time zone 'Asia/Tbilisi')::date - 1,
