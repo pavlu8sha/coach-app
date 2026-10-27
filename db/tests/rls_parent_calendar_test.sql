@@ -5,6 +5,7 @@ select plan(7);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
+  ('00000000-0000-0000-0000-0000000000a1', 9300, 'Администратор', true),
   ('00000000-0000-0000-0000-0000000000b1', 9301, 'Родитель А', false),
   ('00000000-0000-0000-0000-0000000000b2', 9302, 'Родитель Б', false);
 insert into groups (id, club_id, name, location) values
@@ -57,9 +58,11 @@ select is((select attendance_status from parent_calendar(
 ) where event_type = 'training'), 'present', 'возвращается посещаемость только своего ребёнка');
 select throws_ok($$select count(*) from parent_calendar('00000000-0000-0000-0000-00000000d002', current_date, current_date)$$,
   '42501', 'forbidden', 'родитель не читает календарь чужого ребёнка');
+select as_user('00000000-0000-0000-0000-0000000000a1');
 update player_guardians set consent_revoked_at = now()
 where player_id = '00000000-0000-0000-0000-00000000d001'
   and user_id = '00000000-0000-0000-0000-0000000000b1';
+select as_user('00000000-0000-0000-0000-0000000000b1');
 select throws_ok($$select count(*) from parent_calendar('00000000-0000-0000-0000-00000000d001', current_date, current_date)$$,
   '42501', 'forbidden', 'после отзыва согласия календарь недоступен');
 select set_config('role', 'authenticated', true);
