@@ -28,12 +28,12 @@ begin
   select e.event_id, e.event_date, e.event_time, e.event_type, e.title, e.location, e.event_status, e.attendance_status
   from (
     select
-      ('match:' || m.id::text)::text, m.played_on, null::time, 'match'::text,
-      coalesce(nullif(trim(m.opponent), ''), 'Матч')::text, null::text,
+      ('match:' || m.id::text)::text as event_id, m.played_on as event_date, null::time as event_time, 'match'::text as event_type,
+      coalesce(nullif(trim(m.opponent), ''), 'Матч')::text as title, null::text as location,
       case when m.goals_for is not null and m.goals_against is not null then 'completed'
            when m.played_on < (now() at time zone 'Asia/Tbilisi')::date then 'past'
-           else 'upcoming' end::text,
-      case when mp.played then 'played' when mp.match_id is not null then 'not_played' else null end::text
+           else 'upcoming' end::text as event_status,
+      case when mp.played then 'played' when mp.match_id is not null then 'not_played' else null end::text as attendance_status
     from matches m
     left join match_players mp on mp.match_id = m.id and mp.player_id = p_player
     where m.played_on between p_from and p_to
