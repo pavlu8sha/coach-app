@@ -163,6 +163,7 @@ begin
         from sessions s
         where s.group_id = ws.group_id
           and (s.starts_at at time zone 'Asia/Tbilisi')::date = cal.day::date
+          and (s.starts_at at time zone 'Asia/Tbilisi')::time = ws.starts_at
       )
       and not exists (
         select 1 from training_log tl
