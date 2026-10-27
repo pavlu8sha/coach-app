@@ -1,7 +1,7 @@
 -- pgTAP: календарь родителя показывает события своего ребёнка и не обходит согласие/RLS.
 begin;
 create extension if not exists pgtap;
-select plan(8);
+select plan(10);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -34,6 +34,17 @@ insert into attendance (session_id, player_id, status) values
 insert into training_log (club_id, external_id, held_on, weekday, coach, location, group_label, kind, starts_at, ends_at, hours, held)
 values ('00000000-0000-0000-0000-00000000c001', 'CAL-TRAINING-1',
   (now() at time zone 'Asia/Tbilisi')::date - 2, 'Mon', 'Тренер U9', 'Поле U9', 'U9-A', 'Групповая', '18:00', '19:00', 1, true);
+insert into individual_sessions (id, club_id, external_id, starts_at, topic, goalkeepers)
+values ('00000000-0000-0000-0000-0000000000a3', '00000000-0000-0000-0000-00000000c001',
+  'CAL-IND-1', (now() at time zone 'Asia/Tbilisi')::date + 1 + time '20:00', 'Техника', false);
+insert into individual_bookings (session_id, player_id, attended)
+values ('00000000-0000-0000-0000-0000000000a3', '00000000-0000-0000-0000-00000000d001', false);
+insert into extra_sessions (id, club_id, starts_on, amount, place)
+values ('00000000-0000-0000-0000-0000000000a4', '00000000-0000-0000-0000-00000000c001',
+  (now() at time zone 'Asia/Tbilisi')::date, 20, 'Поле доп');
+insert into extra_bookings (session_id, player_id, attended)
+values ('00000000-0000-0000-0000-0000000000a4', '00000000-0000-0000-0000-00000000d001', true);
+
 insert into weekly_schedule (group_id, weekday, starts_at, kind, location) values
   ('00000000-0000-0000-0000-0000000000e1',
    extract(isodow from ((now() at time zone 'Asia/Tbilisi')::date + 1))::int,
@@ -53,12 +64,24 @@ select is((select count(*)::int from parent_calendar(
   '00000000-0000-0000-0000-00000000d001',
   (now() at time zone 'Asia/Tbilisi')::date - 2,
   (now() at time zone 'Asia/Tbilisi')::date + 1
-)), 4, 'календарь содержит матч, архивную и фактическую тренировки и будущую запись расписания');
+)), 6, 'календарь содержит матч, архивную/фактическую/записанные тренировки и будущую запись расписания');
 select is((select count(*)::int from parent_calendar(
   '00000000-0000-0000-0000-00000000d001',
   (now() at time zone 'Asia/Tbilisi')::date - 2,
   (now() at time zone 'Asia/Tbilisi')::date - 2
 ) where title = 'Тренировка'), 1, 'архив тренировки отображается отдельным событием');
+
+select is((select count(*)::int from parent_calendar(
+  '00000000-0000-0000-0000-00000000d001',
+  (now() at time zone 'Asia/Tbilisi')::date - 2,
+  (now() at time zone 'Asia/Tbilisi')::date + 1
+) where title in ('Индивидуальная тренировка: Техника', 'Дополнительная тренировка')), 2,
+  'календарь включает только записанные ребёнком индивидуальные и дополнительные занятия');
+select is((select attendance_status from parent_calendar(
+  '00000000-0000-0000-0000-00000000d001',
+  (now() at time zone 'Asia/Tbilisi')::date,
+  (now() at time zone 'Asia/Tbilisi')::date
+) where title = 'Дополнительная тренировка'), 'present', 'отображается посещаемость дополнительной тренировки');
 
 select is((select attendance_status from parent_calendar(
   '00000000-0000-0000-0000-00000000d001',
