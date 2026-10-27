@@ -80,6 +80,39 @@ begin
 
     union all
 
+    -- Индивидуальные/вратарские занятия включаем только при активной записи именно этого ребёнка.
+    select
+      ('individual:' || ind.id::text)::text,
+      ind.starts_at::date,
+      ind.starts_at::time,
+      'training'::text,
+      (case when ind.goalkeepers then 'Вратарская тренировка' else 'Индивидуальная тренировка' end
+        || case when nullif(trim(ind.topic), '') is not null then ': ' || trim(ind.topic) else '' end)::text,
+      null::text,
+      case when ind.starts_at::date < (now() at time zone 'Asia/Tbilisi')::date then 'past' else 'upcoming' end::text,
+      case when ib.attended then 'present' when ib.attended is false then 'absent' else null end::text
+    from individual_sessions ind
+    join individual_bookings ib on ib.session_id = ind.id and ib.player_id = p_player
+    where ind.club_id = player_club
+      and ind.starts_at::date between p_from and p_to
+
+    union all
+
+    -- Дополнительные занятия тоже доступны только если ребёнок записан на них.
+    select
+      ('extra:' || ex.id::text)::text,
+      ex.starts_on,
+      null::time,
+      'training'::text,
+      'Дополнительная тренировка'::text,
+      ex.place::text,
+      case when ex.starts_on < (now() at time zone 'Asia/Tbilisi')::date then 'past' else 'upcoming' end::text,
+      case when eb.attended then 'present' when eb.attended is false then 'absent' else null end::text
+    from extra_sessions ex
+    join extra_bookings eb on eb.session_id = ex.id and eb.player_id = p_player
+    where ex.club_id = player_club
+      and ex.starts_on between p_from and p_to
+
     select
       ('schedule:' || ws.id::text || ':' || cal.day::date::text)::text,
       cal.day::date, ws.starts_at, 'training'::text,
