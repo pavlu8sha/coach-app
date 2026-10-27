@@ -26,6 +26,8 @@ export default function Payments() {
 
   useEffect(() => {
     setDebtError(false);
+    setDebts([]);
+    setDues([]);
     void (async () => {
       const me = (await supabase.auth.getUser()).data.user?.id;
       if (!me) return setError('Нет сессии');
