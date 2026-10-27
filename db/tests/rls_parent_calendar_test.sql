@@ -9,7 +9,7 @@ insert into users (id, telegram_id, display_name, is_admin) values
   ('00000000-0000-0000-0000-0000000000b1', 9301, 'Родитель А', false),
   ('00000000-0000-0000-0000-0000000000b2', 9302, 'Родитель Б', false);
 insert into groups (id, club_id, name, location) values
-  ('00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-00000000c001', 'U9', 'Поле U9'),
+  ('00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-00000000c001', 'U9-A', 'Поле U9'),
   ('00000000-0000-0000-0000-0000000000e2', '00000000-0000-0000-0000-00000000c001', 'U11', 'Поле U11');
 insert into players (id, club_id, group_id, full_name) values
   ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-0000000000e1', 'Игрок А'),
@@ -33,7 +33,7 @@ insert into attendance (session_id, player_id, status) values
   ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000d001', 'present');
 insert into training_log (club_id, external_id, held_on, weekday, coach, location, group_label, kind, starts_at, ends_at, hours, held)
 values ('00000000-0000-0000-0000-00000000c001', 'CAL-TRAINING-1',
-  (now() at time zone 'Asia/Tbilisi')::date - 2, 'Mon', 'Тренер U9', 'Поле U9', 'U9', 'Групповая', '18:00', '19:00', 1, true);
+  (now() at time zone 'Asia/Tbilisi')::date - 2, 'Mon', 'Тренер U9', 'Поле U9', 'U9-A', 'Групповая', '18:00', '19:00', 1, true);
 insert into weekly_schedule (group_id, weekday, starts_at, kind, location) values
   ('00000000-0000-0000-0000-0000000000e1',
    extract(isodow from ((now() at time zone 'Asia/Tbilisi')::date + 1))::int,
