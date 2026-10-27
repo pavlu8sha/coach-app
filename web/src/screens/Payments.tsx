@@ -21,9 +21,11 @@ export default function Payments() {
   const [debts, setDebts] = useState<Debt[]>([]);
   const [dues, setDues] = useState<Due[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [debtError, setDebtError] = useState(false);
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
+    setDebtError(false);
     void (async () => {
       const me = (await supabase.auth.getUser()).data.user?.id;
       if (!me) return setError('Нет сессии');
@@ -44,11 +46,12 @@ export default function Payments() {
         }
       }
       setKids(list);
-      // долг: функция возвращает строки только после включения администратором; если её нет или она отказала — долг просто не показываем
+      // Долги загружаются отдельно от истории платежей. Ошибка не должна выглядеть как отсутствие задолженности.
       const d = await supabase.rpc('parent_debts');
       const o = await supabase.rpc('parent_dues');
       if (!o.error) setDues(((o.data ?? []) as Due[]).map(x => ({ ...x, due: Number(x.due), paid: Number(x.paid), debt: Number(x.debt) })));
       if (!d.error) setDebts(((d.data ?? []) as Debt[]).map(r => ({ ...r, tariff: Number(r.tariff), paid: Number(r.paid), debt: Number(r.debt) })).filter(r => r.debt > 0));
+      if (d.error || o.error) setDebtError(true);
     })();
   }, [reload]);
 
@@ -59,6 +62,13 @@ export default function Payments() {
   return (
     <main className="page">
       <h1>Оплата</h1>
+      {debtError && (
+        <section className="ks-card" role="alert" aria-live="polite">
+          <h2>Не удалось загрузить задолженность</h2>
+          <p className="muted">История внесённых платежей показана ниже, но сведения о долгах могут быть неполными. Проверьте соединение и повторите загрузку.</p>
+          <button type="button" onClick={() => { setError(null); setReload(n => n + 1); }}>Повторить загрузку</button>
+        </section>
+      )}
       {kids.map(k => (
         <section className="ks-card" key={k.id}>
           <h2>{k.name}</h2>
