@@ -31,6 +31,9 @@ insert into sessions (id, group_id, starts_at, kind) values
    (((now() at time zone 'Asia/Tbilisi')::date - 1 + time '18:00') at time zone 'Asia/Tbilisi'), 'training');
 insert into attendance (session_id, player_id, status) values
   ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000d001', 'present');
+insert into training_log (club_id, external_id, held_on, weekday, coach, location, group_label, kind, starts_at, ends_at, hours, held)
+values ('00000000-0000-0000-0000-00000000c001', 'CAL-TRAINING-1',
+  (now() at time zone 'Asia/Tbilisi')::date - 2, 'Mon', 'Тренер U9', 'Поле U9', 'U9', 'Групповая', '18:00', '19:00', 1, true);
 insert into weekly_schedule (group_id, weekday, starts_at, kind, location) values
   ('00000000-0000-0000-0000-0000000000e1',
    extract(isodow from ((now() at time zone 'Asia/Tbilisi')::date + 1))::int,
@@ -48,9 +51,9 @@ end $$;
 select as_user('00000000-0000-0000-0000-0000000000b1');
 select is((select count(*)::int from parent_calendar(
   '00000000-0000-0000-0000-00000000d001',
-  (now() at time zone 'Asia/Tbilisi')::date - 1,
+  (now() at time zone 'Asia/Tbilisi')::date - 2,
   (now() at time zone 'Asia/Tbilisi')::date + 1
-)), 3, 'календарь содержит свой матч, фактическую тренировку и будущую запись расписания');
+)), 4, 'календарь содержит матч, архивную и фактическую тренировки и будущую запись расписания');
 select is((select attendance_status from parent_calendar(
   '00000000-0000-0000-0000-00000000d001',
   (now() at time zone 'Asia/Tbilisi')::date - 1,
