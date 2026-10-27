@@ -84,6 +84,36 @@ begin
 
     union all
 
+    union all
+
+    -- Архив проведённых тренировок из журнала. Выдаём только события своей группы,
+    -- без списка тренеров и других данных журнала.
+    select
+      ('training-log:' || tl.id::text)::text,
+      tl.held_on,
+      tl.starts_at,
+      'training'::text,
+      case tl.kind
+        when 'Вратарская' then 'Вратарская тренировка'
+        when 'Индивидуальная' then 'Индивидуальная тренировка'
+        else 'Тренировка'
+      end::text,
+      tl.location::text,
+      'past'::text,
+      null::text
+    from training_log tl
+    where player_group is not null
+      and tl.club_id = (select pl.club_id from players pl where pl.id = p_player)
+      and tl.group_label = player_group_name
+      and tl.held
+      and tl.held_on between p_from and p_to
+      and not exists (
+        select 1 from sessions s
+        where s.group_id = player_group
+          and (s.starts_at at time zone 'Asia/Tbilisi')::date = tl.held_on
+          and (tl.starts_at is null or (s.starts_at at time zone 'Asia/Tbilisi')::time = tl.starts_at)
+      )
+
     -- Фактически созданные занятия. Посещаемость читается только для выбранного ребёнка.
     select
       ('session:' || s.id::text)::text,
@@ -133,6 +163,13 @@ begin
         from sessions s
         where s.group_id = ws.group_id
           and (s.starts_at at time zone 'Asia/Tbilisi')::date = cal.day::date
+      )
+      and not exists (
+        select 1 from training_log tl
+        where tl.club_id = gr.club_id
+          and tl.group_label = player_group_name
+          and tl.held
+          and tl.held_on = cal.day::date
       )
   ) e
   order by e.event_date, e.event_time nulls last, e.event_type, e.event_id;
