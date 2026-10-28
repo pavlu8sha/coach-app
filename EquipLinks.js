@@ -202,11 +202,41 @@ function catPrices_(cat) {
   return m;
 }
 
+// Проверяет, что форма всё ещё редактирует тот же заказ, а не другую запись в сдвинувшейся строке.
+function assertEquipOrderIdentity_(sh, row, expected) {
+  if (!expected || typeof expected !== 'object') throw new Error('Обновите список заказов и откройте форму заново');
+  var actual = {
+    no: String(sh.getRange(row, 1).getDisplayValues()[0][0] || '').trim(),
+    name: String(sh.getRange(row, 3).getDisplayValues()[0][0] || '').trim(),
+    kit: String(sh.getRange(row, 4).getDisplayValues()[0][0] || '').trim(),
+    size: String(sh.getRange(row, 5).getDisplayValues()[0][0] || '').trim(),
+    inscr: String(sh.getRange(row, 6).getDisplayValues()[0][0] || '').trim(),
+    num: String(sh.getRange(row, 7).getDisplayValues()[0][0] || '').trim(),
+    inst: String(sh.getRange(row, 8).getDisplayValues()[0][0] || '').trim(),
+    sum: Number(sh.getRange(row, 9).getValue()) || 0,
+    id: String(sh.getRange(row, 12).getValue() || '').trim(),
+    ord: String(sh.getRange(row, 14).getValue() || '').trim()
+  };
+  var same = actual.no === String(expected.no == null ? '' : expected.no).trim()
+    && actual.name === String(expected.name || '').trim()
+    && actual.id === String(expected.id || '').trim();
+  if (expected.ord) same = same && actual.ord === String(expected.ord).trim();
+  else same = same
+    && actual.kit === String(expected.kit || '').trim()
+    && actual.size === String(expected.size || '').trim()
+    && actual.inscr === String(expected.inscr || '').trim()
+    && actual.num === String(expected.num || '').trim()
+    && actual.inst === String(expected.inst || '').trim()
+    && Math.abs(actual.sum - (Number(expected.sum) || 0)) < 0.005;
+  if (!same) throw new Error('Заказ изменился или строка сместилась. Обновите список заказов и откройте форму заново; изменения не сохранены.');
+}
+
 function editOrderCore_(row, o) {
   row = Number(row);
   if (!(row >= EQ_FIRST && row < EQ_FIRST + EQ_ROWS)) throw new Error('Некорректная строка');
   var sh = equipSheet_();
   if (!String(sh.getRange(row, 3).getValue()).trim()) throw new Error('В этой строке нет заказа');
+  assertEquipOrderIdentity_(sh, row, o.expected);
   var before = sh.getRange(row, 4, 1, 5).getDisplayValues()[0];
   var oldSum = sh.getRange(row, 9).getValue();
   var kit = String(o.kit || '').trim();
