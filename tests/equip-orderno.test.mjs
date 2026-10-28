@@ -38,7 +38,7 @@ class Sheet {
 const HEAD = ['Дата записи', 'Дата', 'ID', 'ФИ', 'Что', 'Строка заказа', 'Сумма', 'Комментарий', 'Способ'];
 
 // Заказ: [№, дата, ФИ, комплект, размер, надпись, номер, рассрочка, сумма, оплачено, долг, ID]
-const order = (no, name, id, sum, paid) => [no, '', name, 'игровая', '140', '', '', '', sum, paid, '', id];
+const order = (no, name, id, sum, paid) => [no, '', name, 'игровая', '140', '', '', '', sum, paid, '', id, '', `ORD-${no}`, '1'];
 
 function env(orders, pays) {
   const eq = new Sheet([['ЭКИПИРОВКА'], [''], ['№']].concat(orders));
@@ -152,4 +152,26 @@ test('повторное нажатие «Оплатить» в течение 1
   e.ctx.appAddPayment('9', 'KS-4', 7, 120, '2026-10-16', '', 'Перевод');
   assert.throws(() => e.ctx.appAddPayment('9', 'KS-4', 7, 120, '2026-10-16', '', 'Перевод'), /повтор/);
   assert.equal(e.paidOf(4), 120);
+});
+
+test('редактирование отклоняется, если строка теперь принадлежит другому заказу', () => {
+  const e = base();
+  const row = e.rowOf(4);
+  const before = e.eq.data.map(r => r.slice());
+  assert.throws(() => e.ctx.appEditOrder('9', row, {
+    kit: 'игровая', size: '150', inscr: '', num: '', inst: false,
+    expected: { ord: 'ORD-3', no: 3, name: 'Gamma C', id: 'KS-3', kit: 'игровая', size: '140', inscr: '', num: '', inst: '', sum: 300 }
+  }), /Заказ изменился или строка сместилась/);
+  assert.deepEqual(e.eq.data, before);
+});
+
+test('редактирование старого заказа без ord тоже сверяет полный снимок заказа', () => {
+  const e = base();
+  const row = e.rowOf(4);
+  const before = e.eq.data.map(r => r.slice());
+  assert.throws(() => e.ctx.appEditOrder('9', row, {
+    kit: 'игровая', size: '150', inscr: '', num: '', inst: false,
+    expected: { ord: '', no: 3, name: 'Gamma C', id: 'KS-3', kit: 'игровая', size: '140', inscr: '', num: '', inst: '', sum: 300 }
+  }), /Заказ изменился или строка сместилась/);
+  assert.deepEqual(e.eq.data, before);
 });
