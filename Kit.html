@@ -445,7 +445,7 @@ $('list').onclick=function(e){
     var ekits=Array.from(ord.querySelectorAll('.ekit:checked')).map(function(c){return c.value});
     if(!ekits.length){ed.textContent='Отметьте хотя бы один комплект';return}
     var eo=orderByRow(b.dataset.row)||{},nk=ekits.join(' + ');
-    var patch={kit:nk,qtys:ekits.map(function(k){return qtyEdit(ord,k)}),size:ord.querySelector('.esize').value,inscr:ord.querySelector('.einscr').value,num:ord.querySelector('.enum').value,inst:ord.querySelector('.einst').checked};
+    var patch={kit:nk,qtys:ekits.map(function(k){return qtyEdit(ord,k)}),size:ord.querySelector('.esize').value,inscr:ord.querySelector('.einscr').value,num:ord.querySelector('.enum').value,inst:ord.querySelector('.einst').checked,expected:{ord:eo.ord||'',no:eo.no,name:eo.oname,id:eo.id,kit:eo.kit,size:eo.size,inscr:eo.inscr,num:eo.num,inst:eo.inst,sum:eo.sum}};
     var save=function(ok,bad){
       b.disabled=true;ed.textContent='Сохраняю…';
       run('appEditOrder',[pin,Number(b.dataset.row),patch],
