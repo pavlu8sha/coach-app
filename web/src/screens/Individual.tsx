@@ -17,6 +17,8 @@ const nowLocal = () => `${today()}T${new Date().toTimeString().slice(0, 5)}`;
 
 type Tab = 'next' | 'past' | 'debt';
 
+const PAGE = 60;
+
 // Индивидуальные и вратарские занятия для администратора (миграция 0034): запись на каждое занятие отдельно, оплата, посещение.
 export default function Individual() {
   const [tab, setTab] = useState<Tab>('next');
@@ -28,6 +30,8 @@ export default function Individual() {
   const [creating, setCreating] = useState(false);
   const [paying, setPaying] = useState<string | null>(null);
   const [debtTotal, setDebtTotal] = useState<{ n: number; sum: number } | null>(null);
+  const [limit, setLimit] = useState(PAGE);
+  const [hasMore, setHasMore] = useState(false);
 
   // сводка «Должники» над списком занятий, как в прежнем приложении
   useEffect(() => {
@@ -47,11 +51,13 @@ export default function Individual() {
         return setDebts((r.data ?? []) as unknown as DebtRow[]);
       }
       const q = supabase.from('individual_sessions').select('id, starts_at, topic, goalkeepers, individual_bookings(player_id, paid, attended, amount, players(full_name))');
-      const r = tab === 'next' ? await q.gte('starts_at', now).order('starts_at').limit(60) : await q.lt('starts_at', now).order('starts_at', { ascending: false }).limit(60);
+      const r = tab === 'next' ? await q.gte('starts_at', now).order('starts_at').limit(limit + 1) : await q.lt('starts_at', now).order('starts_at', { ascending: false }).limit(limit + 1);
       if (r.error) return setError(r.error.message.includes('goalkeepers') ? 'Модуль ещё не установлен в базе (миграция 0034).' : coachError(r.error.message));
-      setList((r.data ?? []) as unknown as Session[]);
+      const rows = (r.data ?? []) as unknown as Session[];
+      setList(rows.slice(0, limit));
+      setHasMore(rows.length > limit);
     })();
-  }, [tab, reload]);
+  }, [tab, reload, limit]);
 
   const done = () => { setCreating(false); setList(null); setDebts(null); setReload(n => n + 1); };
   if (error) return <Failure title="Не удалось загрузить занятия" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
@@ -78,10 +84,10 @@ export default function Individual() {
   return (
     <main className="page">
       <h1>Индивидуальные</h1>
-      <Segmented label="Раздел" value={tab} onChange={v => { setList(null); setDebts(null); setTab(v); }} items={[{ value: 'next', label: 'Предстоящие' }, { value: 'past', label: 'Прошедшие' }, { value: 'debt', label: 'Долги' }]} />
+      <Segmented label="Раздел" value={tab} onChange={v => { setList(null); setDebts(null); setLimit(PAGE); setHasMore(false); setTab(v); }} items={[{ value: 'next', label: 'Предстоящие' }, { value: 'past', label: 'Прошедшие' }, { value: 'debt', label: 'Долги' }]} />
       <div style={{ height: 10 }} />
       {tab !== 'debt' && debtTotal && debtTotal.n > 0 && (
-        <ListRow title="Должники" sub={[`Игроков: ${debtTotal.n}`]} end={<Pill tone="danger" dot>{gel(debtTotal.sum)}</Pill>} onClick={() => { setList(null); setDebts(null); setTab('debt'); }} />
+        <ListRow title="Должники" sub={[`Игроков: ${debtTotal.n}`]} end={<Pill tone="danger" dot>{gel(debtTotal.sum)}</Pill>} onClick={() => { setList(null); setDebts(null); setLimit(PAGE); setHasMore(false); setTab('debt'); }} />
       )}
       {tab !== 'debt' && <button type="button" className="ks-btn" onClick={() => setCreating(true)}>Новое занятие</button>}
       {tab === 'debt' ? (
@@ -105,10 +111,13 @@ export default function Individual() {
       ) : list.length === 0 ? (
         <EmptyState icon="users" title="Занятий нет" text={tab === 'next' ? 'Создайте занятие кнопкой выше.' : 'Прошедших занятий пока нет.'} />
       ) : (
-        list.map(s => {
-          const paid = s.individual_bookings.filter(b => b.paid).length;
-          return <ListRow key={s.id} avatar={s.goalkeepers ? 'В' : 'И'} title={title(s)} sub={[s.topic ?? 'без темы', `Записано: ${s.individual_bookings.length}, оплатили: ${paid}`]} end={paid > 0 ? <Pill tone="success">{gel(s.individual_bookings.filter(b => b.paid).reduce((a, b) => a + Number(b.amount), 0))}</Pill> : undefined} onClick={() => setOpenId(s.id)} />;
-        })
+        <>
+          {list.map(s => {
+            const paid = s.individual_bookings.filter(b => b.paid).length;
+            return <ListRow key={s.id} avatar={s.goalkeepers ? 'В' : 'И'} title={title(s)} sub={[s.topic ?? 'без темы', `Записано: ${s.individual_bookings.length}, оплатили: ${paid}`]} end={paid > 0 ? <Pill tone="success">{gel(s.individual_bookings.filter(b => b.paid).reduce((a, b) => a + Number(b.amount), 0))}</Pill> : undefined} onClick={() => setOpenId(s.id)} />;
+          })}
+          {hasMore && <button type="button" className="ks-btn secondary" onClick={() => setLimit(n => n + PAGE)}>Показать ещё</button>}
+        </>
       )}
     </main>
   );
