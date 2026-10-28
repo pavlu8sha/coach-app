@@ -46,6 +46,30 @@ test('оплаты: абонементы и платежи по строкам �
   assert.equal(plan.pays[1].ref, 'PAY_ID 2026-09 U7-A №3 kurbanoiv emin');
 });
 
+test('оплаты: абонемент берёт группу из листа месяца, а не текущую из реестра', () => {
+  const registry = {
+    groups: [{ name: 'U9-A' }, { name: 'U9-B' }],
+    players: [
+      { external_id: 'KS-1', full_name: 'Ivanov Petr', group_name: 'U9-B' },
+      { external_id: 'KS-2', full_name: 'Sidorov Yan', group_name: 'U9-B' },
+    ],
+  };
+  const text = [
+    'FC KICKSTART • ОПЛАТЫ • 09.26,,,',
+    'U9-A,,,',
+    '№,Имя и фамилия,Дата,"Оплата, ₾"',
+    '1,Ivanov Petr,,"100,00 ₾"',
+    '2,Sidorov Yan,,"50,00 ₾"',
+    'U9-B,,,',
+    '1,Sidorov Yan,,"50,00 ₾"',
+  ].join('\n');
+  const plan = buildPaymentsPlan({ registry, files: [{ name: '09.26.csv', text }] });
+  assert.equal(plan.subs.get('KS-1|2026-09-01').group, 'U9-A');
+  assert.equal(plan.subs.get('KS-2|2026-09-01').group, 'U9-A');
+  assert.equal(plan.subs.get('KS-2|2026-09-01').amount_due, 100);
+  assert.deepEqual(plan.ambiguousSubs.map(s => s.player_ext), ['KS-2']);
+});
+
 test('индивидуальные: занятие, запись и гость собираются в план', () => {
   const plan = buildIndividualPlan({
     registryNames: ['Ivanov Ivan'],
