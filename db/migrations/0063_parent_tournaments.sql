@@ -18,3 +18,4 @@ language sql stable security definer set search_path = public as $$
 $$;
 
 grant execute on function my_tournaments() to authenticated;
+revoke execute on function my_tournaments() from public, anon;
