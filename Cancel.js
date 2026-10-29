@@ -1,23 +1,36 @@
 /** Отмена платежа: пишет сторнирующую строку в журнал и уменьшает «Оплачено». Ничего не удаляет. */
 
-function appCancelPayment(pin, src, row) {
+function appCancelPayment(pin, src, row, expected) {
   checkAdmin_(pin);
   row = Number(row);
   var ss = SpreadsheetApp.getActive(), lock = LockService.getScriptLock();
   if (!CONFIG.DRY_RUN) lock.waitLock(20000);
   try {
-    if (src === 'sub') return cancelSub_(ss, row);
-    if (src === 'eq') return cancelEq_(ss, row);
+    if (src === 'sub') return cancelSub_(ss, row, expected);
+    if (src === 'eq') return cancelEq_(ss, row, expected);
     throw new Error('Неизвестный тип платежа');
   } finally {
     if (!CONFIG.DRY_RUN) lock.releaseLock();
   }
 }
 
-function cancelSub_(ss, row) {
+// Журналы платежей адресуются номером строки; после сортировки журнала строка может оказаться чужим платежом.
+// Форма присылает снимок платежа из ленты (время записи, ФИ, сумма); сверяем до любой записи.
+var PAY_STALE_MSG = 'Платёж изменился или строка журнала сместилась. Обновите ленту платежей и повторите; отмена не внесена.';
+function assertPayRowIdentity_(r, expected) {
+  if (!expected || typeof expected !== 'object') throw new Error('Обновите ленту платежей и повторите');
+  var t = r[0] instanceof Date ? r[0].getTime() : 0;
+  var same = t === (Number(expected.t) || 0) && t > 0
+    && String(r[3]).trim() === String(expected.name || '').trim()
+    && Math.abs((Number(r[6]) || 0) - (Number(expected.amount) || 0)) < 0.005;
+  if (!same) throw new Error(PAY_STALE_MSG);
+}
+
+function cancelSub_(ss, row, expected) {
   var ps = dbRead_(SUB_SHEET);
   if (!ps || row < 2 || row > ps.getLastRow()) throw new Error('Платёж не найден');
   var all = ps.getRange(2, 1, ps.getLastRow() - 1, 10).getValues(), r = all[row - 2];
+  assertPayRowIdentity_(r, expected);
   var amount = Number(r[6]) || 0, kind = String(r[7]);
   if (kind === 'Скидка') throw new Error('Платёж со скидкой в приложении отменить нельзя');
   if (!(amount > 0) || ['Оплата', 'Частичный'].indexOf(kind) < 0) throw new Error('Эту запись отменить нельзя');
@@ -47,10 +60,11 @@ function cancelSub_(ss, row) {
   return { ok: true, dryRun: CONFIG.DRY_RUN };
 }
 
-function cancelEq_(ss, row) {
+function cancelEq_(ss, row, expected) {
   var ps = dbRead_(PAY_SHEET);
   if (!ps || row < 2 || row > ps.getLastRow()) throw new Error('Платёж не найден');
   var all = ps.getRange(2, 1, ps.getLastRow() - 1, 9).getValues(), r = all[row - 2];
+  assertPayRowIdentity_(r, expected);
   var amount = Number(r[6]) || 0;
   if (!(amount > 0)) throw new Error('Эту запись отменить нельзя');
   var tag = 'отмена платежа, строка ' + row;
