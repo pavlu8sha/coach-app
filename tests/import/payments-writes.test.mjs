@@ -52,3 +52,8 @@ test('копейки не накапливают ошибку', () => {
   const r = planPaymentWrites({ file: [f('A', 'p6|2026-10', 0.1), f('B', 'p6|2026-10', 0.2)], existing: [f('A', 'p6|2026-10', 0.1), f('B', 'p6|2026-10', 0.2)] });
   assert.equal(r.inserts.length, 0);
 });
+
+test('сумма платежа в базе неизвестна: только по ссылкам, коррекций нет', () => {
+  const r = planPaymentWrites({ file: [f('A', 'p7|2026-09', 165)], existing: [{ ref: 'A', key: 'undefined|2026-09', amount: NaN }] });
+  assert.equal(r.inserts.length, 0);
+});

@@ -85,9 +85,13 @@ export function planPaymentWrites({ file, existing }) {
   const allRefs = new Set(existing.map(x => x.ref)); // ссылка, уже внесённая под любым ключом (например, имя игрока в ссылке менялось), повторно не пишется
   const inserts = [], covered = [], corrections = [];
   for (const [key, items] of fileBy) {
-    const db = dbBy.get(key) ?? [];
+    const fileRefs = new Set(items.map(x => x.ref));
+    // платежи игрока в месяце: по ключу плюс те, чья ссылка совпала со строкой листа (на случай другого ключа в базе)
+    const db = [...(dbBy.get(key) ?? []), ...existing.filter(x => x.key !== key && fileRefs.has(x.ref))];
     const have = new Set(db.map(x => x.ref));
     const unmatched = items.filter(x => !have.has(x.ref) && !allRefs.has(x.ref));
+    // сумма платежа в базе неизвестна: сверяем только по ссылкам, как раньше, коррекций не делаем
+    if (db.some(x => !Number.isFinite(Number(x.amount)))) { inserts.push(...unmatched); continue; }
     const fileTotal = items.reduce((a, x) => a + cents(x.amount), 0);
     const dbTotal = db.reduce((a, x) => a + cents(x.amount), 0);
     const diff = fileTotal - dbTotal;
