@@ -2,7 +2,7 @@
 // Использование:
 //   node scripts/import/run-attendance.mjs --registry РЕЕСТР.csv --schedule РАСПИСАНИЕ.csv --log Тренировки.csv --att-dir ПАПКА_ATT_ID   — проверка
 //   то же + --write — записать
-// В папке ATT_ID берутся листы месяцев вида 08.26.csv и «ЖУРНАЛ ПОСЕЩАЕМОСТИ.csv» (для сверки).
+// В папке ATT_ID берутся листы месяцев вида 08.26.csv и «ЖУРНАЛ ПОСЕЩАЕМОСТИ.csv»: журнал приоритетнее листа (расхождения — по журналу, недостающие отметки и дни дописываются).
 // Нужны переменные окружения: SUPABASE_URL, SUPABASE_SERVICE_KEY, CLUB_ID. Ключ в репозиторий и в чат не класть.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -45,9 +45,11 @@ console.log(`Время из журнала тренировок (нет сло�
 console.log(`Нет слота в расписании: ${plan.noSlot.length}${plan.noSlot.length ? ' — ' + plan.noSlot.slice(0, 15).join('; ') : ''}`);
 console.log(`Несколько слотов (взято раннее время): ${plan.manySlots.length}${plan.manySlots.length ? ' — ' + plan.manySlots.slice(0, 10).join('; ') : ''}`);
 const j = plan.journal;
-console.log(`Журнал: строк ${j.rows}, совпало с листами ${j.agree} из ${j.both}, расхождений ${j.disagree.length}, только в журнале ${j.journalOnly.length}`);
+console.log(`Отложены до перехода (не в реестре, не импортируются): ${plan.deferred.length}${plan.deferred.length ? ' — ' + plan.deferred.map(u => `${u.name} (${u.n})`).join('; ') : ''}`);
+console.log(`Журнал: строк ${j.rows}, совпало с листами ${j.agree} из ${j.both}, расхождений ${j.disagree.length} (взяты из журнала), дописано из журнала ${j.journalOnly.length}, пропущено ${j.journalSkipped.length}`);
 for (const d of j.disagree) console.log('  расхождение: ' + d);
-for (const d of j.journalOnly.slice(0, 20)) console.log('  только в журнале: ' + d);
+for (const d of j.journalOnly) console.log('  дописано из журнала: ' + d);
+for (const d of j.journalSkipped) console.log('  из журнала пропущено: ' + d);
 for (const p of [...reg.problems, ...sch.problems, ...plan.problems]) console.log(`  проблема${p.line ? ' (строка ' + p.line + ')' : ''}: ${p.error}`);
 
 if (!write) { console.log('Проверка без записи. Для записи добавьте --write.'); process.exit(0); }
