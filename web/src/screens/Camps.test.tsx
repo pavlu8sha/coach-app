@@ -67,6 +67,17 @@ describe('«Сборы»', () => {
     expect(fake.rpcCalls('camp_cancel_payment')).toEqual([{ payid: 'pay1' }]);
   });
 
+  it('сумма участника ниже оплаченного: понятное сообщение', async () => {
+    seed();
+    fake.rpc.camp_update_participant = () => ({ error: { message: 'amount below paid' } });
+    render(<Camps />);
+    fireEvent.click(await screen.findByText('Зимний лагерь'));
+    fireEvent.click(await screen.findByText('Иванов Пётр'));
+    fireEvent.change(await screen.findByDisplayValue('850'), { target: { value: '50' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    expect(await screen.findByText('Сумма участника не может быть меньше уже оплаченного.')).toBeInTheDocument();
+  });
+
   it('уже отменённый платёж помечен и повторно отменить его кнопкой нельзя', async () => {
     seed();
     fake.db.camp_participants[0].camp_payments.push({ id: 'pay1x', amount: -100, paid_on: '2026-11-02', kind: 'refund', method: 'Наличные', comment: 'Отмена платежа', legacy_ref: 'cancel:pay1' });

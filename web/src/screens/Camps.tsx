@@ -19,7 +19,7 @@ const METHODS = ['Наличные', 'Перевод'];
 const KIND: Record<Pay['kind'], string> = { booking: 'Бронь', payment: 'Оплата', refund: 'Возврат' };
 const errText = (m: string) =>
   m.includes('already registered') ? 'Игрок уже записан на этот сбор.' : m.includes('already cancelled') ? 'Этот платёж уже отменён.' : m.includes('not cancellable') ? 'Этот платёж отменить нельзя.' : m.includes('paid below zero') ? 'Отмена увела бы оплату ниже нуля.' :
-  m.includes('bad dates') ? 'Дата конца раньше даты начала.' : m.includes('bad amount') ? 'Сумма указана неверно.' : m.includes('name required') ? 'Введите название.' : m.includes('tariff not found') ? 'Выберите действующий тариф.' :
+  m.includes('bad dates') ? 'Дата конца раньше даты начала.' : m.includes('bad amount') ? 'Сумма указана неверно.' : m.includes('amount below paid') ? 'Сумма участника не может быть меньше уже оплаченного.' : m.includes('name required') ? 'Введите название.' : m.includes('tariff not found') ? 'Выберите действующий тариф.' :
   m.includes('Could not find the function') || m.includes('camp_') ? 'Модуль ещё не установлен в базе (миграция 0037).' : coachError(m);
 const paidOf = (p: Part) => p.camp_payments.reduce((s, x) => s + Number(x.amount), 0);
 
