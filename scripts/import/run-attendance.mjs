@@ -2,13 +2,14 @@
 // Использование:
 //   node scripts/import/run-attendance.mjs --registry РЕЕСТР.csv --schedule РАСПИСАНИЕ.csv --log Тренировки.csv --att-dir ПАПКА_ATT_ID   — проверка
 //   то же + --write — записать
-// В папке ATT_ID берутся листы месяцев вида 08.26.csv и «ЖУРНАЛ ПОСЕЩАЕМОСТИ.csv» (для сверки).
+// В папке ATT_ID берутся листы месяцев вида 08.26.csv и «ЖУРНАЛ ПОСЕЩАЕМОСТИ.csv»: журнал приоритетнее листа (расхождения — по журналу, недостающие отметки и дни дописываются).
 // Нужны переменные окружения: SUPABASE_URL, SUPABASE_SERVICE_KEY, CLUB_ID. Ключ в репозиторий и в чат не класть.
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseRegistry } from './registry.mjs';
 import { parseSchedule, parseTrainingLog } from './schedule-log.mjs';
 import { buildAttendancePlan } from './attendance.mjs';
+import { getAll } from './rest-all.mjs';
 
 const arg = name => { const i = process.argv.indexOf('--' + name); return i >= 0 ? process.argv[i + 1] : null; };
 const write = process.argv.includes('--write');
@@ -44,9 +45,11 @@ console.log(`Время из журнала тренировок (нет сло�
 console.log(`Нет слота в расписании: ${plan.noSlot.length}${plan.noSlot.length ? ' — ' + plan.noSlot.slice(0, 15).join('; ') : ''}`);
 console.log(`Несколько слотов (взято раннее время): ${plan.manySlots.length}${plan.manySlots.length ? ' — ' + plan.manySlots.slice(0, 10).join('; ') : ''}`);
 const j = plan.journal;
-console.log(`Журнал: строк ${j.rows}, совпало с листами ${j.agree} из ${j.both}, расхождений ${j.disagree.length}, только в журнале ${j.journalOnly.length}`);
+console.log(`Отложены до перехода (не в реестре, не импортируются): ${plan.deferred.length}${plan.deferred.length ? ' — ' + plan.deferred.map(u => `${u.name} (${u.n})`).join('; ') : ''}`);
+console.log(`Журнал: строк ${j.rows}, совпало с листами ${j.agree} из ${j.both}, расхождений ${j.disagree.length} (взяты из журнала), дописано из журнала ${j.journalOnly.length}, пропущено ${j.journalSkipped.length}`);
 for (const d of j.disagree) console.log('  расхождение: ' + d);
-for (const d of j.journalOnly.slice(0, 20)) console.log('  только в журнале: ' + d);
+for (const d of j.journalOnly) console.log('  дописано из журнала: ' + d);
+for (const d of j.journalSkipped) console.log('  из журнала пропущено: ' + d);
 for (const p of [...reg.problems, ...sch.problems, ...plan.problems]) console.log(`  проблема${p.line ? ' (строка ' + p.line + ')' : ''}: ${p.error}`);
 
 if (!write) { console.log('Проверка без записи. Для записи добавьте --write.'); process.exit(0); }
@@ -74,7 +77,7 @@ if (missing.length) { console.error('Группы не найдены в баз�
 if (plan.former.length) await rest('POST', 'players?on_conflict=club_id,external_id', plan.former.map(f => ({
   club_id: CLUB_ID, external_id: f.external_id, full_name: f.full_name, status: 'inactive',
 })), MERGE);
-const dbPlayers = await rest('GET', `players?club_id=eq.${CLUB_ID}&select=id,external_id&limit=2000`);
+const dbPlayers = await getAll(rest, `players?club_id=eq.${CLUB_ID}&select=id,external_id`);
 const pid = new Map(dbPlayers.map(p => [p.external_id, p.id]));
 const noPlayer = [...new Set(plan.marks.map(m => m.external_id).filter(x => !pid.has(x)))];
 if (noPlayer.length) { console.error('Игроки не найдены в базе: ' + noPlayer.join(', ')); process.exit(1); }
@@ -84,7 +87,7 @@ const sRows = plan.sessions.map(s => ({ group_id: gid.get(s.group_name), starts_
 for (let i = 0; i < sRows.length; i += 500) await rest('POST', 'sessions?on_conflict=group_id,source_key', sRows.slice(i, i + 500), MERGE);
 // 2) id тренировок
 const groupIds = [...new Set(sRows.map(r => r.group_id))];
-const dbSessions = await rest('GET', `sessions?group_id=in.(${groupIds.join(',')})&source_key=like.ATT*&select=id,group_id,source_key&limit=5000`);
+const dbSessions = await getAll(rest, `sessions?group_id=in.(${groupIds.join(',')})&source_key=like.ATT*&select=id,group_id,source_key`);
 const sid = new Map(dbSessions.map(s => [`${s.group_id}|${s.source_key}`, s.id]));
 // 3) отметки
 const startsOf = new Map(plan.sessions.map(s => [`${s.group_name}|${s.source_key}`, s.starts_at]));

@@ -14,6 +14,8 @@ const err = (m: string) =>
   : m.includes('already booked') ? 'Ребёнок уже записан.'
   : m.includes('session in the past') ? 'Занятие уже прошло.'
   : m.includes('booking is paid') ? 'Запись оплачена: отменить её может администратор, напишите ему.'
+  : m.includes('session already started') ? 'Занятие уже началось, отменить запись нельзя. Напишите администратору.'
+  : m.includes('attendance marked') ? 'На занятии уже отмечена посещаемость. Отменить запись может администратор, напишите ему.'
   : m.includes('too late') ? 'Слишком поздно отменять через приложение. Напишите администратору.'
   : m.includes('Could not find the function') ? 'Запись пока недоступна (миграция 0045).'
   : coachError(m);
@@ -22,7 +24,9 @@ const gel = (n: number | string | null) => (n === null ? '' : `${Number(n)} ₾`
 const when = (iso: string, kind: Kind) => {
   const d = new Date(iso);
   const day = d.toLocaleDateString('ru', { weekday: 'short', day: '2-digit', month: '2-digit' });
-  return kind === 'extra' ? day : `${day}, ${d.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}`;
+  // у дополнительной тренировки время бывает не указано: тогда приходит полночь дня
+  const timed = kind !== 'extra' || d.getHours() !== 0 || d.getMinutes() !== 0;
+  return timed ? `${day}, ${d.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}` : day;
 };
 
 // Запись детей на индивидуальные, вратарские и дополнительные тренировки (миграция 0045). Оплату вносит администратор.

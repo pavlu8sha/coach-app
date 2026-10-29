@@ -15,7 +15,9 @@ export const STATUS: Record<Req['status'], { label: string; tone: Tone; text: st
 
 // Сообщения по ответам функций cancel_link / retry_link (см. db/migrations/0017_link_cancel_retry.sql)
 const actionError = (m: string) =>
-  m.includes('retry too soon')
+  m.includes('link request limit')
+    ? 'Слишком много запросов и отмен за час. Попробуйте позже.'
+    : m.includes('retry too soon')
     ? 'Повторить можно не раньше чем через сутки после отказа.'
     : m.includes('too many pending')
       ? 'Слишком много неподтверждённых запросов. Дождитесь ответа администратора.'

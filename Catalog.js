@@ -41,7 +41,7 @@ function appCatalog(pin) {
   return { items: catalog_(false), dryRun: CONFIG.DRY_RUN };
 }
 
-// o: {row (0 = новая), name, price, sizes, inscr, num, active}. Ничего не удаляет: позицию можно скрыть.
+// o: {row (0 = новая), was (прежнее название при row > 0), name, price, sizes, inscr, num, active}. Ничего не удаляет: позицию можно скрыть.
 function appCatalogSave(pin, o) {
   checkAdmin_(pin);
   o = o || {};
@@ -54,10 +54,12 @@ function appCatalogSave(pin, o) {
   lock.waitLock(20000);
   try {
     var sh = catSheet_(), row = Number(o.row) || 0;
+    if (row && (row < 2 || row > sh.getLastRow())) throw new Error('Позиция не найдена, обновите страницу');
+    // после сортировки листа строка могла стать другой позицией: форма присылает название, которое открывала (was)
+    if (row && String(sh.getRange(row, 1).getValue()).trim().toLowerCase() !== String(o.was || '').trim().toLowerCase()) throw new Error('Каталог изменился или строка сместилась. Обновите страницу и повторите; изменения не сохранены.');
     catalogLive_().forEach(function (x) {
       if (x.row !== row && x.name.toLowerCase() === name.toLowerCase()) throw new Error('Позиция с таким названием уже есть');
     });
-    if (row && (row < 2 || row > sh.getLastRow())) throw new Error('Позиция не найдена, обновите страницу');
     if (!row) row = sh.getLastRow() + 1;
     sh.getRange(row, 1, 1, 6).setValues(vals);
     cacheDropBig_('cat_v1');

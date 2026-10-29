@@ -9,6 +9,8 @@ import path from 'node:path';
 import { parseRegistry } from './registry.mjs';
 import { buildPlan } from './events-plan.mjs';
 import { parseGamesLog } from './games-log.mjs';
+import { getAll, chunkByMatch } from './rest-all.mjs';
+import { missingLineup } from './lineup-fill.mjs';
 
 const arg = name => { const i = process.argv.indexOf('--' + name); return i >= 0 ? process.argv[i + 1] : null; };
 const write = process.argv.includes('--write');
@@ -16,6 +18,9 @@ const write = process.argv.includes('--write');
 const newOnly = process.argv.includes('--new-only');
 // --staff-only: записать только штат игр (тренер, оператор) тем матчам, у которых его в базе ещё нет; турниры, матчи, составы и взносы не трогаются
 const staffOnly = process.argv.includes('--staff-only');
+// --fill-lineups (вместе с --new-only): у существующих матчей с составом дописать игроков, которые в листе «играл», а в составе базы их нет; строки не меняются и не удаляются.
+// Без --write печатает, что было бы дописано (если заданы SUPABASE_URL, ключ и CLUB_ID), и ничего не пишет.
+const fillLineups = process.argv.includes('--fill-lineups');
 const regFile = arg('registry'), evFile = arg('events'), feeFile = arg('fees'), gamesDir = arg('games'), logFile = arg('log');
 if (!regFile || !evFile || !feeFile || !gamesDir || !logFile) {
   console.error('Укажите --registry, --events, --fees, --games (папка GAMES_ID), --log (Игры.csv)'); process.exit(2);
@@ -47,7 +52,9 @@ console.log(`Проблем: ${plan.problems.length + journal.problems.length}; 
 for (const p of journal.problems) console.log(`  журнал ${p.team} ${p.date}: ${p.error}`);
 for (const p of plan.problems) console.log(`  ${p.id}: ${p.error}`);
 for (const g of plan.gamesProblems) console.log(`  ${g}`);
-if (!write) { console.log('Проверка без записи. Для записи добавьте --write.'); process.exit(0); }
+const dbEnv = !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY && process.env.CLUB_ID);
+if (fillLineups && !newOnly) { console.error('--fill-lineups работает только вместе с --new-only'); process.exit(2); }
+if (!write && !(fillLineups && dbEnv)) { console.log('Проверка без записи. Для записи добавьте --write.'); process.exit(0); }
 if (plan.problems.length || plan.gamesProblems.length || plan.unmatched.length || journal.problems.length) {
   console.error('Есть проблемы или несопоставленные имена — запись остановлена.'); process.exit(1);
 }
@@ -72,23 +79,41 @@ async function upsertAll(table, onConflict, rows) {
 }
 
 // 0) игроки базы по external_id (KS-xxxx) — сначала должен быть импортирован реестр
-const dbPlayers = await rest('GET', `players?club_id=eq.${CLUB_ID}&select=id,external_id`);
+const dbPlayers = await getAll(rest, `players?club_id=eq.${CLUB_ID}&select=id,external_id`);
 const pid = new Map(dbPlayers.map(p => [p.external_id, p.id]));
 const regByName = new Map(reg.players.map(p => [p.full_name, p.external_id]));
 const playerId = name => pid.get(regByName.get(name));
 const absent = [...new Set([...plan.matchPlayers, ...plan.matchFees, ...plan.tFees].map(x => x.name).filter(n => !playerId(n)))];
 if (absent.length) { console.error('Игроки не найдены в базе (сначала реестр): ' + absent.join(', ')); process.exit(1); }
 
+// --fill-lineups: недостающие игроки в составе существующих матчей (считаем до любой записи)
+let fillRows = [];
+if (fillLineups) {
+  const dbMatches = await getAll(rest, `matches?club_id=eq.${CLUB_ID}&select=id,external_id`);
+  const midNow = new Map(dbMatches.map(m => [m.external_id, m.id]));
+  const dbLineups = new Map();
+  for (const r of await getAll(rest, 'match_players?select=match_id,player_id', 'match_id,player_id')) {
+    if (!dbLineups.has(r.match_id)) dbLineups.set(r.match_id, new Set());
+    dbLineups.get(r.match_id).add(r.player_id);
+  }
+  fillRows = missingLineup({ matchPlayers: plan.matchPlayers, goalsBy, midOf: ext => midNow.get(ext), playerId, dbLineups });
+  const byMatch = new Map();
+  for (const r of fillRows) byMatch.set(r.match_ext, [...(byMatch.get(r.match_ext) ?? []), r.name]);
+  console.log(`Дозапись составов существующих матчей: ${fillRows.length} игроков в ${byMatch.size} матчах (строки базы не меняются).`);
+  for (const [ext, names] of byMatch) console.log(`  ${ext}: +${names.length} — ${names.join(', ')}`);
+  if (!write) { console.log('Проверка без записи. Для записи добавьте --write.'); process.exit(0); }
+}
+
 // существующие матчи и турниры (для --new-only)
-const existingM = newOnly ? new Set((await rest('GET', `matches?club_id=eq.${CLUB_ID}&select=external_id&limit=5000`)).map(m => m.external_id)) : new Set();
-const existingT = newOnly ? new Set((await rest('GET', `tournaments?club_id=eq.${CLUB_ID}&select=external_id&limit=5000`)).map(t => t.external_id)) : new Set();
+const existingM = newOnly ? new Set((await getAll(rest, `matches?club_id=eq.${CLUB_ID}&select=external_id`)).map(m => m.external_id)) : new Set();
+const existingT = newOnly ? new Set((await getAll(rest, `tournaments?club_id=eq.${CLUB_ID}&select=external_id`)).map(t => t.external_id)) : new Set();
 const skipM = ext => existingM.has(ext);
 
 // 1) турниры
 if (!staffOnly) await upsertAll('tournaments', 'club_id,external_id', plan.tournaments.filter(t => !existingT.has(t.external_id)).map(t => ({
   club_id: CLUB_ID, external_id: t.external_id, team: t.team, kind: t.kind, name: t.name, fee: t.fee, starts_on: t.starts_on || null,
 })));
-const dbT = await rest('GET', `tournaments?club_id=eq.${CLUB_ID}&select=id,external_id`);
+const dbT = await getAll(rest, `tournaments?club_id=eq.${CLUB_ID}&select=id,external_id`);
 const tid = new Map(dbT.map(t => [t.external_id, t.id]));
 
 // 2) матчи
@@ -98,19 +123,29 @@ if (!staffOnly) await upsertAll('matches', 'club_id,external_id', plan.matches.f
   goals_against: scoreBy.get(m.external_id)?.goals_against ?? m.goals_against ?? null,
   tournament_id: m.tournament_ext ? (tid.get(m.tournament_ext) ?? null) : null,
 })));
-const dbM = await rest('GET', `matches?club_id=eq.${CLUB_ID}&select=id,external_id`);
+const dbM = await getAll(rest, `matches?club_id=eq.${CLUB_ID}&select=id,external_id`);
 const mid = new Map(dbM.map(m => [m.external_id, m.id]));
+// --new-only: состав существующего матча не трогаем, кроме матча с пустым составом. Прошлый запуск мог оборваться после записи матча и до записи состава:
+// без этого повторный запуск считал бы матч «уже существующим» и состав с голами не попадал в базу никогда.
+const hasLineup = newOnly ? new Set((await getAll(rest, 'match_players?select=match_id', 'match_id,player_id')).map(r => r.match_id)) : new Set();
+const existingIds = new Set([...existingM].map(e => mid.get(e)));
+const skipLineup = ext => skipM(ext) && hasLineup.has(mid.get(ext));
 
 // 3) игроки матчей, взносы за товарищеские, взносы за турниры
 // игроки матчей: составу из листа добавляем голы; бомбардиры, которых не отметили «играл», тоже попадают в состав
 const mpKeys = new Set(plan.matchPlayers.map(x => x.match_ext + '|' + x.name));
-const mpRows = plan.matchPlayers.filter(x => !skipM(x.match_ext)).map(x => ({ match_id: mid.get(x.match_ext), player_id: playerId(x.name), played: true, goals: goalsBy.get(x.match_ext + '|' + x.name) || 0 }));
+const mpRows = plan.matchPlayers.filter(x => !skipLineup(x.match_ext)).map(x => ({ match_id: mid.get(x.match_ext), player_id: playerId(x.name), played: true, goals: goalsBy.get(x.match_ext + '|' + x.name) || 0 }));
 for (const [k, g] of goalsBy) {
   const [ext, name] = k.split('|');
-  if (skipM(ext)) continue;
+  if (skipLineup(ext)) continue;
   if (!mpKeys.has(ext + '|' + name)) mpRows.push({ match_id: mid.get(ext), player_id: playerId(name), played: true, goals: g });
 }
-if (!staffOnly) await upsertAll('match_players', 'match_id,player_id', mpRows);
+// пачки не режут состав одного матча: обрыв между пачками не оставляет матч с половиной состава (иначе он перестал бы считаться пустым)
+if (!staffOnly) for (const chunk of chunkByMatch(mpRows)) await rest('POST', 'match_players?on_conflict=match_id,player_id', chunk, MERGE);
+if (fillRows.length) for (const chunk of chunkByMatch(fillRows.map(r => ({ match_id: r.match_id, player_id: r.player_id, played: true, goals: r.goals })))) {
+  await rest('POST', 'match_players?on_conflict=match_id,player_id', chunk, 'resolution=ignore-duplicates,return=minimal');
+}
+if (newOnly) console.log(`Составы существующих матчей, у которых в базе состава не было: ${new Set(mpRows.filter(r => existingIds.has(r.match_id)).map(r => r.match_id)).size} матчей.`);
 if (!staffOnly) await upsertAll('match_fees', 'match_id,player_id', plan.matchFees.map(x => ({
   match_id: mid.get(x.match_ext), player_id: playerId(x.name), amount: x.amount, paid: !!x.paid,
 })));
@@ -119,7 +154,7 @@ if (!staffOnly) await upsertAll('tournament_fees', 'tournament_id,player_id', pl
 })));
 // штат игр (тренер, оператор): слияние по (матч, сотрудник, роль)
 // у существующих матчей штат добавляем только если в базе его ещё нет (правки штата в приложении не затираем)
-const haveStaff = (newOnly || staffOnly) ? new Set((await rest('GET', 'match_staff?select=match_id&limit=20000')).map(r => r.match_id)) : new Set();
+const haveStaff = (newOnly || staffOnly) ? new Set((await getAll(rest, 'match_staff?select=match_id', 'match_id,coach,role')).map(r => r.match_id)) : new Set();
 const staffTodo = [...staffBy].filter(([ext]) => mid.get(ext) && ((!skipM(ext) && !staffOnly) || !haveStaff.has(mid.get(ext))));
 await upsertAll('match_staff', 'match_id,coach,role', staffTodo.flatMap(([ext, list]) => list.map(x => ({ match_id: mid.get(ext), coach: x.name, role: x.role, reg: x.reg }))));
 if (newOnly) console.log(`Штат игр: добавлен в ${staffTodo.length} играх (у существующих матчей только там, где штата в базе не было).`);

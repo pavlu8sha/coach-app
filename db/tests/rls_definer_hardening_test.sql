@@ -30,7 +30,7 @@ select is(
         'award_bonus', 'can_see_team', 'cancel_link', 'child_linked', 'create_child_code', 'debtors', 'decide_link', 'delete_match',
         'erase_parent', 'export_my_data', 'group_parents', 'group_rating', 'is_admin', 'is_coach_of_group', 'is_coach_of_player',
         'is_coach_of_subscription', 'is_guardian_in_group', 'is_guardian_of', 'is_self_player', 'mark_attendance', 'open_session',
-        'parent_debts', 'recalc_match_points', 'redeem_child_code', 'reject_data_request', 'request_data_deletion', 'request_link',
+        'parent_calendar', 'parent_debts', 'recalc_match_points', 'redeem_child_code', 'reject_data_request', 'request_data_deletion', 'request_link',
         'retry_link', 'revoke_bonus', 'revoke_consent', 'save_match', 'search_players_for_link', 'set_my_role', 'set_notifications',
         'unlink_child',
         -- функции администратора из следующих миграций (0032–0039): внутри каждой проверяется is_admin()
@@ -41,6 +41,8 @@ select is(
         'tl_set_held', 'tl_replace_coach', 'tl_edit_session', 'lead_set_status', 'ind_roster_list', 'extra_roster_list',
         -- 0058: родителю долги и оплаты по всем видам
         'parent_dues',
+        -- 0070: время дополнительной тренировки; функция администратора, внутри проверяется is_admin()
+        'extra_set_time',
         -- 0040: старт подсчёта баллов
         'points_start', 'set_points_start',
         -- 0041: название и тип турнира (без взносов); вызывается из match_tournaments() с правами пользователя
@@ -59,7 +61,9 @@ select is(
         -- 0053: взносы за события (только админ; проверка внутри)
         'event_set_fee', 'event_fees', 'event_payments', 'event_pay', 'event_discount', 'event_cancel_payment',
         -- 0054: взносы за матч (только админ; проверка внутри)
-        'match_fees_list', 'match_payments_list', 'match_fee_add', 'match_set_fee', 'match_fee_remove', 'match_pay', 'match_discount', 'match_cancel_payment')),
+        'match_fees_list', 'match_payments_list', 'match_fee_add', 'match_set_fee', 'match_fee_remove', 'match_pay', 'match_discount', 'match_cancel_payment',
+        -- 0063: турниры ребёнка для родителя, включая турниры без матчей
+        'my_tournaments')),
   '', 'список функций, доступных вошедшим пользователям, не расширился без решения');
 
 select is(

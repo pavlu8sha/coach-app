@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseMonthSheet, parseJournal, weekdayOf, labelGroups, buildAttendancePlan } from '../../scripts/import/attendance.mjs';
+import { parseMonthSheet, parseJournal, weekdayOf, labelGroups, buildAttendancePlan, DEFERRED } from '../../scripts/import/attendance.mjs';
 
 const head = 'FC KICKSTART,,,,,\nшаблон,,,,,\n,,,,,\n';
 const sheet = (rows) => head + rows.join('\n') + '\n';
@@ -97,4 +97,71 @@ test('матч вместо тренировки пропускается, сд�
   assert.deepEqual(sep.excluded, ['2026-09-20 U13-A']);
   const b = sep.sessions.find(x => x.group_name === 'U13-B');
   assert.equal(b.date, '2026-09-26'); assert.equal(b.starts_at, '2026-09-26T16:45:00+04:00'); // суббота — слот расписания
+});
+
+// Журнал приоритетнее листа (29.10): расхождение — по журналу, недостающие отметки и дни дописываются, ушедшие дети из списка DEFERRED не блокируют
+const jr = (...rows) => 'шапка\nпояснение\nЗапись ID,Дата\n' + rows.map((r, i) => `ATT-202610-${1000 + i},${r[0]},${r[1]},${r[2]},${r[3]},Парк,${r[4] ? 'Присутствовал' : 'Отсутствовал'},,,Журнал`).join('\n');
+const regP = [{ external_id: 'KS-1', full_name: 'Ivanov Ivan' }, { external_id: 'KS-2', full_name: 'Petrov Petr' }];
+const sched = [{ group_name: 'U7-A', weekday: 1, starts_at: '16:00', kind: 'Групповая' }, { group_name: 'U7-A', weekday: 2, starts_at: '16:00', kind: 'Групповая' }];
+
+test('журнал: расхождение берётся по журналу', () => {
+  const csv = sheet(['U7-A,,,,', '№,ФИ ребёнка,19,,', '1,Ivanov Ivan,TRUE,,', '2,Petrov Petr,TRUE,,']);
+  const plan = buildAttendancePlan({ sheets: [{ text: csv, month: '10', year: '2026' }], journalText: jr(['19.10.2026', 'KS-1', 'Ivanov Ivan', 'U7-A', false]), schedule: sched, registryPlayers: regP });
+  assert.equal(plan.marks.find(m => m.external_id === 'KS-1').status, 'absent');
+  assert.equal(plan.marks.find(m => m.external_id === 'KS-2').status, 'present');
+  assert.equal(plan.journal.disagree.length, 1);
+});
+
+test('журнал: отметка, которой нет в листе, дописывается в существующий день', () => {
+  const csv = sheet(['U7-A,,,,', '№,ФИ ребёнка,19,,', '1,Ivanov Ivan,TRUE,,']);
+  const plan = buildAttendancePlan({ sheets: [{ text: csv, month: '10', year: '2026' }], journalText: jr(['19.10.2026', 'KS-2', 'Petrov Petr', 'U7-A', true]), schedule: sched, registryPlayers: regP });
+  assert.equal(plan.sessions.length, 1);
+  assert.deepEqual(plan.marks.map(m => [m.external_id, m.status]), [['KS-1', 'present'], ['KS-2', 'present']]);
+});
+
+test('журнал: день, которого нет в листе, создаётся, если в журнале есть присутствовавшие и известно время', () => {
+  const csv = sheet(['U7-A,,,,', '№,ФИ ребёнка,19,,', '1,Ivanov Ivan,TRUE,,']);
+  const plan = buildAttendancePlan({ sheets: [{ text: csv, month: '10', year: '2026' }], schedule: sched, registryPlayers: regP,
+    journalText: jr(['20.10.2026', 'KS-1', 'Ivanov Ivan', 'U7-A', true], ['20.10.2026', 'KS-2', 'Petrov Petr', 'U7-A', false]) });
+  const s = plan.sessions.find(x => x.date === '2026-10-20');
+  assert.equal(s.starts_at, '2026-10-20T16:00:00+04:00');
+  assert.equal(plan.marks.filter(m => m.source_key === 'ATT|2026-10-20').length, 2);
+});
+
+test('журнал: день без присутствовавших или без времени не создаётся', () => {
+  const csv = sheet(['U7-A,,,,', '№,ФИ ребёнка,19,,', '1,Ivanov Ivan,TRUE,,']);
+  const plan = buildAttendancePlan({ sheets: [{ text: csv, month: '10', year: '2026' }], schedule: sched, registryPlayers: regP,
+    journalText: jr(['20.10.2026', 'KS-1', 'Ivanov Ivan', 'U7-A', false], ['22.10.2026', 'KS-1', 'Ivanov Ivan', 'U7-A', true]) });
+  assert.equal(plan.sessions.length, 1);
+  assert.equal(plan.journal.journalSkipped.length, 2);
+});
+
+test('отложенные дети (список DEFERRED) не блокируют, прочие не найденные по-прежнему блокируют', () => {
+  DEFERRED.push('Later Kid');
+  try {
+    const csv = sheet(['U7-A,,,,', '№,ФИ ребёнка,19,,', '1,Ivanov Ivan,TRUE,,', '2,Later Kid,TRUE,,', '3,Ghost Kid,TRUE,,']);
+    const plan = buildAttendancePlan({ sheets: [{ text: csv, month: '10', year: '2026' }], journalText: '', schedule: sched, registryPlayers: regP });
+    assert.deepEqual(plan.deferred.map(d => d.name), ['Later Kid']);
+    assert.deepEqual(plan.unmatched.map(d => d.name), ['Ghost Kid']);
+  } finally { DEFERRED.pop(); }
+});
+
+test('Orudzhov из листов — это Orujov из реестра (KS-0234, KS-0235): отметки импортируются', () => {
+  const reg2 = [{ external_id: 'KS-234', full_name: 'Orujov Ali' }, { external_id: 'KS-235', full_name: 'Orujov Kinan' }];
+  const csv = sheet(['U7-A,,,,', '№,ФИ ребёнка,19,,', '1,Orudzhov Ali,TRUE,,', '2,Orudzhov Kinan,FALSE,,']);
+  const plan = buildAttendancePlan({ sheets: [{ text: csv, month: '10', year: '2026' }], journalText: '', schedule: sched, registryPlayers: reg2 });
+  assert.deepEqual(plan.marks.map(m => [m.external_id, m.status]), [['KS-234', 'present'], ['KS-235', 'absent']]);
+  assert.equal(plan.unmatched.length, 0);
+  assert.equal(plan.deferred.length, 0);
+});
+
+test('журнал: Lyashenko Kirill — это Liashenko Kyryl из реестра, а день без тренировки (16.09 U13-A) не импортируется', () => {
+  const regL = [{ external_id: 'KS-91', full_name: 'Liashenko Kyryl' }];
+  const csv = sheet(['U7-A,,,,', '№,ФИ ребёнка,19,,', '1,Liashenko Kyryl,TRUE,,']);
+  const plan = buildAttendancePlan({ sheets: [{ text: csv, month: '10', year: '2026' }], schedule: sched, registryPlayers: regL,
+    journalText: jr(['19.10.2026', '', 'Lyashenko Kirill', 'U7-A', true], ['16.09.2026', 'KS-91', 'Liashenko Kyryl', 'U13-A', true]) });
+  assert.equal(plan.journal.agree, 1);
+  assert.equal(plan.journal.journalOnly.length, 0);
+  assert.equal(plan.journal.journalSkipped.length, 0);
+  assert.equal(plan.sessions.length, 1);
 });

@@ -116,7 +116,13 @@ export function SkeletonRows({ count = 4, avatar = true }: { count?: number; ava
   );
 }
 
-const ICONS: Record<'users' | 'box' | 'search' | 'alert' | 'trophy', ReactNode> = {
+const ICONS: Record<'users' | 'box' | 'search' | 'alert' | 'trophy' | 'calendar', ReactNode> = {
+  calendar: (
+    <>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M3 10h18M8 3v4M16 3v4" />
+    </>
+  ),
   trophy: (
     <>
       <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z" />

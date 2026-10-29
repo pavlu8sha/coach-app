@@ -1,7 +1,23 @@
--- Что из миграций 0017–0047 уже применено в этой базе. Только чтение, ничего не меняет.
+-- Что из миграций 0001–0074 уже применено в этой базе. Только чтение, ничего не меняет.
 -- Запустить в SQL Editor целиком. applied = true — применять эту миграцию не нужно (повторный запуск упадёт на create table/trigger).
 -- Применять надо по номерам только те, где applied = false.
 select * from (values
+  ('0001_init',                    to_regclass('clubs') is not null and to_regclass('players') is not null and to_regclass('groups') is not null),
+  ('0002_rls',                     to_regprocedure('is_admin()') is not null),
+  ('0003_legacy_domains',          to_regclass('equipment_orders') is not null and to_regclass('payments') is not null),
+  ('0004_rls_legacy',              to_regprocedure('is_coach_of_subscription(uuid)') is not null),
+  ('0005_players_fields',          exists (select 1 from information_schema.columns where table_name = 'players' and column_name = 'extras')),
+  ('0006_equipment_optional_date', exists (select 1 from information_schema.columns where table_name = 'equipment_orders' and column_name = 'ordered_on' and is_nullable = 'YES')),
+  ('0007_tournaments',             to_regclass('tournaments') is not null),
+  ('0008_individual',              to_regclass('individual_sessions') is not null),
+  ('0009_schedule_training_log',   to_regclass('training_log') is not null),
+  ('0010_camps_settings',          to_regclass('camp_payments') is not null),
+  ('0011_attendance_import',       exists (select 1 from information_schema.columns where table_name = 'sessions' and column_name = 'source_key')),
+  ('0012_rating_rules',            to_regclass('rules') is not null and to_regclass('point_events') is not null),
+  ('0013_groups_guardian_read',    to_regprocedure('is_guardian_in_group(uuid)') is not null),
+  ('0014_link_requests',           to_regclass('link_requests') is not null),
+  ('0015_consent',                 to_regclass('consent_versions') is not null),
+  ('0016_rate_limits',             to_regprocedure('rate_limit_hit(text,integer,integer)') is not null),
   ('0017_link_cancel_retry',       to_regprocedure('cancel_link(uuid)') is not null),
   ('0018_coach_attendance',        to_regprocedure('open_session(uuid,date)') is not null),
   ('0019_coach_matches',           to_regprocedure('save_match(uuid,uuid,date,text,integer,integer,jsonb)') is not null),
@@ -9,7 +25,7 @@ select * from (values
   ('0021_consent_coach_contacts',  exists (select 1 from information_schema.columns where table_name = 'consent_versions' and column_name = 'coach_contacts')),
   ('0022_user_role',               exists (select 1 from information_schema.columns where table_name = 'users' and column_name = 'chosen_role')),
   ('0023_prices_debt',             to_regprocedure('debtors(date)') is not null),
-  ('0024_narrow_matches_schedule', to_regprocedure('can_see_team(uuid,text)') is not null),
+  ('0024_narrow_matches_schedule_read', to_regprocedure('can_see_team(uuid,text)') is not null),
   ('0025_consent_controls',        to_regclass('data_requests') is not null),
   ('0026_notifications',           to_regclass('notifications') is not null),
   ('0027_match_scoring_admin',     to_regprocedure('delete_match(uuid)') is not null),
@@ -47,6 +63,20 @@ select * from (values
   ('0059_payment_for_month',       exists (select 1 from information_schema.columns where table_name = 'payments' and column_name = 'pay_month')),
   ('0060_event_roster_stats_kind', to_regprocedure('match_stats(date,date,text)') is not null),
   ('0061_coach_match_fees',       to_regprocedure('match_assert_fees(uuid)') is not null),
-  ('0062_tl_edit_session',         to_regprocedure('tl_edit_session(date,text,time,time,time,text)') is not null)
+  ('0062_tl_edit_session',         to_regprocedure('tl_edit_session(date,text,time,time,time,text)') is not null),
+  ('0063_parent_tournaments',      to_regprocedure('my_tournaments()') is not null),
+  ('0064_parent_calendar',         to_regprocedure('parent_calendar(uuid,date,date)') is not null),
+  ('0065_link_search_rate_limit',  pg_get_functiondef(to_regprocedure('search_players_for_link(text)')) like '%link_search%'),
+  ('0066_link_flood_limits',       to_regclass('link_notify_log') is not null),
+  ('0067_export_points_start',     pg_get_functiondef(to_regprocedure('export_my_data()')) like '%points_start%'),
+  ('0068_notify_bonus_points_start', pg_get_functiondef(to_regprocedure('notify_bonus()')) like '%points_start%'),
+  ('0069_booking_cancel_started',  pg_get_functiondef(to_regprocedure('booking_cancel(text,uuid,uuid)')) like '%session already started%'),
+  ('0076_event_roster_remove_paid', pg_get_functiondef(to_regprocedure('event_roster_remove(uuid,uuid)')) like '%tournament_fees where tournament_id = t and player_id = pid and paid%'),
+  ('0070_extra_session_time',      exists (select 1 from information_schema.columns where table_name = 'extra_sessions' and column_name = 'starts_time')),
+  ('0071_imported_paid_materialize', pg_get_functiondef(to_regprocedure('event_pay(uuid,uuid[],numeric,date,text,text)')) like '%Оплата из импорта%'),
+  ('0072_pay_dedupe_ids',          pg_get_functiondef(to_regprocedure('event_pay(uuid,uuid[],numeric,date,text,text)')) like '%uids%'),
+  ('0073_extra_paid_amount_check', pg_get_functiondef(to_regprocedure('extra_set_paid(uuid,uuid,boolean,text,numeric)')) like '%bad amount%'),
+  ('0074_camp_participant_amount_floor', pg_get_functiondef(to_regprocedure('camp_update_participant(uuid,uuid,numeric,text,text,text)')) like '%amount below paid%'),
+  ('0075_booking_board_extra_time', pg_get_functiondef(to_regprocedure('booking_board()')) like '%starts_time%')
 ) as t(migration, applied)
 order by migration;

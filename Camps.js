@@ -396,7 +396,7 @@ function isRecentDup_(sh, cols, secs) {
   });
 }
 
-// Редактор тарифов сбора. rows: [{row, name, price, active}]; row = 0 для нового тарифа.
+// Редактор тарифов сбора. rows: [{row, was (прежнее название при row > 0), name, price, active}]; row = 0 для нового тарифа.
 // Ничего не удаляет: тариф, которого нет в списке, снимается с «Активен».
 // Переименовать можно только тариф, по которому никто не записан.
 function appCampTariffSave(pin, campId, rows) {
@@ -409,7 +409,7 @@ function appCampTariffSave(pin, campId, rows) {
     var raw = String(r.price == null ? '' : r.price).trim();
     if (!name) throw new Error('Пустое название тарифа');
     if (raw === '' || !(Number(raw) >= 0)) throw new Error('Тариф «' + name + '»: укажите цену, число не меньше нуля');
-    return { row: Number(r.row) || 0, name: name, price: r2_(Number(raw)), active: !!r.active, label: String(r.label || '').replace(/\s+/g, ' ').trim().slice(0, 30) };
+    return { row: Number(r.row) || 0, was: String(r.was || '').trim(), name: name, price: r2_(Number(raw)), active: !!r.active, label: String(r.label || '').replace(/\s+/g, ' ').trim().slice(0, 30) };
   });
   var seen = {};
   clean.forEach(function (c) {
@@ -425,6 +425,8 @@ function appCampTariffSave(pin, campId, rows) {
       if (!c.row) return;
       var old = mine.filter(function (t) { return t.row === c.row; })[0];
       if (!old) throw new Error('Тариф не найден: обновите страницу');
+      // после сортировки листа тарифов строка могла стать другим тарифом: форма присылает название, которое открывала (was)
+      if (old.name !== c.was) throw new Error('Тарифы изменились или строка сместилась: обновите страницу и повторите; изменения не сохранены.');
       sent[c.row] = true;
       if (old.name !== c.name && fresh.parts.some(function (p) { return p.camp === camp.id && p.tariff === old.name; })) {
         throw new Error('Тариф «' + old.name + '» уже выбран участниками: переименовать нельзя');

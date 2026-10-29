@@ -73,3 +73,20 @@ test('тарифы: цена и активность', () => {
   const { tariffs } = parseCampTariffs(tariffsCsv);
   assert.deepEqual(tariffs[1], { camp_ext: 'CMP-0001', name: 'Ребенок + родитель', price: 2500, active: true });
 });
+
+test('участник, добавленный вручную (без CP-…), получает номер из листа; занятый номер и чужой сбор не трогаются', async () => {
+  const { manualToAdopt } = await import('../../scripts/import/camps.mjs');
+  const campId = new Map([['CMP-1', 'c1']]);
+  const playerId = new Map([['KS-1', 'p1'], ['KS-2', 'p2'], ['KS-3', 'p3']]);
+  const participants = [
+    { camp_ext: 'CMP-1', external_id: 'CP-0012', player_ext: 'KS-1' },
+    { camp_ext: 'CMP-1', external_id: 'CP-0013', player_ext: 'KS-2' },
+    { camp_ext: 'CMP-1', external_id: 'CP-0014', player_ext: 'KS-3' },
+  ];
+  const db = [
+    { id: 'd1', camp_id: 'c1', player_id: 'p1', external_id: null },
+    { id: 'd2', camp_id: 'c1', player_id: 'p2', external_id: 'CP-0002' }, // уже под другим номером: не трогаем
+    { id: 'd3', camp_id: 'c9', player_id: 'p3', external_id: null },      // другой сбор
+  ];
+  assert.deepEqual(manualToAdopt({ participants, dbParticipants: db, campId, playerId }), [{ id: 'd1', external_id: 'CP-0012', player_ext: 'KS-1' }]);
+});

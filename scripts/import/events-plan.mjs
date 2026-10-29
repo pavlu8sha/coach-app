@@ -10,8 +10,12 @@ const NAME_ALIAS = {
   'kurbanoiv emin': 'Kurbanov Emin', 'ganakova varya': 'Ganakova Varvara', 'cherkasov misha': 'Cherkasov Mikhail',
   'sechko ilya': 'Siachko Ilia', 'grichshenikov sergey': 'Grichshenkov Sergey', 'grichshenikov mikhail': 'Grichshenkov Misha',
   'german gio': 'German Georgiy', 'yarovoy vasya': 'Yarovoy Vasiliy', 'sechko vova': 'Siachko Vladimir',
+  'orudzhov ali': 'Orujov Ali', 'orudzhov kinan': 'Orujov Kinan', // в листах посещаемости так написано, в реестре KS-0234/KS-0235 (подтверждено владельцем 29.10)
+  'lyashenko kirill': 'Liashenko Kyryl', // имя поменяли с Kirill на Kyryl (подтверждено владельцем 29.10)
 };
 const SKIP_NAMES = new Set(['pashkin denis']);
+// Старое приложение ставит этих игроков в чужой турнир: Belich и Liashenko играли Championship 2 за U9-A (E-007, взнос уже в базе), Ruban платил Championship 2 за U9-B (E-094)
+export const TFEE_EXCLUDE = new Set(['E-094|Belich Luka', 'E-094|Liashenko Kyryl', 'E-007|Ruban Danila']);
 const fkey = s => String(s).replace(/х/g, 'x').toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean).sort().join(' ');
 function lev(a, b) {
   let p = Array.from({ length: b.length + 1 }, (_, j) => j);
@@ -126,10 +130,8 @@ export function buildPlan({ eventsCsv, feesCsv, gamesFiles, registryPlayers }) {
           const p = pl(pp.name); if (!p) continue;
           const played = !!pp.played.get(g.date);
           const sPaid = g.paidCol !== null ? !!pp.paid.get(g.date) : false;
-          if (m.kind === 'game') {
-            if (played && !seenMP.has(m.external_id + p.external_id)) { seenMP.add(m.external_id + p.external_id); matchPlayers.push({ match_ext: m.external_id, name: p.full_name, played: true }); }
-          }
-          // взнос только у тех, кто играл; отметка «оплатил» без игры в листе не учитывается
+          if (played && !seenMP.has(m.external_id + p.external_id)) { seenMP.add(m.external_id + p.external_id); matchPlayers.push({ match_ext: m.external_id, name: p.full_name, played: true }); }
+          // взнос только у тех, кто играл; отметка «оплатил» сама по себе участие не подтверждает
           if (m.kind === 'friendly' && played) {
             const k = m.external_id + p.external_id;
             if (!seenMF.has(k)) {
@@ -177,5 +179,7 @@ export function buildPlan({ eventsCsv, feesCsv, gamesFiles, registryPlayers }) {
     if (!seenTF.has(k)) { seenTF.add(k); tFees.push({ tournament_ext: NEWTON.external_id, name: p.full_name, amount: NEWTON.fee, paid: true, src: 'NEWTON' }); }
   }
 
-  return { tournaments, matches, matchPlayers, matchFees, tFees, unmatched: [...unmatched], resolved, problems, gamesProblems, sheetPaid };
+  // взносы, которые в старом приложении записаны не в тот турнир (подтверждено владельцем 29.10): в базе верно, не добавляем
+  const tFeesKept = tFees.filter(f => !TFEE_EXCLUDE.has(`${f.tournament_ext}|${f.name}`));
+  return { tournaments, matches, matchPlayers, matchFees, tFees: tFeesKept, unmatched: [...unmatched], resolved, problems, gamesProblems, sheetPaid };
 }

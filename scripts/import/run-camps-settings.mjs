@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseRegistry } from './registry.mjs';
-import { buildCampsPlan } from './camps.mjs';
+import { buildCampsPlan, manualToAdopt } from './camps.mjs';
+import { getAll } from './rest-all.mjs';
 
 const args = process.argv.slice(2);
 const write = args.includes('--write');
@@ -49,7 +50,7 @@ async function upsertAll(table, onConflict, rows) {
   }
 }
 
-let dbPlayers = await rest('GET', `players?club_id=eq.${CLUB_ID}&select=id,external_id,full_name`);
+let dbPlayers = await getAll(rest, `players?club_id=eq.${CLUB_ID}&select=id,external_id,full_name`);
 const playerId = new Map(dbPlayers.map(p => [p.external_id, p.id]));
 const guestRows = [];
 for (const p of plan.participants) {
@@ -60,7 +61,7 @@ for (const p of plan.participants) {
 }
 if (guestRows.length) {
   await rest('POST', 'players', guestRows, 'return=minimal');
-  dbPlayers = await rest('GET', `players?club_id=eq.${CLUB_ID}&select=id,external_id,full_name`);
+  dbPlayers = await getAll(rest, `players?club_id=eq.${CLUB_ID}&select=id,external_id,full_name`);
   for (const p of dbPlayers) playerId.set(p.external_id, p.id);
 }
 const absent = [...new Set(plan.participants.map(p => p.player_ext).filter(x => !playerId.has(x)))];
@@ -71,24 +72,28 @@ await upsertAll('camps', 'club_id,external_id', plan.camps.map(c => ({
   starts_on: c.starts_on, ends_on: c.ends_on, booking_fee: c.booking_fee,
   booking_deadline: c.booking_deadline, full_payment_deadline: c.full_payment_deadline, active: c.active,
 })));
-const dbCamps = await rest('GET', `camps?club_id=eq.${CLUB_ID}&select=id,external_id`);
+const dbCamps = await getAll(rest, `camps?club_id=eq.${CLUB_ID}&select=id,external_id`);
 const campId = new Map(dbCamps.map(c => [c.external_id, c.id]));
 
 await upsertAll('camp_tariffs', 'camp_id,name', plan.tariffs.map(t => ({
   camp_id: campId.get(t.camp_ext), name: t.name, price: t.price, active: t.active,
 })));
-const dbTariffs = await rest('GET', `camp_tariffs?select=id,camp_id,name`);
+const dbTariffs = await getAll(rest, `camp_tariffs?select=id,camp_id,name`);
 const tariffId = new Map(dbTariffs.map(t => [`${t.camp_id}|${t.name}`, t.id]));
 
+// участники, добавленные вручную в приложении (без CP-…), получают свой номер из листа, а не дублируются
+const adopt = manualToAdopt({ participants: plan.participants, dbParticipants: await getAll(rest, 'camp_participants?select=id,camp_id,player_id,external_id'), campId, playerId });
+for (const a of adopt) await rest('PATCH', `camp_participants?id=eq.${a.id}`, { external_id: a.external_id }, 'return=minimal');
+if (adopt.length) console.log(`Участники сборов, добавленные вручную, получили номер из листа: ${adopt.map(a => a.external_id).join(', ')}`);
 await upsertAll('camp_participants', 'camp_id,external_id', plan.participants.map(p => ({
   camp_id: campId.get(p.camp_ext), external_id: p.external_id, player_id: playerId.get(p.player_ext),
   tariff_id: tariffId.get(`${campId.get(p.camp_ext)}|${p.tariff}`), amount: p.amount,
   tshirt_size: p.tshirt_size, comment: p.comment, status: p.status, registered_on: p.registered_on,
 })));
-const dbParticipants = await rest('GET', `camp_participants?select=id,camp_id,external_id`);
+const dbParticipants = await getAll(rest, `camp_participants?select=id,camp_id,external_id`);
 const participantId = new Map(dbParticipants.map(p => [`${p.camp_id}|${p.external_id}`, p.id]));
 
-const existingPays = new Set((await rest('GET', 'camp_payments?select=legacy_ref')).map(p => p.legacy_ref));
+const existingPays = new Set((await getAll(rest, 'camp_payments?select=legacy_ref')).map(p => p.legacy_ref));
 const newPays = plan.payments.filter(p => !existingPays.has(p.legacy_ref)).map(p => ({
   camp_id: campId.get(p.camp_ext), participant_id: participantId.get(`${campId.get(p.camp_ext)}|${p.participant_ext}`),
   player_id: playerId.get(p.player_ext), amount: p.amount, paid_on: p.paid_on, kind: p.kind,

@@ -52,7 +52,7 @@
   $('cback').onclick=function(){pn.hidden=true;$('app').hidden=false};
   $('cnew').onclick=resetForm;
   $('csave').onclick=function(){
-    save({row:editRow,name:$('cname').value,price:$('cprice').value,sizes:$('csizes').value,inscr:$('cinscr').checked,num:$('cnum').checked,active:editRow?(item(editRow)||{active:true}).active:true},this);
+    save({row:editRow,was:editRow?(item(editRow)||{}).name:'',name:$('cname').value,price:$('cprice').value,sizes:$('csizes').value,inscr:$('cinscr').checked,num:$('cnum').checked,active:editRow?(item(editRow)||{active:true}).active:true},this);
   };
   $('clist').onclick=function(e){
     var b=e.target.closest('button');if(!b)return;
@@ -62,7 +62,7 @@
       $('cname').value=x.name;$('cprice').value=x.price;$('csizes').value=x.sizes;$('cinscr').checked=x.inscr;$('cnum').checked=x.num;$('cnew').hidden=false;$('cerr').textContent='';
       $('cname').scrollIntoView({behavior:'smooth',block:'center'});
     } else if(b.classList.contains('ctg')){
-      save({row:x.row,name:x.name,price:x.price,sizes:x.sizes,inscr:x.inscr,num:x.num,active:!x.active},b);
+      save({row:x.row,was:x.name,name:x.name,price:x.price,sizes:x.sizes,inscr:x.inscr,num:x.num,active:!x.active},b);
     }
   };
 

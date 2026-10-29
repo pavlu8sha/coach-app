@@ -9,7 +9,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseRegistry } from './registry.mjs';
 import { IND_PRICE, parsePayBlock, parseSessionsSheet, replayJournal } from './individual.mjs';
-import { buildIndividualPlan } from './individual-plan.mjs';
+import { buildIndividualPlan, matchDbSessions } from './individual-plan.mjs';
+import { getAll } from './rest-all.mjs';
 
 const arg = name => { const i = process.argv.indexOf('--' + name); return i >= 0 ? process.argv[i + 1] : null; };
 const write = process.argv.includes('--write');
@@ -61,21 +62,26 @@ if (guestRows.length) await rest('POST', 'players?on_conflict=club_id,external_i
 })), MERGE);
 
 // 2) игроки базы: реестр (KS-…) и гости (GUEST-…)
-const dbPlayers = await rest('GET', `players?club_id=eq.${CLUB_ID}&select=id,external_id,full_name`);
+const dbPlayers = await getAll(rest, `players?club_id=eq.${CLUB_ID}&select=id,external_id,full_name`);
 const byName = new Map(dbPlayers.map(p => [p.full_name, p.id]));
 const absent = [...new Set(bookings.map(p => p.name).filter(n => !byName.has(n)))];
 if (absent.length) { console.error('Игроки не найдены в базе (сначала реестр и гости): ' + absent.join(', ')); process.exit(1); }
 
-// 3) занятия
-await rest('POST', 'individual_sessions?on_conflict=club_id,external_id', sessions.map(s => ({
+// 3) занятия. Занятие, которое уже есть в базе под идентификатором со временем (создано или правлено в приложении), не создаём второй раз:
+// записи вносятся в него, а время и тема приложения не меняются.
+const dbExisting = await getAll(rest, `individual_sessions?club_id=eq.${CLUB_ID}&select=external_id`);
+const extMap = matchDbSessions(sessions.map(s => s.external_id), dbExisting.map(s => s.external_id));
+const reused = sessions.filter(s => extMap.get(s.external_id) !== s.external_id);
+if (reused.length) console.log(`Занятия уже в базе под идентификатором со временем (новые не создаются): ${reused.map(s => s.external_id + ' → ' + extMap.get(s.external_id)).join('; ')}`);
+await rest('POST', 'individual_sessions?on_conflict=club_id,external_id', sessions.filter(s => !reused.includes(s)).map(s => ({
   club_id: CLUB_ID, external_id: s.external_id, starts_at: s.starts_at, topic: s.topic, goalkeepers: s.external_id.endsWith('-GK'),
 })), MERGE);
-const dbS = await rest('GET', `individual_sessions?club_id=eq.${CLUB_ID}&select=id,external_id`);
+const dbS = await getAll(rest, `individual_sessions?club_id=eq.${CLUB_ID}&select=id,external_id`);
 const sid = new Map(dbS.map(s => [s.external_id, s.id]));
 
 // 4) записи
 const rowsB = sessions.flatMap(s => s.people.map(p => ({
-  session_id: sid.get(s.external_id), player_id: byName.get(p.name), amount: IND_PRICE, paid: p.paid,
+  session_id: sid.get(extMap.get(s.external_id)), player_id: byName.get(p.name), amount: IND_PRICE, paid: p.paid,
 })));
 for (let i = 0; i < rowsB.length; i += 500) {
   await rest('POST', 'individual_bookings?on_conflict=session_id,player_id', rowsB.slice(i, i + 500), MERGE);
