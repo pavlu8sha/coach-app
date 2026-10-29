@@ -1,4 +1,4 @@
--- 0063: read-only calendar for a parent, limited to their actively linked child.
+-- 0064: read-only calendar for a parent, limited to their actively linked child.
 create or replace function parent_calendar(p_player uuid, p_from date, p_to date)
 returns table (
   event_id text, event_date date, event_time time, event_type text,
