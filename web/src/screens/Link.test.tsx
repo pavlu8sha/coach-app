@@ -33,6 +33,24 @@ describe('привязка ребёнка', () => {
     expect(fake.rpcCalls('request_link')).toEqual([{ p: 'p1', consent: expect.stringMatching(/^draft-/) }]);
   });
 
+  it('слишком частый поиск: родитель видит понятное сообщение', async () => {
+    fake.rpc.search_players_for_link = () => ({ error: { message: 'search limit reached' } });
+    render(<Link />);
+    search('Петров');
+    expect(await screen.findByText(/Слишком много поисков/)).toBeInTheDocument();
+  });
+
+  it('лимит запросов за час: родитель видит понятное сообщение', async () => {
+    fake.rpc.search_players_for_link = () => found;
+    fake.rpc.request_link = () => ({ error: { message: 'link request limit reached' } });
+    render(<Link />);
+    search('Петров');
+    fireEvent.click(await screen.findByRole('button', { name: /Алексей Петров/ }));
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: /Отправить запрос/ }));
+    expect(await screen.findByText(/Слишком много запросов и отмен за час/)).toBeInTheDocument();
+  });
+
   it('согласия нет до выбора ребёнка', async () => {
     fake.rpc.search_players_for_link = () => found;
     render(<Link />);
