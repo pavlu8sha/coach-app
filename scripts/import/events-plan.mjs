@@ -13,9 +13,10 @@ const NAME_ALIAS = {
   'orudzhov ali': 'Orujov Ali', 'orudzhov kinan': 'Orujov Kinan', // в листах посещаемости так написано, в реестре KS-0234/KS-0235 (подтверждено владельцем 29.10)
   'lyashenko kirill': 'Liashenko Kyryl', // имя поменяли с Kirill на Kyryl (подтверждено владельцем 29.10)
 };
-const SKIP_NAMES = new Set(['pashkin denis']);
-// Старое приложение ставит этих игроков в чужой турнир: Belich и Liashenko играли Championship 2 за U9-A (E-007, взнос уже в базе), Ruban платил Championship 2 за U9-B (E-094)
-export const TFEE_EXCLUDE = new Set(['E-094|Belich Luka', 'E-094|Liashenko Kyryl', 'E-007|Ruban Danila']);
+// Игроки, которых не импортируем в матчи и взносы (список пуст: Pashkin Denis ушёл из клуба, но его участие и оплата нужны для истории, 29.10)
+const SKIP_NAMES = new Set([]);
+// Старое приложение ставит этих игроков в чужой турнир: Belich и Liashenko играли Championship 2 за U9-A (E-007, взнос уже в базе), Ruban платил Championship 2 за U9-B (E-094); German был в списке Championship 1 U9-B (E-095), но не играл и не платил
+export const TFEE_EXCLUDE = new Set(['E-094|Belich Luka', 'E-094|Liashenko Kyryl', 'E-007|Ruban Danila', 'E-095|German Georgiy']);
 const fkey = s => String(s).replace(/х/g, 'x').toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean).sort().join(' ');
 function lev(a, b) {
   let p = Array.from({ length: b.length + 1 }, (_, j) => j);

@@ -94,3 +94,13 @@ test('взносы турниров: записанные в старом при
   const r = buildPlan({ eventsCsv: events, feesCsv: fees, gamesFiles: [], registryPlayers: reg });
   assert.deepEqual(r.tFees.map(f => `${f.tournament_ext}|${f.name}`).sort(), ['E-007|Belich Luka', 'E-094|Other Kid']);
 });
+
+test('Pashkin Denis больше не исключён: его участие и взнос импортируются; German в списке без игры и оплаты исключён', () => {
+  const reg = [{ external_id: 'KS-230', full_name: 'Pashkin Denis' }, { external_id: 'KS-41', full_name: 'German Georgiy' }];
+  const events = ['ID,Команда,Тип,Название,Дата,Взнос,Турнир,Соперник,Голы,Пропущено',
+    'E-106,U9-A,Чемпионат,Championship 1,01.09.2026,200,,,,', 'E-095,U9-B,Чемпионат,Championship 1,02.09.2026,200,,,,'].join('\n');
+  const fees = ['Событие,ID игрока,Игрок,Оплачено,Сумма,,,', 'E-106,KS-230,Pashkin Denis,TRUE,200,,,', 'E-095,KS-41,German Georgiy,TRUE,200,,,'].join('\n');
+  const r = buildPlan({ eventsCsv: events, feesCsv: fees, gamesFiles: [], registryPlayers: reg });
+  assert.deepEqual(r.tFees.map(f => `${f.tournament_ext}|${f.name}|${f.paid}`), ['E-106|Pashkin Denis|true']);
+  assert.equal(r.unmatched.length, 0);
+});
