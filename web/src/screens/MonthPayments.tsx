@@ -165,8 +165,7 @@ export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOp
     if (date > today()) return setErr('Дата платежа не может быть в будущем.');
     setBusy(true);
     setErr(null);
-    const me = (await supabase.auth.getUser()).data.user?.id ?? null;
-    const r = await supabase.from('payments').insert({ player_id: player.id, amount: Math.round(num * 100) / 100, paid_on: date, for_month: month, method, recorded_by: me });
+    const r = await supabase.from('payments').insert({ player_id: player.id, amount: Math.round(num * 100) / 100, paid_on: date, for_month: month, method });
     setBusy(false);
     if (r.error) return setErr(r.error.message);
     onSaved();

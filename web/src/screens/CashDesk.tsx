@@ -22,7 +22,6 @@ const errText = (m: string) => (m.includes('paid above total') ? 'Оплата �
 /** Всё, что игрок должен: абонемент по месяцам, заказы экипировки, занятия и сборы. Платёж по строке идёт в нужный раздел. */
 async function loadDues(p: Pl): Promise<Due[]> {
   const out: Due[] = [];
-  const me = (await supabase.auth.getUser()).data.user?.id ?? null;
   const noSub = (p.groups?.name ?? '').trim().toLowerCase() === 'индивидуальные / вратарские';
   const [prices, pays, subs, orders, ind, extra, camps] = await Promise.all([
     supabase.from('prices').select('group_id, amount, valid_from, valid_to').eq('kind', 'subscription'),
@@ -54,7 +53,7 @@ async function loadDues(p: Pl): Promise<Due[]> {
       if (got >= tariff) continue;
       out.push({
         key: 'sub' + m, kind: 'sub', section: SECTIONS[0], title: m > cur ? `${monthName(m)} (вперёд)` : monthName(m), sub: s?.discount ? 'скидка по договорённости: оплатите любую сумму' : m > cur ? 'оплата вперёд: дата — день, когда внесли деньги' : undefined, due: tariff, paid: got, month: m, advance: m > cur,
-        pay: (amount, method, date) => supabase.from('payments').insert({ player_id: p.id, amount: r2(amount), paid_on: date, for_month: m, method, recorded_by: me }),
+        pay: (amount, method, date) => supabase.from('payments').insert({ player_id: p.id, amount: r2(amount), paid_on: date, for_month: m, method }),
       });
     }
   }
@@ -118,8 +117,7 @@ export default function CashDesk() {
   const cancelPay = async (x: { id: string; amount: number; player_id?: string; pay_month?: string | null; method?: string | null }) => {
     if (!x.player_id || !window.confirm('Отменить эту оплату? Будет записана запись с минусом.')) return;
     setCancelling(x.id);
-    const me = (await supabase.auth.getUser()).data.user?.id ?? null;
-    await supabase.from('payments').insert({ player_id: x.player_id, amount: -Number(x.amount), paid_on: day, ...(x.pay_month ? { for_month: x.pay_month } : {}), method: x.method ?? 'Исправление', recorded_by: me });
+    await supabase.from('payments').insert({ player_id: x.player_id, amount: -Number(x.amount), paid_on: day, ...(x.pay_month ? { for_month: x.pay_month } : {}), method: x.method ?? 'Исправление' });
     setCancelling(null);
     setReload(n => n + 1);
   };
