@@ -180,3 +180,18 @@ export function buildCampsPlan({ campsCsv, tariffsCsv, participantsCsv, payments
     paymentSum: payments.payments.reduce((a, p) => a + p.amount, 0),
   };
 }
+
+// Участники сбора, добавленные вручную в приложении (external_id пуст), которые в листе идут под своим CP-…: им проставляется внешний номер,
+// иначе вставка нового участника упёрлась бы в уникальность «сбор + игрок» и импорт остановился.
+// participants — план (camp_ext, external_id, player_ext); dbParticipants — [{ id, camp_id, player_id, external_id }]; campId: ext → id; playerId: ext → id.
+export function manualToAdopt({ participants, dbParticipants, campId, playerId }) {
+  const manual = new Map(dbParticipants.filter(d => !d.external_id).map(d => [`${d.camp_id}|${d.player_id}`, d]));
+  const taken = new Set(dbParticipants.filter(d => d.external_id).map(d => `${d.camp_id}|${d.external_id}`));
+  const out = [];
+  for (const p of participants) {
+    const camp = campId.get(p.camp_ext);
+    const row = manual.get(`${camp}|${playerId.get(p.player_ext)}`);
+    if (row && !taken.has(`${camp}|${p.external_id}`)) { out.push({ id: row.id, external_id: p.external_id, player_ext: p.player_ext }); manual.delete(`${camp}|${row.player_id}`); }
+  }
+  return out;
+}
