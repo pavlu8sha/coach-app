@@ -7,13 +7,13 @@ export interface CoachNavItem { value: CoachTab; label: string; icon: NavIcon }
 // Не больше пяти пунктов, как у администратора (MAX_BAR в adminMenu.ts плюс «Ещё»).
 export const COACH_BAR: CoachNavItem[] = [
   { value: 'sessions', label: 'Занятия', icon: 'calendar' },
+  { value: 'cmatches', label: 'Матчи', icon: 'trophy' },
   { value: 'attendance', label: 'Посещаемость', icon: 'chart' },
   { value: 'ledger', label: 'Учёт', icon: 'clock' },
-  { value: 'cmatches', label: 'Матчи', icon: 'trophy' },
   { value: 'group', label: 'Группа', icon: 'users' },
 ];
 
-// Тренер, который ещё и родитель, получает «Ребёнка» вместо «Посещаемости»: оба раздела остаются во вкладке «Группа».
+// Тренер, который ещё и родитель, получает «Ребёнка» вместо «Посещаемости».
 export function coachBar(hasKids: boolean): CoachNavItem[] {
   return hasKids ? COACH_BAR.map(it => (it.value === 'attendance' ? { value: 'home', label: 'Ребёнок', icon: 'child' } : it)) : COACH_BAR;
 }

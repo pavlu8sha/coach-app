@@ -20,7 +20,7 @@ describe('нижняя панель по ролям', () => {
     fake.db.coach_groups = CG;
     fake.db.groups = GROUPS;
     render(<App />);
-    expect(await labels()).toEqual(['Занятия', 'Посещаемость', 'Учёт', 'Матчи', 'Группа']);
+    expect(await labels()).toEqual(['Занятия', 'Матчи', 'Посещаемость', 'Учёт', 'Группа']);
     expect(await current()).toEqual(['Занятия']);
     fireEvent.click((await bar()).getByRole('button', { name: 'Посещаемость' }));
     expect(await current()).toEqual(['Посещаемость']);
@@ -46,7 +46,7 @@ describe('нижняя панель по ролям', () => {
     fake.db.groups = GROUPS;
     fake.db.player_guardians = [{ user_id: 'u', player_id: 'p1', consent_revoked_at: null }];
     render(<App />);
-    expect(await labels()).toEqual(['Занятия', 'Ребёнок', 'Учёт', 'Матчи', 'Группа']);
+    expect(await labels()).toEqual(['Занятия', 'Матчи', 'Ребёнок', 'Учёт', 'Группа']);
   });
 
   it('администратор не получает пункты тренера на нижней панели', async () => {
