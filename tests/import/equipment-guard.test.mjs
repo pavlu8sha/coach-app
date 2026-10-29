@@ -112,11 +112,11 @@ test('final-import --staff-only: единственный шаг run-events --st
   assert.match(s[0].args, /--staff-only/);
 });
 
-test('final-import --write: предпроверка экипировки первым шагом и без --write, остальные шаги с --write', async () => {
+test('final-import --write: предпроверки экипировки и оплат первыми шагами и без --write, остальные шаги с --write', async () => {
   const s = steps((await showOnly(['--mode', 'Final', '--write'])).out);
-  assert.equal(s[0].script, 'run-equipment.mjs');
-  assert.ok(!/--write/.test(s[0].args));
-  assert.ok(s.slice(1).every(x => /--write/.test(x.args)));
+  assert.deepEqual(s.slice(0, 2).map(x => x.script), ['run-equipment.mjs', 'run-payments.mjs']);
+  assert.ok(s.slice(0, 2).every(x => !/--write/.test(x.args)));
+  assert.ok(s.slice(2).every(x => /--write/.test(x.args)));
   const eq = s.filter(x => x.script === 'run-equipment.mjs');
   assert.equal(eq.length, 2);
   assert.ok(/--registry/.test(eq[1].args));
