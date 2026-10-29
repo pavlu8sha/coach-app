@@ -33,6 +33,13 @@ describe('привязка ребёнка', () => {
     expect(fake.rpcCalls('request_link')).toEqual([{ p: 'p1', consent: expect.stringMatching(/^draft-/) }]);
   });
 
+  it('слишком частый поиск: родитель видит понятное сообщение', async () => {
+    fake.rpc.search_players_for_link = () => ({ error: { message: 'search limit reached' } });
+    render(<Link />);
+    search('Петров');
+    expect(await screen.findByText(/Слишком много поисков/)).toBeInTheDocument();
+  });
+
   it('согласия нет до выбора ребёнка', async () => {
     fake.rpc.search_players_for_link = () => found;
     render(<Link />);
