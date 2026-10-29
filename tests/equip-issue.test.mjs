@@ -20,6 +20,7 @@ class Sheet {
   getRange(r, c, n = 1, m = 1) {
     const sh = this, grid = f => Array.from({ length: n }, (_, i) => Array.from({ length: m }, (_, j) => f(r + i, c + j)));
     const rg = {
+      getValue: () => sh.cell(r, c),
       getValues: () => grid((a, b) => sh.cell(a, b)),
       getDisplayValues: () => grid((a, b) => String(sh.cell(a, b))),
       setValues: v => { sh.ops.push('set ' + r + ':' + c); v.forEach((row, i) => row.forEach((x, j) => sh.put(r + i, c + j, x))); return rg; },
@@ -52,6 +53,7 @@ function env({ dry = false, fact = true } = {}) {
   };
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync(path.join(ROOT, 'EquipIssue.js'), 'utf8'), ctx, { filename: 'EquipIssue.js' });
+  vm.runInContext(fs.readFileSync(path.join(ROOT, 'EquipLinks.js'), 'utf8'), ctx, { filename: 'EquipLinks.js' }); // assertEquipRowIdentity_: настоящая проверка строки
   const sp = fs.readFileSync(path.join(ROOT, 'SubsPay.js'), 'utf8');
   vm.runInContext(sp.slice(sp.indexOf('function nfSafe_'), sp.indexOf('\n', sp.indexOf('function nfSafe_'))), ctx);
   Object.assign(ctx, {
@@ -62,13 +64,15 @@ function env({ dry = false, fact = true } = {}) {
   });
   const issued = () => (sheets['ВЫДАЧА'] ? sheets['ВЫДАЧА'].data.slice(1).filter(r => r.length && r[0]).map(r => [r[0], r[1], r[2], r[3], r[4], r[5]]) : []);
   const factOf = ord => { const f = sheets['ФАКТ ПОШИВА']; const r = f && f.data.find(x => x[0] === ord); return r ? r[7] : undefined; };
-  return { ctx, sheets, season, log, issued, factOf, locks: () => locks };
+  // снимок заказа строки row, как его получила форма: №, ФИО, ID игрока, ID заказа
+  const ex = row => { const r = season.data[row - 1] || []; return { no: r[0], name: r[2], id: r[11], ord: r[13] }; };
+  return { ctx, sheets, season, log, issued, factOf, locks: () => locks, ex };
 }
 const J = x => JSON.parse(JSON.stringify(x));
 
 test('выдать одну вещь из двух: строка в «ВЫДАЧА», в «ФАКТ ПОШИВА» — «Частично», запись в журнал', () => {
   const e = env();
-  const r = e.ctx.appEquipIssue('9', 4, ['Тренировочная форма'], true, '2026-10-23', '  Павел  ');
+  const r = e.ctx.appEquipIssue('9', 4, ['Тренировочная форма'], true, '2026-10-23', '  Павел  ', e.ex(4));
   assert.deepEqual(J(r), { ok: true, status: 'Частично', changed: 1 });
   assert.deepEqual(e.issued(), [['ORD-0001', 'Тренировочная форма', '23.10.2026', 'Павел', 'KS-1', 'Alpha A']]);
   assert.deepEqual([...e.sheets['ВЫДАЧА'].data[0]], ['ID заказа', 'Вещь', 'Дата выдачи', 'Кто выдал', 'ID игрока', 'ФИ', 'Отмечено']);
@@ -79,53 +83,53 @@ test('выдать одну вещь из двух: строка в «ВЫДАЧ
 
 test('дата пишется как текст: формат «@» ставится до записи строки', () => {
   const e = env();
-  e.ctx.appEquipIssue('9', 4, ['Игровая форма'], true, '2026-10-23', '');
+  e.ctx.appEquipIssue('9', 4, ['Игровая форма'], true, '2026-10-23', '', e.ex(4));
   const ops = e.sheets['ВЫДАЧА'].ops;
   assert.ok(ops.indexOf('fmt 2:1 @') >= 0 && ops.indexOf('fmt 2:1 @') < ops.indexOf('set 2:1'), ops.join(', '));
 });
 
 test('выдать вторую вещь — «Да»; повторная выдача той же вещи не дублирует строку и не пишет в журнал', () => {
   const e = env();
-  e.ctx.appEquipIssue('9', 4, ['Тренировочная форма'], true, '2026-10-23', 'Павел');
-  assert.equal(e.ctx.appEquipIssue('9', 4, ['Игровая форма', 'Тренировочная форма'], true, '2026-10-24', 'Гио').status, 'Да');
+  e.ctx.appEquipIssue('9', 4, ['Тренировочная форма'], true, '2026-10-23', 'Павел', e.ex(4));
+  assert.equal(e.ctx.appEquipIssue('9', 4, ['Игровая форма', 'Тренировочная форма'], true, '2026-10-24', 'Гио', e.ex(4)).status, 'Да');
   assert.deepEqual(e.issued().map(r => [r[1], r[2], r[3]]), [['Тренировочная форма', '23.10.2026', 'Павел'], ['Игровая форма', '24.10.2026', 'Гио']]);
   assert.equal(e.factOf('ORD-0001'), 'Да');
-  const r = e.ctx.appEquipIssue('9', 4, ['Игровая форма'], true, '2026-10-25', 'Гио');
+  const r = e.ctx.appEquipIssue('9', 4, ['Игровая форма'], true, '2026-10-25', 'Гио', e.ex(4));
   assert.deepEqual([r.status, r.changed, e.issued().length, e.log.length], ['Да', 0, 2, 2]);
 });
 
 test('снять выдачу: строка удаляется, статус пересчитывается до «Частично», затем «Нет»', () => {
   const e = env();
-  e.ctx.appEquipIssue('9', 4, ['Тренировочная форма', 'Игровая форма'], true, '2026-10-23', 'Павел');
-  assert.equal(e.ctx.appEquipIssue('9', 4, ['Игровая форма'], false).status, 'Частично');
+  e.ctx.appEquipIssue('9', 4, ['Тренировочная форма', 'Игровая форма'], true, '2026-10-23', 'Павел', e.ex(4));
+  assert.equal(e.ctx.appEquipIssue('9', 4, ['Игровая форма'], false, '', '', e.ex(4)).status, 'Частично');
   assert.deepEqual(e.issued().map(r => r[1]), ['Тренировочная форма']);
-  assert.equal(e.ctx.appEquipIssue('9', 4, ['Тренировочная форма'], false).status, 'Нет');
+  assert.equal(e.ctx.appEquipIssue('9', 4, ['Тренировочная форма'], false, '', '', e.ex(4)).status, 'Нет');
   assert.deepEqual([e.issued().length, e.factOf('ORD-0001')], [0, 'Нет']);
   assert.equal(e.log[e.log.length - 1][2], 'отмена выдачи экипировки');
 });
 
 test('заказа нет в «ФАКТ ПОШИВА» — добавляется строка: ID, игрок, «Не подтверждено» в «Нанесено», статус в «Выдано»', () => {
   const e = env();
-  e.ctx.appEquipIssue('9', 5, ['Дождевик'], true, '2026-10-23', 'Павел');
+  e.ctx.appEquipIssue('9', 5, ['Дождевик'], true, '2026-10-23', 'Павел', e.ex(5));
   assert.deepEqual([...e.sheets['ФАКТ ПОШИВА'].data[2]], ['ORD-0124', 'Beta B', '', '', '', '', 'Не подтверждено', 'Да']);
 });
 
 test('без листа «ФАКТ ПОШИВА» выдача всё равно записывается в «ВЫДАЧА»', () => {
   const e = env({ fact: false });
-  assert.equal(e.ctx.appEquipIssue('9', 5, ['Дождевик'], true, '2026-10-23', '').status, 'Да');
+  assert.equal(e.ctx.appEquipIssue('9', 5, ['Дождевик'], true, '2026-10-23', '', e.ex(5)).status, 'Да');
   assert.equal(e.issued().length, 1);
 });
 
 test('ошибки — ничего не записывается: вещи нет в заказе, нет ID заказа, нет даты, пусто, неверная строка, неверный код', () => {
   const e = env();
   const cases = [
-    [['9', 4, ['Дождевик'], true, '2026-10-23', ''], /нет в заказе/],
-    [['9', 6, ['Носки'], true, '2026-10-23', ''], /нет ID заказа/],
-    [['9', 4, ['Игровая форма'], true, '', ''], /дату выдачи/],
-    [['9', 4, [], true, '2026-10-23', ''], /Отметьте/],
-    [['9', 2, ['Игровая форма'], true, '2026-10-23', ''], /Некорректная строка/],
-    [['9', 40, ['Игровая форма'], true, '2026-10-23', ''], /не найден/],
-    [['1', 4, ['Игровая форма'], true, '2026-10-23', ''], /администратора/],
+    [['9', 4, ['Дождевик'], true, '2026-10-23', '', e.ex(4)], /нет в заказе/],
+    [['9', 6, ['Носки'], true, '2026-10-23', '', e.ex(6)], /нет ID заказа/],
+    [['9', 4, ['Игровая форма'], true, '', '', e.ex(4)], /дату выдачи/],
+    [['9', 4, [], true, '2026-10-23', '', e.ex(4)], /Отметьте/],
+    [['9', 2, ['Игровая форма'], true, '2026-10-23', '', e.ex(2)], /Некорректная строка/],
+    [['9', 40, ['Игровая форма'], true, '2026-10-23', '', e.ex(40)], /не найден/],
+    [['1', 4, ['Игровая форма'], true, '2026-10-23', '', e.ex(4)], /администратора/],
   ];
   for (const [args, re] of cases) assert.throws(() => e.ctx.appEquipIssue(...args), re, String(args));
   assert.deepEqual([e.issued().length, e.factOf('ORD-0001'), e.log.length], [0, 'Не подтверждено', 0]);
@@ -133,17 +137,28 @@ test('ошибки — ничего не записывается: вещи не
 
 test('пробный режим (DRY_RUN): ничего не пишется, лист «ВЫДАЧА» не создаётся', () => {
   const e = env({ dry: true });
-  assert.equal(e.ctx.appEquipIssue('9', 4, ['Игровая форма'], true, '2026-10-23', '').dryRun, true);
+  assert.equal(e.ctx.appEquipIssue('9', 4, ['Игровая форма'], true, '2026-10-23', '', e.ex(4)).dryRun, true);
   assert.deepEqual([e.sheets['ВЫДАЧА'], e.factOf('ORD-0001'), e.log.length], [undefined, 'Не подтверждено', 0]);
 });
 
 test('выдачи для экрана: { ORD: { вещь: {date, who} } }; без листа — пусто; после выдачи кэш обновляется', () => {
   const e = env();
   assert.deepEqual(J(e.ctx.equipIssues_()), {});
-  e.ctx.appEquipIssue('9', 4, ['Тренировочная форма'], true, '2026-10-23', 'Павел');
-  e.ctx.appEquipIssue('9', 5, ['Дождевик'], true, '2026-10-22', '');
+  e.ctx.appEquipIssue('9', 4, ['Тренировочная форма'], true, '2026-10-23', 'Павел', e.ex(4));
+  e.ctx.appEquipIssue('9', 5, ['Дождевик'], true, '2026-10-22', '', e.ex(5));
   assert.deepEqual(J(e.ctx.equipIssues_()), {
     'ORD-0001': { 'Тренировочная форма': { date: '23.10.2026', who: 'Павел' } },
     'ORD-0124': { 'Дождевик': { date: '22.10.2026', who: '' } },
   });
+});
+
+test('сортировка листа после открытия формы: выдача и отмена выдачи отклоняются, лист «ВЫДАЧА» не меняется', () => {
+  const e = env();
+  e.ctx.appEquipIssue('9', 4, ['Тренировочная форма'], true, '2026-10-23', 'Павел', e.ex(4));   // штатно: снимок совпадает
+  const stale = e.ex(4);                                         // форма открыта для заказа Alpha A (строка 4)
+  const t = e.season.data[3]; e.season.data[3] = e.season.data[4]; e.season.data[4] = t;       // лист отсортировали: в строке 4 теперь Beta B
+  const before = JSON.stringify([e.issued(), e.factOf('ORD-0001'), e.factOf('ORD-0124'), e.log.length]);
+  assert.throws(() => e.ctx.appEquipIssue('9', 4, ['Дождевик'], true, '2026-10-24', 'Гио', stale), /Заказ изменился или строка сместилась/);
+  assert.throws(() => e.ctx.appEquipIssue('9', 4, ['Тренировочная форма'], false, '', '', stale), /Заказ изменился или строка сместилась/);
+  assert.equal(JSON.stringify([e.issued(), e.factOf('ORD-0001'), e.factOf('ORD-0124'), e.log.length]), before);
 });

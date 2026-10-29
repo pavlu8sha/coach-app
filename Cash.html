@@ -266,7 +266,7 @@ $('progs').onclick=function(e){
       warn:over2?'Сумма больше остатка на '+ksMoney(over2)+'. Платёж будет записан полностью.':'',
       rows:payRows(who,amt2,'Экипировка: '+(ord.kit||'комплект не указан')),
       run:function(ok,bad){
-        run('appAddPayment',[pin,id2,row,amt2,dt2,cm2,mt2],function(r){ok();done(r,'Внесено: '+who+', '+money(amt2)+' (экипировка, '+mt2+').')},bad);
+        run('appAddPayment',[pin,id2,row,amt2,dt2,cm2,mt2,{no:ord.no,name:ord.oname,id:ord.id,ord:ord.ord||''}],function(r){ok();done(r,'Внесено: '+who+', '+money(amt2)+' (экипировка, '+mt2+').')},bad);
       }});
   }
 };
