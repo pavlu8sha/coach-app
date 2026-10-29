@@ -28,7 +28,7 @@ describe('«Платежи» (администратор)', () => {
     expect(screen.getByText(/Записать 65\.50 ₾/)).toBeInTheDocument();
     expect(fake.writes('payments', 'insert')).toHaveLength(0);
     fireEvent.click(screen.getByRole('button', { name: 'Записать платёж' }));
-    await waitFor(() => expect(fake.writes('payments', 'insert')).toEqual([{ player_id: 'p1', amount: 65.5, paid_on: today(), method: 'Наличные', recorded_by: 'u' }]));
+    await waitFor(() => expect(fake.writes('payments', 'insert')).toEqual([{ player_id: 'p1', amount: 65.5, paid_on: today(), method: 'Наличные' }]));
     expect(await screen.findByText('Платёж записан.')).toBeInTheDocument();
   });
 
@@ -52,7 +52,7 @@ describe('«Платежи» (администратор)', () => {
     await openPlayer();
     fireEvent.click(await screen.findByRole('button', { name: 'Исправить (записать с минусом)' }));
     fireEvent.click(screen.getByRole('button', { name: 'Записать исправление' }));
-    await waitFor(() => expect(fake.writes('payments', 'insert')).toEqual([{ player_id: 'p1', amount: -100, paid_on: '2026-10-01', method: 'Исправление', recorded_by: 'u' }]));
+    await waitFor(() => expect(fake.writes('payments', 'insert')).toEqual([{ player_id: 'p1', amount: -100, paid_on: '2026-10-01', method: 'Исправление' }]));
   });
 });
 

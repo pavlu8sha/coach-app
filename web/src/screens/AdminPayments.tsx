@@ -74,8 +74,7 @@ function PlayerPayments({ player, onBack }: { player: Player; onBack: () => void
   const add = async (row: { amount: number; paid_on: string; method: string }) => {
     setBusy(true);
     setMsg(null);
-    const me = (await supabase.auth.getUser()).data.user?.id ?? null;
-    const r = await supabase.from('payments').insert({ player_id: player.id, amount: Math.round(row.amount * 100) / 100, paid_on: row.paid_on, method: row.method, recorded_by: me });
+    const r = await supabase.from('payments').insert({ player_id: player.id, amount: Math.round(row.amount * 100) / 100, paid_on: row.paid_on, method: row.method });
     setBusy(false);
     setConfirm(false);
     setUndo(null);

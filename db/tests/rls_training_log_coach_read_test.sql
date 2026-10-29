@@ -1,4 +1,4 @@
--- pgTAP: тренер читает журнал тренировок (0077), но не пишет в него.
+-- pgTAP: тренер читает журнал тренировок (0079), но не пишет в него.
 begin;
 create extension if not exists pgtap;
 select plan(8);

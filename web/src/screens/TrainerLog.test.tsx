@@ -120,10 +120,10 @@ describe('«Учёт тренеров»', () => {
     expect(await screen.findByRole('button', { name: 'Изменить' })).toBeInTheDocument();
   });
 
-  it('тренер: пустой журнал объясняет возможную причину (миграция 0077 ещё не применена)', async () => {
+  it('тренер: пустой журнал объясняет возможную причину (миграция 0079 ещё не применена)', async () => {
     seed();
     fake.db.weekly_schedule = [];
     render(<TrainerLog readOnly />);
-    expect(await screen.findByText(/миграция 0077/)).toBeInTheDocument();
+    expect(await screen.findByText(/миграция 0079/)).toBeInTheDocument();
   });
 });
