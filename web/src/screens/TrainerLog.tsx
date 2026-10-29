@@ -18,23 +18,25 @@ const monthName = (ym: string) => {
   const s = new Date(y, m - 1, 1).toLocaleDateString('ru', { month: 'long', year: 'numeric' });
   return s.charAt(0).toUpperCase() + s.slice(1);
 };
+// До применения миграции 0079 база отдаёт тренеру пустой журнал без ошибки, поэтому пустой экран объясняем.
+const EMPTY_HINT = ' Если тренировки были, а журнал пуст, доступ тренерам ещё не открыт в базе (миграция 0079): сообщите администратору.';
 const planCoaches = (s: string | null) => (s ?? '').split(/[,;]/).map(x => x.trim()).filter(Boolean);
 
 type Tab = 'day' | 'month' | 'games' | 'stats';
 
-// Учёт проведённых тренировок и часов тренеров для администратора (миграция 0038).
-export default function TrainerLog() {
+// Учёт проведённых тренировок и часов тренеров (миграция 0038). Администратор правит; тренер (readOnly) только смотрит (миграция 0079).
+export default function TrainerLog({ readOnly = false }: { readOnly?: boolean }) {
   const [tab, setTab] = useState<Tab>('day');
   return (
     <main className="page">
-      <h1>Учёт тренеров</h1>
+      <h1>{readOnly ? 'Учёт' : 'Учёт тренеров'}</h1>
       <Segmented label="Раздел" value={tab} onChange={setTab} items={[{ value: 'day', label: 'День' }, { value: 'month', label: 'Месяц' }, { value: 'games', label: 'Игры' }, { value: 'stats', label: 'Статистика' }]} />
-      {tab === 'day' ? <Day /> : tab === 'month' ? <Month /> : <StaffMonth tab={tab} />}
+      {tab === 'day' ? <Day readOnly={readOnly} /> : tab === 'month' ? <Month readOnly={readOnly} /> : <StaffMonth tab={tab} readOnly={readOnly} />}
     </main>
   );
 }
 
-function Day() {
+function Day({ readOnly }: { readOnly: boolean }) {
   const [date, setDate] = useState(today());
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [logs, setLogs] = useState<Log[] | null>(null);
@@ -96,7 +98,7 @@ function Day() {
       <label className="field" style={{ marginBottom: 12 }}>Дата<input type="date" value={date} onChange={e => { setSlots(null); setLogs(null); setDate(e.target.value); }} /></label>
       {msg && <p className="error">{msg}</p>}
       {!slots || !logs ? <Loading /> : items.length === 0 ? (
-        <EmptyState icon="users" title="Тренировок нет" text="В этот день нет занятий по расписанию и записей в журнале." />
+        <EmptyState icon="users" title="Тренировок нет" text={'В этот день нет занятий по расписанию и записей в журнале.' + (readOnly ? EMPTY_HINT : '')} />
       ) : items.map(orig => {
         const k = `${orig.label}|${orig.start}`;
         const o = ov[k];
@@ -121,8 +123,8 @@ function Day() {
           <div className="ks-card" key={k}>
             <div className="ks-line"><b>{it.label} · {it.start}{it.end ? `–${it.end}` : ''}</b><Pill tone={held.length ? 'success' : 'neutral'} dot>{held.length ? 'Проведена' : 'Не отмечена'}</Pill></div>
             <div className="ks-muted" style={{ fontSize: 13 }}>{it.kind}{it.loc ? ` · ${it.loc}` : ''}{!held.length && it.plan.length ? ` · по плану: ${it.plan.join(', ')}` : ''}</div>
-            <button type="button" className="ks-btn secondary sm" style={{ marginTop: 8 }} onClick={() => (editKey === k ? setEditKey(null) : startEdit())}>{editKey === k ? 'Свернуть' : 'Изменить время, место' + (held.length ? '' : ', тренеров')}</button>
-            {editKey === k && (
+            {!readOnly && <button type="button" className="ks-btn secondary sm" style={{ marginTop: 8 }} onClick={() => (editKey === k ? setEditKey(null) : startEdit())}>{editKey === k ? 'Свернуть' : 'Изменить время, место' + (held.length ? '' : ', тренеров')}</button>}
+            {!readOnly && editKey === k && (
               <div style={{ marginTop: 8 }}>
                 <div className="two">
                   <label className="field">Начало<input type="time" value={form.start} onChange={e => setForm({ ...form, start: e.target.value })} /></label>
@@ -143,7 +145,9 @@ function Day() {
                 {held.length > 0 && <p className="ks-muted" style={{ fontSize: 13, marginTop: 6 }}>Тренеров проведённой тренировки меняют ниже: заменить, добавить или снять.</p>}
               </div>
             )}
-            {held.length === 0 ? (
+            {readOnly ? held.map(r => (
+              <div className="ks-line" key={r.id} style={{ marginTop: 8 }}><span>{r.coach}{r.hours ? ` · ${r.hours} ч` : ''}</span></div>
+            )) : held.length === 0 ? (
               <button type="button" className="ks-btn" style={{ marginTop: 8 }} disabled={busy === k || it.plan.length === 0 || !it.start} onClick={() => void run(k, () => supabase.rpc('tl_confirm', { d: date, label: it.label, kind: it.kind, st: it.start, en: it.end, loc: it.loc, coaches: it.plan }))}>
                 {it.plan.length ? 'Проведена' : 'В плане нет тренеров'}
               </button>
@@ -174,7 +178,7 @@ function Day() {
   );
 }
 
-function StaffMonth({ tab }: { tab: 'games' | 'stats' }) {
+function StaffMonth({ tab, readOnly }: { tab: 'games' | 'stats'; readOnly: boolean }) {
   const [ym, setYm] = useState(monthIso(today()));
   const months = useMemo(() => {
     const out: string[] = [];
@@ -187,12 +191,12 @@ function StaffMonth({ tab }: { tab: 'games' | 'stats' }) {
       <select className="ks-select" aria-label="Месяц" value={ym} onChange={e => setYm(e.target.value)}>
         {months.map(m => <option key={m} value={m}>{monthName(m)}</option>)}
       </select>
-      {tab === 'games' ? <StaffGames period={monthPeriod(ym)} admin /> : <StaffStats period={monthPeriod(ym)} />}
+      {tab === 'games' ? <StaffGames period={monthPeriod(ym)} admin={!readOnly} /> : <StaffStats period={monthPeriod(ym)} />}
     </>
   );
 }
 
-function Month() {
+function Month({ readOnly }: { readOnly: boolean }) {
   const [ym, setYm] = useState(monthIso(today()));
   const [rows, setRows] = useState<Log[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -222,7 +226,7 @@ function Month() {
       <select className="ks-select" aria-label="Месяц" value={ym} onChange={e => { setRows(null); setYm(e.target.value); }}>
         {months.map(m => <option key={m} value={m}>{monthName(m)}</option>)}
       </select>
-      {!rows ? <Loading /> : rows.length === 0 ? <EmptyState icon="users" title="Нет проведённых тренировок" /> : (
+      {!rows ? <Loading /> : rows.length === 0 ? <EmptyState icon="users" title="Нет проведённых тренировок" text={readOnly ? EMPTY_HINT.trim() : undefined} /> : (
         <>
           <h3>Часы по тренерам</h3>
           {[...byCoach.entries()].sort((a, b) => a[0].localeCompare(b[0], 'ru')).map(([c, v]) => (
@@ -232,7 +236,7 @@ function Month() {
           {rows.map(r => (
             <div className="ks-card" key={r.id}><div className="ks-line"><span>{fmtShort(r.held_on)} · {r.group_label} · {r.starts_at ? hm(r.starts_at) : ''}</span><span className="ks-muted">{r.coach}{r.hours ? ` · ${r.hours} ч` : ''}</span></div></div>
           ))}
-          <p className="muted">Кнопка «Снять» на вкладке «День» убирает тренировку из месяца.</p>
+          {!readOnly && <p className="muted">Кнопка «Снять» на вкладке «День» убирает тренировку из месяца.</p>}
         </>
       )}
     </>

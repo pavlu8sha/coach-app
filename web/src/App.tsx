@@ -27,7 +27,7 @@ import type { CoachGroup } from './lib/coach';
 import { BottomNav } from './ui/components';
 import { coachBar } from './lib/coachMenu';
 import Stats from './screens/Stats';
-import TrainerAttendance from './screens/TrainerAttendance';
+import TrainerLog from './screens/TrainerLog';
 
 type State = { kind: 'loading' } | { kind: 'ready' } | { kind: 'outside' } | { kind: 'config' } | { kind: 'error'; text: string };
 
@@ -206,7 +206,7 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
     : (admin || coach) && tab === 'cmatches' ? <CoachMatches groups={allGroups.length ? allGroups : coachGroups} admin={admin} allTeams={!admin} />
     : coach && tab === 'group' ? <Group groups={coachGroups} notify withStats />
     : coach && tab === 'attendance' ? <Stats />
-    : coach && tab === 'ledger' ? <TrainerAttendance />
+    : coach && tab === 'ledger' ? <TrainerLog readOnly />
     : tab === 'schedule' ? (admin || coach || !hasKids ? <Schedule all={admin} /> : <ParentSchedule />)
     : !admin && !coach && tab === 'matches' ? <Matches />
     : !admin && !coach && tab === 'profile' ? <Profile />

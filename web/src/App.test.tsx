@@ -26,16 +26,17 @@ describe('нижняя панель по ролям', () => {
     expect(await current()).toEqual(['Посещаемость']);
   });
 
-  it('«Посещаемость» открывает статистику групп, «Учёт» — посещаемость тренеров', async () => {
+  it('«Посещаемость» открывает статистику групп, «Учёт» — журнал тренеров только для просмотра', async () => {
     fake.db.users = [{ id: 'u', is_admin: false, chosen_role: 'coach' }];
     fake.db.coach_groups = CG;
     fake.db.groups = GROUPS;
-    fake.rpc.trainer_attendance = () => [];
     render(<App />);
     fireEvent.click((await bar()).getByRole('button', { name: 'Посещаемость' }));
     expect(await screen.findByRole('tab', { name: 'Матчи' })).toBeInTheDocument();
     fireEvent.click((await bar()).getByRole('button', { name: 'Учёт' }));
-    expect(await screen.findByRole('heading', { name: 'Посещаемость тренеров' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Учёт' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Месяц' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Проведена|Изменить/ })).not.toBeInTheDocument();
     expect(await current()).toEqual(['Учёт']);
   });
 

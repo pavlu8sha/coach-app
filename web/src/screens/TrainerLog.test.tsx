@@ -86,4 +86,44 @@ describe('«Учёт тренеров»', () => {
     expect(within(pavel).getByText('2.5 ч')).toBeInTheDocument();
     expect(within(pavel).getByText('Тренировок: 2')).toBeInTheDocument();
   });
+
+  it('тренер (только просмотр): те же вкладки и часы, но ни одной кнопки записи', async () => {
+    seed([row('l1', 'Павел'), row('l2', 'Соприк')]);
+    fake.rpc.match_staff_list = () => [{ match_id: 'm1', played_on: today(), team: 'U9', opponent: 'Динамо', goals_for: 2, goals_against: 1, staff: [{ coach: 'Павел', role: 'Тренер', reg: true }] }];
+    fake.rpc.trainer_stats = () => [{ coach: 'Павел', trainings: 3, hours: 4.5, as_coach: 1, as_operator: 0, parts: 1, reg_pct: 100 }];
+    render(<TrainerLog readOnly />);
+    const card = (await screen.findByText('U9 · 17:00–18:30')).closest('.ks-card') as HTMLElement;
+    expect(within(card).getByText('Проведена')).toBeInTheDocument();
+    expect(within(card).getByText('Павел · 1.5 ч')).toBeInTheDocument();
+    expect(within(card).getByText('Соприк · 1.5 ч')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Проведена|Изменить|Снять|Сохранить/ })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Заменить тренера|Добавить тренера/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Месяц' }));
+    expect(await screen.findAllByText('1.5 ч')).toHaveLength(2);
+    expect(screen.queryByText(/Снять/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Игры' }));
+    expect(await screen.findByText(/Павел \(Тренер\)/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Изменить' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Статистика' }));
+    expect(await screen.findByText('Павел')).toBeInTheDocument();
+    expect(fake.calls.filter(c => c.kind !== 'rpc')).toEqual([]);
+    expect(['tl_confirm', 'tl_add', 'tl_replace_coach', 'tl_set_held', 'tl_edit_session', 'match_staff_set'].flatMap(n => fake.rpcCalls(n))).toEqual([]);
+  });
+
+  it('администратор: кнопки записи на месте', async () => {
+    seed();
+    fake.rpc.match_staff_list = () => [{ match_id: 'm1', played_on: today(), team: 'U9', opponent: null, goals_for: 2, goals_against: 1, staff: [] }];
+    render(<TrainerLog />);
+    expect(await screen.findByRole('button', { name: 'Проведена' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Изменить время/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Игры' }));
+    expect(await screen.findByRole('button', { name: 'Изменить' })).toBeInTheDocument();
+  });
+
+  it('тренер: пустой журнал объясняет возможную причину (миграция 0079 ещё не применена)', async () => {
+    seed();
+    fake.db.weekly_schedule = [];
+    render(<TrainerLog readOnly />);
+    expect(await screen.findByText(/миграция 0079/)).toBeInTheDocument();
+  });
 });
