@@ -166,7 +166,7 @@ function Catalog({ onTab }: { onTab: (t: Tab) => void }) {
 function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
   const { kits } = useCatalog();
   const [q, setQ] = useState('');
-  const [found, setFound] = useState<{ id: string; full_name: string }[]>([]);
+  const [found, setFound] = useState<{ id: string; full_name: string; groups?: { location: string | null } | null }[]>([]);
   const [player, setPlayer] = useState<{ id: string; full_name: string } | null>(null);
   const [pick, setPick] = useState<Record<string, { size: string; quantity: number }>>({});
   const [insc, setInsc] = useState('');
@@ -180,8 +180,8 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
   useEffect(() => {
     if (q.trim().length < 2) return setFound([]);
     const t = setTimeout(() => {
-      void supabase.from('players').select('id, full_name').ilike('full_name', `%${q.trim()}%`).order('full_name').limit(8).then(r => {
-        if (!r.error) setFound((r.data ?? []) as { id: string; full_name: string }[]);
+      void supabase.from('players').select('id, full_name, groups(location)').ilike('full_name', `%${q.trim()}%`).order('full_name').limit(8).then(r => {
+        if (!r.error) setFound((r.data ?? []) as unknown as { id: string; full_name: string; groups?: { location: string | null } | null }[]);
       });
     }, 250);
     return () => clearTimeout(t);
@@ -207,7 +207,7 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
       ) : (
         <>
           <SearchInput label="Найти игрока" placeholder="Фамилия или имя (от 2 букв)" value={q} onChange={setQ} />
-          {found.map(p => <ListRow key={p.id} avatar={p.full_name} title={p.full_name} onClick={() => setPlayer(p)} />)}
+          {found.map(p => <ListRow key={p.id} avatar={p.full_name} title={p.full_name} onClick={() => { setPlayer(p); if (!loc.trim() && p.groups?.location) setLoc(p.groups.location); }} />)}
         </>
       )}
       <h3>Что заказываем</h3>

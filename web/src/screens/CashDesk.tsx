@@ -6,7 +6,7 @@ import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 import { gel, monthIso, monthName, nextMonth, SEASON_START, tariffFor } from './MonthPayments';
 
-interface Pl { id: string; full_name: string; group_id: string | null; groups: { name: string } | null; external_id?: string | null; birth_date?: string | null }
+interface Pl { id: string; full_name: string; group_id: string | null; groups: { name: string } | null; external_id?: string | null; birth_date?: string | null; status?: string }
 interface Due { key: string; kind: 'sub' | 'eq' | 'ind' | 'extra' | 'camp'; section: string; title: string; sub?: string; due: number; paid: number; month?: string; advance?: boolean; pay: (amount: number, method: string, date: string) => PromiseLike<{ error: { message: string } | null }> }
 
 const METHODS = ['Наличные', 'Перевод'];
@@ -44,7 +44,8 @@ async function loadDues(p: Pl): Promise<Due[]> {
     const cur = monthIso(new Date());
     for (let m = SEASON_START; m <= nextMonth(cur); m = nextMonth(m)) {
       const s = sb.get(m);
-      if (m < cur && !s && !paidBy.has(m)) continue; // прошлый месяц без строки абонемента долгом не считается
+      // ушедшему игроку текущий и будущий месяцы долгом не считаются, пока нет строки абонемента или платежа
+      if ((m < cur || p.status === 'inactive') && !s && !paidBy.has(m)) continue; // прошлый месяц без строки абонемента долгом не считается
       const gid = s?.group_id ?? p.group_id;
       const tariff = gid ? tariffFor(pr, gid, m) : null;
       if (tariff === null || s?.written_off) continue;
@@ -92,7 +93,7 @@ export default function CashDesk() {
   useEffect(() => {
     if (q.trim().length < 2) return setFound([]);
     const t = setTimeout(() => {
-      void supabase.from('players').select('id, full_name, group_id, external_id, birth_date, groups(name)').ilike('full_name', `%${q.trim()}%`).order('full_name').limit(10).then(r => {
+      void supabase.from('players').select('id, full_name, group_id, external_id, birth_date, status, groups(name)').ilike('full_name', `%${q.trim()}%`).order('full_name').limit(10).then(r => {
         if (!r.error) setFound((r.data ?? []) as unknown as Pl[]);
       });
     }, 250);
@@ -113,11 +114,12 @@ export default function CashDesk() {
   }, [reload, player, day]);
 
   // Отмена оплаты абонемента — записью с минусом (журнал платежей только добавляется)
-  const cancelPay = async (x: { id: string; amount: number; player_id?: string; pay_month?: string | null }) => {
+  // запись с минусом берёт способ отменяемого платежа, чтобы итоги «Наличные» и «Перевод» за день сходились
+  const cancelPay = async (x: { id: string; amount: number; player_id?: string; pay_month?: string | null; method?: string | null }) => {
     if (!x.player_id || !window.confirm('Отменить эту оплату? Будет записана запись с минусом.')) return;
     setCancelling(x.id);
     const me = (await supabase.auth.getUser()).data.user?.id ?? null;
-    await supabase.from('payments').insert({ player_id: x.player_id, amount: -Number(x.amount), paid_on: day, ...(x.pay_month ? { for_month: x.pay_month } : {}), method: 'Исправление', recorded_by: me });
+    await supabase.from('payments').insert({ player_id: x.player_id, amount: -Number(x.amount), paid_on: day, ...(x.pay_month ? { for_month: x.pay_month } : {}), method: x.method ?? 'Исправление', recorded_by: me });
     setCancelling(null);
     setReload(n => n + 1);
   };

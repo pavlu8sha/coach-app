@@ -62,7 +62,7 @@ function issueFactWrite_(ss, ord, name, status) {
 
 // Отметить (on) или снять выдачу вещей заказа. row — строка заказа на листе сезона; items — названия вещей из заказа;
 // date — «гггг-мм-дд» (для выдачи); who — кто выдал (текст).
-function appEquipIssue(pin, row, items, on, date, who) {
+function appEquipIssue(pin, row, items, on, date, who, expected) {
   checkAdmin_(pin);
   row = Number(row);
   if (!(row >= EQ_FIRST && row < EQ_FIRST + EQ_ROWS)) throw new Error('Некорректная строка');
@@ -76,7 +76,9 @@ function appEquipIssue(pin, row, items, on, date, who) {
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    var sh = equipSheet_(), r = sh.getRange(row, 1, 1, 14).getValues()[0];
+    var sh = equipSheet_();
+    assertEquipRowIdentity_(sh, row, expected);   // после сортировки строка может быть чужим заказом
+    var r = sh.getRange(row, 1, 1, 14).getValues()[0];
     var name = String(r[2]).trim(), kits = issueKits_(r[3]), id = String(r[11]).trim(), ord = String(r[13]).trim();
     if (!name || !kits.length) throw new Error('Заказ не найден, обновите страницу');
     if (!ord) throw new Error('У заказа нет ID заказа (колонка N «ID заказа»): выдачу отметить нельзя');
