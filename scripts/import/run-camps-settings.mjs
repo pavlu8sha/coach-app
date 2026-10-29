@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseRegistry } from './registry.mjs';
-import { buildCampsPlan } from './camps.mjs';
+import { buildCampsPlan, manualToAdopt } from './camps.mjs';
 import { getAll } from './rest-all.mjs';
 
 const args = process.argv.slice(2);
@@ -81,6 +81,10 @@ await upsertAll('camp_tariffs', 'camp_id,name', plan.tariffs.map(t => ({
 const dbTariffs = await getAll(rest, `camp_tariffs?select=id,camp_id,name`);
 const tariffId = new Map(dbTariffs.map(t => [`${t.camp_id}|${t.name}`, t.id]));
 
+// участники, добавленные вручную в приложении (без CP-…), получают свой номер из листа, а не дублируются
+const adopt = manualToAdopt({ participants: plan.participants, dbParticipants: await getAll(rest, 'camp_participants?select=id,camp_id,player_id,external_id'), campId, playerId });
+for (const a of adopt) await rest('PATCH', `camp_participants?id=eq.${a.id}`, { external_id: a.external_id }, 'return=minimal');
+if (adopt.length) console.log(`Участники сборов, добавленные вручную, получили номер из листа: ${adopt.map(a => a.external_id).join(', ')}`);
 await upsertAll('camp_participants', 'camp_id,external_id', plan.participants.map(p => ({
   camp_id: campId.get(p.camp_ext), external_id: p.external_id, player_id: playerId.get(p.player_ext),
   tariff_id: tariffId.get(`${campId.get(p.camp_ext)}|${p.tariff}`), amount: p.amount,
