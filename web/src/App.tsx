@@ -25,10 +25,13 @@ import ChildHome, { ChildCode, type ChildPlayer } from './screens/ChildHome';
 import ChildMatches from './screens/ChildMatches';
 import type { CoachGroup } from './lib/coach';
 import { BottomNav } from './ui/components';
+import { coachBar } from './lib/coachMenu';
+import Stats from './screens/Stats';
+import TrainerAttendance from './screens/TrainerAttendance';
 
 type State = { kind: 'loading' } | { kind: 'ready' } | { kind: 'outside' } | { kind: 'config' } | { kind: 'error'; text: string };
 
-type Tab = 'about' | 'home' | 'schedule' | 'matches' | 'payments' | 'profile' | 'more' | 'group' | SectionId;
+type Tab = 'about' | 'home' | 'schedule' | 'matches' | 'payments' | 'profile' | 'more' | 'group' | 'attendance' | 'ledger' | SectionId;
 
 const PREVIEW_LABEL: Record<Role, string> = { parent: 'Родитель', child: 'Ребёнок', guest: 'Гость', coach: 'Тренер без групп' };
 
@@ -202,12 +205,13 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
     : (admin || coach) && tab === 'sessions' ? <Sessions groups={allGroups.length ? allGroups : coachGroups} />
     : (admin || coach) && tab === 'cmatches' ? <CoachMatches groups={allGroups.length ? allGroups : coachGroups} admin={admin} allTeams={!admin} />
     : coach && tab === 'group' ? <Group groups={coachGroups} notify withStats />
+    : coach && tab === 'attendance' ? <Stats />
+    : coach && tab === 'ledger' ? <TrainerAttendance />
     : tab === 'schedule' ? (admin || coach || !hasKids ? <Schedule all={admin} /> : <ParentSchedule />)
     : !admin && !coach && tab === 'matches' ? <Matches />
     : !admin && !coach && tab === 'profile' ? <Profile />
     : !admin && !coach && tab === 'payments' ? <Payments />
     : <Home isAdmin={admin} onGuest={admin || coach || preview ? undefined : becomeGuest} />;
-  const kidsTab = hasKids ? [{ value: 'home' as const, label: 'Ребёнок', icon: 'child' as const }] : [];
   return (
     <>
       {screen}
@@ -225,12 +229,7 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
                 { value: 'more', label: 'Ещё', icon: 'more' },
               ]
             : coach
-              ? [
-                  { value: 'sessions', label: 'Занятия', icon: 'calendar' },
-                  { value: 'cmatches', label: 'Матчи', icon: 'trophy' },
-                  { value: 'group', label: 'Группа', icon: 'users' },
-                  ...kidsTab,
-                ]
+              ? coachBar(hasKids)
               : [
                   { value: 'home', label: 'Ребёнок', icon: 'child' },
                   { value: 'schedule', label: 'Расписание', icon: 'calendar' },
