@@ -56,7 +56,7 @@ export function parseSeason(text, catalogKits) {
         return { kit, size: get('size') || null, quantity: qtyParts[k] || 1, unit_price: catalogKits.get(kit) };
       });
       orders.push({
-        ext_id: get('oid'), player_ext: get('pid'), ordered_on: isoOrNull(get('date')),
+        ext_id: get('oid'), player_ext: get('pid'), name: get('name'), ordered_on: isoOrNull(get('date')),
         inscription: get('insc') || null, number: get('num') || null,
         installment: get('inst').toLowerCase() === 'да', total: parseAmount(get('total')),
         paid: parseAmount(get('paid')), location: get('loc') || null, lines,
