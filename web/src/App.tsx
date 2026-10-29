@@ -204,7 +204,7 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
     : admin && isSection(tab) ? <AdminSection key={tab} id={tab} groups={allGroups} onMenuChanged={() => setMenuKey(k => k + 1)} />
     : (admin || coach) && tab === 'sessions' ? <Sessions groups={allGroups.length ? allGroups : coachGroups} />
     : (admin || coach) && tab === 'cmatches' ? <CoachMatches groups={allGroups.length ? allGroups : coachGroups} admin={admin} allTeams={!admin} />
-    : coach && tab === 'group' ? <Group groups={coachGroups} notify withStats />
+    : coach && tab === 'group' ? <Group groups={coachGroups} notify />
     : coach && tab === 'attendance' ? <Stats />
     : coach && tab === 'ledger' ? <TrainerLog readOnly />
     : tab === 'schedule' ? (admin || coach || !hasKids ? <Schedule all={admin} /> : <ParentSchedule />)
