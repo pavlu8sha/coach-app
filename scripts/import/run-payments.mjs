@@ -10,6 +10,7 @@ import path from 'node:path';
 import { parseRegistry } from './registry.mjs';
 import { parsePayMonth } from './payments.mjs';
 import { PAY_NAME_ALIAS, PAY_GUESTS, IND_GROUP } from './payments-plan.mjs';
+import { getAll } from './rest-all.mjs';
 
 const args = process.argv.slice(2);
 const write = args.includes('--write');
@@ -52,7 +53,7 @@ async function rest(method, p, body, prefer = '') {
 }
 
 // игроки и группы из базы (по ФИ и названию)
-const dbPlayers = await rest('GET', `players?club_id=eq.${CLUB_ID}&select=id,full_name`);
+const dbPlayers = await getAll(rest, `players?club_id=eq.${CLUB_ID}&select=id,full_name`);
 const playerId = new Map(dbPlayers.map(p => [norm(p.full_name), p.id]));
 const idOf = name => playerId.get(canon(name));
 const dbGroups = await rest('GET', `groups?club_id=eq.${CLUB_ID}&select=id,name`);
@@ -66,17 +67,28 @@ const missingGroups = [...new Set(all.map(r => r.group).filter(g => !groupId.has
 if (missingGroups.length) { console.error('Группы не найдены в базе, сначала импортируйте реестр: ' + missingGroups.join(', ')); process.exit(1); }
 
 // 1) абонементы: по одной строке на игрока и месяц
-// одна строка абонемента на игрока и месяц: группа — из реестра, сумма — по всем строкам месяца
+// одна строка абонемента на игрока и месяц: группа — из листа оплат, сумма — по всем строкам месяца
 const subMap = new Map();
+const groupsByKey = new Map();
 for (const r of rows) {
   const pid = idOf(r.name);
   const key = `${pid}|${r.month}`;
-  const regGroup = regByName.get(canon(r.name))?.group_name;
-  const gid = groupId.get(regGroup) ?? groupId.get(r.group);
+  const gid = groupId.get(r.group);
   const cur = subMap.get(key) || { player_id: pid, group_id: gid, month: r.month, amount_due: 0 };
   cur.amount_due += r.paid;
   subMap.set(key, cur);
+  const groups = groupsByKey.get(key) ?? new Set();
+  groups.add(r.group);
+  groupsByKey.set(key, groups);
 }
+const ambiguous = [...groupsByKey].filter(([, g]) => g.size > 1);
+// несколько групп в одном месяце: если текущая группа реестра среди них, берём её (как до этой правки), иначе группу первой строки
+const regGroupById = new Map(reg.players.map(p => [playerId.get(norm(p.full_name)), p.group_name]));
+for (const [key, g] of ambiguous) {
+  const regGroup = regGroupById.get(key.split('|')[0]);
+  if (g.has(regGroup)) subMap.get(key).group_id = groupId.get(regGroup);
+}
+if (ambiguous.length) console.log(`Внимание: несколько групп в одном месяце у ${ambiguous.length} абонементов; взята текущая группа реестра, если она среди них, иначе группа первой строки. Проверьте вручную.`);
 const subs = [...subMap.values()];
 for (let i = 0; i < subs.length; i += 500) {
   await rest('POST', 'subscriptions?on_conflict=player_id,month', subs.slice(i, i + 500), 'resolution=merge-duplicates,return=minimal');
@@ -84,11 +96,11 @@ for (let i = 0; i < subs.length; i += 500) {
 
 // 2) id абонементов для связки с платежами
 const monthsSet = [...new Set(rows.map(r => r.month))];
-const subRows = await rest('GET', `subscriptions?select=id,player_id,month&month=in.(${monthsSet.join(',')})`);
+const subRows = await getAll(rest, `subscriptions?select=id,player_id,month&month=in.(${monthsSet.join(',')})`);
 const subId = new Map(subRows.map(s => [`${s.player_id}|${s.month}`, s.id]));
 
 // 3) платежи: только внесённые суммы, без дублей (по legacy_ref)
-const existing = new Set((await rest('GET', 'payments?select=legacy_ref&legacy_ref=like.PAY_ID*')).map(x => x.legacy_ref));
+const existing = new Set((await getAll(rest, 'payments?select=legacy_ref&legacy_ref=like.PAY_ID*')).map(x => x.legacy_ref));
 const pays = rows.filter(r => r.paid > 0).map(r => {
   const ref = `PAY_ID ${r.month.slice(0, 7)} ${r.group} №${r.no} ${norm(r.name)}`;
   return { ref, row: {
