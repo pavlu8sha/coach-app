@@ -162,7 +162,7 @@ describe('«Приём оплат»: платежи дня', () => {
     await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
     expect(screen.getByText('Наличные').nextSibling?.textContent).toBe('50 ₾');
     fireEvent.click(screen.getByRole('button', { name: 'Отменить оплату: Иванов Пётр' }));
-    await waitFor(() => expect(fake.writes('payments', 'insert')).toEqual([expect.objectContaining({ player_id: 'p1', amount: -50, paid_on: today(), method: 'Исправление' })]));
+    await waitFor(() => expect(fake.writes('payments', 'insert')).toEqual([expect.objectContaining({ player_id: 'p1', amount: -50, paid_on: today(), method: 'Наличные' })]));
   });
   it('отмена платежа вперёд записывается в тот же месяц; отменённый платёж не отменить дважды', async () => {
     seed();
@@ -171,7 +171,19 @@ describe('«Приём оплат»: платежи дня', () => {
     render(<CashDesk />);
     await screen.findByRole('heading', { name: /Внесено сегодня.*165 ₾/ });
     fireEvent.click(screen.getByRole('button', { name: 'Отменить оплату: Иванов Пётр' }));
-    await waitFor(() => expect(fake.writes('payments', 'insert')).toEqual([expect.objectContaining({ amount: -165, for_month: '2099-11-01', method: 'Исправление' })]));
+    await waitFor(() => expect(fake.writes('payments', 'insert')).toEqual([expect.objectContaining({ amount: -165, for_month: '2099-11-01', method: 'Перевод' })]));
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Отменить оплату: Иванов Пётр' })).toBeNull());
+  });
+  it('у ушедшего игрока текущий и будущий месяцы не считаются долгом', async () => {
+    seed();
+    fake.db.players = [{ id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'inactive', groups: { name: 'U9-A' } }];
+    fake.db.payments = [];
+    fake.db.equipment_orders = [];
+    fake.db.individual_bookings = [];
+    fake.db.extra_bookings = [];
+    fake.db.camp_participants = [];
+    await openPlayer();
+    expect(await screen.findByText(/Долгов нет/)).toBeInTheDocument();
+    expect(screen.queryByText(/\(вперёд\)/)).toBeNull();
   });
 });
