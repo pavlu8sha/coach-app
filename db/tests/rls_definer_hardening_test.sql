@@ -63,7 +63,9 @@ select is(
         -- 0054: взносы за матч (только админ; проверка внутри)
         'match_fees_list', 'match_payments_list', 'match_fee_add', 'match_set_fee', 'match_fee_remove', 'match_pay', 'match_discount', 'match_cancel_payment',
         -- 0063: турниры ребёнка для родителя, включая турниры без матчей
-        'my_tournaments')),
+        'my_tournaments',
+        -- 0078: кассовый отчёт по сотрудникам и способам (только админ; проверка внутри)
+        'cash_report')),
   '', 'список функций, доступных вошедшим пользователям, не расширился без решения');
 
 select is(
