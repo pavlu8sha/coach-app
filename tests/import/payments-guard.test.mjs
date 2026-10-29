@@ -27,19 +27,28 @@ const tables = (refs) => ({
   payments: refs.map((legacy_ref, i) => ({ id: i, player_id: 'p1', amount: 165, paid_on: '2026-09-01', legacy_ref })),
 });
 
-test('run-payments: сдвиг номера строки (дубль по игроку, месяцу и сумме) останавливает запись до любых записей', async () => {
+test('run-payments: сдвиг номера строки (тот же игрок, месяц и сумма) не даёт второго платежа: сумма сверяется «игрок × месяц»', async () => {
   const { reg, month } = fixture();
   const fake = await startFake(tables(['PAY_ID 2026-09 U9-A №3 ivanov ivan']));
   try {
-    const r = await runScript('run-payments.mjs', ['--registry', reg, month, '--write'], fake.url);
-    assert.equal(r.code, 1);
-    assert.equal(fake.writes().length, 0);
-    assert.match(r.stdout, /возможные дубли \(1\)/);
     const dry = await runScript('run-payments.mjs', ['--registry', reg, month], fake.url);
-    assert.equal(dry.code, 1, 'проверка без записи тоже сообщает кодом 1');
-    const ok = await runScript('run-payments.mjs', ['--registry', reg, month, '--write', '--accept-possible-duplicates'], fake.url);
-    assert.equal(ok.code, 0, ok.stderr);
-    assert.equal(fake.writes().filter(c => c.table === 'payments').length, 1);
+    assert.equal(dry.code, 0, dry.stderr);
+    assert.match(dry.stdout, /второй платёж не пишем/);
+    assert.match(dry.stdout, /Новых платежей к записи: 0/);
+    const r = await runScript('run-payments.mjs', ['--registry', reg, month, '--write'], fake.url);
+    assert.equal(r.code, 0, r.stderr);
+    assert.equal(fake.writes().filter(c => c.table === 'payments').length, 0);
+  } finally { await fake.close(); }
+});
+
+test('run-payments: два разных платежа одинаковой суммы (в листе их два) пишутся оба, одинаковая сумма в базе не мешает', async () => {
+  const { reg, month } = fixture();
+  fs.writeFileSync(month, 'U9-A\n№,ФИ,Дата,Оплата\n3,Ivanov Ivan,,165\n');
+  const fake = await startFake(tables(['PAY_ID 2026-09 U9-A №3 ivanov ivan']));
+  try {
+    fs.writeFileSync(month, 'U9-A\n№,ФИ,Дата,Оплата\n3,Ivanov Ivan,,165\n5,Ivanov Ivan,,165\n');
+    const r = await runScript('run-payments.mjs', ['--registry', reg, month], fake.url);
+    assert.match(r.stdout, /Новых платежей к записи: 1 на 165/);
   } finally { await fake.close(); }
 });
 

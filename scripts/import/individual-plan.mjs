@@ -47,3 +47,22 @@ export function buildIndividualPlan({ registryNames, payRows, sessionsSheet, jou
   const guests = [...new Set(bookings.filter(p => p.guest).map(p => p.name))];
   return { sessions, bookings, guests, problems };
 }
+
+// Занятия, созданные или правленные в приложении, получают в идентификаторе время: IND-2026-10-24-1900, IND-2026-10-25-1900-GK.
+// Импорт знает занятие только по дате (IND-2026-10-24, IND-2026-10-25-GK). Возвращает карту «идентификатор плана → идентификатор в базе»:
+// точное совпадение, иначе единственное занятие в базе той же даты и того же вида; иначе идентификатор плана (будет создано новое занятие).
+export function matchDbSessions(planExts, dbExts) {
+  const db = new Set(dbExts);
+  const byDay = new Map();
+  for (const e of db) {
+    const m = /^(IND-\d{4}-\d{2}-\d{2})-\d{4}(-GK)?$/.exec(e);
+    if (m) { const k = m[1] + (m[2] ?? ''); byDay.set(k, [...(byDay.get(k) ?? []), e]); }
+  }
+  const map = new Map();
+  for (const e of planExts) {
+    if (db.has(e)) { map.set(e, e); continue; }
+    const c = byDay.get(e);
+    map.set(e, c && c.length === 1 ? c[0] : e);
+  }
+  return map;
+}

@@ -70,3 +70,38 @@ export function buildPaymentsPlan({ registry, files }) {
     problems: months.flatMap(m => m.problems),
   };
 }
+
+const cents = x => Math.round(Number(x) * 100);
+
+// Что записать в журнал платежей. Журнал только добавляется, поэтому сверяем по сумме «игрок × месяц», а не только по ссылке строки:
+//   file     — строки листов оплат: { ref, key, amount }, key = «id игрока|ГГГГ-ММ»;
+//   existing — уже записанные платежи импорта (legacy_ref «PAY_ID …»): { ref, key, amount }.
+// Если новая строка вносит ровно недостающую сумму — пишем её, как раньше. Если в базе уже внесено столько, сколько в файле
+// (строку перенесли в другую группу или номер, ссылка сменилась), второй платёж не пишем. Если суммы расходятся иначе
+// (строку дополнили или платёж внесён иначе), пишем один платёж-коррекцию на разницу (в том числе отрицательный).
+export function planPaymentWrites({ file, existing }) {
+  const byKey = rows => { const m = new Map(); for (const r of rows) m.set(r.key, [...(m.get(r.key) ?? []), r]); return m; };
+  const fileBy = byKey(file), dbBy = byKey(existing);
+  const allRefs = new Set(existing.map(x => x.ref)); // ссылка, уже внесённая под любым ключом (например, имя игрока в ссылке менялось), повторно не пишется
+  const inserts = [], covered = [], corrections = [];
+  for (const [key, items] of fileBy) {
+    const fileRefs = new Set(items.map(x => x.ref));
+    // платежи игрока в месяце: по ключу плюс те, чья ссылка совпала со строкой листа (на случай другого ключа в базе)
+    const db = [...(dbBy.get(key) ?? []), ...existing.filter(x => x.key !== key && fileRefs.has(x.ref))];
+    const have = new Set(db.map(x => x.ref));
+    const unmatched = items.filter(x => !have.has(x.ref) && !allRefs.has(x.ref));
+    // сумма платежа в базе неизвестна: сверяем только по ссылкам, как раньше, коррекций не делаем
+    if (db.some(x => !Number.isFinite(Number(x.amount)))) { inserts.push(...unmatched); continue; }
+    const fileTotal = items.reduce((a, x) => a + cents(x.amount), 0);
+    const dbTotal = db.reduce((a, x) => a + cents(x.amount), 0);
+    const diff = fileTotal - dbTotal;
+    const unmatchedSum = unmatched.reduce((a, x) => a + cents(x.amount), 0);
+    if (diff === 0) { if (unmatched.length) covered.push({ key, refs: unmatched.map(x => x.ref), amount: unmatchedSum / 100 }); continue; }
+    if (diff === unmatchedSum) { inserts.push(...unmatched); continue; }
+    const first = items[0];
+    const month = key.split('|')[1];
+    const c = { ref: `PAY_ID ${month} коррекция ${first.player ?? key.split('|')[0]} до ${fileTotal / 100}`, key, amount: diff / 100, player: first.player, was: dbTotal / 100, now: fileTotal / 100, correction: true };
+    inserts.push(c); corrections.push(c);
+  }
+  return { inserts, covered, corrections };
+}

@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseRegistry } from './registry.mjs';
 import { parsePayMonth } from './payments.mjs';
-import { PAY_NAME_ALIAS, PAY_GUESTS, IND_GROUP } from './payments-plan.mjs';
+import { PAY_NAME_ALIAS, PAY_GUESTS, IND_GROUP, planPaymentWrites } from './payments-plan.mjs';
 import { getAll } from './rest-all.mjs';
 import { possibleDuplicates } from './payments-guard.mjs';
 
@@ -74,11 +74,21 @@ if (missingGroups.length) { console.error('Группы не найдены в �
 
 // Платежи, которые импорт запишет, и защита от дублей при сдвиге номеров строк (до любой записи)
 const dbPay = await getAll(rest, 'payments?select=id,player_id,amount,paid_on,legacy_ref&legacy_ref=like.PAY_ID*');
-const existing = new Set(dbPay.map(x => x.legacy_ref));
-const candidates = rows.filter(r => r.paid > 0).map(r => ({ ref: `PAY_ID ${r.month.slice(0, 7)} ${r.group} №${r.no} ${norm(r.name)}`, player_id: idOf(r.name), amount: r.paid, paid_on: r.month }));
-const fresh = candidates.filter(c => !existing.has(c.ref));
-const dups = possibleDuplicates(fresh, dbPay);
-console.log(`Новых платежей к записи: ${fresh.length} на ${Math.round(fresh.reduce((a, c) => a + c.amount, 0) * 100) / 100} ₾ (уже в базе: ${candidates.length - fresh.length}).`);
+// Журнал только добавляется, поэтому сверяем по сумме «игрок × месяц» (planPaymentWrites): ссылка строки сменилась, а сумма та же — второй платёж не пишем;
+// строку дополнили в листе — пишем платёж-коррекцию на разницу.
+const extOf = new Map(reg.players.map(p => [norm(p.full_name), p.external_id]));
+const fileItems = rows.filter(r => r.paid > 0).map(r => ({
+  ref: `PAY_ID ${r.month.slice(0, 7)} ${r.group} №${r.no} ${norm(r.name)}`, key: `${idOf(r.name)}|${r.month.slice(0, 7)}`, amount: r.paid, player: extOf.get(canon(r.name)), month: r.month,
+}));
+const monthOfKey = new Map(fileItems.map(x => [x.key, x.month]));
+const existingPays = dbPay.map(x => ({ ref: x.legacy_ref, key: `${x.player_id}|${(/^PAY_ID (\d{4}-\d{2})/.exec(x.legacy_ref) ?? [])[1] ?? ''}`, amount: Number(x.amount) }));
+const { inserts, covered, corrections } = planPaymentWrites({ file: fileItems, existing: existingPays });
+for (const c of covered) console.log(`Уже внесено другой строкой, второй платёж не пишем: ${c.refs.join('; ')} (${c.amount} ₾)`);
+for (const c of corrections) console.log(`Коррекция: ${c.player} ${c.key.split('|')[1]}: в базе ${c.was} ₾, в листе ${c.now} ₾, пишем ${c.amount > 0 ? '+' : ''}${c.amount} ₾`);
+const candidates = fileItems;
+const fresh = inserts.map(x => ({ ref: x.ref, player_id: x.key.split('|')[0], amount: x.amount, paid_on: monthOfKey.get(x.key), correction: !!x.correction }));
+const dups = possibleDuplicates(fresh.filter(c => !c.correction), dbPay);
+console.log(`Новых платежей к записи: ${fresh.length} на ${Math.round(fresh.reduce((a, c) => a + c.amount, 0) * 100) / 100} ₾ (в том числе коррекций ${corrections.length}; строк листа уже в базе или покрыто: ${candidates.length - fresh.filter(c => !c.correction).length}).`);
 if (dups.length) {
   console.log(`ВНИМАНИЕ: возможные дубли (${dups.length}): платёж «новый», но в базе есть платёж того же игрока, месяца и суммы с другим ключом (сдвиг номеров строк в листе?):`);
   for (const d of dups.slice(0, 40)) console.log(`  ${d.ref} | в базе: ${d.baseRefs.join('; ')}`);
@@ -128,4 +138,4 @@ const pays = fresh.map(c => ({
 for (let i = 0; i < pays.length; i += 500) {
   await rest('POST', 'payments', pays.slice(i, i + 500), 'return=minimal');
 }
-console.log(`Записано: абонементов ${subs.length}, платежей ${pays.length} (пропущено уже существующих: ${candidates.length - pays.length}).`);
+console.log(`Записано: абонементов ${subs.length}, платежей ${pays.length} (коррекций ${corrections.length}; строк листа не записано как уже внесённых: ${candidates.length - pays.filter(p => !corrections.some(c => c.ref === p.legacy_ref)).length}).`);

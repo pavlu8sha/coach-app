@@ -1,5 +1,6 @@
 // Посещаемость: листы месяцев (08.26, 09.26, ...) и «Журнал посещаемости». Чистые функции, без сети.
-// Правила (подтверждены владельцем): главный источник — листы месяцев; журнал — только для сверки.
+// Правила (подтверждены владельцем): листы месяцев — основа; «Журнал посещаемости» (ЖУРНАЛ ПОСЕЩАЕМОСТИ.csv) приоритетнее листа:
+// при расхождении берётся отметка журнала, а отметки, которых в листе нет (в том числе целый день), дописываются из журнала (29.10).
 // Тренировка = день, где у группы есть хотя бы одна галочка; в такой день FALSE = «отсутствовал».
 // Время начала — из расписания (слот «Групповая» для группы и дня недели).
 import { parseCsv } from './registry.mjs';
@@ -8,6 +9,9 @@ import { guestExt } from './individual.mjs';
 
 // Дети, которые есть в листе августа, но не в реестре (подтверждено владельцем): заводятся как неактивные игроки GUEST-…
 export const FORMER = ['Bayter Aivi', 'Caregorodcev Lev', 'Dmitriev Nikita', 'Litvinov Bogdan', 'Fedotov Adam', 'Fedotov Shon'];
+// Дети из листов, которых пока нет в реестре; владелец добавит их после перехода (29.10). Их отметки не импортируются и импорт не останавливают.
+// Любое другое имя вне реестра по-прежнему останавливает запись.
+export const DEFERRED = ['Orudzhov Ali', 'Orudzhov Kinan'];
 // Время тренировок, которых нет ни в расписании, ни в журнале тренировок (сообщено владельцем)
 export const TIME_FIX = {
   '2026-08-22|U13-A': '18:45',
@@ -110,9 +114,16 @@ export function buildAttendancePlan({ sheets, journalText, schedule, registryPla
     logSlots.get(k).add(r.starts_at);
   }
   let dupSame = 0, fromLog = 0;
+  // время начала: расписание группы, затем журнал тренировок, затем поправка владельца
+  const timesFor = (group, date) => {
+    let times = slots.get(`${group}|${weekdayOf(date)}`);
+    if (!times && logSlots.has(`${group}|${date}`)) { times = logSlots.get(`${group}|${date}`); fromLog++; }
+    if (!times && TIME_FIX[`${date}|${group}`]) times = new Set([TIME_FIX[`${date}|${group}`]]);
+    return times ?? null;
+  };
   const excluded = [], shifted = [];
   const allDays = new Set();
-  const sessions = [], marks = [], unmatched = new Map(), problems = [], skipped = [], noSlot = [], manySlots = [];
+  const sessions = [], marks = [], unmatched = new Map(), deferred = new Map(), problems = [], skipped = [], noSlot = [], manySlots = [];
   const resolved = new Map(); // имя из листа → игрок
   const former = new Map();
   const resolve = name => {
@@ -136,9 +147,7 @@ export function buildAttendancePlan({ sheets, journalText, schedule, registryPla
       const fixed = DATE_FIX[`${d0.date}|${d0.group}`];
       const d = fixed ? { ...d0, date: fixed } : d0;
       if (fixed) shifted.push(`${d0.date} → ${fixed} ${d0.group}`);
-      let times = slots.get(`${d.group}|${weekdayOf(d.date)}`);
-      if (!times && logSlots.has(`${d.group}|${d.date}`)) { times = logSlots.get(`${d.group}|${d.date}`); fromLog++; }
-      if (!times && TIME_FIX[`${d.date}|${d.group}`]) times = new Set([TIME_FIX[`${d.date}|${d.group}`]]);
+      const times = timesFor(d.group, d.date);
       if (!times) { noSlot.push(`${d.date} ${d.group}`); continue; }
       const t = [...times].sort();
       if (t.length > 1) manySlots.push(`${d.date} ${d.group}: ${t.join(', ')}`);
@@ -149,25 +158,56 @@ export function buildAttendancePlan({ sheets, journalText, schedule, registryPla
       sessions.push({ group_name: d.group, source_key, date: d.date, starts_at: `${d.date}T${t[0]}:00${TZ}` });
       for (const m of d.marks) {
         const p = resolve(m.name);
-        if (!p) { unmatched.set(m.name, (unmatched.get(m.name) || 0) + 1); continue; }
+        if (!p) {
+          if (DEFERRED.some(x => norm(x) === norm(m.name))) deferred.set(m.name, (deferred.get(m.name) || 0) + 1);
+          else unmatched.set(m.name, (unmatched.get(m.name) || 0) + 1);
+          continue;
+        }
         marks.push({ group_name: d.group, source_key, external_id: p.external_id, name: p.full_name, status: m.present ? 'present' : 'absent' });
       }
     }
   }
-  // Сверка с журналом (только чтение)
+  // Журнал приоритетнее листа: расхождение — берём отметку журнала; отметка (или день), которых нет в листе, — дописываем из журнала
   const journal = journalText ? parseJournal(journalText) : [];
-  const sheetMark = new Map(marks.map(m => [`${m.group_name}|${m.source_key.slice(4)}|${m.external_id}`, m.status === 'present']));
+  const markAt = new Map(marks.map(m => [`${m.group_name}|${m.source_key.slice(4)}|${m.external_id}`, m]));
+  const sessionAt = new Map(sessions.map(x => [`${x.group_name}|${x.date}`, x]));
   const sheetDays = allDays;
-  const disagree = [], journalOnly = [];
+  const journalPresentDays = new Set(journal.filter(x => x.present).map(x => `${x.group}|${x.date}`)); // день без единого «присутствовал» в журнале тренировкой не считаем
+  const disagree = [], journalOnly = [], journalSkipped = [];
   let both = 0, agree = 0;
   for (const j of journal) {
-    const id = j.external_id || (byName.get(resolveName(j.name, names)?.name)?.external_id);
+    if (NOT_TRAINING.has(`${j.date}|${j.group}`)) continue;
+    const p = j.external_id ? registryPlayers.find(x => x.external_id === j.external_id) : null;
+    const rp = p ?? byName.get(resolveName(j.name, names)?.name);
+    const fp = rp ? null : FORMER.find(x => norm(x) === norm(j.name));
+    const id = rp?.external_id ?? (fp ? guestExt(fp) : j.external_id);
+    const who = rp ? { external_id: rp.external_id, full_name: rp.full_name } : fp ? { external_id: guestExt(fp), full_name: fp } : null;
     const k = `${j.group}|${j.date}|${id}`;
-    if (sheetMark.has(k)) { both++; if (sheetMark.get(k) === j.present) agree++; else disagree.push(`${j.date} ${j.group} ${j.name}: журнал «${j.present ? 'был' : 'не был'}», лист «${sheetMark.get(k) ? 'был' : 'не был'}»`); }
-    else journalOnly.push(`${j.date} ${j.group} ${j.name}${sheetDays.has(`${j.group}|${j.date}`) ? '' : ' (дня нет в листе)'}`);
+    const have = markAt.get(k);
+    if (have) {
+      both++;
+      if ((have.status === 'present') === j.present) { agree++; continue; }
+      disagree.push(`${j.date} ${j.group} ${j.name}: журнал «${j.present ? 'был' : 'не был'}», лист «${have.status === 'present' ? 'был' : 'не был'}» → берём журнал`);
+      have.status = j.present ? 'present' : 'absent';
+      continue;
+    }
+    const desc = `${j.date} ${j.group} ${j.name}${sheetDays.has(`${j.group}|${j.date}`) ? '' : ' (дня нет в листе)'}`;
+    if (!who) { journalSkipped.push(`${desc}: игрока нет в реестре`); continue; }
+    let sess = sessionAt.get(`${j.group}|${j.date}`);
+    if (!sess) {
+      if (!journalPresentDays.has(`${j.group}|${j.date}`)) { journalSkipped.push(`${desc}: в журнале за этот день никто не присутствовал`); continue; }
+      const times = timesFor(j.group, j.date);
+      if (!times) { journalSkipped.push(`${desc}: нет времени занятия`); continue; }
+      sess = { group_name: j.group, source_key: `ATT|${j.date}`, date: j.date, starts_at: `${j.date}T${[...times].sort()[0]}:00${TZ}` };
+      sessions.push(sess); sessionAt.set(`${j.group}|${j.date}`, sess);
+    }
+    if (fp) former.set(who.external_id, { external_id: who.external_id, full_name: who.full_name });
+    const m = { group_name: j.group, source_key: sess.source_key, external_id: who.external_id, name: who.full_name, status: j.present ? 'present' : 'absent' };
+    marks.push(m); markAt.set(k, m);
+    journalOnly.push(desc);
   }
   return {
-    excluded, shifted, dupSame, fromLog, former: [...former.values()], sessions, marks, unmatched: [...unmatched].map(([name, n]) => ({ name, n })), problems, skipped, noSlot, manySlots,
-    journal: { rows: journal.length, both, agree, disagree, journalOnly },
+    excluded, shifted, dupSame, fromLog, former: [...former.values()], sessions, marks, unmatched: [...unmatched].map(([name, n]) => ({ name, n })), deferred: [...deferred].map(([name, n]) => ({ name, n })), problems, skipped, noSlot, manySlots,
+    journal: { rows: journal.length, both, agree, disagree, journalOnly, journalSkipped },
   };
 }

@@ -11,7 +11,7 @@ import { parseCsv, parseRegistry, isoDate } from './registry.mjs';
 import { parseCatalog, parseSeason } from './equipment.mjs';
 import { buildPlan } from './events-plan.mjs';
 import { parsePayBlock, parseSessionsSheet, replayJournal } from './individual.mjs';
-import { buildIndividualPlan } from './individual-plan.mjs';
+import { buildIndividualPlan, matchDbSessions } from './individual-plan.mjs';
 import { buildPaymentsPlan } from './payments-plan.mjs';
 import { buildCampsPlan } from './camps.mjs';
 import { parseGamesLog } from './games-log.mjs';
@@ -70,7 +70,7 @@ async function main() {
   const argv = process.argv.slice(2);
   if (argv.includes('--write')) throw new Error('verify.mjs только читает; ключ --write не поддерживается');
   if (argv.includes('--help') || argv.includes('-h')) {
-    console.log('Использование: node scripts/import/verify.mjs [--dir] "migration-export 2026-10-22 19-12"');
+    console.log('Использование: node scripts/import/verify.mjs [--dir] "migration-export 2026-10-22 19-12" [--full]   (--full: расхождения без обрезки, с именами игроков)');
     return;
   }
   const argDir = argv.includes('--dir') ? argv[argv.indexOf('--dir') + 1] : argv.find(a => !a.startsWith('--'));
@@ -191,6 +191,10 @@ async function main() {
   const tournamentById = new Map(tournaments.map(t => [t.id, t]));
 
   // ---------- проверки ----------
+  // --full: расхождения без обрезки; у KS-… в расхождениях подписывается имя
+  const FULL = process.argv.includes('--full');
+  const extName = new Map([...players.map(p => [p.external_id, p.full_name]), ...reg.players.map(p => [p.external_id, p.full_name])]);
+  const named = x => String(x).replace(/\bKS-\d{4}\b/g, id => extName.has(id) ? `${id} (${extName.get(id)})` : id);
   const checks = [];
   const check = (name, expected, actual, details = []) => {
     const numeric = typeof expected === 'number';
@@ -200,7 +204,7 @@ async function main() {
   const setDetails = (expected, actual, label = 'элемент') => {
     const missing = [...expected].filter(x => !actual.has(x)).sort();
     const extra = [...actual].filter(x => !expected.has(x)).sort();
-    const take = a => a.slice(0, 20).join(', ') + (a.length > 20 ? ` … ещё ${a.length - 20}` : '');
+    const take = a => (FULL ? a : a.slice(0, 20)).map(named).join(', ') + (!FULL && a.length > 20 ? ` … ещё ${a.length - 20}` : '');
     const out = [];
     if (missing.length) out.push(`нет в базе (${missing.length}): ${take(missing)}`);
     if (extra.length) out.push(`лишние в базе (${extra.length}): ${take(extra)}`);
@@ -210,7 +214,7 @@ async function main() {
     const missing = [...expected.keys()].filter(k => !actual.has(k)).sort();
     const extra = [...actual.keys()].filter(k => !expected.has(k)).sort();
     const diff = [...expected.keys()].filter(k => actual.has(k) && !sameMoney(expected.get(k), actual.get(k))).sort();
-    const take = a => a.slice(0, 20).join(', ') + (a.length > 20 ? ` … ещё ${a.length - 20}` : '');
+    const take = a => (FULL ? a : a.slice(0, 20)).map(named).join(', ') + (!FULL && a.length > 20 ? ` … ещё ${a.length - 20}` : '');
     const out = [];
     if (missing.length) out.push(`нет в базе (${missing.length}): ${take(missing)}`);
     if (extra.length) out.push(`лишние в базе (${extra.length}): ${take(extra)}`);
@@ -308,14 +312,16 @@ async function main() {
   check('Платежи: сумма', [...expPays.values()].reduce((a, n) => a + n, 0), [...dbPays.values()].reduce((a, n) => a + n, 0));
 
   // индивидуальные
-  const expIndSessions = new Set(indPlan.sessions.map(s => s.external_id));
+  // занятия, созданные или правленные в приложении, имеют в идентификаторе время (IND-…-1900): сопоставляем по дате и виду
+  const indExtMap = matchDbSessions(indPlan.sessions.map(s => s.external_id), indSessions.map(s => s.external_id));
+  const expIndSessions = new Set(indPlan.sessions.map(s => indExtMap.get(s.external_id)));
   const dbIndSessions = new Set(indSessions.map(s => s.external_id));
   check('Индивидуальные: занятия', expIndSessions.size, dbIndSessions.size, setDetails(expIndSessions, dbIndSessions));
   const expIndBookings = new Map();
   for (const b of indPlan.bookings) {
     const sess = indPlan.sessions.find(s => s.people.includes(b));
     const pext = b.external_id || nameToExt.get(b.name);
-    if (sess && pext) expIndBookings.set(`${sess.external_id}|${pext}`, b.paid);
+    if (sess && pext) expIndBookings.set(`${indExtMap.get(sess.external_id)}|${pext}`, b.paid);
   }
   const dbIndMap = new Map(indSessions.map(s => [s.id, s.external_id]));
   const dbIndBookings = new Map();

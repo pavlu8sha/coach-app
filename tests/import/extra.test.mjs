@@ -35,3 +35,23 @@ test('план: сумма из листа цен, способ из журна�
   assert.equal(plan.sessions[0].people[1].paid, false);
   assert.equal(plan.problems.length, 1);
 });
+
+test('план: ушедшие игроки и опечатка в имени заводятся бывшими, а не останавливают импорт', () => {
+  const plan = buildExtraPlan({
+    registryNames: ['Ivanov Petr', 'Sidorov Yan'],
+    sheets: [{ name: '14.09', text: sheet + '4,Rak Dorian,U9,TRUE\n5,Imnaishvili Gosha,U9,FALSE\n6,Imnaiishvili George,U9,FALSE\n7,Nobody Here,U9,FALSE\n' }],
+    year: 2026, now,
+  });
+  assert.deepEqual(plan.sessions[0].people.map(p => p.name), ['Ivanov Petr', 'Sidorov Yan', 'Rak Dorian', 'Imnaiishvili George']);
+  assert.deepEqual(plan.former.map(f => f.full_name), ['Rak Dorian', 'Imnaiishvili George']);
+  assert.equal(plan.former[0].external_id, 'GUEST-RAK-DORIAN');
+  assert.equal(plan.problems.length, 1);
+});
+
+test('план: если игрок уже в реестре, бывшим он не заводится', () => {
+  const plan = buildExtraPlan({
+    registryNames: ['Ivanov Petr', 'Sidorov Yan', 'Rak Dorian'],
+    sheets: [{ name: '14.09', text: sheet + '4,Rak Dorian,U9,TRUE\n' }], year: 2026, now,
+  });
+  assert.equal(plan.former.length, 0);
+});
