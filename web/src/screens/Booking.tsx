@@ -14,6 +14,8 @@ const err = (m: string) =>
   : m.includes('already booked') ? 'Ребёнок уже записан.'
   : m.includes('session in the past') ? 'Занятие уже прошло.'
   : m.includes('booking is paid') ? 'Запись оплачена: отменить её может администратор, напишите ему.'
+  : m.includes('session already started') ? 'Занятие уже началось, отменить запись нельзя. Напишите администратору.'
+  : m.includes('attendance marked') ? 'На занятии уже отмечена посещаемость. Отменить запись может администратор, напишите ему.'
   : m.includes('too late') ? 'Слишком поздно отменять через приложение. Напишите администратору.'
   : m.includes('Could not find the function') ? 'Запись пока недоступна (миграция 0045).'
   : coachError(m);
