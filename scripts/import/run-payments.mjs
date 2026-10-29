@@ -10,6 +10,7 @@ import path from 'node:path';
 import { parseRegistry } from './registry.mjs';
 import { parsePayMonth } from './payments.mjs';
 import { PAY_NAME_ALIAS, PAY_GUESTS, IND_GROUP } from './payments-plan.mjs';
+import { getAll } from './rest-all.mjs';
 
 const args = process.argv.slice(2);
 const write = args.includes('--write');
@@ -52,7 +53,7 @@ async function rest(method, p, body, prefer = '') {
 }
 
 // игроки и группы из базы (по ФИ и названию)
-const dbPlayers = await rest('GET', `players?club_id=eq.${CLUB_ID}&select=id,full_name`);
+const dbPlayers = await getAll(rest, `players?club_id=eq.${CLUB_ID}&select=id,full_name`);
 const playerId = new Map(dbPlayers.map(p => [norm(p.full_name), p.id]));
 const idOf = name => playerId.get(canon(name));
 const dbGroups = await rest('GET', `groups?club_id=eq.${CLUB_ID}&select=id,name`);
@@ -95,11 +96,11 @@ for (let i = 0; i < subs.length; i += 500) {
 
 // 2) id абонементов для связки с платежами
 const monthsSet = [...new Set(rows.map(r => r.month))];
-const subRows = await rest('GET', `subscriptions?select=id,player_id,month&month=in.(${monthsSet.join(',')})`);
+const subRows = await getAll(rest, `subscriptions?select=id,player_id,month&month=in.(${monthsSet.join(',')})`);
 const subId = new Map(subRows.map(s => [`${s.player_id}|${s.month}`, s.id]));
 
 // 3) платежи: только внесённые суммы, без дублей (по legacy_ref)
-const existing = new Set((await rest('GET', 'payments?select=legacy_ref&legacy_ref=like.PAY_ID*')).map(x => x.legacy_ref));
+const existing = new Set((await getAll(rest, 'payments?select=legacy_ref&legacy_ref=like.PAY_ID*')).map(x => x.legacy_ref));
 const pays = rows.filter(r => r.paid > 0).map(r => {
   const ref = `PAY_ID ${r.month.slice(0, 7)} ${r.group} №${r.no} ${norm(r.name)}`;
   return { ref, row: {

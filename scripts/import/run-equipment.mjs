@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseCatalog, parseSeason } from './equipment.mjs';
+import { getAll } from './rest-all.mjs';
 
 const args = process.argv.slice(2);
 const write = args.includes('--write');
@@ -49,7 +50,7 @@ await rest('POST', 'equipment_catalog?on_conflict=club_id,kit,valid_from',
   'resolution=merge-duplicates,return=minimal');
 
 // 2) игроки по external_id (KS-xxxx)
-const players = await rest('GET', `players?club_id=eq.${CLUB_ID}&select=id,external_id`);
+const players = await getAll(rest, `players?club_id=eq.${CLUB_ID}&select=id,external_id`);
 const pid = new Map(players.map(p => [p.external_id, p.id]));
 const missing = [...new Set(orders.map(o => o.player_ext).filter(x => !pid.has(x)))];
 if (missing.length) { console.error('Игроки не найдены в базе (сначала реестр): ' + missing.join(', ')); process.exit(1); }
@@ -63,7 +64,7 @@ const rowsOrders = orders.map(o => ({
 for (let i = 0; i < rowsOrders.length; i += 500) {
   await rest('POST', 'equipment_orders?on_conflict=club_id,external_ord_id', rowsOrders.slice(i, i + 500), 'resolution=merge-duplicates,return=minimal');
 }
-const dbOrders = await rest('GET', `equipment_orders?club_id=eq.${CLUB_ID}&select=id,external_ord_id`);
+const dbOrders = await getAll(rest, `equipment_orders?club_id=eq.${CLUB_ID}&select=id,external_ord_id`);
 const oid = new Map(dbOrders.map(o => [o.external_ord_id, o.id]));
 
 // 4) строки заказов: перезаписываем целиком (повторный запуск не дублирует)
