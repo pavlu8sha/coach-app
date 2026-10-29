@@ -46,6 +46,8 @@ export function parseSeason(text, catalogKits) {
     const no = (r[0] || '').trim();
     if (!/^\d+$/.test(no)) continue;
     const get = k => (r[c[k]] ?? '').trim();
+    // заготовки строк под новые заказы: есть только № (иногда ещё ID заказа), ни игрока, ни комплекта, ни суммы — это не заказ
+    if (!get('name') && !get('pid') && !get('kit') && !get('total')) continue;
     try {
       const kitText = KIT_ALIAS[get('kit')] ?? get('kit');
       const parts = kitText.split('+').map(p => p.trim()).filter(Boolean);
