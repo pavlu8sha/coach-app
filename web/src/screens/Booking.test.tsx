@@ -50,6 +50,14 @@ describe('Запись на занятия', () => {
     expect(await screen.findByText(/На занятии уже отмечена посещаемость/)).toBeInTheDocument();
   });
 
+  it('дополнительная тренировка со временем: в карточке видно время начала', async () => {
+    fake.db.player_guardians = [{ user_id: 'u', consent_revoked_at: null, players: { id: 'p1', full_name: 'Аня Первая' } }];
+    const day = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+    fake.rpc.booking_board = () => [{ kind: 'extra', session_id: 'x1', starts_at: `${day}T19:00:00`, title: 'Дополнительная тренировка', place: 'Зал', capacity: null, amount: 20, booked: [], mine: [] }];
+    render(<Booking />);
+    expect(await screen.findByText(/Дополнительная: .*19:00/)).toBeInTheDocument();
+  });
+
   it('мест нет: кнопка записи недоступна', async () => {
     fake.db.player_guardians = [{ user_id: 'u', consent_revoked_at: null, players: { id: 'p1', full_name: 'Аня Первая' } }];
     fake.rpc.booking_board = () => [{ ...board([], ['А', 'Б', 'В'])[0] }];
