@@ -71,7 +71,7 @@ select * from (values
   ('0067_export_points_start',     pg_get_functiondef(to_regprocedure('export_my_data()')) like '%points_start%'),
   ('0068_notify_bonus_points_start', pg_get_functiondef(to_regprocedure('notify_bonus()')) like '%points_start%'),
   ('0069_booking_cancel_started',  pg_get_functiondef(to_regprocedure('booking_cancel(text,uuid,uuid)')) like '%session already started%'),
-  ('0070_event_roster_remove_paid', pg_get_functiondef(to_regprocedure('event_roster_remove(uuid,uuid)')) like '%tournament_fees where tournament_id = t and player_id = pid and paid%'),
+  ('0076_event_roster_remove_paid', pg_get_functiondef(to_regprocedure('event_roster_remove(uuid,uuid)')) like '%tournament_fees where tournament_id = t and player_id = pid and paid%'),
   ('0070_extra_session_time',      exists (select 1 from information_schema.columns where table_name = 'extra_sessions' and column_name = 'starts_time')),
   ('0071_imported_paid_materialize', pg_get_functiondef(to_regprocedure('event_pay(uuid,uuid[],numeric,date,text,text)')) like '%Оплата из импорта%'),
   ('0072_pay_dedupe_ids',          pg_get_functiondef(to_regprocedure('event_pay(uuid,uuid[],numeric,date,text,text)')) like '%uids%'),

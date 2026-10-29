@@ -1,4 +1,4 @@
--- 0070 (D-03): event_roster_remove снова отказывает, если взнос оплачен флагом (импорт: paid = true без строк оплат).
+-- 0076 (D-03): event_roster_remove снова отказывает, если взнос оплачен флагом (импорт: paid = true без строк оплат).
 -- 0053 заменила проверку 0051 (tournament_fees.paid) проверкой tournament_payments; нужны обе.
 create or replace function event_roster_remove(t uuid, pid uuid) returns void
 language plpgsql security definer set search_path = public as $$
