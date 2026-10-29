@@ -65,7 +65,7 @@ export default function PlayerCard({ player, onBack, onEdit }: { player: CardPla
         { value: 'equip', label: 'Экипировка' }, { value: 'matches', label: 'Матчи' }, { value: 'points', label: 'Баллы' },
       ]} />
       <div style={{ height: 12 }} />
-      {tab === 'dues' && <PlayerDues embedded player={{ id: player.id, full_name: player.full_name, group_id: player.group_id, groups: player.group_name ? { name: player.group_name } : null }} />}
+      {tab === 'dues' && <PlayerDues embedded player={{ id: player.id, full_name: player.full_name, group_id: player.group_id, groups: player.group_name ? { name: player.group_name } : null, status: player.status }} />}
       {tab === 'sessions' && <SessionsTab playerId={player.id} />}
       {tab === 'equip' && <EquipmentTab playerId={player.id} />}
       {tab === 'matches' && <MatchesTab playerId={player.id} />}

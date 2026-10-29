@@ -46,6 +46,8 @@ export function parseSeason(text, catalogKits) {
     const no = (r[0] || '').trim();
     if (!/^\d+$/.test(no)) continue;
     const get = k => (r[c[k]] ?? '').trim();
+    // заготовки строк под новые заказы: есть только № (иногда ещё ID заказа), ни игрока, ни комплекта, ни суммы — это не заказ
+    if (!get('name') && !get('pid') && !get('kit') && !get('total')) continue;
     try {
       const kitText = KIT_ALIAS[get('kit')] ?? get('kit');
       const parts = kitText.split('+').map(p => p.trim()).filter(Boolean);
@@ -56,7 +58,7 @@ export function parseSeason(text, catalogKits) {
         return { kit, size: get('size') || null, quantity: qtyParts[k] || 1, unit_price: catalogKits.get(kit) };
       });
       orders.push({
-        ext_id: get('oid'), player_ext: get('pid'), ordered_on: isoOrNull(get('date')),
+        ext_id: get('oid'), player_ext: get('pid'), name: get('name'), ordered_on: isoOrNull(get('date')),
         inscription: get('insc') || null, number: get('num') || null,
         installment: get('inst').toLowerCase() === 'да', total: parseAmount(get('total')),
         paid: parseAmount(get('paid')), location: get('loc') || null, lines,

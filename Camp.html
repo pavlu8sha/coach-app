@@ -366,7 +366,7 @@ $('list').onclick=function(e){
     ksConfirm({title:'Отменить оплату?',ok:'Отменить оплату',danger:true,
       text:'В журнале сбора появится запись об отмене, сумма платежа перестанет учитываться.',
       rows:(hp?whoRows(hp):[]).concat(hx?[['Сумма',ksMoney(hx.amount)],['Тип',hx.type],['Дата',fd(hx.date)],['Способ',hx.method]]:[]),
-      run:function(ok,bad){run('appCampCancel',[pin,Number(b.dataset.row)],function(r){ok();reload(dry(r)+'Платёж отменён. ')},bad)}});
+      run:function(ok,bad){run('appCampCancel',[pin,Number(b.dataset.row),{t:hx&&hx.t,part:hx&&hx.part,amount:hx&&hx.amount}],function(r){ok();reload(dry(r)+'Платёж отменён. ')},bad)}});
     return}
   if(b.classList.contains('ed')){var ef=ord.querySelector('.ef');ef.hidden=!ef.hidden;return}
   if(b.classList.contains('esave')||b.classList.contains('erej')){
