@@ -47,6 +47,7 @@ select * from (values
   ('0059_payment_for_month',       exists (select 1 from information_schema.columns where table_name = 'payments' and column_name = 'pay_month')),
   ('0060_event_roster_stats_kind', to_regprocedure('match_stats(date,date,text)') is not null),
   ('0061_coach_match_fees',       to_regprocedure('match_assert_fees(uuid)') is not null),
-  ('0062_tl_edit_session',         to_regprocedure('tl_edit_session(date,text,time,time,time,text)') is not null)
+  ('0062_tl_edit_session',         to_regprocedure('tl_edit_session(date,text,time,time,time,text)') is not null),
+  ('0063_parent_tournaments',      to_regprocedure('my_tournaments()') is not null)
 ) as t(migration, applied)
 order by migration;

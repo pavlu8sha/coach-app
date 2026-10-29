@@ -9,7 +9,7 @@ import path from 'node:path';
 import { parseRegistry } from './registry.mjs';
 import { buildPlan } from './events-plan.mjs';
 import { parseGamesLog } from './games-log.mjs';
-import { getAll } from './rest-all.mjs';
+import { getAll, chunkByMatch } from './rest-all.mjs';
 
 const arg = name => { const i = process.argv.indexOf('--' + name); return i >= 0 ? process.argv[i + 1] : null; };
 const write = process.argv.includes('--write');
@@ -101,17 +101,24 @@ if (!staffOnly) await upsertAll('matches', 'club_id,external_id', plan.matches.f
 })));
 const dbM = await getAll(rest, `matches?club_id=eq.${CLUB_ID}&select=id,external_id`);
 const mid = new Map(dbM.map(m => [m.external_id, m.id]));
+// --new-only: состав существующего матча не трогаем, кроме матча с пустым составом. Прошлый запуск мог оборваться после записи матча и до записи состава:
+// без этого повторный запуск считал бы матч «уже существующим» и состав с голами не попадал в базу никогда.
+const hasLineup = newOnly ? new Set((await getAll(rest, 'match_players?select=match_id', 'match_id,player_id')).map(r => r.match_id)) : new Set();
+const existingIds = new Set([...existingM].map(e => mid.get(e)));
+const skipLineup = ext => skipM(ext) && hasLineup.has(mid.get(ext));
 
 // 3) игроки матчей, взносы за товарищеские, взносы за турниры
 // игроки матчей: составу из листа добавляем голы; бомбардиры, которых не отметили «играл», тоже попадают в состав
 const mpKeys = new Set(plan.matchPlayers.map(x => x.match_ext + '|' + x.name));
-const mpRows = plan.matchPlayers.filter(x => !skipM(x.match_ext)).map(x => ({ match_id: mid.get(x.match_ext), player_id: playerId(x.name), played: true, goals: goalsBy.get(x.match_ext + '|' + x.name) || 0 }));
+const mpRows = plan.matchPlayers.filter(x => !skipLineup(x.match_ext)).map(x => ({ match_id: mid.get(x.match_ext), player_id: playerId(x.name), played: true, goals: goalsBy.get(x.match_ext + '|' + x.name) || 0 }));
 for (const [k, g] of goalsBy) {
   const [ext, name] = k.split('|');
-  if (skipM(ext)) continue;
+  if (skipLineup(ext)) continue;
   if (!mpKeys.has(ext + '|' + name)) mpRows.push({ match_id: mid.get(ext), player_id: playerId(name), played: true, goals: g });
 }
-if (!staffOnly) await upsertAll('match_players', 'match_id,player_id', mpRows);
+// пачки не режут состав одного матча: обрыв между пачками не оставляет матч с половиной состава (иначе он перестал бы считаться пустым)
+if (!staffOnly) for (const chunk of chunkByMatch(mpRows)) await rest('POST', 'match_players?on_conflict=match_id,player_id', chunk, MERGE);
+if (newOnly) console.log(`Составы существующих матчей, у которых в базе состава не было: ${new Set(mpRows.filter(r => existingIds.has(r.match_id)).map(r => r.match_id)).size} матчей.`);
 if (!staffOnly) await upsertAll('match_fees', 'match_id,player_id', plan.matchFees.map(x => ({
   match_id: mid.get(x.match_ext), player_id: playerId(x.name), amount: x.amount, paid: !!x.paid,
 })));

@@ -11,3 +11,13 @@ export async function getAll(rest, path, order = 'id', page = PAGE) {
     if (rows.length < page) return out;
   }
 }
+
+// Пачки строк с полем match_id так, чтобы строки одного матча не разделялись между пачками (одна пачка — один атомарный запрос).
+export function chunkByMatch(rows, size = 500) {
+  const by = new Map();
+  for (const r of rows) by.set(r.match_id, [...(by.get(r.match_id) || []), r]);
+  const out = []; let cur = [];
+  for (const g of by.values()) { if (cur.length && cur.length + g.length > size) { out.push(cur); cur = []; } cur.push(...g); }
+  if (cur.length) out.push(cur);
+  return out;
+}

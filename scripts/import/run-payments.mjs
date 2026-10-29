@@ -67,17 +67,28 @@ const missingGroups = [...new Set(all.map(r => r.group).filter(g => !groupId.has
 if (missingGroups.length) { console.error('Группы не найдены в базе, сначала импортируйте реестр: ' + missingGroups.join(', ')); process.exit(1); }
 
 // 1) абонементы: по одной строке на игрока и месяц
-// одна строка абонемента на игрока и месяц: группа — из реестра, сумма — по всем строкам месяца
+// одна строка абонемента на игрока и месяц: группа — из листа оплат, сумма — по всем строкам месяца
 const subMap = new Map();
+const groupsByKey = new Map();
 for (const r of rows) {
   const pid = idOf(r.name);
   const key = `${pid}|${r.month}`;
-  const regGroup = regByName.get(canon(r.name))?.group_name;
-  const gid = groupId.get(regGroup) ?? groupId.get(r.group);
+  const gid = groupId.get(r.group);
   const cur = subMap.get(key) || { player_id: pid, group_id: gid, month: r.month, amount_due: 0 };
   cur.amount_due += r.paid;
   subMap.set(key, cur);
+  const groups = groupsByKey.get(key) ?? new Set();
+  groups.add(r.group);
+  groupsByKey.set(key, groups);
 }
+const ambiguous = [...groupsByKey].filter(([, g]) => g.size > 1);
+// несколько групп в одном месяце: если текущая группа реестра среди них, берём её (как до этой правки), иначе группу первой строки
+const regGroupById = new Map(reg.players.map(p => [playerId.get(norm(p.full_name)), p.group_name]));
+for (const [key, g] of ambiguous) {
+  const regGroup = regGroupById.get(key.split('|')[0]);
+  if (g.has(regGroup)) subMap.get(key).group_id = groupId.get(regGroup);
+}
+if (ambiguous.length) console.log(`Внимание: несколько групп в одном месяце у ${ambiguous.length} абонементов; взята текущая группа реестра, если она среди них, иначе группа первой строки. Проверьте вручную.`);
 const subs = [...subMap.values()];
 for (let i = 0; i < subs.length; i += 500) {
   await rest('POST', 'subscriptions?on_conflict=player_id,month', subs.slice(i, i + 500), 'resolution=merge-duplicates,return=minimal');

@@ -59,7 +59,9 @@ select is(
         -- 0053: взносы за события (только админ; проверка внутри)
         'event_set_fee', 'event_fees', 'event_payments', 'event_pay', 'event_discount', 'event_cancel_payment',
         -- 0054: взносы за матч (только админ; проверка внутри)
-        'match_fees_list', 'match_payments_list', 'match_fee_add', 'match_set_fee', 'match_fee_remove', 'match_pay', 'match_discount', 'match_cancel_payment')),
+        'match_fees_list', 'match_payments_list', 'match_fee_add', 'match_set_fee', 'match_fee_remove', 'match_pay', 'match_discount', 'match_cancel_payment',
+        -- 0063: турниры ребёнка для родителя, включая турниры без матчей
+        'my_tournaments')),
   '', 'список функций, доступных вошедшим пользователям, не расширился без решения');
 
 select is(
