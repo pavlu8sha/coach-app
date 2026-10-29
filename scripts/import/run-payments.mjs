@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseRegistry } from './registry.mjs';
 import { parsePayMonth } from './payments.mjs';
-import { PAY_NAME_ALIAS, PAY_GUESTS, IND_GROUP } from './payments-plan.mjs';
+import { PAY_NAME_ALIAS, PAY_GUESTS, IND_GROUP, planPaymentWrites } from './payments-plan.mjs';
 import { getAll } from './rest-all.mjs';
 
 const args = process.argv.slice(2);
@@ -99,16 +99,23 @@ const monthsSet = [...new Set(rows.map(r => r.month))];
 const subRows = await getAll(rest, `subscriptions?select=id,player_id,month&month=in.(${monthsSet.join(',')})`);
 const subId = new Map(subRows.map(s => [`${s.player_id}|${s.month}`, s.id]));
 
-// 3) платежи: только внесённые суммы, без дублей (по legacy_ref)
-const existing = new Set((await getAll(rest, 'payments?select=legacy_ref&legacy_ref=like.PAY_ID*')).map(x => x.legacy_ref));
-const pays = rows.filter(r => r.paid > 0).map(r => {
-  const ref = `PAY_ID ${r.month.slice(0, 7)} ${r.group} №${r.no} ${norm(r.name)}`;
-  return { ref, row: {
-    player_id: idOf(r.name), subscription_id: subId.get(`${idOf(r.name)}|${r.month}`),
-    amount: r.paid, paid_on: r.month, method: null, recorded_by: null, legacy_ref: ref,
-  } };
-}).filter(p => !existing.has(p.ref)).map(p => p.row);
+// 3) платежи: журнал только добавляется. Сверяем по сумме «игрок × месяц» (planPaymentWrites): ссылка строки сменилась — второй платёж не пишем,
+// строку дополнили в листе — пишем платёж-коррекцию на разницу.
+const existingPays = (await getAll(rest, 'payments?select=legacy_ref,amount,player_id&legacy_ref=like.PAY_ID*'))
+  .map(x => ({ ref: x.legacy_ref, key: `${x.player_id}|${(/^PAY_ID (\d{4}-\d{2})/.exec(x.legacy_ref) ?? [])[1] ?? ''}`, amount: Number(x.amount) }));
+const extOf = new Map(reg.players.map(p => [norm(p.full_name), p.external_id]));
+const fileItems = rows.filter(r => r.paid > 0).map(r => ({
+  ref: `PAY_ID ${r.month.slice(0, 7)} ${r.group} №${r.no} ${norm(r.name)}`, key: `${idOf(r.name)}|${r.month.slice(0, 7)}`, amount: r.paid, player: extOf.get(canon(r.name)), month: r.month,
+}));
+const monthOfKey = new Map(fileItems.map(x => [x.key, x.month]));
+const { inserts, covered, corrections } = planPaymentWrites({ file: fileItems, existing: existingPays });
+for (const c of covered) console.log(`Уже внесено другой строкой (второй платёж не пишем): ${c.refs.join('; ')} (${c.amount} ₾)`);
+for (const c of corrections) console.log(`Коррекция: ${c.player} ${c.key.split('|')[1]}: в базе ${c.was} ₾, в листе ${c.now} ₾, пишем ${c.amount > 0 ? '+' : ''}${c.amount} ₾`);
+const pays = inserts.map(x => ({
+  player_id: x.key.split('|')[0], subscription_id: subId.get(`${x.key.split('|')[0]}|${monthOfKey.get(x.key)}`),
+  amount: x.amount, paid_on: monthOfKey.get(x.key), method: null, recorded_by: null, legacy_ref: x.ref,
+}));
 for (let i = 0; i < pays.length; i += 500) {
   await rest('POST', 'payments', pays.slice(i, i + 500), 'return=minimal');
 }
-console.log(`Записано: абонементов ${subs.length}, платежей ${pays.length} (пропущено уже существующих: ${rows.filter(r => r.paid > 0).length - pays.length}).`);
+console.log(`Записано: абонементов ${subs.length}, платежей ${pays.length} (коррекций ${corrections.length}; пропущено уже существующих: ${rows.filter(r => r.paid > 0).length - pays.filter(p => !corrections.some(c => c.ref === p.legacy_ref)).length}).`);
