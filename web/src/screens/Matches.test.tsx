@@ -17,6 +17,7 @@ function seed() {
     { match_id: 'm2', tournament_name: 'Чемпионат 1', tournament_kind: 'championship', match_kind: 'game' },
     { match_id: 'm3', tournament_name: null, tournament_kind: null, match_kind: 'friendly' },
   ];
+  fake.rpc.my_tournaments = () => [];
 }
 
 describe('«Матчи» родителя: итоги и турнир', () => {
@@ -39,6 +40,20 @@ describe('«Матчи» родителя: итоги и турнир', () => {
     const card = screen.getByLabelText('Итоги команды');
     expect(within(card).getByText('Сыграно: 2')).toBeInTheDocument();
     expect(within(card).getByText('Мячи: 3:3')).toBeInTheDocument();
+  });
+
+  it('показывает турнир без матчей и не дублирует турнир с играми', async () => {
+    seed();
+    fake.rpc.my_tournaments = () => [
+      { id: 't1', team: 'U12', kind: 'cup', name: 'Newton cup 2014-2015', starts_on: '2026-06-14', games: 0 },
+      { id: 't2', team: 'U9', kind: 'championship', name: 'Чемпионат 1', starts_on: '2026-06-01', games: 3 },
+    ];
+    render(<Matches />);
+    expect(await screen.findByText('Newton cup 2014-2015')).toBeInTheDocument();
+    expect(screen.getByText('14.06.2026')).toBeInTheDocument();
+    expect(screen.getByText('U12')).toBeInTheDocument();
+    expect(screen.getByText('Матчей пока нет')).toBeInTheDocument();
+    expect(screen.queryByText('01.06.2026')).not.toBeInTheDocument();
   });
 
   it('без данных о турнирах фильтра нет', async () => {

@@ -9,6 +9,7 @@ import path from 'node:path';
 import { parseRegistry } from './registry.mjs';
 import { parseSchedule, parseTrainingLog } from './schedule-log.mjs';
 import { buildAttendancePlan } from './attendance.mjs';
+import { getAll } from './rest-all.mjs';
 
 const arg = name => { const i = process.argv.indexOf('--' + name); return i >= 0 ? process.argv[i + 1] : null; };
 const write = process.argv.includes('--write');
@@ -74,7 +75,7 @@ if (missing.length) { console.error('Группы не найдены в баз�
 if (plan.former.length) await rest('POST', 'players?on_conflict=club_id,external_id', plan.former.map(f => ({
   club_id: CLUB_ID, external_id: f.external_id, full_name: f.full_name, status: 'inactive',
 })), MERGE);
-const dbPlayers = await rest('GET', `players?club_id=eq.${CLUB_ID}&select=id,external_id&limit=2000`);
+const dbPlayers = await getAll(rest, `players?club_id=eq.${CLUB_ID}&select=id,external_id`);
 const pid = new Map(dbPlayers.map(p => [p.external_id, p.id]));
 const noPlayer = [...new Set(plan.marks.map(m => m.external_id).filter(x => !pid.has(x)))];
 if (noPlayer.length) { console.error('Игроки не найдены в базе: ' + noPlayer.join(', ')); process.exit(1); }
@@ -84,7 +85,7 @@ const sRows = plan.sessions.map(s => ({ group_id: gid.get(s.group_name), starts_
 for (let i = 0; i < sRows.length; i += 500) await rest('POST', 'sessions?on_conflict=group_id,source_key', sRows.slice(i, i + 500), MERGE);
 // 2) id тренировок
 const groupIds = [...new Set(sRows.map(r => r.group_id))];
-const dbSessions = await rest('GET', `sessions?group_id=in.(${groupIds.join(',')})&source_key=like.ATT*&select=id,group_id,source_key&limit=5000`);
+const dbSessions = await getAll(rest, `sessions?group_id=in.(${groupIds.join(',')})&source_key=like.ATT*&select=id,group_id,source_key`);
 const sid = new Map(dbSessions.map(s => [`${s.group_id}|${s.source_key}`, s.id]));
 // 3) отметки
 const startsOf = new Map(plan.sessions.map(s => [`${s.group_name}|${s.source_key}`, s.starts_at]));

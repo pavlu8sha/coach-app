@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseRegistry } from './registry.mjs';
 import { buildExtraPlan, parseExtraPrices, replayExtraJournal } from './extra.mjs';
+import { getAll } from './rest-all.mjs';
 
 const arg = name => { const i = process.argv.indexOf('--' + name); return i >= 0 ? process.argv[i + 1] : null; };
 const write = process.argv.includes('--write');
@@ -46,13 +47,13 @@ async function rest(method, p, body, prefer = '') {
 }
 const MERGE = 'resolution=merge-duplicates,return=minimal';
 
-const dbPlayers = await rest('GET', `players?club_id=eq.${CLUB_ID}&select=id,full_name`);
+const dbPlayers = await getAll(rest, `players?club_id=eq.${CLUB_ID}&select=id,full_name`);
 const byName = new Map(dbPlayers.map(p => [p.full_name, p.id]));
 const absent = [...new Set(sessions.flatMap(s => s.people.map(p => p.name)).filter(n => !byName.has(n)))];
 if (absent.length) { console.error('Игроки не найдены в базе (сначала реестр): ' + absent.join(', ')); process.exit(1); }
 
 await rest('POST', 'extra_sessions?on_conflict=club_id,starts_on', sessions.map(s => ({ club_id: CLUB_ID, starts_on: s.starts_on, amount: s.amount })), MERGE);
-const dbS = await rest('GET', `extra_sessions?club_id=eq.${CLUB_ID}&select=id,starts_on`);
+const dbS = await getAll(rest, `extra_sessions?club_id=eq.${CLUB_ID}&select=id,starts_on`);
 const sid = new Map(dbS.map(s => [s.starts_on, s.id]));
 const rowsB = sessions.flatMap(s => s.people.map(p => ({
   session_id: sid.get(s.starts_on), player_id: byName.get(p.name), paid: p.paid, paid_amount: p.paid ? (p.paid_amount ?? s.amount) : null, method: p.method,
