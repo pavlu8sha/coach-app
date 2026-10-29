@@ -11,7 +11,7 @@ import { parseCsv, parseRegistry, isoDate } from './registry.mjs';
 import { parseCatalog, parseSeason } from './equipment.mjs';
 import { buildPlan } from './events-plan.mjs';
 import { parsePayBlock, parseSessionsSheet, replayJournal } from './individual.mjs';
-import { buildIndividualPlan } from './individual-plan.mjs';
+import { buildIndividualPlan, matchDbSessions } from './individual-plan.mjs';
 import { buildPaymentsPlan } from './payments-plan.mjs';
 import { buildCampsPlan } from './camps.mjs';
 import { parseGamesLog } from './games-log.mjs';
@@ -308,14 +308,16 @@ async function main() {
   check('Платежи: сумма', [...expPays.values()].reduce((a, n) => a + n, 0), [...dbPays.values()].reduce((a, n) => a + n, 0));
 
   // индивидуальные
-  const expIndSessions = new Set(indPlan.sessions.map(s => s.external_id));
+  // занятия, созданные или правленные в приложении, имеют в идентификаторе время (IND-…-1900): сопоставляем по дате и виду
+  const indExtMap = matchDbSessions(indPlan.sessions.map(s => s.external_id), indSessions.map(s => s.external_id));
+  const expIndSessions = new Set(indPlan.sessions.map(s => indExtMap.get(s.external_id)));
   const dbIndSessions = new Set(indSessions.map(s => s.external_id));
   check('Индивидуальные: занятия', expIndSessions.size, dbIndSessions.size, setDetails(expIndSessions, dbIndSessions));
   const expIndBookings = new Map();
   for (const b of indPlan.bookings) {
     const sess = indPlan.sessions.find(s => s.people.includes(b));
     const pext = b.external_id || nameToExt.get(b.name);
-    if (sess && pext) expIndBookings.set(`${sess.external_id}|${pext}`, b.paid);
+    if (sess && pext) expIndBookings.set(`${indExtMap.get(sess.external_id)}|${pext}`, b.paid);
   }
   const dbIndMap = new Map(indSessions.map(s => [s.id, s.external_id]));
   const dbIndBookings = new Map();
