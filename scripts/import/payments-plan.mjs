@@ -25,13 +25,24 @@ export function buildPaymentsPlan({ registry, files }) {
     groupNames.has(r.group));
 
   const subs = new Map();
+  const groupsByKey = new Map();
   for (const r of rows) {
     const p = regByName.get(canon(r.name));
     const key = `${p.external_id}|${r.month}`;
-    const cur = subs.get(key) || { key, player_ext: p.external_id, month: r.month, group: p.group_name ?? r.group, amount_due: 0 };
+    const cur = subs.get(key) || { key, player_ext: p.external_id, month: r.month, group: r.group, amount_due: 0 };
     cur.amount_due += r.paid;
     subs.set(key, cur);
+    const groups = groupsByKey.get(key) ?? new Set();
+    groups.add(r.group);
+    groupsByKey.set(key, groups);
   }
+  // несколько групп в одном месяце: если текущая группа реестра среди них, берём её (как до этой правки), иначе группу первой строки
+  for (const [key, groups] of groupsByKey) {
+    const s = subs.get(key);
+    const regGroup = registry.players.find(p => p.external_id === s.player_ext)?.group_name;
+    if (groups.size > 1 && groups.has(regGroup)) s.group = regGroup;
+  }
+  const ambiguousSubs = [...groupsByKey].filter(([, groups]) => groups.size > 1).map(([key]) => subs.get(key));
 
   const pays = rows.filter(r => r.paid > 0).map(r => {
     const p = regByName.get(canon(r.name));
@@ -51,6 +62,7 @@ export function buildPaymentsPlan({ registry, files }) {
     all,
     rows,
     subs,
+    ambiguousSubs,
     pays,
     unmatched,
     missingGroups: [...new Set(all.map(r => r.group).filter(g => !groupNames.has(g)))],
