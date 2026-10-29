@@ -10,6 +10,7 @@ import path from 'node:path';
 import { parseRegistry } from './registry.mjs';
 import { IND_PRICE, parsePayBlock, parseSessionsSheet, replayJournal } from './individual.mjs';
 import { buildIndividualPlan } from './individual-plan.mjs';
+import { getAll } from './rest-all.mjs';
 
 const arg = name => { const i = process.argv.indexOf('--' + name); return i >= 0 ? process.argv[i + 1] : null; };
 const write = process.argv.includes('--write');
@@ -61,7 +62,7 @@ if (guestRows.length) await rest('POST', 'players?on_conflict=club_id,external_i
 })), MERGE);
 
 // 2) игроки базы: реестр (KS-…) и гости (GUEST-…)
-const dbPlayers = await rest('GET', `players?club_id=eq.${CLUB_ID}&select=id,external_id,full_name`);
+const dbPlayers = await getAll(rest, `players?club_id=eq.${CLUB_ID}&select=id,external_id,full_name`);
 const byName = new Map(dbPlayers.map(p => [p.full_name, p.id]));
 const absent = [...new Set(bookings.map(p => p.name).filter(n => !byName.has(n)))];
 if (absent.length) { console.error('Игроки не найдены в базе (сначала реестр и гости): ' + absent.join(', ')); process.exit(1); }
@@ -70,7 +71,7 @@ if (absent.length) { console.error('Игроки не найдены в базе
 await rest('POST', 'individual_sessions?on_conflict=club_id,external_id', sessions.map(s => ({
   club_id: CLUB_ID, external_id: s.external_id, starts_at: s.starts_at, topic: s.topic, goalkeepers: s.external_id.endsWith('-GK'),
 })), MERGE);
-const dbS = await rest('GET', `individual_sessions?club_id=eq.${CLUB_ID}&select=id,external_id`);
+const dbS = await getAll(rest, `individual_sessions?club_id=eq.${CLUB_ID}&select=id,external_id`);
 const sid = new Map(dbS.map(s => [s.external_id, s.id]));
 
 // 4) записи

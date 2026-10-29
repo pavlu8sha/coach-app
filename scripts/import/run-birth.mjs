@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseRegistry } from './registry.mjs';
 import { buildBirthPlan } from './birth.mjs';
+import { getAll } from './rest-all.mjs';
 
 const arg = name => { const i = process.argv.indexOf('--' + name); return i >= 0 ? process.argv[i + 1] : null; };
 const write = process.argv.includes('--write');
@@ -38,7 +39,7 @@ async function rest(method, p, body, prefer = '') {
   if (!res.ok) throw new Error(`${method} ${p}: ${res.status} ${await res.text()}`);
   const t = await res.text(); return t ? JSON.parse(t) : null;
 }
-const db = await rest('GET', `players?club_id=eq.${CLUB_ID}&select=external_id&limit=2000`);
+const db = await getAll(rest, `players?club_id=eq.${CLUB_ID}&select=external_id`);
 const have = new Set(db.map(p => p.external_id));
 const rows = plan.assigned.filter(a => have.has(a.external_id));
 for (const a of rows) await rest('PATCH', `players?club_id=eq.${CLUB_ID}&external_id=eq.${encodeURIComponent(a.external_id)}`, { birth_date: a.birth_date }, 'return=minimal');
