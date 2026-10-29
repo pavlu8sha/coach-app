@@ -10,6 +10,7 @@ const NAME_ALIAS = {
   'kurbanoiv emin': 'Kurbanov Emin', 'ganakova varya': 'Ganakova Varvara', 'cherkasov misha': 'Cherkasov Mikhail',
   'sechko ilya': 'Siachko Ilia', 'grichshenikov sergey': 'Grichshenkov Sergey', 'grichshenikov mikhail': 'Grichshenkov Misha',
   'german gio': 'German Georgiy', 'yarovoy vasya': 'Yarovoy Vasiliy', 'sechko vova': 'Siachko Vladimir',
+  'lyashenko kirill': 'Liashenko Kyryl', // имя поменяли с Kirill на Kyryl (подтверждено владельцем 29.10)
 };
 const SKIP_NAMES = new Set(['pashkin denis']);
 const fkey = s => String(s).replace(/х/g, 'x').toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean).sort().join(' ');
