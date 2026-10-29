@@ -142,3 +142,14 @@ test('отложенные дети (Orudzhov) не блокируют, проч
   assert.deepEqual(plan.deferred.map(d => d.name), ['Orudzhov Ali']);
   assert.deepEqual(plan.unmatched.map(d => d.name), ['Ghost Kid']);
 });
+
+test('журнал: Lyashenko Kirill — это Liashenko Kyryl из реестра, а день без тренировки (16.09 U13-A) не импортируется', () => {
+  const regL = [{ external_id: 'KS-91', full_name: 'Liashenko Kyryl' }];
+  const csv = sheet(['U7-A,,,,', '№,ФИ ребёнка,19,,', '1,Liashenko Kyryl,TRUE,,']);
+  const plan = buildAttendancePlan({ sheets: [{ text: csv, month: '10', year: '2026' }], schedule: sched, registryPlayers: regL,
+    journalText: jr(['19.10.2026', '', 'Lyashenko Kirill', 'U7-A', true], ['16.09.2026', 'KS-91', 'Liashenko Kyryl', 'U13-A', true]) });
+  assert.equal(plan.journal.agree, 1);
+  assert.equal(plan.journal.journalOnly.length, 0);
+  assert.equal(plan.journal.journalSkipped.length, 0);
+  assert.equal(plan.sessions.length, 1);
+});
