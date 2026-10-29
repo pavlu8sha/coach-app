@@ -81,7 +81,13 @@ for (const r of rows) {
   groupsByKey.set(key, groups);
 }
 const ambiguous = [...groupsByKey].filter(([, g]) => g.size > 1);
-if (ambiguous.length) console.log(`Внимание: несколько групп в одном месяце у ${ambiguous.length} абонементов; записана группа первой строки, проверьте вручную.`);
+// несколько групп в одном месяце: если текущая группа реестра среди них, берём её (как до этой правки), иначе группу первой строки
+const regGroupById = new Map(reg.players.map(p => [playerId.get(norm(p.full_name)), p.group_name]));
+for (const [key, g] of ambiguous) {
+  const regGroup = regGroupById.get(key.split('|')[0]);
+  if (g.has(regGroup)) subMap.get(key).group_id = groupId.get(regGroup);
+}
+if (ambiguous.length) console.log(`Внимание: несколько групп в одном месяце у ${ambiguous.length} абонементов; взята текущая группа реестра, если она среди них, иначе группа первой строки. Проверьте вручную.`);
 const subs = [...subMap.values()];
 for (let i = 0; i < subs.length; i += 500) {
   await rest('POST', 'subscriptions?on_conflict=player_id,month', subs.slice(i, i + 500), 'resolution=merge-duplicates,return=minimal');

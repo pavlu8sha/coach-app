@@ -36,6 +36,12 @@ export function buildPaymentsPlan({ registry, files }) {
     groups.add(r.group);
     groupsByKey.set(key, groups);
   }
+  // несколько групп в одном месяце: если текущая группа реестра среди них, берём её (как до этой правки), иначе группу первой строки
+  for (const [key, groups] of groupsByKey) {
+    const s = subs.get(key);
+    const regGroup = registry.players.find(p => p.external_id === s.player_ext)?.group_name;
+    if (groups.size > 1 && groups.has(regGroup)) s.group = regGroup;
+  }
   const ambiguousSubs = [...groupsByKey].filter(([, groups]) => groups.size > 1).map(([key]) => subs.get(key));
 
   const pays = rows.filter(r => r.paid > 0).map(r => {
