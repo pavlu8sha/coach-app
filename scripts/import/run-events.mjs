@@ -111,6 +111,16 @@ for (const [k, g] of goalsBy) {
   if (!mpKeys.has(ext + '|' + name)) mpRows.push({ match_id: mid.get(ext), player_id: playerId(name), played: true, goals: g });
 }
 if (!staffOnly) await upsertAll('match_players', 'match_id,player_id', mpRows);
+// --new-only: у уже существующих товарищеских матчей без единой записи состава дописываем участников из листа (раньше состав для них не создавался).
+// Матчи, где состав в базе есть (в том числе правленный в приложении), не трогаем; существующие строки не перезаписываем.
+if (newOnly && !staffOnly) {
+  const friendlyExt = new Set(plan.matches.filter(m => m.kind === 'friendly').map(m => m.external_id));
+  const withRoster = new Set((await rest('GET', 'match_players?select=match_id&limit=100000')).map(r => r.match_id));
+  const fill = plan.matchPlayers.filter(x => skipM(x.match_ext) && friendlyExt.has(x.match_ext) && mid.get(x.match_ext) && !withRoster.has(mid.get(x.match_ext)))
+    .map(x => ({ match_id: mid.get(x.match_ext), player_id: playerId(x.name), played: true, goals: goalsBy.get(x.match_ext + '|' + x.name) || 0 }));
+  for (let i = 0; i < fill.length; i += 500) await rest('POST', 'match_players?on_conflict=match_id,player_id', fill.slice(i, i + 500), 'resolution=ignore-duplicates,return=minimal');
+  console.log(`Режим --new-only: участники дописаны ${new Set(fill.map(x => x.match_id)).size} существующим товарищеским матчам без состава (${fill.length} записей).`);
+}
 if (!staffOnly) await upsertAll('match_fees', 'match_id,player_id', plan.matchFees.map(x => ({
   match_id: mid.get(x.match_ext), player_id: playerId(x.name), amount: x.amount, paid: !!x.paid,
 })));
