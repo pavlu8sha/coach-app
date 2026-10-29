@@ -3,6 +3,7 @@
 //   node scripts/import/final-import.mjs --dir "..." --mode Final --write                                         # запись
 //   node scripts/import/final-import.mjs --dir "..." --mode Final --show-only                                     # только показать команды
 //   node scripts/import/final-import.mjs --dir "..." --staff-only [--write]                                       # только штат игр (тренер, оператор)
+//   --full — verify печатает расхождения без обрезки и с именами игроков
 //   --accept-equipment-warnings — запись экипировки продолжать, когда предупреждения проверки заказов просмотрены (ФИ не совпало, игрок заказа другой, в базе оплачено больше)
 // Режимы: Final — полный импорт (с посещаемостью и матчами); Daily (по умолчанию) — без них.
 // Нужны SUPABASE_URL (без /rest/v1), CLUB_ID; ключ SUPABASE_SERVICE_KEY спросит скрипт (ввод скрыт) или возьмёт из окружения.
@@ -19,6 +20,7 @@ const mode = opt('--mode') ?? 'Daily';
 const write = flag('--write');
 const showOnly = flag('--show-only');
 const acceptEquipment = flag('--accept-equipment-warnings');
+const fullVerify = flag('--full'); // verify: расхождения без обрезки
 const staffOnly = flag('--staff-only'); // только штат игр (тренер, оператор) у матчей, где его ещё нет; остальное не трогается
 if (!dirArg || !['Final', 'Daily'].includes(mode)) { console.error('Использование: --dir <папка выгрузки> [--mode Final|Daily] [--write] [--show-only]'); process.exit(2); }
 const dir = resolve(dirArg);
@@ -80,7 +82,7 @@ try {
   run('Баллы за тренировки (без матчей)', [`${S}/run-rating.mjs`]);
   if (!showOnly) {
     console.log('\n== Сверка с выгрузкой (verify)');
-    const v = spawnSync(process.execPath, [`${S}/verify.mjs`, dir], { stdio: 'inherit', env: process.env });
+    const v = spawnSync(process.execPath, [`${S}/verify.mjs`, dir, ...(fullVerify ? ['--full'] : [])], { stdio: 'inherit', env: process.env });
     if (v.status !== 0) console.log(`Сверка нашла расхождения (код ${v.status}): пришлите вывод разработчику.`);
     if (mode === 'Final' && write) console.log('Готово. Дальше: «Ещё → Пересчёт баллов за матчи» в приложении (под администратором).');
   }
