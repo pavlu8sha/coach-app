@@ -22,6 +22,7 @@ const showOnly = flag('--show-only');
 const acceptEquipment = flag('--accept-equipment-warnings');
 const acceptPayDup = flag('--accept-payment-duplicates');
 const fullVerify = flag('--full'); // verify: расхождения без обрезки и с именами игроков
+const fillLineups = flag('--fill-lineups'); // матчи: дописать в составы существующих матчей игроков, которых в базе нет (без изменения существующих строк)
 const staffOnly = flag('--staff-only'); // только штат игр (тренер, оператор) у матчей, где его ещё нет; остальное не трогается
 if (!dirArg || !['Final', 'Daily'].includes(mode)) { console.error('Использование: --dir <папка выгрузки> [--mode Final|Daily] [--write] [--show-only]'); process.exit(2); }
 const dir = resolve(dirArg);
@@ -76,7 +77,7 @@ try {
   run('Расписание и журнал тренировок', [`${S}/run-schedule-log.mjs`, '--registry', reg, '--schedule', sched, '--log', log]);
   if (mode === 'Final') {
     run('Посещаемость', [`${S}/run-attendance.mjs`, '--registry', reg, '--schedule', sched, '--log', log, '--att-dir', sub('ATT_ID')]);
-    run('Матчи: только новые, составы новых, взносы', [`${S}/run-events.mjs`, '--registry', reg, '--events', csv('МАТЧИ.csv'), '--fees', csv('ВЗНОСЫ МАТЧЕЙ.csv'), '--games', sub('GAMES_ID'), '--log', csv('Игры.csv'), '--new-only']);
+    run('Матчи: только новые, составы новых, взносы', [`${S}/run-events.mjs`, '--registry', reg, '--events', csv('МАТЧИ.csv'), '--fees', csv('ВЗНОСЫ МАТЧЕЙ.csv'), '--games', sub('GAMES_ID'), '--log', csv('Игры.csv'), '--new-only', ...(fillLineups ? ['--fill-lineups'] : [])]);
   }
   run('Оплаты абонементов', paymentsArgs);
   run('Индивидуальные и вратарские', [`${S}/run-individual.mjs`, '--registry', reg, '--pay-dir', pay, '--sessions', csv('ИНДИВИДУАЛЬНЫЕ ЗАНЯТИЯ.csv'), '--journal', csv('ИНДИВИДУАЛЬНЫЕ ОПЛАТЫ.csv'), '--old-dir', sub('IND_ID')]);
