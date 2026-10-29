@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseMonthSheet, parseJournal, weekdayOf, labelGroups, buildAttendancePlan } from '../../scripts/import/attendance.mjs';
+import { parseMonthSheet, parseJournal, weekdayOf, labelGroups, buildAttendancePlan, DEFERRED } from '../../scripts/import/attendance.mjs';
 
 const head = 'FC KICKSTART,,,,,\nшаблон,,,,,\n,,,,,\n';
 const sheet = (rows) => head + rows.join('\n') + '\n';
@@ -136,11 +136,23 @@ test('журнал: день без присутствовавших или бе
   assert.equal(plan.journal.journalSkipped.length, 2);
 });
 
-test('отложенные дети (Orudzhov) не блокируют, прочие не найденные по-прежнему блокируют', () => {
-  const csv = sheet(['U7-A,,,,', '№,ФИ ребёнка,19,,', '1,Ivanov Ivan,TRUE,,', '2,Orudzhov Ali,TRUE,,', '3,Ghost Kid,TRUE,,']);
-  const plan = buildAttendancePlan({ sheets: [{ text: csv, month: '10', year: '2026' }], journalText: '', schedule: sched, registryPlayers: regP });
-  assert.deepEqual(plan.deferred.map(d => d.name), ['Orudzhov Ali']);
-  assert.deepEqual(plan.unmatched.map(d => d.name), ['Ghost Kid']);
+test('отложенные дети (список DEFERRED) не блокируют, прочие не найденные по-прежнему блокируют', () => {
+  DEFERRED.push('Later Kid');
+  try {
+    const csv = sheet(['U7-A,,,,', '№,ФИ ребёнка,19,,', '1,Ivanov Ivan,TRUE,,', '2,Later Kid,TRUE,,', '3,Ghost Kid,TRUE,,']);
+    const plan = buildAttendancePlan({ sheets: [{ text: csv, month: '10', year: '2026' }], journalText: '', schedule: sched, registryPlayers: regP });
+    assert.deepEqual(plan.deferred.map(d => d.name), ['Later Kid']);
+    assert.deepEqual(plan.unmatched.map(d => d.name), ['Ghost Kid']);
+  } finally { DEFERRED.pop(); }
+});
+
+test('Orudzhov из листов — это Orujov из реестра (KS-0234, KS-0235): отметки импортируются', () => {
+  const reg2 = [{ external_id: 'KS-234', full_name: 'Orujov Ali' }, { external_id: 'KS-235', full_name: 'Orujov Kinan' }];
+  const csv = sheet(['U7-A,,,,', '№,ФИ ребёнка,19,,', '1,Orudzhov Ali,TRUE,,', '2,Orudzhov Kinan,FALSE,,']);
+  const plan = buildAttendancePlan({ sheets: [{ text: csv, month: '10', year: '2026' }], journalText: '', schedule: sched, registryPlayers: reg2 });
+  assert.deepEqual(plan.marks.map(m => [m.external_id, m.status]), [['KS-234', 'present'], ['KS-235', 'absent']]);
+  assert.equal(plan.unmatched.length, 0);
+  assert.equal(plan.deferred.length, 0);
 });
 
 test('журнал: Lyashenko Kirill — это Liashenko Kyryl из реестра, а день без тренировки (16.09 U13-A) не импортируется', () => {
