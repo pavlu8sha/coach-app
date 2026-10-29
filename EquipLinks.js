@@ -54,18 +54,19 @@ function equipOrdersLive_() {
 }
 
 // newId = '' означает «отвязать».
-function appRelink(pin, row, newId, fix) {
+function appRelink(pin, row, newId, fix, expected) {
   checkAdmin_(pin);
-  if (CONFIG.DRY_RUN) return relinkCore_(row, newId, fix);
+  if (CONFIG.DRY_RUN) return relinkCore_(row, newId, fix, expected);
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
-  try { return relinkCore_(row, newId, fix); } finally { lock.releaseLock(); }
+  try { return relinkCore_(row, newId, fix, expected); } finally { lock.releaseLock(); }
 }
 
-function relinkCore_(row, newId, fix) {
+function relinkCore_(row, newId, fix, expected) {
   row = Number(row);
   if (!(row >= EQ_FIRST && row < EQ_FIRST + EQ_ROWS)) throw new Error('Некорректная строка');
   var sh = equipSheet_();
+  assertEquipRowIdentity_(sh, row, expected);
   var oldId = String(sh.getRange(row, 12).getValue()).trim();
   var orderName = String(sh.getRange(row, 3).getValue()).trim();
   if (!orderName) throw new Error('В этой строке нет заказа');
@@ -109,18 +110,19 @@ function appEditOrder(pin, row, o) {
 }
 
 // Удаление заказа: удаляет строку целиком. Строку с оплатой не удаляем.
-function appDeleteOrder(pin, row) {
+function appDeleteOrder(pin, row, expected) {
   checkAdmin_(pin);
-  if (CONFIG.DRY_RUN) return deleteOrderCore_(row);
+  if (CONFIG.DRY_RUN) return deleteOrderCore_(row, expected);
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
-  try { return deleteOrderCore_(row); } finally { lock.releaseLock(); }
+  try { return deleteOrderCore_(row, expected); } finally { lock.releaseLock(); }
 }
 
-function deleteOrderCore_(row) {
+function deleteOrderCore_(row, expected) {
   row = Number(row);
   if (!(row >= EQ_FIRST && row < EQ_FIRST + EQ_ROWS)) throw new Error('Некорректная строка');
   var sh = equipSheet_();
+  assertEquipRowIdentity_(sh, row, expected);
   if (!String(sh.getRange(row, 3).getValue()).trim()) throw new Error('В этой строке нет заказа');
   var paid = Number(sh.getRange(row, 10).getValue()) || 0;
   if (paid > 0) throw new Error('По заказу есть оплата (' + paid + ' ₾). Сначала отмените оплату, потом удалите заказ');
@@ -200,6 +202,20 @@ function catPrices_(cat) {
   var m = {};
   cat.forEach(function (x) { m[x.name.toLowerCase()] = Number(x.price) || 0; });
   return m;
+}
+
+// Общая защита для всех операций, которые UI адресует номером строки (правка, удаление, перепривязка, оплата, выдача).
+// После сортировки или сдвига строк открытая форма может указывать на чужой заказ: сверяем № заказа, ФИО, ID игрока и ID заказа (ord)
+// до первой записи; при несовпадении отказ без изменений. expected присылает форма из загруженных данных (№, ФИО, ID, ord).
+var EQ_STALE_MSG = 'Заказ изменился или строка сместилась. Обновите список заказов и откройте форму заново; изменения не сохранены.';
+function assertEquipRowIdentity_(sh, row, expected) {
+  if (!expected || typeof expected !== 'object') throw new Error('Обновите список заказов и откройте форму заново');
+  var disp = function (c) { return String(sh.getRange(row, c).getDisplayValues()[0][0] || '').trim(); };
+  var same = disp(1) === String(expected.no == null ? '' : expected.no).trim()
+    && disp(3) === String(expected.name || '').trim()
+    && String(sh.getRange(row, 12).getValue() || '').trim() === String(expected.id || '').trim()
+    && String(sh.getRange(row, 14).getValue() || '').trim() === String(expected.ord || '').trim();
+  if (!same) throw new Error(EQ_STALE_MSG);
 }
 
 // Проверяет, что форма всё ещё редактирует тот же заказ, а не другую запись в сдвинувшейся строке.

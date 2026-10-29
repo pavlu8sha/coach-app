@@ -212,13 +212,15 @@ function payOrder(b,ord){
     warn:over?'Сумма больше остатка на '+ksMoney(over)+'. Платёж будет записан полностью.':'',
     rows:[['Игрок',pl?pl.name:o.oname],['Сумма',ksMoney(amt)],['За что','Экипировка: '+(o.kit||'комплект не указан')],['Способ',mt],['Дата',ksDateIfNotToday(dt)],['Комментарий',cm]],
     run:function(ok,bad){
-      run('appAddPayment',[pin,id,row,amt,dt,cm,mt],function(r){
+      run('appAddPayment',[pin,id,row,amt,dt,cm,mt,ident(o)],function(r){
         ok();flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+'Оплата принята: '+money(amt)+' ('+mt+'). ';
         load();
       },bad);
     }});
 }
 function orderByRow(row){return O.concat(UNL).filter(function(o){return Number(o.row)===Number(row)})[0]}
+// Снимок заказа для сервера: №, ФИО, ID игрока и ID заказа; сервер сверяет его со строкой перед записью
+function ident(o){o=o||{};return {no:o.no,name:o.oname,id:o.id,ord:o.ord||''}}
 function playerName(id){var p=P.filter(function(x){return x.id==id})[0];return p?p.name:''}
 function qtyOfKit(o,k){var i=kitsOf(o.kit).indexOf(k);return i>=0&&(o.qtys||[])[i]||1}
 function kitShown(o){var q=o.qtys||[];return kitsOf(o.kit).map(function(k,i){return k+(q[i]>1?' × '+q[i]:'')}).join(' + ')}
@@ -256,7 +258,7 @@ function issueOrder(b,ord){
     warn:o.debt>0?'По заказу не оплачено '+ksMoney(o.debt)+'. Выдача будет отмечена, долг останется.':'',
     rows:[['Игрок',playerName(o.id)||o.oname],['Выдаётся',items.join(' + ')],['Дата',ksDateIfNotToday(dt)],['Кто выдал',who]],
     run:function(ok,bad){
-      run('appEquipIssue',[pin,row,items,true,dt,who],function(r){
+      run('appEquipIssue',[pin,row,items,true,dt,who,ident(o)],function(r){
         ok();flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+(r.status==='Да'?'Заказ выдан полностью. ':'Выдача отмечена. ');load();
       },bad);
     }});
@@ -267,7 +269,7 @@ function unissue(b){
     text:'Отметка о выдаче будет снята. Запись об отмене останется в журнале изменений.',
     rows:[['Игрок',playerName(o.id)||o.oname],['Вещь',k],['Было отмечено',(x.date||'')+(x.who?', '+x.who:'')]],
     run:function(ok,bad){
-      run('appEquipIssue',[pin,row,[k],false],function(r){
+      run('appEquipIssue',[pin,row,[k],false,'','',ident(o)],function(r){
         ok();flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+'Выдача отменена. ';load();
       },bad);
     }});
@@ -388,7 +390,7 @@ function show(){
 function pid(v){var m=/\((KS-\d+)\)\s*$/.exec(v.trim());if(m)return m[1];var f=P.filter(function(p){return p.name==v.trim()})[0];return f?f.id:''}
 function relink(row,id,fix,btn){
   btn.disabled=true;
-  run('appRelink',[pin,Number(row),id,fix],function(r){
+  run('appRelink',[pin,Number(row),id,fix,ident(orderByRow(row))],function(r){
     flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+(id?'Заказ привязан.':'Заказ отвязан.')+(r.moved?' Платежей перенесено: '+r.moved+'.':'')+' ';
     load();
   },function(m){
@@ -419,7 +421,7 @@ $('list').onclick=function(e){
         text:'Платежи по этому заказу будут перенесены к выбранному игроку.',
         rows:[['Заказ',ro.kit||'комплект не указан'],['Сейчас',ro.id?playerName(ro.id)||ro.oname:'не привязан ('+ro.oname+')'],['Станет',playerName(id)],['Оплачено',ksMoney(ro.paid)]],
         run:function(ok,bad){
-          run('appRelink',[pin,Number(b.dataset.row),id,fix],function(r){
+          run('appRelink',[pin,Number(b.dataset.row),id,fix,ident(ro)],function(r){
             ok();flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+'Заказ привязан.'+(r.moved?' Платежей перенесено: '+r.moved+'.':'')+' ';load();
           },bad);
         }});
@@ -436,7 +438,7 @@ $('list').onclick=function(e){
       text:'Заказ будет удалён. Проверьте данные перед подтверждением.',
       rows:[['Заказ',(dord.kit||'Комплект не указан')+(dord.no?' (№'+dord.no+')':'')],['Игрок',playerName(dord.id)||dord.oname],['Сумма заказа',ksMoney(dord.sum)],['Оплачено',dord.paid>0?ksMoney(dord.paid):'нет оплат']],
       run:function(ok,bad){
-        run('appDeleteOrder',[pin,Number(b.dataset.row)],function(r){ok();flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+'Заказ удалён. ';load()},bad);
+        run('appDeleteOrder',[pin,Number(b.dataset.row),ident(dord)],function(r){ok();flash=(r.dryRun?'Пробный режим: в таблицу ничего не записано. ':'')+'Заказ удалён. ';load()},bad);
       }});
     return;
   }
