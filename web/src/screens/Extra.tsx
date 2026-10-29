@@ -6,13 +6,16 @@ import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 
 interface Booking { player_id: string; paid: boolean; attended: boolean | null; paid_amount: number | null; method: string | null; players: { full_name: string } | null }
-interface Session { id: string; starts_on: string; amount: number; place: string | null; extra_bookings: Booking[] }
+interface Session { id: string; starts_on: string; starts_time: string | null; ends_time: string | null; amount: number; place: string | null; extra_bookings: Booking[] }
 interface DebtRow { session_id: string; player_id: string; players: { full_name: string } | null; extra_sessions: { starts_on: string; amount: number; place: string | null } }
 
 const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
 const METHODS = ['Наличные', 'Перевод'];
 const errText = (m: string) =>
-  m.includes('already booked') ? 'Игрок уже записан.' : m.includes('booking is paid') ? 'Сначала отмените оплату.' : m.includes('session has payments') ? 'На тренировке есть оплаты: дату и сумму менять и удалять нельзя.' : m.includes('session exists') ? 'Тренировка на эту дату уже есть.' : m.includes('bad amount') ? 'Сумма указана неверно.' : coachError(m);
+  m.includes('already booked') ? 'Игрок уже записан.' : m.includes('booking is paid') ? 'Сначала отмените оплату.' : m.includes('session has payments') ? 'На тренировке есть оплаты: дату и сумму менять и удалять нельзя.' : m.includes('session exists') ? 'Тренировка на эту дату уже есть.' : m.includes('bad amount') ? 'Сумма указана неверно.' : m.includes('end before start') ? 'Окончание должно быть позже начала.' : m.includes('start required') ? 'Укажите время начала.' : coachError(m);
+
+// Время занятия «ЧЧ:ММ–ЧЧ:ММ» (миграция 0070); пусто, если время не указано
+const timeSpan = (s: { starts_time: string | null; ends_time: string | null }) => (s.starts_time ? ` ${s.starts_time.slice(0, 5)}${s.ends_time ? `–${s.ends_time.slice(0, 5)}` : ''}` : '');
 
 type Tab = 'next' | 'past' | 'debt';
 
@@ -34,7 +37,7 @@ export default function Extra() {
         if (r.error) return setError(r.error.message.includes('extra_') ? 'Модуль ещё не установлен в базе (миграция 0035).' : coachError(r.error.message));
         return setDebts((r.data ?? []) as unknown as DebtRow[]);
       }
-      const q = supabase.from('extra_sessions').select('id, starts_on, amount, place, extra_bookings(player_id, paid, attended, paid_amount, method, players(full_name))');
+      const q = supabase.from('extra_sessions').select('id, starts_on, starts_time, ends_time, amount, place, extra_bookings(player_id, paid, attended, paid_amount, method, players(full_name))');
       const r = tab === 'next' ? await q.gt('starts_on', today()).order('starts_on').limit(60) : await q.lte('starts_on', today()).order('starts_on', { ascending: false }).limit(60);
       if (r.error) return setError(r.error.message.includes('extra_') ? 'Модуль ещё не установлен в базе (миграция 0035).' : coachError(r.error.message));
       setList((r.data ?? []) as unknown as Session[]);
@@ -95,7 +98,7 @@ export default function Extra() {
         <EmptyState icon="users" title="Тренировок нет" text={tab === 'next' ? 'Создайте тренировку кнопкой выше.' : 'Прошедших тренировок пока нет.'} />
       ) : (
         list.map(s => (
-          <ListRow key={s.id} avatar="Д" title={`${fmtDate(s.starts_on)} · ${gel(Number(s.amount))}`} sub={[s.place ?? 'место не указано', `Записано: ${s.extra_bookings.length}, оплатили: ${s.extra_bookings.filter(b => b.paid).length}`]} onClick={() => setOpenId(s.id)} />
+          <ListRow key={s.id} avatar="Д" title={`${fmtDate(s.starts_on)}${timeSpan(s)} · ${gel(Number(s.amount))}`} sub={[s.place ?? 'место не указано', `Записано: ${s.extra_bookings.length}, оплатили: ${s.extra_bookings.filter(b => b.paid).length}`]} onClick={() => setOpenId(s.id)} />
         ))
       )}
     </main>
@@ -136,6 +139,8 @@ function View({ session, onBack }: { session: Session; onBack: () => void }) {
   const [date, setDate] = useState(session.starts_on);
   const [amount, setAmount] = useState(String(session.amount));
   const [place, setPlace] = useState(session.place ?? '');
+  const [tStart, setTStart] = useState(session.starts_time?.slice(0, 5) ?? '');
+  const [tEnd, setTEnd] = useState(session.ends_time?.slice(0, 5) ?? '');
   const [method, setMethod] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -175,7 +180,7 @@ function View({ session, onBack }: { session: Session; onBack: () => void }) {
   return (
     <main className="page">
       <BackNav onBack={onBack} />
-      <h1>{fmtDate(session.starts_on)} · {gel(Number(session.amount))}</h1>
+      <h1>{fmtDate(session.starts_on)}{timeSpan(session)} · {gel(Number(session.amount))}</h1>
       <p className="muted">{session.place ?? 'Место не указано'}</p>
       {msg && <p className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}
 
@@ -212,6 +217,10 @@ function View({ session, onBack }: { session: Session; onBack: () => void }) {
       <label className="field">Сумма, ₾<input inputMode="decimal" value={amount} disabled={anyPaid} onChange={e => setAmount(e.target.value)} /></label>
       <label className="field">Место<input value={place} maxLength={80} onChange={e => setPlace(e.target.value)} /></label>
       <button type="button" className="ks-btn" disabled={busy === 'edit' || !date || Number.isNaN(Number(amount.replace(',', '.')))} onClick={() => void run('edit', () => supabase.rpc('extra_edit_session', { s: session.id, d: date, amt: Number(amount.replace(',', '.')), plc: place }), 'Сохранено.')}>Сохранить</button>
+      <h3>Время</h3>
+      <label className="field">Начало<input type="time" value={tStart} onChange={e => setTStart(e.target.value)} /></label>
+      <label className="field">Окончание<input type="time" value={tEnd} onChange={e => setTEnd(e.target.value)} /></label>
+      <button type="button" className="ks-btn secondary" disabled={busy === 'time'} onClick={() => void run('time', () => supabase.rpc('extra_set_time', { s: session.id, t_start: tStart || null, t_end: tEnd || null }), 'Время сохранено.')}>Сохранить время</button>
       <div style={{ height: 8 }} />
       {confirmDel ? (
         <>

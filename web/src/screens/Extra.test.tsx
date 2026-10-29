@@ -67,4 +67,19 @@ describe('«Дополнительные»', () => {
     await waitFor(() => expect(fake.rpcCalls('extra_set_attended')).toEqual([{ s: 'e1', p: 'p1', was: false }]));
     expect(screen.getByRole('button', { name: 'Удалить нельзя: есть оплаты' })).toBeDisabled();
   });
+
+  it('время тренировки: начало и окончание сохраняются отдельно; ошибка базы — понятным текстом', async () => {
+    seed();
+    fake.rpc.extra_set_time = () => null;
+    render(<Extra />);
+    fireEvent.click(await screen.findByText('10.01.2099 · 20 ₾'));
+    fireEvent.change(await screen.findByLabelText('Начало'), { target: { value: '19:00' } });
+    fireEvent.change(screen.getByLabelText('Окончание'), { target: { value: '20:30' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить время' }));
+    await waitFor(() => expect(fake.rpcCalls('extra_set_time')).toEqual([{ s: 'e1', t_start: '19:00', t_end: '20:30' }]));
+    fake.rpc.extra_set_time = () => ({ error: { message: 'end before start' } });
+    fireEvent.change(screen.getByLabelText('Окончание'), { target: { value: '18:00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить время' }));
+    expect(await screen.findByText('Окончание должно быть позже начала.')).toBeInTheDocument();
+  });
 });
