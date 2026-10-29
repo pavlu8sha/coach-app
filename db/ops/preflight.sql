@@ -77,6 +77,8 @@ select * from (values
   ('0072_pay_dedupe_ids',          pg_get_functiondef(to_regprocedure('event_pay(uuid,uuid[],numeric,date,text,text)')) like '%uids%'),
   ('0073_extra_paid_amount_check', pg_get_functiondef(to_regprocedure('extra_set_paid(uuid,uuid,boolean,text,numeric)')) like '%bad amount%'),
   ('0074_camp_participant_amount_floor', pg_get_functiondef(to_regprocedure('camp_update_participant(uuid,uuid,numeric,text,text,text)')) like '%amount below paid%'),
-  ('0075_booking_board_extra_time', pg_get_functiondef(to_regprocedure('booking_board()')) like '%starts_time%')
+  ('0075_booking_board_extra_time', pg_get_functiondef(to_regprocedure('booking_board()')) like '%starts_time%'),
+  ('0077_payment_author',          exists (select 1 from pg_trigger where tgname = 'payments_stamp_author' and not tgisinternal)),
+  ('0078_cash_report',             to_regprocedure('cash_report(date,date,text,uuid,text)') is not null)
 ) as t(migration, applied)
 order by migration;
