@@ -24,10 +24,11 @@ const plan = buildExtraPlan({
   journal: arg('journal') ? replayExtraJournal(read(arg('journal'))) : new Map(),
   year: Number(arg('year')) || new Date().getFullYear(), defaultAmount: Number(arg('amount')) || 0,
 });
-const { sessions, problems } = plan;
+const { sessions, problems, former } = plan;
 const entries = sessions.reduce((n, s) => n + s.people.length, 0);
 const paid = sessions.reduce((n, s) => n + s.people.filter(p => p.paid).length, 0);
 console.log(`Тренировок ${sessions.length} (${sessions.map(s => s.starts_on).sort()[0] ?? '—'} … ${sessions.map(s => s.starts_on).sort().pop() ?? '—'}), записей ${entries}, оплачено ${paid}, не оплачено ${entries - paid}`);
+console.log(`Бывшие игроки (будут добавлены неактивными): ${former.length}${former.length ? ' — ' + former.map(f => f.full_name).join('; ') : ''}`);
 console.log(`Без суммы: ${sessions.filter(s => !s.amount).length}. Проблем: ${problems.length}`);
 for (const p of problems) console.log(`  ${p.error}`);
 if (!write) { console.log('Проверка без записи. Для записи добавьте --write.'); process.exit(0); }
@@ -47,6 +48,10 @@ async function rest(method, p, body, prefer = '') {
 }
 const MERGE = 'resolution=merge-duplicates,return=minimal';
 
+// бывшие игроки, которых нет в реестре, — неактивные игроки без группы (как бывшие дети в посещаемости)
+if (former.length) await rest('POST', 'players?on_conflict=club_id,external_id', former.map(f => ({
+  club_id: CLUB_ID, external_id: f.external_id, full_name: f.full_name, status: 'inactive',
+})), MERGE);
 const dbPlayers = await getAll(rest, `players?club_id=eq.${CLUB_ID}&select=id,full_name`);
 const byName = new Map(dbPlayers.map(p => [p.full_name, p.id]));
 const absent = [...new Set(sessions.flatMap(s => s.people.map(p => p.name)).filter(n => !byName.has(n)))];
