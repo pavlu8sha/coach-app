@@ -1,7 +1,7 @@
 -- pgTAP: статистика посещаемости по группам (0033).
 begin;
 create extension if not exists pgtap;
-select plan(14);
+select plan(15);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -44,7 +44,7 @@ select is((select count(distinct group_name)::int from attendance_stats('2026-10
 select is((select count(*)::int from attendance_stats('2026-10-06', '2026-10-06')), 1, 'период сужает выборку (только U11 6 октября)');
 
 select as_user('00000000-0000-0000-0000-0000000000c1');
-select is((select count(distinct group_name)::int from attendance_stats('2026-10-01', '2026-10-31')), 2, 'тренер видит статистику посещаемости всех групп');
+select is((select array_agg(distinct group_name) from attendance_stats('2026-10-01', '2026-10-31')), array['U9'], 'тренер видит статистику посещаемости только своей группы (0080)');
 
 select as_user('00000000-0000-0000-0000-0000000000b1');
 select throws_ok($$select * from attendance_stats('2026-10-01', '2026-10-31')$$, '42501', 'forbidden', 'родителю статистика недоступна');
@@ -71,7 +71,8 @@ select is((select array[played, goals] from match_stats('2026-10-01', '2026-10-3
 select as_user('00000000-0000-0000-0000-0000000000b1');
 select throws_ok($$select * from match_stats('2026-10-01', '2026-10-31')$$, '42501', 'forbidden', 'родителю статистика матчей недоступна');
 select as_user('00000000-0000-0000-0000-0000000000c1');
-select is((select count(*)::int from match_stats('2026-10-01', '2026-10-31') where kind = 'team' and team = 'U11'), 1, 'тренер U9 видит статистику матчей U11');
+select is((select count(*)::int from match_stats('2026-10-01', '2026-10-31') where kind = 'team' and team = 'U11'), 0, 'тренер U9 не видит статистику матчей U11 (0080)');
+select is((select games from match_stats('2026-10-01', '2026-10-31') where kind = 'team' and team = 'U9'), 2, 'свою команду тренер видит');
 
 select * from finish();
 rollback;
