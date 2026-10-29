@@ -112,3 +112,16 @@ describe('Экипировка: фильтры как в старом прило
     expect(screen.getByText('100 ₾')).toBeInTheDocument(); // долг по видимому заказу: 160 − 60
   });
 });
+
+describe('Новый заказ: локация', () => {
+  it('локация подставляется из группы выбранного игрока и остаётся редактируемой', async () => {
+    fake.db.equipment_orders = [];
+    fake.db.equipment_catalog = [{ kit: 'Носки', price: 15, valid_from: '2026-08-01' }];
+    fake.db.players = [{ id: 'p1', full_name: 'Иванов Пётр', groups: { location: 'Красный парк' } }];
+    render(<Equipment />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Новый заказ' }));
+    fireEvent.change(await screen.findByLabelText(/Найти игрока/), { target: { value: 'Иван' } });
+    fireEvent.click(await screen.findByText('Иванов Пётр'));
+    expect(await screen.findByLabelText('Локация')).toHaveValue('Красный парк');
+  });
+});
