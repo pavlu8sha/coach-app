@@ -7,11 +7,12 @@ export function parseDbExport(text) {
   const [head, ...rows] = parseCsv(text).filter(r => r.some(x => String(x).trim()));
   const H = head.map(h => h.trim());
   return rows.map(r => {
-    const o = Object.fromEntries(H.map((h, i) => [h, (r[i] ?? '').trim()]));
+    // SQL Editor пишет NULL текстом «null»: это пусто, а не значение
+    const o = Object.fromEntries(H.map((h, i) => [h, (r[i] ?? '').trim().replace(/^null$/i, '')]));
     return {
       ext_id: o.ord, player_ext: o.player_ext, inscription: o.inscription || null, number: o.number || null,
       installment: o.installment === 't' || o.installment === 'true', total: Number(o.total) || 0, paid: Number(o.paid) || 0,
-      lines: o.lines ? JSON.parse(o.lines).map(l => ({ kit: String(l.kit).trim(), size: String(l.size ?? '').trim() || null, quantity: Number(l.quantity) || 1 })) : [],
+      lines: o.lines ? JSON.parse(o.lines).map(l => ({ kit: String(l.kit).trim(), size: String(l.size ?? '').trim().replace(/^null$/i, '') || null, quantity: Number(l.quantity) || 1 })) : [],
     };
   });
 }

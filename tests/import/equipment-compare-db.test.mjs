@@ -27,3 +27,10 @@ test('заказы только в листе или только в базе в
   const r = compareWithDb([sheet('ORD-0200')], parseDbExport(csv));
   assert.deepEqual([r.onlySheet, r.onlyDb], [['ORD-0200'], ['ORD-0069', 'ORD-0043']]);
 });
+
+test('текст «null» из выгрузки SQL Editor — пустое значение, а не расхождение', () => {
+  const t = 'ord,player_ext,inscription,number,installment,total,paid,location,lines\nORD-1,KS-1,null,null,f,100,0,Парк,' + J([{ kit: 'Носки', size: null, quantity: 1 }]) + '\n';
+  const db = parseDbExport(t);
+  assert.deepEqual([db[0].inscription, db[0].number, db[0].lines[0].size], [null, null, null]);
+  assert.deepEqual(compareWithDb([sheet('ORD-1', { player_ext: 'KS-1', inscription: null, number: null, total: 100, paid: 0, lines: [line('Носки', null, 1)] })], db).diffs, []);
+});
