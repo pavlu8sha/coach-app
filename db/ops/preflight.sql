@@ -48,6 +48,7 @@ select * from (values
   ('0060_event_roster_stats_kind', to_regprocedure('match_stats(date,date,text)') is not null),
   ('0061_coach_match_fees',       to_regprocedure('match_assert_fees(uuid)') is not null),
   ('0062_tl_edit_session',         to_regprocedure('tl_edit_session(date,text,time,time,time,text)') is not null),
-  ('0063_parent_calendar',         to_regprocedure('parent_calendar(uuid,date,date)') is not null)
+  ('0063_parent_tournaments',      to_regprocedure('my_tournaments()') is not null),
+  ('0064_parent_calendar',         to_regprocedure('parent_calendar(uuid,date,date)') is not null)
 ) as t(migration, applied)
 order by migration;

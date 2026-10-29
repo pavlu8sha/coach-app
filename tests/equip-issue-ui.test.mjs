@@ -27,7 +27,7 @@ function env(ISS, orders, stored = {}) {
     load: () => { ctx.loads++; },
   };
   vm.createContext(ctx);
-  vm.runInContext(['esc', 'money', 'today', 'kitsOf', 'orderByRow', 'playerName', 'issOf', 'issState', 'lastWho', 'issueHtml', 'issueOrder', 'unissue'].map(pick).join('\n'), ctx);
+  vm.runInContext(['esc', 'money', 'today', 'kitsOf', 'orderByRow', 'ident', 'playerName', 'issOf', 'issState', 'lastWho', 'issueHtml', 'issueOrder', 'unissue'].map(pick).join('\n'), ctx);
   return { ctx, calls, confirms, ls };
 }
 const J = x => JSON.parse(JSON.stringify(x));
@@ -69,7 +69,7 @@ test('выдача с долгом: подтверждение предупре�
   assert.match(e.confirms[0].warn, /не оплачено 200 ₾/);
   assert.equal(e.ls.kitWho, 'Павел');
   e.confirms[0].run(() => {}, () => {});
-  assert.deepEqual(J(e.calls.map(c => [c.fn, ...c.args.slice(1)])), [['appEquipIssue', 7, ['Тренировочная форма', 'Игровая форма'], true, '2026-10-23', 'Павел']]);
+  assert.deepEqual(J(e.calls.map(c => [c.fn, ...c.args.slice(1)])), [['appEquipIssue', 7, ['Тренировочная форма', 'Игровая форма'], true, '2026-10-23', 'Павел', { name: 'Alpha A', id: 'KS-1', ord: 'ORD-0001' }]]);
   e.calls[0].ok({ ok: true, status: 'Да' });
   assert.deepEqual([e.ctx.flash, e.ctx.loads], ['Заказ выдан полностью. ', 1]);
 });
@@ -89,7 +89,7 @@ test('отмена выдачи: подтверждение показывает
   e.ctx.unissue({ dataset: { row: '7', k: 'Игровая форма' } });
   assert.deepEqual(J(e.confirms[0].rows[2]), ['Было отмечено', '23.10.2026, Павел']);
   e.confirms[0].run(() => {}, () => {});
-  assert.deepEqual(J([e.calls[0].fn, ...e.calls[0].args.slice(1)]), ['appEquipIssue', 7, ['Игровая форма'], false]);
+  assert.deepEqual(J([e.calls[0].fn, ...e.calls[0].args.slice(1)]), ['appEquipIssue', 7, ['Игровая форма'], false, '', '', { name: 'Alpha A', id: 'KS-1', ord: 'ORD-0001' }]);
 });
 
 test('фильтр «Выдано не всё» и подпись игрока подключены', () => {

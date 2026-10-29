@@ -259,7 +259,7 @@ function dry(r){return r&&r.dryRun?'Пробный режим: в таблицу
 // ---------- Тарифы ----------
 function tarRow(t){
   var on=t.row?!!t.active:true;
-  return'<div class="tr" data-row="'+(t.row||'')+'"><div class="row2"><input class="tn" placeholder="Название" value="'+esc(t.name||'')+'"><input class="tp" type="number" min="0" step="1" placeholder="Цена, ₾" value="'+(t.price!=null?esc(t.price):'')+'"></div><input class="tl" placeholder="Метка в списке для отправки, например 1+1 (необязательно)" value="'+esc(t.label||'')+'"><label class="chk"><input type="checkbox" class="ta"'+(on?' checked':'')+'> Активен</label></div>';
+  return'<div class="tr" data-row="'+(t.row||'')+'" data-was="'+esc(t.row?t.name||'':'')+'"><div class="row2"><input class="tn" placeholder="Название" value="'+esc(t.name||'')+'"><input class="tp" type="number" min="0" step="1" placeholder="Цена, ₾" value="'+(t.price!=null?esc(t.price):'')+'"></div><input class="tl" placeholder="Метка в списке для отправки, например 1+1 (необязательно)" value="'+esc(t.label||'')+'"><label class="chk"><input type="checkbox" class="ta"'+(on?' checked':'')+'> Активен</label></div>';
 }
 function openTar(){
   $('tarrows').innerHTML=(D.tariffs||[]).map(tarRow).join('');
@@ -331,7 +331,7 @@ $('taradd').onclick=function(){$('tarrows').insertAdjacentHTML('beforeend',tarRo
 $('tarcancel').onclick=function(){$('tarbox').hidden=true};
 $('tarsave').onclick=function(){
   var rows=[].map.call(document.querySelectorAll('#tarrows .tr'),function(x){
-    return{row:Number(x.dataset.row)||0,name:x.querySelector('.tn').value.trim(),price:x.querySelector('.tp').value,active:x.querySelector('.ta').checked,label:x.querySelector('.tl').value.trim()};
+    return{row:Number(x.dataset.row)||0,was:x.dataset.was||'',name:x.querySelector('.tn').value.trim(),price:x.querySelector('.tp').value,active:x.querySelector('.ta').checked,label:x.querySelector('.tl').value.trim()};
   }).filter(function(r){return r.row||r.name});
   if(!rows.length){$('tarmsg').textContent='Добавьте хотя бы один тариф';return}
   $('tarsave').disabled=true;$('tarmsg').textContent='Сохраняю…';
@@ -366,7 +366,7 @@ $('list').onclick=function(e){
     ksConfirm({title:'Отменить оплату?',ok:'Отменить оплату',danger:true,
       text:'В журнале сбора появится запись об отмене, сумма платежа перестанет учитываться.',
       rows:(hp?whoRows(hp):[]).concat(hx?[['Сумма',ksMoney(hx.amount)],['Тип',hx.type],['Дата',fd(hx.date)],['Способ',hx.method]]:[]),
-      run:function(ok,bad){run('appCampCancel',[pin,Number(b.dataset.row)],function(r){ok();reload(dry(r)+'Платёж отменён. ')},bad)}});
+      run:function(ok,bad){run('appCampCancel',[pin,Number(b.dataset.row),{t:hx&&hx.t,part:hx&&hx.part,amount:hx&&hx.amount}],function(r){ok();reload(dry(r)+'Платёж отменён. ')},bad)}});
     return}
   if(b.classList.contains('ed')){var ef=ord.querySelector('.ef');ef.hidden=!ef.hidden;return}
   if(b.classList.contains('esave')||b.classList.contains('erej')){

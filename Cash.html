@@ -266,7 +266,7 @@ $('progs').onclick=function(e){
       warn:over2?'Сумма больше остатка на '+ksMoney(over2)+'. Платёж будет записан полностью.':'',
       rows:payRows(who,amt2,'Экипировка: '+(ord.kit||'комплект не указан')),
       run:function(ok,bad){
-        run('appAddPayment',[pin,id2,row,amt2,dt2,cm2,mt2],function(r){ok();done(r,'Внесено: '+who+', '+money(amt2)+' (экипировка, '+mt2+').')},bad);
+        run('appAddPayment',[pin,id2,row,amt2,dt2,cm2,mt2,{no:ord.no,name:ord.oname,id:ord.id,ord:ord.ord||''}],function(r){ok();done(r,'Внесено: '+who+', '+money(amt2)+' (экипировка, '+mt2+').')},bad);
       }});
   }
 };
@@ -315,7 +315,7 @@ $('feed').onclick=function(e){
     text:'В журнале появится запись об отмене, сумма платежа перестанет учитываться.',
     rows:[['Игрок',x.name],['Сумма',x.amount!=null?ksMoney(x.amount):''],['За что',x.what],['Способ',x.method]],
     run:function(ok,bad){
-      run('appCancelPayment',[pin,b.dataset.src,Number(b.dataset.row)],function(r){
+      run('appCancelPayment',[pin,b.dataset.src,Number(b.dataset.row),{t:x.t,name:x.name,amount:x.amount}],function(r){
         ok();
         if(r.dryRun){setMsg('Пробный режим: в таблицу ничего не записано.');return}
         setMsg('Платёж отменён.');feed();orders(function(){if(SUB)paint()});if(cur)loadPlayer(cur,true);

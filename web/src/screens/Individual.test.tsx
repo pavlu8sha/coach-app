@@ -120,3 +120,20 @@ describe('«Индивидуальные»: сводка как в прежне�
     await waitFor(() => expect(writes).toEqual(['1. Иванов Пётр\n2. Сидоров Ян']));
   });
 });
+
+describe('«Индивидуальные»: история не обрезается', () => {
+  it('при более чем 60 занятиях показывает кнопку «Показать ещё» и доходит до самого раннего', async () => {
+    const day = (i: number) => new Date(Date.UTC(2026, 0, 1 + i)).toISOString().slice(0, 10);
+    fake.db.individual_sessions = Array.from({ length: 65 }, (_, i) => ({
+      id: `s${i}`, starts_at: `${day(i)}T12:00:00`, topic: null, goalkeepers: false, individual_bookings: [],
+    }));
+    fake.db.individual_bookings = [];
+    render(<Individual />);
+    fireEvent.click(await screen.findByRole('tab', { name: 'Прошедшие' }));
+    expect(await screen.findByText('06.03.2026 12:00 · Индивидуальные')).toBeInTheDocument();
+    expect(screen.queryByText('01.01.2026 12:00 · Индивидуальные')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Показать ещё' }));
+    expect(await screen.findByText('01.01.2026 12:00 · Индивидуальные')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Показать ещё' })).not.toBeInTheDocument());
+  });
+});
