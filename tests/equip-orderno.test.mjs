@@ -42,10 +42,10 @@ const order = (no, name, id, sum, paid) => [no, '', name, 'игровая', '140
 
 function env(orders, pays) {
   const eq = new Sheet([['ЭКИПИРОВКА'], [''], ['№']].concat(orders));
-  const ps = new Sheet([HEAD].concat(pays.map(p => [new Date(0), '2026-10-01', p.id, p.name, 'Экипировка: игровая', p.no, p.sum, '', 'Наличные'])));
+  const ps = new Sheet([HEAD].concat(pays.map((p, i) => [new Date(Date.UTC(2026, 9, 1, 8, i)), '2026-10-01', p.id, p.name, 'Экипировка: игровая', p.no, p.sum, '', 'Наличные'])));
   const log = [];
   const ctx = {
-    console: { warn() {}, error() {}, log() {} }, CONFIG: { DRY_RUN: false },
+    console: { warn() {}, error() {}, log() {} }, Date, CONFIG: { DRY_RUN: false },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
     SpreadsheetApp: { getActive: () => ({}) },
   };
@@ -73,9 +73,10 @@ function env(orders, pays) {
   const paidOf = no => eq.data[rowOf(no) - 1][9];
   // снимок заказа, который UI получил при загрузке списка: №, ФИО, ID игрока и ID заказа строки row
   const snap = row => { const r = eq.data[row - 1]; return { no: r[0], name: r[2], id: r[11], ord: r[13] }; };
+  const psnap = row => { const r = ps.data[row - 1]; return { t: r[0].getTime(), name: r[3], amount: r[6] }; };   // снимок платежа, как его видит лента
   // сортировка/перестановка: две физические строки меняются местами
   const swap = (a, b) => { const t = eq.data[a - 1]; eq.data[a - 1] = eq.data[b - 1]; eq.data[b - 1] = t; };
-  return { ctx, eq, ps, log, rowOf, paidOf, snap, swap };
+  return { ctx, eq, ps, log, rowOf, paidOf, snap, psnap, swap };
 }
 
 // №1 A, №2 B (без оплаты), №3 C (оплачено 100), №4 D, №5 C — второй заказ того же игрока (оплачено 200)
@@ -114,13 +115,13 @@ test('заказ с оплатой не удаляется', () => {
 test('отмена платежа по заказу ниже удалённой строки уменьшает «оплачено» именно у этого заказа', () => {
   const e = base();
   e.ctx.appDeleteOrder('9', 5, e.snap(5));                                   // №2, выше обоих заказов C
-  e.ctx.appCancelPayment('9', 'eq', 2);                          // платёж по №3
+  e.ctx.appCancelPayment('9', 'eq', 2, e.psnap(2));                          // платёж по №3
   assert.deepEqual([e.paidOf(3), e.paidOf(5), e.paidOf(1), e.paidOf(4)], [0, 200, 0, 0]);
   const rev = e.ps.data[e.ps.data.length - 1];
   assert.deepEqual([rev[2], rev[5], rev[6], rev[7]], ['KS-3', 3, -100, 'отмена платежа, строка 2']);
-  e.ctx.appCancelPayment('9', 'eq', 3);                          // платёж по №5 (второй заказ того же игрока)
+  e.ctx.appCancelPayment('9', 'eq', 3, e.psnap(3));                          // платёж по №5 (второй заказ того же игрока)
   assert.deepEqual([e.paidOf(3), e.paidOf(5)], [0, 0]);
-  assert.throws(() => e.ctx.appCancelPayment('9', 'eq', 3), /уже отменён/);
+  assert.throws(() => e.ctx.appCancelPayment('9', 'eq', 3, e.psnap(3)), /уже отменён/);
 });
 
 test('отмена платежа по удалённому заказу: «не найден», ничего не меняется', () => {
@@ -128,7 +129,7 @@ test('отмена платежа по удалённому заказу: «не
     [{ id: 'KS-1', name: 'Alpha A', no: 1, sum: 50 }]);
   e.ctx.appDeleteOrder('9', 4, e.snap(4));                                   // №1 (оплачено 0: платёж уже был отменён вручную)
   const before = JSON.stringify([e.eq.data, e.ps.data]);
-  assert.throws(() => e.ctx.appCancelPayment('9', 'eq', 2), /не найден/);
+  assert.throws(() => e.ctx.appCancelPayment('9', 'eq', 2, e.psnap(2)), /не найден/);
   assert.equal(JSON.stringify([e.eq.data, e.ps.data]), before);
 });
 

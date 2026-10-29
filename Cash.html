@@ -315,7 +315,7 @@ $('feed').onclick=function(e){
     text:'В журнале появится запись об отмене, сумма платежа перестанет учитываться.',
     rows:[['Игрок',x.name],['Сумма',x.amount!=null?ksMoney(x.amount):''],['За что',x.what],['Способ',x.method]],
     run:function(ok,bad){
-      run('appCancelPayment',[pin,b.dataset.src,Number(b.dataset.row)],function(r){
+      run('appCancelPayment',[pin,b.dataset.src,Number(b.dataset.row),{t:x.t,name:x.name,amount:x.amount}],function(r){
         ok();
         if(r.dryRun){setMsg('Пробный режим: в таблицу ничего не записано.');return}
         setMsg('Платёж отменён.');feed();orders(function(){if(SUB)paint()});if(cur)loadPlayer(cur,true);
