@@ -1,7 +1,7 @@
 /** Приём оплат: экипировка со способом оплаты и общая лента за сегодня (версия 3). */
 
 // Оплата заказа экипировки. Способ необязателен для старых форм, но если он указан, его пишем в столбец I журнала «ОПЛАТЫ».
-function appAddPayment(pin, id, row, amount, dateStr, comment, method) {
+function appAddPayment(pin, id, row, amount, dateStr, comment, method, expected) {
   checkAdmin_(pin);
   if (method && PAY_METHODS.indexOf(method) < 0) throw new Error('Неизвестный способ оплаты');
   amount = Math.round(Number(amount) * 100) / 100;
@@ -13,6 +13,7 @@ function appAddPayment(pin, id, row, amount, dateStr, comment, method) {
   try {
     if (row > eq.getLastRow()) throw new Error('Заказ не найден, обновите страницу');
     if (String(eq.getRange(row, 12).getValue()).trim() !== id) throw new Error('Заказ не относится к этому игроку, обновите страницу');
+    assertEquipRowIdentity_(eq, row, expected); // строка могла сместиться после сортировки: платёж только в тот заказ, который открыт в форме
     var sum = Math.round((Number(eq.getRange(row, 9).getValue()) || 0) * 100) / 100;
     var paid = Math.round((Number(eq.getRange(row, 10).getValue()) || 0) * 100) / 100;
     var left = Math.round((sum - paid) * 100) / 100;

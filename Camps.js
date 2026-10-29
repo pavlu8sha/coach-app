@@ -55,7 +55,7 @@ function campAll_() {
   });
   rows(s.ys, 10).forEach(function (r, i) {
     if (!r[0]) return;
-    out.pays.push({ row: i + 2, date: isoOf_(r[1], tz), camp: String(r[2]), part: String(r[3]), name: String(r[5]),
+    out.pays.push({ row: i + 2, t: r[0] instanceof Date ? r[0].getTime() : 0, date: isoOf_(r[1], tz), camp: String(r[2]), part: String(r[3]), name: String(r[5]),
       amount: Number(r[6]) || 0, type: String(r[7]), method: String(r[8] || ''), comment: String(r[9] || '') });
   });
   cachePutBig_(CAMP_CACHE, out, 60);
@@ -87,7 +87,7 @@ function appCampData(pin, campId) {
   });
   all.pays.forEach(function (y) {
     if (y.camp !== camp.id) return;
-    (hist[y.part] = hist[y.part] || []).push({ row: y.row, date: y.date, amount: y.amount, type: y.type, method: y.method, comment: y.comment,
+    (hist[y.part] = hist[y.part] || []).push({ row: y.row, t: y.t, part: y.part, date: y.date, amount: y.amount, type: y.type, method: y.method, comment: y.comment,
       canCancel: y.amount > 0 && !rev[y.row] && (y.type === 'Бронь' || y.type === 'Оплата'), reversed: y.amount > 0 && !!rev[y.row] });
   });
   var T = { n: 0, sum: 0, paid: 0, debt: 0, booked: 0, byTariff: {} };
@@ -201,13 +201,17 @@ function appCampPay(pin, id, amount, type, dateStr, comment, method) {
 }
 
 // Отмена платежа: пишет строку с минусом, ничего не удаляет.
-function appCampCancel(pin, row) {
+function appCampCancel(pin, row, expected) {
   checkAdmin_(pin);
   row = Number(row);
   return campLocked_(function () {
     campDrop_();
     var all = campAll_(), y = all.pays.filter(function (x) { return x.row === row; })[0];
-    if (!y || !(y.amount > 0) || (y.type !== 'Бронь' && y.type !== 'Оплата')) throw new Error('Эту запись отменить нельзя');
+    if (!y) throw new Error('Платёж не найден');
+    // строка журнала могла сместиться после сортировки: сверяем время записи, участника и сумму из формы до записи
+    if (!expected || typeof expected !== 'object' || !y.t || y.t !== (Number(expected.t) || 0) || y.part !== String(expected.part || '')
+      || Math.abs(y.amount - (Number(expected.amount) || 0)) >= 0.005) throw new Error('Платёж изменился или строка журнала сместилась. Обновите страницу и повторите; отмена не внесена.');
+    if (!(y.amount > 0) || (y.type !== 'Бронь' && y.type !== 'Оплата')) throw new Error('Эту запись отменить нельзя');
     var tag = 'отмена платежа, строка ' + row;
     if (all.pays.some(function (x) { return x.type === 'Отмена' && x.comment === tag; })) throw new Error('Этот платёж уже отменён');
     var p = all.parts.filter(function (x) { return x.id === y.part; })[0];
