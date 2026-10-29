@@ -1,4 +1,4 @@
--- Что из миграций 0017–0063 уже применено в этой базе. Только чтение, ничего не меняет.
+-- Что из миграций 0017–0069 уже применено в этой базе. Только чтение, ничего не меняет.
 -- Запустить в SQL Editor целиком. applied = true — применять эту миграцию не нужно (повторный запуск упадёт на create table/trigger).
 -- Применять надо по номерам только те, где applied = false.
 select * from (values
@@ -49,6 +49,11 @@ select * from (values
   ('0061_coach_match_fees',       to_regprocedure('match_assert_fees(uuid)') is not null),
   ('0062_tl_edit_session',         to_regprocedure('tl_edit_session(date,text,time,time,time,text)') is not null),
   ('0063_parent_tournaments',      to_regprocedure('my_tournaments()') is not null),
-  ('0064_parent_calendar',         to_regprocedure('parent_calendar(uuid,date,date)') is not null)
+  ('0064_parent_calendar',         to_regprocedure('parent_calendar(uuid,date,date)') is not null),
+  ('0065_link_search_rate_limit',  pg_get_functiondef(to_regprocedure('search_players_for_link(text)')) like '%link_search%'),
+  ('0066_link_flood_limits',       to_regclass('link_notify_log') is not null),
+  ('0067_export_points_start',     pg_get_functiondef(to_regprocedure('export_my_data()')) like '%points_start%'),
+  ('0068_notify_bonus_points_start', pg_get_functiondef(to_regprocedure('notify_bonus()')) like '%points_start%'),
+  ('0069_booking_cancel_started',  pg_get_functiondef(to_regprocedure('booking_cancel(text,uuid,uuid)')) like '%session already started%')
 ) as t(migration, applied)
 order by migration;
