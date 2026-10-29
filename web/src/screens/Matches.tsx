@@ -13,6 +13,7 @@ export function teamNames(groupNames: string[]): string[] {
 }
 type Filter = 'all' | 'upcoming' | 'past';
 interface Tour { match_id: string; tournament_name: string | null; tournament_kind: string | null; match_kind: string | null }
+interface MyTour { id: string; team: string; kind: string; name: string | null; starts_on: string | null; games: number }
 const FORM: Record<'w' | 'd' | 'l', { letter: string; name: string; tone: Tone }> = { w: { letter: 'В', name: 'Победа', tone: 'success' }, d: { letter: 'Н', name: 'Ничья', tone: 'neutral' }, l: { letter: 'П', name: 'Поражение', tone: 'danger' } };
 const KIND_LABEL: Record<string, string> = { championship: 'Чемпионат', festival: 'Фестиваль', cup: 'Кубок' };
 const FRIENDLY = 'friendly';
@@ -38,6 +39,7 @@ export default function Matches() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [tours, setTours] = useState<Map<string, string>>(new Map()); // матч → подпись турнира
+  const [myTours, setMyTours] = useState<MyTour[]>([]); // турниры ребёнка, в том числе без матчей
   const [tour, setTour] = useState('');
   const [reload, setReload] = useState(0);
 
@@ -76,6 +78,9 @@ export default function Matches() {
       const tm = new Map<string, string>();
       for (const t of (tr.data ?? []) as Tour[]) { const l = tourLabel(t); if (l) tm.set(t.match_id, l); }
       setTours(tm);
+      // турниры ребёнка без матчей: в источнике могут быть только состав и взносы
+      const mt = await supabase.rpc('my_tournaments');
+      setMyTours(((mt.data ?? []) as MyTour[]).filter(t => t.games === 0));
       setMatches(rows);
     })();
   }, [reload]);
@@ -91,6 +96,7 @@ export default function Matches() {
   const res = teamResults(past.map(m => ({ played_on: m.played_on, opponent: m.opponent, goals_for: m.goals_for ?? 0, goals_against: m.goals_against ?? 0 })));
   const showUpcoming = filter !== 'past';
   const showPast = filter !== 'upcoming';
+  const eventCards = myTours.filter(e => filter === 'upcoming' ? (e.starts_on ?? '') >= t : filter === 'past' ? (!e.starts_on || e.starts_on < t) : true);
   const sub = (m: Match) => [fmtDate(m.played_on), ...(multi ? [m.team] : [])].join(' · ');
   // «играл, голов: N» показываем только там, где запись об участии есть; отсутствие записи не значит «не играл»
   const kidShort = (n: string) => n.split(/\s+/)[1] ?? n;
@@ -119,6 +125,15 @@ export default function Matches() {
           <option value="">Все турниры</option>
           {tourNames.map(n => <option key={n} value={n}>{n}</option>)}
         </select>
+      )}
+
+      {eventCards.length > 0 && (
+        <>
+          <h3>Турниры</h3>
+          {eventCards.map(e => (
+            <ListRow key={e.id} title={e.name ?? KIND_LABEL[e.kind] ?? 'Турнир'} sub={[e.starts_on ? fmtDate(e.starts_on) : '', e.team, 'Матчей пока нет'].filter(Boolean)} end={<Pill tone="primary">Турнир</Pill>} />
+          ))}
+        </>
       )}
 
       {filter !== 'upcoming' && res.games > 0 && (
@@ -170,7 +185,7 @@ export default function Matches() {
         </>
       )}
 
-      {filter === 'all' && upcoming.length === 0 && past.length === 0 && <EmptyState icon="trophy" title="Матчей пока нет" text="Ближайшие матчи и результаты появятся здесь." />}
+      {filter === 'all' && upcoming.length === 0 && past.length === 0 && eventCards.length === 0 && <EmptyState icon="trophy" title="Матчей пока нет" text="Ближайшие матчи и результаты появятся здесь." />}
     </main>
   );
 }
