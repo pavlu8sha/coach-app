@@ -154,6 +154,16 @@ describe('«Приём оплат»', () => {
 });
 
 describe('«Приём оплат»: платежи дня', () => {
+  it('оплаты экипировки и занятий дня попадают в «Внесено», без кнопки отмены', async () => {
+    seed();
+    fake.db.payments = [];
+    fake.rpc.cash_day_service = () => [{ id: 's1', amount: 40, method: 'Перевод', what: 'Экипировка', player_id: 'p1', full_name: 'Иванов Пётр' }];
+    render(<CashDesk />);
+    await screen.findByRole('heading', { name: /Внесено сегодня.*40 ₾/ });
+    expect(screen.getByText(/Экипировка · Перевод/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Отменить оплату: Иванов Пётр' })).not.toBeInTheDocument();
+  });
+
   it('показывает наличные/перевод и отменяет оплату записью с минусом', async () => {
     seed();
     fake.db.payments = [{ id: 'x1', player_id: 'p1', amount: 50, paid_on: today(), method: 'Наличные', players: { full_name: 'Иванов Пётр' } }];
