@@ -21,9 +21,9 @@ describe('Касса локального администратора', () => {
     expect(await screen.findByRole('heading', { name: 'Кассовый отчёт' })).toBeInTheDocument();
   });
 
-  it('«Выйти» закрывает сессию и сбрасывает приложение', async () => {
+  it('«Выйти из аккаунта» закрывает сессию и сбрасывает приложение', async () => {
     render(<LocationCash locations={['Исани']} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Выйти' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Выйти из аккаунта' }));
     await waitFor(() => expect(closeApp).toHaveBeenCalledTimes(1));
     expect(fake.calls.some(c => c.name === 'auth.signOut')).toBe(true);
   });
