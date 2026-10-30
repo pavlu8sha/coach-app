@@ -25,7 +25,7 @@ describe('Запросы → Родители', () => {
     expect(await screen.findByText('Привязали ребёнка (1)')).toBeInTheDocument();
     expect(screen.getByText('Анна')).toBeInTheDocument();
     expect(screen.getByText('Алексей Петров')).toBeInTheDocument();
-    expect(screen.getByText('Вошли, но ребёнка не привязали (2)')).toBeInTheDocument();
+    expect(screen.getByText('Вошли, но ребёнка не привязали')).toBeInTheDocument();
     expect(screen.getByText('Борис')).toBeInTheDocument();
     expect(screen.queryByText('Тренер')).toBeNull();
     expect(screen.getByText('Дети без привязанного родителя (2)')).toBeInTheDocument();

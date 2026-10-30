@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { groupInOrder } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { teamResults } from '../lib/teamResults';
 import { EmptyState, ListRow, Pill, Segmented, type Tone } from '../ui/components';
@@ -163,24 +164,29 @@ export default function Matches() {
       {showPast && (
         <>
           {filter === 'all' && past.length > 0 && <h3>Результаты</h3>}
-          {past.map(m => {
-            const o = outcome(m);
-            return (
-              <ListRow
-                key={m.id}
-                title={m.opponent ?? 'Матч'}
-                sub={[sub(m), ...lines(m)]}
-                end={
-                  <>
-                    <span className="ks-score">
-                      {m.goals_for}:{m.goals_against}
-                    </span>
-                    <Pill tone={o.tone}>{o.text}</Pill>
-                  </>
-                }
-              />
-            );
-          })}
+          {groupInOrder(past, m => m.played_on.slice(0, 7)).map(([ym, items], i) => (
+            <details className="ks-group" key={ym} open={i === 0}>
+              <summary><div className="ks-line"><b>{ym.slice(5)}.{ym.slice(0, 4)}</b><span className="muted">{items.length} матч.</span></div></summary>
+              {items.map(m => {
+                const o = outcome(m);
+                return (
+                  <ListRow
+                    key={m.id}
+                    title={m.opponent ?? 'Матч'}
+                    sub={[sub(m), ...lines(m)]}
+                    end={
+                      <>
+                        <span className="ks-score">
+                          {m.goals_for}:{m.goals_against}
+                        </span>
+                        <Pill tone={o.tone}>{o.text}</Pill>
+                      </>
+                    }
+                  />
+                );
+              })}
+            </details>
+          ))}
           {filter === 'past' && past.length === 0 && <EmptyState icon="trophy" title="Нет результатов" text="Сыгранных матчей пока нет." />}
         </>
       )}

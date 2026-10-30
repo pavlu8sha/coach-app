@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { coachError, fmtDate, today } from '../lib/coach';
+import { coachError, fmtDate, groupInOrder, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput, Segmented, SwitchRow } from '../ui/components';
 import { useConfirm } from '../ui/ConfirmSheet';
@@ -132,9 +132,14 @@ function CampView({ camp, onBack, onEdit }: { camp: Camp; onBack: () => void; on
         <>
           <p className="muted" style={{ margin: '10px 0' }}>Записано: {reg.length} · оплачено {gel(paid)} из {gel(owed)}</p>
           <button type="button" className="ks-btn" onClick={() => setAdding(true)} disabled={tariffs.filter(t => t.active).length === 0}>{tariffs.some(t => t.active) ? 'Записать игрока' : 'Сначала добавьте тариф'}</button>
-          {parts.length === 0 ? <EmptyState icon="users" title="Пока никого" /> : parts.map(p => (
-            <ListRow key={p.id} avatar={p.players?.full_name ?? '—'} title={p.players?.full_name ?? 'Игрок'} sub={[p.camp_tariffs?.name ?? 'без тарифа', p.status === 'declined' ? 'отказ' : p.players?.groups?.name ?? 'без группы']}
-              end={p.status === 'declined' ? <Pill>Отказ</Pill> : <Pill tone={paidOf(p) >= p.amount ? 'success' : 'danger'} dot>{paidOf(p) >= p.amount ? 'Оплачен' : `${gel(paidOf(p))} из ${gel(p.amount)}`}</Pill>} onClick={() => setOpenId(p.id)} />
+          {parts.length === 0 ? <EmptyState icon="users" title="Пока никого" /> : groupInOrder(parts, p => p.players?.groups?.name ?? 'Без группы').map(([group, items]) => (
+            <details className="ks-group" key={group}>
+              <summary><div className="ks-line"><b>{group}</b><span className="muted">{items.length} уч.</span></div></summary>
+              {items.map(p => (
+                <ListRow key={p.id} avatar={p.players?.full_name ?? '—'} title={p.players?.full_name ?? 'Игрок'} sub={[p.camp_tariffs?.name ?? 'без тарифа', p.status === 'declined' ? 'отказ' : p.players?.groups?.name ?? 'без группы']}
+                  end={p.status === 'declined' ? <Pill>Отказ</Pill> : <Pill tone={paidOf(p) >= p.amount ? 'success' : 'danger'} dot>{paidOf(p) >= p.amount ? 'Оплачен' : `${gel(paidOf(p))} из ${gel(p.amount)}`}</Pill>} onClick={() => setOpenId(p.id)} />
+              ))}
+            </details>
           ))}
         </>
       )}

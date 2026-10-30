@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fmtDate, today } from '../lib/coach';
+import { fmtDate, groupInOrder, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput, SwitchRow, type Tone } from '../ui/components';
 import { Failure, Splash } from './Message';
@@ -135,19 +135,24 @@ export default function Players() {
       {list.length === 0 ? (
         <EmptyState icon="users" title="Никого не нашли" text="Измените поиск или фильтры." />
       ) : (
-        list.slice(0, LIMIT).map(p => {
-          const s = state(p);
-          return (
-            <ListRow
-              key={p.id}
-              avatar={p.full_name}
-              title={p.full_name}
-              sub={[groupName.get(p.group_id ?? '') ?? 'без группы', [p.external_id, p.birth_date ? `р. ${fmtDate(p.birth_date)}` : null].filter(Boolean).join(' · ')].filter(Boolean)}
-              end={p.status === 'inactive' ? <Pill>Не занимается</Pill> : <Pill tone={s.tone} dot>{s.label}</Pill>}
-              onClick={() => setCard({ id: p.id, full_name: p.full_name, birth_date: p.birth_date, group_id: p.group_id, status: p.status, external_id: p.external_id, group_name: groupName.get(p.group_id ?? '') ?? null })}
-            />
-          );
-        })
+        groupInOrder(list.slice(0, LIMIT), p => groupName.get(p.group_id ?? '') ?? 'без группы').map(([team, items], i) => (
+          <details className="ks-group" key={team} open={i === 0 || !!q.trim()}>
+            <summary><div className="ks-line"><b>{team}</b><span className="muted">{items.length} игр.</span></div></summary>
+            {items.map(p => {
+              const s = state(p);
+              return (
+                <ListRow
+                  key={p.id}
+                  avatar={p.full_name}
+                  title={p.full_name}
+                  sub={[groupName.get(p.group_id ?? '') ?? 'без группы', [p.external_id, p.birth_date ? `р. ${fmtDate(p.birth_date)}` : null].filter(Boolean).join(' · ')].filter(Boolean)}
+                  end={p.status === 'inactive' ? <Pill>Не занимается</Pill> : <Pill tone={s.tone} dot>{s.label}</Pill>}
+                  onClick={() => setCard({ id: p.id, full_name: p.full_name, birth_date: p.birth_date, group_id: p.group_id, status: p.status, external_id: p.external_id, group_name: groupName.get(p.group_id ?? '') ?? null })}
+                />
+              );
+            })}
+          </details>
+        ))
       )}
     </main>
   );
