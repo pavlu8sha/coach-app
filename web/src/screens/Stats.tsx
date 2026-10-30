@@ -21,14 +21,15 @@ type Range = 'month' | 'prev' | 'custom';
 type Kind = 'att' | 'matches';
 
 // Статистика для администратора и тренера: посещаемость групп и матчи за период.
-export default function Stats() {
+// own — экран тренера: база отдаёт только его группы и их команды (0080), пустой результат объясняем отдельно.
+export default function Stats({ own = false }: { own?: boolean }) {
   const [kind, setKind] = useState<Kind>('att');
   return (
     <>
       <div style={{ maxWidth: 560, margin: '0 auto', padding: '8px 16px 0' }}>
         <Segmented label="Статистика" value={kind} onChange={setKind} items={[{ value: 'att', label: 'Посещаемость' }, { value: 'matches', label: 'Матчи' }]} />
       </div>
-      {kind === 'att' ? <Attendance /> : <Matches />}
+      {kind === 'att' ? <Attendance own={own} /> : <Matches own={own} />}
     </>
   );
 }
@@ -58,7 +59,7 @@ function usePeriod() {
 
 interface MRow { kind: 'team' | 'player'; team: string; name: string | null; games: number | null; wins: number | null; draws: number | null; losses: number | null; goals_for: number | null; goals_against: number | null; played: number | null; goals: number | null }
 
-function Matches() {
+function Matches({ own }: { own: boolean }) {
   const { period, picker } = usePeriod();
   const [rows, setRows] = useState<MRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -86,7 +87,7 @@ function Matches() {
         <option value="friendly">Товарищеские</option>
       </select>
       {!rows ? <Loading /> : teams.length === 0 ? (
-        <EmptyState icon="trophy" title="Нет матчей со счётом" text="За выбранный период нет сыгранных матчей с внесённым счётом." />
+        <EmptyState icon="trophy" title={own ? 'Нет матчей ваших команд' : 'Нет матчей со счётом'} text={own ? 'За выбранный период нет матчей со счётом у команд ваших групп. Здесь только ваши группы; матчи других команд видны в разделе «Матчи».' : 'За выбранный период нет сыгранных матчей с внесённым счётом.'} />
       ) : teams.map(t => (
         <section key={t.team}>
           <h3>{t.team}</h3>
@@ -105,7 +106,7 @@ function Matches() {
 }
 
 // Посещаемость по группам за период. Занятие считается проведённым, если кто-то отмечен «был».
-function Attendance() {
+function Attendance({ own }: { own: boolean }) {
   const [range, setRange] = useState<Range>('month');
   const [from, setFrom] = useState(monthStart(today()));
   const [to, setTo] = useState(today());
@@ -161,7 +162,7 @@ function Attendance() {
       {!rows ? (
         <Loading />
       ) : groups.length === 0 ? (
-        <EmptyState icon="trophy" title="Нет проведённых занятий" text="За выбранный период ни на одном занятии не отмечены присутствующие." />
+        <EmptyState icon="trophy" title={own ? 'Нет проведённых занятий в ваших группах' : 'Нет проведённых занятий'} text={own ? 'За выбранный период ни на одном занятии ваших групп не отмечены присутствующие. Здесь только ваши группы.' : 'За выбранный период ни на одном занятии не отмечены присутствующие.'} />
       ) : (
         groups.map(([name, list]) => {
           const total = list[0].total;

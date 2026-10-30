@@ -45,4 +45,16 @@ describe('«Статистика»', () => {
     expect(screen.getAllByText(/^(Аня|Боря)$/).map(e => e.textContent)).toEqual(['Боря', 'Аня']);
     expect(fake.rpcCalls('match_stats')).toHaveLength(1);
   });
+
+  it('тренер: если по его группам данных нет — понятное сообщение; администратору прежний текст', async () => {
+    fake.rpc.attendance_stats = () => [];
+    fake.rpc.match_stats = () => [];
+    const { unmount } = render(<Stats own />);
+    expect(await screen.findByText('Нет проведённых занятий в ваших группах')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Матчи' }));
+    expect(await screen.findByText('Нет матчей ваших команд')).toBeInTheDocument();
+    unmount();
+    render(<Stats />);
+    expect(await screen.findByText('Нет проведённых занятий')).toBeInTheDocument();
+  });
 });
