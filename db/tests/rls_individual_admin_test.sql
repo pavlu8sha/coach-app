@@ -46,7 +46,7 @@ select throws_ok($$select ind_add_player((select id from sid), '00000000-0000-00
 select ind_set_attended((select id from sid), '00000000-0000-0000-0000-00000000d002', true);
 select is((select attended from individual_bookings where session_id = (select id from sid) and player_id = '00000000-0000-0000-0000-00000000d002'), true, 'посещение отмечается');
 select throws_ok($$select ind_set_attended((select id from sid), '00000000-0000-0000-0000-00000000d003', true)$$, 'P0002', 'booking not found', 'отметить можно только записанного');
-select ind_set_paid((select id from sid), '00000000-0000-0000-0000-00000000d002', true);
+select ind_set_paid((select id from sid), '00000000-0000-0000-0000-00000000d002', true, 'Наличные');
 select throws_ok($$select ind_remove_player((select id from sid), '00000000-0000-0000-0000-00000000d002')$$, '22023', 'booking is paid', 'оплаченную запись убрать нельзя');
 select throws_ok($$select ind_delete_session((select id from sid))$$, '22023', 'session has payments', 'занятие с оплатой удалить нельзя');
 select throws_ok($$select ind_edit_session((select id from sid), '2026-11-08', '12:00', 'x')$$, '22023', 'session has payments', 'занятие с оплатой нельзя перенести');

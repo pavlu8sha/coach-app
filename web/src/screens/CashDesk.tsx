@@ -59,16 +59,16 @@ async function loadDues(p: Pl): Promise<Due[]> {
   }
   ((orders.data ?? []) as unknown as { id: string; ordered_on: string | null; total: number; paid: number; equipment_order_lines: { kit: string }[] }[]).forEach(o => {
     if (Number(o.paid) >= Number(o.total)) return;
-    out.push({ key: 'eq' + o.id, kind: 'eq', section: SECTIONS[1], title: [...new Set(o.equipment_order_lines.map(l => l.kit))].join(' + ') || 'Заказ', sub: o.ordered_on ? fmtDate(o.ordered_on) : undefined, due: Number(o.total), paid: Number(o.paid), pay: amount => supabase.rpc('eq_add_payment', { o: o.id, amt: r2(amount) }) });
+    out.push({ key: 'eq' + o.id, kind: 'eq', section: SECTIONS[1], title: [...new Set(o.equipment_order_lines.map(l => l.kit))].join(' + ') || 'Заказ', sub: o.ordered_on ? fmtDate(o.ordered_on) : undefined, due: Number(o.total), paid: Number(o.paid), pay: (amount, method, date) => supabase.rpc('eq_add_payment', { o: o.id, amt: r2(amount), d: date, mth: method }) });
   });
   const nowLocal = `${today()}T${new Date().toTimeString().slice(0, 5)}`;
   ((ind.data ?? []) as unknown as { session_id: string; amount: number; individual_sessions: { starts_at: string; goalkeepers: boolean } | null }[]).forEach(b => {
     if (!b.individual_sessions || b.individual_sessions.starts_at > nowLocal) return;
-    out.push({ key: 'ind' + b.session_id, kind: 'ind', section: SECTIONS[2], title: `${b.individual_sessions.goalkeepers ? 'Вратари' : 'Индивидуальное'} ${fmtDate(b.individual_sessions.starts_at.slice(0, 10))}`, due: Number(b.amount), paid: 0, pay: () => supabase.rpc('ind_set_paid', { s: b.session_id, p: p.id, is_paid: true }) });
+    out.push({ key: 'ind' + b.session_id, kind: 'ind', section: SECTIONS[2], title: `${b.individual_sessions.goalkeepers ? 'Вратари' : 'Индивидуальное'} ${fmtDate(b.individual_sessions.starts_at.slice(0, 10))}`, due: Number(b.amount), paid: 0, pay: (_amount, method, date) => supabase.rpc('ind_set_paid', { s: b.session_id, p: p.id, is_paid: true, mth: method, d: date }) });
   });
   ((extra.data ?? []) as unknown as { session_id: string; extra_sessions: { starts_on: string; amount: number } | null }[]).forEach(b => {
     if (!b.extra_sessions || b.extra_sessions.starts_on > today() || Number(b.extra_sessions.amount) <= 0) return;
-    out.push({ key: 'ex' + b.session_id, kind: 'extra', section: SECTIONS[3], title: `Доп. тренировка ${fmtDate(b.extra_sessions.starts_on)}`, due: Number(b.extra_sessions.amount), paid: 0, pay: (amount, method) => supabase.rpc('extra_set_paid', { s: b.session_id, p: p.id, is_paid: true, mth: method, amt: r2(amount) }) });
+    out.push({ key: 'ex' + b.session_id, kind: 'extra', section: SECTIONS[3], title: `Доп. тренировка ${fmtDate(b.extra_sessions.starts_on)}`, due: Number(b.extra_sessions.amount), paid: 0, pay: (amount, method, date) => supabase.rpc('extra_set_paid', { s: b.session_id, p: p.id, is_paid: true, mth: method, amt: r2(amount), d: date }) });
   });
   ((camps.data ?? []) as unknown as { id: string; amount: number; camps: { name: string } | null; camp_payments: { amount: number }[] }[]).forEach(c => {
     const got = c.camp_payments.reduce((s, x) => s + Number(x.amount), 0);

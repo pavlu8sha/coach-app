@@ -243,6 +243,7 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
 function OrderView({ order, onBack }: { order: Order; onBack: () => void }) {
   const [o, setO] = useState(order);
   const [amount, setAmount] = useState('');
+  const [method, setMethod] = useState('');
   const [insc, setInsc] = useState(order.inscription ?? '');
   const [number, setNumber] = useState(order.number ?? '');
   const [loc, setLoc] = useState(order.location ?? '');
@@ -297,8 +298,9 @@ function OrderView({ order, onBack }: { order: Order; onBack: () => void }) {
       })}
 
       <h3>Оплата</h3>
+      <label className="field">Способ оплаты<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option><option>Наличные</option><option>Перевод</option></select></label>
       <label className="field">Сумма, ₾ (минус — исправление)<input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /></label>
-      <button type="button" className="ks-btn" disabled={busy === 'pay' || amount.trim() === '' || Number.isNaN(num(amount)) || num(amount) === 0} onClick={() => void run('pay', () => supabase.rpc('eq_add_payment', { o: o.id, amt: num(amount) }), 'Платёж записан.').then(ok => { if (ok) setAmount(''); })}>Записать платёж</button>
+      <button type="button" className="ks-btn" disabled={busy === 'pay' || !method || amount.trim() === '' || Number.isNaN(num(amount)) || num(amount) === 0} onClick={() => void run('pay', () => supabase.rpc('eq_add_payment', { o: o.id, amt: num(amount), mth: method }), 'Платёж записан.').then(ok => { if (ok) setAmount(''); })}>Записать платёж</button>
 
       <h3>Данные заказа</h3>
       <label className="field">Надпись<input value={insc} maxLength={40} onChange={e => setInsc(e.target.value)} /></label>

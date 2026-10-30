@@ -68,9 +68,9 @@ describe('«Приём оплат»', () => {
       fireEvent.click(within(c).getByRole('button', { name: btn }));
     };
     await pay('Форма + Куртка', 'Записать платёж');
-    await waitFor(() => expect(fake.rpcCalls('eq_add_payment')).toEqual([{ o: 'o1', amt: 100 }]));
+    await waitFor(() => expect(fake.rpcCalls('eq_add_payment')[0]).toMatchObject({ o: 'o1', amt: 100, mth: 'Наличные' }));
     await pay(/Вратари 10.01.2020/, 'Отметить оплаченным (50 ₾)');
-    await waitFor(() => expect(fake.rpcCalls('ind_set_paid')).toEqual([{ s: 'i1', p: 'p1', is_paid: true }]));
+    await waitFor(() => expect(fake.rpcCalls('ind_set_paid')[0]).toMatchObject({ s: 'i1', p: 'p1', is_paid: true, mth: 'Наличные' }));
     await pay(/Доп. тренировка 01.02.2020/, 'Записать платёж');
     await waitFor(() => expect(fake.rpcCalls('extra_set_paid')[0]).toMatchObject({ s: 'e1', p: 'p1', is_paid: true, amt: 20 }));
     await pay('Зимний лагерь', 'Записать платёж');

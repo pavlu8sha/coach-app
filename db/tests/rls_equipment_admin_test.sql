@@ -42,16 +42,16 @@ select lives_ok($$select eq_create_order('00000000-0000-0000-0000-00000000d003',
 select throws_ok($$select eq_create_order('00000000-0000-0000-0000-00000000d002', '[{"kit":"Шапка"}]'::jsonb, null, null, false, null)$$, '22023', 'kit not in catalog', 'позиции вне каталога отклоняются');
 select throws_ok($$select eq_create_order('00000000-0000-0000-0000-00000000d002', '[]'::jsonb, null, null, false, null)$$, '22023', 'no items', 'пустой заказ отклоняется');
 
-select is(eq_add_payment((select id from oid_t), 100), 100::numeric, 'оплата 100');
-select throws_ok($$select eq_add_payment((select id from oid_t), 200)$$, '22023', 'paid above total', 'переплата отклоняется');
-select throws_ok($$select eq_add_payment((select id from oid_t), -150)$$, '22023', 'paid below zero', 'оплата не уходит ниже нуля');
+select is(eq_add_payment((select id from oid_t), 100, null, 'Наличные'), 100::numeric, 'оплата 100');
+select throws_ok($$select eq_add_payment((select id from oid_t), 200, null, 'Наличные')$$, '22023', 'paid above total', 'переплата отклоняется');
+select throws_ok($$select eq_add_payment((select id from oid_t), -150, null, 'Наличные')$$, '22023', 'paid below zero', 'оплата не уходит ниже нуля');
 select throws_ok($$select eq_edit_order((select id from oid_t), 'ANYA', '7', true, 'Зал', 50)$$, '22023', 'total below paid', 'сумма заказа не ниже оплаченного');
 
 select lives_ok($$select eq_set_issued((select id from oid_t), 'Форма', true, 'Павел')$$, 'отметка о выдаче');
 select throws_ok($$select eq_set_issued((select id from oid_t), 'Шапка', true)$$, 'P0002', 'item not in order', 'выдать можно только вещь из заказа');
 select throws_ok($$select eq_delete_order((select id from oid_t))$$, '22023', 'order has payments', 'заказ с оплатой удалить нельзя');
 
-select eq_add_payment((select id from oid_t), -100);
+select eq_add_payment((select id from oid_t), -100, null, 'Наличные');
 select throws_ok($$select eq_delete_order((select id from oid_t))$$, '22023', 'order has issues', 'заказ с выдачей удалить нельзя');
 select eq_set_issued((select id from oid_t), 'Форма', false);
 select lives_ok($$select eq_delete_order((select id from oid_t))$$, 'без оплат и выдач заказ удаляется');
