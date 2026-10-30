@@ -3,7 +3,7 @@ with expected(fn, for_app) as (values
   ('create_child_code(uuid)', true), ('redeem_child_code(text)', true),
   ('enqueue_to_guardians(uuid,text,text)', false), ('notify_payment()', false), ('notify_bonus()', false), ('notify_coach_group()', false),
   ('create_subscription_month(date)', true), ('debtors(date)', true), ('parent_debts()', true),
-  ('attendance_stats(date,date)', true), ('match_stats(date,date)', true),
+  ('attendance_stats(date,date)', true), ('match_stats(date,date,text)', true),
   ('ind_create_session(date,time,boolean,text)', true), ('ind_set_paid(uuid,uuid,boolean)', true), ('ind_set_attended(uuid,uuid,boolean)', true), ('ind_book(uuid,uuid)', false),
   ('extra_create_session(date,numeric,text)', true), ('extra_set_paid(uuid,uuid,boolean,text,numeric)', true), ('extra_set_attended(uuid,uuid,boolean)', true),
   ('eq_create_order(uuid,jsonb,text,text,boolean,text,numeric)', true), ('eq_add_payment(uuid,numeric)', true), ('eq_set_issued(uuid,text,boolean,text,date)', true), ('eq_catalog_save(text,numeric,date)', true),
