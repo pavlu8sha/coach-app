@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { coachError, fmtDate, hm, today } from '../lib/coach';
+import { coachError, fmtDate, groupInOrder, hm, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput, Segmented } from '../ui/components';
 import { BackNav } from '../ui/nav';
@@ -99,15 +99,15 @@ export default function Individual() {
           <EmptyState icon="users" title="Долгов нет" text="Все записанные на прошедшие занятия оплатили." />
         ) : (
           [...byPlayer.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name, 'ru')).map(([id, v]) => (
-            <div className="ks-card" key={id}>
-              <div className="ks-line"><b style={{ overflowWrap: 'anywhere' }}>{v.name}</b><Pill tone="danger" dot>{gel(v.sum)}</Pill></div>
+            <details className="ks-group" key={id}>
+              <summary><div className="ks-line"><b style={{ overflowWrap: 'anywhere' }}>{v.name}</b><Pill tone="danger" dot>{gel(v.sum)}</Pill></div></summary>
               {[...v.rows].sort((a, b) => a.individual_sessions.starts_at.localeCompare(b.individual_sessions.starts_at)).map(d => (
                 <div className="ks-line" key={d.session_id} style={{ marginTop: 8 }}>
                   <span style={{ flex: 1, minWidth: 0 }}>{title(d.individual_sessions)}{d.individual_sessions.topic ? ` · ${d.individual_sessions.topic}` : ''}<br /><span className="muted">{gel(Number(d.amount))}</span></span>
                   <button type="button" className="ks-btn secondary sm" disabled={paying === d.session_id + d.player_id} aria-label={`Принять оплату: ${v.name}, ${title(d.individual_sessions)}`} onClick={() => void payDebt(d)}>Оплачено</button>
                 </div>
               ))}
-            </div>
+            </details>
           ))
         )
       ) : !list ? (
@@ -116,10 +116,15 @@ export default function Individual() {
         <EmptyState icon="users" title="Занятий нет" text={tab === 'next' ? 'Создайте занятие кнопкой выше.' : 'Прошедших занятий пока нет.'} />
       ) : (
         <>
-          {list.map(s => {
-            const paid = s.individual_bookings.filter(b => b.paid).length;
-            return <ListRow key={s.id} avatar={s.goalkeepers ? 'В' : 'И'} title={title(s)} sub={[s.topic ?? 'без темы', `Записано: ${s.individual_bookings.length}, оплатили: ${paid}`]} end={paid > 0 ? <Pill tone="success">{gel(s.individual_bookings.filter(b => b.paid).reduce((a, b) => a + Number(b.amount), 0))}</Pill> : undefined} onClick={() => setOpenId(s.id)} />;
-          })}
+          {groupInOrder(list, s => dayOf(s.starts_at)).map(([day, items], i) => (
+            <details className="ks-group" key={day} open={i === 0}>
+              <summary><div className="ks-line"><b>{fmtDate(day)}</b><span className="muted">{items.length} зан.</span></div></summary>
+              {items.map(s => {
+                const paid = s.individual_bookings.filter(b => b.paid).length;
+                return <ListRow key={s.id} avatar={s.goalkeepers ? 'В' : 'И'} title={title(s)} sub={[s.topic ?? 'без темы', `Записано: ${s.individual_bookings.length}, оплатили: ${paid}`]} end={paid > 0 ? <Pill tone="success">{gel(s.individual_bookings.filter(b => b.paid).reduce((a, b) => a + Number(b.amount), 0))}</Pill> : undefined} onClick={() => setOpenId(s.id)} />;
+              })}
+            </details>
+          ))}
           {hasMore && <button type="button" className="ks-btn secondary" onClick={() => setLimit(n => n + PAGE)}>Показать ещё</button>}
         </>
       )}

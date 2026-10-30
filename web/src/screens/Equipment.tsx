@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { coachError, fmtDate, today } from '../lib/coach';
+import { coachError, fmtDate, groupInOrder, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput, Segmented, SwitchRow } from '../ui/components';
 import { BackNav } from '../ui/nav';
@@ -104,15 +104,20 @@ export default function Equipment() {
       {!orders ? <Loading /> : shown.length === 0 ? (
         <EmptyState icon="box" title="Заказов нет" text="Измените фильтр или создайте заказ." />
       ) : (
-        shown.map(o => (
-          <ListRow
-            key={o.id}
-            avatar={o.players?.full_name ?? '—'}
-            title={o.players?.full_name ?? 'Игрок'}
-            sub={[[...new Set(o.equipment_order_lines.map(l => l.kit))].join(' + ') || 'без позиций', `${o.ordered_on ? fmtDate(o.ordered_on) : 'без даты'} · выдано: ${issueState(o)}`]}
-            end={<Pill tone={o.paid >= o.total ? 'success' : 'danger'} dot>{o.paid >= o.total ? 'Оплачен' : `${o.paid} из ${gel(o.total)}`}</Pill>}
-            onClick={() => setOpenId(o.id)}
-          />
+        groupInOrder(shown, o => o.players?.groups?.name ?? 'Без группы').map(([group, items]) => (
+          <details className="ks-group" key={group} open={!!fGroup || !!q.trim()}>
+            <summary><div className="ks-line"><b>{group}</b><span className="muted">{items.length} заказ.</span></div></summary>
+            {items.map(o => (
+              <ListRow
+                key={o.id}
+                avatar={o.players?.full_name ?? '—'}
+                title={o.players?.full_name ?? 'Игрок'}
+                sub={[[...new Set(o.equipment_order_lines.map(l => l.kit))].join(' + ') || 'без позиций', `${o.ordered_on ? fmtDate(o.ordered_on) : 'без даты'} · выдано: ${issueState(o)}`]}
+                end={<Pill tone={o.paid >= o.total ? 'success' : 'danger'} dot>{o.paid >= o.total ? 'Оплачен' : `${o.paid} из ${gel(o.total)}`}</Pill>}
+                onClick={() => setOpenId(o.id)}
+              />
+            ))}
+          </details>
         ))
       )}
     </main>
