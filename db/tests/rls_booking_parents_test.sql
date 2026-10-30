@@ -48,7 +48,7 @@ select as_user('00000000-0000-0000-0000-0000000000b2');
 select throws_ok($$select booking_signup('individual', (select id from ids where k = 'ind'), '00000000-0000-0000-0000-00000000d002')$$, '22023', 'session full', 'мест больше нет');
 
 select as_user('00000000-0000-0000-0000-0000000000a1');
-select ind_set_paid((select id from ids where k = 'ind'), '00000000-0000-0000-0000-00000000d001', true);
+select ind_set_paid((select id from ids where k = 'ind'), '00000000-0000-0000-0000-00000000d001', true, 'Наличные');
 select as_user('00000000-0000-0000-0000-0000000000b1');
 select is((select (mine->0->>'paid')::boolean from booking_board() where kind = 'individual'), true, 'родитель видит оплату своего ребёнка');
 select throws_ok($$select booking_cancel('individual', (select id from ids where k = 'ind'), '00000000-0000-0000-0000-00000000d001')$$, '22023', 'booking is paid', 'оплаченную запись родитель не отменяет');

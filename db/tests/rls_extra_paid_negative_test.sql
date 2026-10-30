@@ -25,8 +25,10 @@ select is((select paid_amount from extra_bookings where session_id = (select id 
 
 select extra_set_paid((select id from sid), '00000000-0000-0000-0000-00000000d001', true, 'Наличные', 0);
 select is((select paid_amount from extra_bookings where session_id = (select id from sid)), 0::numeric, 'нулевая сумма принимается как раньше');
+select extra_set_paid((select id from sid), '00000000-0000-0000-0000-00000000d001', false);
 select extra_set_paid((select id from sid), '00000000-0000-0000-0000-00000000d001', true, 'Наличные');
 select is((select paid_amount from extra_bookings where session_id = (select id from sid)), 20::numeric, 'пустая сумма — по цене тренировки');
+select extra_set_paid((select id from sid), '00000000-0000-0000-0000-00000000d001', false);
 select extra_set_paid((select id from sid), '00000000-0000-0000-0000-00000000d001', true, 'Перевод', 15);
 select is((select paid_amount from extra_bookings where session_id = (select id from sid)), 15::numeric, 'положительная сумма принимается');
 select extra_set_paid((select id from sid), '00000000-0000-0000-0000-00000000d001', false);

@@ -51,9 +51,10 @@ describe('«Индивидуальные»', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<Individual />);
     fireEvent.click(await screen.findByRole('tab', { name: 'Долги' }));
+    fireEvent.change(screen.getByLabelText(/^Способ оплаты/), { target: { value: 'Перевод' } });
     fireEvent.click((await screen.findAllByRole('button', { name: /Принять оплату: Иванов Пётр/ }))[0]);
     await waitFor(() => expect(fake.rpcCalls('ind_set_paid')).toHaveLength(1));
-    expect(fake.rpcCalls('ind_set_paid')[0]).toMatchObject({ p: 'p1', is_paid: true });
+    expect(fake.rpcCalls('ind_set_paid')[0]).toMatchObject({ p: 'p1', is_paid: true, mth: 'Перевод' });
   });
 
   it('создание занятия: параметры уходят в ind_create_session, дубль даёт понятное сообщение', async () => {
@@ -77,8 +78,9 @@ describe('«Индивидуальные»', () => {
     render(<Individual />);
     fireEvent.click(await screen.findByText('10.01.2099 12:00 · Индивидуальные'));
     const ivan = (await screen.findByText('Иванов Пётр')).closest('.ks-card') as HTMLElement;
+    fireEvent.change(screen.getByLabelText(/^Способ оплаты/), { target: { value: 'Наличные' } });
     fireEvent.click(within(ivan).getByRole('button', { name: 'Отметить оплату' }));
-    await waitFor(() => expect(fake.rpcCalls('ind_set_paid')).toEqual([{ s: 's1', p: 'p1', is_paid: true }]));
+    await waitFor(() => expect(fake.rpcCalls('ind_set_paid')).toEqual([{ s: 's1', p: 'p1', is_paid: true, mth: 'Наличные' }]));
     fireEvent.click(within(ivan).getByRole('tab', { name: 'Был(а)' }));
     await waitFor(() => expect(fake.rpcCalls('ind_set_attended')).toEqual([{ s: 's1', p: 'p1', was: true }]));
     fireEvent.click(within(ivan).getByRole('button', { name: 'Убрать' }));

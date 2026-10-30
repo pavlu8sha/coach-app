@@ -47,10 +47,11 @@ describe('«Экипировка»', () => {
     fake.rpc.eq_add_payment = () => ({ error: { message: 'paid above total' } });
     render(<Equipment />);
     fireEvent.click(await screen.findByText('Сидоров Ян'));
+    fireEvent.change(await screen.findByLabelText(/^Способ оплаты/), { target: { value: 'Наличные' } });
     fireEvent.change(await screen.findByLabelText(/Сумма, ₾ \(минус/), { target: { value: '500' } });
     fireEvent.click(screen.getByRole('button', { name: 'Записать платёж' }));
     expect(await screen.findByText('Оплата больше суммы заказа.')).toBeInTheDocument();
-    expect(fake.rpcCalls('eq_add_payment')).toEqual([{ o: 'o2', amt: 500 }]);
+    expect(fake.rpcCalls('eq_add_payment')).toEqual([{ o: 'o2', amt: 500, mth: 'Наличные' }]);
   });
 
   it('выдача вещи отмечается по позиции', async () => {
