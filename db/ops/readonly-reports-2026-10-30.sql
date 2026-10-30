@@ -193,7 +193,9 @@ join players p on p.id = s.player_id
 where coalesce(s.group_id, p.group_id) is null
 order by s.month, s.player_id;
 
--- 261.4. Начислено не совпадает с действующим тарифом группы на месяц (скидки и списания исключены)
+-- 261.4. Начислено не совпадает с действующим тарифом группы на месяц (скидки и списания исключены).
+-- Важно: для месяцев, загруженных скриптом run-payments.mjs, subscriptions.amount_due = внесённая сумма по листу оплат, а не тариф.
+-- Расхождения здесь означают отличие листа от тарифа, а не ошибку группы. Для проверки тарифа по #261 смотрите только месяцы без импорта.
 select s.player_id, s.month, coalesce(s.group_id, p.group_id) as группа,
        s.amount_due as начислено,
        tariff_for(p.club_id, coalesce(s.group_id, p.group_id), s.month) as тариф_на_месяц
@@ -204,6 +206,8 @@ where not s.discount and not s.written_off
 order by s.month, s.player_id;
 
 -- 261.5. Оплаты по месяцам (pay_month, как в parent_debts): начислено и оплачено, расхождения. Пометка, менялась ли группа у игрока.
+-- Важно: в ноябре 2026 почти все начисления равны 0 при оплатах 130–165 (186 из 195 абонементов). Причина по коду: run-payments.mjs ставит amount_due = сумма листа за месяц,
+-- и 0 получается, когда в листе за месяц нет внесённой суммы. Это не переход группы. Проверить по листу «ОПЛАТЫ» до сверки с тарифом.
 with pm as (
   select pay.player_id, pay.pay_month, sum(pay.amount) as оплачено
   from payments pay
