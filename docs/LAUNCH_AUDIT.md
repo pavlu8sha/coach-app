@@ -1,5 +1,7 @@
 # Аудит перед запуском: Telegram Mini App / веб-приложение
 
+> **Рабочий документ от 22.10; цифры не пересчитывались.** Краткий актуальный статус — только [PROJECT_STATUS.md](PROJECT_STATUS.md) (проверено по `master` `aeb367e`, 2026-10-30). Актуальная готовность к запуску: [LAUNCH_READINESS_2026-10.md](LAUNCH_READINESS_2026-10.md) (#229, #256); отчёты аудитов — [REVIEW_ADMIN_2026-10.md](REVIEW_ADMIN_2026-10.md), [REVIEW_DELTA_2026-10.md](REVIEW_DELTA_2026-10.md), [SECURITY_AUDIT_2026-10.md](SECURITY_AUDIT_2026-10.md).
+
 Статус: рабочий документ, 2026-10-22. Основано на `docs/PLATFORM_PLAN.md`, `docs/TECH_DESIGN.md`, `docs/DECISIONS.md` и фактическом состоянии `master` и базы Kickstart. Не решение, а список того, что нужно для первого запуска.
 
 ## 1. Что уже есть
