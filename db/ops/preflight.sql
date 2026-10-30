@@ -81,6 +81,7 @@ select * from (values
   ('0077_payment_author',          exists (select 1 from pg_trigger where tgname = 'payments_stamp_author' and not tgisinternal)),
   ('0078_cash_report',             to_regprocedure('cash_report(date,date,text,uuid,text)') is not null),
   ('0079_training_log_coach_read', exists (select 1 from pg_policies where tablename = 'training_log' and policyname = 'training_log_coach_read')),
-  ('0080_stats_own_groups',        pg_get_functiondef(to_regprocedure('match_stats(date,date,text)')) like '%with mine as%' and pg_get_functiondef(to_regprocedure('attendance_stats(date,date)')) like '%adm or s.group_id%')
+  ('0080_stats_own_groups',        pg_get_functiondef(to_regprocedure('match_stats(date,date,text)')) like '%with mine as%' and pg_get_functiondef(to_regprocedure('attendance_stats(date,date)')) like '%adm or s.group_id%'),
+  ('0081_match_stats_drop_old_overload', to_regprocedure('match_stats(date,date)') is null)
 ) as t(migration, applied)
 order by migration;
