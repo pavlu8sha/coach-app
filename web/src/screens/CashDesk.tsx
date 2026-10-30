@@ -99,7 +99,7 @@ export default function CashDesk() {
     return () => clearTimeout(t);
   }, [q]);
 
-  // Платежи за выбранный день: абонемент (payments) и сборы (camp_payments); у экипировки и занятий даты платежа не хранятся
+  // Платежи за выбранный день: абонемент (payments), сборы (camp_payments) и журнал экипировки и занятий (cash_day_service, 0086)
   useEffect(() => {
     setTodayRows(null);
     void (async () => {
@@ -108,7 +108,9 @@ export default function CashDesk() {
       if (a.error) return;
       const rows = ((a.data ?? []) as unknown as { id: string; amount: number; method: string | null; player_id: string; pay_month?: string | null; players: { full_name: string } | null }[]).map(x => ({ ...x, what: 'Абонемент' }));
       const camp = c.error ? [] : ((c.data ?? []) as unknown as { id: string; amount: number; method: string | null; kind: string; players: { full_name: string } | null }[]).map(x => ({ ...x, what: 'Сбор' }));
-      setTodayRows([...rows, ...camp]);
+      const svc = await supabase.rpc('cash_day_service', { p_day: day });
+      const service = svc.error ? [] : ((svc.data ?? []) as unknown as { id: string; amount: number; method: string | null; what: string; player_id: string; full_name: string }[]).map(x => ({ id: x.id, amount: x.amount, method: x.method, what: x.what, player_id: x.player_id, players: { full_name: x.full_name } }));
+      setTodayRows([...rows, ...camp, ...service]);
     })();
   }, [reload, player, day]);
 
@@ -123,9 +125,9 @@ export default function CashDesk() {
   };
   const total = (todayRows ?? []).reduce((s, x) => s + Number(x.amount), 0);
   // платёж уже отменён, если за этот день есть запись с минусом на ту же сумму у того же игрока (повторная отмена удвоила бы минус)
-  const isCancelled = (x: { id: string; amount: number; player_id?: string }) => {
-    const neg = (todayRows ?? []).filter(y => y.player_id === x.player_id && Number(y.amount) === -Number(x.amount)).length;
-    const same = (todayRows ?? []).filter(y => y.player_id === x.player_id && Number(y.amount) === Number(x.amount)).map(y => y.id);
+  const isCancelled = (x: { id: string; amount: number; player_id?: string; what: string }) => {
+    const neg = (todayRows ?? []).filter(y => y.what === x.what && y.player_id === x.player_id && Number(y.amount) === -Number(x.amount)).length;
+    const same = (todayRows ?? []).filter(y => y.what === x.what && y.player_id === x.player_id && Number(y.amount) === Number(x.amount)).map(y => y.id);
     return neg > 0 && same.indexOf(x.id) < neg;
   };
   return (
@@ -172,7 +174,7 @@ export default function CashDesk() {
           <div className="ks-tile"><b>Всего</b>{gel(total)}</div>
         </div>
       )}
-      {!todayRows ? <Loading /> : todayRows.length === 0 ? <p className="muted">В этот день платежей по абонементам и сборам нет.</p> : todayRows.map(x => (
+      {!todayRows ? <Loading /> : todayRows.length === 0 ? <p className="muted">В этот день платежей нет.</p> : todayRows.map(x => (
         <div key={x.what + x.id}>
           <ListRow title={x.players?.full_name ?? 'Игрок'} sub={[[x.what, x.method].filter(Boolean).join(' · ')]} end={<Pill tone={Number(x.amount) < 0 ? 'danger' : 'success'}>{gel(Number(x.amount))}</Pill>} />
           {x.what === 'Абонемент' && Number(x.amount) > 0 && !isCancelled(x) && (
@@ -180,7 +182,7 @@ export default function CashDesk() {
           )}
         </div>
       ))}
-      <p className="ks-muted" style={{ fontSize: 13 }}>В списке платежи по абонементам и сборам. Оплаты экипировки и занятий дат не хранят, их видно в своих разделах.</p>
+      <p className="ks-muted" style={{ fontSize: 13 }}>В списке оплаты за день: абонементы, сборы, экипировка и занятия. Отменить можно оплату абонемента кнопкой у строки; остальные оплаты отменяются в своих разделах.</p>
     </main>
   );
 }

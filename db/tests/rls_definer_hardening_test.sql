@@ -67,7 +67,9 @@ select is(
         -- 0078: кассовый отчёт по сотрудникам и способам (только админ; проверка внутри)
         'cash_report',
         -- 0085: локальный админ по локации (вызываются из политик RLS, данные — только по своему id)
-        'is_location_admin', 'has_location_admin', 'group_location', 'player_location', 'camp_location', 'extra_place', 'my_locations')),
+        'is_location_admin', 'has_location_admin', 'group_location', 'player_location', 'camp_location', 'extra_place', 'my_locations',
+        -- 0086: список оплат дня в кассе (область видимости как у отчёта)
+        'cash_day_service')),
   '', 'список функций, доступных вошедшим пользователям, не расширился без решения');
 
 select is(
