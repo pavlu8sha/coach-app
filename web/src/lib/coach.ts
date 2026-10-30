@@ -49,3 +49,10 @@ export function coachError(m: string): string {
   ];
   return map.find(([k]) => m.includes(k))?.[1] ?? m;
 }
+
+// Группирует по ключу, сохраняя порядок первого появления: для списков по дню или группе.
+export function groupInOrder<T>(items: T[], key: (x: T) => string): [string, T[]][] {
+  const map = new Map<string, T[]>();
+  items.forEach(x => { const k = key(x); map.set(k, [...(map.get(k) ?? []), x]); });
+  return [...map.entries()];
+}
