@@ -272,10 +272,11 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod, who }: { due: Due; o
       {open && (
         <div style={{ marginTop: 8 }}>
           {!fixedAmount && <label className="field">Сумма, ₾ (меньше остатка — частичный платёж, останется долг)<input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /></label>}
-          <div className="two">
-            {due.kind === 'sub' || due.kind === 'camp' ? <label className="field">Дата<input type="date" value={date} max={today()} onChange={e => setDate(e.target.value)} /></label> : <span />}
-            {sharedMethod !== undefined ? <span /> : <label className="field">Способ<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>}
-          </div>
+          {(() => {
+            const dateField = due.kind === 'sub' || due.kind === 'camp' ? <label className="field">Дата<input type="date" value={date} max={today()} onChange={e => setDate(e.target.value)} /></label> : null;
+            const methodField = sharedMethod !== undefined ? null : <label className="field">Способ<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>;
+            return dateField && methodField ? <div className="two">{dateField}{methodField}</div> : dateField ?? methodField;
+          })()}
           {err && <p className="error">{err}</p>}
           <button type="button" className="ks-btn" disabled={busy} onClick={() => void save()}>{fixedAmount ? `Отметить оплаченным (${gel(left)})` : 'Записать платёж'}</button>
         </div>

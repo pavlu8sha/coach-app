@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import PlayerCard from './PlayerCard';
@@ -70,6 +70,17 @@ describe('карточка игрока: вкладки', () => {
     expect(await screen.findByText(/к оплате:/)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Экипировка' })).toBeInTheDocument();
     expect(screen.getByText(/Внесено 100 ₾ из 160 ₾/)).toBeInTheDocument();
+  });
+
+  it('«К оплате»: форма оплаты вратарской занимает всю ширину, способ не прижат к краю', async () => {
+    seed();
+    render(<PlayerCard player={player} onBack={() => {}} onEdit={() => {}} />);
+    open('К оплате');
+    const card = (await screen.findByText(/Вратари/)).closest('.ks-card') as HTMLElement;
+    fireEvent.click(within(card).getByRole('button', { name: 'Принять оплату' }));
+    const field = within(card).getByLabelText('Способ').closest('.field') as HTMLElement;
+    expect(field.parentElement?.classList.contains('two')).toBe(false);
+    expect(field.parentElement?.querySelector('span:empty')).toBeNull();
   });
 
   it('ошибка базы показывается понятным текстом', async () => {
