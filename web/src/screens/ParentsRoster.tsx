@@ -55,11 +55,13 @@ export default function ParentsRoster() {
       <h3>Привязали ребёнка ({linked.length})</h3>
       {linked.length === 0 && <EmptyState icon="users" title="Пока никого" />}
       {linked.map(x => <ListRow key={x.id} avatar={label(x)} title={label(x)} sub={[kids(x.id).join(', ')]} end={<Pill tone="success">Привязан</Pill>} />)}
-      <h3>Вошли, но ребёнка не привязали ({notLinked.length})</h3>
-      {notLinked.length === 0 && <EmptyState icon="users" title="Таких нет" />}
-      {notLinked.map(x => (
-        <ListRow key={x.id} avatar={label(x)} title={label(x)} sub={[asked(x.id).length ? `Запрос ждёт подтверждения: ${asked(x.id).join(', ')}` : 'Запроса нет']} end={asked(x.id).length ? <Pill tone="warning">Ждёт</Pill> : <Pill tone="neutral">Не привязан</Pill>} />
-      ))}
+      <details className="ks-group">
+        <summary><div className="ks-line"><b>Вошли, но ребёнка не привязали</b><span className="muted">{notLinked.length}</span></div></summary>
+        {notLinked.length === 0 && <EmptyState icon="users" title="Таких нет" />}
+        {notLinked.map(x => (
+          <ListRow key={x.id} avatar={label(x)} title={label(x)} sub={[asked(x.id).length ? `Запрос ждёт подтверждения: ${asked(x.id).join(', ')}` : 'Запроса нет']} end={asked(x.id).length ? <Pill tone="warning">Ждёт</Pill> : <Pill tone="neutral">Не привязан</Pill>} />
+        ))}
+      </details>
       <h3>Дети без привязанного родителя ({orphans.length})</h3>
       {orphans.length === 0 && <EmptyState icon="users" title="У всех детей есть родитель" />}
       {orphans.map(p => <ListRow key={p.id} avatar={p.full_name} title={p.full_name} sub={[p.group_id ? data.groups[p.group_id] ?? '' : 'без группы']} />)}
