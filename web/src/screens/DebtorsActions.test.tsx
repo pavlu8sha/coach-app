@@ -22,6 +22,7 @@ describe('«Должники»: списание и создание абоне�
     seed();
     render(<Debtors />);
     fireEvent.click(await screen.findByRole('button', { name: 'Списать долг' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Списать' }));
     await waitFor(() => expect(fake.writes('subscriptions', 'upsert')).toEqual([{ player_id: 'p1', month: monthIso(), written_off: true }]));
   });
 

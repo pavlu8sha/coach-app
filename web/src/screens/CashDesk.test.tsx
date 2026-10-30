@@ -49,6 +49,7 @@ describe('«Приём оплат»', () => {
     fireEvent.change(within(sub).getByLabelText(/Сумма/), { target: { value: '60' } });
     fireEvent.click(screen.getByRole('button', { name: 'Перевод' }));
     fireEvent.click(within(sub).getByRole('button', { name: 'Записать платёж' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
     await waitFor(() => expect(fake.writes('payments', 'insert')).toHaveLength(1));
     expect(fake.writes('payments', 'insert')[0]).toMatchObject({ player_id: 'p1', amount: 60, method: 'Перевод', paid_on: today() });
   });
@@ -66,6 +67,7 @@ describe('«Приём оплат»', () => {
       const c = card(title);
       fireEvent.click(within(c).getByRole('button', { name: 'Принять оплату' }));
       fireEvent.click(within(c).getByRole('button', { name: btn }));
+      fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
     };
     await pay('Форма + Куртка', 'Записать платёж');
     await waitFor(() => expect(fake.rpcCalls('eq_add_payment')[0]).toMatchObject({ o: 'o1', amt: 100, mth: 'Наличные' }));
@@ -102,6 +104,7 @@ describe('«Приём оплат»', () => {
     fireEvent.click(within(c).getByRole('button', { name: 'Принять оплату' }));
     fireEvent.click(screen.getByRole('button', { name: 'Перевод' }));
     fireEvent.click(within(c).getByRole('button', { name: 'Записать платёж' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
     await waitFor(() => expect(fake.writes('payments', 'insert')).toHaveLength(1));
     expect(fake.writes('payments', 'insert')[0]).toMatchObject({ player_id: 'p1', amount: 165, paid_on: today(), for_month: next, method: 'Перевод' });
   });
@@ -172,6 +175,7 @@ describe('«Приём оплат»: платежи дня', () => {
     await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
     expect(screen.getByText('Наличные').nextSibling?.textContent).toBe('50 ₾');
     fireEvent.click(screen.getByRole('button', { name: 'Отменить оплату: Иванов Пётр' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отменить оплату' }));
     await waitFor(() => expect(fake.writes('payments', 'insert')).toEqual([expect.objectContaining({ player_id: 'p1', amount: -50, paid_on: today(), method: 'Наличные' })]));
   });
   it('отмена платежа вперёд записывается в тот же месяц; отменённый платёж не отменить дважды', async () => {
@@ -181,6 +185,7 @@ describe('«Приём оплат»: платежи дня', () => {
     render(<CashDesk />);
     await screen.findByRole('heading', { name: /Внесено сегодня.*165 ₾/ });
     fireEvent.click(screen.getByRole('button', { name: 'Отменить оплату: Иванов Пётр' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отменить оплату' }));
     await waitFor(() => expect(fake.writes('payments', 'insert')).toEqual([expect.objectContaining({ amount: -165, for_month: '2099-11-01', method: 'Перевод' })]));
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Отменить оплату: Иванов Пётр' })).toBeNull());
   });
