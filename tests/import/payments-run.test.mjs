@@ -60,3 +60,20 @@ test('повторный запуск после коррекции ничего
     assert.equal(paymentWrites(fake).length, 0);
   } finally { await fake.close(); }
 });
+
+test('оплата с ФИО не из реестра: проверка и запись останавливаются, с --accept-unmatched идут дальше', async () => {
+  const x = fixture();
+  fs.appendFileSync(x.month, '2,Petrov Petr,,"100,00 ₾"\n');
+  const fake = await startFake(tables([]));
+  try {
+    const dry = await runScript('run-payments.mjs', ['--registry', x.reg, x.month], fake.url);
+    assert.equal(dry.code, 1);
+    assert.match(dry.stdout, /Не найдены в реестре \(не запишутся\): 1/);
+    const wr = await run(x, fake);
+    assert.equal(wr.code, 1);
+    assert.equal(fake.writes().length, 0);
+    const ok = await runScript('run-payments.mjs', ['--registry', x.reg, x.month, '--accept-unmatched', '--write'], fake.url);
+    assert.equal(ok.code, 0, ok.stderr);
+    assert.deepEqual(paymentWrites(fake).map(p => p.amount), [165]);
+  } finally { await fake.close(); }
+});

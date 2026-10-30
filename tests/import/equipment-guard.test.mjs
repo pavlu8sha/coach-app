@@ -112,11 +112,15 @@ test('final-import --staff-only: единственный шаг run-events --st
   assert.match(s[0].args, /--staff-only/);
 });
 
-test('final-import --write: предпроверки экипировки и оплат первыми шагами и без --write, остальные шаги с --write', async () => {
+test('final-import --write: предпроверки экипировки, оплат и посещаемости первыми шагами и без --write, остальные шаги с --write', async () => {
   const s = steps((await showOnly(['--mode', 'Final', '--write'])).out);
-  assert.deepEqual(s.slice(0, 2).map(x => x.script), ['run-equipment.mjs', 'run-payments.mjs']);
-  assert.ok(s.slice(0, 2).every(x => !/--write/.test(x.args)));
-  assert.ok(s.slice(2).every(x => /--write/.test(x.args)));
+  assert.deepEqual(s.slice(0, 3).map(x => x.script), ['run-equipment.mjs', 'run-payments.mjs', 'run-attendance.mjs']);
+  assert.ok(s.slice(0, 3).every(x => !/--write/.test(x.args)));
+  assert.ok(s.slice(3).every(x => /--write/.test(x.args)));
+  // в режиме Daily посещаемости нет, предпроверок две
+  const daily = steps((await showOnly(['--mode', 'Daily', '--write'])).out);
+  assert.deepEqual(daily.slice(0, 2).map(x => x.script), ['run-equipment.mjs', 'run-payments.mjs']);
+  assert.ok(!daily.some(x => x.script === 'run-attendance.mjs'));
   const eq = s.filter(x => x.script === 'run-equipment.mjs');
   assert.equal(eq.length, 2);
   assert.ok(/--registry/.test(eq[1].args));
@@ -130,4 +134,12 @@ test('--accept-equipment-warnings передаётся шагам экипиро
   const s = steps((await showOnly(['--mode', 'Daily', '--write', '--accept-equipment-warnings'])).out).filter(x => x.script === 'run-equipment.mjs');
   assert.equal(s.length, 2);
   assert.ok(s.every(x => /--accept-warnings/.test(x.args)));
+});
+
+test('--accept-unmatched-payments передаётся шагам оплат как --accept-unmatched', async () => {
+  const s = steps((await showOnly(['--mode', 'Daily', '--write', '--accept-unmatched-payments'])).out).filter(x => x.script === 'run-payments.mjs');
+  assert.equal(s.length, 2);
+  assert.ok(s.every(x => /--accept-unmatched/.test(x.args)));
+  const none = steps((await showOnly(['--mode', 'Daily', '--write'])).out).filter(x => x.script === 'run-payments.mjs');
+  assert.ok(none.every(x => !/--accept-unmatched/.test(x.args)));
 });

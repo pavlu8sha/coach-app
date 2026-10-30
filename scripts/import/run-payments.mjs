@@ -4,6 +4,7 @@
 //   node scripts/import/run-payments.mjs --registry реестр.csv месяц1.csv ... --write             — записать
 //   Если заданы SUPABASE_URL, ключ и CLUB_ID, проверка (без записи) читает базу и ищет возможные дубли из-за сдвига номеров строк в листе (ключ платежа содержит номер строки);
 //   при находках код выхода 1 и запись остановлена, пока их не просмотрели и не добавили --accept-possible-duplicates.
+//   Оплаты с ФИО, которого нет в реестре, не запишутся: при таких строках код выхода 1 (и в проверке, и при записи), пока их не просмотрели и не добавили --accept-unmatched.
 // Нужны переменные окружения: SUPABASE_URL, SUPABASE_SERVICE_KEY, CLUB_ID. Ключ в репозиторий и в чат не класть.
 // Правила: subscriptions.amount_due = внесённая сумма; payments — по одной строке на внесённую сумму,
 // paid_on = 1-е число месяца (даты платежа в выгрузке нет). Повторный запуск не дублирует платежи (по legacy_ref).
@@ -18,6 +19,7 @@ import { possibleDuplicates } from './payments-guard.mjs';
 const args = process.argv.slice(2);
 const write = args.includes('--write');
 const acceptDup = args.includes('--accept-possible-duplicates');
+const acceptUnmatched = args.includes('--accept-unmatched');
 const regIdx = args.indexOf('--registry');
 if (regIdx < 0 || !args[regIdx + 1]) { console.error('Укажите --registry реестр.csv'); process.exit(2); }
 const regFile = args[regIdx + 1];
@@ -40,6 +42,7 @@ console.log(`Проблем разбора: ${problems.length}`);
 for (const p of problems) console.log(`  строка ${p.line}: ${p.name} — ${p.error}`);
 console.log(`Не найдены в реестре (не запишутся): ${unmatched.length}`);
 for (const u of unmatched) console.log(`  ${u}`);
+if (unmatched.length && !acceptUnmatched) { console.error('Есть оплаты, которых нет в реестре, — они не запишутся. Исправьте имена или, если так и должно быть, добавьте --accept-unmatched.'); process.exit(1); }
 if (write && problems.length) { console.error('Есть ошибки разбора — исправьте файлы и запустите снова.'); process.exit(1); }
 
 const { SUPABASE_URL, SUPABASE_SERVICE_KEY, CLUB_ID } = process.env;

@@ -4,6 +4,7 @@
 //   node scripts/import/final-import.mjs --dir "..." --mode Final --show-only                                     # только показать команды
 //   node scripts/import/final-import.mjs --dir "..." --staff-only [--write]                                       # только штат игр (тренер, оператор)
 //   --accept-payment-duplicates — запись оплат продолжать, когда находки «возможные дубли платежей» просмотрены (сдвиг номеров строк в листе оплат)
+//   --accept-unmatched-payments — оплаты с ФИО не из реестра не запишутся; продолжать, когда эти строки просмотрены (без флага проверка и запись оплат останавливаются)
 //   --accept-equipment-warnings — запись экипировки продолжать, когда предупреждения проверки заказов просмотрены (ФИ не совпало, игрок заказа другой, в базе оплачено больше)
 // Режимы: Final — полный импорт (с посещаемостью и матчами); Daily (по умолчанию) — без них.
 // Нужны SUPABASE_URL (без /rest/v1), CLUB_ID; ключ SUPABASE_SERVICE_KEY спросит скрипт (ввод скрыт) или возьмёт из окружения.
@@ -21,6 +22,7 @@ const write = flag('--write');
 const showOnly = flag('--show-only');
 const acceptEquipment = flag('--accept-equipment-warnings');
 const acceptPayDup = flag('--accept-payment-duplicates');
+const acceptPayUnmatched = flag('--accept-unmatched-payments');
 const fullVerify = flag('--full'); // verify: расхождения без обрезки и с именами игроков
 const fillLineups = flag('--fill-lineups'); // матчи: дописать в составы существующих матчей игроков, которых в базе нет (без изменения существующих строк)
 const staffOnly = flag('--staff-only'); // только штат игр (тренер, оператор) у матчей, где его ещё нет; остальное не трогается
@@ -65,18 +67,20 @@ try {
     process.exit(0);
   }
   const months = readdirSync(pay, { withFileTypes: true }).filter(e => e.isFile() && e.name.endsWith('.csv')).map(e => e.name).sort().map(n => join(pay, n));
-  const paymentsArgs = [`${S}/run-payments.mjs`, '--registry', reg, ...months, ...(acceptPayDup ? ['--accept-possible-duplicates'] : [])];
+  const paymentsArgs = [`${S}/run-payments.mjs`, '--registry', reg, ...months, ...(acceptPayDup ? ['--accept-possible-duplicates'] : []), ...(acceptPayUnmatched ? ['--accept-unmatched'] : [])];
+  const attendanceArgs = [`${S}/run-attendance.mjs`, '--registry', reg, '--schedule', sched, '--log', log, '--att-dir', sub('ATT_ID')];
   const equipmentArgs = [`${S}/run-equipment.mjs`, csv('КАТАЛОГ ЭКИПИРОВКИ.csv'), csv('СЕЗОН 2026-2027.csv'), '--registry', reg, ...(acceptEquipment ? ['--accept-warnings'] : [])];
   // Проверка заказов экипировки до первой записи: остановка на этом шаге после записи игроков и оплат оставила бы импорт наполовину
   if (write) {
     run('Предпроверка экипировки (без записи)', equipmentArgs, { dry: true });
-    run('Предпроверка оплат: возможные дубли платежей (без записи)', paymentsArgs, { dry: true });
+    run('Предпроверка оплат: возможные дубли платежей и имена не из реестра (без записи)', paymentsArgs, { dry: true });
+    if (mode === 'Final') run('Предпроверка посещаемости: имена не из реестра и дни без слота (без записи)', attendanceArgs, { dry: true });
   }
   run('Игроки и группы', [`${S}/run-players.mjs`, reg]);
   run('Даты рождения', [`${S}/run-birth.mjs`, '--registry', reg, '--overrides', csv('ДАТЫ РОЖДЕНИЯ.csv'), '--pay-dir', pay]);
   run('Расписание и журнал тренировок', [`${S}/run-schedule-log.mjs`, '--registry', reg, '--schedule', sched, '--log', log]);
   if (mode === 'Final') {
-    run('Посещаемость', [`${S}/run-attendance.mjs`, '--registry', reg, '--schedule', sched, '--log', log, '--att-dir', sub('ATT_ID')]);
+    run('Посещаемость', attendanceArgs);
     run('Матчи: только новые, составы новых, взносы', [`${S}/run-events.mjs`, '--registry', reg, '--events', csv('МАТЧИ.csv'), '--fees', csv('ВЗНОСЫ МАТЧЕЙ.csv'), '--games', sub('GAMES_ID'), '--log', csv('Игры.csv'), '--new-only', ...(fillLineups ? ['--fill-lineups'] : [])]);
   }
   run('Оплаты абонементов', paymentsArgs);
