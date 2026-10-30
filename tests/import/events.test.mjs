@@ -90,9 +90,9 @@ test('взносы турниров: записанные в старом при
   const events = ['ID,Команда,Тип,Название,Дата,Взнос,Турнир,Соперник,Голы,Пропущено',
     'E-094,U9-B,Чемпионат,Championship 2,01.10.2026,200,,,,', 'E-007,U9-A,Чемпионат,Championship 2,02.10.2026,200,,,,'].join('\n');
   const fees = ['Событие,ID игрока,Игрок,Оплачено,Сумма,,,',
-    'E-094,KS-9,Belich Luka,TRUE,200,,,', 'E-094,KS-91,Liashenko Kyryl,TRUE,200,,,', 'E-094,KS-5,Other Kid,TRUE,200,,,', 'E-007,KS-126,Ruban Danila,TRUE,200,,,', 'E-007,KS-9,Belich Luka,TRUE,200,,,'].join('\n');
+    'E-094,KS-9,Belich Luka,TRUE,200,,,', 'E-094,KS-91,Liashenko Kyryl,TRUE,200,,,', 'E-094,KS-5,Other Kid,TRUE,200,,,', 'E-094,KS-126,Ruban Danila,TRUE,200,,,', 'E-007,KS-9,Belich Luka,TRUE,200,,,'].join('\n');
   const r = buildPlan({ eventsCsv: events, feesCsv: fees, gamesFiles: [], registryPlayers: reg });
-  assert.deepEqual(r.tFees.map(f => `${f.tournament_ext}|${f.name}`).sort(), ['E-007|Belich Luka', 'E-094|Other Kid']);
+  assert.deepEqual(r.tFees.map(f => `${f.tournament_ext}|${f.name}`).sort(), ['E-007|Belich Luka', 'E-094|Other Kid', 'E-094|Ruban Danila']);
 });
 
 test('Pashkin Denis больше не исключён: его участие и взнос импортируются; German в списке без игры и оплаты исключён', () => {
