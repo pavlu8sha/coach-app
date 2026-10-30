@@ -85,6 +85,7 @@ select * from (values
   ('0081_match_stats_drop_old_overload', to_regprocedure('match_stats(date,date)') is null),
   ('0082_match_stats_category_coach', pg_get_functiondef(to_regprocedure('match_stats(date,date,text)')) like '%tournament_label%'),
   ('0083_service_payments',        to_regclass('service_payments') is not null and to_regprocedure('service_payment_add(text,uuid,uuid,numeric,date,text,uuid)') is not null),
-  ('0084_cash_report_service',     pg_get_functiondef(to_regprocedure('cash_report(date,date,text,uuid,text)')) like '%service_payments%')
+  ('0084_cash_report_service',     pg_get_functiondef(to_regprocedure('cash_report(date,date,text,uuid,text)')) like '%service_payments%'),
+  ('0085_location_admins',         to_regclass('location_admins') is not null and to_regprocedure('is_location_admin(text)') is not null)
 ) as t(migration, applied)
 order by migration;
