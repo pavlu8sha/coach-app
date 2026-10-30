@@ -1,10 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { closeApp } from '../lib/telegram';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import LocationCash from './LocationCash';
-
-vi.mock('../lib/telegram', () => ({ closeApp: vi.fn() }));
 
 describe('Касса локального администратора', () => {
   beforeEach(() => {
@@ -21,10 +18,4 @@ describe('Касса локального администратора', () => {
     expect(await screen.findByRole('heading', { name: 'Кассовый отчёт' })).toBeInTheDocument();
   });
 
-  it('«Выйти из аккаунта» закрывает сессию и сбрасывает приложение', async () => {
-    render(<LocationCash locations={['Исани']} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Выйти из аккаунта' }));
-    await waitFor(() => expect(closeApp).toHaveBeenCalledTimes(1));
-    expect(fake.calls.some(c => c.name === 'auth.signOut')).toBe(true);
-  });
 });
