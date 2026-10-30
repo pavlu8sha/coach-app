@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { coachError, fmtDate, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput, Segmented, SwitchRow } from '../ui/components';
+import { useConfirm } from '../ui/ConfirmSheet';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 
@@ -244,6 +245,31 @@ function PartView({ part, camp, tariffs, onBack }: { part: Part; camp: Camp; tar
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
+  const { ask, dialog } = useConfirm();
+
+  const recordPay = async () => {
+    const ok = await ask({
+      title: 'Записать платёж?',
+      lines: [['Игрок', p.players?.full_name], ['Кемп', camp.name], ['Сумма', gel(num(payAmount))], ['Вид', KIND[kind]], ['Способ', method], ['Дата', fmtDate(date)]],
+      note: 'Запись нельзя изменить или удалить, ошибку исправляют записью с минусом.',
+      confirmLabel: 'Записать',
+    });
+    if (!ok) return;
+    const saved = await run('pay', () => supabase.rpc('camp_pay', { pid: p.id, amt: num(payAmount), k: kind, d: date, mth: method, cmt: null }), 'Платёж записан.');
+    if (saved) setPayAmount('');
+  };
+
+  const cancelPay = async (x: Pay) => {
+    const ok = await ask({
+      title: 'Отменить платёж?',
+      lines: [['Игрок', p.players?.full_name], ['Сумма', gel(Number(x.amount))], ['Вид', KIND[x.kind]], ['Дата', fmtDate(x.paid_on)]],
+      note: 'Будет записана запись с минусом на ту же сумму. Сам платёж удалить нельзя.',
+      confirmLabel: 'Отменить платёж',
+      danger: true,
+    });
+    if (ok) await run(x.id, () => supabase.rpc('camp_cancel_payment', { payid: x.id }), 'Платёж отменён записью с минусом.');
+  };
+
   const refresh = async () => {
     const r = await supabase.from('camp_participants').select('id, player_id, tariff_id, amount, tshirt_size, comment, status, players(full_name, groups(name)), camp_tariffs(name), camp_payments(id, amount, paid_on, kind, method, comment, legacy_ref)').eq('id', part.id).maybeSingle();
     if (!r.error && r.data) setP({ ...(r.data as unknown as Part), amount: Number((r.data as { amount: number }).amount) });
@@ -267,13 +293,14 @@ function PartView({ part, camp, tariffs, onBack }: { part: Part; camp: Camp; tar
       <p className="muted">{camp.name} · оплачено {gel(paidOf(p))} из {gel(p.amount)}{p.status === 'declined' ? ' · отказ' : ''}</p>
       {msg && <p className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}
 
+      {dialog}
       <h3>Платежи</h3>
       {pays.length === 0 ? <p className="muted">Платежей нет.</p> : pays.map(x => (
         <div className="ks-card" key={x.id}>
           <div className="ks-line"><span>{KIND[x.kind]} · {fmtDate(x.paid_on)}{x.method ? ` · ${x.method}` : ''}</span><b>{gel(Number(x.amount))}</b></div>
           {cancelled.has(x.id) && <div className="ks-muted" style={{ fontSize: 13 }}>Отменён</div>}
           {x.kind !== 'refund' && Number(x.amount) > 0 && !cancelled.has(x.id) && (
-            <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy === x.id} onClick={() => void run(x.id, () => supabase.rpc('camp_cancel_payment', { payid: x.id }), 'Платёж отменён записью с минусом.')}>Отменить платёж</button>
+            <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy === x.id} onClick={() => void cancelPay(x)}>Отменить платёж</button>
           )}
         </div>
       ))}
@@ -284,7 +311,7 @@ function PartView({ part, camp, tariffs, onBack }: { part: Part; camp: Camp; tar
         <label className="field">Дата<input type="date" value={date} max={today()} onChange={e => setDate(e.target.value)} /></label>
         <label className="field">Способ<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>
       </div>
-      <button type="button" className="ks-btn" disabled={busy === 'pay' || !method || payAmount.trim() === '' || Number.isNaN(num(payAmount)) || num(payAmount) <= 0} onClick={() => void run('pay', () => supabase.rpc('camp_pay', { pid: p.id, amt: num(payAmount), k: kind, d: date, mth: method, cmt: null }), 'Платёж записан.').then(ok => { if (ok) setPayAmount(''); })}>Записать платёж</button>
+      <button type="button" className="ks-btn" disabled={busy === 'pay' || !method || payAmount.trim() === '' || Number.isNaN(num(payAmount)) || num(payAmount) <= 0} onClick={() => void recordPay()}>Записать платёж</button>
 
       <h3>Данные участника</h3>
       <label className="field">Тариф<select value={tid} onChange={e => setTid(e.target.value)}>{tariffs.map(t => <option key={t.id} value={t.id}>{t.name} — {gel(t.price)}{t.active ? '' : ' (не активен)'}</option>)}</select></label>

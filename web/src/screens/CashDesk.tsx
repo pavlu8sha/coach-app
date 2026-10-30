@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { coachError, fmtDate, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput } from '../ui/components';
+import { useConfirm } from '../ui/ConfirmSheet';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 import { gel, monthIso, monthName, nextMonth, SEASON_START, tariffFor } from './MonthPayments';
@@ -88,6 +89,7 @@ export default function CashDesk() {
   const [todayRows, setTodayRows] = useState<{ id: string; amount: number; method: string | null; what: string; player_id?: string; pay_month?: string | null; players: { full_name: string } | null }[] | null>(null);
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const { ask, dialog } = useConfirm();
 
   useEffect(() => {
     if (q.trim().length < 2) return setFound([]);
@@ -116,8 +118,16 @@ export default function CashDesk() {
 
   // Отмена оплаты абонемента — записью с минусом (журнал платежей только добавляется)
   // запись с минусом берёт способ отменяемого платежа, чтобы итоги «Наличные» и «Перевод» за день сходились
-  const cancelPay = async (x: { id: string; amount: number; player_id?: string; pay_month?: string | null; method?: string | null }) => {
-    if (!x.player_id || !window.confirm('Отменить эту оплату? Будет записана запись с минусом.')) return;
+  const cancelPay = async (x: { id: string; amount: number; player_id?: string; pay_month?: string | null; method?: string | null; players?: { full_name: string } | null }) => {
+    if (!x.player_id) return;
+    const ok = await ask({
+      title: 'Отменить оплату?',
+      lines: [['Игрок', x.players?.full_name], ['Сумма', gel(Number(x.amount))], ['Способ', x.method ?? 'Исправление'], ['Дата', fmtDate(day)]],
+      note: 'Будет записана запись с минусом на ту же сумму. Саму оплату удалить нельзя.',
+      confirmLabel: 'Отменить оплату',
+      danger: true,
+    });
+    if (!ok) return;
     setCancelling(x.id);
     await supabase.from('payments').insert({ player_id: x.player_id, amount: -Number(x.amount), paid_on: day, ...(x.pay_month ? { for_month: x.pay_month } : {}), method: x.method ?? 'Исправление' });
     setCancelling(null);
@@ -182,6 +192,7 @@ export default function CashDesk() {
           )}
         </div>
       ))}
+      {dialog}
       <p className="ks-muted" style={{ fontSize: 13 }}>В списке оплаты за день: абонементы, сборы, экипировка и занятия. Отменить можно оплату абонемента кнопкой у строки; остальные оплаты отменяются в своих разделах.</p>
     </main>
   );
@@ -214,7 +225,7 @@ export function PlayerDues({ player, onBack, embedded = false, sharedMethod }: {
           <section key={s} data-sec={s}>
             <h3>{s}</h3>
             {dues.filter(d => d.section === s).map(d => (
-              <DueCard key={d.key} due={d} sharedMethod={sharedMethod} open={openKey === d.key} onOpen={() => setOpenKey(openKey === d.key ? null : d.key)} onPaid={() => { setOpenKey(null); setMsg('Платёж записан.'); setDues(null); setReload(n => n + 1); }} />
+              <DueCard key={d.key} due={d} who={player.full_name} sharedMethod={sharedMethod} open={openKey === d.key} onOpen={() => setOpenKey(openKey === d.key ? null : d.key)} onPaid={() => { setOpenKey(null); setMsg('Платёж записан.'); setDues(null); setReload(n => n + 1); }} />
             ))}
           </section>
         ))
@@ -223,7 +234,7 @@ export function PlayerDues({ player, onBack, embedded = false, sharedMethod }: {
   );
 }
 
-function DueCard({ due, open, onOpen, onPaid, sharedMethod }: { due: Due; open: boolean; onOpen: () => void; onPaid: () => void; sharedMethod?: string }) {
+function DueCard({ due, open, onOpen, onPaid, sharedMethod, who }: { due: Due; open: boolean; onOpen: () => void; onPaid: () => void; sharedMethod?: string; who: string }) {
   const left = r2(due.due - due.paid);
   const [amount, setAmount] = useState(String(left));
   const [ownMethod, setMethod] = useState('');
@@ -231,12 +242,21 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod }: { due: Due; open: 
   const [date, setDate] = useState(today());
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const { ask, dialog } = useConfirm();
   const fixedAmount = due.kind === 'ind'; // индивидуальное занятие отмечается оплаченным целиком
   const num = Number(amount.replace(',', '.'));
   const save = async () => {
     if (!method) return setErr(sharedMethod !== undefined ? 'Выберите способ оплаты вверху экрана: «Наличные» или «Перевод».' : 'Выберите способ оплаты.');
     if (!fixedAmount && (!Number.isFinite(num) || num <= 0 || num > 100000)) return setErr('Введите сумму больше нуля.');
     if (date > today()) return setErr('Дата платежа не может быть в будущем.');
+    const sum = fixedAmount ? left : num;
+    const ok = await ask({
+      title: fixedAmount ? 'Отметить занятие оплаченным?' : 'Записать платёж?',
+      lines: [['Игрок', who], ['За что', due.title], ['Сумма', gel(sum)], ['Способ', method], ['Дата', fmtDate(date)]],
+      note: 'Запись нельзя изменить или удалить, ошибку исправляют записью с минусом.',
+      confirmLabel: 'Записать',
+    });
+    if (!ok) return;
     setBusy(true);
     setErr(null);
     const r = await due.pay(fixedAmount ? left : num, method, date);
@@ -260,6 +280,7 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod }: { due: Due; open: 
           <button type="button" className="ks-btn" disabled={busy} onClick={() => void save()}>{fixedAmount ? `Отметить оплаченным (${gel(left)})` : 'Записать платёж'}</button>
         </div>
       )}
+      {dialog}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { EmptyState, Segmented } from '../ui/components';
+import { useConfirm } from '../ui/ConfirmSheet';
 import { Failure, Splash } from './Message';
 import ParentsRoster from './ParentsRoster';
 
@@ -38,7 +39,18 @@ export default function Admin() {
     void load();
   }, [load]);
 
-  const decide = async (id: string, approve: boolean) => {
+  const { ask, dialog } = useConfirm();
+
+  const decide = async (row: Pending, approve: boolean) => {
+    const ok = await ask({
+      title: approve ? 'Подтвердить связь?' : 'Отклонить связь?',
+      lines: [['Ребёнок', row.players?.full_name], ['Группа', row.players?.groups?.name], ['Родитель', row.users?.display_name ?? 'без имени']],
+      note: approve ? 'Родитель получит доступ к карточке этого ребёнка.' : 'Родитель не получит доступ к карточке ребёнка.',
+      confirmLabel: approve ? 'Подтвердить' : 'Отклонить',
+      danger: !approve,
+    });
+    if (!ok) return;
+    const id = row.id;
     setBusy(id);
     const r = await supabase.rpc('decide_link', { r: id, approve });
     setBusy(null);
@@ -71,6 +83,7 @@ export default function Admin() {
       <h1>Запросы родителей</h1>
       <Segmented label="Раздел" value={tab} onChange={setTab} items={[{ value: 'requests', label: `Запросы${rows.length ? ` (${rows.length})` : ''}` }, { value: 'parents', label: 'Родители' }]} />
       {tab === 'parents' && <ParentsRoster />}
+      {dialog}
       {tab === 'requests' && rows.length === 0 && <EmptyState icon="box" title="Новых запросов нет" text="Когда родитель попросит связать его с ребёнком, запрос появится здесь." />}
       {tab === 'requests' && rows.map(r => (
         <section className="ks-card" key={r.id}>
@@ -80,10 +93,10 @@ export default function Admin() {
             Запрашивает: <strong>{r.users?.display_name ?? 'без имени'}</strong> <span className="muted">(Telegram ID {r.users?.telegram_id})</span>
           </p>
           <div className="ks-btns">
-            <button className="ks-btn" disabled={busy === r.id} onClick={() => void decide(r.id, true)}>
+            <button className="ks-btn" disabled={busy === r.id} onClick={() => void decide(r, true)}>
               Подтвердить
             </button>
-            <button className="ks-btn secondary" disabled={busy === r.id} onClick={() => void decide(r.id, false)}>
+            <button className="ks-btn secondary" disabled={busy === r.id} onClick={() => void decide(r, false)}>
               Отклонить
             </button>
           </div>

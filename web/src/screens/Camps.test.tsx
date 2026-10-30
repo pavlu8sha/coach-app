@@ -51,6 +51,7 @@ describe('«Сборы»', () => {
     fireEvent.change(screen.getAllByLabelText('Сумма, ₾')[0], { target: { value: '250,5' } });
     fireEvent.change(screen.getByLabelText(/^Способ/), { target: { value: 'Наличные' } });
     fireEvent.click(screen.getByRole('button', { name: 'Записать платёж' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
     await waitFor(() => expect(fake.rpcCalls('camp_pay')).toHaveLength(1));
     expect(fake.rpcCalls('camp_pay')[0]).toMatchObject({ pid: 'cp2', amt: 250.5, k: 'payment', mth: 'Наличные' });
   });
@@ -63,6 +64,7 @@ describe('«Сборы»', () => {
     fireEvent.click(await screen.findByText('Иванов Пётр'));
     const pay = (await screen.findByText(/Бронь · 01.11.2026/)).closest('.ks-card') as HTMLElement;
     fireEvent.click(within(pay).getByRole('button', { name: 'Отменить платёж' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отменить платёж' }));
     expect(await screen.findByText('Этот платёж уже отменён.')).toBeInTheDocument();
     expect(fake.rpcCalls('camp_cancel_payment')).toEqual([{ payid: 'pay1' }]);
   });
