@@ -10,6 +10,7 @@ import Payments from './screens/Payments';
 import Players from './screens/Players';
 import Schedule from './screens/Schedule';
 import Matches from './screens/Matches';
+import LocationCash from './screens/LocationCash';
 import Profile from './screens/Profile';
 import Message, { Splash } from './screens/Message';
 import BrowserLogin, { browserLoginEnabled } from './screens/BrowserLogin';
@@ -66,6 +67,8 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
   const [childLoaded, setChildLoaded] = useState(false);
   const [childKey, setChildKey] = useState(0);
   const [tab, setTab] = useState<Tab>('home');
+  // локальный администратор (#321): свои локации, только касса
+  const [locations, setLocations] = useState<string[]>([]);
   // в предпросмотре администратор «становится» выбранной ролью без детей и без групп
   const admin = adminReal && !preview;
   const hasKids = hasKidsReal && !preview;
@@ -109,6 +112,10 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
         setAllGroups(isAdm ? all : [...all.filter(g => mineIds.has(g.id)), ...all.filter(g => !mineIds.has(g.id))]);
       }
       setAdmin(isAdm);
+      if (!isAdm) {
+        const lr = await supabase.rpc('my_locations');
+        setLocations(lr.error ? [] : ((lr.data ?? []) as string[]));
+      }
       if (isAdm) setTab('sessions');
       else if (mineGroups.length) setTab('sessions'); // тренер — сразу на занятиях
       else if ((mine.count ?? 0) === 0 && r.data?.chosen_role === 'child') setTab('home');
@@ -138,6 +145,7 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
   }, [role, childKey]);
   const coach = !admin && !preview && coachGroups.length > 0;
   if (!loaded) return <Splash />;
+  if (locations.length > 0 && !admin) return <LocationCash locations={locations} />;
   // Роль спрашиваем при первом входе. Администратора, тренера с группами и тех, у кого уже есть дети, не трогаем.
   if (!admin && !coach && !hasKids && (role === null || changingRole)) {
     return (
