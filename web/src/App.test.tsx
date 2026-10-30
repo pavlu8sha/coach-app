@@ -49,6 +49,17 @@ describe('нижняя панель по ролям', () => {
     expect(await labels()).toEqual(['Занятия', 'Матчи', 'Ребёнок', 'Учёт', 'Группа']);
   });
 
+  it('тренер с локациями Гио: разделы тренера и «Касса» на нижней панели', async () => {
+    fake.db.users = [{ id: 'u', is_admin: false, chosen_role: 'coach' }];
+    fake.db.coach_groups = CG;
+    fake.db.groups = GROUPS;
+    fake.rpc.my_locations = () => ['Исани', 'Отрачала'];
+    render(<App />);
+    expect(await labels()).toEqual(['Занятия', 'Матчи', 'Посещаемость', 'Учёт', 'Группа', 'Касса']);
+    fireEvent.click((await bar()).getByRole('button', { name: 'Касса' }));
+    expect(await screen.findByText('Касса: Исани, Отрачала')).toBeInTheDocument();
+  });
+
   it('администратор не получает пункты тренера на нижней панели', async () => {
     fake.db.users = [{ id: 'u', is_admin: true, chosen_role: null }];
     fake.db.groups = GROUPS;

@@ -21,7 +21,7 @@ export default function LocationCash({ locations }: { locations: string[] }) {
       <div style={{ maxWidth: 560, margin: '0 auto', padding: '12px 16px 0' }}>
         <p className="ks-muted" style={{ margin: 0 }}>Касса: {locations.join(', ')}</p>
         <Segmented label="Раздел кассы" value={sub} onChange={setSub} items={[{ value: 'cash', label: 'Приём оплат' }, { value: 'report', label: 'Отчёт' }]} />
-        <button type="button" className="ks-btn secondary" style={{ marginTop: 8, width: 'auto' }} onClick={() => void logout()}>Выйти</button>
+        <button type="button" className="ks-btn secondary" style={{ marginTop: 8, width: 'auto' }} onClick={() => void logout()}>Выйти из аккаунта</button>
       </div>
       {sub === 'cash' ? <CashDesk /> : <CashReport />}
     </>

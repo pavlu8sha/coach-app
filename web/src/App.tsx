@@ -32,7 +32,7 @@ import TrainerLog from './screens/TrainerLog';
 
 type State = { kind: 'loading' } | { kind: 'ready' } | { kind: 'outside' } | { kind: 'config' } | { kind: 'error'; text: string };
 
-type Tab = 'about' | 'home' | 'schedule' | 'matches' | 'payments' | 'profile' | 'more' | 'group' | 'attendance' | 'ledger' | SectionId;
+type Tab = 'about' | 'home' | 'schedule' | 'matches' | 'payments' | 'profile' | 'more' | 'group' | 'attendance' | 'ledger' | 'cash' | SectionId;
 
 const PREVIEW_LABEL: Record<Role, string> = { parent: 'Родитель', child: 'Ребёнок', guest: 'Гость', coach: 'Тренер без групп' };
 
@@ -112,12 +112,15 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
         setAllGroups(isAdm ? all : [...all.filter(g => mineIds.has(g.id)), ...all.filter(g => !mineIds.has(g.id))]);
       }
       setAdmin(isAdm);
+      let locs: string[] = [];
       if (!isAdm) {
         const lr = await supabase.rpc('my_locations');
-        setLocations(lr.error ? [] : ((lr.data ?? []) as string[]));
+        locs = lr.error ? [] : ((lr.data ?? []) as string[]);
+        setLocations(locs);
       }
       if (isAdm) setTab('sessions');
       else if (mineGroups.length) setTab('sessions'); // тренер — сразу на занятиях
+      else if (locs.length) setTab('cash'); // локальный админ без групп — сразу в кассу
       else if ((mine.count ?? 0) === 0 && r.data?.chosen_role === 'child') setTab('home');
       else if ((mine.count ?? 0) === 0 && r.data?.chosen_role && r.data.chosen_role !== 'parent') setTab('about');
       setLoaded(true);
@@ -144,10 +147,12 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
     })();
   }, [role, childKey]);
   const coach = !admin && !preview && coachGroups.length > 0;
+  // локальный админ (#321): касса своих локаций добавляется к разделам тренера или родителя
+  const locAdmin = !admin && !preview && locations.length > 0;
+  const cashItem = { value: 'cash' as Tab, label: 'Касса', icon: 'wallet' as const };
   if (!loaded) return <Splash />;
-  if (locations.length > 0 && !admin) return <LocationCash locations={locations} />;
   // Роль спрашиваем при первом входе. Администратора, тренера с группами и тех, у кого уже есть дети, не трогаем.
-  if (!admin && !coach && !hasKids && (role === null || changingRole)) {
+  if (!admin && !coach && !locAdmin && !hasKids && (role === null || changingRole)) {
     return (
       <RoleSelect
         onDone={r => {
@@ -160,7 +165,7 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
     );
   }
   // Ребёнок: свои баллы и матчи после ввода кода от родителя, плюс расписание клуба
-  if (!admin && !coach && !hasKids && role === 'child') {
+  if (!admin && !coach && !locAdmin && !hasKids && role === 'child') {
     if (!childLoaded) return <Splash />;
     const ct: 'home' | 'matches' | 'schedule' | 'about' = tab === 'matches' || tab === 'schedule' || tab === 'about' ? tab : 'home';
     const linked = childPlayer !== null;
@@ -191,7 +196,7 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
     );
   }
   // Выбравшие не «Родитель» (и без детей) видят только открытую информацию
-  if (!admin && !coach && !hasKids && role !== 'parent') {
+  if (!admin && !coach && !locAdmin && !hasKids && role !== 'parent') {
     return (
       <>
         {tab === 'schedule' ? <Schedule all editable={false} /> : <About role={role} onChangeRole={() => (preview ? exitPreview() : setChangingRole(true))} />}
@@ -208,7 +213,8 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
     );
   }
   const screen =
-    admin && tab === 'more' ? <More key={moreKey} groups={allGroups} bar={bar} onMenuChanged={() => setMenuKey(k => k + 1)} onPreview={startPreview} />
+    locAdmin && tab === 'cash' ? <LocationCash locations={locations} />
+    : admin && tab === 'more' ? <More key={moreKey} groups={allGroups} bar={bar} onMenuChanged={() => setMenuKey(k => k + 1)} onPreview={startPreview} />
     : admin && isSection(tab) ? <AdminSection key={tab} id={tab} groups={allGroups} onMenuChanged={() => setMenuKey(k => k + 1)} />
     : (admin || coach) && tab === 'sessions' ? <Sessions groups={allGroups.length ? allGroups : coachGroups} />
     : (admin || coach) && tab === 'cmatches' ? <CoachMatches groups={allGroups.length ? allGroups : coachGroups} admin={admin} allTeams={!admin} />
@@ -237,8 +243,10 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
                 { value: 'more', label: 'Ещё', icon: 'more' },
               ]
             : coach
-              ? coachBar(hasKids)
-              : [
+              ? [...coachBar(hasKids), ...(locAdmin ? [cashItem] : [])]
+              : locAdmin
+                ? [cashItem, { value: 'profile' as Tab, label: 'Профиль', icon: 'user' as const }]
+                : [
                   { value: 'home', label: 'Ребёнок', icon: 'child' },
                   { value: 'schedule', label: 'Расписание', icon: 'calendar' },
                   { value: 'matches', label: 'Матчи', icon: 'trophy' },
