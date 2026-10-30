@@ -52,8 +52,9 @@ for (const d of j.journalOnly) console.log('  дописано из журнал
 for (const d of j.journalSkipped) console.log('  из журнала пропущено: ' + d);
 for (const p of [...reg.problems, ...sch.problems, ...plan.problems]) console.log(`  проблема${p.line ? ' (строка ' + p.line + ')' : ''}: ${p.error}`);
 
+// Те же условия останавливают и проверку без записи: так предпроверка перед общим импортом видит их до записи игроков и расписания
+if (plan.unmatched.length || plan.noSlot.length || plan.problems.length || reg.problems.length || sch.problems.length) { console.error(write ? 'Есть проблемы — запись остановлена.' : 'Есть проблемы (не найдены в реестре, нет слота в расписании или ошибки разбора) — запись будет остановлена.'); process.exit(1); }
 if (!write) { console.log('Проверка без записи. Для записи добавьте --write.'); process.exit(0); }
-if (plan.unmatched.length || plan.noSlot.length || plan.problems.length || reg.problems.length || sch.problems.length) { console.error('Есть проблемы — запись остановлена.'); process.exit(1); }
 
 const { SUPABASE_URL, SUPABASE_SERVICE_KEY, CLUB_ID } = process.env;
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !CLUB_ID) { console.error('Нужны SUPABASE_URL, SUPABASE_SERVICE_KEY, CLUB_ID'); process.exit(2); }
