@@ -19,7 +19,8 @@ export default function PlayerCard({ player, onBack, onEdit }: { player: CardPla
   const months = useMemo(() => {
     const out: string[] = [];
     const now = new Date();
-    for (let d = new Date(now.getFullYear(), now.getMonth(), 1); monthIso(d) >= SEASON_START; d.setMonth(d.getMonth() - 1)) out.push(monthIso(d));
+    // следующий месяц тоже в списке: родители платят вперёд, и экран «Оплаты за месяц» его показывает
+    for (let d = new Date(now.getFullYear(), now.getMonth() + 1, 1); monthIso(d) >= SEASON_START; d.setMonth(d.getMonth() - 1)) out.push(monthIso(d));
     return out;
   }, []);
   const [prices, setPrices] = useState<Price[]>([]);
