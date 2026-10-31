@@ -35,7 +35,7 @@ select is((select ends_at::text from booking_board() where session_id = (select 
   (((now() at time zone 'Asia/Tbilisi')::date + 2)::text || ' 20:30:00'), 'занятие со временем: в доске есть окончание');
 select is((select ends_at from booking_board() where session_id = (select id from ids where k = 'untimed')),
   null::timestamp, 'занятие без времени: окончание null');
-select ok((select bool_and(ends_at is null) from booking_board() where kind <> 'extra'), 'индивидуальные и вратарские: окончание null');
+select ok(not exists (select 1 from booking_board() where kind <> 'extra' and ends_at is not null), 'индивидуальные и вратарские: окончание null');
 
 select * from finish();
 rollback;
