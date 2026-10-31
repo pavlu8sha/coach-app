@@ -51,8 +51,10 @@ export function EquipmentTab({ playerId }: { playerId: string }) {
   if (error) return <Err text={error} />;
   if (!rows) return <Loading />;
   if (rows.length === 0) return <EmptyState icon="box" title="Заказов нет" text="У игрока нет заказов экипировки." />;
+  const playerNumber = [...rows].sort((x, y) => (y.ordered_on ?? '').localeCompare(x.ordered_on ?? '')).map(o => (o.number ?? '').trim()).find(Boolean);
   return (
     <>
+      {playerNumber && <p style={{ marginBottom: 8 }}>Номер игрока: <b>{playerNumber}</b></p>}
       {rows.map(o => {
         const kits = [...new Set(o.equipment_order_lines.map(l => l.kit))];
         const issued = new Set(o.equipment_issues.map(i => i.kit));
