@@ -48,6 +48,20 @@ describe('«Экипировка»', () => {
     expect(screen.getByText(/не заполнено: номер/)).toBeInTheDocument();
   });
 
+  it('номер из другого заказа игрока: подсказка в «Неполных» и кнопка «Подставить»', async () => {
+    seed();
+    const o = fake.db.equipment_orders as (ReturnType<typeof order> & { player_id?: string })[];
+    o[0].player_id = 'p1'; o[0].number = '7';
+    o.push({ ...order('o5', 'Иванов Пётр', 100, 100), number: '', player_id: 'p1' });
+    render(<Equipment />);
+    await screen.findAllByText('Иванов Пётр');
+    fireEvent.click(screen.getByRole('tab', { name: 'Неполные' }));
+    expect(await screen.findByText(/номер 7 есть в другом заказе/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Иванов Пётр'));
+    fireEvent.click(await screen.findByRole('button', { name: /Подставить номер 7/ }));
+    expect(screen.getByLabelText('Номер')).toHaveValue('7');
+  });
+
   it('поиск по имени', async () => {
     seed();
     render(<Equipment />);

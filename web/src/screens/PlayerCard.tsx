@@ -26,6 +26,7 @@ export default function PlayerCard({ player, onBack, onEdit }: { player: CardPla
   const [prices, setPrices] = useState<Price[]>([]);
   const [pays, setPays] = useState<Pay[] | null>(null);
   const [subs, setSubs] = useState<Map<string, Sub>>(new Map());
+  const [shirt, setShirt] = useState<string | null>(null); // номер из самого свежего заказа экипировки
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [openMonth, setOpenMonth] = useState<string | null>(null);
@@ -36,6 +37,8 @@ export default function PlayerCard({ player, onBack, onEdit }: { player: CardPla
       const pr = await supabase.from('prices').select('group_id, amount, valid_from, valid_to').eq('kind', 'subscription');
       const pay = await supabase.from('payments').select('amount, paid_on, pay_month').eq('player_id', player.id).gte('pay_month', SEASON_START).limit(1000);
       const sb = await supabase.from('subscriptions').select('player_id, month, discount, written_off').eq('player_id', player.id);
+      const eq = await supabase.from('equipment_orders').select('number, ordered_on').eq('player_id', player.id);
+      if (!eq.error) setShirt(((eq.data ?? []) as { number: string | null; ordered_on: string | null }[]).sort((a, b) => (b.ordered_on ?? '').localeCompare(a.ordered_on ?? '')).map(o => (o.number ?? '').trim()).find(Boolean) ?? null);
       const bad = pr.error ?? pay.error ?? sb.error;
       if (bad) return setError(bad.message);
       setPrices(((pr.data ?? []) as Price[]).map(x => ({ ...x, amount: Number(x.amount) })));
@@ -55,6 +58,7 @@ export default function PlayerCard({ player, onBack, onEdit }: { player: CardPla
         <div style={{ minWidth: 0, flex: 1 }}>
           <h1 style={{ margin: 0, overflowWrap: 'anywhere' }}>{player.full_name}</h1>
           <p className="muted">{[player.external_id, player.group_name ?? 'без группы'].filter(Boolean).join(' · ')}</p>
+          {shirt && <p className="muted">Номер: {shirt}</p>}
           <p className="muted">{player.birth_date ? `Дата рождения: ${fmtDate(player.birth_date)}` : 'Дата рождения не указана'}</p>
         </div>
       </div>

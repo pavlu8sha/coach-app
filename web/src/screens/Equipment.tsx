@@ -7,7 +7,7 @@ import { Failure, Loading } from './Message';
 
 interface Line { kit: string; size: string | null; quantity: number }
 interface Order {
-  id: string; ordered_on: string | null; total: number; paid: number; installment: boolean; number: string | null; inscription: string | null; location: string | null;
+  id: string; player_id: string | null; ordered_on: string | null; total: number; paid: number; installment: boolean; number: string | null; inscription: string | null; location: string | null;
   players: { full_name: string; groups?: { name: string } | null } | null; equipment_order_lines: Line[]; equipment_issues: { kit: string; issued_on: string; issued_by: string | null }[];
 }
 interface Kit { kit: string; price: number }
@@ -26,6 +26,16 @@ const missingOf = (o: Pick<Order, 'number' | 'equipment_order_lines'>): string[]
   if (lines.length === 0) m.push('позиции');
   if (lines.some(l => !(l.size ?? '').trim())) m.push('размер');
   if (lines.length > 0 && !(o.number ?? '').trim() && lines.some(l => !/гетр|носк/i.test(l.kit))) m.push('номер');
+  return m;
+};
+
+// Номер игрока: берём из его самого свежего заказа, где номер указан.
+const knownNumbers = (orders: Pick<Order, 'player_id' | 'number' | 'ordered_on'>[]) => {
+  const m = new Map<string, string>();
+  [...orders].sort((a, b) => (b.ordered_on ?? '').localeCompare(a.ordered_on ?? '')).forEach(o => {
+    const n = (o.number ?? '').trim();
+    if (o.player_id && n && !m.has(o.player_id)) m.set(o.player_id, n);
+  });
   return m;
 };
 
@@ -49,7 +59,7 @@ export default function Equipment() {
     void (async () => {
       const r = await supabase
         .from('equipment_orders')
-        .select('id, ordered_on, total, paid, installment, number, inscription, location, players(full_name, groups(name)), equipment_order_lines(kit, size, quantity), equipment_issues(kit, issued_on, issued_by)')
+        .select('id, player_id, ordered_on, total, paid, installment, number, inscription, location, players(full_name, groups(name)), equipment_order_lines(kit, size, quantity), equipment_issues(kit, issued_on, issued_by)')
         .order('ordered_on', { ascending: false, nullsFirst: false })
         .limit(500);
       if (r.error) return setError(errText(r.error.message));
@@ -74,6 +84,7 @@ export default function Equipment() {
       locs: uniq((orders ?? []).map(o => o.location)),
     };
   }, [orders]);
+  const numbers = useMemo(() => knownNumbers(orders ?? []), [orders]);
   const sums = useMemo(() => {
     const total = shown.reduce((s, o) => s + o.total, 0), paid = shown.reduce((s, o) => s + Math.min(o.paid, o.total), 0);
     return { players: new Set(shown.map(o => o.players?.full_name ?? o.id)).size, total, paid, debt: total - paid };
@@ -84,7 +95,7 @@ export default function Equipment() {
   if (creating) return <NewOrder onBack={() => setCreating(false)} onDone={done} />;
   if (tab === 'catalog') return <Catalog onTab={setTab} />;
   const open = orders?.find(o => o.id === openId);
-  if (open) return <OrderView order={open} onBack={() => { setOpenId(null); done(); }} />;
+  if (open) return <OrderView order={open} knownNumber={open.player_id ? numbers.get(open.player_id) : undefined} onBack={() => { setOpenId(null); done(); }} />;
 
   return (
     <main className="page">
@@ -121,7 +132,7 @@ export default function Equipment() {
                 key={o.id}
                 avatar={o.players?.full_name ?? '—'}
                 title={o.players?.full_name ?? 'Игрок'}
-                sub={[[...new Set(o.equipment_order_lines.map(l => l.kit))].join(' + ') || 'без позиций', `${o.ordered_on ? fmtDate(o.ordered_on) : 'без даты'} · выдано: ${issueState(o)}${missingOf(o).length ? ` · не заполнено: ${missingOf(o).join(', ')}` : ''}`]}
+                sub={[[...new Set(o.equipment_order_lines.map(l => l.kit))].join(' + ') || 'без позиций', `${o.ordered_on ? fmtDate(o.ordered_on) : 'без даты'} · выдано: ${issueState(o)}${missingOf(o).length ? ` · не заполнено: ${missingOf(o).join(', ')}${missingOf(o).includes('номер') && o.player_id && numbers.has(o.player_id) ? ` (номер ${numbers.get(o.player_id)} есть в другом заказе)` : ''}` : ''}`]}
                 end={<Pill tone={o.paid >= o.total ? 'success' : 'danger'} dot>{o.paid >= o.total ? 'Оплачен' : `${o.paid} из ${gel(o.total)}`}</Pill>}
                 onClick={() => setOpenId(o.id)}
               />
@@ -201,6 +212,13 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
     return () => clearTimeout(t);
   }, [q]);
 
+  // Номер из прежних заказов игрока подставляем сами, его можно поправить.
+  const prefillNumber = async (id: string) => {
+    const r = await supabase.from('equipment_orders').select('number, ordered_on').eq('player_id', id);
+    if (r.error) return;
+    const n = knownNumbers(((r.data ?? []) as { number: string | null; ordered_on: string | null }[]).map(x => ({ ...x, player_id: id }))).get(id);
+    if (n) setNumber(cur => (cur.trim() ? cur : n));
+  };
   const total = (kits ?? []).reduce((s, k) => s + (pick[k.kit] ? k.price * pick[k.kit].quantity : 0), 0);
   const save = async () => {
     if (!player) return;
@@ -221,7 +239,7 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
       ) : (
         <>
           <SearchInput label="Найти игрока" placeholder="Фамилия или имя (от 2 букв)" value={q} onChange={setQ} />
-          {found.map(p => <ListRow key={p.id} avatar={p.full_name} title={p.full_name} onClick={() => { setPlayer(p); if (!loc.trim() && p.groups?.location) setLoc(p.groups.location); }} />)}
+          {found.map(p => <ListRow key={p.id} avatar={p.full_name} title={p.full_name} onClick={() => { setPlayer(p); if (!loc.trim() && p.groups?.location) setLoc(p.groups.location); void prefillNumber(p.id); }} />)}
         </>
       )}
       <h3>Что заказываем</h3>
@@ -254,7 +272,7 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
   );
 }
 
-function OrderView({ order, onBack }: { order: Order; onBack: () => void }) {
+function OrderView({ order, knownNumber, onBack }: { order: Order; knownNumber?: string; onBack: () => void }) {
   const [o, setO] = useState(order);
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('');
@@ -271,7 +289,7 @@ function OrderView({ order, onBack }: { order: Order; onBack: () => void }) {
   useEffect(() => { if (gone) onBack(); }, [gone]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const refresh = async () => {
-    const r = await supabase.from('equipment_orders').select('id, ordered_on, total, paid, installment, number, inscription, location, players(full_name), equipment_order_lines(kit, size, quantity), equipment_issues(kit, issued_on, issued_by)').eq('id', order.id).maybeSingle();
+    const r = await supabase.from('equipment_orders').select('id, player_id, ordered_on, total, paid, installment, number, inscription, location, players(full_name), equipment_order_lines(kit, size, quantity), equipment_issues(kit, issued_on, issued_by)').eq('id', order.id).maybeSingle();
     if (!r.error && r.data) {
       const d = r.data as unknown as Order;
       setO({ ...d, total: Number(d.total), paid: Number(d.paid) });
@@ -319,6 +337,7 @@ function OrderView({ order, onBack }: { order: Order; onBack: () => void }) {
       <h3>Данные заказа</h3>
       <label className="field">Надпись<input value={insc} maxLength={40} onChange={e => setInsc(e.target.value)} /></label>
       <label className="field">Номер<input value={number} maxLength={10} onChange={e => setNumber(e.target.value)} /></label>
+      {!number.trim() && knownNumber && <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} onClick={() => setNumber(knownNumber)}>Подставить номер {knownNumber} из другого заказа игрока</button>}
       <label className="field">Локация<input value={loc} maxLength={40} onChange={e => setLoc(e.target.value)} /></label>
       <label className="field">Сумма заказа, ₾<input inputMode="decimal" value={total} onChange={e => setTotal(e.target.value)} /></label>
       <div style={{ marginTop: 12 }}><SwitchRow id="inst" label="Рассрочка" checked={inst} onChange={setInst} /></div>
