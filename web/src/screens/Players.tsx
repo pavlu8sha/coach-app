@@ -134,8 +134,8 @@ export default function Players() {
       {list.length === 0 ? (
         <EmptyState icon="users" title="Никого не нашли" text="Измените поиск или фильтры." />
       ) : (
-        groupInOrder(list, p => groupName.get(p.group_id ?? '') ?? 'без группы').map(([team, items], i) => (
-          <details className="ks-group" key={team} open={i === 0 || !!q.trim()}>
+        groupInOrder(list, p => groupName.get(p.group_id ?? '') ?? 'без группы').map(([team, items]) => (
+          <details className="ks-group" key={team} open={!!q.trim()}>
             <summary><div className="ks-line"><b>{team}</b><span className="muted">{items.length} игр.</span></div></summary>
             {items.map(p => {
               const s = state(p);
