@@ -33,13 +33,13 @@ insert into prices (club_id, group_id, kind, amount, valid_from) values
   ('00000000-0000-0000-0000-00000000c001', null, 'subscription', 170, '2099-01-01');
 -- платежи: частично 100 в текущем месяце; скидочный внёс 50; полностью 165; weekends не платил; прошлый месяц (09.2026): частично 165 из 165 нет строки у Чужого
 insert into payments (player_id, amount, paid_on) values
-  ('00000000-0000-0000-0000-00000000d001', 100, date_trunc('month', current_date)),
-  ('00000000-0000-0000-0000-00000000d002', 50, date_trunc('month', current_date)),
-  ('00000000-0000-0000-0000-00000000d004', 165, date_trunc('month', current_date));
+  ('00000000-0000-0000-0000-00000000d001', 100, date_trunc('month', (now() at time zone 'Asia/Tbilisi')::date)),
+  ('00000000-0000-0000-0000-00000000d002', 50, date_trunc('month', (now() at time zone 'Asia/Tbilisi')::date)),
+  ('00000000-0000-0000-0000-00000000d004', 165, date_trunc('month', (now() at time zone 'Asia/Tbilisi')::date));
 -- строки абонементов за сентябрь: у первого оплачено 60 (долг за прошлый месяц), у «Со скидкой» — скидка
 insert into subscriptions (player_id, group_id, month, amount_due, discount) values
   ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000000e1', '2026-09-01', 60, false),
-  ('00000000-0000-0000-0000-00000000d002', '00000000-0000-0000-0000-0000000000e1', date_trunc('month', current_date), 50, true);
+  ('00000000-0000-0000-0000-00000000d002', '00000000-0000-0000-0000-0000000000e1', date_trunc('month', (now() at time zone 'Asia/Tbilisi')::date), 50, true);
 insert into payments (player_id, amount, paid_on) values ('00000000-0000-0000-0000-00000000d001', 60, '2026-09-01');
 
 create or replace function as_user(uid uuid) returns void language plpgsql as $$
@@ -62,7 +62,7 @@ insert into club_settings (club_id, key, value) values ('00000000-0000-0000-0000
 
 -- Долг включён
 select as_user('00000000-0000-0000-0000-0000000000b1');
-select is((select debt from parent_debts() where player_id = '00000000-0000-0000-0000-00000000d001' and month = date_trunc('month', current_date)::date), 65::numeric, 'текущий месяц: 165 - 100 = 65');
+select is((select debt from parent_debts() where player_id = '00000000-0000-0000-0000-00000000d001' and month = date_trunc('month', (now() at time zone 'Asia/Tbilisi')::date)::date), 65::numeric, 'текущий месяц: 165 - 100 = 65');
 select is((select debt from parent_debts() where player_id = '00000000-0000-0000-0000-00000000d001' and month = '2026-09-01'), 105::numeric, 'прошлый месяц со строкой абонемента: 165 - 60 = 105');
 select is((select debt from parent_debts() where player_id = '00000000-0000-0000-0000-00000000d002'), 0::numeric, 'скидка и что-то внесено: долга нет');
 select is((select tariff from parent_debts() where player_id = '00000000-0000-0000-0000-00000000d003'), 130::numeric, 'у группы weekends цена 130');
@@ -75,16 +75,16 @@ select as_user('00000000-0000-0000-0000-0000000000c1');
 select is((select count(*)::int from parent_debts()), 0, 'тренер без своих детей долгов не видит');
 
 -- Должники для администратора
-select throws_ok($$select * from debtors(date_trunc('month', current_date)::date)$$, '42501', 'forbidden', 'тренер не открывает список должников');
+select throws_ok($$select * from debtors(date_trunc('month', (now() at time zone 'Asia/Tbilisi')::date)::date)$$, '42501', 'forbidden', 'тренер не открывает список должников');
 select as_user('00000000-0000-0000-0000-0000000000b1');
-select throws_ok($$select * from debtors(date_trunc('month', current_date)::date)$$, '42501', 'forbidden', 'родитель не открывает список должников');
+select throws_ok($$select * from debtors(date_trunc('month', (now() at time zone 'Asia/Tbilisi')::date)::date)$$, '42501', 'forbidden', 'родитель не открывает список должников');
 select as_user('00000000-0000-0000-0000-0000000000a1');
-select is((select count(*)::int from debtors(date_trunc('month', current_date)::date)), 3, 'текущий месяц: должны трое (частично, weekends, чужой ребёнок); скидочный и оплативший не в списке');
-select is((select count(*)::int from debtors(date_trunc('month', current_date)::date) where full_name = 'Индивидуальный'), 0, 'группа индивидуальных в долги не входит');
+select is((select count(*)::int from debtors(date_trunc('month', (now() at time zone 'Asia/Tbilisi')::date)::date)), 3, 'текущий месяц: должны трое (частично, weekends, чужой ребёнок); скидочный и оплативший не в списке');
+select is((select count(*)::int from debtors(date_trunc('month', (now() at time zone 'Asia/Tbilisi')::date)::date) where full_name = 'Индивидуальный'), 0, 'группа индивидуальных в долги не входит');
 select is((select debt from debtors('2026-09-15') where full_name = 'Платит частично'), 105::numeric, 'прошлый месяц: только игроки со строкой абонемента, долг 105');
 select is((select count(*)::int from debtors('2026-09-01')), 1, 'в прошлом месяце должен один (остальные без строки абонемента)');
 select throws_ok($$select * from debtors('2026-08-01')$$, null, 'month out of range', 'месяц раньше начала сезона нельзя');
-select throws_ok($$select * from debtors((date_trunc('month', current_date) + interval '1 month')::date)$$, null, 'month out of range', 'будущий месяц нельзя');
+select throws_ok($$select * from debtors((date_trunc('month', (now() at time zone 'Asia/Tbilisi')::date) + interval '1 month')::date)$$, null, 'month out of range', 'будущий месяц нельзя');
 
 select * from finish();
 rollback;
