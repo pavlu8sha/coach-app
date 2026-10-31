@@ -19,6 +19,7 @@ async function rest(method, p) {
   return res.json();
 }
 
+if (!fs.existsSync(jFile) || fs.statSync(jFile).isDirectory()) { console.error(`--journal должен указывать на файл АБОНЕМЕНТЫ.csv, а не на папку: ${jFile}`); process.exit(2); }
 const journal = parseJournalDated(fs.readFileSync(jFile, 'utf8'));
 const players = await getAll(rest, `players?club_id=eq.${CLUB_ID}&select=id,external_id`);
 const extOf = new Map(players.map(p => [p.id, p.external_id]));
