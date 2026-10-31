@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fmtDate, groupInOrder, today } from '../lib/coach';
+import { fmtDate, groupByGroupName, sortGroups, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput, SwitchRow, type Tone } from '../ui/components';
 import { Failure, Splash } from './Message';
@@ -61,7 +61,7 @@ export default function Players() {
       if (bad) return setError(bad.message);
       const m = new Map<string, number>();
       ((pay.data ?? []) as { player_id: string; amount: number }[]).forEach(x => m.set(x.player_id, (m.get(x.player_id) ?? 0) + Number(x.amount)));
-      setGroups((g.data ?? []) as GroupRow[]);
+      setGroups(sortGroups((g.data ?? []) as GroupRow[]));
       setPlayers((p.data ?? []) as Row[]);
       setPrices(((pr.data ?? []) as Price[]).map(x => ({ ...x, amount: Number(x.amount) })));
       setPaid(m);
@@ -134,7 +134,7 @@ export default function Players() {
       {list.length === 0 ? (
         <EmptyState icon="users" title="Никого не нашли" text="Измените поиск или фильтры." />
       ) : (
-        groupInOrder(list, p => groupName.get(p.group_id ?? '') ?? 'без группы').map(([team, items]) => (
+        groupByGroupName(list, p => groupName.get(p.group_id ?? '') ?? 'без группы').map(([team, items]) => (
           <details className="ks-group" key={team} open={!!q.trim()}>
             <summary><div className="ks-line"><b>{team}</b><span className="muted">{items.length} игр.</span></div></summary>
             {items.map(p => {

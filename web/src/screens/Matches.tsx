@@ -164,8 +164,8 @@ export default function Matches() {
       {showPast && (
         <>
           {filter === 'all' && past.length > 0 && <h3>Результаты</h3>}
-          {groupInOrder(past, m => m.played_on.slice(0, 7)).map(([ym, items], i) => (
-            <details className="ks-group" key={ym} open={i === 0}>
+          {groupInOrder(past, m => m.played_on.slice(0, 7)).map(([ym, items]) => (
+            <details className="ks-group" key={ym}>
               <summary><div className="ks-line"><b>{ym.slice(5)}.{ym.slice(0, 4)}</b><span className="muted">{items.length} матч.</span></div></summary>
               {items.map(m => {
                 const o = outcome(m);

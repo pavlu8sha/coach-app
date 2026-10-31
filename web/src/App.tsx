@@ -24,7 +24,7 @@ import Group from './screens/Group';
 import Sessions from './screens/Sessions';
 import ChildHome, { ChildCode, type ChildPlayer } from './screens/ChildHome';
 import ChildMatches from './screens/ChildMatches';
-import type { CoachGroup } from './lib/coach';
+import { compareGroups, type CoachGroup } from './lib/coach';
 import { BottomNav } from './ui/components';
 import { coachBar } from './lib/coachMenu';
 import Stats from './screens/Stats';
@@ -102,12 +102,12 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
       setHasKids((mine.count ?? 0) > 0);
       // тренер — тот, кому администратор назначил группы (coach_groups); каждый видит только свои строки
       const cg = await supabase.from('coach_groups').select('groups(id, name)').eq('user_id', data.user.id);
-      const mineGroups = ((cg.data ?? []) as unknown as { groups: CoachGroup | null }[]).map(x => x.groups).filter((g): g is CoachGroup => Boolean(g)).sort((x, y) => x.name.localeCompare(y.name));
+      const mineGroups = ((cg.data ?? []) as unknown as { groups: CoachGroup | null }[]).map(x => x.groups).filter((g): g is CoachGroup => Boolean(g)).sort((x, y) => compareGroups(x.name, y.name));
       setCoachGroups(mineGroups);
       if (isAdm || mineGroups.length) {
         // тренеры видят и ведут все группы (миграция 0042): свои идут первыми
         const ag = await supabase.from('groups').select('id, name').order('name');
-        const all = ((ag.data ?? []) as CoachGroup[]).sort((x, y) => x.name.localeCompare(y.name));
+        const all = ((ag.data ?? []) as CoachGroup[]).sort((x, y) => compareGroups(x.name, y.name));
         const mineIds = new Set(mineGroups.map(g => g.id));
         setAllGroups(isAdm ? all : [...all.filter(g => mineIds.has(g.id)), ...all.filter(g => !mineIds.has(g.id))]);
       }

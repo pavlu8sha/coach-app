@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { today } from '../lib/coach';
+import { sortGroups, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, Pill, SearchInput, SwitchRow } from '../ui/components';
 import { Failure, Loading } from './Message';
@@ -65,7 +65,7 @@ export default function MonthPayments() {
       if (g.error || p.error) return setError((g.error ?? p.error)!.message);
       // игроки индивидуальных и вратарских платят за занятия, а не абонементом
       const gs = ((g.data ?? []) as Group[]).filter(x => x.name.trim().toLowerCase() !== 'индивидуальные / вратарские');
-      setGroups(gs);
+      setGroups(sortGroups(gs));
       setPrices(((p.data ?? []) as Price[]).map(x => ({ ...x, amount: Number(x.amount) })));
     })();
   }, []);

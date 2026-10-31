@@ -116,8 +116,8 @@ export default function Individual() {
         <EmptyState icon="users" title="Занятий нет" text={tab === 'next' ? 'Создайте занятие кнопкой выше.' : 'Прошедших занятий пока нет.'} />
       ) : (
         <>
-          {groupInOrder(list, s => dayOf(s.starts_at)).map(([day, items], i) => (
-            <details className="ks-group" key={day} open={i === 0}>
+          {groupInOrder(list, s => dayOf(s.starts_at)).map(([day, items]) => (
+            <details className="ks-group" key={day}>
               <summary><div className="ks-line"><b>{fmtDate(day)}</b><span className="muted">{items.length} зан.</span></div></summary>
               {items.map(s => {
                 const paid = s.individual_bookings.filter(b => b.paid).length;

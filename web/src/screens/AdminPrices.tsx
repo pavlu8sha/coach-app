@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { sortGroups } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { Pill } from '../ui/components';
 import { Failure, Loading } from './Message';
@@ -40,7 +41,7 @@ export default function AdminPrices() {
       const err = p.error ?? g.error ?? c.error;
       if (err) return setError(err.message);
       setPrices(((p.data ?? []) as Price[]).map(x => ({ ...x, amount: Number(x.amount) })));
-      setGroups((g.data ?? []) as Group[]);
+      setGroups(sortGroups((g.data ?? []) as Group[]));
       setClubId(((c.data ?? []) as { id: string }[])[0]?.id ?? null);
     })();
   }, [reload]);

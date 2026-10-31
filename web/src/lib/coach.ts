@@ -50,6 +50,30 @@ export function coachError(m: string): string {
   return map.find(([k]) => m.includes(k))?.[1] ?? m;
 }
 
+// Единый порядок групп во всём приложении: сначала возрастные (U7-A, U7-B, U9-A … U13-C), затем площадки
+// (Ortachala U9, Ortachala U12, Isani), затем weekends и индивидуальные, «без группы» в самом конце.
+function groupRank(name: string): [number, number, string] {
+  const n = name.trim();
+  const u = /^U(\d+)(?:-(.+))?$/i.exec(n);
+  if (u) return [0, Number(u[1]), (u[2] ?? '').toLowerCase()];
+  if (/^без группы$/i.test(n)) return [4, 0, ''];
+  if (/^weekends$/i.test(n)) return [2, 0, n.toLowerCase()];
+  if (/^индивидуальн/i.test(n)) return [3, 0, n.toLowerCase()];
+  return [1, 0, n.toLowerCase()];
+}
+export function compareGroups(a: string, b: string): number {
+  const x = groupRank(a), y = groupRank(b);
+  return x[0] - y[0] || x[1] - y[1] || x[2].localeCompare(y[2], 'ru', { numeric: true });
+}
+export function sortGroups<T extends { name: string }>(groups: T[]): T[] {
+  return [...groups].sort((p, q) => compareGroups(p.name, q.name));
+}
+
+// То же, что groupInOrder, но группы идут в едином порядке (compareGroups).
+export function groupByGroupName<T>(items: T[], key: (x: T) => string): [string, T[]][] {
+  return groupInOrder(items, key).sort((p, q) => compareGroups(p[0], q[0]));
+}
+
 // Группирует по ключу, сохраняя порядок первого появления: для списков по дню или группе.
 export function groupInOrder<T>(items: T[], key: (x: T) => string): [string, T[]][] {
   const map = new Map<string, T[]>();
