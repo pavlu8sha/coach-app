@@ -13,7 +13,6 @@ interface Price { group_id: string | null; amount: number; valid_from: string; v
 interface Sub { player_id: string; discount: boolean; written_off: boolean }
 type StatusFilter = 'active' | 'inactive' | 'all';
 
-const LIMIT = 80; // сколько строк показываем: список длинный, дальше — уточнить поиск
 const monthStart = () => today().slice(0, 7) + '-01';
 const nextMonthStart = () => {
   const [y, m] = monthStart().split('-').map(Number);
@@ -131,11 +130,11 @@ export default function Players() {
         </>
       )}
       <h3 className="ks-list-head"><span>Игроки</span><span>{list.length}</span></h3>
-      {list.length > LIMIT && <p className="muted" style={{ marginBottom: 8 }}>Статус оплаты за {monthLabel()} · показаны первые {LIMIT}, уточните поиск</p>}
+      <p className="muted" style={{ marginBottom: 8 }}>Статус оплаты за {monthLabel()}</p>
       {list.length === 0 ? (
         <EmptyState icon="users" title="Никого не нашли" text="Измените поиск или фильтры." />
       ) : (
-        groupInOrder(list.slice(0, LIMIT), p => groupName.get(p.group_id ?? '') ?? 'без группы').map(([team, items], i) => (
+        groupInOrder(list, p => groupName.get(p.group_id ?? '') ?? 'без группы').map(([team, items], i) => (
           <details className="ks-group" key={team} open={i === 0 || !!q.trim()}>
             <summary><div className="ks-line"><b>{team}</b><span className="muted">{items.length} игр.</span></div></summary>
             {items.map(p => {

@@ -27,6 +27,14 @@ describe('«Игроки»', () => {
     expect(screen.queryByText('Старый Игрок')).not.toBeInTheDocument();
   });
 
+  it('без фильтра группы показаны все игроки, а не первые 80', async () => {
+    seed();
+    for (let i = 0; i < 100; i++) fake.db.players.push({ id: `x${i}`, full_name: `Игрок ${i}`, group_id: 'g1', birth_date: null, status: 'active', external_id: `KS-9${i}` });
+    render(<Players />);
+    await screen.findByText('Amodeo Nolan');
+    expect(screen.getByText('101 игр.')).toBeInTheDocument();
+  });
+
   it('игрок индивидуальных и вратарских без абонемента: не должник', async () => {
     seed();
     fake.db.groups.push({ id: 'g3', name: 'Индивидуальные / вратарские', club_id: 'c1' });
