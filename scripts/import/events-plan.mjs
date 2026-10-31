@@ -24,6 +24,9 @@ function lev(a, b) {
   return p[b.length];
 }
 export function resolveName(name, registryNames) {
+  // Имя, которое уже есть в реестре, берём как есть: алиас нужен только для написаний, которых в реестре нет (Orudzhov записан в реестре так же, как в листах)
+  const same = registryNames.find(r => norm(r) === norm(name));
+  if (same) return { name: same, how: 'exact' };
   const alias = NAME_ALIAS[norm(name)];
   const target = alias || name;
   const exact = registryNames.find(r => norm(r) === norm(target));
