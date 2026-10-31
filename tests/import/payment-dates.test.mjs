@@ -50,9 +50,20 @@ test('отмена в журнале, расхождение сумм и игр�
   const { ops, skipped } = planPaymentDates({ journal, db });
   assert.deepEqual(ops.map(o => o.key), ['KS-1|2026-10-01', 'KS-2|2026-11-01']);
   const why = Object.fromEntries(skipped.map(s => [s.key, s.reason]));
-  assert.match(why['KS-3|2026-10-01'], /отмена/);
+  assert.equal(why['KS-3|2026-10-01'], 'нет записей журнала'); // оплата и её отмена погасили друг друга
   assert.equal(why['KS-4|2026-10-01'], 'суммы не совпали');
   assert.equal(why['KS-6|2026-10-01'], 'нет записей журнала');
+});
+
+test('оплата, повторная оплата и отмена одной из них: остаётся одна запись', () => {
+  const j = parseJournalDated(head
+    + 'x,2026-10-01,KS-7,G,10.26,U9,"165,00 ₾",Оплата,,Наличные\n'
+    + 'x,2026-10-02,KS-7,G,10.26,U9,"165,00 ₾",Оплата,,Наличные\n'
+    + 'x,2026-10-03,KS-7,G,10.26,U9,"-165,00 ₾",Отмена,,Наличные\n');
+  const { ops } = planPaymentDates({ journal: j, db: [pay('g1', 'KS-7', '2026-10-01', '165.00', 'PAY_ID 2026-10 U9 №7 g')] });
+  assert.equal(ops.length, 1);
+  assert.equal(ops[0].update.paid_on, '2026-10-01');
+  assert.equal(ops[0].inserts.length, 0);
 });
 
 test('непонятная дата журнала не пропускается молча', () => {
