@@ -86,8 +86,18 @@ export default function MonthPayments() {
       setPaid(m);
       setSubs(new Map(((sb.data ?? []) as Sub[]).map(x => [x.player_id, x])));
       const withSub = new Set(((sb.data ?? []) as Sub[]).map(x => x.player_id));
-      const withPay = new Set(m.keys());
-      setPlayers(inMonth(((pl.data ?? []) as Pl[]).filter(x => ok.has(x.group_id)), month, monthIso(new Date()), withSub, withPay));
+      const withPay = new Set([...m].filter(([, v]) => v > 0).map(([k]) => k));
+      // деньги ушедших игроков остаются в итогах месяца: добираем неактивных, у которых за месяц есть платежи
+      const active = ((pl.data ?? []) as Pl[]).filter(x => ok.has(x.group_id));
+      const have = new Set((pl.data ?? []).map((x: Pl) => x.id));
+      const gone = [...withPay].filter(id => !have.has(id));
+      let extra: Pl[] = [];
+      if (gone.length) {
+        const ex = await supabase.from('players').select('id, full_name, group_id').in('id', gone).limit(1000);
+        if (ex.error) return setError(ex.error.message);
+        extra = ((ex.data ?? []) as Pl[]).filter(x => ok.has(x.group_id));
+      }
+      setPlayers(inMonth([...active, ...extra].sort((a, b) => a.full_name.localeCompare(b.full_name)), month, monthIso(new Date()), withSub, withPay));
     })();
   }, [groups, month, reload]);
 
