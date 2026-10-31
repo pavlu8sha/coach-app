@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput, Segmented } from '../ui/components';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
+import IndRegulars from './IndRegulars';
 
 interface Booking { player_id: string; paid: boolean; attended: boolean | null; amount: number; players: { full_name: string } | null }
 interface Session { id: string; starts_at: string; topic: string | null; goalkeepers: boolean; individual_bookings: Booking[] }
@@ -16,7 +17,7 @@ const title = (s: { starts_at: string; goalkeepers: boolean }) => `${fmtDate(day
 const METHODS = ['Наличные', 'Перевод'];
 const nowLocal = () => `${today()}T${new Date().toTimeString().slice(0, 5)}`;
 
-type Tab = 'next' | 'past' | 'debt';
+type Tab = 'next' | 'past' | 'debt' | 'regular';
 
 const PAGE = 60;
 
@@ -47,6 +48,7 @@ export default function Individual() {
   useEffect(() => {
     void (async () => {
       const now = nowLocal();
+      if (tab === 'regular') return;
       if (tab === 'debt') {
         const r = await supabase.from('individual_bookings').select('session_id, player_id, amount, players(full_name), individual_sessions!inner(starts_at, goalkeepers, topic)').eq('paid', false).lt('individual_sessions.starts_at', now).limit(1000);
         if (r.error) return setError(coachError(r.error.message));
@@ -87,14 +89,15 @@ export default function Individual() {
   return (
     <main className="page">
       <h1>Индивидуальные</h1>
-      <Segmented label="Раздел" value={tab} onChange={v => { setList(null); setDebts(null); setLimit(PAGE); setHasMore(false); setTab(v); }} items={[{ value: 'next', label: 'Предстоящие' }, { value: 'past', label: 'Прошедшие' }, { value: 'debt', label: 'Долги' }]} />
+      <Segmented label="Раздел" value={tab} onChange={v => { setList(null); setDebts(null); setLimit(PAGE); setHasMore(false); setTab(v); }} items={[{ value: 'next', label: 'Предстоящие' }, { value: 'past', label: 'Прошедшие' }, { value: 'debt', label: 'Долги' }, { value: 'regular', label: 'Постоянные' }]} />
       <div style={{ height: 10 }} />
+      {tab === 'regular' && <IndRegulars />}
       {tab === 'debt' && <label className="field">Способ оплаты<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>}
-      {tab !== 'debt' && debtTotal && debtTotal.n > 0 && (
+      {(tab === 'next' || tab === 'past') && debtTotal && debtTotal.n > 0 && (
         <ListRow title="Должники" sub={[`Игроков: ${debtTotal.n}`]} end={<Pill tone="danger" dot>{gel(debtTotal.sum)}</Pill>} onClick={() => { setList(null); setDebts(null); setLimit(PAGE); setHasMore(false); setTab('debt'); }} />
       )}
-      {tab !== 'debt' && <button type="button" className="ks-btn" onClick={() => setCreating(true)}>Новое занятие</button>}
-      {tab === 'debt' ? (
+      {(tab === 'next' || tab === 'past') && <button type="button" className="ks-btn" onClick={() => setCreating(true)}>Новое занятие</button>}
+      {tab === 'regular' ? null : tab === 'debt' ? (
         !debts ? <Loading /> : byPlayer.size === 0 ? (
           <EmptyState icon="users" title="Долгов нет" text="Все записанные на прошедшие занятия оплатили." />
         ) : (

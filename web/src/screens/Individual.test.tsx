@@ -139,3 +139,37 @@ describe('«Индивидуальные»: история не обрезает
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Показать ещё' })).not.toBeInTheDocument());
   });
 });
+
+describe('«Индивидуальные»: постоянные по месяцам', () => {
+  const month = new Date().toISOString().slice(0, 7);
+  it('вкладка показывает слоты и постоянных месяца, добавление и снятие уходят в ind_slot_member_set', async () => {
+    seed();
+    fake.db.individual_templates = [
+      { id: 't1', isodow: 6, start_time: '19:00:00', goalkeepers: false, active: true },
+      { id: 't3', isodow: 7, start_time: '19:00:00', goalkeepers: true, active: true },
+    ];
+    fake.db.individual_slot_members = [{ template_id: 't3', player_id: 'p2', month: `${month}-01`, players: { full_name: 'Сидоров Ян' } }];
+    fake.db.players = [{ id: 'p5', full_name: 'Петров Олег', status: 'active' }];
+    fake.rpc.ind_slot_member_set = () => null;
+    render(<Individual />);
+    fireEvent.click(await screen.findByRole('tab', { name: 'Постоянные' }));
+    expect(await screen.findByRole('heading', { name: 'Суббота 19:00 · Индивидуальные' })).toBeInTheDocument();
+    expect(await screen.findByText('Сидоров Ян')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^Убрать: Сидоров Ян/ }));
+    await waitFor(() => expect(fake.rpcCalls('ind_slot_member_set')).toEqual([{ tpl: 't3', p: 'p2', mth: `${month}-01`, on_: false }]));
+    fireEvent.change(screen.getByLabelText('Найти игрока'), { target: { value: 'Петр' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Добавить' }));
+    await waitFor(() => expect(fake.rpcCalls('ind_slot_member_set')[1]).toEqual({ tpl: 't1', p: 'p5', mth: `${month}-01`, on_: true }));
+  });
+
+  it('кнопка «Создать занятия на выходные сейчас» вызывает ind_autocreate_now и сообщает число', async () => {
+    seed();
+    fake.db.individual_templates = [{ id: 't1', isodow: 6, start_time: '19:00:00', goalkeepers: false, active: true }];
+    fake.db.individual_slot_members = [];
+    fake.rpc.ind_autocreate_now = () => 3;
+    render(<Individual />);
+    fireEvent.click(await screen.findByRole('tab', { name: 'Постоянные' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать занятия на выходные сейчас' }));
+    expect(await screen.findByText('Создано занятий: 3.')).toBeInTheDocument();
+  });
+});
