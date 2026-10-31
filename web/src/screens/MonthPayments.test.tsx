@@ -74,6 +74,19 @@ describe('«Оплаты за месяц»', () => {
     expect(screen.getByText(/внесено 315 ₾ из 660 ₾/)).toBeInTheDocument(); // 100 + 50 + 165 при четырёх в группе
   });
 
+  it('списки групп свёрнуты по умолчанию, поиск раскрывает их', async () => {
+    seed();
+    const { container } = render(<MonthPayments />);
+    await screen.findByText('100 ₾ из 165 ₾');
+    const groups = () => [...container.querySelectorAll('details.ks-group')] as HTMLDetailsElement[];
+    expect(groups().length).toBeGreaterThan(0);
+    expect(groups().every(d => !d.open)).toBe(true);
+    fireEvent.change(screen.getByLabelText('Поиск по ФИ'), { target: { value: 'сидор' } });
+    expect(groups().every(d => d.open)).toBe(true);
+    fireEvent.change(screen.getByLabelText('Поиск по ФИ'), { target: { value: '' } });
+    expect(groups().every(d => !d.open)).toBe(true);
+  });
+
   it('«Только должники» прячет оплативших, поиск ищет по фамилии', async () => {
     seed();
     render(<MonthPayments />);
