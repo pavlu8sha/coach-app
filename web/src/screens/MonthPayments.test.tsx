@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
-import MonthPayments, { tariffFor } from './MonthPayments';
+import MonthPayments, { inMonth, tariffFor } from './MonthPayments';
 
 const monthIso = () => {
   const d = new Date();
@@ -36,6 +36,20 @@ describe('tariffFor', () => {
     expect(tariffFor(prices, 'g2', '2026-10-01')).toBe(130);
     expect(tariffFor(prices, 'g1', '2026-12-01')).toBe(170);
     expect(tariffFor(prices, 'g1', '2026-08-01')).toBeNull();
+  });
+});
+
+describe('inMonth: кто в списке месяца', () => {
+  const all = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+  it('прошедший месяц: только с абонементом или платежом, пришедший позже не должник', () => {
+    expect(inMonth(all, '2026-09-01', '2026-11-01', new Set(['a']), new Set(['b'])).map(p => p.id)).toEqual(['a', 'b']);
+  });
+  it('текущий и будущий месяц: все активные', () => {
+    expect(inMonth(all, '2026-11-01', '2026-11-01', new Set(['a']), new Set()).map(p => p.id)).toEqual(['a', 'b', 'c']);
+    expect(inMonth(all, '2026-12-01', '2026-11-01', new Set(), new Set()).map(p => p.id)).toEqual(['a', 'b', 'c']);
+  });
+  it('прошедший месяц без данных вовсе: показываем всех', () => {
+    expect(inMonth(all, '2026-09-01', '2026-11-01', new Set(), new Set())).toHaveLength(3);
   });
 });
 

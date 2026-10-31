@@ -31,6 +31,12 @@ export function tariffFor(prices: Price[], group: string, month: string): number
 
 interface Pl extends Player { group_id: string }
 
+/** Кто числится в списке месяца. Прошедший месяц: только игроки, у которых за него есть абонемент или платёж (в листе месяца есть строка у всех, кто платит или должен), иначе пришедший в октябре висел бы должником за сентябрь. Текущий и будущие месяцы: все активные. Если за прошедший месяц данных нет вовсе, показываем всех. */
+export function inMonth<T extends { id: string }>(all: T[], month: string, current: string, withSub: Set<string>, withPay: Set<string>): T[] {
+  if (month >= current || (!withSub.size && !withPay.size)) return all;
+  return all.filter(p => withSub.has(p.id) || withPay.has(p.id));
+}
+
 // «Оплаты»: весь клуб за месяц — итоги плиткой, группы раскрываются списком игроков (как в старом приложении). Журнал платежей только добавляется.
 export default function MonthPayments() {
   const months = useMemo(() => {
@@ -79,7 +85,9 @@ export default function MonthPayments() {
       ((pay.data ?? []) as { player_id: string; amount: number }[]).forEach(x => m.set(x.player_id, (m.get(x.player_id) ?? 0) + Number(x.amount)));
       setPaid(m);
       setSubs(new Map(((sb.data ?? []) as Sub[]).map(x => [x.player_id, x])));
-      setPlayers(((pl.data ?? []) as Pl[]).filter(x => ok.has(x.group_id)));
+      const withSub = new Set(((sb.data ?? []) as Sub[]).map(x => x.player_id));
+      const withPay = new Set(m.keys());
+      setPlayers(inMonth(((pl.data ?? []) as Pl[]).filter(x => ok.has(x.group_id)), month, monthIso(new Date()), withSub, withPay));
     })();
   }, [groups, month, reload]);
 
