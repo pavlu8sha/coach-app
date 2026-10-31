@@ -16,7 +16,7 @@ jobs:
         with:
           node-version: 24
       - name: node --test (приложение, импорт, вход через Telegram)
-        run: node --test tests/*.mjs tests/import/*.test.mjs tests/edge/*.test.mjs
+        run: node --test tests/preflight-coverage.test.mjs tests/import/*.test.mjs tests/edge/*.test.mjs
 
   edge:
     runs-on: ubuntu-latest
