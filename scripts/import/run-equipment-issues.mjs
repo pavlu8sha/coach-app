@@ -24,7 +24,7 @@ const lineRows = await getAll(rest, 'equipment_order_lines?select=order_id,kit')
 const orders = new Map(orderRows.filter(o => o.external_ord_id).map(o => [o.external_ord_id, { id: o.id, kits: new Set() }]));
 const byId = new Map([...orders.values()].map(o => [o.id, o]));
 for (const l of lineRows) byId.get(l.order_id)?.kits.add(l.kit);
-const have = new Set((await getAll(rest, 'equipment_issues?select=order_id,kit')).map(r => `${r.order_id}|${r.kit}`));
+const have = new Set((await getAll(rest, 'equipment_issues?select=order_id,kit', 'order_id,kit')).map(r => `${r.order_id}|${r.kit}`));
 const { add, skipped } = planIssues({ issues, orders, have });
 
 console.log(`Строк ВЫДАЧИ: ${issues.length}; в базе уже выдано вещей: ${have.size}`);
