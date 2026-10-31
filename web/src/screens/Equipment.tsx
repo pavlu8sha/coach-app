@@ -20,7 +20,16 @@ const errText = (m: string) =>
   m.includes('Could not find the function') || m.includes('equipment_issues') ? 'Модуль ещё не установлен в базе (миграция 0036).' : coachError(m);
 const issueState = (o: Order) => (o.equipment_issues.length === 0 ? 'Нет' : o.equipment_issues.length >= new Set(o.equipment_order_lines.map(l => l.kit)).size ? 'Да' : 'Частично');
 
-type Tab = 'all' | 'unpaid' | 'noissue' | 'catalog';
+// Чего не хватает в заказе: позиции, размера, номера (для гетр и носков номер не нужен).
+const missingOf = (o: Pick<Order, 'number' | 'equipment_order_lines'>): string[] => {
+  const lines = o.equipment_order_lines, m: string[] = [];
+  if (lines.length === 0) m.push('позиции');
+  if (lines.some(l => !(l.size ?? '').trim())) m.push('размер');
+  if (lines.length > 0 && !(o.number ?? '').trim() && lines.some(l => !/гетр|носк/i.test(l.kit))) m.push('номер');
+  return m;
+};
+
+type Tab = 'all' | 'unpaid' | 'noissue' | 'incomplete' | 'catalog';
 
 // Экипировка для администратора (миграция 0036): заказы, оплата, выдача, каталог.
 export default function Equipment() {
@@ -51,7 +60,7 @@ export default function Equipment() {
   const shown = useMemo(() => {
     const t = q.trim().toLowerCase();
     return (orders ?? []).filter(o => (!t || (o.players?.full_name ?? '').toLowerCase().includes(t))
-      && (tab === 'unpaid' ? o.paid < o.total : tab === 'noissue' ? issueState(o) !== 'Да' : true)
+      && (tab === 'unpaid' ? o.paid < o.total : tab === 'noissue' ? issueState(o) !== 'Да' : tab === 'incomplete' ? missingOf(o).length > 0 : true)
       && (!fGroup || o.players?.groups?.name === fGroup)
       && (!fKit || o.equipment_order_lines.some(l => l.kit === fKit))
       && (!fLoc || (o.location ?? '') === fLoc)
@@ -80,7 +89,7 @@ export default function Equipment() {
   return (
     <main className="page">
       <h1>Экипировка</h1>
-      <Segmented label="Раздел" value={tab} onChange={setTab} items={[{ value: 'all', label: 'Все' }, { value: 'unpaid', label: 'Не оплачены' }, { value: 'noissue', label: 'Не выданы' }, { value: 'catalog', label: 'Каталог' }]} />
+      <Segmented label="Раздел" value={tab} onChange={setTab} items={[{ value: 'all', label: 'Все' }, { value: 'unpaid', label: 'Не оплачены' }, { value: 'noissue', label: 'Не выданы' }, { value: 'incomplete', label: 'Неполные' }, { value: 'catalog', label: 'Каталог' }]} />
       <div style={{ height: 10 }} />
       <button type="button" className="ks-btn" onClick={() => setCreating(true)}>Новый заказ</button>
       <div style={{ height: 10 }} />
@@ -112,7 +121,7 @@ export default function Equipment() {
                 key={o.id}
                 avatar={o.players?.full_name ?? '—'}
                 title={o.players?.full_name ?? 'Игрок'}
-                sub={[[...new Set(o.equipment_order_lines.map(l => l.kit))].join(' + ') || 'без позиций', `${o.ordered_on ? fmtDate(o.ordered_on) : 'без даты'} · выдано: ${issueState(o)}`]}
+                sub={[[...new Set(o.equipment_order_lines.map(l => l.kit))].join(' + ') || 'без позиций', `${o.ordered_on ? fmtDate(o.ordered_on) : 'без даты'} · выдано: ${issueState(o)}${missingOf(o).length ? ` · не заполнено: ${missingOf(o).join(', ')}` : ''}`]}
                 end={<Pill tone={o.paid >= o.total ? 'success' : 'danger'} dot>{o.paid >= o.total ? 'Оплачен' : `${o.paid} из ${gel(o.total)}`}</Pill>}
                 onClick={() => setOpenId(o.id)}
               />

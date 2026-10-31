@@ -33,6 +33,21 @@ describe('«Экипировка»', () => {
     expect(screen.getByText('Сидоров Ян')).toBeInTheDocument();
   });
 
+  it('фильтр «Неполные»: нет размера или номера, у гетр и носков номер не нужен', async () => {
+    seed();
+    const o = fake.db.equipment_orders as ReturnType<typeof order>[];
+    o[1].equipment_order_lines = [{ kit: 'Форма', size: '', quantity: 1 }];
+    o[2].number = '';
+    o.push({ ...order('o4', 'Носков Олег', 35, 35), number: '', equipment_order_lines: [{ kit: 'Гетры', size: '30', quantity: 1 }] });
+    render(<Equipment />);
+    await screen.findByText('Иванов Пётр');
+    fireEvent.click(screen.getByRole('tab', { name: 'Неполные' }));
+    expect(screen.queryByText('Иванов Пётр')).not.toBeInTheDocument();
+    expect(screen.queryByText('Носков Олег')).not.toBeInTheDocument();
+    expect(screen.getByText(/не заполнено: размер/)).toBeInTheDocument();
+    expect(screen.getByText(/не заполнено: номер/)).toBeInTheDocument();
+  });
+
   it('поиск по имени', async () => {
     seed();
     render(<Equipment />);
