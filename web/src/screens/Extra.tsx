@@ -97,8 +97,8 @@ export default function Extra() {
       ) : list.length === 0 ? (
         <EmptyState icon="users" title="Тренировок нет" text={tab === 'next' ? 'Создайте тренировку кнопкой выше.' : 'Прошедших тренировок пока нет.'} />
       ) : (
-        groupInOrder(list, s => s.starts_on).map(([day, items], i) => (
-          <details className="ks-group" key={day} open={i === 0}>
+        groupInOrder(list, s => s.starts_on).map(([day, items]) => (
+          <details className="ks-group" key={day}>
             <summary><div className="ks-line"><b>{fmtDate(day)}</b><span className="muted">{items.length} тр.</span></div></summary>
             {items.map(s => (
               <ListRow key={s.id} avatar="Д" title={`${fmtDate(s.starts_on)}${timeSpan(s)} · ${gel(Number(s.amount))}`} sub={[s.place ?? 'место не указано', `Записано: ${s.extra_bookings.length}, оплатили: ${s.extra_bookings.filter(b => b.paid).length}`]} onClick={() => setOpenId(s.id)} />

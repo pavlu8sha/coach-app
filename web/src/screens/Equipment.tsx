@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { coachError, fmtDate, groupInOrder, today } from '../lib/coach';
+import { coachError, compareGroups, fmtDate, groupByGroupName, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput, Segmented, SwitchRow } from '../ui/components';
 import { BackNav } from '../ui/nav';
@@ -79,7 +79,7 @@ export default function Equipment() {
   const options = useMemo(() => {
     const uniq = (xs: (string | null | undefined)[]) => [...new Set(xs.filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'ru'));
     return {
-      groups: uniq((orders ?? []).map(o => o.players?.groups?.name)),
+      groups: uniq((orders ?? []).map(o => o.players?.groups?.name)).sort(compareGroups),
       kits: uniq((orders ?? []).flatMap(o => o.equipment_order_lines.map(l => l.kit))),
       locs: uniq((orders ?? []).map(o => o.location)),
     };
@@ -124,7 +124,7 @@ export default function Equipment() {
       {!orders ? <Loading /> : shown.length === 0 ? (
         <EmptyState icon="box" title="Заказов нет" text="Измените фильтр или создайте заказ." />
       ) : (
-        groupInOrder(shown, o => o.players?.groups?.name ?? 'Без группы').map(([group, items]) => (
+        groupByGroupName(shown, o => o.players?.groups?.name ?? 'Без группы').map(([group, items]) => (
           <details className="ks-group" key={group} open={!!fGroup || !!q.trim()}>
             <summary><div className="ks-line"><b>{group}</b><span className="muted">{items.length} заказ.</span></div></summary>
             {items.map(o => (

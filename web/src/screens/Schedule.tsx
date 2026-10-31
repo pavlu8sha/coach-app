@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { sortGroups } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState } from '../ui/components';
 import { Failure, Loading } from './Message';
@@ -27,7 +28,7 @@ export default function Schedule({ all = false, editable = all }: { all?: boolea
         // администратор: расписание всех групп
         const gr = await supabase.from('groups').select('id, name').order('name');
         if (gr.error) return setError(gr.error.message);
-        for (const x of (gr.data ?? []) as { id: string; name: string }[]) byGroup.set(x.id, { id: x.id, name: x.name, kids: [], slots: [], upcoming: [], results: [] });
+        for (const x of sortGroups((gr.data ?? []) as { id: string; name: string }[])) byGroup.set(x.id, { id: x.id, name: x.name, kids: [], slots: [], upcoming: [], results: [] });
       } else {
         const me = (await supabase.auth.getUser()).data.user?.id;
         if (!me) return setError('Нет сессии');

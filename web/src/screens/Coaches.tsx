@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { sortGroups } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput } from '../ui/components';
 import { BackNav } from '../ui/nav';
@@ -31,7 +32,7 @@ export default function Coaches() {
       const c = await supabase.from('coach_groups').select('user_id, group_id');
       if (c.error) return setError(c.error.message);
       setUsers((u.data ?? []) as User[]);
-      setGroups((g.data ?? []) as Group[]);
+      setGroups(sortGroups((g.data ?? []) as Group[]));
       setLinks(new Set(((c.data ?? []) as { user_id: string; group_id: string }[]).map(r => `${r.user_id}|${r.group_id}`)));
     })();
   }, [reload]);
