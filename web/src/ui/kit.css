@@ -232,7 +232,6 @@ a.ks-row { text-decoration: none; color: inherit; }
 .ks-cover small { display: block; margin-top: 3px; font-size: 0.82rem; opacity: 0.9; line-height: 1.3; }
 .ks-cover.tile { min-height: 132px; box-shadow: var(--ks-shadow); }
 .ks-cover.tile.wide { grid-column: 1 / -1; min-height: 120px; }
-.ks-cover.tile:active { transform: scale(0.98); }
 .ks-cover.tile:focus-visible { outline: 3px solid var(--ks-primary); outline-offset: 2px; }
 .ks-cover.banner { min-height: 150px; margin-bottom: 14px; }
 .ks-cover.banner h1 { margin: 0; font-size: 1.5rem; color: #fff; }
@@ -336,3 +335,8 @@ a.ks-cover { text-decoration: none; display: block; }
 /* Два пояснения подряд (основной и мелкий текст): небольшой отступ */
 .muted + .ks-muted, .ks-muted + .ks-muted { margin-top: 6px; }
 .ks-details.ks-card > summary { padding: 12px 0; }
+
+/* Плавная реакция на нажатие: лёгкое уменьшение и мягкое возвращение */
+.ks-btn, .ks-chip, button.ks-row, a.ks-row, .ks-cover.tile { -webkit-tap-highlight-color: transparent; transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), filter 0.2s ease, background-color 0.2s ease; }
+.ks-btn:active:not(:disabled), .ks-chip:active, button.ks-row:active, a.ks-row:active, .ks-cover.tile:active { transform: scale(0.97); filter: brightness(0.94); transition-duration: 0.08s; }
+@media (prefers-reduced-motion: reduce) { .ks-btn, .ks-chip, button.ks-row, a.ks-row, .ks-cover.tile { transition: none; } .ks-btn:active:not(:disabled), .ks-chip:active, button.ks-row:active, a.ks-row:active, .ks-cover.tile:active { transform: none; } }
