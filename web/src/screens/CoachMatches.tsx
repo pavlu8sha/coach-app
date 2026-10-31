@@ -24,6 +24,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   const [team, setTeam] = useState('');
   const [tours, setTours] = useState<Map<string, Tour>>(new Map());
   const [events, setEvents] = useState<EventRow[]>([]);
+  const [playedBy, setPlayedBy] = useState<Map<string, number>>(new Map());
   const [eventView, setEventView] = useState<{ event: EventRow | null } | null>(null);
 
   useEffect(() => {
@@ -38,7 +39,16 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
       if (!showAll) q = q.in('team', groups.map(g => g.name));
       const r = await q.order('played_on', { ascending: false }).limit(showAll ? 150 : 60);
       if (r.error) return setError(r.error.message);
-      setMatches((r.data ?? []) as Match[]);
+      const list = (r.data ?? []) as Match[];
+      setMatches(list);
+      // сколько сыграло в каждом матче; порциями, чтобы не упереться в лимит строк; без доступа список остаётся прежним
+      const ids = list.map(m => m.id);
+      const chunks: string[][] = [];
+      for (let i = 0; i < ids.length; i += 40) chunks.push(ids.slice(i, i + 40));
+      const res = await Promise.all(chunks.map(c => supabase.from('match_players').select('match_id').eq('played', true).in('match_id', c).limit(2000)));
+      const n = new Map<string, number>();
+      for (const x of res) for (const row of (x.error ? [] : (x.data ?? [])) as { match_id: string }[]) n.set(row.match_id, (n.get(row.match_id) ?? 0) + 1);
+      setPlayedBy(n);
     })();
   }, [groups, showAll, reload]);
 
@@ -113,7 +123,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
                 <ListRow
                   key={m.id}
                   title={m.opponent ?? 'Соперник не указан'}
-                  sub={[`${fmtDate(m.played_on)}${showAll || groups.length > 1 ? ' · ' + m.team : ''}${cupName ? ' · ' + cupName : ''}`]}
+                  sub={[`${fmtDate(m.played_on)}${showAll || groups.length > 1 ? ' · ' + m.team : ''}${cupName ? ' · ' + cupName : ''}${playedBy.get(m.id) ? ' · играло ' + playedBy.get(m.id) : ''}`]}
                   end={done ? <span className="ks-score">{m.goals_for}:{m.goals_against}</span> : <Pill tone="primary">{m.played_on > today() ? 'Предстоит' : 'Без счёта'}</Pill>}
                   onClick={() => setForm({ match: m })}
                 />
@@ -270,7 +280,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, onBack }: { groups
         <b>:</b>
         <input className="ks-input" style={{ width: 90 }} inputMode="numeric" aria-label="Забил соперник" value={ga} onChange={e => setGa(e.target.value.replace(/\D/g, '').slice(0, 2))} placeholder="—" />
       </div>
-      <h3>Состав</h3>
+      <h3>Состав{Object.values(lines).some(l => l.played) ? ` · играло ${Object.values(lines).filter(l => l.played).length}` : ''}</h3>
       <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>
         Баллы начисляются автоматически, когда внесён счёт: победа — 2 играющим, лучшему игроку — 3; поражение или ничья — 1 играющим; за каждый гол +1. Лучший игрок учитывается только при победе.
       </p>

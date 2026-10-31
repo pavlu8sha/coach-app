@@ -39,6 +39,16 @@ describe('«Матчи» по категориям', () => {
   });
 });
 
+describe('«Матчи»: сколько сыграло', () => {
+  it('в списке и в заголовке состава показано число игравших', async () => {
+    seed();
+    render(<CoachMatches groups={groups} />);
+    expect(await screen.findByText(/играло 2/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Олимп'));
+    expect(await screen.findByRole('heading', { name: /Состав · играло 2/ })).toBeInTheDocument();
+  });
+});
+
 describe('«Матчи» тренера', () => {
   it('лучший игрок уходит в запрос, играющие и голы сохраняются', async () => {
     seed();
