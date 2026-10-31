@@ -64,6 +64,16 @@ describe('«Оплаты за месяц»', () => {
     expect(screen.getByText(/внесено 150 ₾ из 495 ₾/)).toBeInTheDocument(); // итог группы
   });
 
+  it('деньги ушедшего игрока остаются в итоге месяца, а должником он не становится', async () => {
+    seed();
+    fake.db.players = [...fake.db.players, { id: 'p9', full_name: 'Ушедший Лёва', group_id: 'g1', status: 'inactive' }, { id: 'p8', full_name: 'Ушедший Без Денег', group_id: 'g1', status: 'inactive' }];
+    fake.db.payments = [...fake.db.payments, { player_id: 'p9', amount: 165, paid_on: monthIso() }];
+    render(<MonthPayments />);
+    expect(await screen.findByText('Ушедший Лёва')).toBeInTheDocument();
+    expect(screen.queryByText('Ушедший Без Денег')).toBeNull();
+    expect(screen.getByText(/внесено 315 ₾ из 660 ₾/)).toBeInTheDocument(); // 100 + 50 + 165 при четырёх в группе
+  });
+
   it('«Только должники» прячет оплативших, поиск ищет по фамилии', async () => {
     seed();
     render(<MonthPayments />);
