@@ -1,7 +1,7 @@
 -- pgTAP: ограничение частоты поиска ребёнка для привязки (S-01, миграция 0065).
 begin;
 create extension if not exists pgtap;
-select plan(5);
+select plan(6);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c002', 'Другой клуб');
@@ -28,6 +28,8 @@ select throws_ok($$select * from search_players_for_link('Иван')$$, '54000',
 
 select as_user('00000000-0000-0000-0000-0000000000b2');
 select is((select count(*)::int from search_players_for_link('Иван')), 2, 'лимит считается отдельно по пользователю');
+
+select is((select provolatile::text from pg_proc where oid = 'search_players_for_link(text)'::regprocedure), 'v', 'поиск пишет счётчик, поэтому функция volatile: stable падает в read-only транзакции API (0087)');
 
 select * from finish();
 rollback;
