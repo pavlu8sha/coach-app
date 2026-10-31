@@ -42,6 +42,19 @@ export function parseJournalDated(text) {
   return byKey;
 }
 
+/** Отмена гасит ближайшую раньше стоящую оплату на ту же сумму: обе записи уходят, остальное остаётся. */
+function cancelPairs(entries) {
+  const out = [...entries];
+  for (let i = 0; i < out.length; i++) {
+    if (out[i].kind !== 'Отмена' && out[i].amount >= 0) continue;
+    const j = out.map((e, k) => k).reverse().find(k => k < i && out[k].kind !== 'Отмена' && out[k].amount === -out[i].amount);
+    if (j === undefined) continue;
+    out.splice(i, 1); out.splice(j, 1);
+    i = -1;
+  }
+  return out;
+}
+
 const monthOf = iso => `${iso.slice(0, 7)}-01`;
 const isCorrection = ref => /коррекция/.test(ref || '');
 
@@ -63,7 +76,7 @@ export function planPaymentDates({ journal, db }) {
   for (const [key, rows] of [...groups].sort(([a], [b]) => a.localeCompare(b))) {
     const total = r2(rows.reduce((a, p) => a + Number(p.amount), 0));
     const entries = journal.get(key) || [];
-    const money_ = entries.filter(e => e.kind !== 'Скидка');
+    const money_ = cancelPairs(entries.filter(e => e.kind !== 'Скидка'));
     if (!money_.length) { skipped.push({ key, reason: 'нет записей журнала', db: total }); continue; }
     if (money_.some(e => e.kind === 'Отмена' || e.amount <= 0)) { skipped.push({ key, reason: 'в журнале отмена или нулевая запись', db: total, journal: money_.map(e => e.amount) }); continue; }
     const bad = money_.find(e => !e.date);
