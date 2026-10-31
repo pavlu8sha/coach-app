@@ -76,7 +76,7 @@ export default function MonthPayments() {
     void (async () => {
       const pl = await supabase.from('players').select('id, full_name, group_id').eq('status', 'active').order('full_name').limit(1000);
       const pay = await supabase.from('payments').select('player_id, amount').eq('pay_month', month).limit(5000);
-      const sb = await supabase.from('subscriptions').select('player_id, discount, written_off').eq('month', month).limit(5000);
+      const sb = await supabase.from('subscriptions').select('player_id, discount, written_off, group_id').eq('month', month).limit(5000);
       if (pl.error) return setError(pl.error.message);
       if (pay.error) return setError(pay.error.message);
       if (sb.error) return setError(sb.error.message);
@@ -88,14 +88,18 @@ export default function MonthPayments() {
       const withSub = new Set(((sb.data ?? []) as Sub[]).map(x => x.player_id));
       const withPay = new Set([...m].filter(([, v]) => v > 0).map(([k]) => k));
       // деньги ушедших игроков остаются в итогах месяца: добираем неактивных, у которых за месяц есть платежи
-      const active = ((pl.data ?? []) as Pl[]).filter(x => ok.has(x.group_id));
+      // группа игрока в месяце — из абонемента этого месяца (перешёл в другую группу позже — в прошедших месяцах остаётся в прежней; текущий и будущие — по нынешней группе)
+      const past = month < monthIso(new Date());
+      const subGroup = new Map(((sb.data ?? []) as (Sub & { group_id: string | null })[]).filter(x => past && x.group_id).map(x => [x.player_id, x.group_id as string]));
+      const inGroup = (x: Pl): Pl => ({ ...x, group_id: subGroup.get(x.id) ?? x.group_id });
+      const active = ((pl.data ?? []) as Pl[]).map(inGroup).filter(x => ok.has(x.group_id));
       const have = new Set((pl.data ?? []).map((x: Pl) => x.id));
       const gone = [...withPay].filter(id => !have.has(id));
       let extra: Pl[] = [];
       if (gone.length) {
         const ex = await supabase.from('players').select('id, full_name, group_id').in('id', gone).limit(1000);
         if (ex.error) return setError(ex.error.message);
-        extra = ((ex.data ?? []) as Pl[]).filter(x => ok.has(x.group_id));
+        extra = ((ex.data ?? []) as Pl[]).map(inGroup).filter(x => ok.has(x.group_id));
       }
       setPlayers(inMonth([...active, ...extra].sort((a, b) => a.full_name.localeCompare(b.full_name)), month, monthIso(new Date()), withSub, withPay));
     })();
