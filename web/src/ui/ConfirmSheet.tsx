@@ -29,24 +29,24 @@ export function ConfirmSheet({ title, lines = [], note, confirmLabel, danger, on
       aria-modal="true"
       aria-label={title}
       onClick={onCancel}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 1000, padding: 16 }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}
     >
-      <div className="ks-card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, margin: 0 }}>
-        <h3 style={{ marginTop: 0 }}>{title}</h3>
+      <div className="ks-card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, margin: 0, borderRadius: 20, padding: 20 }}>
+        <h3 style={{ marginTop: 0, textAlign: 'center' }}>{title}</h3>
         {shown.length > 0 && (
-          <dl style={{ margin: '8px 0', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px' }}>
+          <dl style={{ margin: '12px 0', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '8px 16px', alignItems: 'baseline' }}>
             {shown.map(([label, value]) => (
               <div key={label} style={{ display: 'contents' }}>
                 <dt className="ks-muted" style={{ fontSize: 13 }}>{label}</dt>
-                <dd style={{ margin: 0, overflowWrap: 'anywhere' }}><b>{value}</b></dd>
+                <dd style={{ margin: 0, overflowWrap: 'anywhere', textAlign: 'right' }}><b>{value}</b></dd>
               </div>
             ))}
           </dl>
         )}
-        {note && <p className="muted" style={{ fontSize: 13 }}>{note}</p>}
+        {note && <p className="muted" style={{ fontSize: 13, textAlign: 'center' }}>{note}</p>}
         <div className="ks-actions" style={{ flexWrap: 'wrap' }}>
-          <button ref={cancelRef} type="button" className="ks-btn secondary" onClick={onCancel}>Отмена</button>
-          <button type="button" className="ks-btn" style={danger ? { background: 'var(--danger, #c0392b)' } : undefined} onClick={onConfirm}>{confirmLabel}</button>
+          <button ref={cancelRef} type="button" className="ks-btn secondary" style={{ flex: '1 1 120px' }} onClick={onCancel}>Отмена</button>
+          <button type="button" className="ks-btn" style={{ flex: '1 1 120px', ...(danger ? { background: 'var(--danger, #c0392b)' } : {}) }} onClick={onConfirm}>{confirmLabel}</button>
         </div>
       </div>
     </div>
