@@ -189,6 +189,18 @@ describe('«Приём оплат»: платежи дня', () => {
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отменить оплату' }));
     await waitFor(() => expect(fake.writes('payments', 'insert')).toEqual([expect.objectContaining({ player_id: 'p1', amount: -50, paid_on: today(), method: 'Наличные' })]));
   });
+  it('«Внесено сегодня»: новые платежи сверху по времени записи, без времени в конце', async () => {
+    seed();
+    const pl = { full_name: 'Иванов Пётр' };
+    fake.db.payments = [
+      { id: 'a', player_id: 'p1', amount: 11, paid_on: today(), method: 'Наличные', recorded_at: null, players: pl },
+      { id: 'b', player_id: 'p1', amount: 22, paid_on: today(), method: 'Наличные', recorded_at: '2026-10-15T08:00:00Z', players: pl },
+      { id: 'c', player_id: 'p1', amount: 33, paid_on: today(), method: 'Наличные', recorded_at: '2026-10-15T09:00:00Z', players: pl },
+    ];
+    render(<CashDesk />);
+    await screen.findByRole('heading', { name: /Внесено сегодня/ });
+    await waitFor(() => expect(screen.getAllByText(/^(11|22|33) ₾$/).map(e => e.textContent)).toEqual(['33 ₾', '22 ₾', '11 ₾']));
+  });
   it('отмена платежа вперёд записывается в тот же месяц; отменённый платёж не отменить дважды', async () => {
     seed();
     fake.db.payments = [{ id: 'a1', player_id: 'p1', amount: 165, paid_on: today(), for_month: '2099-11-01', method: 'Перевод', players: { full_name: 'Иванов Пётр' } }];
