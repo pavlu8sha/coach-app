@@ -1,4 +1,4 @@
--- 0090: счётчик игроков события (event_list) совпадает с составом на экране (event_roster).
+-- 0091: счётчик игроков события (event_list) совпадает с составом на экране (event_roster).
 -- С 0060 event_roster берёт игроков из tournament_fees и из match_players матчей события, а event_list считал только tournament_fees:
 -- карточка писала «Игроков: 4», внутри было 12. Данные не меняются, только чтение.
 create or replace function event_list()
