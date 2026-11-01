@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { coachError, fmtDate, matchTeam, playsMatches, today, type CoachGroup } from '../lib/coach';
+import { coachError, compareGroups, fmtDate, matchTeam, playsMatches, today, type CoachGroup } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill } from '../ui/components';
 import { GroupPicker, Stepper } from '../ui/coach';
@@ -63,13 +63,13 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
       setEventView({ event: list.find(e => e.id === id) ?? null });
       if (!list.some(e => e.id === id)) setReload(n => n + 1);
     };
-    const allTeams2 = [...new Set([...groups.map(g => g.name), ...(matches ?? []).map(m => m.team), ...events.map(e => e.team)].filter(playsMatches).map(matchTeam))].sort();
+    const allTeams2 = [...new Set([...groups.map(g => g.name), ...(matches ?? []).map(m => m.team), ...events.map(e => e.team)].filter(playsMatches).map(matchTeam))].sort(compareGroups);
     return <EventForm teams={allTeams2} events={events} admin={admin} onBack={back} onCreated={id => void openCreated(id)} />;
   }
   if (form) return <MatchForm groups={groups} match={form.match} admin={admin} rosterOf={form.match && !(!tours.get(form.match.id)?.tournament_id || tours.get(form.match.id)?.match_kind === 'friendly' || tours.get(form.match.id)?.tournament_kind === 'cup') ? tours.get(form.match.id)?.tournament_id ?? null : null} feeMode={!form.match || !tours.get(form.match.id)?.tournament_id || tours.get(form.match.id)?.match_kind === 'friendly' || tours.get(form.match.id)?.tournament_kind === 'cup'} onBack={() => { setForm(null); setReload(n => n + 1); }} />;
   if (!matches) return <Loading />;
 
-  const teams = [...new Set(matches.map(m => m.team))].sort();
+  const teams = [...new Set(matches.map(m => m.team))].sort(compareGroups);
   const shown = team ? matches.filter(m => m.team === team) : matches;
   // чемпионаты и фестивали — по турниру (самый свежий сверху), товарищеские и кубки — одним разделом
   const evById = new Map(events.map(e => [e.id, e]));
