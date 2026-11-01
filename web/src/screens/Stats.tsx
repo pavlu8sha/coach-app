@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { addDays, coachError, today } from '../lib/coach';
+import { matchHighlights, seasonStart, type ScoredMatch } from '../lib/seasonStats';
 import { supabase } from '../lib/supabase';
 import { EmptyState, Pill, Segmented } from '../ui/components';
 import { Failure, Loading } from './Message';
@@ -16,7 +17,7 @@ const prevMonthStart = (iso: string) => {
   return d.toLocaleDateString('en-CA');
 };
 
-type Range = 'month' | 'prev' | 'custom';
+type Range = 'month' | 'prev' | 'season' | 'custom';
 
 type Kind = 'att' | 'matches';
 
@@ -41,11 +42,12 @@ function usePeriod() {
   const period = useMemo(() => {
     if (range === 'month') return { f: monthStart(today()), t: today() };
     if (range === 'prev') return { f: prevMonthStart(today()), t: addDays(monthStart(today()), -1) };
+    if (range === 'season') return { f: seasonStart(today()), t: today() };
     return { f: from, t: to };
   }, [range, from, to]);
   const picker = (onChange: () => void) => (
     <>
-      <Segmented label="Период" value={range} onChange={v => { onChange(); setRange(v); }} items={[{ value: 'month', label: 'Месяц' }, { value: 'prev', label: 'Прошлый' }, { value: 'custom', label: 'Период' }]} />
+      <Segmented label="Период" value={range} onChange={v => { onChange(); setRange(v); }} items={[{ value: 'month', label: 'Месяц' }, { value: 'prev', label: 'Прошлый' }, { value: 'season', label: 'Сезон' }, { value: 'custom', label: 'Период' }]} />
       {range === 'custom' && (
         <div className="two" style={{ margin: '10px 0' }}>
           <input type="date" aria-label="С даты" value={from} max={to} onChange={e => { onChange(); setFrom(e.target.value); }} />
@@ -65,9 +67,15 @@ function Matches({ own }: { own: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [cat, setCat] = useState('');
+  const [games, setGames] = useState<(ScoredMatch & { team: string })[]>([]);
   useEffect(() => {
     void (async () => {
       if (period.f > period.t) return setError('Начало периода позже конца.');
+      // Серия побед и лучший матч считаем по самим матчам; вид турнира у них не виден, поэтому только для «Все матчи».
+      if (!cat) {
+        const g = await supabase.from('matches').select('team, played_on, opponent, goals_for, goals_against').gte('played_on', period.f).lte('played_on', period.t).order('played_on', { ascending: false }).limit(500);
+        setGames(g.error ? [] : ((g.data ?? []) as (ScoredMatch & { team: string })[]));
+      } else setGames([]);
       const r = await supabase.rpc('match_stats', cat ? { p_from: period.f, p_to: period.t, p_cat: cat } : { p_from: period.f, p_to: period.t });
       if (r.error) return setError(r.error.message.includes('period too large') ? 'Период слишком большой: не больше 13 месяцев.' : coachError(r.error.message));
       setRows((r.data ?? []) as MRow[]);
@@ -91,9 +99,7 @@ function Matches({ own }: { own: boolean }) {
       ) : teams.map(t => (
         <section key={t.team}>
           <h3>{t.team}</h3>
-          <div className="ks-card">
-            <div className="ks-line"><span>Игр: {t.games} · В {t.wins} / Н {t.draws} / П {t.losses}</span><Pill tone="primary">{t.goals_for}:{t.goals_against}</Pill></div>
-          </div>
+          <SeasonTiles t={t} games={games.filter(g => g.team === t.team)} />
           {rows.filter(r => r.kind === 'player' && r.team === t.team).sort((a, b) => (b.goals ?? 0) - (a.goals ?? 0) || (b.played ?? 0) - (a.played ?? 0)).map(p => (
             <div className="ks-card" key={p.name ?? ''}>
               <div className="ks-line"><span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>{p.name}</span><span className="ks-muted">матчей {p.played} · голов {p.goals}</span></div>
@@ -102,6 +108,22 @@ function Matches({ own }: { own: boolean }) {
         </section>
       ))}
     </main>
+  );
+}
+
+function SeasonTiles({ t, games }: { t: MRow; games: ScoredMatch[] }) {
+  const diff = (t.goals_for ?? 0) - (t.goals_against ?? 0);
+  const { streak, best } = matchHighlights(games);
+  const tiles: [string, string | number][] = [
+    ['Матчей', t.games ?? 0], ['Победы', t.wins ?? 0], ['Ничьи', t.draws ?? 0], ['Поражения', t.losses ?? 0],
+    ['Забито', t.goals_for ?? 0], ['Пропущено', t.goals_against ?? 0], ['Разница', diff > 0 ? `+${diff}` : diff],
+  ];
+  if (games.length) tiles.push(['Серия побед', streak]);
+  return (
+    <div className="ks-card">
+      <div className="ks-tiles">{tiles.map(([k, v]) => <div className="ks-tile" key={k}><b>{k}</b>{v}</div>)}</div>
+      {best && <p className="ks-muted" style={{ margin: '10px 0 0' }}>Лучший матч: {best.goals_for}:{best.goals_against}{best.opponent ? ` с ${best.opponent}` : ''}, {best.played_on.slice(8, 10)}.{best.played_on.slice(5, 7)}</p>}
+    </div>
   );
 }
 
