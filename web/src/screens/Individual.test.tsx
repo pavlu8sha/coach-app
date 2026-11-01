@@ -119,7 +119,7 @@ describe('«Индивидуальные»: сводка как в прежне�
     expect(screen.getByText('50 ₾')).toBeInTheDocument(); // оплачено на занятии
     fireEvent.click(await screen.findByText('10.01.2099 12:00 · Индивидуальные'));
     fireEvent.click(await screen.findByRole('button', { name: 'Скопировать список записавшихся' }));
-    await waitFor(() => expect(writes).toEqual(['1. Иванов Пётр\n2. Сидоров Ян']));
+    await waitFor(() => expect(writes).toEqual(['1) Иванов Пётр\n2) Сидоров Ян']));
   });
 });
 
