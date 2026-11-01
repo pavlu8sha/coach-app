@@ -169,6 +169,14 @@ describe('«Матчи» администратора', () => {
     expect(screen.queryByText('Олимп')).not.toBeInTheDocument();
     expect(screen.getByText('Спартак')).toBeInTheDocument();
   });
+
+  it('список команд в фильтре идёт в едином порядке групп', async () => {
+    seed();
+    fake.db.matches = ['U9-B', 'Ortachala U12', 'U13-A', 'U9', 'U7', 'U10'].map((team, i) => ({ id: 'o' + i, team, played_on: '2026-10-1' + i, opponent: 'Т' + i, goals_for: 1, goals_against: 0 }));
+    render(<CoachMatches groups={allGroups} allTeams />);
+    const sel = await screen.findByLabelText('Команда');
+    expect(Array.from(sel.querySelectorAll('option')).map(o => o.textContent)).toEqual(['Все команды', 'U7', 'U9', 'U9-B', 'U10', 'U13-A', 'Ortachala U12']);
+  });
 });
 
 describe('«Новое событие»', () => {
@@ -345,7 +353,7 @@ describe('Команды для матчей и событий', () => {
     render(<CoachMatches groups={all} admin />);
     fireEvent.click(await screen.findByText('Новое событие'));
     const opts = within(await screen.findByLabelText('Команда')).getAllByRole('option').map(o => o.textContent);
-    expect(opts).toEqual(['Ortachala U9', 'U10', 'U13', 'U7']);
+    expect(opts).toEqual(['U7', 'U10', 'U13', 'Ortachala U9']);
   });
 });
 
