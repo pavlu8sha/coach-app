@@ -89,6 +89,7 @@ select * from (values
   ('0085_location_admins',         coalesce((to_regclass('location_admins') is not null and to_regprocedure('is_location_admin(text)') is not null), false)),
   ('0086_cash_day_service',        coalesce(to_regprocedure('cash_day_service(date)') is not null, false)),
   ('0087_link_search_volatile',    coalesce((select provolatile = 'v' from pg_proc where oid = to_regprocedure('search_players_for_link(text)')), false)),
+  ('0088_booking_board_ends_at',   coalesce((pg_get_functiondef(to_regprocedure('booking_board()')) like '%ends_time%'), false)),
   ('0090_event_list_players_count', coalesce((pg_get_functiondef(to_regprocedure('event_list()')) like '%match_players%'), false))
 ) as t(migration, applied)
 order by migration;

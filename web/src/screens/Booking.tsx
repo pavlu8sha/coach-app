@@ -6,7 +6,7 @@ import { Failure, Loading } from './Message';
 
 type Kind = 'individual' | 'goalkeeper' | 'extra';
 interface Mine { player_id: string; name: string; paid: boolean; amount: number | string }
-interface Row { kind: Kind; session_id: string; starts_at: string; title: string; place: string | null; capacity: number | null; amount: number | string | null; booked: string[]; mine: Mine[] }
+interface Row { kind: Kind; session_id: string; starts_at: string; ends_at?: string | null; title: string; place: string | null; capacity: number | null; amount: number | string | null; booked: string[]; mine: Mine[] }
 interface Kid { id: string; name: string }
 
 const err = (m: string) =>
@@ -21,12 +21,14 @@ const err = (m: string) =>
   : coachError(m);
 const KIND_LABEL: Record<Kind, string> = { individual: 'Индивидуальная', goalkeeper: 'Вратарская', extra: 'Дополнительная' };
 const gel = (n: number | string | null) => (n === null ? '' : `${Number(n)} ₾`);
-const when = (iso: string, kind: Kind) => {
+const when = (iso: string, kind: Kind, endIso?: string | null) => {
   const d = new Date(iso);
   const day = d.toLocaleDateString('ru', { weekday: 'short', day: '2-digit', month: '2-digit' });
   // у дополнительной тренировки время бывает не указано: тогда приходит полночь дня
   const timed = kind !== 'extra' || d.getHours() !== 0 || d.getMinutes() !== 0;
-  return timed ? `${day}, ${d.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}` : day;
+  const hm = (x: Date) => x.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
+  if (!timed) return day;
+  return endIso ? `${day}, ${hm(d)}–${hm(new Date(endIso))}` : `${day}, ${hm(d)}`;
 };
 
 // Запись детей на индивидуальные, вратарские и дополнительные тренировки (миграция 0045). Оплату вносит администратор.
@@ -67,7 +69,7 @@ export default function Booking() {
         const left = r.capacity === null ? null : Math.max(0, r.capacity - r.booked.length);
         return (
           <section className="ks-card" key={r.kind + r.session_id}>
-            <div className="ks-line"><b>{KIND_LABEL[r.kind]}: {when(r.starts_at, r.kind)}</b>{left !== null && <Pill tone={left > 0 ? 'success' : 'neutral'}>{left > 0 ? `Мест: ${left}` : 'Мест нет'}</Pill>}</div>
+            <div className="ks-line"><b>{KIND_LABEL[r.kind]}: {when(r.starts_at, r.kind, r.ends_at)}</b>{left !== null && <Pill tone={left > 0 ? 'success' : 'neutral'}>{left > 0 ? `Мест: ${left}` : 'Мест нет'}</Pill>}</div>
             <div className="ks-muted" style={{ fontSize: 13 }}>{[r.title, r.place, r.amount !== null && Number(r.amount) > 0 ? gel(r.amount) : null].filter(Boolean).join(' · ')}</div>
             <p style={{ margin: '8px 0' }}>Записаны: {r.booked.length ? r.booked.join(', ') : 'пока никого'}</p>
             {kids.map(k => {
