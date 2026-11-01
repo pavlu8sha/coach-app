@@ -59,7 +59,7 @@ describe('«Оплаты за месяц»', () => {
     render(<MonthPayments />);
     expect(await screen.findByText('100 ₾ из 165 ₾')).toBeInTheDocument();
     expect(screen.getByText('0 ₾ из 165 ₾')).toBeInTheDocument();
-    expect(screen.getByText('Скидка')).toBeInTheDocument();
+    expect(screen.getByText(/^Скидка · внесено 50 ₾$/)).toBeInTheDocument();
     expect(screen.getAllByText('1 из 3')).toHaveLength(2); // плитка «Оплатили» и заголовок группы
     expect(screen.getByText(/внесено 150 ₾ из 495 ₾/)).toBeInTheDocument(); // итог группы
   });
