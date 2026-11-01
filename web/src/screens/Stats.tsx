@@ -100,6 +100,7 @@ function Matches({ own }: { own: boolean }) {
         <section key={t.team}>
           <h3>{t.team}</h3>
           <SeasonTiles t={t} games={games.filter(g => g.team === t.team)} />
+          <TopScorers players={rows.filter(r => r.kind === 'player' && r.team === t.team)} />
           {rows.filter(r => r.kind === 'player' && r.team === t.team).sort((a, b) => (b.goals ?? 0) - (a.goals ?? 0) || (b.played ?? 0) - (a.played ?? 0)).map(p => (
             <div className="ks-card" key={p.name ?? ''}>
               <div className="ks-line"><span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>{p.name}</span><span className="ks-muted">матчей {p.played} · голов {p.goals}</span></div>
@@ -108,6 +109,23 @@ function Matches({ own }: { own: boolean }) {
         </section>
       ))}
     </main>
+  );
+}
+
+// Лучшие бомбардиры команды: до 5 игроков с голами. Экран только для тренера и администратора, родителям и детям он не виден.
+function TopScorers({ players }: { players: MRow[] }) {
+  const top = players.filter(p => (p.goals ?? 0) > 0).sort((a, b) => (b.goals ?? 0) - (a.goals ?? 0) || (a.played ?? 0) - (b.played ?? 0) || (a.name ?? '').localeCompare(b.name ?? '')).slice(0, 5);
+  if (!top.length) return null;
+  return (
+    <div className="ks-card" aria-label="Лучшие бомбардиры">
+      <div className="ks-label" style={{ margin: '0 0 6px' }}>Лучшие бомбардиры</div>
+      {top.map((p, i) => (
+        <div className="ks-line" key={p.name ?? i} style={{ padding: '4px 0' }}>
+          <span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>{i + 1}. {p.name}</span>
+          <Pill tone="primary">{p.goals} ⚽</Pill>
+        </div>
+      ))}
+    </div>
   );
 }
 
