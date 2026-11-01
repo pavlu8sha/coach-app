@@ -10,7 +10,7 @@ interface MethodSum { method: string; sum: number }
 interface Row { id: string; kind: string; player: string; amount: number; paid_on: string; method: string; staff: string; recorded_at: string | null; location: string | null }
 interface Report { total: number; by_method: MethodSum[]; by_staff: StaffSum[]; rows: Row[] }
 
-type Preset = 'today' | 'month' | 'custom';
+type Preset = 'today' | 'day' | 'month' | 'custom';
 const METHOD_FILTERS = [{ value: '', label: 'Все' }, { value: 'Наличные', label: 'Наличные' }, { value: 'Перевод', label: 'Перевод' }, { value: 'не указан', label: 'Не указан' }];
 
 // Кассовый отчёт (#264): поступления за день, месяц или период. Суммы считает сервер (0078): по сотрудникам и способам они сходятся с итогом.
@@ -27,6 +27,7 @@ export default function CashReport() {
   const choose = (p: Preset) => {
     setPreset(p);
     if (p === 'today') { setFrom(today()); setTo(today()); }
+    if (p === 'day') setTo(from);
     if (p === 'month') { setFrom(today().slice(0, 8) + '01'); setTo(today()); }
   };
 
@@ -43,7 +44,12 @@ export default function CashReport() {
   return (
     <div style={{ maxWidth: 560, margin: '0 auto', padding: '12px 16px 24px' }}>
       <h1>Кассовый отчёт</h1>
-      <Segmented label="Период отчёта" value={preset} onChange={choose} items={[{ value: 'today', label: 'Сегодня' }, { value: 'month', label: 'Месяц' }, { value: 'custom', label: 'Период' }]} />
+      <Segmented label="Период отчёта" value={preset} onChange={choose} items={[{ value: 'today', label: 'Сегодня' }, { value: 'day', label: 'День' }, { value: 'month', label: 'Месяц' }, { value: 'custom', label: 'Период' }]} />
+      {preset === 'day' && (
+        <div style={{ marginTop: 8 }}>
+          <label className="field">Дата<input type="date" value={from} onChange={e => { setFrom(e.target.value); setTo(e.target.value); }} /></label>
+        </div>
+      )}
       {preset === 'custom' && (
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
           <label className="field">С<input type="date" value={from} onChange={e => setFrom(e.target.value)} /></label>

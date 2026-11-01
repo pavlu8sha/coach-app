@@ -26,6 +26,15 @@ describe('Кассовый отчёт', () => {
     expect(screen.getAllByText('Наличные').length).toBeGreaterThan(0);
   });
 
+  it('позволяет выбрать конкретный день', async () => {
+    fake.rpc.cash_report = () => ({ data: report, error: null });
+    render(<CashReport />);
+    await screen.findByText('По сотрудникам');
+    fireEvent.click(screen.getByRole('tab', { name: 'День' }));
+    fireEvent.change(screen.getByLabelText('Дата'), { target: { value: '2026-10-15' } });
+    await waitFor(() => expect(fake.rpcCalls('cash_report').at(-1)).toMatchObject({ p_from: '2026-10-15', p_to: '2026-10-15' }));
+  });
+
   it('передаёт фильтры локации и способа в функцию базы', async () => {
     fake.rpc.cash_report = () => ({ data: report, error: null });
     render(<CashReport />);
