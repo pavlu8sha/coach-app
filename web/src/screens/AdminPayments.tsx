@@ -32,7 +32,7 @@ export default function AdminPayments() {
   return (
     <main className="page">
       <h1>Платежи</h1>
-      <SearchInput label="Найти игрока" placeholder="Фамилия или имя (от 2 букв)" value={q} onChange={setQ} />
+      <SearchInput label="Найти игрока" placeholder="Фамилия или имя (от 2 букв)" value={q} onChange={setQ} suggestions={found.map(f => f.full_name)} />
       <div style={{ height: 12 }} />
       {q.trim().length >= 2 && found.length === 0 ? (
         <EmptyState icon="search" title="Никого не найдено" text="Проверьте написание." />

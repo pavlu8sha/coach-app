@@ -104,7 +104,7 @@ export default function Equipment() {
       <div style={{ height: 10 }} />
       <button type="button" className="ks-btn" onClick={() => setCreating(true)}>Новый заказ</button>
       <div style={{ height: 10 }} />
-      <SearchInput label="Найти игрока" placeholder="Фамилия или имя" value={q} onChange={setQ} />
+      <SearchInput label="Найти игрока" placeholder="Фамилия или имя" value={q} onChange={setQ} suggestions={q.trim().length >= 2 ? shown.slice(0, 8).map(o => o.players?.full_name ?? "") .filter(Boolean) : []} />
       <div className="ks-pair">
         <select className="ks-select" aria-label="Группа" value={fGroup} onChange={e => setFGroup(e.target.value)}><option value="">Все группы</option>{options.groups.map(g => <option key={g}>{g}</option>)}</select>
         <select className="ks-select" aria-label="Товар" value={fKit} onChange={e => setFKit(e.target.value)}><option value="">Все товары</option>{options.kits.map(k => <option key={k}>{k}</option>)}</select>
@@ -238,7 +238,7 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
         <ListRow avatar={player.full_name} title={player.full_name} end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} onClick={() => setPlayer(null)}>Сменить</button>} />
       ) : (
         <>
-          <SearchInput label="Найти игрока" placeholder="Фамилия или имя (от 2 букв)" value={q} onChange={setQ} />
+          <SearchInput label="Найти игрока" placeholder="Фамилия или имя (от 2 букв)" value={q} onChange={setQ} suggestions={found.map(f => f.full_name)} />
           {found.map(p => <ListRow key={p.id} avatar={p.full_name} title={p.full_name} onClick={() => { setPlayer(p); if (!loc.trim() && p.groups?.location) setLoc(p.groups.location); void prefillNumber(p.id); }} />)}
         </>
       )}

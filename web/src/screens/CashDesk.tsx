@@ -205,7 +205,7 @@ export default function CashDesk() {
         </>
       ) : (
         <>
-          <SearchInput label="Игрок (введите ФИ и выберите из списка)" placeholder="Фамилия или имя (от 2 букв)" value={q} onChange={setQ} />
+          <SearchInput label="Игрок (введите ФИ и выберите из списка)" placeholder="Фамилия или имя (от 2 букв)" value={q} onChange={setQ} suggestions={found.map(f => f.full_name)} />
           {q.trim().length >= 2 && found.length === 0 ? (
             <EmptyState icon="search" title="Никого не найдено" text="Проверьте написание." />
           ) : (

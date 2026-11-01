@@ -1,6 +1,6 @@
 // UI-kit Mini App: React-компоненты по образцу приложения тренеров. Пока не используются экранами —
 // подключение по шагам из docs/MINIAPP_UI_PLAN.md. Стили — ui/tokens.css и ui/kit.css.
-import type { FocusEvent, ReactNode } from 'react';
+import { useId, type FocusEvent, type ReactNode } from 'react';
 
 export type Tone = 'success' | 'danger' | 'warning' | 'primary' | 'neutral';
 
@@ -105,12 +105,19 @@ export const searchFocusProps = {
   onBlur() { document.documentElement.classList.remove('ks-kbd'); },
 };
 
+/** Подсказки имён: на iPhone показываются в полосе над клавиатурой, как в старом приложении. */
+export function NameDatalist({ id, names }: { id: string; names: string[] }) {
+  return <datalist id={id}>{[...new Set(names)].map(n => <option key={n} value={n} />)}</datalist>;
+}
+
 /** Поле поиска со значком. */
-export function SearchInput(props: { value: string; onChange: (v: string) => void; placeholder: string; label: string }) {
+export function SearchInput(props: { value: string; onChange: (v: string) => void; placeholder: string; label: string; suggestions?: string[] }) {
+  const listId = useId();
   return (
     <div className="ks-search">
       {SEARCH_ICON}
-      <input className="ks-input" value={props.value} placeholder={props.placeholder} aria-label={props.label} onChange={e => props.onChange(e.target.value)} {...searchFocusProps} />
+      <input className="ks-input" value={props.value} placeholder={props.placeholder} aria-label={props.label} onChange={e => props.onChange(e.target.value)} list={props.suggestions ? listId : undefined} autoComplete="off" {...searchFocusProps} />
+      {props.suggestions && <NameDatalist id={listId} names={props.suggestions} />}
     </div>
   );
 }
