@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { coachError, compareGroups, fmtDate, matchTeam, playsMatches, today, type CoachGroup } from '../lib/coach';
 import { supabase } from '../lib/supabase';
-import { EmptyState, ListRow, Pill } from '../ui/components';
+import { EmptyState, ListRow, Pill, searchFocusProps } from '../ui/components';
 import { GroupPicker, Stepper } from '../ui/coach';
 import { BackNav, useMainButton } from '../ui/nav';
 import EventFees from './EventFees';
@@ -312,7 +312,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, onBack }: { groups
       )}
       <>
       <h3>Добавить в состав</h3>
-      <input className="ks-input" value={q} onChange={e => setQ(e.target.value)} placeholder="Фамилия или имя игрока (от 2 букв)" aria-label="Найти игрока" />
+      <input className="ks-input" value={q} onChange={e => setQ(e.target.value)} placeholder="Фамилия или имя игрока (от 2 букв)" aria-label="Найти игрока" {...searchFocusProps} />
       <div style={{ marginTop: 8, marginBottom: 16, display: 'grid', gap: 8 }}>
       {found.filter(f => !players.some(p => p.id === f.id)).map(f => (
         <ListRow key={f.id} avatar={f.full_name} title={f.full_name} end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} onClick={() => { setPlayers(list => [...(list ?? []), f].sort((a, b) => a.full_name.localeCompare(b.full_name))); setShownIds(ids => (ids ? [...ids, f.id] : ids)); setQ(''); setFound([]); }}>Добавить</button>} />

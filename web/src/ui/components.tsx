@@ -1,6 +1,6 @@
 // UI-kit Mini App: React-компоненты по образцу приложения тренеров. Пока не используются экранами —
 // подключение по шагам из docs/MINIAPP_UI_PLAN.md. Стили — ui/tokens.css и ui/kit.css.
-import type { ReactNode } from 'react';
+import type { FocusEvent, ReactNode } from 'react';
 
 export type Tone = 'success' | 'danger' | 'warning' | 'primary' | 'neutral';
 
@@ -89,12 +89,28 @@ const SEARCH_ICON = (
   </svg>
 );
 
+/**
+ * Поле поиска у верхнего края экрана, пока открыта клавиатура: результаты
+ * (они ниже поля) остаются видимы над клавиатурой, без прокрутки вручную.
+ * Класс ks-kbd на <html> добавляет запас снизу, чтобы страница могла проскроллиться.
+ */
+export const searchFocusProps = {
+  onFocus(e: FocusEvent<HTMLInputElement>) {
+    const el = e.currentTarget;
+    document.documentElement.classList.add('ks-kbd');
+    const scroll = () => { if (document.activeElement === el) el.scrollIntoView({ block: 'start', behavior: 'smooth' }); };
+    window.setTimeout(scroll, 50);
+    window.setTimeout(scroll, 350); // клавиатура уже открылась и размер экрана изменился
+  },
+  onBlur() { document.documentElement.classList.remove('ks-kbd'); },
+};
+
 /** Поле поиска со значком. */
 export function SearchInput(props: { value: string; onChange: (v: string) => void; placeholder: string; label: string }) {
   return (
     <div className="ks-search">
       {SEARCH_ICON}
-      <input className="ks-input" value={props.value} placeholder={props.placeholder} aria-label={props.label} onChange={e => props.onChange(e.target.value)} />
+      <input className="ks-input" value={props.value} placeholder={props.placeholder} aria-label={props.label} onChange={e => props.onChange(e.target.value)} {...searchFocusProps} />
     </div>
   );
 }

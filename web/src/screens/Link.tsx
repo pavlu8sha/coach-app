@@ -3,7 +3,7 @@ import { CONSENT, CONSENT_VERSION } from '../lib/consent';
 import Privacy from './Privacy';
 import { supabase } from '../lib/supabase';
 import { preferredLang } from '../lib/telegram';
-import { EmptyState, ListRow, Pill } from '../ui/components';
+import { EmptyState, ListRow, Pill, searchFocusProps } from '../ui/components';
 import { useMainButton } from '../ui/nav';
 import { ADMIN_CHAT } from '../lib/clubInfo';
 import { STATUS, type Req } from './LinkStatus';
@@ -98,7 +98,7 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
           void search();
         }}
       >
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Фамилия Имя" autoComplete="off" aria-label="Фамилия или имя ребёнка" aria-describedby="link-hint" />
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Фамилия Имя" autoComplete="off" {...searchFocusProps} aria-label="Фамилия или имя ребёнка" aria-describedby="link-hint" />
         <button className="ks-btn sm" disabled={busy || short}>
           Найти
         </button>
