@@ -50,7 +50,7 @@ async function loadDues(p: Pl): Promise<Due[]> {
       const tariff = gid ? tariffFor(pr, gid, m) : null;
       if (tariff === null || s?.written_off) continue;
       const got = paidBy.get(m) ?? 0;
-      if (s?.discount && got > 0) continue;
+      if (s?.discount) continue; // скидка закрывает месяц и без платежа (0093)
       if (got >= tariff) continue;
       out.push({
         key: 'sub' + m, kind: 'sub', section: SECTIONS[0], title: m > cur ? `${monthName(m)} (вперёд)` : monthName(m), sub: s?.discount ? 'скидка по договорённости: оплатите любую сумму' : m > cur ? 'оплата вперёд: дата — день, когда внесли деньги' : undefined, due: tariff, paid: got, month: m, advance: m > cur,
