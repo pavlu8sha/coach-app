@@ -196,7 +196,7 @@ export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOp
     <div className="ks-card">
       <div className="ks-line">
         <b style={{ overflowWrap: 'anywhere' }}>{title ?? player.full_name}</b>
-        <Pill tone={paidUp ? 'success' : 'danger'} dot>{sub?.written_off ? 'Списано' : sub?.discount ? 'Скидка' : `${gel(got)}${tariff !== null ? ` из ${gel(tariff)}` : ''}`}</Pill>
+        <Pill tone={paidUp ? 'success' : 'danger'} dot>{sub?.written_off ? 'Списано' : sub?.discount ? (got > 0 ? `Скидка · внесено ${gel(got)}` : 'Скидка') : `${gel(got)}${tariff !== null ? ` из ${gel(tariff)}` : ''}`}</Pill>
       </div>
       <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} onClick={onOpen}>{open ? 'Свернуть' : 'Внести платёж'}</button>
       {!paidUp && (
