@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
+import { addDays, today } from '../lib/coach';
 import Stats from './Stats';
 
 describe('«Статистика»', () => {
@@ -40,10 +41,29 @@ describe('«Статистика»', () => {
     ];
     render(<Stats />);
     fireEvent.click(await screen.findByRole('tab', { name: 'Матчи' }));
-    expect(await screen.findByText('Игр: 3 · В 2 / Н 1 / П 0')).toBeInTheDocument();
-    expect(screen.getByText('7:2')).toBeInTheDocument();
+    expect(await screen.findByText('Забито')).toBeInTheDocument();
+    expect(screen.getByText('Разница').parentElement).toHaveTextContent('+5');
+    expect(screen.getByText('Победы').parentElement).toHaveTextContent('2');
     expect(screen.getAllByText(/^(Аня|Боря)$/).map(e => e.textContent)).toEqual(['Боря', 'Аня']);
     expect(fake.rpcCalls('match_stats')).toHaveLength(1);
+  });
+
+  it('матчи: серия побед и лучший матч считаются по матчам команды', async () => {
+    fake.rpc.attendance_stats = () => [];
+    fake.rpc.match_stats = () => [{ kind: 'team', team: 'U9', name: null, games: 3, wins: 2, draws: 0, losses: 1, goals_for: 12, goals_against: 5, played: null, goals: null }];
+    fake.db.matches = [
+      { team: 'U9', played_on: addDays(today(), -4), opponent: 'А', goals_for: 0, goals_against: 3 },
+      { team: 'U9', played_on: addDays(today(), -3), opponent: 'Гладани', goals_for: 8, goals_against: 1 },
+      { team: 'U9', played_on: addDays(today(), -2), opponent: 'Б', goals_for: 4, goals_against: 1 },
+      { team: 'U11', played_on: addDays(today(), -1), opponent: 'В', goals_for: 0, goals_against: 5 },
+    ];
+    render(<Stats />);
+    fireEvent.click(await screen.findByRole('tab', { name: 'Матчи' }));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Сезон' }));
+    expect(await screen.findByText('Серия побед')).toBeInTheDocument();
+    expect(screen.getByText('Серия побед').parentElement).toHaveTextContent('2');
+    const d = addDays(today(), -3);
+    expect(screen.getByText(`Лучший матч: 8:1 с Гладани, ${d.slice(8, 10)}.${d.slice(5, 7)}`)).toBeInTheDocument();
   });
 
   it('тренер: если по его группам данных нет — понятное сообщение; администратору прежний текст', async () => {
