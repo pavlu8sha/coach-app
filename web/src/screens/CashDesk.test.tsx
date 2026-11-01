@@ -5,6 +5,9 @@ import { fake } from '../test/fakeSupabase';
 import CashDesk from './CashDesk';
 import { monthIso, nextMonth } from './MonthPayments';
 
+// Дата зафиксирована в середине месяца: в первый день месяца платёж «за месяц» совпадал с сегодняшним, и тесты падали (1 ноября).
+vi.useFakeTimers({ toFake: ['Date'] });
+vi.setSystemTime(new Date(2026, 9, 15, 12, 0, 0));
 const M = monthIso(new Date());
 function seed() {
   fake.db.players = [{ id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', groups: { name: 'U9-A' } }];
