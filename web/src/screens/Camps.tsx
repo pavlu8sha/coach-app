@@ -179,7 +179,7 @@ function ListText({ parts }: { parts: Part[] }) {
   const key = (g: string | undefined) => (g ?? 'Без группы').replace(/-[A-Za-zА-Яа-я]$/, '');
   const groups = new Map<string, string[]>();
   parts.forEach(p => groups.set(key(p.players?.groups?.name), [...(groups.get(key(p.players?.groups?.name)) ?? []), p.players?.full_name ?? '—']));
-  const text = [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0], 'ru')).map(([g, names]) => `${g}\n${names.sort((a, b) => a.localeCompare(b, 'ru')).map((n, i) => `${i + 1}) ${n}`).join('\n')}`).join('\n\n');
+  const text = [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0], 'ru')).map(([g, names]) => `${g}\n${names.sort((a, b) => a.localeCompare(b, 'ru')).join('\n')}`).join('\n\n');
   return (
     <>
       <p className="muted" style={{ margin: '10px 0' }}>Записавшиеся по группам (U7-A и U7-B объединены). Скопируйте и отправьте.</p>

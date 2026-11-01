@@ -227,7 +227,7 @@ function SessionView({ session, onBack }: { session: Session; onBack: () => void
       <h3>Записанные</h3>
       {sorted.length > 0 && (
         <button type="button" className="ks-btn secondary" style={{ marginBottom: 8 }} onClick={() => {
-          const text = sorted.map((b, i) => `${i + 1}) ${b.players?.full_name ?? 'Игрок'}`).join('\n');
+          const text = sorted.map(b => b.players?.full_name ?? 'Игрок').join('\n');
           void navigator.clipboard?.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800); }, () => setMsg({ ok: false, text: 'Не удалось скопировать список.' }));
         }}>{copied ? 'Скопировано' : 'Скопировать список записавшихся'}</button>
       )}

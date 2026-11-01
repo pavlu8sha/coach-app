@@ -38,7 +38,7 @@ describe('«Сборы»', () => {
     fireEvent.click(await screen.findByText('Зимний лагерь'));
     fireEvent.click(await screen.findByRole('tab', { name: 'Список' }));
     const text = (screen.getByLabelText('Список') as HTMLTextAreaElement).value;
-    expect(text).toBe('U9\n1) Иванов Пётр\n2) Сидоров Ян');
+    expect(text).toBe('U9\nИванов Пётр\nСидоров Ян');
   });
 
   it('платёж: вид, сумма и дата уходят в camp_pay', async () => {
