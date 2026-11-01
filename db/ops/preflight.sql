@@ -93,6 +93,7 @@ select * from (values
   ('0089_user_club',               coalesce((exists (select 1 from information_schema.columns where table_name = 'users' and column_name = 'club_id')), false)),
   ('0090_ind_autocreate',          coalesce((to_regclass('individual_templates') is not null and to_regprocedure('ind_autocreate(date)') is not null and to_regprocedure('ind_slot_member_set(uuid,uuid,date,boolean)') is not null), false)),
   ('0091_event_list_players_count', coalesce((pg_get_functiondef(to_regprocedure('event_list()')) like '%match_players%'), false)),
-  ('0092_ind_autocreate_window',   coalesce((pg_get_functiondef(to_regprocedure('ind_autocreate(date)')) like '%generate_series%'), false))
+  ('0092_ind_autocreate_window',   coalesce((pg_get_functiondef(to_regprocedure('ind_autocreate(date)')) like '%generate_series%'), false)),
+  ('0093_discount_without_payment', coalesce((pg_get_functiondef(to_regprocedure('debtors(date)')) not like '%pm.amt, 0) > 0)%'), false))
 ) as t(migration, applied)
 order by migration;

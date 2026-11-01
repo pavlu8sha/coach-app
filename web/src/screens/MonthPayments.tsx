@@ -111,7 +111,7 @@ export default function MonthPayments() {
   const done = (p: Pl) => {
     const s = subs.get(p.id);
     const t = tariffOf(p);
-    return !!s?.written_off || (!!s?.discount && gotOf(p) > 0) || (t !== null && gotOf(p) >= t);
+    return !!s?.written_off || !!s?.discount || (t !== null && gotOf(p) >= t);
   };
   const all = players ?? [];
   const total = all.reduce((s, p) => s + gotOf(p), 0);
@@ -196,10 +196,10 @@ export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOp
     <div className="ks-card">
       <div className="ks-line">
         <b style={{ overflowWrap: 'anywhere' }}>{title ?? player.full_name}</b>
-        <Pill tone={paidUp ? 'success' : 'danger'} dot>{sub?.written_off ? 'Списано' : sub?.discount && got > 0 ? 'Скидка' : `${gel(got)}${tariff !== null ? ` из ${gel(tariff)}` : ''}`}</Pill>
+        <Pill tone={paidUp ? 'success' : 'danger'} dot>{sub?.written_off ? 'Списано' : sub?.discount ? 'Скидка' : `${gel(got)}${tariff !== null ? ` из ${gel(tariff)}` : ''}`}</Pill>
       </div>
       <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} onClick={onOpen}>{open ? 'Свернуть' : 'Внести платёж'}</button>
-      {!paidUp && got > 0 && (
+      {!paidUp && (
         <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy} onClick={() => void discount()}>Считать оплаченным (скидка)</button>
       )}
       {open && (

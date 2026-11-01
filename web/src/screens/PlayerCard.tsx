@@ -79,7 +79,7 @@ export default function PlayerCard({ player, onBack, onEdit }: { player: CardPla
         const tariff = player.group_id ? tariffFor(prices, player.group_id, m) : null;
         const got = gotIn(m);
         const sub = subs.get(m);
-        const paidUp = !!sub?.written_off || (!!sub?.discount && got > 0) || (tariff !== null && got >= tariff);
+        const paidUp = !!sub?.written_off || !!sub?.discount || (tariff !== null && got >= tariff);
         return (
           <Row key={`${m}|${got}`} player={{ id: player.id, full_name: player.full_name }} title={monthName(m)} month={m} tariff={tariff} got={got} sub={sub} paidUp={paidUp} open={openMonth === m} onOpen={() => setOpenMonth(openMonth === m ? null : m)} onSaved={() => { setOpenMonth(null); setReload(n => n + 1); }} />
         );
