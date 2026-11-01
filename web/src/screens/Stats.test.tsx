@@ -45,6 +45,7 @@ describe('«Статистика»', () => {
     expect(screen.getByText('Разница').parentElement).toHaveTextContent('+5');
     expect(screen.getByText('Победы').parentElement).toHaveTextContent('2');
     expect(screen.getAllByText(/^(Аня|Боря)$/).map(e => e.textContent)).toEqual(['Боря', 'Аня']);
+    expect(screen.getByLabelText('Лучшие бомбардиры')).toHaveTextContent(/1\. Боря.*4 ⚽.*2\. Аня.*1 ⚽/);
     expect(fake.rpcCalls('match_stats')).toHaveLength(1);
   });
 
@@ -64,6 +65,21 @@ describe('«Статистика»', () => {
     expect(screen.getByText('Серия побед').parentElement).toHaveTextContent('2');
     const d = addDays(today(), -3);
     expect(screen.getByText(`Лучший матч: 8:1 с Гладани, ${d.slice(8, 10)}.${d.slice(5, 7)}`)).toBeInTheDocument();
+  });
+
+  it('бомбардиры: не больше пяти, игроки без голов не попадают', async () => {
+    fake.rpc.attendance_stats = () => [];
+    const pl = (name: string, goals: number) => ({ kind: 'player', team: 'U9', name, games: null, wins: null, draws: null, losses: null, goals_for: null, goals_against: null, played: 3, goals });
+    fake.rpc.match_stats = () => [
+      { kind: 'team', team: 'U9', name: null, games: 3, wins: 3, draws: 0, losses: 0, goals_for: 9, goals_against: 0, played: null, goals: null },
+      ...['А1', 'Б2', 'В3', 'Г4', 'Д5', 'Е6'].map((n, i) => pl(n, 6 - i)), pl('Ноль', 0),
+    ];
+    render(<Stats />);
+    fireEvent.click(await screen.findByRole('tab', { name: 'Матчи' }));
+    const box = await screen.findByLabelText('Лучшие бомбардиры');
+    expect(box).toHaveTextContent('5. Д5');
+    expect(box).not.toHaveTextContent('Е6');
+    expect(box).not.toHaveTextContent('Ноль');
   });
 
   it('тренер: если по его группам данных нет — понятное сообщение; администратору прежний текст', async () => {
