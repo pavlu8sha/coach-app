@@ -7,7 +7,7 @@ import EventFees from './EventFees';
 import { Failure, Loading } from './Message';
 
 export interface EventRow { id: string; team: string; kind: string; name: string | null; starts_on: string | null; players: number; games: number }
-interface RosterRow { player_id: string; full_name: string; group_name: string | null }
+interface RosterRow { player_id: string; full_name: string; group_name: string | null; in_fees?: boolean }
 interface Player { id: string; full_name: string }
 
 type Kind = 'championship' | 'festival' | 'cup';
@@ -141,7 +141,9 @@ export function EventScreen({ event, groups, admin = false, onBack }: { event: E
       ) : (
         roster.map(p => (
           <ListRow key={p.player_id} avatar={p.full_name} title={p.full_name} sub={p.group_name ? [p.group_name] : undefined}
-            end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} aria-label={`Убрать: ${p.full_name}`} disabled={busy} onClick={() => void run(supabase.rpc('event_roster_remove', { t: event.id, pid: p.player_id }))}>Убрать</button>} />
+            end={p.in_fees === false
+              ? <span className="ks-muted" style={{ fontSize: 13 }}>играл в матче</span>
+              : <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} aria-label={`Убрать: ${p.full_name}`} disabled={busy} onClick={() => void run(supabase.rpc('event_roster_remove', { t: event.id, pid: p.player_id }))}>Убрать</button>} />
         ))
       )}
       <h3>Добавить игрока</h3>

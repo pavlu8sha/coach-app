@@ -1,7 +1,7 @@
 -- pgTAP: состав события включает игравших без взноса; статистика матчей фильтруется по виду (0060).
 begin;
 create extension if not exists pgtap;
-select plan(6);
+select plan(8);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values ('00000000-0000-0000-0000-0000000000a1', 9301, 'Админ', true);
@@ -27,6 +27,8 @@ select as_user('00000000-0000-0000-0000-0000000000a1');
 
 select is((select count(*)::int from event_roster('00000000-0000-0000-0000-0000000000f1')), 2, 'в составе события и тот, у кого есть взнос, и игравший без взноса');
 select ok(exists (select 1 from event_roster('00000000-0000-0000-0000-0000000000f1') where full_name = 'Ушедший игрок'), 'ушедший игрок виден в составе события');
+select is((select players from event_list() where id = '00000000-0000-0000-0000-0000000000f1'), 2, 'счётчик event_list равен размеру состава (0091)');
+select is((select in_fees from event_roster('00000000-0000-0000-0000-0000000000f1') where full_name = 'Ушедший игрок'), false, 'игрок только из состава матча: in_fees = false (0091)');
 select is((select sum(games)::int from match_stats('2026-10-01', '2026-10-31') where kind = 'team'), 2, 'без фильтра видны все игры');
 select is((select sum(games)::int from match_stats('2026-10-01', '2026-10-31', 'championship') where kind = 'team'), 1, 'фильтр «чемпионат»');
 select is((select sum(games)::int from match_stats('2026-10-01', '2026-10-31', 'friendly') where kind = 'team'), 1, 'фильтр «товарищеские»');
