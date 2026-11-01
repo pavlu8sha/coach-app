@@ -42,7 +42,7 @@ export default function CashReport() {
   }, [from, to, location, method]);
 
   return (
-    <div style={{ maxWidth: 560, margin: '0 auto', padding: '12px 16px 24px' }}>
+    <div style={{ maxWidth: 560, margin: '0 auto', padding: '12px 16px calc(88px + var(--ks-safe-b))' }}>
       <h1>Кассовый отчёт</h1>
       <Segmented label="Период отчёта" value={preset} onChange={choose} items={[{ value: 'today', label: 'Сегодня' }, { value: 'day', label: 'День' }, { value: 'month', label: 'Месяц' }, { value: 'custom', label: 'Период' }]} />
       {preset === 'day' && (
