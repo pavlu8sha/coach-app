@@ -123,8 +123,8 @@ describe('«Приём оплат»', () => {
     render(<CashDesk />);
     fireEvent.change(screen.getByLabelText('Дата платежей'), { target: { value: '2026-10-05' } });
     expect(await screen.findByRole('heading', { name: /Внесено 05.10.2026.*330 ₾/ })).toBeInTheDocument();
-    expect(screen.getByText('Абонемент · Наличные')).toBeInTheDocument();
-    expect(screen.getByText('Сбор · Перевод')).toBeInTheDocument();
+    expect(screen.getByText('Абонемент 10.26, U9-A, Оплата, Наличные')).toBeInTheDocument();
+    expect(screen.getByText('Сбор, U9-A, Оплата, Перевод')).toBeInTheDocument();
     expect(screen.queryByText('Другой День')).not.toBeInTheDocument();
   });
 
@@ -160,13 +160,21 @@ describe('«Приём оплат»', () => {
 });
 
 describe('«Приём оплат»: платежи дня', () => {
+  it('строка платежа: месяц абонемента, группа по абонементу, вид оплаты и способ', async () => {
+    seed();
+    fake.db.payments = [{ id: 'm1', player_id: 'p1', amount: 20, paid_on: today(), pay_month: '2026-10-01', method: 'Перевод', players: { full_name: 'Иванов Пётр' } }];
+    fake.db.subscriptions = [{ id: 's1', player_id: 'p1', month: '2026-10-01', group_id: 'g0', groups: { name: 'U7-A' } }];
+    render(<CashDesk />);
+    expect(await screen.findByText('Абонемент 10.26, U7-A, Оплата, Перевод')).toBeInTheDocument();
+  });
+
   it('оплаты экипировки и занятий дня попадают в «Внесено», без кнопки отмены', async () => {
     seed();
     fake.db.payments = [];
     fake.rpc.cash_day_service = () => [{ id: 's1', amount: 40, method: 'Перевод', what: 'Экипировка', player_id: 'p1', full_name: 'Иванов Пётр' }];
     render(<CashDesk />);
     await screen.findByRole('heading', { name: /Внесено сегодня.*40 ₾/ });
-    expect(screen.getByText(/Экипировка · Перевод/)).toBeInTheDocument();
+    expect(screen.getByText('Экипировка: Форма + Куртка, Перевод')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Отменить оплату: Иванов Пётр' })).not.toBeInTheDocument();
   });
 

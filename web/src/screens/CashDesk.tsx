@@ -79,6 +79,19 @@ async function loadDues(p: Pl): Promise<Due[]> {
   return out;
 }
 
+type TodayRow = { id: string; amount: number; method: string | null; what: string; kind?: string; player_id?: string; pay_month?: string | null; detail?: string; sub?: string; players: { full_name: string } | null };
+const monthShort = (iso: string) => `${iso.slice(5, 7)}.${iso.slice(2, 4)}`; // 2026-10-01 → 10.26
+const CAMP_KIND: Record<string, string> = { booking: 'Бронь', payment: 'Оплата', refund: 'Возврат' };
+// «Абонемент 10.26, U7-A, Оплата, Перевод» · «Экипировка: Форма + Куртка, Наличные» · «Индивидуальное, U9-A, Оплата, Перевод»
+function payLine(x: TodayRow, group: string | undefined, detail: string | undefined): string {
+  const neg = Number(x.amount) < 0;
+  const kind = neg ? 'Исправление' : x.what === 'Сбор' ? CAMP_KIND[x.kind ?? ''] ?? 'Оплата' : 'Оплата';
+  const method = x.method && x.method !== 'Исправление' ? x.method : null;
+  if (x.what === 'Экипировка') return [detail ? `Экипировка: ${detail}` : 'Экипировка', neg ? kind : null, method].filter(Boolean).join(', ');
+  const head = x.what === 'Абонемент' ? (detail ? `Абонемент ${detail}` : 'Абонемент') : x.what === 'Сбор' && detail ? `Сбор: ${detail}` : x.what;
+  return [head, group, kind, method].filter(Boolean).join(', ');
+}
+
 // «Приём оплат»: найти игрока, увидеть всё, что к оплате, и принять платёж одним шагом (миграции 0023, 0034–0037).
 export default function CashDesk() {
   const [q, setQ] = useState('');
@@ -86,7 +99,7 @@ export default function CashDesk() {
   const [player, setPlayer] = useState<Pl | null>(null);
   const [day, setDay] = useState(today());
   const [payMethod, setPayMethod] = useState('');
-  const [todayRows, setTodayRows] = useState<{ id: string; amount: number; method: string | null; what: string; player_id?: string; pay_month?: string | null; players: { full_name: string } | null }[] | null>(null);
+  const [todayRows, setTodayRows] = useState<TodayRow[] | null>(null);
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const { ask, dialog } = useConfirm();
@@ -101,18 +114,43 @@ export default function CashDesk() {
     return () => clearTimeout(t);
   }, [q]);
 
-  // Платежи за выбранный день: абонемент (payments), сборы (camp_payments) и журнал экипировки и занятий (cash_day_service, 0086)
+  // Платежи за выбранный день: абонемент (payments), сборы (camp_payments) и журнал экипировки и занятий (cash_day_service, 0086).
+  // Подпись как в старом приложении: что именно, месяц абонемента, группа, вид оплаты, способ. Только чтение, без миграций.
   useEffect(() => {
     setTodayRows(null);
     void (async () => {
       const a = await supabase.from('payments').select('id, amount, method, player_id, pay_month, players(full_name)').eq('paid_on', day).limit(500);
-      const c = await supabase.from('camp_payments').select('id, amount, method, kind, players(full_name)').eq('paid_on', day).limit(500);
+      const c = await supabase.from('camp_payments').select('id, amount, method, kind, player_id, players(full_name), camps(name)').eq('paid_on', day).limit(500);
       if (a.error) return;
       const rows = ((a.data ?? []) as unknown as { id: string; amount: number; method: string | null; player_id: string; pay_month?: string | null; players: { full_name: string } | null }[]).map(x => ({ ...x, what: 'Абонемент' }));
-      const camp = c.error ? [] : ((c.data ?? []) as unknown as { id: string; amount: number; method: string | null; kind: string; players: { full_name: string } | null }[]).map(x => ({ ...x, what: 'Сбор' }));
+      const camp = c.error ? [] : ((c.data ?? []) as unknown as { id: string; amount: number; method: string | null; kind: string; player_id?: string; players: { full_name: string } | null; camps?: { name: string } | null }[]).map(x => ({ ...x, what: 'Сбор', detail: x.camps?.name }));
       const svc = await supabase.rpc('cash_day_service', { p_day: day });
       const service = svc.error ? [] : ((svc.data ?? []) as unknown as { id: string; amount: number; method: string | null; what: string; player_id: string; full_name: string }[]).map(x => ({ id: x.id, amount: x.amount, method: x.method, what: x.what, player_id: x.player_id, players: { full_name: x.full_name } }));
-      setTodayRows([...rows, ...camp, ...service]);
+      const all: TodayRow[] = [...rows, ...camp, ...service];
+      // группа: по абонементу месяца платежа, иначе текущая группа игрока
+      const ids = [...new Set(all.map(x => x.player_id).filter((v): v is string => !!v))];
+      const gById = new Map<string, string>();
+      const gBySub = new Map<string, string>();
+      const kits = new Map<string, string[]>();
+      if (ids.length) {
+        const pl = await supabase.from('players').select('id, groups(name)').in('id', ids).limit(1000);
+        for (const p of ((pl.data ?? []) as unknown as { id: string; groups: { name: string } | null }[])) if (p.groups?.name) gById.set(p.id, p.groups.name);
+        const sb = await supabase.from('subscriptions').select('player_id, month, groups(name)').in('player_id', ids).limit(5000);
+        for (const x of ((sb.data ?? []) as unknown as { player_id: string; month: string; groups: { name: string } | null }[])) if (x.groups?.name) gBySub.set(`${x.player_id}|${x.month}`, x.groups.name);
+        if (all.some(x => x.what === 'Экипировка')) {
+          const eq = await supabase.from('equipment_orders').select('player_id, equipment_order_lines(kit)').in('player_id', ids).limit(2000);
+          const per = new Map<string, string[][]>();
+          for (const o of ((eq.data ?? []) as unknown as { player_id: string; equipment_order_lines: { kit: string }[] | null }[])) per.set(o.player_id, [...(per.get(o.player_id) ?? []), (o.equipment_order_lines ?? []).map(l => l.kit)]);
+          // состав показываем только когда заказ у игрока один: иначе не угадать, за какой именно платёж
+          for (const [pid, list] of per) if (list.length === 1 && list[0].length) kits.set(pid, list[0]);
+        }
+      }
+      setTodayRows(all.map(x => {
+        const pid = x.player_id;
+        const group = pid ? (x.what === 'Абонемент' && x.pay_month ? gBySub.get(`${pid}|${x.pay_month}`) : undefined) ?? gById.get(pid) : undefined;
+        const detail = x.what === 'Абонемент' ? (x.pay_month ? monthShort(x.pay_month) : undefined) : x.what === 'Экипировка' && pid && kits.has(pid) ? (kits.get(pid) as string[]).join(' + ') : x.detail;
+        return { ...x, sub: payLine(x, group, detail) };
+      }));
     })();
   }, [reload, player, day]);
 
@@ -186,7 +224,7 @@ export default function CashDesk() {
       )}
       {!todayRows ? <Loading /> : todayRows.length === 0 ? <p className="muted">В этот день платежей нет.</p> : todayRows.map(x => (
         <div key={x.what + x.id}>
-          <ListRow title={x.players?.full_name ?? 'Игрок'} sub={[[x.what, x.method].filter(Boolean).join(' · ')]} end={<Pill tone={Number(x.amount) < 0 ? 'danger' : 'success'}>{gel(Number(x.amount))}</Pill>} />
+          <ListRow title={x.players?.full_name ?? 'Игрок'} sub={[x.sub ?? [x.what, x.method].filter(Boolean).join(' · ')]} end={<Pill tone={Number(x.amount) < 0 ? 'danger' : 'success'}>{gel(Number(x.amount))}</Pill>} />
           {x.what === 'Абонемент' && Number(x.amount) > 0 && !isCancelled(x) && (
             <button type="button" className="ks-btn secondary" style={{ marginTop: -2, marginBottom: 8 }} aria-label={`Отменить оплату: ${x.players?.full_name ?? 'игрок'}`} disabled={cancelling === x.id} onClick={() => void cancelPay(x)}>Отменить оплату</button>
           )}
