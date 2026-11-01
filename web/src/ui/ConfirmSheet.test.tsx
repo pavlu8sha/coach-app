@@ -39,4 +39,14 @@ describe('окно подтверждения', () => {
     await act(async () => { fireEvent.click(screen.getByRole('dialog')); });
     expect(results).toEqual([false, false, false]);
   });
+
+  it('пока окно открыто, страница под ним не прокручивается', async () => {
+    render(<Probe onResult={() => {}} />);
+    expect(document.body.style.overflow).toBe('');
+    fireEvent.click(screen.getByRole('button', { name: 'открыть' }));
+    await screen.findByRole('dialog');
+    expect(document.body.style.overflow).toBe('hidden');
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Отмена' })); });
+    expect(document.body.style.overflow).toBe('');
+  });
 });

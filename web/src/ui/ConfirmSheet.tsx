@@ -22,6 +22,13 @@ export function ConfirmSheet({ title, lines = [], note, confirmLabel, danger, on
     return () => window.removeEventListener('keydown', onKey);
   }, [onCancel]);
 
+  // пока окно открыто, страница под ним не прокручивается
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
   const shown = lines.filter((l): l is [string, string] => Boolean(l[1]));
   return (
     <div
