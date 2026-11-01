@@ -89,7 +89,7 @@ export default function Individual() {
   return (
     <main className="page">
       <h1>Индивидуальные</h1>
-      <Segmented label="Раздел" value={tab} onChange={v => { setList(null); setDebts(null); setLimit(PAGE); setHasMore(false); setTab(v); }} items={[{ value: 'next', label: 'Предстоящие' }, { value: 'past', label: 'Прошедшие' }, { value: 'debt', label: 'Долги' }, { value: 'regular', label: 'Постоянные' }]} />
+      <Segmented wrap label="Раздел" value={tab} onChange={v => { setList(null); setDebts(null); setLimit(PAGE); setHasMore(false); setTab(v); }} items={[{ value: 'next', label: 'Предстоящие' }, { value: 'past', label: 'Прошедшие' }, { value: 'debt', label: 'Долги' }, { value: 'regular', label: 'Постоянные' }]} />
       <div style={{ height: 10 }} />
       {tab === 'regular' && <IndRegulars />}
       {tab === 'debt' && <label className="field">Способ оплаты<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>}

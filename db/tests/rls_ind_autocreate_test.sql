@@ -1,7 +1,7 @@
 -- pgTAP: автосоздание индивидуальных и вратарских на выходные (0090, #336). Даты в 2099 году, чтобы тест не зависел от текущей даты.
 begin;
 create extension if not exists pgtap;
-select plan(22);
+select plan(24);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -63,6 +63,11 @@ select ind_set_paid((select id from individual_sessions where external_id = 'IND
 select ind_slot_member_set('00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-00000000d002', '2099-11-20', false);
 select is((select count(*)::int from individual_bookings where player_id = '00000000-0000-0000-0000-00000000d002' and paid), 1, 'оплаченная запись при снятии с постоянных остаётся');
 select throws_ok($$select ind_slot_member_set('00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-00000000d009', '2099-11-20', true)$$, '22023', 'player not in club', 'игрок чужого клуба отклоняется');
+
+-- запуск в воскресенье: слот сегодняшнего дня недели создаётся и сегодня, и через неделю (0092)
+reset role;
+select is(ind_autocreate('2099-11-22'), 5, 'воскресенье: сб следующих выходных, вс сегодня и вс через неделю (два воскресных слота)');
+select is((select count(*)::int from individual_sessions where starts_at::date = '2099-11-29'), 2, 'следующее воскресенье тоже создано (индивидуальное и вратарское)');
 
 select * from finish();
 rollback;
