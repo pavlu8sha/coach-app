@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { coachError, fmtDate, matchTeam, today, type CoachGroup } from '../lib/coach';
 import { supabase } from '../lib/supabase';
-import { EmptyState, ListRow, Segmented } from '../ui/components';
+import { EmptyState, ListRow, Segmented, NameDatalist, searchFocusProps } from '../ui/components';
 import { BackNav } from '../ui/nav';
 import EventFees from './EventFees';
 import { Failure, Loading } from './Message';
@@ -147,7 +147,7 @@ export function EventScreen({ event, groups, admin = false, onBack }: { event: E
         ))
       )}
       <h3>Добавить игрока</h3>
-      <input className="ks-input" value={q} onChange={e => setQ(e.target.value)} placeholder="Фамилия или имя (от 2 букв)" aria-label="Найти игрока" />
+      <input className="ks-input" value={q} onChange={e => setQ(e.target.value)} placeholder="Фамилия или имя (от 2 букв)" aria-label="Найти игрока" list="ks-found-names" autoComplete="off" {...searchFocusProps} /><NameDatalist id="ks-found-names" names={found.map(f => f.full_name)} />
       {found.filter(f => !roster.some(r => r.player_id === f.id)).map(f => (
         <ListRow key={f.id} avatar={f.full_name} title={f.full_name} end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} disabled={busy} onClick={() => { setQ(''); setFound([]); void add([f.id]); }}>Добавить</button>} />
       ))}

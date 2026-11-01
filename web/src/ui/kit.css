@@ -340,3 +340,7 @@ a.ks-cover { text-decoration: none; display: block; }
 .ks-btn, .ks-chip, button.ks-row, a.ks-row, .ks-cover.tile { -webkit-tap-highlight-color: transparent; transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), filter 0.2s ease, background-color 0.2s ease; }
 .ks-btn:active:not(:disabled), .ks-chip:active, button.ks-row:active, a.ks-row:active, .ks-cover.tile:active { transform: scale(0.97); filter: brightness(0.94); transition-duration: 0.08s; }
 @media (prefers-reduced-motion: reduce) { .ks-btn, .ks-chip, button.ks-row, a.ks-row, .ks-cover.tile { transition: none; } .ks-btn:active:not(:disabled), .ks-chip:active, button.ks-row:active, a.ks-row:active, .ks-cover.tile:active { transform: none; } }
+
+/* Клавиатура открыта в поле поиска: запас снизу, чтобы поле можно было поднять к верху экрана. */
+html.ks-kbd body { padding-bottom: 70vh; }
+.ks-search, .ks-input { scroll-margin-top: 8px; }

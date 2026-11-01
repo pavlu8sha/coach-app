@@ -223,7 +223,7 @@ function AddPart({ camp, tariffs, taken, onBack, onDone }: { camp: Camp; tariffs
       <h1>Записать на сбор</h1>
       {player ? <ListRow avatar={player.full_name} title={player.full_name} end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} onClick={() => setPlayer(null)}>Сменить</button>} /> : (
         <>
-          <SearchInput label="Найти игрока" placeholder="Фамилия или имя (от 2 букв)" value={q} onChange={setQ} />
+          <SearchInput label="Найти игрока" placeholder="Фамилия или имя (от 2 букв)" value={q} onChange={setQ} suggestions={found.map(f => f.full_name)} />
           {found.map(p => <ListRow key={p.id} avatar={p.full_name} title={p.full_name} onClick={() => setPlayer(p)} />)}
         </>
       )}
