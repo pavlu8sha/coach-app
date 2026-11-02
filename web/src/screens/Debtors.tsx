@@ -127,7 +127,7 @@ export default function Debtors() {
   };
 
   if (error) return <Failure title="Не удалось загрузить должников" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
-  if (!rows) return <Loading />;
+  if (!rows) return <Loading title="Должники" bar />;
 
   const allGroups = [...new Set(rows.map(r => r.group_name))];
   const shown = rows.filter(r => !gname || r.group_name === gname);

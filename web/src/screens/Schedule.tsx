@@ -66,7 +66,7 @@ export default function Schedule({ all = false, editable = all }: { all?: boolea
   }, [all, reload]);
 
   if (error) return <Failure title="Не удалось загрузить расписание" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
-  if (!groups) return <Loading />;
+  if (!groups) return <Loading title="Расписание" />;
   if (!groups.length) return <main className="page"><h1>Расписание</h1><EmptyState icon="box" title="Пока пусто" text="Расписание появится, когда администратор подтвердит связь с ребёнком." /></main>;
 
   const done = () => {

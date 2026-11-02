@@ -87,7 +87,7 @@ export default function Matches() {
   }, [reload]);
 
   if (error) return <Failure title="Не удалось загрузить матчи" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
-  if (!matches) return <Loading />;
+  if (!matches) return <Loading title="Матчи" card rows={3} />;
   if (noGroups) return <Message title="Матчи" text="Матчи появятся, когда администратор подтвердит связь с ребёнком." />;
 
   const t = today();

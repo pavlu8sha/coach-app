@@ -58,7 +58,7 @@ export default function Payments() {
   }, [reload]);
 
   if (error) return <Failure title="Не удалось загрузить оплаты" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
-  if (!kids) return <Loading />;
+  if (!kids) return <Loading title="Оплата" card rows={2} />;
   if (!kids.length) return <Message title="Оплата" text="Оплаты появятся, когда администратор подтвердит связь с ребёнком." />;
 
   return (

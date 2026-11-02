@@ -122,19 +122,28 @@ export function SearchInput(props: { value: string; onChange: (v: string) => voi
   );
 }
 
-/** Скелетон списка на время загрузки. */
-export function SkeletonRows({ count = 4, avatar = true }: { count?: number; avatar?: boolean }) {
+/** Скелетон списка на время загрузки. Геометрия как у ListRow (ks-row), чтобы список не прыгал. */
+export function SkeletonRows({ count = 4, avatar = true, card = false, bar = false }: { count?: number; avatar?: boolean; card?: boolean; bar?: boolean }) {
   return (
     <div aria-hidden="true">
-      {Array.from({ length: count }, (_, i) => (
-        <div className="ks-skel" key={i}>
-          {avatar && <i className="av" />}
-          <span className="t">
+      {bar && <div className="ks-skel-bar" />}
+      {Array.from({ length: count }, (_, i) =>
+        card ? (
+          <div className="ks-skel card" key={i}>
+            <i style={{ width: '45%' }} />
+            <i style={{ width: '80%' }} />
             <i style={{ width: '60%' }} />
-            <i style={{ width: '40%' }} />
-          </span>
-        </div>
-      ))}
+          </div>
+        ) : (
+          <div className="ks-skel" key={i}>
+            {avatar && <i className="av" />}
+            <span className="t">
+              <i style={{ width: '60%' }} />
+              <i style={{ width: '40%' }} />
+            </span>
+          </div>
+        ),
+      )}
     </div>
   );
 }

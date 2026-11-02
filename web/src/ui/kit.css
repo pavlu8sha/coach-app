@@ -61,12 +61,20 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 .ks-switch:focus-visible { outline: 3px solid var(--ks-primary); outline-offset: 2px; }
 
 /* Скелетон загрузки и пустое состояние */
-.ks-skel { display: flex; gap: 12px; align-items: center; padding: 12px 14px; background: var(--ks-surface); border: 1px solid var(--ks-border); border-radius: var(--ks-radius-card); margin-bottom: 8px; }
-.ks-skel i { display: block; height: 12px; border-radius: 6px; background: var(--ks-border); margin: 8px 0; animation: ks-pulse 1.2s ease-in-out infinite; }
+.ks-skel { display: flex; gap: 12px; align-items: center; padding: 10px 12px; min-height: var(--ks-tap); background: var(--ks-surface); border: 1px solid var(--ks-border); border-radius: var(--ks-radius-card); box-shadow: var(--ks-shadow); margin-bottom: 8px; }
+.ks-skel i { display: block; height: 16px; border-radius: 6px; background: var(--ks-border); margin: 0; animation: ks-pulse 1.2s ease-in-out infinite; }
+.ks-skel .t i + i { height: 13px; margin-top: 4px; }
 .ks-skel .av { width: 40px; height: 40px; border-radius: 50%; flex: none; margin: 0; }
 .ks-skel .t { flex: 1; min-width: 0; }
+.ks-skel.card { display: block; padding: 12px 14px; }
+.ks-skel.card i { margin: 0 0 8px; height: 14px; }
+.ks-skel.card i:last-child { margin-bottom: 0; }
+.ks-skel-bar { height: var(--ks-tap); border-radius: 12px; margin-bottom: 12px; background: var(--ks-border); animation: ks-pulse 1.2s ease-in-out infinite; }
 @keyframes ks-pulse { 50% { opacity: 0.45; } }
-@media (prefers-reduced-motion: reduce) { .ks-skel i { animation: none; } }
+@keyframes ks-fade { from { opacity: 0; } }
+/* Контент после загрузки проявляется мягко, без сдвига: заглушка уже занимает то же место */
+.page > :not(h1):not(.ks-group):not([aria-hidden]) { animation: ks-fade 0.18s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .ks-skel i, .ks-skel-bar { animation: none; } .page > :not(h1):not(.ks-group):not([aria-hidden]) { animation: none; } }
 .ks-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 28px 16px; color: var(--ks-text-muted); }
 .ks-empty b { color: var(--ks-text); font-size: 16px; }
 .ks-empty p { margin: 0; max-width: 320px; line-height: 1.4; }
