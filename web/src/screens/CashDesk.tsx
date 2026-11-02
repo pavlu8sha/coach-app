@@ -106,6 +106,7 @@ export default function CashDesk() {
   const [payMethod, setPayMethod] = useState('');
   const [todayRows, setTodayRows] = useState<TodayRow[] | null>(null);
   const [cancelling, setCancelling] = useState<string | null>(null);
+  const [cancelErr, setCancelErr] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const { ask, dialog } = useConfirm();
 
@@ -175,8 +176,14 @@ export default function CashDesk() {
     });
     if (!ok) return;
     setCancelling(x.id);
-    await supabase.from('payments').insert({ player_id: x.player_id, amount: -Number(x.amount), paid_on: day, ...(x.pay_month ? { for_month: x.pay_month } : {}), method: x.method ?? 'Исправление' });
+    setCancelErr(null);
+    const { error } = await supabase.from('payments').insert({ player_id: x.player_id, amount: -Number(x.amount), paid_on: day, ...(x.pay_month ? { for_month: x.pay_month } : {}), method: x.method ?? 'Исправление' });
     setCancelling(null);
+    if (error) {
+      // запись не сохранилась: не обновляем список, чтобы не показать отмену, которой нет в базе
+      setCancelErr(`Отмена не записана: ${errText(error.message)}`);
+      return;
+    }
     setReload(n => n + 1);
   };
   const total = (todayRows ?? []).reduce((s, x) => s + Number(x.amount), 0);
@@ -189,6 +196,7 @@ export default function CashDesk() {
   return (
     <main className="page">
       <h1>Приём оплат</h1>
+      {cancelErr && <p className="error" role="alert">{cancelErr}</p>}
       {player ? (
         <>
           <div className="ks-card">
