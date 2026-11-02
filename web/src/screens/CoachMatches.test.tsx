@@ -246,6 +246,17 @@ describe('«Новое событие»', () => {
     expect(screen.getByLabelText('Группа')).toHaveValue('g2');
   });
 
+  it('«Добавить матч»: команда без своей группы (U12 из кубка) не подменяется первой группой', async () => {
+    seed();
+    fake.rpc.event_list = () => [{ id: 'e5', team: 'U12', kind: 'cup', name: 'Newton cup', starts_on: '2026-06-14', players: 0, games: 0, status: 'finished' }];
+    render(<CoachMatches groups={allGroups} allTeams />);
+    fireEvent.click(await screen.findByText('Добавить матч'));
+    fireEvent.click(within(screen.getByLabelText('Добавить матч')).getByText('U12'));
+    expect(await screen.findByRole('heading', { name: 'Новый матч' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Группа')).not.toBeInTheDocument();
+    expect(screen.getByText(/В клубе нет группы «U12»/)).toBeInTheDocument();
+  });
+
   it('«Добавить матч»: завершённые соревнования не предлагаются, в списке они помечены', async () => {
     fake.db.matches = [];
     fake.rpc.event_list = () => [
