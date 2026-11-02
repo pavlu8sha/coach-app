@@ -79,7 +79,7 @@ async function loadDues(p: Pl): Promise<Due[]> {
   return out;
 }
 
-type TodayRow = { id: string; amount: number; method: string | null; what: string; kind?: string; player_id?: string; pay_month?: string | null; detail?: string; sub?: string; players: { full_name: string } | null };
+type TodayRow = { id: string; amount: number; method: string | null; recorded_at?: string | null; what: string; kind?: string; player_id?: string; pay_month?: string | null; detail?: string; sub?: string; players: { full_name: string } | null };
 const monthShort = (iso: string) => `${iso.slice(5, 7)}.${iso.slice(2, 4)}`; // 2026-10-01 → 10.26
 const CAMP_KIND: Record<string, string> = { booking: 'Бронь', payment: 'Оплата', refund: 'Возврат' };
 // «Абонемент 10.26, U7-A, Оплата, Перевод» · «Экипировка: Форма + Куртка, Наличные» · «Индивидуальное, U9-A, Оплата, Перевод»
@@ -119,14 +119,16 @@ export default function CashDesk() {
   useEffect(() => {
     setTodayRows(null);
     void (async () => {
-      const a = await supabase.from('payments').select('id, amount, method, player_id, pay_month, players(full_name)').eq('paid_on', day).limit(500);
-      const c = await supabase.from('camp_payments').select('id, amount, method, kind, player_id, players(full_name), camps(name)').eq('paid_on', day).limit(500);
+      const a = await supabase.from('payments').select('id, amount, method, player_id, pay_month, recorded_at, players(full_name)').eq('paid_on', day).limit(500);
+      const c = await supabase.from('camp_payments').select('id, amount, method, kind, player_id, recorded_at, players(full_name), camps(name)').eq('paid_on', day).limit(500);
       if (a.error) return;
       const rows = ((a.data ?? []) as unknown as { id: string; amount: number; method: string | null; player_id: string; pay_month?: string | null; players: { full_name: string } | null }[]).map(x => ({ ...x, what: 'Абонемент' }));
       const camp = c.error ? [] : ((c.data ?? []) as unknown as { id: string; amount: number; method: string | null; kind: string; player_id?: string; players: { full_name: string } | null; camps?: { name: string } | null }[]).map(x => ({ ...x, what: 'Сбор', detail: x.camps?.name }));
       const svc = await supabase.rpc('cash_day_service', { p_day: day });
       const service = svc.error ? [] : ((svc.data ?? []) as unknown as { id: string; amount: number; method: string | null; what: string; player_id: string; full_name: string }[]).map(x => ({ id: x.id, amount: x.amount, method: x.method, what: x.what, player_id: x.player_id, players: { full_name: x.full_name } }));
-      const all: TodayRow[] = [...rows, ...camp, ...service];
+      // новые сверху по времени записи; платежи без времени (импорт) в конце, затем экипировка и занятия (времени в выдаче нет)
+      const byTime = (x: TodayRow, y: TodayRow) => (y.recorded_at ?? '').localeCompare(x.recorded_at ?? '') || String(x.id ?? '').localeCompare(String(y.id ?? ''));
+      const all: TodayRow[] = [...([...rows, ...camp] as TodayRow[]).sort(byTime), ...service];
       // группа: по абонементу месяца платежа, иначе текущая группа игрока
       const ids = [...new Set(all.map(x => x.player_id).filter((v): v is string => !!v))];
       const gById = new Map<string, string>();
