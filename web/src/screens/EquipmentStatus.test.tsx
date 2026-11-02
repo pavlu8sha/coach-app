@@ -97,6 +97,13 @@ describe('Экипировка у родителя: статус и требов
     expect(await screen.findByText(EQUIPMENT_REQUIRED_TEXT)).toBeInTheDocument();
   });
 
+  it('администратору и тренеру требование к форме не показывается', async () => {
+    fake.rpc.equipment_requirement = () => 'Текст для родителя';
+    render(<EquipmentTab playerId="p1" staff />);
+    await screen.findByText(/Статус:/);
+    expect(screen.queryByText('Текст для родителя')).not.toBeInTheDocument();
+  });
+
   it('требование видно и когда заказов нет; родитель ничего не пишет в базу', async () => {
     fake.db.equipment_orders = [];
     render(<EquipmentTab playerId="p1" />);

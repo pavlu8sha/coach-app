@@ -190,6 +190,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
   // после первого сохранения в составе остаются только сыгравшие; остальных можно показать кнопкой, чтобы добавить забытого
   const [shownIds, setShownIds] = useState<string[] | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [editLineup, setEditLineup] = useState(false); // кнопки «Убрать из матча» показываем только в режиме правки состава
 
   useEffect(() => {
     setPlayers(null);
@@ -345,6 +346,11 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
       <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>
         Баллы начисляются автоматически, когда внесён счёт: победа — 2 играющим, лучшему игроку — 3; поражение или ничья — 1 играющим; за каждый гол +1. Лучший игрок учитывается только при победе.
       </p>
+      {admin && savedId && players.length > 0 && (
+        <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 36, marginBottom: 8 }} aria-pressed={editLineup} onClick={() => setEditLineup(v => !v)}>
+          {editLineup ? 'Готово' : 'Править состав'}
+        </button>
+      )}
       {players.length === 0 ? (
         <EmptyState icon="users" title="В составе пока никого" text="Найдите игрока ниже, чтобы добавить его в состав." />
       ) : (
@@ -365,7 +371,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
                 </button>
               </>
             )}
-            {admin && savedId && (
+            {admin && savedId && editLineup && (
               <button type="button" className="ks-btn secondary" style={{ marginTop: 8, minHeight: 40 }} disabled={busy} aria-label={`Убрать из матча: ${p.full_name}`} onClick={() => void removeFromMatch(p)}>
                 Убрать из матча
               </button>

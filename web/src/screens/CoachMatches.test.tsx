@@ -157,6 +157,8 @@ describe('«Матчи» администратора', () => {
     render(<CoachMatches groups={allGroups} admin />);
     fireEvent.click(await screen.findByText('Олимп'));
     await screen.findByText('Гость Игорь');
+    expect(screen.queryByRole('button', { name: /Убрать из матча/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Править состав' }));
     fireEvent.click(screen.getByRole('button', { name: 'Убрать из матча: Гость Игорь' }));
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Убрать' }));
     await waitFor(() => expect(screen.queryByText('Гость Игорь')).not.toBeInTheDocument());
@@ -173,6 +175,7 @@ describe('«Матчи» администратора', () => {
     fireEvent.click(await screen.findByText('Олимп'));
     await screen.findByText('Иванов Пётр');
     expect(screen.queryByRole('button', { name: /Убрать из матча/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Править состав' })).not.toBeInTheDocument();
   });
 
   it('не удаляет, если администратор отказался в подтверждении', async () => {
