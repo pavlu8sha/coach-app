@@ -5,7 +5,7 @@ import { EmptyState, ListRow, Pill, NameDatalist, searchFocusProps } from '../ui
 import { GroupPicker, Stepper } from '../ui/coach';
 import { BackNav, useMainButton } from '../ui/nav';
 import EventFees from './EventFees';
-import { EventForm, EventScreen, eventCounts, eventTitle, type EventRow } from './Events';
+import { EventForm, EventScreen, eventCounts, eventTitle, isFinished, type EventRow } from './Events';
 import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
 
@@ -96,8 +96,8 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
     byTour.set(e.id, { title: `${eventTitle(e)}${multi ? ' · ' + e.team : ''}`, items: [], event: e });
   }
   for (const [id, g] of byTour) sections.push({ key: id, ...g });
-  // события, в которые можно добавить игру: свои команды тренера (администратор и тренеры со всеми командами — все)
-  const champEvents = events.filter(e => showAll || groups.some(g => g.name === e.team || matchTeam(g.name) === e.team));
+  // события, в которые можно добавить игру: только идущие, свои команды тренера (администратор и тренеры со всеми командами — все)
+  const champEvents = events.filter(e => !isFinished(e) && (showAll || groups.some(g => g.name === e.team || matchTeam(g.name) === e.team)));
   // команды для «Добавить матч»: свои группы тренера; у администратора и тренера со всеми командами — все команды клуба
   const addTeams = [...new Set((showAll ? [...groups.map(g => g.name), ...matches.map(m => m.team), ...events.map(e => e.team)] : groups.map(g => g.name)).filter(playsMatches).map(matchTeam))].sort(compareGroups);
   if (other.length) sections.push({ key: 'other', title: byTour.size ? 'Товарищеские и кубки' : 'Матчи', items: other });
@@ -141,7 +141,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
         sections.map(sec => (
           <section key={sec.key}>
             <p className="ks-label">{sec.title}</p>
-            {sec.event && <ListRow title="Состав и игры события" sub={[eventCounts(sec.event)]} onClick={() => setEventView({ event: sec.event ?? null })} />}
+            {sec.event && <ListRow title="Состав и игры события" sub={[eventCounts(sec.event), ...(isFinished(sec.event) ? ['завершено'] : [])]} onClick={() => setEventView({ event: sec.event ?? null })} />}
             {sec.items.map(m => {
               const done = m.goals_for !== null && m.goals_against !== null;
               const cup = sec.key === 'other' ? tours.get(m.id) : undefined;

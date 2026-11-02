@@ -220,6 +220,37 @@ describe('«Новое событие»', () => {
     expect(screen.getByLabelText('Группа')).toHaveValue('g2');
   });
 
+  it('«Добавить матч»: завершённые соревнования не предлагаются, в списке они помечены', async () => {
+    fake.db.matches = [];
+    fake.rpc.event_list = () => [
+      { id: 'e1', team: 'U9', kind: 'championship', name: 'Championship 2', starts_on: '2026-10-20', players: 0, games: 0, status: 'active' },
+      { id: 'e2', team: 'U9', kind: 'championship', name: 'Championship 1', starts_on: '2026-09-01', players: 0, games: 0, status: 'finished' },
+    ];
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText('Добавить матч'));
+    const card = screen.getByLabelText('Добавить матч');
+    expect(within(card).getByText('Championship 2')).toBeInTheDocument();
+    expect(within(card).queryByText('Championship 1')).not.toBeInTheDocument();
+    expect(screen.getByText('завершено')).toBeInTheDocument();
+  });
+
+  it('администратор завершает и возвращает соревнование, тренеру кнопки нет', async () => {
+    fake.db.matches = [];
+    fake.rpc.event_list = () => [{ id: 'e1', team: 'U9', kind: 'championship', name: 'Championship 2', starts_on: '2026-10-20', players: 0, games: 0, status: 'active' }];
+    fake.rpc.event_roster = () => [];
+    fake.rpc.event_set_status = () => null;
+    const first = render(<CoachMatches groups={groups} admin />);
+    fireEvent.click(await screen.findByText('Состав и игры события'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Завершить соревнование' }));
+    await waitFor(() => expect(fake.rpcCalls('event_set_status')).toEqual([{ t: 'e1', s: 'finished' }]));
+    expect(await screen.findByRole('button', { name: 'Вернуть в работу' })).toBeInTheDocument();
+    first.unmount();
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText('Состав и игры события'));
+    await screen.findByText('Добавить игру', { selector: 'h2' });
+    expect(screen.queryByRole('button', { name: /Завершить соревнование|Вернуть в работу/ })).not.toBeInTheDocument();
+  });
+
   it('в составе события у каждого игрока кнопка «Убрать», пометки «играл в матче» нет', async () => {
     fake.db.matches = [];
     fake.rpc.event_list = () => [{ id: 'e1', team: 'U9', kind: 'championship', name: 'Ч2', starts_on: '2026-11-01', players: 2, games: 0 }];
