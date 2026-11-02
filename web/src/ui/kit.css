@@ -132,7 +132,7 @@ h2.ks-sub, h2.ks-list-head { font-size: 0.8rem; letter-spacing: 0.06em; text-tra
 .ks-list-head { display: flex; justify-content: space-between; margin: 16px 0 8px; padding-bottom: 6px; border-bottom: 2px solid var(--ks-text); }
 
 /* Компактная кнопка, опасное действие, строка слота расписания */
-.ks-btn.sm { width: auto; min-height: 40px; padding: 0 14px; font-size: 14px; flex: none; }
+.ks-btn.sm { width: auto; min-height: var(--ks-tap); padding: 0 14px; font-size: 14px; flex: none; }
 .ks-btn.danger { background: var(--ks-danger-subtle); color: var(--ks-danger-strong); }
 .ks-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 .ks-btns .ks-btn { flex: 1 1 140px; }
