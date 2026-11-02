@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { sortGroups, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, Pill, SearchInput, SwitchRow } from '../ui/components';
+import { CLOSURE_LABELS, closureFlags, useClosure, type ClosureKind } from '../ui/ClosureSheet';
 import { Failure, Loading } from './Message';
 
 interface Group { id: string; name: string }
 export interface Player { id: string; full_name: string }
 interface Price { group_id: string | null; amount: number; valid_from: string; valid_to: string | null }
-export interface Sub { player_id: string; discount: boolean; written_off: boolean }
+export interface Sub { player_id: string; discount: boolean; written_off: boolean; closed_kind?: ClosureKind | null; closed_reason?: string | null }
 
 export const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
 const METHODS = ['Наличные', 'Перевод'];
@@ -76,7 +77,7 @@ export default function MonthPayments() {
     void (async () => {
       const pl = await supabase.from('players').select('id, full_name, group_id').eq('status', 'active').order('full_name').limit(1000);
       const pay = await supabase.from('payments').select('player_id, amount').eq('pay_month', month).limit(5000);
-      const sb = await supabase.from('subscriptions').select('player_id, discount, written_off, group_id').eq('month', month).limit(5000);
+      const sb = await supabase.from('subscriptions').select('player_id, discount, written_off, group_id, closed_kind, closed_reason').eq('month', month).limit(5000);
       if (pl.error) return setError(pl.error.message);
       if (pay.error) return setError(pay.error.message);
       if (sb.error) return setError(sb.error.message);
@@ -173,10 +174,13 @@ export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOp
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const num = Number(amount.replace(',', '.'));
+  const { askClosure, closureDialog } = useClosure();
   const discount = async () => {
+    const a = await askClosure({ title: 'Закрыть месяц без оплаты', lines: [['Игрок', player.full_name], ['Месяц', monthName(month)]] });
+    if (!a) return;
     setBusy(true);
     setErr(null);
-    const r = await supabase.from('subscriptions').upsert({ player_id: player.id, month, discount: true }, { onConflict: 'player_id,month' });
+    const r = await supabase.from('subscriptions').upsert({ player_id: player.id, month, ...closureFlags(a.kind), closed_kind: a.kind, closed_reason: a.reason }, { onConflict: 'player_id,month' });
     setBusy(false);
     if (r.error) return setErr(r.error.message);
     onSaved();
@@ -196,11 +200,12 @@ export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOp
     <div className="ks-card">
       <div className="ks-line">
         <b style={{ overflowWrap: 'anywhere' }}>{title ?? player.full_name}</b>
-        <Pill tone={paidUp ? 'success' : 'danger'} dot>{sub?.written_off ? 'Списано' : sub?.discount ? (got > 0 ? `Скидка · внесено ${gel(got)}` : 'Скидка') : `${gel(got)}${tariff !== null ? ` из ${gel(tariff)}` : ''}`}</Pill>
+        <Pill tone={paidUp ? 'success' : 'danger'} dot>{sub?.written_off || sub?.discount ? `${CLOSURE_LABELS[sub.closed_kind ?? (sub.written_off ? 'forgiven' : 'discount')]}${got > 0 ? ` · внесено ${gel(got)}` : ''}` : `${gel(got)}${tariff !== null ? ` из ${gel(tariff)}` : ''}`}</Pill>
       </div>
+      {(sub?.discount || sub?.written_off) && sub.closed_reason && <p className="ks-muted" style={{ fontSize: 13, margin: '4px 0 0' }}>Причина: {sub.closed_reason}</p>}
       <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} onClick={onOpen}>{open ? 'Свернуть' : 'Внести платёж'}</button>
       {!paidUp && (
-        <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy} onClick={() => void discount()}>Считать оплаченным (скидка)</button>
+        <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy} onClick={() => void discount()}>Закрыть без оплаты</button>
       )}
       {open && (
         <div style={{ marginTop: 8 }}>
@@ -214,6 +219,7 @@ export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOp
           <p className="ks-muted" style={{ fontSize: 13, marginTop: 6 }}>Запись нельзя изменить или удалить: ошибку исправляют записью с минусом.</p>
         </div>
       )}
+      {closureDialog}
     </div>
   );
 }

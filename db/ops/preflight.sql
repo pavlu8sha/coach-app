@@ -101,6 +101,7 @@ select * from (values
   ('0097_payment_cancels',         coalesce((exists (select 1 from information_schema.columns where table_name = 'payments' and column_name = 'cancels')), false)),
   ('0098_equipment_order_status',  coalesce((exists (select 1 from information_schema.columns where table_name = 'equipment_orders' and column_name = 'status')), false)),
   ('0099_payment_info',            coalesce((exists (select 1 from information_schema.tables where table_name = 'payment_info')), false)),
+  ('0100_debt_closure_reason',     coalesce((exists (select 1 from information_schema.columns where table_name = 'subscriptions' and column_name = 'closed_kind')), false)),
   ('0101_camp_guests',             coalesce((exists (select 1 from information_schema.columns where table_name = 'camp_participants' and column_name = 'guest_name')), false))
 ) as t(migration, applied)
 order by migration;

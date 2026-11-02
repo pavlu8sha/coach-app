@@ -54,7 +54,7 @@ export default function PlayerCard({ player, onBack, onEdit }: { player: CardPla
     void (async () => {
       const pr = await supabase.from('prices').select('group_id, amount, valid_from, valid_to').eq('kind', 'subscription');
       const pay = await supabase.from('payments').select('amount, paid_on, pay_month').eq('player_id', player.id).gte('pay_month', SEASON_START).limit(1000);
-      const sb = await supabase.from('subscriptions').select('player_id, month, discount, written_off').eq('player_id', player.id);
+      const sb = await supabase.from('subscriptions').select('player_id, month, discount, written_off, closed_kind, closed_reason').eq('player_id', player.id);
       const cr = await supabase.from('players').select('created_at').eq('id', player.id).maybeSingle();
       if (!cr.error && cr.data?.created_at) setCreated(monthIso(new Date(cr.data.created_at)));
       const eq = await supabase.from('equipment_orders').select('number, ordered_on').eq('player_id', player.id);
