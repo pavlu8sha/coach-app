@@ -103,7 +103,7 @@ export default function Players() {
   return (
     <main className="page">
       <h1>Игроки</h1>
-      <SearchInput value={q} onChange={setQ} placeholder="Поиск: ФИ, ID, группа" label="Поиск игроков" />
+      <SearchInput value={q} onChange={setQ} placeholder="Поиск: ФИ, ID, группа" label="Поиск игроков" suggestions={q.trim().length >= 2 ? list.slice(0, 8).map(p => p.full_name) : []} />
       <div className="two" style={{ marginTop: 8 }}>
         <select className="ks-select" style={{ marginBottom: 0 }} aria-label="Группа" value={gid} onChange={e => setGid(e.target.value)}>
           <option value="">Все группы</option>
