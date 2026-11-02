@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-// Закрытие долга без поступления денег (#260): вид и причина обязательны, пишутся в абонемент вместе с автором и датой (миграция 0098).
+// Закрытие долга без поступления денег (#260): вид и причина обязательны, пишутся в абонемент вместе с автором и датой (миграция 0100).
 export type ClosureKind = 'discount' | 'forgiven' | 'paid_elsewhere';
 export const CLOSURE_LABELS: Record<ClosureKind, string> = { discount: 'Скидка', forgiven: 'Долг прощён', paid_elsewhere: 'Оплачено вне приложения' };
 export const CLOSURE_HINTS: Record<ClosureKind, string> = {
