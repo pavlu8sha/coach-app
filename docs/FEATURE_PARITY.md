@@ -20,7 +20,7 @@
 | Индивидуальные | `appIndData`, `appIndAdd`, `appIndAddEvent`, `appIndPay`, `appIndUnpay`, `appIndPermAdd/Off`, `appIndEventEdit/Delete`, `appIndOfPlayer`, `appIndPlayers`, `appIndRemove` | таблицы перенесены импортом (0003), экранов нет | нет | L |
 | Дополнительные программы | `appExtraData`, `appExtraAdd/Remove`, `appExtraPay/Unpay`, `appExtraAddEvent`, `appExtraEventEdit/Delete`, `appSetExtraPlace`, `appExtraOfPlayer` | данные перенесены, экранов нет | нет | L |
 | Экипировка | `appCatalog`, `appCatalogSave`, `appEquipIssue`, `appEquipOrders`, `appEditOrder`, `appDeleteOrder`, `appAddOrder` | данные перенесены, экранов нет | нет | L |
-| Сборы (Camps) | `appCampData`, `appCampAdd/Update/Pay/Cancel/List`, `appSaveCampList`, `appCampTariffSave`, `appCampSave` | таблицы сборов (0010), экранов нет | нет | L |
+| Сборы (Camps) | `appCampData`, `appCampAdd/Update/Pay/Cancel/List`, `appSaveCampList`, `appCampTariffSave`, `appCampSave` | экран «Сборы» (0037): сборы, тарифы, участники, платежи, список для отправки; гости без заведения игрока клуба (0100, #337) | есть | — |
 | Новые игроки (воронка) | `appFunnelData`, `appFunnelSet`, `appFunnelGroup`, `appFunnelAdd`, `appFunnelCandidates` | экранов нет | нет | M |
 | Посещаемость тренеров (учёт) | `appAccountMonths`, `appTrainingAdd`, `appTrainingsList`, `appAddTrainer`, `appAddTrainerDaily`, `appTrainingOptions`, `appTrainingReplaceTrainers`, `appConfirmDaily` | «Тренеры» (роли и группы) есть; учёта тренировок и оплат тренерам нет | нет | L |
 | Настройки | `appSettings`, `appSettingsSave` | таблица настроек (0010) и выключатели (`parent_debt_enabled`), экрана общих настроек нет | частично | S |
