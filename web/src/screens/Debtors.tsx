@@ -11,6 +11,7 @@ interface Disc { id: string; player_id: string; players: { full_name: string } |
 const METHODS = ['Наличные', 'Перевод'];
 const DEFAULT_TPL = 'Добрый день\nУ вас не оплачен абонемент за {месяц}';
 const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
+const IND_GROUP = 'индивидуальные / вратарские';
 const SEASON_START = '2026-09-01'; // как debt_start() в базе
 const monthIso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
 const monthName = (iso: string) => {
@@ -61,7 +62,17 @@ export default function Debtors() {
       if (w.error) return setError(w.error.message.includes('written_off') ? 'Списание долга ещё не установлено в базе (миграция 0032).' : w.error.message);
       setOffs((w.data ?? []) as unknown as Disc[]);
       setClubId(cid);
-      setRows(((d.data ?? []) as Row[]).map(r => ({ ...r, tariff: Number(r.tariff), paid: Number(r.paid), debt: Number(r.debt) })));
+      // как в «Оплатах за месяц»: в текущем и будущих месяцах группа берётся из карточки игрока; переведённый в индивидуальные абонементом не должен
+      let moved = new Set<string>();
+      if (month >= monthIso(new Date())) {
+        const g = await supabase.from('groups').select('id, name');
+        const pl = await supabase.from('players').select('id, group_id').eq('status', 'active').limit(1000);
+        if (g.error) return setError(g.error.message);
+        if (pl.error) return setError(pl.error.message);
+        const ind = new Set(((g.data ?? []) as { id: string; name: string }[]).filter(x => x.name.trim().toLowerCase() === IND_GROUP).map(x => x.id));
+        moved = new Set(((pl.data ?? []) as { id: string; group_id: string | null }[]).filter(x => x.group_id && ind.has(x.group_id)).map(x => x.id));
+      }
+      setRows(((d.data ?? []) as Row[]).filter(r => !moved.has(r.player_id)).map(r => ({ ...r, tariff: Number(r.tariff), paid: Number(r.paid), debt: Number(r.debt) })));
       setDiscs((s.data ?? []) as unknown as Disc[]);
     })();
   }, [month, reload]);
