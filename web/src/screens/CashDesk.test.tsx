@@ -227,6 +227,28 @@ describe('«Приём оплат»: платежи дня', () => {
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отменить оплату' }));
     await waitFor(() => expect(fake.writes('payments', 'insert')).toEqual([expect.objectContaining({ player_id: 'p1', amount: -50, paid_on: today(), method: 'Наличные' })]));
   });
+  it('если отмена не записалась, показывается ошибка', async () => {
+    seed();
+    fake.db.payments = [{ id: 'x1', player_id: 'p1', amount: 50, paid_on: today(), method: 'Наличные', players: { full_name: 'Иванов Пётр' } }];
+    render(<CashDesk />);
+    await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
+    fake.errors.payments = 'boom';
+    fireEvent.click(screen.getByRole('button', { name: 'Отменить оплату: Иванов Пётр' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отменить оплату' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Отмена не записана/);
+  });
+  it('после записи платежа список долгов остаётся на экране, пока обновляется', async () => {
+    seed();
+    await openPlayer();
+    await screen.findByText(/Внесено 50 ₾ из 165 ₾/);
+    const sub = card(/Внесено 50 ₾ из 165 ₾/);
+    fireEvent.click(within(sub).getByRole('button', { name: 'Принять оплату' }));
+    fireEvent.click(within(sub).getByRole('button', { name: 'Записать платёж' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
+    await screen.findByText('Платёж записан.');
+    // сразу после записи разделы не заменяются на «Загрузка», иначе страница сжимается и прыгает к началу
+    expect(screen.getByRole('heading', { name: 'Сборы' })).toBeInTheDocument();
+  });
   it('«Внесено сегодня»: новые платежи сверху по времени записи, без времени в конце', async () => {
     seed();
     const pl = { full_name: 'Иванов Пётр' };

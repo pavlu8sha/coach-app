@@ -106,6 +106,7 @@ export default function CashDesk() {
   const [payMethod, setPayMethod] = useState('');
   const [todayRows, setTodayRows] = useState<TodayRow[] | null>(null);
   const [cancelling, setCancelling] = useState<string | null>(null);
+  const [cancelErr, setCancelErr] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const { ask, dialog } = useConfirm();
 
@@ -175,8 +176,14 @@ export default function CashDesk() {
     });
     if (!ok) return;
     setCancelling(x.id);
-    await supabase.from('payments').insert({ player_id: x.player_id, amount: -Number(x.amount), paid_on: day, ...(x.pay_month ? { for_month: x.pay_month } : {}), method: x.method ?? 'Исправление' });
+    setCancelErr(null);
+    const { error } = await supabase.from('payments').insert({ player_id: x.player_id, amount: -Number(x.amount), paid_on: day, ...(x.pay_month ? { for_month: x.pay_month } : {}), method: x.method ?? 'Исправление' });
     setCancelling(null);
+    if (error) {
+      // запись не сохранилась: не обновляем список, чтобы не показать отмену, которой нет в базе
+      setCancelErr(`Отмена не записана: ${errText(error.message)}`);
+      return;
+    }
     setReload(n => n + 1);
   };
   const total = (todayRows ?? []).reduce((s, x) => s + Number(x.amount), 0);
@@ -189,6 +196,7 @@ export default function CashDesk() {
   return (
     <main className="page">
       <h1>Приём оплат</h1>
+      {cancelErr && <p className="error" role="alert">{cancelErr}</p>}
       {player ? (
         <>
           <div className="ks-card">
@@ -250,8 +258,10 @@ export function PlayerDues({ player, onBack, embedded = false, sharedMethod }: {
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [msg, setMsg] = useState<string | null>(null);
+  // после записи платежа список обновляется на месте: старый список остаётся на экране, чтобы страница не сжималась и не прыгала к началу
+  const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(() => { void loadDues(player).then(setDues).catch(e => setError(e instanceof Error ? e.message : String(e))); }, [player]);
+  const load = useCallback(() => { void loadDues(player).then(d => { setDues(d); setRefreshing(false); }).catch(e => { setError(e instanceof Error ? e.message : String(e)); setRefreshing(false); }); }, [player]);
   useEffect(() => { load(); }, [load, reload]);
 
   if (error) return <Failure title="Не удалось загрузить долги игрока" text={coachError(error)} onRetry={() => { setError(null); setDues(null); setReload(n => n + 1); }} />;
@@ -271,7 +281,7 @@ export function PlayerDues({ player, onBack, embedded = false, sharedMethod }: {
           <section key={s} data-sec={s}>
             <h3>{s}</h3>
             {dues.filter(d => d.section === s).map(d => (
-              <DueCard key={d.key} due={d} who={player.full_name} sharedMethod={sharedMethod} open={openKey === d.key} onOpen={() => setOpenKey(openKey === d.key ? null : d.key)} onPaid={() => { setOpenKey(null); setMsg('Платёж записан.'); setDues(null); setReload(n => n + 1); }} />
+              <DueCard key={d.key} due={d} who={player.full_name} sharedMethod={sharedMethod} open={openKey === d.key} onOpen={() => setOpenKey(openKey === d.key ? null : d.key)} locked={refreshing} onPaid={() => { setOpenKey(null); setMsg('Платёж записан.'); setRefreshing(true); setReload(n => n + 1); }} />
             ))}
           </section>
         ))
@@ -280,7 +290,7 @@ export function PlayerDues({ player, onBack, embedded = false, sharedMethod }: {
   );
 }
 
-function DueCard({ due, open, onOpen, onPaid, sharedMethod, who }: { due: Due; open: boolean; onOpen: () => void; onPaid: () => void; sharedMethod?: string; who: string }) {
+function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false }: { due: Due; open: boolean; onOpen: () => void; onPaid: () => void; sharedMethod?: string; who: string; locked?: boolean }) {
   const left = r2(due.due - due.paid);
   const [amount, setAmount] = useState(String(left));
   const [ownMethod, setMethod] = useState('');
@@ -314,7 +324,7 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod, who }: { due: Due; o
     <div className="ks-card">
       <div className="ks-line"><b style={{ overflowWrap: 'anywhere' }}>{due.title}</b><Pill tone="danger" dot>{gel(left)}</Pill></div>
       <div className="ks-muted" style={{ fontSize: 13 }}>{due.paid > 0 ? `Внесено ${gel(due.paid)} из ${gel(due.due)}` : `К оплате ${gel(due.due)}`}{due.sub ? ` · ${due.sub}` : ''}</div>
-      <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} onClick={onOpen}>{open ? 'Свернуть' : 'Принять оплату'}</button>
+      <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={locked} onClick={onOpen}>{open ? 'Свернуть' : 'Принять оплату'}</button>
       {open && (
         <div style={{ marginTop: 8 }}>
           {!fixedAmount && <label className="field">Сумма, ₾ (меньше остатка — частичный платёж, останется долг)<input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /></label>}
