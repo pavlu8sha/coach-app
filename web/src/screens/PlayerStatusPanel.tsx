@@ -56,7 +56,9 @@ export default function PlayerStatusPanel({ playerId, status, externalId, onChan
 
   const last = log[0];
   const fromLog = last && last.status === status ? `с ${fmtDate(last.on_date)}${status === 'paused' && last.until_on ? `, вернётся ${fmtDate(last.until_on)}` : ''}` : '';
-  const legacy = [dates.starts_on ? `занимался с ${fmtDate(dates.starts_on)}` : '', status === 'inactive' && dates.ends_on ? `ушёл ${fmtDate(dates.ends_on)}` : ''].filter(Boolean).join(', ');
+  // 01.09.2026 в старой таблице стоит у большинства по умолчанию, а начало позже ухода противоречиво: такую дату начала не показываем
+  const startShown = dates.starts_on && dates.starts_on !== '2026-09-01' && !(dates.ends_on && dates.ends_on < dates.starts_on) ? dates.starts_on : null;
+  const legacy = [startShown ? `занимался с ${fmtDate(startShown)}` : '', status === 'inactive' && dates.ends_on ? `ушёл ${fmtDate(dates.ends_on)}` : ''].filter(Boolean).join(', ');
   const detail = fromLog || legacy;
   const guest = status === 'inactive' && isGuest(externalId);
 
