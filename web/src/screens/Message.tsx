@@ -26,11 +26,12 @@ export function Splash() {
   );
 }
 
-/** Загрузка: скелетон без выдуманных данных. */
-export function Loading() {
+/** Загрузка: скелетон без выдуманных данных. Заголовок экрана известен заранее, его показываем сразу, чтобы он не появлялся рывком. */
+export function Loading(props: { title?: string; rows?: number; avatar?: boolean; card?: boolean; bar?: boolean }) {
   return (
     <main className="page" role="status" aria-label="Загрузка">
-      <SkeletonRows count={4} />
+      {props.title && <h1>{props.title}</h1>}
+      <SkeletonRows count={props.rows ?? 4} avatar={props.avatar} card={props.card} bar={props.bar} />
     </main>
   );
 }
