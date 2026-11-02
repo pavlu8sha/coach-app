@@ -249,14 +249,17 @@ export default function CashDesk() {
           <div className="ks-tile"><b>Всего</b>{gel(total)}</div>
         </div>
       )}
-      {!todayRows ? <Loading /> : todayRows.length === 0 ? <p className="muted">В этот день платежей нет.</p> : todayRows.map(x => (
-        <div key={x.what + x.id}>
-          <ListRow title={x.players?.full_name ?? 'Игрок'} sub={[x.sub ?? [x.what, x.method].filter(Boolean).join(' · ')]} end={<Pill tone={Number(x.amount) < 0 ? 'danger' : 'success'}>{gel(Number(x.amount))}</Pill>} />
-          {x.what === 'Абонемент' && Number(x.amount) > 0 && !isCancelled(x) && (
-            <button type="button" className="ks-btn secondary" style={{ marginTop: -2, marginBottom: 8 }} aria-label={`Отменить оплату: ${x.players?.full_name ?? 'игрок'}`} disabled={cancelling === x.id} onClick={() => void cancelPay(x)}>Отменить оплату</button>
-          )}
-        </div>
-      ))}
+      {!todayRows ? <Loading /> : todayRows.length === 0 ? <p className="muted">В этот день платежей нет.</p> : todayRows.map(x => {
+        const row = <ListRow title={x.players?.full_name ?? 'Игрок'} sub={[x.sub ?? [x.what, x.method].filter(Boolean).join(' · ')]} end={<Pill tone={Number(x.amount) < 0 ? 'danger' : 'success'}>{gel(Number(x.amount))}</Pill>} />;
+        if (!(x.what === 'Абонемент' && Number(x.amount) > 0 && !isCancelled(x))) return <div key={x.what + x.id}>{row}</div>;
+        // Отмена относится к этой оплате: это часть той же карточки, под разделителем.
+        return (
+          <div className="ks-pay-group" key={x.what + x.id}>
+            {row}
+            <button type="button" className="ks-pay-cancel" aria-label={`Отменить оплату: ${x.players?.full_name ?? 'игрок'}`} disabled={cancelling === x.id} onClick={() => void cancelPay(x)}>Отменить оплату</button>
+          </div>
+        );
+      })}
       {dialog}
       <p className="ks-muted" style={{ fontSize: 13 }}>В списке оплаты за день: абонементы, сборы, экипировка и занятия. Отменить можно оплату абонемента кнопкой у строки; остальные оплаты отменяются в своих разделах.</p>
     </main>
