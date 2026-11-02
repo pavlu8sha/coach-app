@@ -50,6 +50,7 @@ export default function PlayerCard({ player, onBack, onEdit, onStatus }: { playe
   const [shirt, setShirt] = useState<string | null>(null); // номер из самого свежего заказа экипировки
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [pauseFrom, setPauseFrom] = useState<string | null>(null); // с какого месяца пауза: дальше пустые месяцы не рисуем
   const [openMonth, setOpenMonth] = useState<string | null>(null);
   const [tab, setTab] = useState<'sub' | 'dues' | 'sessions' | 'equip' | 'matches' | 'points'>('sub');
 
@@ -69,6 +70,14 @@ export default function PlayerCard({ player, onBack, onEdit, onStatus }: { playe
       setSubs(new Map(((sb.data ?? []) as (Sub & { month: string })[]).map(x => [x.month, x])));
     })();
   }, [player.id, reload]);
+
+  useEffect(() => {
+    if (status !== 'paused') return setPauseFrom(null);
+    void supabase.from('player_status_log').select('on_date').eq('player_id', player.id).eq('status', 'paused').order('on_date', { ascending: false }).order('created_at', { ascending: false }).limit(1).then(r => {
+      const d = (r.data as { on_date: string }[] | null)?.[0]?.on_date;
+      setPauseFrom(!r.error && d ? `${d.slice(0, 7)}-01` : null);
+    });
+  }, [player.id, status, reload]);
 
   if (error) return <Failure title="Не удалось загрузить игрока" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} />} />;
   const payMonths = (pays ?? []).map(x => ({ amount: x.amount, month: x.pay_month ?? x.paid_on.slice(0, 7) + '-01' }));
@@ -99,7 +108,7 @@ export default function PlayerCard({ player, onBack, onEdit, onStatus }: { playe
       {tab === 'equip' && <EquipmentTab playerId={player.id} staff />}
       {tab === 'matches' && <MatchesTab playerId={player.id} />}
       {tab === 'points' && <PointsTab playerId={player.id} />}
-      {tab === 'sub' && (pays === null ? <Loading /> : visibleMonths(months, firstMonth([...subs.keys()], payMonths, created, SEASON_START), status !== 'active' ? lastMonth([...subs.keys()], payMonths, firstMonth([...subs.keys()], payMonths, created, SEASON_START)) : null).map(m => {
+      {tab === 'sub' && (pays === null ? <Loading /> : visibleMonths(months, firstMonth([...subs.keys()], payMonths, created, SEASON_START), status === 'paused' && pauseFrom ? lastMonth([], payMonths, pauseFrom) : status !== 'active' ? lastMonth([...subs.keys()], payMonths, firstMonth([...subs.keys()], payMonths, created, SEASON_START)) : null).map(m => {
         const tariff = player.group_id ? tariffFor(prices, player.group_id, m) : null;
         const got = gotIn(m);
         const sub = subs.get(m);

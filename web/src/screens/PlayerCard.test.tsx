@@ -111,6 +111,18 @@ describe('месяцы ушедшего игрока', () => {
   });
 });
 
+describe('карточка игрока на паузе', () => {
+  it('месяцы после начала паузы без платежей не рисуются', async () => {
+    seed();
+    fake.db.payments = [{ amount: 165, paid_on: '2026-09-05', pay_month: '2026-09-01' }];
+    fake.db.player_status_log = [{ player_id: 'p1', status: 'paused', on_date: '2026-09-30', created_at: '2026-11-02T17:00:00Z' }];
+    render(<PlayerCard player={{ ...player, status: 'paused' }} onBack={() => {}} onEdit={() => {}} />);
+    expect(await screen.findByText(/Сентябрь 2026/)).toBeInTheDocument();
+    expect(screen.queryByText(/Октябрь 2026/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Ноябрь 2026/)).not.toBeInTheDocument();
+  });
+});
+
 describe('firstMonth', () => {
   it('платёж и его отмена не открывают месяц', async () => {
     const { firstMonth } = await import('./PlayerCard');
