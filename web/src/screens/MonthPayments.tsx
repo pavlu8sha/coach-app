@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { sortGroups, today } from '../lib/coach';
+import { settingNumber, useClubSettings } from '../lib/clubSettings';
 import { supabase } from '../lib/supabase';
 import { EmptyState, Pill, SearchInput, SwitchRow } from '../ui/components';
 import { Failure, Loading } from './Message';
@@ -47,6 +48,13 @@ export default function MonthPayments() {
     return out;
   }, []);
   const [month, setMonth] = useState(monthIso(new Date()));
+  // С заданного числа (по умолчанию с 22-го) экран открывается на следующем месяце, пока администратор сам не выбрал другой.
+  const settings = useClubSettings();
+  const picked = useRef(false);
+  useEffect(() => {
+    if (!settings.loaded || picked.current) return;
+    if (new Date().getDate() >= settingNumber(settings.values, 'payments.next_month_day')) setMonth(nextMonth(monthIso(new Date())));
+  }, [settings.loaded, settings.values]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [prices, setPrices] = useState<Price[]>([]);
   const [players, setPlayers] = useState<Pl[] | null>(null);
@@ -123,7 +131,7 @@ export default function MonthPayments() {
     <main className="page">
       <h1>Оплаты за месяц</h1>
       <div className="ks-pair">
-        <select className="ks-select" aria-label="Месяц" value={month} onChange={e => { setPlayers(null); setOpenId(null); setMonth(e.target.value); }}>
+        <select className="ks-select" aria-label="Месяц" value={month} onChange={e => { picked.current = true; setPlayers(null); setOpenId(null); setMonth(e.target.value); }}>
           {months.map(m => <option key={m} value={m}>{monthName(m)}</option>)}
         </select>
         <SwitchRow id="md" label="Только должники" checked={onlyDebt} onChange={setOnlyDebt} />

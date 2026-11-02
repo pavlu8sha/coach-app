@@ -113,6 +113,30 @@ describe('«Экипировка»', () => {
     expect(call.custom_total).toBeNull();
   });
 
+  it('новый заказ: скидка на комплект считается с учётом прошлых заказов игрока (#339)', async () => {
+    seed();
+    fake.db.equipment_catalog = [
+      { kit: 'Тренировочная форма', price: 160, valid_from: '2026-01-01' },
+      { kit: 'Спортивный костюм', price: 150, valid_from: '2026-01-01' },
+      { kit: 'Дождевик', price: 110, valid_from: '2026-01-01' },
+    ];
+    fake.db.equipment_orders = [{ id: 'o9', player_id: 'p1', ordered_on: '2026-09-01', total: 200, paid: 200, installment: false, number: '7', inscription: null, location: null, status: 'issued', equipment_order_status_history: [], players: { full_name: 'Иванов Пётр' }, equipment_order_lines: [{ kit: 'Игровая форма', size: '128', quantity: 1 }], equipment_issues: [] }];
+    fake.db.clubs = [{ id: 'c1' }];
+    fake.db.club_settings = [];
+    fake.rpc.eq_create_order = () => 'o10';
+    render(<Equipment />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Новый заказ' }));
+    fireEvent.change(screen.getByLabelText('Найти игрока'), { target: { value: 'Иванов' } });
+    fireEvent.click(await screen.findByText('Иванов Пётр'));
+    fireEvent.click(await screen.findByLabelText(/Тренировочная форма/));
+    fireEvent.click(screen.getByLabelText(/Спортивный костюм/));
+    fireEvent.click(screen.getByLabelText(/Дождевик/));
+    expect(screen.getByText('По каталогу: 420 ₾')).toBeInTheDocument();
+    expect(await screen.findByText(/Скидка 15%: 355 ₾ вместо 420 ₾/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Создать заказ' }));
+    await waitFor(() => expect(fake.rpcCalls('eq_create_order')[0]).toMatchObject({ p: 'p1', custom_total: 355 }));
+  });
+
   it('заказ с оплатой: ошибка удаления объясняет, что делать', async () => {
     seed();
     fake.rpc.eq_delete_order = () => ({ error: { message: 'order has payments' } });
