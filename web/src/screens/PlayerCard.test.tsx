@@ -79,7 +79,6 @@ describe('карточка игрока: вкладки', () => {
     const card = (await screen.findByText(/Вратари/)).closest('.ks-card') as HTMLElement;
     fireEvent.click(within(card).getByRole('button', { name: 'Принять оплату' }));
     const field = within(card).getByLabelText('Способ').closest('.field') as HTMLElement;
-    expect(field.parentElement?.classList.contains('two')).toBe(false);
     expect(field.parentElement?.querySelector('span:empty')).toBeNull();
   });
 

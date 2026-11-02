@@ -79,6 +79,8 @@ async function loadDues(p: Pl): Promise<Due[]> {
   return out;
 }
 
+// время записи платежа по Тбилиси, ЧЧ:ММ
+const timeOf = (iso: string) => new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tbilisi' }).format(new Date(iso));
 type TodayRow = { id: string; amount: number; method: string | null; recorded_at?: string | null; what: string; kind?: string; player_id?: string; pay_month?: string | null; detail?: string; sub?: string; players: { full_name: string } | null };
 const monthShort = (iso: string) => `${iso.slice(5, 7)}.${iso.slice(2, 4)}`; // 2026-10-01 → 10.26
 const CAMP_KIND: Record<string, string> = { booking: 'Бронь', payment: 'Оплата', refund: 'Возврат' };
@@ -125,10 +127,10 @@ export default function CashDesk() {
       const rows = ((a.data ?? []) as unknown as { id: string; amount: number; method: string | null; player_id: string; pay_month?: string | null; players: { full_name: string } | null }[]).map(x => ({ ...x, what: 'Абонемент' }));
       const camp = c.error ? [] : ((c.data ?? []) as unknown as { id: string; amount: number; method: string | null; kind: string; player_id?: string; players: { full_name: string } | null; camps?: { name: string } | null }[]).map(x => ({ ...x, what: 'Сбор', detail: x.camps?.name }));
       const svc = await supabase.rpc('cash_day_service', { p_day: day });
-      const service = svc.error ? [] : ((svc.data ?? []) as unknown as { id: string; amount: number; method: string | null; what: string; player_id: string; full_name: string }[]).map(x => ({ id: x.id, amount: x.amount, method: x.method, what: x.what, player_id: x.player_id, players: { full_name: x.full_name } }));
-      // новые сверху по времени записи; платежи без времени (импорт) в конце, затем экипировка и занятия (времени в выдаче нет)
+      const service = svc.error ? [] : ((svc.data ?? []) as unknown as { id: string; amount: number; method: string | null; what: string; player_id: string; full_name: string; recorded_at?: string | null }[]).map(x => ({ id: x.id, amount: x.amount, method: x.method, what: x.what, recorded_at: x.recorded_at ?? null, player_id: x.player_id, players: { full_name: x.full_name } }));
+      // все виды платежей одним списком: новые сверху по времени записи; платежи без времени (импорт) в конце
       const byTime = (x: TodayRow, y: TodayRow) => (y.recorded_at ?? '').localeCompare(x.recorded_at ?? '') || String(x.id ?? '').localeCompare(String(y.id ?? ''));
-      const all: TodayRow[] = [...([...rows, ...camp] as TodayRow[]).sort(byTime), ...service];
+      const all: TodayRow[] = ([...rows, ...camp, ...service] as TodayRow[]).sort(byTime);
       // группа: по абонементу месяца платежа, иначе текущая группа игрока
       const ids = [...new Set(all.map(x => x.player_id).filter((v): v is string => !!v))];
       const gById = new Map<string, string>();
@@ -151,7 +153,8 @@ export default function CashDesk() {
         const pid = x.player_id;
         const group = pid ? (x.what === 'Абонемент' && x.pay_month ? gBySub.get(`${pid}|${x.pay_month}`) : undefined) ?? gById.get(pid) : undefined;
         const detail = x.what === 'Абонемент' ? (x.pay_month ? monthShort(x.pay_month) : undefined) : x.what === 'Экипировка' && pid && kits.has(pid) ? (kits.get(pid) as string[]).join(' + ') : x.detail;
-        return { ...x, sub: payLine(x, group, detail) };
+        const line = payLine(x, group, detail);
+        return { ...x, sub: x.recorded_at ? `${timeOf(x.recorded_at)} · ${line}` : line };
       }));
     })();
   }, [reload, player, day]);
@@ -313,7 +316,7 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod, who }: { due: Due; o
         <div style={{ marginTop: 8 }}>
           {!fixedAmount && <label className="field">Сумма, ₾ (меньше остатка — частичный платёж, останется долг)<input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /></label>}
           {(() => {
-            const dateField = due.kind === 'sub' || due.kind === 'camp' ? <label className="field">Дата<input type="date" value={date} max={today()} onChange={e => setDate(e.target.value)} /></label> : null;
+            const dateField = due.kind === 'sub' || due.kind === 'camp' || due.kind === 'ind' || due.kind === 'extra' ? <label className="field">Дата<input type="date" value={date} max={today()} onChange={e => setDate(e.target.value)} /></label> : null;
             const methodField = sharedMethod !== undefined ? null : <label className="field">Способ<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>;
             return dateField && methodField ? <div className="two">{dateField}{methodField}</div> : dateField ?? methodField;
           })()}

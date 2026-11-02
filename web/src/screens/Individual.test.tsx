@@ -79,8 +79,9 @@ describe('«Индивидуальные»', () => {
     fireEvent.click(await screen.findByText('10.01.2099 12:00 · Индивидуальные'));
     const ivan = (await screen.findByText('Иванов Пётр')).closest('.ks-card') as HTMLElement;
     fireEvent.change(screen.getByLabelText(/^Способ оплаты/), { target: { value: 'Наличные' } });
+    fireEvent.change(screen.getByLabelText('Дата платежа'), { target: { value: '2020-01-05' } });
     fireEvent.click(within(ivan).getByRole('button', { name: 'Отметить оплату' }));
-    await waitFor(() => expect(fake.rpcCalls('ind_set_paid')).toEqual([{ s: 's1', p: 'p1', is_paid: true, mth: 'Наличные' }]));
+    await waitFor(() => expect(fake.rpcCalls('ind_set_paid')).toEqual([{ s: 's1', p: 'p1', is_paid: true, mth: 'Наличные', d: '2020-01-05' }]));
     fireEvent.click(within(ivan).getByRole('tab', { name: 'Был(а)' }));
     await waitFor(() => expect(fake.rpcCalls('ind_set_attended')).toEqual([{ s: 's1', p: 'p1', was: true }]));
     fireEvent.click(within(ivan).getByRole('button', { name: 'Убрать' }));
