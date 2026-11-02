@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { describe, expect, it, vi } from 'vitest';
 import { today } from '../lib/coach';
 import { fake } from '../test/fakeSupabase';
-import CashDesk from './CashDesk';
+import CashDesk, { PlayerDues } from './CashDesk';
 import { monthIso, nextMonth } from './MonthPayments';
 
 // Дата зафиксирована в середине месяца: в первый день месяца платёж «за месяц» совпадал с сегодняшним, и тесты падали (1 ноября).
@@ -248,6 +248,23 @@ describe('«Приём оплат»: платежи дня', () => {
     await screen.findByText('Платёж записан.');
     // сразу после записи разделы не заменяются на «Загрузка», иначе страница сжимается и прыгает к началу
     expect(screen.getByRole('heading', { name: 'Сборы' })).toBeInTheDocument();
+  });
+  it('карточка долга: сумма в плашке подписана для читалки, класс для компактной раскладки', async () => {
+    seed();
+    await openPlayer();
+    await screen.findByText(/Внесено 50 ₾ из 165 ₾/);
+    const sub = card(/Внесено 50 ₾ из 165 ₾/);
+    expect(sub).toHaveClass('ks-due');
+    expect(within(sub).getByRole('img', { name: 'Осталось оплатить 115 ₾' })).toBeInTheDocument();
+  });
+  it('в карточке игрока дата и способ лежат в блоке pay-fields: на 320 px он ставится в один столбец', async () => {
+    seed();
+    render(<PlayerDues embedded player={{ id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', groups: { name: 'U9-A' }, status: 'active' }} />);
+    await screen.findByText(/Внесено 50 ₾ из 165 ₾/);
+    const sub = card(/Внесено 50 ₾ из 165 ₾/);
+    fireEvent.click(within(sub).getByRole('button', { name: 'Принять оплату' }));
+    expect(within(sub).getByLabelText('Дата').closest('.two')).toHaveClass('pay-fields');
+    expect(within(sub).getByLabelText('Способ')).toBeInTheDocument();
   });
   it('«Внесено сегодня»: новые платежи сверху по времени записи, без времени в конце', async () => {
     seed();

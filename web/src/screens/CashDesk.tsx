@@ -321,8 +321,8 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false 
     onPaid();
   };
   return (
-    <div className="ks-card">
-      <div className="ks-line"><b style={{ overflowWrap: 'anywhere' }}>{due.title}</b><Pill tone="danger" dot>{gel(left)}</Pill></div>
+    <div className="ks-card ks-due">
+      <div className="ks-line"><b style={{ overflowWrap: 'anywhere' }}>{due.title}</b><span role="img" aria-label={`Осталось оплатить ${gel(left)}`}><Pill tone="danger" dot>{gel(left)}</Pill></span></div>
       <div className="ks-muted" style={{ fontSize: 13 }}>{due.paid > 0 ? `Внесено ${gel(due.paid)} из ${gel(due.due)}` : `К оплате ${gel(due.due)}`}{due.sub ? ` · ${due.sub}` : ''}</div>
       <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={locked} onClick={onOpen}>{open ? 'Свернуть' : 'Принять оплату'}</button>
       {open && (
@@ -331,7 +331,7 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false 
           {(() => {
             const dateField = due.kind === 'sub' || due.kind === 'camp' || due.kind === 'ind' || due.kind === 'extra' ? <label className="field">Дата<input type="date" value={date} max={today()} onChange={e => setDate(e.target.value)} /></label> : null;
             const methodField = sharedMethod !== undefined ? null : <label className="field">Способ<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>;
-            return dateField && methodField ? <div className="two">{dateField}{methodField}</div> : dateField ?? methodField;
+            return dateField && methodField ? <div className="two pay-fields">{dateField}{methodField}</div> : dateField ?? methodField;
           })()}
           {err && <p className="error">{err}</p>}
           <button type="button" className="ks-btn" disabled={busy} onClick={() => void save()}>{fixedAmount ? `Отметить оплаченным (${gel(left)})` : 'Записать платёж'}</button>
