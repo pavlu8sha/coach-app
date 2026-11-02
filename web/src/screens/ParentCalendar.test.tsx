@@ -44,4 +44,14 @@ describe('календарь родителя', () => {
     expect(await screen.findByText('События не загрузились')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Повторить' })).toBeInTheDocument();
   });
+
+  it('дни месяца — обычные кнопки в группе, без недопустимых ролей таблицы', async () => {
+    fake.rpc.parent_calendar = () => [];
+    const { container } = render(<ParentCalendar />);
+    await screen.findByText('Календарь ребёнка');
+    expect(container.querySelector('[role="grid"], [role="gridcell"], [role="columnheader"]')).toBeNull();
+    const days = container.querySelectorAll('button[aria-pressed]');
+    expect(days.length).toBeGreaterThanOrEqual(28);
+    expect(screen.getByRole('group', { name: /^Дни / })).toBeInTheDocument();
+  });
 });

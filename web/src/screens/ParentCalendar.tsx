@@ -164,20 +164,19 @@ export default function ParentCalendar() {
 
       <section aria-label="Календарь событий" style={{ maxWidth: 560, margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12 }}>
-          <button type="button" className="ks-btn sm" aria-label="Предыдущий месяц" onClick={() => shiftMonth(-1)}>‹</button>
+          <button type="button" className="ks-btn sm ks-tap" aria-label="Предыдущий месяц" onClick={() => shiftMonth(-1)}>‹</button>
           <h2 style={{ margin: 0, textTransform: 'capitalize', fontSize: 18 }}>{formatMonth(month)}</h2>
-          <button type="button" className="ks-btn sm" aria-label="Следующий месяц" onClick={() => shiftMonth(1)}>›</button>
+          <button type="button" className="ks-btn sm ks-tap" aria-label="Следующий месяц" onClick={() => shiftMonth(1)}>›</button>
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-          <button type="button" className="ks-btn sm" onClick={goToday}>Сегодня</button>
+          <button type="button" className="ks-btn sm ks-tap" onClick={goToday}>Сегодня</button>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 4 }} role="grid" aria-label={formatMonth(month)}>
-          {WEEKDAYS.map(day => <div key={day} role="columnheader" style={{ textAlign: 'center', fontSize: 12, color: 'var(--ks-text-muted, #5a6584)', padding: '6px 0' }}>{day}</div>)}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 4 }} role="group" aria-label={`Дни ${formatMonth(month)}`}>
+          {WEEKDAYS.map(day => <div key={day} aria-hidden="true" style={{ textAlign: 'center', fontSize: 12, color: 'var(--ks-text-muted, #5a6584)', padding: '6px 0' }}>{day}</div>)}
           {cells.map((date, index) => date ? (
             <button
               key={date}
               type="button"
-              role="gridcell"
               aria-label={`${formatDate(date)}${eventDays.has(date) ? `, событий: ${eventDays.get(date)?.length}` : ''}`}
               aria-pressed={date === selectedDate}
               onClick={() => setSelectedDate(date)}
