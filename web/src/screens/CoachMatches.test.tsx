@@ -196,19 +196,19 @@ describe('«Новое событие»', () => {
     expect(await screen.findByText('Иванов Пётр')).toBeInTheDocument();
   });
 
-  it('игрок, попавший в состав только через матч, без кнопки «Убрать»', async () => {
+  it('в составе события у каждого игрока кнопка «Убрать», пометки «играл в матче» нет', async () => {
     fake.db.matches = [];
     fake.rpc.event_list = () => [{ id: 'e1', team: 'U9', kind: 'championship', name: 'Ч2', starts_on: '2026-11-01', players: 2, games: 0 }];
     fake.rpc.event_roster = () => [
-      { player_id: 'p1', full_name: 'Иванов Пётр', group_name: 'U9', in_fees: true },
-      { player_id: 'p2', full_name: 'Руб Дан', group_name: 'U10', in_fees: false },
+      { player_id: 'p1', full_name: 'Иванов Пётр', group_name: 'U9' },
+      { player_id: 'p2', full_name: 'Руб Дан', group_name: 'U10' },
     ];
     render(<CoachMatches groups={groups} allTeams />);
     fireEvent.click(await screen.findByText('Состав и игры события'));
     await screen.findByText('Руб Дан');
     expect(screen.getByRole('button', { name: 'Убрать: Иванов Пётр' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Убрать: Руб Дан' })).toBeNull();
-    expect(screen.getByText('играл в матче')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Убрать: Руб Дан' })).toBeInTheDocument();
+    expect(screen.queryByText('играл в матче')).toBeNull();
   });
 
   it('создание события уходит в базу без взноса от тренера', async () => {

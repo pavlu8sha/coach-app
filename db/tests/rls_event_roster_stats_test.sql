@@ -1,4 +1,4 @@
--- pgTAP: состав события включает игравших без взноса; статистика матчей фильтруется по виду (0060).
+-- pgTAP: состав события = заявка (0094), игравший только в матче в него не входит; статистика матчей фильтруется по виду (0060).
 begin;
 create extension if not exists pgtap;
 select plan(8);
@@ -25,10 +25,10 @@ begin
 end $$;
 select as_user('00000000-0000-0000-0000-0000000000a1');
 
-select is((select count(*)::int from event_roster('00000000-0000-0000-0000-0000000000f1')), 2, 'в составе события и тот, у кого есть взнос, и игравший без взноса');
-select ok(exists (select 1 from event_roster('00000000-0000-0000-0000-0000000000f1') where full_name = 'Ушедший игрок'), 'ушедший игрок виден в составе события');
-select is((select players from event_list() where id = '00000000-0000-0000-0000-0000000000f1'), 2, 'счётчик event_list равен размеру состава (0091)');
-select is((select in_fees from event_roster('00000000-0000-0000-0000-0000000000f1') where full_name = 'Ушедший игрок'), false, 'игрок только из состава матча: in_fees = false (0091)');
+select is((select count(*)::int from event_roster('00000000-0000-0000-0000-0000000000f1')), 1, 'в составе события только заявленный (0094)');
+select ok(not exists (select 1 from event_roster('00000000-0000-0000-0000-0000000000f1') where full_name = 'Ушедший игрок'), 'игравший только в матче не попадает в состав события');
+select is((select players from event_list() where id = '00000000-0000-0000-0000-0000000000f1'), 1, 'счётчик event_list равен размеру заявки (0094)');
+select is((select played from match_players where match_id = '00000000-0000-0000-0000-0000000000b1' and player_id = '00000000-0000-0000-0000-00000000d002'), true, 'запись в составе матча сохраняется');
 select is((select sum(games)::int from match_stats('2026-10-01', '2026-10-31') where kind = 'team'), 2, 'без фильтра видны все игры');
 select is((select sum(games)::int from match_stats('2026-10-01', '2026-10-31', 'championship') where kind = 'team'), 1, 'фильтр «чемпионат»');
 select is((select sum(games)::int from match_stats('2026-10-01', '2026-10-31', 'friendly') where kind = 'team'), 1, 'фильтр «товарищеские»');
