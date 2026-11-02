@@ -106,7 +106,7 @@ describe('«Экипировка»', () => {
     fireEvent.change(screen.getByLabelText('Размер: Форма'), { target: { value: '128' } });
     fireEvent.change(screen.getByLabelText('Номер'), { target: { value: '7' } });
     fireEvent.click(screen.getByRole('button', { name: 'Создать заказ' }));
-    expect(await screen.findByText(/Номер 7 уже занят другим игроком группы/)).toBeInTheDocument();
+    expect(await screen.findByText('Этот номер уже занят в группе.')).toBeInTheDocument();
     const call = fake.rpcCalls('eq_create_order')[0];
     expect(call.p).toBe('p1');
     expect(call.lines).toEqual([{ kit: 'Форма', size: '128', quantity: 1 }, { kit: 'Куртка', size: '', quantity: 1 }]);
@@ -137,9 +137,16 @@ describe('«Экипировка»', () => {
     await waitFor(() => expect(fake.rpcCalls('eq_create_order')[0]).toMatchObject({ p: 'p1', custom_total: 355 }));
   });
 
-  it('номер занят: сообщение называет игрока, у которого он записан', async () => {
+  it('номер занят: называем только игрока из той же возрастной группы, чужие группы и самого игрока не показываем', async () => {
     seed();
-    fake.db.equipment_orders = [...fake.db.equipment_orders, { id: 'o7', player_id: 'p7', number: '19', players: { full_name: 'Другой Игрок', groups: { name: 'U9-A' } }, equipment_order_lines: [], equipment_issues: [], equipment_order_status_history: [] }];
+    const ord = (id: string, pid: string, name: string, grp: string, number: string) => ({ id, player_id: pid, number, players: { full_name: name, groups: { name: grp } }, equipment_order_lines: [], equipment_issues: [], equipment_order_status_history: [] });
+    fake.db.equipment_orders = [
+      ...fake.db.equipment_orders,
+      ord('o7', 'p7', 'Тот Же Возраст', 'U9-B', '19'),
+      ord('o8', 'p8', 'Другая Группа', 'U11', '19'),
+      ord('o9', 'p9', 'Площадка Исани', 'Isani', '19'),
+    ];
+    fake.db.players = [{ id: 'p1', full_name: 'Иванов Пётр', groups: { location: null, name: 'U9-A' } }];
     fake.rpc.eq_create_order = () => ({ error: { message: 'number taken' } });
     render(<Equipment />);
     fireEvent.click(await screen.findByRole('button', { name: 'Новый заказ' }));
@@ -148,7 +155,10 @@ describe('«Экипировка»', () => {
     fireEvent.click(await screen.findByLabelText(/Форма/));
     fireEvent.change(screen.getByLabelText('Номер'), { target: { value: '19' } });
     fireEvent.click(screen.getByRole('button', { name: 'Создать заказ' }));
-    expect(await screen.findByText(/Номер 19 уже занят другим игроком группы: Другой Игрок \(U9-A\)/)).toBeInTheDocument();
+    const msg = await screen.findByText(/Номер 19 уже занят в группе U9-A/);
+    expect(msg.textContent).toContain('Тот Же Возраст (U9-B)');
+    expect(msg.textContent).not.toContain('Другая Группа');
+    expect(msg.textContent).not.toContain('Площадка Исани');
   });
 
   it('заказ с оплатой: ошибка удаления объясняет, что делать', async () => {

@@ -245,8 +245,8 @@ function RequirementEditor({ onBack }: { onBack: () => void }) {
 function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
   const { kits } = useCatalog();
   const [q, setQ] = useState('');
-  const [found, setFound] = useState<{ id: string; full_name: string; groups?: { location: string | null } | null }[]>([]);
-  const [player, setPlayer] = useState<{ id: string; full_name: string } | null>(null);
+  const [found, setFound] = useState<{ id: string; full_name: string; groups?: { location: string | null; name?: string | null } | null }[]>([]);
+  const [player, setPlayer] = useState<{ id: string; full_name: string; groups?: { name?: string | null } | null } | null>(null);
   const [pick, setPick] = useState<Record<string, { size: string; quantity: number }>>({});
   const [insc, setInsc] = useState('');
   const [number, setNumber] = useState('');
@@ -272,7 +272,7 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
   useEffect(() => {
     if (q.trim().length < 2) return setFound([]);
     const t = setTimeout(() => {
-      void supabase.from('players').select('id, full_name, groups(location)').ilike('full_name', `%${q.trim()}%`).order('full_name').limit(8).then(r => {
+      void supabase.from('players').select('id, full_name, groups(location, name)').ilike('full_name', `%${q.trim()}%`).order('full_name').limit(8).then(r => {
         if (!r.error) setFound((r.data ?? []) as unknown as { id: string; full_name: string; groups?: { location: string | null } | null }[]);
       });
     }, 250);
@@ -300,11 +300,18 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
     setBusy(false);
     if (r.error) {
       if (!r.error.message.includes('number taken')) return setErr(errText(r.error.message));
-      // Номер занят другим игроком группы: показываем, кем именно, чтобы было видно, свой это номер или чужой.
+      // Номер занят другим игроком той же возрастной группы (как в базе: «U10-A» и «U10-B» считаются одной группой U10).
+      // Показываем, кем именно, чтобы было видно, свой это номер или чужой.
       const t = number.trim();
-      const o = await supabase.from('equipment_orders').select('player_id, number, players(full_name, groups(name))').eq('number', t).neq('player_id', player.id).limit(3);
-      const who = ((o.data ?? []) as unknown as { players: { full_name: string; groups: { name: string } | null } | null }[]).map(x => x.players ? `${x.players.full_name}${x.players.groups ? ` (${x.players.groups.name})` : ''}` : '').filter(Boolean);
-      return setErr(who.length ? `Номер ${t} уже занят другим игроком группы: ${who.join(', ')}. Если это тот же ребёнок, объедините его карточки.` : errText(r.error.message));
+      const family = (n: string | null | undefined) => (n ?? '').toLowerCase().replace(/-.*$/, '');
+      const norm = (n: string | null | undefined) => (n ?? '').replace(/\//g, ',').replace(/\s+/g, '');
+      const mine = family(player.groups?.name);
+      const o = await supabase.from('equipment_orders').select('player_id, number, players(full_name, groups(name))').ilike('number', `%${t}%`).neq('player_id', player.id).limit(200);
+      type Who = { players: { full_name: string; groups: { name: string } | null } | null; number: string | null };
+      const who = [...new Set(((o.data ?? []) as unknown as Who[])
+        .filter(x => x.players && norm(x.number) === norm(t) && mine !== '' && family(x.players.groups?.name) === mine)
+        .map(x => `${x.players!.full_name} (${x.players!.groups?.name})`))].slice(0, 3);
+      return setErr(who.length ? `Номер ${t} уже занят в группе ${player.groups?.name ?? ''}: ${who.join(', ')}. Если это тот же ребёнок, объедините его карточки.` : errText(r.error.message));
     }
     onDone();
   };
