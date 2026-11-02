@@ -171,7 +171,7 @@ describe('«Оплаты за месяц»: когда предлагать сл
 
   it('число берётся из настроек клуба', async () => {
     vi.setSystemTime(new Date(2026, 9, 22, 12, 0, 0));
-    fake.db.club_settings = [{ club_id: 'c1', key: 'payments.next_month_day', scope: '', value: '25' }];
+    fake.db.club_settings = [{ club_id: 'c1', key: 'payments.nextMonthDay', scope: '', value: '25' }];
     await opened();
     await new Promise(r => setTimeout(r, 30));
     expect((screen.getByRole('combobox', { name: 'Месяц' }) as HTMLSelectElement).value).toBe('2026-10-01');

@@ -24,7 +24,7 @@ import Group from './screens/Group';
 import Sessions from './screens/Sessions';
 import ChildHome, { ChildCode, type ChildPlayer } from './screens/ChildHome';
 import ChildMatches from './screens/ChildMatches';
-import { compareGroups, type CoachGroup } from './lib/coach';
+import { compareGroups, setGroupOrder, type CoachGroup } from './lib/coach';
 import { BottomNav } from './ui/components';
 import { coachBar } from './lib/coachMenu';
 import Stats from './screens/Stats';
@@ -134,6 +134,8 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
       if (!cid) return;
       const st = await supabase.from('club_settings').select('value').eq('club_id', cid).eq('key', MENU_KEY).maybeSingle();
       if (!st.error) setBar(parseBar((st.data as { value: string } | null)?.value));
+      const ord = await supabase.from('club_settings').select('value').eq('club_id', cid).eq('key', 'groups.order').eq('scope', '').maybeSingle();
+      if (!ord.error) setGroupOrder((ord.data as { value: string | null } | null)?.value ?? ''); // свой порядок групп из настроек клуба
     })();
   }, [adminReal, menuKey]);
   useEffect(() => {

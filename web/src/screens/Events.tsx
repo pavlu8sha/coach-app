@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { coachError, fmtDate, matchTeam, today, type CoachGroup } from '../lib/coach';
+import { champFeeFor, useClubSettings } from '../lib/clubSettings';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Segmented, NameDatalist, searchFocusProps } from '../ui/components';
 import { BackNav } from '../ui/nav';
@@ -22,6 +23,9 @@ export function EventForm({ teams, events, admin, onBack, onCreated }: { teams: 
   const [name, setName] = useState('');
   const [date, setDate] = useState(today());
   const [fee, setFee] = useState('');
+  const cfg = useClubSettings();
+  // Для чемпионата подставляется взнос из настроек клуба (свой у команды или общий); любое введённое значение важнее.
+  const defaultFee = admin && kind === 'championship' ? champFeeFor(cfg.values, cfg.scoped, team) : null;
   const [copy, setCopy] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -30,7 +34,7 @@ export function EventForm({ teams, events, admin, onBack, onCreated }: { teams: 
     if (!team) return setErr('Выберите команду.');
     setBusy(true);
     setErr(null);
-    const r = await supabase.rpc('event_create', { k: kind, tm: team, nm: name, d: date || null, fee: admin && fee !== '' ? Number(fee) : null, copy_from: copy || null });
+    const r = await supabase.rpc('event_create', { k: kind, tm: team, nm: name, d: date || null, fee: admin ? (fee !== '' ? Number(fee) : defaultFee) : null, copy_from: copy || null });
     setBusy(false);
     if (r.error) return setErr(coachError(r.error.message));
     onCreated(r.data as string);
@@ -52,7 +56,7 @@ export function EventForm({ teams, events, admin, onBack, onCreated }: { teams: 
       {admin && (
         <>
           <label className="ks-label" htmlFor="e-fee">Взнос с игрока, ₾</label>
-          <input id="e-fee" className="ks-input" inputMode="decimal" value={fee} onChange={e => setFee(e.target.value.replace(/[^\d.]/g, '').slice(0, 7))} placeholder="0" />
+          <input id="e-fee" className="ks-input" inputMode="decimal" value={fee} onChange={e => setFee(e.target.value.replace(/[^\d.]/g, '').slice(0, 7))} placeholder={defaultFee !== null ? String(defaultFee) : '0'} />
         </>
       )}
       {sameTeam.length > 0 && (

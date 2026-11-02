@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import { SETTINGS, settingError, settingText, useClubSettings, type SettingDef, type SettingValues } from '../lib/clubSettings';
+import { setGroupOrder } from '../lib/coach';
+import { CHAMP_FEE_KEY, SETTINGS, settingError, settingText, useClubSettings, type SettingDef, type SettingValues } from '../lib/clubSettings';
 import { supabase } from '../lib/supabase';
 import { Pill } from '../ui/components';
 import { Loading } from './Message';
 
 // «Настройки клуба» (#339): общие значения, которые раньше были зашиты в код или стояли в старом приложении.
-// Пустое поле и «По умолчанию» убирают запись, тогда действует значение по умолчанию.
+// В поле всегда стоит действующее значение. Пустое поле у настройки без значения по умолчанию и «По умолчанию» убирают запись.
 
-function Row({ def, saved, clubId, onSaved }: { def: SettingDef; saved: string | undefined; clubId: string; onSaved: () => void }) {
+function Row({ def, scope = '', title, saved, clubId, resetLabel = 'По умолчанию', showDefault = true, onSaved }: {
+  def: SettingDef; scope?: string; title?: string; saved: string | undefined; clubId: string; resetLabel?: string; showDefault?: boolean; onSaved: () => void;
+}) {
   const custom = saved !== undefined && saved.trim() !== '';
   const effective = custom ? saved!.trim() : def.def;
-  // В поле всегда стоит действующее значение (своё или по умолчанию), как обычный текст, а не серая подсказка.
   const [value, setValue] = useState(effective);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -22,39 +24,42 @@ function Row({ def, saved, clubId, onSaved }: { def: SettingDef; saved: string |
     prev.current = effective;
     setValue(effective);
   }, [effective]);
-  const inputId = `setting-${def.key}`;
+  const inputId = `setting-${def.key}-${scope}`;
+  const defText = def.def === '' ? (def.emptyLabel ?? 'не задано') : def.def;
 
-  const save = async () => {
-    const text = value.trim() === '' ? def.def : value.trim();
-    const bad = settingError(def, text);
-    if (bad) return setMsg({ ok: false, text: bad });
+  const remove = async (okText: string) => {
     setBusy(true);
     setMsg(null);
-    const r = await supabase.from('club_settings').upsert({ club_id: clubId, key: def.key, scope: '', value: text, updated_at: new Date().toISOString() }, { onConflict: 'club_id,key,scope' });
-    setBusy(false);
-    if (r.error) return setMsg({ ok: false, text: 'Не удалось сохранить. Проверьте, что вы вошли как администратор.' });
-    setValue(text);
-    setMsg({ ok: true, text: 'Сохранено.' });
-    onSaved();
-  };
-  const reset = async () => {
-    setBusy(true);
-    setMsg(null);
-    const r = await supabase.from('club_settings').delete().eq('club_id', clubId).eq('key', def.key).eq('scope', '');
+    const r = await supabase.from('club_settings').delete().eq('club_id', clubId).eq('key', def.key).eq('scope', scope);
     setBusy(false);
     if (r.error) return setMsg({ ok: false, text: 'Не удалось вернуть значение по умолчанию.' });
     setValue(def.def);
-    setMsg({ ok: true, text: 'Действует значение по умолчанию.' });
+    setMsg({ ok: true, text: okText });
+    onSaved();
+  };
+  const save = async () => {
+    const text = value.trim();
+    if (text === '' && def.def === '') return void remove('Значение убрано.');
+    const final = text === '' ? def.def : text;
+    const bad = settingError(def, final);
+    if (bad) return setMsg({ ok: false, text: bad });
+    setBusy(true);
+    setMsg(null);
+    const r = await supabase.from('club_settings').upsert({ club_id: clubId, key: def.key, scope, value: final, updated_at: new Date().toISOString() }, { onConflict: 'club_id,key,scope' });
+    setBusy(false);
+    if (r.error) return setMsg({ ok: false, text: 'Не удалось сохранить. Проверьте, что вы вошли как администратор.' });
+    setValue(final);
+    setMsg({ ok: true, text: 'Сохранено.' });
     onSaved();
   };
 
   return (
     <div className="ks-card">
       <div className="ks-line" style={{ alignItems: 'flex-start', gap: 8 }}>
-        <label htmlFor={inputId} style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--ks-text, inherit)', overflowWrap: 'anywhere' }}>{def.title}</label>
-        <Pill tone={custom ? 'primary' : 'neutral'}>{custom ? 'своё' : 'по умолчанию'}</Pill>
+        <label htmlFor={inputId} style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--ks-text, inherit)', overflowWrap: 'anywhere' }}>{title ?? def.title}</label>
+        <Pill tone={custom ? 'primary' : 'neutral'}>{custom ? 'своё' : showDefault ? 'по умолчанию' : 'общее'}</Pill>
       </div>
-      {def.hint && <p className="muted" style={{ margin: '4px 0 0' }}>{def.hint}</p>}
+      {def.hint && showDefault && <p className="muted" style={{ margin: '4px 0 0' }}>{def.hint}</p>}
       <div className="field" style={{ marginTop: 10 }}>
         {def.kind === 'list'
           ? <textarea id={inputId} rows={3} value={value} onChange={e => setValue(e.target.value)} style={{ font: 'inherit', fontSize: '1rem', padding: 12, borderRadius: 'var(--ks-radius)', border: '1px solid var(--ks-border-strong)' }} />
@@ -62,16 +67,58 @@ function Row({ def, saved, clubId, onSaved }: { def: SettingDef; saved: string |
       </div>
       <div className="two" style={{ marginTop: 10 }}>
         <button type="button" className="ks-btn" disabled={busy} onClick={() => void save()}>Сохранить</button>
-        {custom && <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => void reset()}>По умолчанию</button>}
+        {custom && <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => void remove(showDefault ? 'Действует значение по умолчанию.' : 'Команда снова берёт общий взнос.')}>{resetLabel}</button>}
       </div>
-      {custom && <p className="muted" style={{ margin: '8px 0 0' }}>По умолчанию: {def.def}</p>}
+      {custom && showDefault && <p className="muted" style={{ margin: '8px 0 0' }}>По умолчанию: {defText}</p>}
+      {!custom && showDefault && def.def === '' && <p className="muted" style={{ margin: '8px 0 0' }}>Сейчас: {defText}</p>}
       {msg && <p className={msg.ok ? 'muted' : 'error'} style={{ margin: '8px 0 0' }}>{msg.text}</p>}
     </div>
   );
 }
 
+// Свои значения взноса за чемпионат по командам (ключ matches.champFee, область = название команды).
+function TeamFees({ clubId, teams, onSaved }: { clubId: string; teams: Record<string, string>; onSaved: () => void }) {
+  const [team, setTeam] = useState('');
+  const [fee, setFee] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const def = SETTINGS.find(s => s.key === CHAMP_FEE_KEY)!;
+  const add = async () => {
+    const t = team.trim();
+    const bad = settingError({ ...def, def: '0' }, fee);
+    if (!t) return setMsg({ ok: false, text: 'Укажите команду.' });
+    if (bad || fee.trim() === '') return setMsg({ ok: false, text: bad ?? 'Нужно число.' });
+    setBusy(true);
+    setMsg(null);
+    const r = await supabase.from('club_settings').upsert({ club_id: clubId, key: CHAMP_FEE_KEY, scope: t, value: fee.trim(), updated_at: new Date().toISOString() }, { onConflict: 'club_id,key,scope' });
+    setBusy(false);
+    if (r.error) return setMsg({ ok: false, text: 'Не удалось сохранить.' });
+    setTeam('');
+    setFee('');
+    setMsg({ ok: true, text: 'Сохранено.' });
+    onSaved();
+  };
+  return (
+    <>
+      <h3>Свои значения команд</h3>
+      {Object.entries(teams).sort(([a], [b]) => a.localeCompare(b, 'ru', { numeric: true })).map(([t, v]) => (
+        <Row key={t} def={def} scope={t} title={t} saved={v} clubId={clubId} resetLabel="К общему" showDefault={false} onSaved={onSaved} />
+      ))}
+      <div className="ks-card">
+        <b style={{ fontSize: '1rem' }}>Добавить своё значение команды</b>
+        <label className="field">Команда<input value={team} placeholder="Например U13-A" onChange={e => setTeam(e.target.value)} /></label>
+        <label className="field">Взнос, ₾<input inputMode="decimal" value={fee} onChange={e => setFee(e.target.value)} /></label>
+        <button type="button" className="ks-btn" style={{ marginTop: 10 }} disabled={busy} onClick={() => void add()}>Добавить</button>
+        {msg && <p className={msg.ok ? 'muted' : 'error'} style={{ margin: '8px 0 0' }}>{msg.text}</p>}
+      </div>
+    </>
+  );
+}
+
 export default function ClubSettings() {
   const s = useClubSettings();
+  const order = s.values['groups.order'];
+  useEffect(() => { if (s.loaded) setGroupOrder(order ?? ''); }, [s.loaded, order]);
   if (!s.loaded) return <Loading />;
   if (!s.clubId) return <main className="page"><p className="error">Клуб не найден.</p></main>;
   const groups = [...new Set(SETTINGS.map(x => x.group))];
@@ -84,9 +131,10 @@ export default function ClubSettings() {
         <section key={g}>
           <h3>{g}</h3>
           {SETTINGS.filter(x => x.group === g).map(d => <Row key={d.key} def={d} saved={values[d.key]} clubId={s.clubId!} onSaved={s.reload} />)}
+          {g === 'Матчи' && <TeamFees clubId={s.clubId!} teams={s.scoped[CHAMP_FEE_KEY] ?? {}} onSaved={s.reload} />}
         </section>
       ))}
-      <p className="muted">Сейчас в «Экипировке»: {(() => { const pct = settingText(values, 'equipment.discount_pct'); return pct === '0' ? 'скидки нет' : `скидка ${pct}% на новый заказ, если набор собран по правилам выше`; })()}.</p>
+      <p className="muted">Сейчас в «Экипировке»: {(() => { const pct = settingText(values, 'equip.discPct'); return pct === '0' ? 'скидки нет' : `скидка ${pct}% на новый заказ, если набор собран по правилам выше`; })()}.</p>
     </main>
   );
 }

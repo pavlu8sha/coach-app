@@ -61,7 +61,15 @@ function groupRank(name: string): [number, number, string] {
   if (/^индивидуальн/i.test(n)) return [3, 0, n.toLowerCase()];
   return [1, 0, n.toLowerCase()];
 }
+// Свой порядок групп из настроек клуба («Порядок групп»): группы из списка идут первыми в заданном порядке, остальные после них в обычном.
+let customOrder: string[] = [];
+export function setGroupOrder(list: string): void {
+  customOrder = list.split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
+}
+const customRank = (name: string) => { const i = customOrder.indexOf(name.trim().toLowerCase()); return i < 0 ? Infinity : i; };
 export function compareGroups(a: string, b: string): number {
+  const ca = customRank(a), cb = customRank(b);
+  if (ca !== cb) return ca < cb ? -1 : 1; // оба вне списка: Infinity === Infinity, идём дальше
   const x = groupRank(a), y = groupRank(b);
   return x[0] - y[0] || x[1] - y[1] || x[2].localeCompare(y[2], 'ru', { numeric: true });
 }

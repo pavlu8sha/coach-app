@@ -41,7 +41,7 @@ describe('Скидка на комплект (#339)', () => {
   });
 
   it('настройки меняют процент и округление; 0% отключает скидку', () => {
-    expect(bundleDiscount({ lines: full, pastKits: [], installment: false, settings: { 'equipment.discount_pct': '10', 'equipment.discount_round': '0' } }).total).toBe(558);
-    expect(bundleDiscount({ lines: full, pastKits: [], installment: false, settings: { 'equipment.discount_pct': '0' } }).applies).toBe(false);
+    expect(bundleDiscount({ lines: full, pastKits: [], installment: false, settings: { 'equip.discPct': '10', 'equip.discRound': '0' } }).total).toBe(558);
+    expect(bundleDiscount({ lines: full, pastKits: [], installment: false, settings: { 'equip.discPct': '0' } }).applies).toBe(false);
   });
 });
