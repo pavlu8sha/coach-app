@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fmtDate, groupByGroupName, sortGroups, today } from '../lib/coach';
+import { statusLabel, statusTone, type PlayerStatus } from '../lib/playerStatus';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput, SwitchRow, type Tone } from '../ui/components';
 import { Failure, Splash } from './Message';
@@ -7,11 +8,11 @@ import { tariffFor } from './MonthPayments';
 import PlayerCard, { type CardPlayer } from './PlayerCard';
 import PlayerEdit, { type PlayerForm } from './PlayerEdit';
 
-interface Row { id: string; full_name: string; group_id: string | null; birth_date: string | null; status: 'active' | 'inactive'; external_id: string | null }
+interface Row { id: string; full_name: string; group_id: string | null; birth_date: string | null; status: PlayerStatus; external_id: string | null }
 interface GroupRow { id: string; name: string; club_id: string }
 interface Price { group_id: string | null; amount: number; valid_from: string; valid_to: string | null }
 interface Sub { player_id: string; discount: boolean; written_off: boolean }
-type StatusFilter = 'active' | 'inactive' | 'all';
+type StatusFilter = 'active' | 'paused' | 'inactive' | 'all';
 
 const monthStart = () => today().slice(0, 7) + '-01';
 const nextMonthStart = () => {
@@ -97,7 +98,7 @@ export default function Players() {
     setReload(n => n + 1);
   };
   if (edit) return <main className="page"><PlayerEdit initial={edit} groups={groups} clubId={groups[0]?.club_id ?? null} onDone={done} onCancel={() => setEdit(null)} /></main>;
-  if (card) return <PlayerCard player={card} onBack={() => setCard(null)} onEdit={() => setEdit({ id: card.id, full_name: card.full_name, birth_date: card.birth_date, group_id: card.group_id, status: card.status })} />;
+  if (card) return <PlayerCard player={card} onBack={() => setCard(null)} onStatus={st => { setCard({ ...card, status: st }); setReload(n => n + 1); }} onEdit={() => setEdit({ id: card.id, full_name: card.full_name, birth_date: card.birth_date, group_id: card.group_id, status: card.status })} />;
   const toggleYear = (y: string) => setYears(cur => (cur.includes(y) ? cur.filter(x => x !== y) : [...cur, y]));
 
   return (
@@ -111,7 +112,8 @@ export default function Players() {
         </select>
         <select className="ks-select" style={{ marginBottom: 0 }} aria-label="Статус" value={status} onChange={e => setStatus(e.target.value as StatusFilter)}>
           <option value="active">Активные</option>
-          <option value="inactive">Не занимаются</option>
+          <option value="paused">На паузе</option>
+          <option value="inactive">Ушли</option>
           <option value="all">Все</option>
         </select>
       </div>
@@ -145,7 +147,7 @@ export default function Players() {
                   avatar={p.full_name}
                   title={p.full_name}
                   sub={[groupName.get(p.group_id ?? '') ?? 'без группы', [p.external_id, p.birth_date ? `р. ${fmtDate(p.birth_date)}` : null].filter(Boolean).join(' · ')].filter(Boolean)}
-                  end={p.status === 'inactive' ? <Pill>Не занимается</Pill> : <Pill tone={s.tone} dot>{s.label}</Pill>}
+                  end={p.status !== 'active' ? <Pill tone={statusTone(p.status)}>{statusLabel(p.status, p.external_id)}</Pill> : <Pill tone={s.tone} dot>{s.label}</Pill>}
                   onClick={() => setCard({ id: p.id, full_name: p.full_name, birth_date: p.birth_date, group_id: p.group_id, status: p.status, external_id: p.external_id, group_name: groupName.get(p.group_id ?? '') ?? null })}
                 />
               );
