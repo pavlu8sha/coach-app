@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import Message, { Failure, Loading } from './Message';
+import { EmptyState, SkeletonRows } from '../ui/components';
+import PaymentInfo from './PaymentInfo';
 
 interface Kid { id: string; name: string; months: { month: string; sum: number }[] }
 interface Debt { player_id: string; month: string; tariff: number; paid: number; debt: number }
@@ -57,13 +58,18 @@ export default function Payments() {
     })();
   }, [reload]);
 
-  if (error) return <Failure title="Не удалось загрузить оплаты" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
-  if (!kids) return <Loading title="Оплата" card rows={2} />;
-  if (!kids.length) return <Message title="Оплата" text="Оплаты появятся, когда администратор подтвердит связь с ребёнком." />;
-
   return (
     <main className="page">
       <h1>Оплата</h1>
+      <PaymentInfo />
+      {error ? (
+        <EmptyState icon="alert" title="Не удалось загрузить оплаты" text={error} action={{ label: 'Повторить', run: () => { setError(null); setReload(n => n + 1); } }} />
+      ) : !kids ? (
+        <div role="status" aria-label="Загрузка"><SkeletonRows count={2} card /></div>
+      ) : !kids.length ? (
+        <p className="muted">Оплаты появятся, когда администратор подтвердит связь с ребёнком.</p>
+      ) : (
+        <>
       {debtError && (
         <section className="ks-card" role="alert" aria-live="polite">
           <h2>Не удалось загрузить задолженность</h2>
@@ -124,6 +130,8 @@ export default function Payments() {
           )}
         </section>
       ))}
+        </>
+      )}
       <p className="muted note">Показаны внесённые суммы по месяцам. Если что-то не сходится, напишите администратору клуба.</p>
     </main>
   );
