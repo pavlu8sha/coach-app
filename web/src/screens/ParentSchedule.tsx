@@ -17,7 +17,7 @@ export default function ParentSchedule() {
   if (tab === 'calendar') {
     return (
       <>
-        <div style={{ maxWidth: 560, margin: '0 auto', padding: '8px 16px 0' }}>{switcher}</div>
+        <header style={{ maxWidth: 560, margin: '0 auto', padding: '8px 16px 0' }}>{switcher}</header>
         <ParentCalendar />
       </>
     );
@@ -25,7 +25,7 @@ export default function ParentSchedule() {
   if (tab === 'groups') {
     return (
       <>
-        <div style={{ maxWidth: 560, margin: '0 auto', padding: '8px 16px 0' }}>{switcher}</div>
+        <header style={{ maxWidth: 560, margin: '0 auto', padding: '8px 16px 0' }}>{switcher}</header>
         <Schedule />
       </>
     );
