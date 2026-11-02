@@ -178,6 +178,33 @@ describe('«Приём оплат»: платежи дня', () => {
     expect(screen.queryByRole('button', { name: 'Отменить оплату: Иванов Пётр' })).not.toBeInTheDocument();
   });
 
+  it('оплаты занятий показывают время записи (Тбилиси) и идут вперемешку с остальными, новые сверху', async () => {
+    seed();
+    fake.db.payments = [];
+    fake.rpc.cash_day_service = () => [
+      { id: 's1', amount: 40, method: 'Перевод', what: 'Экипировка', player_id: 'p1', full_name: 'Иванов Пётр', recorded_at: '2026-11-01T06:46:00Z' },
+      { id: 's2', amount: 50, method: 'Наличные', what: 'Индивидуальное', player_id: 'p1', full_name: 'Иванов Пётр', recorded_at: '2026-11-01T10:05:00Z' },
+    ];
+    render(<CashDesk />);
+    await screen.findByRole('heading', { name: /Внесено сегодня.*90 ₾/ });
+    const a = screen.getByText(/14:05 · Индивидуальное/);
+    const b = screen.getByText(/10:46 · Экипировка/);
+    expect(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('индивидуальную можно оплатить задним числом: дата уходит в ind_set_paid', async () => {
+    seed();
+    fake.rpc.ind_set_paid = () => null;
+    await openPlayer();
+    await screen.findByText(/к оплате:/);
+    const c = card(/Вратари 10.01.2020/);
+    fireEvent.click(within(c).getByRole('button', { name: 'Принять оплату' }));
+    fireEvent.change(within(c).getByLabelText('Дата'), { target: { value: '2020-01-05' } });
+    fireEvent.click(within(c).getByRole('button', { name: 'Отметить оплаченным (50 ₾)' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
+    await waitFor(() => expect(fake.rpcCalls('ind_set_paid')[0]).toMatchObject({ d: '2020-01-05' }));
+  });
+
   it('показывает наличные/перевод и отменяет оплату записью с минусом', async () => {
     seed();
     fake.db.payments = [{ id: 'x1', player_id: 'p1', amount: 50, paid_on: today(), method: 'Наличные', players: { full_name: 'Иванов Пётр' } }];

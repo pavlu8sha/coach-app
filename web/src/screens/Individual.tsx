@@ -35,6 +35,7 @@ export default function Individual() {
   const [limit, setLimit] = useState(PAGE);
   const [hasMore, setHasMore] = useState(false);
   const [method, setMethod] = useState('');
+  const [payDate, setPayDate] = useState(today());
 
   // сводка «Должники» над списком занятий, как в прежнем приложении
   useEffect(() => {
@@ -77,9 +78,10 @@ export default function Individual() {
   // Оплата занятия прямо из списка долгов
   const payDebt = async (d: DebtRow) => {
     if (!method) return setError('Выберите способ оплаты.');
-    if (!window.confirm(`Принять оплату ${gel(Number(d.amount))} от ${d.players?.full_name ?? 'игрока'} за ${title(d.individual_sessions)}?`)) return;
+    if (!window.confirm(`Принять оплату ${gel(Number(d.amount))} от ${d.players?.full_name ?? 'игрока'} за ${title(d.individual_sessions)}, дата платежа ${fmtDate(payDate)}?`)) return;
     setPaying(d.session_id + d.player_id);
-    const r = await supabase.rpc('ind_set_paid', { s: d.session_id, p: d.player_id, is_paid: true, mth: method });
+    if (payDate > today()) return setError('Дата платежа не может быть в будущем.');
+    const r = await supabase.rpc('ind_set_paid', { s: d.session_id, p: d.player_id, is_paid: true, mth: method, d: payDate });
     setPaying(null);
     if (r.error) return setError(coachError(r.error.message));
     setDebts(null);
@@ -92,7 +94,7 @@ export default function Individual() {
       <Segmented wrap label="Раздел" value={tab} onChange={v => { setList(null); setDebts(null); setLimit(PAGE); setHasMore(false); setTab(v); }} items={[{ value: 'next', label: 'Предстоящие' }, { value: 'past', label: 'Прошедшие' }, { value: 'debt', label: 'Долги' }, { value: 'regular', label: 'Постоянные' }]} />
       <div style={{ height: 10 }} />
       {tab === 'regular' && <IndRegulars />}
-      {tab === 'debt' && <label className="field">Способ оплаты<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>}
+      {tab === 'debt' && <div className="two"><label className="field">Способ оплаты<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label><label className="field">Дата платежа<input type="date" value={payDate} max={today()} onChange={e => e.target.value && setPayDate(e.target.value)} /></label></div>}
       {(tab === 'next' || tab === 'past') && debtTotal && debtTotal.n > 0 && (
         <ListRow title="Должники" sub={[`Игроков: ${debtTotal.n}`]} end={<Pill tone="danger" dot>{gel(debtTotal.sum)}</Pill>} onClick={() => { setList(null); setDebts(null); setLimit(PAGE); setHasMore(false); setTab('debt'); }} />
       )}
@@ -168,6 +170,7 @@ function SessionForm({ onBack, onDone }: { onBack: () => void; onDone: () => voi
 function SessionView({ session, onBack }: { session: Session; onBack: () => void }) {
   const [bookings, setBookings] = useState<Booking[]>(session.individual_bookings);
   const [method, setMethod] = useState('');
+  const [payDate, setPayDate] = useState(today());
   const [q, setQ] = useState('');
   const [found, setFound] = useState<{ id: string; full_name: string }[]>([]);
   const [date, setDate] = useState(dayOf(session.starts_at));
@@ -223,7 +226,7 @@ function SessionView({ session, onBack }: { session: Session; onBack: () => void
       <p className="muted">{saved.topic ?? 'Тема не указана'}</p>
       {msg && <p className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}
 
-      <label className="field">Способ оплаты<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>
+      <div className="two"><label className="field">Способ оплаты<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label><label className="field">Дата платежа<input type="date" value={payDate} max={today()} onChange={e => e.target.value && setPayDate(e.target.value)} /></label></div>
       <h3>Записанные</h3>
       {sorted.length > 0 && (
         <button type="button" className="ks-btn secondary" style={{ marginBottom: 8 }} onClick={() => {
@@ -241,7 +244,7 @@ function SessionView({ session, onBack }: { session: Session; onBack: () => void
             <Segmented label={`Посещение: ${b.players?.full_name ?? ''}`} value={b.attended === true ? 'yes' : b.attended === false ? 'no' : 'none'} onChange={v => void run('t' + b.player_id, () => supabase.rpc('ind_set_attended', { s: session.id, p: b.player_id, was: v === 'yes' ? true : v === 'no' ? false : null }))} items={[{ value: 'yes', label: 'Был(а)' }, { value: 'no', label: 'Нет' }, { value: 'none', label: '—' }]} />
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-            <button type="button" className="ks-btn secondary" style={{ width: 'auto' }} disabled={busy === b.player_id || (!b.paid && !method)} onClick={() => void run(b.player_id, () => supabase.rpc('ind_set_paid', { s: session.id, p: b.player_id, is_paid: !b.paid, mth: method }))}>
+            <button type="button" className="ks-btn secondary" style={{ width: 'auto' }} disabled={busy === b.player_id || (!b.paid && !method)} onClick={() => void run(b.player_id, () => supabase.rpc('ind_set_paid', { s: session.id, p: b.player_id, is_paid: !b.paid, mth: method, d: b.paid ? undefined : payDate }))}>
               {b.paid ? 'Отменить оплату' : 'Отметить оплату'}
             </button>
             {!b.paid && (
