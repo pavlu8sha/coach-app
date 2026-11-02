@@ -3,7 +3,7 @@ import type { NavIcon } from '../ui/components';
 export type SectionId =
   | 'sessions' | 'players' | 'money' | 'cmatches' | 'requests' | 'ind' | 'extra' | 'schedule'
   | 'equip' | 'camps' | 'photos' | 'leads' | 'stats' | 'tlog' | 'points' | 'coaches'
-  | 'prices' | 'pstart' | 'recalc' | 'menu';
+  | 'prices' | 'payinfo' | 'pstart' | 'recalc' | 'menu';
 
 export interface Section { id: SectionId; title: string; sub: string; icon: NavIcon; group: string }
 
@@ -26,6 +26,7 @@ export const SECTIONS: Section[] = [
   { id: 'points', title: 'Баллы игроков', sub: 'Ручные баллы, история, контакты родителей', icon: 'trophy', group: 'Тренеры и игроки' },
   { id: 'coaches', title: 'Тренеры', sub: 'Назначение групп тренерам', icon: 'users', group: 'Тренеры и игроки' },
   { id: 'prices', title: 'Цены', sub: 'Абонемент и индивидуальные занятия по месяцам', icon: 'wallet', group: 'Настройки' },
+  { id: 'payinfo', title: 'Реквизиты и правила оплаты', sub: 'Что видит родитель на экране «Оплата»', icon: 'wallet', group: 'Настройки' },
   { id: 'pstart', title: 'Старт подсчёта баллов', sub: 'С какой даты баллы видны родителям и тренерам', icon: 'calendar', group: 'Настройки' },
   { id: 'recalc', title: 'Пересчёт баллов за матчи', sub: 'Привести баллы к новой схеме', icon: 'trophy', group: 'Настройки' },
   { id: 'menu', title: 'Меню', sub: 'Что на нижней панели, а что в «Ещё»', icon: 'more', group: 'Настройки' },

@@ -13,6 +13,7 @@ import Individual from './Individual';
 import Leads from './Leads';
 import MenuSettings from './MenuSettings';
 import Money from './Money';
+import PaymentInfoEditor from './PaymentInfoEditor';
 import Players from './Players';
 import PointsStart from './PointsStart';
 import RecalcPoints from './RecalcPoints';
@@ -41,6 +42,7 @@ export default function AdminSection({ id, groups, onMenuChanged }: { id: Sectio
     case 'points': return <Group groups={groups} />;
     case 'coaches': return <Coaches />;
     case 'prices': return <AdminPrices />;
+    case 'payinfo': return <PaymentInfoEditor />;
     case 'pstart': return <PointsStart />;
     case 'recalc': return <RecalcPoints />;
     case 'menu': return <MenuSettings onChanged={onMenuChanged} />;
