@@ -80,7 +80,7 @@ export default function AdminPrices() {
     <main className="page">
       <h1>Цены</h1>
       <p className="muted" style={{ marginBottom: 12 }}>Цена действует с выбранного месяца; прошлые месяцы остаются по своей цене. Своя цена группы важнее общей. По ним считается долг в «Должниках» и у родителей.</p>
-      <h3>Новая цена</h3>
+      <h2 className="ks-sub">Новая цена</h2>
       <div className="ks-card">
         <label className="ks-label" htmlFor="pr-kind">Что</label>
         <select id="pr-kind" className="ks-select" value={kind} onChange={e => setKind(e.target.value)}>
@@ -108,7 +108,7 @@ export default function AdminPrices() {
         <button type="button" className="ks-btn" disabled={busy} onClick={() => void add()}>Добавить цену</button>
       </div>
 
-      <h3>Действующие и будущие цены</h3>
+      <h2 className="ks-sub">Действующие и будущие цены</h2>
       {prices.map(p => {
         const future = p.valid_from.slice(0, 7) > thisMonth();
         return (

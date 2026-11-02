@@ -73,7 +73,7 @@ export function Segmented<T extends string>(props: { value: T; items: { value: T
 /** Тумблер в строке с подписью (например, «Только не оплатившие»). */
 export function SwitchRow(props: { label: string; checked: boolean; onChange: (v: boolean) => void; id: string }) {
   return (
-    <div className="ks-switch-row">
+    <div className="ks-switch-row" onClick={e => { if (!(e.target as HTMLElement).closest('button')) props.onChange(!props.checked); }}>
       <span id={props.id + '-l'}>{props.label}</span>
       <button type="button" className="ks-switch" role="switch" aria-checked={props.checked} aria-labelledby={props.id + '-l'} onClick={() => props.onChange(!props.checked)}>
         <span aria-hidden="true" />

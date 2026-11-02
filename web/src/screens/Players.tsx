@@ -129,7 +129,7 @@ export default function Players() {
           </div>
         </>
       )}
-      <h3 className="ks-list-head"><span>Игроки</span><span>{list.length}</span></h3>
+      <h2 className="ks-list-head"><span>Игроки</span><span>{list.length}</span></h2>
       <p className="muted" style={{ marginBottom: 8 }}>Статус оплаты за {monthLabel()}</p>
       {list.length === 0 ? (
         <EmptyState icon="users" title="Никого не нашли" text="Измените поиск или фильтры." />
