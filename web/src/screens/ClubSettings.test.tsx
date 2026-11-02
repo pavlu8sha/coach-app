@@ -16,8 +16,12 @@ describe('Настройки клуба (#339)', () => {
     render(<ClubSettings />);
     const low = await screen.findByText(/Порог низкой посещаемости/);
     expect(within(low.closest('.ks-card') as HTMLElement).getByRole('textbox')).toHaveValue('40');
-    expect(within(card(/С какого числа/)).getByRole('textbox')).toHaveValue('');
-    expect(within(card(/С какого числа/)).getByText('По умолчанию: 22')).toBeInTheDocument();
+    // без своей записи в поле стоит действующее значение по умолчанию, кнопки сброса нет
+    expect(within(card(/С какого числа/)).getByRole('textbox')).toHaveValue('22');
+    expect(within(card(/С какого числа/)).getByText('по умолчанию')).toBeInTheDocument();
+    expect(within(card(/С какого числа/)).queryByRole('button', { name: 'По умолчанию' })).toBeNull();
+    expect(within(card(/Порог низкой посещаемости/)).getByText('своё')).toBeInTheDocument();
+    expect(within(card(/Порог низкой посещаемости/)).getByText('По умолчанию: 50')).toBeInTheDocument();
   });
 
   it('сохраняет число в club_settings', async () => {
