@@ -48,11 +48,11 @@ describe('«Индивидуальные»', () => {
   it('долг гасится прямо из вкладки «Долги» по конкретному занятию', async () => {
     seed();
     fake.rpc.ind_set_paid = () => null;
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<Individual />);
     fireEvent.click(await screen.findByRole('tab', { name: 'Долги' }));
     fireEvent.change(screen.getByLabelText(/^Способ оплаты/), { target: { value: 'Перевод' } });
     fireEvent.click((await screen.findAllByRole('button', { name: /Принять оплату: Иванов Пётр/ }))[0]);
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Принять оплату' }));
     await waitFor(() => expect(fake.rpcCalls('ind_set_paid')).toHaveLength(1));
     expect(fake.rpcCalls('ind_set_paid')[0]).toMatchObject({ p: 'p1', is_paid: true, mth: 'Перевод' });
   });

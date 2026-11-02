@@ -119,7 +119,7 @@ describe('«Экипировка»', () => {
     render(<Equipment />);
     fireEvent.click(await screen.findByText('Сидоров Ян'));
     fireEvent.click(await screen.findByRole('button', { name: 'Удалить заказ' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Да, удалить' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Удалить' }));
     expect(await screen.findByText(/сначала верните её записью с минусом/)).toBeInTheDocument();
   });
 });

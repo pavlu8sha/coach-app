@@ -143,19 +143,19 @@ describe('«Матчи» администратора', () => {
 
   it('удаляет матч после подтверждения', async () => {
     seed();
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<CoachMatches groups={allGroups} admin />);
     fireEvent.click(await screen.findByText('Олимп'));
     fireEvent.click(await screen.findByText('Удалить матч'));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Удалить' }));
     await waitFor(() => expect(fake.rpcCalls('delete_match')).toEqual([{ m: 'm1' }]));
   });
 
   it('не удаляет, если администратор отказался в подтверждении', async () => {
     seed();
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
     render(<CoachMatches groups={allGroups} admin />);
     fireEvent.click(await screen.findByText('Олимп'));
     fireEvent.click(await screen.findByText('Удалить матч'));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отмена' }));
     expect(fake.rpcCalls('delete_match')).toHaveLength(0);
   });
 
@@ -274,7 +274,6 @@ describe('Взносы события (администратор)', () => {
 
   it('скидка и отмена оплаты уходят в базу', async () => {
     setup();
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<CoachMatches groups={groups} admin />);
     fireEvent.click(await screen.findByText('Состав и игры события'));
     await screen.findByText('Долг 30 ₾');
@@ -284,6 +283,7 @@ describe('Взносы события (администратор)', () => {
     await waitFor(() => expect(fake.rpcCalls('event_discount')).toHaveLength(1));
     expect(fake.rpcCalls('event_discount')[0]).toMatchObject({ t: 'e1', pid: 'p2', due: 40 });
     fireEvent.click(screen.getByLabelText('Отменить оплату: Иванов Пётр'));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отменить оплату' }));
     await waitFor(() => expect(fake.rpcCalls('event_cancel_payment')).toHaveLength(1));
   });
 

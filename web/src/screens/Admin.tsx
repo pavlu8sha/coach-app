@@ -59,7 +59,7 @@ export default function Admin() {
   };
 
   const erase = async (d: Del) => {
-    if (!window.confirm(`Удалить данные родителя ${d.users?.display_name ?? 'без имени'}? Будут удалены его связи с детьми, запросы и отметки о согласии; имя в профиле очистится. Отменить нельзя.`)) return;
+    if (!(await ask({ title: 'Удалить данные родителя?', lines: [['Родитель', d.users?.display_name ?? 'без имени']], note: 'Будут удалены связи с детьми, запросы и отметки о согласии; имя в профиле очистится. Отменить нельзя.', confirmLabel: 'Удалить данные', danger: true }))) return;
     setBusy(d.id);
     const r = await supabase.rpc('erase_parent', { r: d.id });
     setBusy(null);

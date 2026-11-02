@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import MyData from './MyData';
@@ -61,7 +61,7 @@ describe('«Мои дети»: отзыв согласия', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Отозвать согласие' }));
     expect(screen.getByText(/Ребёнок и все его данные пропадут/)).toBeInTheDocument();
     expect(fake.rpcCalls('revoke_consent')).toHaveLength(0);
-    fireEvent.click(screen.getByRole('button', { name: 'Отозвать согласие' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отозвать согласие' }));
     await waitFor(() => expect(fake.rpcCalls('revoke_consent')).toEqual([{ p: 'p1' }]));
   });
 });

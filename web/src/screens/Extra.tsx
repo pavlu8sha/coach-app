@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput, Segmented } from '../ui/components';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
+import { useConfirm } from '../ui/ConfirmSheet';
 
 interface Booking { player_id: string; paid: boolean; attended: boolean | null; paid_amount: number | null; method: string | null; players: { full_name: string } | null }
 interface Session { id: string; starts_on: string; starts_time: string | null; ends_time: string | null; amount: number; place: string | null; extra_bookings: Booking[] }
@@ -21,6 +22,7 @@ type Tab = 'next' | 'past' | 'debt';
 
 // Дополнительные тренировки для администратора (миграция 0035): запись, оплата, долги.
 export default function Extra() {
+  const { ask, dialog: confirmDialog } = useConfirm();
   const [tab, setTab] = useState<Tab>('next');
   const [list, setList] = useState<Session[] | null>(null);
   const [debts, setDebts] = useState<DebtRow[] | null>(null);
@@ -57,7 +59,7 @@ export default function Extra() {
   });
   // Оплата тренировки прямо из списка долгов
   const payDebt = async (d: DebtRow, mth: string) => {
-    if (!window.confirm(`Принять оплату ${gel(Number(d.extra_sessions.amount))} (${mth}) от ${d.players?.full_name ?? 'игрока'} за тренировку ${fmtDate(d.extra_sessions.starts_on)}?`)) return;
+    if (!(await ask({ title: 'Принять оплату?', lines: [['Игрок', d.players?.full_name ?? 'Игрок'], ['Сумма', gel(Number(d.extra_sessions.amount))], ['Тренировка', fmtDate(d.extra_sessions.starts_on)], ['Способ', mth]], confirmLabel: 'Принять оплату' }))) return;
     setPaying(d.session_id + d.player_id + mth);
     const r = await supabase.rpc('extra_set_paid', { s: d.session_id, p: d.player_id, is_paid: true, mth });
     setPaying(null);
@@ -106,6 +108,7 @@ export default function Extra() {
           </details>
         ))
       )}
+      {confirmDialog}
     </main>
   );
 }
@@ -149,8 +152,8 @@ function View({ session, onBack }: { session: Session; onBack: () => void }) {
   const [method, setMethod] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [confirmDel, setConfirmDel] = useState(false);
   const [gone, setGone] = useState(false);
+  const { ask, dialog: confirmDialog } = useConfirm();
 
   const refresh = async () => {
     const r = await supabase.from('extra_bookings').select('player_id, paid, attended, paid_amount, method, players(full_name)').eq('session_id', session.id);
@@ -179,6 +182,15 @@ function View({ session, onBack }: { session: Session; onBack: () => void }) {
     return true;
   };
 
+  const deleteSession = async () => {
+    if (!(await ask({ title: 'Удалить тренировку?', lines: [['Тренировка', `${fmtDate(session.starts_on)}${timeSpan(session)}`]], note: 'Тренировка вместе с записями будет удалена. Отменить нельзя.', confirmLabel: 'Удалить', danger: true }))) return;
+    if (await run('del', () => supabase.rpc('extra_delete_session', { s: session.id }))) setGone(true);
+  };
+  const togglePaid = async (b: Booking) => {
+    if (b.paid && !(await ask({ title: 'Отменить оплату?', lines: [['Игрок', b.players?.full_name ?? 'Игрок'], ['Сумма', gel(Number(b.paid_amount ?? 0))]], note: 'Тренировка снова станет неоплаченной.', confirmLabel: 'Отменить оплату', danger: true }))) return;
+    await run(b.player_id, () => supabase.rpc('extra_set_paid', { s: session.id, p: b.player_id, is_paid: !b.paid, mth: method }));
+  };
+
   if (gone) return null;
   const anyPaid = bookings.some(b => b.paid);
   const sorted = [...bookings].sort((a, b) => (a.players?.full_name ?? '').localeCompare(b.players?.full_name ?? '', 'ru'));
@@ -201,7 +213,7 @@ function View({ session, onBack }: { session: Session; onBack: () => void }) {
             <Segmented label={`Посещение: ${b.players?.full_name ?? ''}`} value={b.attended === true ? 'yes' : b.attended === false ? 'no' : 'none'} onChange={v => void run('t' + b.player_id, () => supabase.rpc('extra_set_attended', { s: session.id, p: b.player_id, was: v === 'yes' ? true : v === 'no' ? false : null }))} items={[{ value: 'yes', label: 'Был(а)' }, { value: 'no', label: 'Нет' }, { value: 'none', label: '—' }]} />
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-            <button type="button" className="ks-btn secondary" style={{ width: 'auto' }} disabled={busy === b.player_id || (!b.paid && !method)} onClick={() => void run(b.player_id, () => supabase.rpc('extra_set_paid', { s: session.id, p: b.player_id, is_paid: !b.paid, mth: method }))}>
+            <button type="button" className="ks-btn secondary" style={{ width: 'auto' }} disabled={busy === b.player_id || (!b.paid && !method)} onClick={() => void togglePaid(b)}>
               {b.paid ? 'Отменить оплату' : 'Отметить оплату'}
             </button>
             {!b.paid && (
@@ -227,16 +239,8 @@ function View({ session, onBack }: { session: Session; onBack: () => void }) {
       <label className="field">Окончание<input type="time" value={tEnd} onChange={e => setTEnd(e.target.value)} /></label>
       <button type="button" className="ks-btn secondary" disabled={busy === 'time'} onClick={() => void run('time', () => supabase.rpc('extra_set_time', { s: session.id, t_start: tStart || null, t_end: tEnd || null }), 'Время сохранено.')}>Сохранить время</button>
       <div style={{ height: 8 }} />
-      {confirmDel ? (
-        <>
-          <p className="muted">Удалить тренировку вместе с записями? Это нельзя отменить.</p>
-          <button type="button" className="ks-btn" disabled={busy === 'del'} onClick={() => void run('del', () => supabase.rpc('extra_delete_session', { s: session.id })).then(ok => { if (ok) setGone(true); })}>Да, удалить</button>
-          <div style={{ height: 8 }} />
-          <button type="button" className="ks-btn secondary" onClick={() => setConfirmDel(false)}>Не удалять</button>
-        </>
-      ) : (
-        <button type="button" className="ks-btn secondary" disabled={anyPaid} onClick={() => setConfirmDel(true)}>{anyPaid ? 'Удалить нельзя: есть оплаты' : 'Удалить тренировку'}</button>
-      )}
+      <button type="button" className="ks-btn secondary" disabled={anyPaid || busy === 'del'} onClick={() => void deleteSession()}>{anyPaid ? 'Удалить нельзя: есть оплаты' : 'Удалить тренировку'}</button>
+      {confirmDialog}
     </main>
   );
 }
