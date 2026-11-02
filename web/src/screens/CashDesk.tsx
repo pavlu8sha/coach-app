@@ -55,7 +55,7 @@ async function loadDues(p: Pl): Promise<Due[]> {
       out.push({
         key: 'sub' + m, kind: 'sub', section: SECTIONS[0], title: m > cur ? `${monthName(m)} (вперёд)` : monthName(m), sub: s?.discount ? 'скидка по договорённости: оплатите любую сумму' : m > cur ? 'оплата вперёд: дата — день, когда внесли деньги' : undefined, due: tariff, paid: got, month: m, advance: m > cur,
         pay: (amount, method, date) => supabase.from('payments').insert({ player_id: p.id, amount: r2(amount), paid_on: date, for_month: m, method }),
-        discount: () => supabase.from('subscriptions').upsert({ player_id: p.id, month: m, discount: true }, { onConflict: 'player_id,month' }),
+        discount: () => supabase.from('subscriptions').upsert({ player_id: p.id, month: m, discount: true, closed_kind: 'discount', closed_reason: 'скидка при приёме оплаты в кассе' }, { onConflict: 'player_id,month' }),
       });
     }
   }
