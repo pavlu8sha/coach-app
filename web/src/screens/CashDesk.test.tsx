@@ -289,6 +289,43 @@ describe('«Приём оплат»: платежи дня', () => {
     await waitFor(() => expect(fake.writes('payments', 'insert')).toEqual([expect.objectContaining({ amount: -165, for_month: '2099-11-01', method: 'Перевод' })]));
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Отменить оплату: Иванов Пётр' })).toBeNull());
   });
+  it('два одинаковых платежа за день: отмена уходит со ссылкой на выбранный платёж и гасит только его', async () => {
+    seed();
+    const pl = { full_name: 'Иванов Пётр' };
+    fake.db.payments = [
+      { id: 'a1', player_id: 'p1', amount: 50, paid_on: today(), method: 'Наличные', recorded_at: '2026-10-15T08:00:00Z', players: pl },
+      { id: 'a2', player_id: 'p1', amount: 50, paid_on: today(), method: 'Перевод', recorded_at: '2026-10-15T09:00:00Z', players: pl },
+    ];
+    render(<CashDesk />);
+    await screen.findByRole('heading', { name: /Внесено сегодня.*100 ₾/ });
+    // новые сверху: первая кнопка относится к a2 (перевод)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Отменить оплату: Иванов Пётр' })[0]);
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отменить оплату' }));
+    await waitFor(() => expect(fake.writes('payments', 'insert')).toEqual([expect.objectContaining({ amount: -50, cancels: 'a2', method: 'Перевод' })]));
+    // a2 отменён, a1 остаётся доступным для отмены
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Отменить оплату: Иванов Пётр' })).toHaveLength(1));
+  });
+  it('платёж, отменённый записью в другой день, повторно не отменяется', async () => {
+    seed();
+    const pl = { full_name: 'Иванов Пётр' };
+    fake.db.payments = [
+      { id: 'a1', player_id: 'p1', amount: 50, paid_on: today(), method: 'Наличные', players: pl },
+      { id: 'c1', player_id: 'p1', amount: -50, paid_on: '2020-01-01', method: 'Наличные', cancels: 'a1', players: pl },
+    ];
+    render(<CashDesk />);
+    await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
+    expect(screen.queryByRole('button', { name: 'Отменить оплату: Иванов Пётр' })).toBeNull();
+  });
+  it('если платёж уже отменён (повторный или параллельный запрос), показывается понятное сообщение', async () => {
+    seed();
+    fake.db.payments = [{ id: 'a1', player_id: 'p1', amount: 50, paid_on: today(), method: 'Наличные', players: { full_name: 'Иванов Пётр' } }];
+    render(<CashDesk />);
+    await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
+    fake.errors.payments = 'duplicate key value violates unique constraint "payments_cancels_key"';
+    fireEvent.click(screen.getByRole('button', { name: 'Отменить оплату: Иванов Пётр' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отменить оплату' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Этот платёж уже отменён.');
+  });
   it('у ушедшего игрока текущий и будущий месяцы не считаются долгом', async () => {
     seed();
     fake.db.players = [{ id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'inactive', groups: { name: 'U9-A' } }];

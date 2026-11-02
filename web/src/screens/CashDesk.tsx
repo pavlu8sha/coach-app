@@ -84,7 +84,7 @@ const timeOf = (iso: string) => new Intl.DateTimeFormat('ru-RU', { hour: '2-digi
 const dayOf = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tbilisi' }).format(new Date(iso)); // YYYY-MM-DD по Тбилиси
 // время записи: если внесено в тот же день, что и оплата, только время; иначе «внесено 02.11 08:41», чтобы вчерашняя оплата не выглядела сегодняшней
 const whenOf = (iso: string, payDay: string) => dayOf(iso) === payDay ? timeOf(iso) : `внесено ${fmtDate(dayOf(iso))} ${timeOf(iso)}`;
-type TodayRow = { id: string; amount: number; method: string | null; recorded_at?: string | null; what: string; kind?: string; player_id?: string; pay_month?: string | null; detail?: string; sub?: string; players: { full_name: string } | null };
+type TodayRow = { id: string; amount: number; method: string | null; recorded_at?: string | null; what: string; kind?: string; player_id?: string; pay_month?: string | null; cancels?: string | null; cancelled?: boolean; detail?: string; sub?: string; players: { full_name: string } | null };
 const monthShort = (iso: string) => `${iso.slice(5, 7)}.${iso.slice(2, 4)}`; // 2026-10-01 → 10.26
 const CAMP_KIND: Record<string, string> = { booking: 'Бронь', payment: 'Оплата', refund: 'Возврат' };
 // «Абонемент 10.26, U7-A, Оплата, Перевод» · «Экипировка: Форма + Куртка, Наличные» · «Индивидуальное, U9-A, Оплата, Перевод»
@@ -125,10 +125,17 @@ export default function CashDesk() {
   useEffect(() => {
     setTodayRows(null);
     void (async () => {
-      const a = await supabase.from('payments').select('id, amount, method, player_id, pay_month, recorded_at, players(full_name)').eq('paid_on', day).limit(500);
+      const a = await supabase.from('payments').select('id, amount, method, player_id, pay_month, cancels, recorded_at, players(full_name)').eq('paid_on', day).limit(500);
       const c = await supabase.from('camp_payments').select('id, amount, method, kind, player_id, recorded_at, players(full_name), camps(name)').eq('paid_on', day).limit(500);
       if (a.error) return;
-      const rows = ((a.data ?? []) as unknown as { id: string; amount: number; method: string | null; player_id: string; pay_month?: string | null; players: { full_name: string } | null }[]).map(x => ({ ...x, what: 'Абонемент' }));
+      const rows = ((a.data ?? []) as unknown as { id: string; amount: number; method: string | null; player_id: string; pay_month?: string | null; cancels?: string | null; players: { full_name: string } | null }[]).map(x => ({ ...x, what: 'Абонемент' }));
+      // какие платежи уже отменены записью со ссылкой cancels (отмена может быть записана в другой день)
+      const cancelledIds = new Set<string>();
+      const payIds = rows.filter(x => Number(x.amount) > 0).map(x => x.id);
+      if (payIds.length) {
+        const cx = await supabase.from('payments').select('cancels').in('cancels', payIds).limit(1000);
+        for (const y of ((cx.data ?? []) as unknown as { cancels: string | null }[])) if (y.cancels) cancelledIds.add(y.cancels);
+      }
       const camp = c.error ? [] : ((c.data ?? []) as unknown as { id: string; amount: number; method: string | null; kind: string; player_id?: string; players: { full_name: string } | null; camps?: { name: string } | null }[]).map(x => ({ ...x, what: 'Сбор', detail: x.camps?.name }));
       const svc = await supabase.rpc('cash_day_service', { p_day: day });
       const service = svc.error ? [] : ((svc.data ?? []) as unknown as { id: string; amount: number; method: string | null; what: string; player_id: string; full_name: string; recorded_at?: string | null }[]).map(x => ({ id: x.id, amount: x.amount, method: x.method, what: x.what, recorded_at: x.recorded_at ?? null, player_id: x.player_id, players: { full_name: x.full_name } }));
@@ -158,7 +165,7 @@ export default function CashDesk() {
         const group = pid ? (x.what === 'Абонемент' && x.pay_month ? gBySub.get(`${pid}|${x.pay_month}`) : undefined) ?? gById.get(pid) : undefined;
         const detail = x.what === 'Абонемент' ? (x.pay_month ? monthShort(x.pay_month) : undefined) : x.what === 'Экипировка' && pid && kits.has(pid) ? (kits.get(pid) as string[]).join(' + ') : x.detail;
         const line = payLine(x, group, detail);
-        return { ...x, sub: x.recorded_at ? `${whenOf(x.recorded_at, day)} · ${line}` : line };
+        return { ...x, cancelled: x.what === 'Абонемент' && cancelledIds.has(x.id), sub: x.recorded_at ? `${whenOf(x.recorded_at, day)} · ${line}` : line };
       }));
     })();
   }, [reload, player, day]);
@@ -166,7 +173,7 @@ export default function CashDesk() {
   // Отмена оплаты абонемента — записью с минусом (журнал платежей только добавляется)
   // запись с минусом берёт способ отменяемого платежа, чтобы итоги «Наличные» и «Перевод» за день сходились
   const cancelPay = async (x: { id: string; amount: number; player_id?: string; pay_month?: string | null; method?: string | null; players?: { full_name: string } | null }) => {
-    if (!x.player_id) return;
+    if (!x.player_id || cancelling) return;
     const ok = await ask({
       title: 'Отменить оплату?',
       lines: [['Игрок', x.players?.full_name], ['Сумма', gel(Number(x.amount))], ['Способ', x.method ?? 'Исправление'], ['Дата', fmtDate(day)]],
@@ -177,20 +184,23 @@ export default function CashDesk() {
     if (!ok) return;
     setCancelling(x.id);
     setCancelErr(null);
-    const { error } = await supabase.from('payments').insert({ player_id: x.player_id, amount: -Number(x.amount), paid_on: day, ...(x.pay_month ? { for_month: x.pay_month } : {}), method: x.method ?? 'Исправление' });
+    const { error } = await supabase.from('payments').insert({ player_id: x.player_id, amount: -Number(x.amount), paid_on: day, cancels: x.id, ...(x.pay_month ? { for_month: x.pay_month } : {}), method: x.method ?? 'Исправление' });
     setCancelling(null);
     if (error) {
-      // запись не сохранилась: не обновляем список, чтобы не показать отмену, которой нет в базе
-      setCancelErr(`Отмена не записана: ${errText(error.message)}`);
+      // запись не сохранилась: не показываем отмену, которой нет в базе. Если платёж уже отменён (повтор или параллельный клик), обновляем список
+      const already = (error as { code?: string }).code === '23505' || /cancels/.test(error.message);
+      setCancelErr(already ? 'Этот платёж уже отменён.' : `Отмена не записана: ${errText(error.message)}`);
+      if (already) setReload(n => n + 1);
       return;
     }
     setReload(n => n + 1);
   };
   const total = (todayRows ?? []).reduce((s, x) => s + Number(x.amount), 0);
-  // платёж уже отменён, если за этот день есть запись с минусом на ту же сумму у того же игрока (повторная отмена удвоила бы минус)
-  const isCancelled = (x: { id: string; amount: number; player_id?: string; what: string }) => {
-    const neg = (todayRows ?? []).filter(y => y.what === x.what && y.player_id === x.player_id && Number(y.amount) === -Number(x.amount)).length;
-    const same = (todayRows ?? []).filter(y => y.what === x.what && y.player_id === x.player_id && Number(y.amount) === Number(x.amount)).map(y => y.id);
+  // платёж отменён, если на него есть запись cancels (0097). Старые отмены без ссылки ищем по игроку и сумме за этот день (повторная отмена удвоила бы минус)
+  const isCancelled = (x: { id: string; amount: number; player_id?: string; what: string; cancelled?: boolean }) => {
+    if (x.cancelled) return true;
+    const neg = (todayRows ?? []).filter(y => y.what === x.what && y.player_id === x.player_id && !y.cancels && Number(y.amount) === -Number(x.amount)).length;
+    const same = (todayRows ?? []).filter(y => y.what === x.what && y.player_id === x.player_id && !y.cancelled && Number(y.amount) === Number(x.amount)).map(y => y.id);
     return neg > 0 && same.indexOf(x.id) < neg;
   };
   return (
