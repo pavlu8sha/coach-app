@@ -35,10 +35,10 @@ export default function IndMarks({ session, onBack }: { session: IndSession; onB
     setDirty(false);
     setMsg({ ok: true, text: 'Отметки сохранены.' });
   };
-  const native = useMainButton({ text: 'Сохранить отметки', visible: true, enabled: dirty && !busy, loading: busy, onClick: () => void save() });
-
   const count = (m: Mark) => players.filter(p => marks[p.player_id] === m).length;
   const was = count('present'), absent = count('absent'), left = players.length - was - absent;
+  const canSave = dirty && !busy && players.length > 0 && left === 0; // как в групповых: сохранить можно, когда отмечены все
+  const native = useMainButton({ text: 'Сохранить отметки', visible: true, enabled: canSave, loading: busy, onClick: () => void save() });
   return (
     <main className="page has-bar">
       <BackNav onBack={onBack} />
@@ -62,7 +62,7 @@ export default function IndMarks({ session, onBack }: { session: IndSession; onB
           {!native && (
             <div className="ks-savebar">
               <span>{left > 0 ? <>Осталось отметить: <b>{left}</b></> : <>Отмечено: <b>{players.length}</b> из {players.length}</>}</span>
-              <button type="button" className="ks-btn" disabled={!dirty || busy} onClick={() => void save()}>Сохранить отметки</button>
+              <button type="button" className="ks-btn" disabled={!canSave} onClick={() => void save()}>Сохранить отметки</button>
             </div>
           )}
         </>
