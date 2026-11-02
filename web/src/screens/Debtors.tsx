@@ -3,6 +3,7 @@ import { today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill } from '../ui/components';
 import { useConfirm } from '../ui/ConfirmSheet';
+import { closureFlags, useClosure, type ClosureKind } from '../ui/ClosureSheet';
 import { Failure, Loading } from './Message';
 
 interface Row { group_name: string; player_id: string; full_name: string; tariff: number; paid: number; debt: number }
@@ -39,6 +40,7 @@ export default function Debtors() {
   const [reload, setReload] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
   const { ask, dialog } = useConfirm();
+  const { askClosure, closureDialog } = useClosure();
   const [msg, setMsg] = useState<string | null>(null);
   const [gname, setGname] = useState(''); // фильтр по группе
   const [payKey, setPayKey] = useState<string | null>(null); // строка с открытой формой оплаты
@@ -86,16 +88,18 @@ export default function Debtors() {
     setReload(n => n + 1);
   };
   const setDiscount = (playerId: string, on: boolean) => setFlag(playerId, 'discount', on);
-  const writeOff = async (r: { player_id: string; full_name: string; debt: number }) => {
-    const ok = await ask({
-      title: 'Списать долг?',
-      lines: [['Игрок', r.full_name], ['Долг за месяц', gel(r.debt)], ['Месяц', monthName(month)]],
-      note: 'Долг перестанет числиться в списке должников. Оплату при этом не записываем.',
-      confirmLabel: 'Списать',
-      danger: true,
-    });
-    if (ok) await setFlag(r.player_id, 'written_off', true);
+  // Закрытие без оплаты: вид и причина обязательны (#260), деньги не записываются.
+  const closeDebt = async (r: { player_id: string; full_name: string; debt: number }, defaultKind: ClosureKind) => {
+    const a = await askClosure({ title: defaultKind === 'forgiven' ? 'Списать долг' : 'Закрыть без оплаты', lines: [['Игрок', r.full_name], ['Долг за месяц', gel(r.debt)], ['Месяц', monthName(month)]], defaultKind });
+    if (!a) return;
+    setBusy(r.player_id);
+    setMsg(null);
+    const res = await supabase.from('subscriptions').upsert({ player_id: r.player_id, month, ...closureFlags(a.kind), closed_kind: a.kind, closed_reason: a.reason }, { onConflict: 'player_id,month' });
+    setBusy(null);
+    if (res.error) return setMsg(res.error.message);
+    setReload(n => n + 1);
   };
+  const writeOff = (r: { player_id: string; full_name: string; debt: number }) => closeDebt(r, 'forgiven');
   const changeTpl = (v: string) => { setTpl(v); try { localStorage.setItem('debtTpl', v); } catch { /* без сохранения шаблон работает на этом экране */ } };
   const textFor = (name: string) => tpl.replace(/\{месяц\}/g, monthName(month).split(' ')[0].toLowerCase()).replace(/\{имя\}/g, name);
   const copy = async (text: string, what: string) => {
@@ -189,8 +193,8 @@ export default function Debtors() {
                 {payKey === r.player_id && <PayInline playerId={r.player_id} month={month} debt={r.debt} onSaved={() => { setPayKey(null); setMsg('Платёж записан.'); setRows(null); setReload(n => n + 1); }} />}
                 <div className="ks-actions" style={{ flexWrap: 'wrap', marginTop: 8, marginBottom: 0 }}>
                 <button type="button" className="ks-btn secondary sm" onClick={() => void copy(textFor(r.full_name), `сообщение для ${r.full_name}`)}>Скопировать сообщение</button>
-                <button type="button" className="ks-btn secondary sm" disabled={busy === r.player_id} onClick={() => void setDiscount(r.player_id, true)}>
-                  Отметить «Скидка»
+                <button type="button" className="ks-btn secondary sm" disabled={busy === r.player_id} onClick={() => void closeDebt(r, 'discount')}>
+                  Закрыть без оплаты
                 </button>
                 <button type="button" className="ks-btn secondary sm" disabled={busy === r.player_id} onClick={() => void writeOff(r)}>
                   Списать долг
@@ -218,6 +222,7 @@ export default function Debtors() {
         </>
       )}
       {dialog}
+      {closureDialog}
     </main>
   );
 }

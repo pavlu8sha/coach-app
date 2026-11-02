@@ -1,7 +1,7 @@
 -- pgTAP: «Списано» у должников и создание абонементов на месяц (0032).
 begin;
 create extension if not exists pgtap;
-select plan(11);
+select plan(15);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -40,15 +40,19 @@ select throws_ok($$select create_subscription_month('2026-08-01')$$, '22023', 'm
 select throws_ok($$select create_subscription_month((date_trunc('month', current_date) + interval '3 month')::date)$$, '22023', 'month out of range', 'через три месяца нельзя');
 
 select is((select count(*)::int from debtors(date_trunc('month', current_date)::date) where full_name = 'Должник'), 1, 'до списания игрок в списке должников');
-update subscriptions set written_off = true where player_id = '00000000-0000-0000-0000-00000000d001' and month = date_trunc('month', current_date)::date;
+update subscriptions set written_off = true, closed_kind = 'forgiven', closed_reason = 'тест' where player_id = '00000000-0000-0000-0000-00000000d001' and month = date_trunc('month', current_date)::date;
 select is((select count(*)::int from debtors(date_trunc('month', current_date)::date) where full_name = 'Должник'), 0, 'после списания игрока в списке нет');
 
+select is((select closed_by from subscriptions where player_id = '00000000-0000-0000-0000-00000000d001' and month = date_trunc('month', current_date)::date), '00000000-0000-0000-0000-0000000000a1'::uuid, 'автор закрытия записан');
+select is((select closed_reason from subscriptions where player_id = '00000000-0000-0000-0000-00000000d001' and month = date_trunc('month', current_date)::date), 'тест', 'причина закрытия записана');
+select throws_ok($$update subscriptions set discount = true where player_id = '00000000-0000-0000-0000-00000000d002' and month = date_trunc('month', current_date)::date$$, '22023', 'closure needs kind and reason', 'закрыть без вида и причины нельзя');
 select as_user('00000000-0000-0000-0000-0000000000b1');
 select is((select debt from parent_debts() where player_id = '00000000-0000-0000-0000-00000000d001' and month = date_trunc('month', current_date)::date), 0::numeric, 'родитель не видит списанный долг');
 
 select as_user('00000000-0000-0000-0000-0000000000a1');
 update subscriptions set written_off = false where player_id = '00000000-0000-0000-0000-00000000d001' and month = date_trunc('month', current_date)::date;
 select is((select count(*)::int from debtors(date_trunc('month', current_date)::date) where full_name = 'Должник'), 1, 'списание можно снять');
+select is((select closed_kind from subscriptions where player_id = '00000000-0000-0000-0000-00000000d001' and month = date_trunc('month', current_date)::date), null, 'при снятии списания вид и причина очищаются');
 
 select as_user('00000000-0000-0000-0000-0000000000c1');
 update subscriptions set written_off = true;

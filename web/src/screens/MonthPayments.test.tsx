@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import MonthPayments, { inMonth, tariffFor } from './MonthPayments';
@@ -98,14 +98,18 @@ describe('«Оплаты за месяц»', () => {
     expect(screen.queryByText('Иванов Пётр')).toBeNull();
   });
 
-  it('«Считать оплаченным (скидка)» есть у всех неоплативших, в том числе с нулём, и ставит скидку', async () => {
+  it('«Закрыть без оплаты» есть у всех неоплативших, в том числе с нулём, и пишет вид и причину', async () => {
     seed();
     render(<MonthPayments />);
     await screen.findByText('100 ₾ из 165 ₾');
-    const btns = screen.getAllByRole('button', { name: 'Считать оплаченным (скидка)' });
+    const btns = screen.getAllByRole('button', { name: 'Закрыть без оплаты' });
     expect(btns).toHaveLength(2); // Иванов: внесено 100 из 165 и игрок с нулём
     fireEvent.click(btns[0]);
-    await waitFor(() => expect(fake.writes('subscriptions', 'upsert')).toEqual([{ player_id: 'p1', month: monthIso(), discount: true }]));
+    const dlg = within(await screen.findByRole('dialog'));
+    fireEvent.change(dlg.getByLabelText(/Вид закрытия/), { target: { value: 'paid_elsewhere' } });
+    fireEvent.change(dlg.getByLabelText(/Причина/), { target: { value: 'отдал тренеру наличными' } });
+    fireEvent.click(dlg.getByRole('button', { name: 'Закрыть без оплаты' }));
+    await waitFor(() => expect(fake.writes('subscriptions', 'upsert')).toEqual([{ player_id: 'p1', month: monthIso(), discount: true, written_off: false, closed_kind: 'paid_elsewhere', closed_reason: 'отдал тренеру наличными' }]));
   });
 
   it('быстрый платёж: сумма по умолчанию — остаток, запись в журнал', async () => {
@@ -135,5 +139,15 @@ describe('«Оплаты за месяц»', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Записать платёж' }));
     expect(await screen.findByText(/Дата платежа не может быть в будущем/)).toBeInTheDocument();
     expect(fake.writes('payments', 'insert')).toHaveLength(0);
+  });
+});
+
+describe('закрытие без оплаты показывает вид и причину', () => {
+  it('в строке подпись вида и причина вместо «Скидка»', async () => {
+    seed();
+    fake.db.subscriptions = [{ player_id: 'p1', month: monthIso(), discount: true, written_off: false, closed_kind: 'paid_elsewhere', closed_reason: 'отдал тренеру' }];
+    render(<MonthPayments />);
+    expect(await screen.findByText(/Оплачено вне приложения/)).toBeInTheDocument();
+    expect(screen.getByText('Причина: отдал тренеру')).toBeInTheDocument();
   });
 });
