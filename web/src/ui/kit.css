@@ -124,7 +124,7 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 
 /* Чипы-фильтры и заголовок списка */
 .ks-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
-.ks-chip { min-height: 40px; padding: 0 16px; border-radius: var(--ks-radius-pill); border: 1px solid var(--ks-border-strong); background: var(--ks-surface); color: var(--ks-text); font: 700 15px var(--ks-font); cursor: pointer; }
+.ks-chip { min-height: var(--ks-tap); padding: 0 16px; border-radius: var(--ks-radius-pill); border: 1px solid var(--ks-border-strong); background: var(--ks-surface); color: var(--ks-text); font: 700 15px var(--ks-font); cursor: pointer; }
 .ks-chip[aria-pressed='true'] { background: var(--ks-primary); border-color: var(--ks-primary); color: var(--ks-on-primary); }
 .ks-chip:focus-visible { outline: 3px solid var(--ks-primary); outline-offset: 1px; }
 h2.ks-sub, h2.ks-list-head { font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
