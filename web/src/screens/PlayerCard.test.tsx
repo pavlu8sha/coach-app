@@ -90,3 +90,12 @@ describe('карточка игрока: вкладки', () => {
     expect(await screen.findByText('permission denied')).toBeInTheDocument();
   });
 });
+
+describe('visibleMonths', () => {
+  it('история начинается с месяца прихода игрока', async () => {
+    const { visibleMonths } = await import('./PlayerCard');
+    const ms = ['2027-01-01', '2026-12-01', '2026-11-01', '2026-10-01', '2026-09-01'];
+    expect(visibleMonths(ms, '2026-12-01')).toEqual(['2027-01-01', '2026-12-01']);
+    expect(visibleMonths(ms, '2026-09-01')).toEqual(ms);
+  });
+});
