@@ -298,7 +298,14 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
     const lines = Object.entries(pick).map(([kit, v]) => ({ kit, size: v.size, quantity: v.quantity }));
     const r = await supabase.rpc('eq_create_order', { p: player.id, lines, insc, num: number, inst, loc, custom_total: custom.trim() !== '' ? num(custom) : disc.applies ? disc.total : null });
     setBusy(false);
-    if (r.error) return setErr(errText(r.error.message));
+    if (r.error) {
+      if (!r.error.message.includes('number taken')) return setErr(errText(r.error.message));
+      // Номер занят другим игроком группы: показываем, кем именно, чтобы было видно, свой это номер или чужой.
+      const t = number.trim();
+      const o = await supabase.from('equipment_orders').select('player_id, number, players(full_name, groups(name))').eq('number', t).neq('player_id', player.id).limit(3);
+      const who = ((o.data ?? []) as unknown as { players: { full_name: string; groups: { name: string } | null } | null }[]).map(x => x.players ? `${x.players.full_name}${x.players.groups ? ` (${x.players.groups.name})` : ''}` : '').filter(Boolean);
+      return setErr(who.length ? `Номер ${t} уже занят другим игроком группы: ${who.join(', ')}. Если это тот же ребёнок, объедините его карточки.` : errText(r.error.message));
+    }
     onDone();
   };
   return (
@@ -338,8 +345,8 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
       <label className="field">Своя сумма, ₾ (если со скидкой; иначе пусто)<input inputMode="decimal" value={custom} onChange={e => setCustom(e.target.value)} /></label>
       <p className="muted">По каталогу: {gel(total)}</p>
       {disc.applies && custom.trim() === '' && <p className="ks-callout">Скидка {disc.pct}%: {gel(disc.total)} вместо {gel(disc.base)} (−{gel(disc.discount)}). Заказ создастся с этой суммой; если нужна другая, впишите её выше.</p>}
-      {err && <p className="error">{err}</p>}
-      <button type="button" className="ks-btn" disabled={busy || !player || Object.keys(pick).length === 0 || (custom.trim() !== '' && Number.isNaN(num(custom)))} onClick={() => void save()}>Создать заказ</button>
+      {err && <p className="error" style={{ marginBottom: 12 }}>{err}</p>}
+      <button type="button" className="ks-btn" style={{ marginTop: 16 }} disabled={busy || !player || Object.keys(pick).length === 0 || (custom.trim() !== '' && Number.isNaN(num(custom)))} onClick={() => void save()}>Создать заказ</button>
     </main>
   );
 }

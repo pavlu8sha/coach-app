@@ -106,7 +106,7 @@ describe('«Экипировка»', () => {
     fireEvent.change(screen.getByLabelText('Размер: Форма'), { target: { value: '128' } });
     fireEvent.change(screen.getByLabelText('Номер'), { target: { value: '7' } });
     fireEvent.click(screen.getByRole('button', { name: 'Создать заказ' }));
-    expect(await screen.findByText('Этот номер уже занят в группе.')).toBeInTheDocument();
+    expect(await screen.findByText(/Номер 7 уже занят другим игроком группы/)).toBeInTheDocument();
     const call = fake.rpcCalls('eq_create_order')[0];
     expect(call.p).toBe('p1');
     expect(call.lines).toEqual([{ kit: 'Форма', size: '128', quantity: 1 }, { kit: 'Куртка', size: '', quantity: 1 }]);
@@ -135,6 +135,20 @@ describe('«Экипировка»', () => {
     expect(await screen.findByText(/Скидка 15%: 355 ₾ вместо 420 ₾/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Создать заказ' }));
     await waitFor(() => expect(fake.rpcCalls('eq_create_order')[0]).toMatchObject({ p: 'p1', custom_total: 355 }));
+  });
+
+  it('номер занят: сообщение называет игрока, у которого он записан', async () => {
+    seed();
+    fake.db.equipment_orders = [...fake.db.equipment_orders, { id: 'o7', player_id: 'p7', number: '19', players: { full_name: 'Другой Игрок', groups: { name: 'U9-A' } }, equipment_order_lines: [], equipment_issues: [], equipment_order_status_history: [] }];
+    fake.rpc.eq_create_order = () => ({ error: { message: 'number taken' } });
+    render(<Equipment />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Новый заказ' }));
+    fireEvent.change(screen.getByLabelText('Найти игрока'), { target: { value: 'Иванов' } });
+    fireEvent.click(await screen.findByText('Иванов Пётр'));
+    fireEvent.click(await screen.findByLabelText(/Форма/));
+    fireEvent.change(screen.getByLabelText('Номер'), { target: { value: '19' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Создать заказ' }));
+    expect(await screen.findByText(/Номер 19 уже занят другим игроком группы: Другой Игрок \(U9-A\)/)).toBeInTheDocument();
   });
 
   it('заказ с оплатой: ошибка удаления объясняет, что делать', async () => {
