@@ -81,6 +81,7 @@ describe('«Матчи» тренера', () => {
     seed();
     render(<CoachMatches groups={groups} />);
     fireEvent.click(await screen.findByText('Добавить матч'));
+    fireEvent.click(screen.getByText('Товарищеский или кубковый'));
     await screen.findByText('Иванов Пётр');
     fireEvent.change(screen.getByLabelText('Забила наша команда'), { target: { value: '1' } });
     fireEvent.change(screen.getByLabelText('Забил соперник'), { target: { value: '0' } });
@@ -96,6 +97,7 @@ describe('«Матчи» тренера', () => {
     seed();
     render(<CoachMatches groups={groups} />);
     fireEvent.click(await screen.findByText('Добавить матч'));
+    fireEvent.click(screen.getByText('Товарищеский или кубковый'));
     await screen.findByText('Иванов Пётр');
     fireEvent.change(screen.getByLabelText('Забила наша команда'), { target: { value: '2' } });
     fireEvent.click(screen.getByText('Сохранить матч'));
@@ -194,6 +196,19 @@ describe('«Новое событие»', () => {
     fireEvent.click(screen.getByText('Добавить всю команду U9'));
     await waitFor(() => expect(fake.rpcCalls('event_roster_add')).toHaveLength(1));
     expect(await screen.findByText('Иванов Пётр')).toBeInTheDocument();
+  });
+
+  it('«Добавить матч»: выбор типа игры; чемпионат открывает событие, где добавляется игра', async () => {
+    fake.db.matches = [];
+    fake.rpc.event_list = () => [{ id: 'e1', team: 'U9', kind: 'championship', name: 'Чемпионат осени', starts_on: '2026-10-01', players: 0, games: 0 }];
+    fake.rpc.event_roster = () => [];
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText('Добавить матч'));
+    expect(screen.getByText('Товарищеский или кубковый')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Матч чемпионата или фестиваля'));
+    fireEvent.click(within(screen.getByLabelText('Выбор события')).getByText('Чемпионат осени'));
+    expect(await screen.findByRole('button', { name: 'Добавить игру' })).toBeInTheDocument();
+    expect(screen.queryByText('Сохранить матч')).not.toBeInTheDocument();
   });
 
   it('в составе события у каждого игрока кнопка «Убрать», пометки «играл в матче» нет', async () => {
