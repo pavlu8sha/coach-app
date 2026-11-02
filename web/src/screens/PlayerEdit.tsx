@@ -50,7 +50,7 @@ export default function PlayerEdit({ initial, groups, clubId, onDone, onCancel }
 
   return (
     <section className="ks-card">
-      <h2>{isNew ? 'Новый ребёнок' : 'Данные ребёнка'}</h2>
+      <h1>{isNew ? 'Новый ребёнок' : 'Данные ребёнка'}</h1>
       <label className="field">
         Фамилия Имя
         <input value={f.full_name} onChange={e => { setDup(null); setF({ ...f, full_name: e.target.value }); }} autoComplete="off" />

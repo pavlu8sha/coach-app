@@ -274,7 +274,7 @@ export function PlayerDues({ player, onBack, embedded = false, sharedMethod }: {
   const load = useCallback(() => { void loadDues(player).then(d => { setDues(d); setRefreshing(false); }).catch(e => { setError(e instanceof Error ? e.message : String(e)); setRefreshing(false); }); }, [player]);
   useEffect(() => { load(); }, [load, reload]);
 
-  if (error) return <Failure title="Не удалось загрузить долги игрока" text={coachError(error)} onRetry={() => { setError(null); setDues(null); setReload(n => n + 1); }} />;
+  if (error) return <Failure title="Не удалось загрузить долги игрока" text={coachError(error)} embedded={embedded} onRetry={() => { setError(null); setDues(null); setReload(n => n + 1); }} />;
   const sum = (dues ?? []).filter(d => !d.advance).reduce((s, d) => s + (d.due - d.paid), 0);
   const Wrap = embedded ? 'div' : 'main';
   return (
@@ -289,7 +289,7 @@ export function PlayerDues({ player, onBack, embedded = false, sharedMethod }: {
       ) : (
         SECTIONS.filter(s => dues.some(d => d.section === s)).map(s => (
           <section key={s} data-sec={s}>
-            <h3>{s}</h3>
+            <h2 className="ks-sub">{s}</h2>
             {dues.filter(d => d.section === s).map(d => (
               <DueCard key={d.key} due={d} who={player.full_name} sharedMethod={sharedMethod} open={openKey === d.key} onOpen={() => setOpenKey(openKey === d.key ? null : d.key)} locked={refreshing} onPaid={() => { setOpenKey(null); setMsg('Платёж записан.'); setRefreshing(true); setReload(n => n + 1); }} />
             ))}

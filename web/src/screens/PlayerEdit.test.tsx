@@ -35,3 +35,10 @@ describe('Данные ребёнка: перевод в другую групп
     expect(onDone).not.toHaveBeenCalled();
   });
 });
+
+describe('Данные ребёнка: заголовок экрана (#244)', () => {
+  it('заголовок экрана — h1', () => {
+    open();
+    expect(screen.getByRole('heading', { level: 1, name: 'Данные ребёнка' })).toBeInTheDocument();
+  });
+});

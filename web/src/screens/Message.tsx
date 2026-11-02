@@ -29,19 +29,20 @@ export function Splash() {
 /** Загрузка: скелетон без выдуманных данных. Заголовок экрана известен заранее, его показываем сразу, чтобы он не появлялся рывком. */
 export function Loading(props: { title?: string; rows?: number; avatar?: boolean; card?: boolean; bar?: boolean }) {
   return (
-    <main className="page" role="status" aria-label="Загрузка">
+    <div className="page" role="status" aria-label="Загрузка">
       {props.title && <h1>{props.title}</h1>}
       <SkeletonRows count={props.rows ?? 4} avatar={props.avatar} card={props.card} bar={props.bar} />
-    </main>
+    </div>
   );
 }
 
 /** Ошибка загрузки с повтором. Повтор безопасен: экраны только читают данные. */
-export function Failure(props: { title: string; text: string; onRetry: () => void; back?: ReactNode }) {
+export function Failure(props: { title: string; text: string; onRetry: () => void; back?: ReactNode; embedded?: boolean }) {
+  const Wrap = props.embedded ? 'div' : 'main'; // внутри другого экрана вложенный main недопустим
   return (
-    <main className="page">
+    <Wrap className="page">
       {props.back}
       <EmptyState icon="alert" title={props.title} text={props.text} action={{ label: 'Повторить', run: props.onRetry }} />
-    </main>
+    </Wrap>
   );
 }
