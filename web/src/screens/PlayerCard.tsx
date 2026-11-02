@@ -13,6 +13,13 @@ interface Price { group_id: string | null; amount: number; valid_from: string; v
 interface Pay { amount: number; paid_on: string; pay_month?: string | null }
 
 /** История платежей начинается с первого месяца игрока: самый ранний из месяца создания, абонемента и платежа. Месяцы до него не показываем (пришёл в декабре, значит история с декабря). */
+export function firstMonth(subMonths: string[], pays: { amount: number; month: string }[], created: string | null, fallback: string): string {
+  const net = new Map<string, number>();
+  pays.forEach(x => net.set(x.month, (net.get(x.month) ?? 0) + x.amount));
+  const paid = [...net].filter(([, v]) => v > 0).map(([k]) => k); // платёж с отменой даёт 0 и месяц не открывает
+  return [...subMonths, ...paid, created ?? fallback].sort()[0];
+}
+
 export function visibleMonths(months: string[], start: string): string[] {
   return months.filter(m => m >= start);
 }
@@ -83,7 +90,7 @@ export default function PlayerCard({ player, onBack, onEdit }: { player: CardPla
       {tab === 'equip' && <EquipmentTab playerId={player.id} />}
       {tab === 'matches' && <MatchesTab playerId={player.id} />}
       {tab === 'points' && <PointsTab playerId={player.id} />}
-      {tab === 'sub' && (pays === null ? <Loading /> : visibleMonths(months, [...subs.keys(), ...(pays ?? []).map(p => p.pay_month ?? p.paid_on.slice(0, 7) + '-01'), created ?? SEASON_START].sort()[0]).map(m => {
+      {tab === 'sub' && (pays === null ? <Loading /> : visibleMonths(months, firstMonth([...subs.keys()], (pays ?? []).map(x => ({ amount: x.amount, month: x.pay_month ?? x.paid_on.slice(0, 7) + '-01' })), created, SEASON_START)).map(m => {
         const tariff = player.group_id ? tariffFor(prices, player.group_id, m) : null;
         const got = gotIn(m);
         const sub = subs.get(m);
