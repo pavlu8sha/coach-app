@@ -130,7 +130,7 @@ export default function Matches() {
 
       {eventCards.length > 0 && (
         <>
-          <h3>Турниры</h3>
+          <h2 className="ks-sub">Турниры</h2>
           {eventCards.map(e => (
             <ListRow key={e.id} title={e.name ?? KIND_LABEL[e.kind] ?? 'Турнир'} sub={[e.starts_on ? fmtDate(e.starts_on) : '', e.team, 'Матчей пока нет'].filter(Boolean)} end={<Pill tone="primary">Турнир</Pill>} />
           ))}
@@ -153,7 +153,7 @@ export default function Matches() {
 
       {showUpcoming && (
         <>
-          {filter === 'all' && upcoming.length > 0 && <h3>Ближайшие</h3>}
+          {filter === 'all' && upcoming.length > 0 && <h2 className="ks-sub">Ближайшие</h2>}
           {upcoming.map(m => (
             <ListRow key={m.id} title={m.opponent ?? 'Соперник уточняется'} sub={[sub(m), ...lines(m)]} end={<Pill tone="primary">Предстоит</Pill>} />
           ))}
@@ -163,7 +163,7 @@ export default function Matches() {
 
       {showPast && (
         <>
-          {filter === 'all' && past.length > 0 && <h3>Результаты</h3>}
+          {filter === 'all' && past.length > 0 && <h2 className="ks-sub">Результаты</h2>}
           {groupInOrder(past, m => m.played_on.slice(0, 7)).map(([ym, items]) => (
             <details className="ks-group" key={ym}>
               <summary><div className="ks-line"><b>{ym.slice(5)}.{ym.slice(0, 4)}</b><span className="muted">{items.length} матч.</span></div></summary>

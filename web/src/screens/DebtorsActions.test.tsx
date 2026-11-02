@@ -22,8 +22,11 @@ describe('«Должники»: списание и создание абоне�
     seed();
     render(<Debtors />);
     fireEvent.click(await screen.findByRole('button', { name: 'Списать долг' }));
-    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Списать' }));
-    await waitFor(() => expect(fake.writes('subscriptions', 'upsert')).toEqual([{ player_id: 'p1', month: monthIso(), written_off: true }]));
+    const dlg = within(await screen.findByRole('dialog'));
+    expect(dlg.getByLabelText(/Вид закрытия/)).toHaveValue('forgiven');
+    fireEvent.change(dlg.getByLabelText(/Причина/), { target: { value: 'семья уехала' } });
+    fireEvent.click(dlg.getByRole('button', { name: 'Закрыть без оплаты' }));
+    await waitFor(() => expect(fake.writes('subscriptions', 'upsert')).toEqual([{ player_id: 'p1', month: monthIso(), discount: false, written_off: true, closed_kind: 'forgiven', closed_reason: 'семья уехала' }]));
   });
 
   it('списанные показываются отдельно и возвращаются кнопкой', async () => {

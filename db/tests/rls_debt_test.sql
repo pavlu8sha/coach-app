@@ -37,9 +37,9 @@ insert into payments (player_id, amount, paid_on) values
   ('00000000-0000-0000-0000-00000000d002', 50, date_trunc('month', (now() at time zone 'Asia/Tbilisi')::date)),
   ('00000000-0000-0000-0000-00000000d004', 165, date_trunc('month', (now() at time zone 'Asia/Tbilisi')::date));
 -- строки абонементов за сентябрь: у первого оплачено 60 (долг за прошлый месяц), у «Со скидкой» — скидка
-insert into subscriptions (player_id, group_id, month, amount_due, discount) values
-  ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000000e1', '2026-09-01', 60, false),
-  ('00000000-0000-0000-0000-00000000d002', '00000000-0000-0000-0000-0000000000e1', date_trunc('month', (now() at time zone 'Asia/Tbilisi')::date), 50, true);
+insert into subscriptions (player_id, group_id, month, amount_due, discount, closed_kind, closed_reason) values
+  ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000000e1', '2026-09-01', 60, false, null, null),
+  ('00000000-0000-0000-0000-00000000d002', '00000000-0000-0000-0000-0000000000e1', date_trunc('month', (now() at time zone 'Asia/Tbilisi')::date), 50, true, 'discount', 'тест');
 insert into payments (player_id, amount, paid_on) values ('00000000-0000-0000-0000-00000000d001', 60, '2026-09-01');
 
 create or replace function as_user(uid uuid) returns void language plpgsql as $$

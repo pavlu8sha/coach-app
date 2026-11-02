@@ -346,10 +346,20 @@ a.ks-cover { text-decoration: none; display: block; }
 .muted + .ks-muted, .ks-muted + .ks-muted { margin-top: 6px; }
 .ks-details.ks-card > summary { padding: 12px 0; }
 
-/* Плавная реакция на нажатие: лёгкое уменьшение и мягкое возвращение */
-.ks-btn, .ks-chip, button.ks-row, a.ks-row, .ks-cover.tile { -webkit-tap-highlight-color: transparent; transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), filter 0.2s ease, background-color 0.2s ease; }
-.ks-btn:active:not(:disabled), .ks-chip:active, button.ks-row:active, a.ks-row:active, .ks-cover.tile:active { transform: scale(0.97); filter: brightness(0.94); transition-duration: 0.08s; }
-@media (prefers-reduced-motion: reduce) { .ks-btn, .ks-chip, button.ks-row, a.ks-row, .ks-cover.tile { transition: none; } .ks-btn:active:not(:disabled), .ks-chip:active, button.ks-row:active, a.ks-row:active, .ks-cover.tile:active { transform: none; } }
+/* Без чёрной системной подсветки нажатия: ни на кнопках, ни на полях, строках и подписях */
+*, *::before, *::after { -webkit-tap-highlight-color: transparent; }
+
+/* Плавная реакция на нажатие: лёгкое уменьшение и мягкое возвращение (одна анимация для всех нажимаемых элементов) */
+.ks-btn, .ks-chip, button.ks-row, a.ks-row, .ks-cover.tile, .ks-pay-cancel, .ks-seg button, .ks-stepper button, .ks-back { transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), filter 0.2s ease, background-color 0.2s ease; }
+.ks-btn:active:not(:disabled), .ks-chip:active, button.ks-row:active, a.ks-row:active, .ks-cover.tile:active, .ks-pay-cancel:active:not(:disabled), .ks-seg button:active, .ks-stepper button:active:not(:disabled), .ks-back:active { transform: scale(0.97); filter: brightness(0.94); transition-duration: 0.08s; }
+@media (prefers-reduced-motion: reduce) { .ks-btn, .ks-chip, button.ks-row, a.ks-row, .ks-cover.tile, .ks-pay-cancel, .ks-seg button, .ks-stepper button, .ks-back { transition: none; } .ks-btn:active:not(:disabled), .ks-chip:active, button.ks-row:active, a.ks-row:active, .ks-cover.tile:active, .ks-pay-cancel:active:not(:disabled), .ks-seg button:active, .ks-stepper button:active:not(:disabled), .ks-back:active { transform: none; } }
+
+/* Оплата с кнопкой отмены: строка и «Отменить оплату» — одна карточка, кнопка под разделителем */
+.ks-pay-group { background: var(--ks-surface); border: 1px solid var(--ks-border); border-radius: var(--ks-radius-card); box-shadow: var(--ks-shadow); margin-bottom: 8px; overflow: hidden; }
+.ks-pay-group > .ks-row { margin: 0; border: 0; border-radius: 0; box-shadow: none; background: none; }
+.ks-pay-cancel { display: block; width: 100%; min-height: var(--ks-tap); padding: 10px 12px; border: 0; border-top: 1px solid var(--ks-border); background: none; color: var(--ks-primary); font: 700 14px var(--ks-font); text-align: center; cursor: pointer; }
+.ks-pay-cancel:disabled { opacity: 0.55; cursor: default; }
+.ks-pay-cancel:focus-visible { outline: 3px solid var(--ks-primary); outline-offset: -3px; }
 
 /* Клавиатура открыта в поле поиска: запас снизу, чтобы поле можно было поднять к верху экрана. */
 html.ks-kbd body { padding-bottom: 70vh; }

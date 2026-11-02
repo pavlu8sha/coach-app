@@ -136,7 +136,7 @@ function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBa
       <h1 style={{ overflowWrap: 'anywhere' }}>{player.full_name}</h1>
       <p className="muted" style={{ marginBottom: 12 }}>Всего: {total} {plural(total)}</p>
 
-      <h3>Ручные баллы</h3>
+      <h2 className="ks-sub">Ручные баллы</h2>
       <div className="ks-card">
         <Segmented
           label="Сколько баллов"
@@ -153,7 +153,7 @@ function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBa
         </button>
       </div>
 
-      <h3>Родители</h3>
+      <h2 className="ks-sub">Родители</h2>
       {parents === null ? (
         <p className="muted">Загрузка…</p>
       ) : parents === 'na' ? (
@@ -171,7 +171,7 @@ function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBa
         ))
       )}
 
-      <h3>История баллов</h3>
+      <h2 className="ks-sub">История баллов</h2>
       {events.length === 0 ? (
         <p className="muted">Начислений пока нет.</p>
       ) : (

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, within, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import Debtors from './Debtors';
@@ -41,8 +41,12 @@ describe('«Должники» (администратор)', () => {
   it('скидку можно отметить и снять', async () => {
     seed();
     render(<Debtors />);
-    fireEvent.click((await screen.findAllByText('Отметить «Скидка»'))[0]);
-    await waitFor(() => expect(fake.writes('subscriptions', 'upsert')).toContainEqual({ player_id: 'p1', month: monthIso(), discount: true }));
+    fireEvent.click((await screen.findAllByText('Закрыть без оплаты'))[0]);
+    const dlg = within(await screen.findByRole('dialog'));
+    expect(dlg.getByRole('button', { name: 'Закрыть без оплаты' })).toBeDisabled(); // без причины нельзя
+    fireEvent.change(dlg.getByLabelText(/Причина/), { target: { value: 'договорённость с родителем' } });
+    fireEvent.click(dlg.getByRole('button', { name: 'Закрыть без оплаты' }));
+    await waitFor(() => expect(fake.writes('subscriptions', 'upsert')).toContainEqual({ player_id: 'p1', month: monthIso(), discount: true, written_off: false, closed_kind: 'discount', closed_reason: 'договорённость с родителем' }));
     fireEvent.click(await screen.findByText('Снять'));
     await waitFor(() => expect(fake.writes('subscriptions', 'upsert')).toContainEqual({ player_id: 'p9', month: monthIso(), discount: false }));
   });

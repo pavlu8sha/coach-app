@@ -282,7 +282,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, onBack }: { groups
         <b>:</b>
         <input className="ks-input" style={{ width: 90 }} inputMode="numeric" aria-label="Забил соперник" value={ga} onChange={e => setGa(e.target.value.replace(/\D/g, '').slice(0, 2))} placeholder="—" />
       </div>
-      <h3>Состав{Object.values(lines).some(l => l.played) ? ` · играло ${Object.values(lines).filter(l => l.played).length}` : ''}</h3>
+      <h2 className="ks-sub">Состав{Object.values(lines).some(l => l.played) ? ` · играло ${Object.values(lines).filter(l => l.played).length}` : ''}</h2>
       <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>
         Баллы начисляются автоматически, когда внесён счёт: победа — 2 играющим, лучшему игроку — 3; поражение или ничья — 1 играющим; за каждый гол +1. Лучший игрок учитывается только при победе.
       </p>
@@ -313,7 +313,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, onBack }: { groups
         <button type="button" className="ks-btn secondary" onClick={() => setShowAll(true)}>Показать всех игроков команды ({players.filter(p => !shownIds.includes(p.id) && !line(p.id).played).length})</button>
       )}
       <>
-      <h3>Добавить в состав</h3>
+      <h2 className="ks-sub">Добавить в состав</h2>
       <input className="ks-input" value={q} onChange={e => setQ(e.target.value)} placeholder="Фамилия или имя игрока (от 2 букв)" aria-label="Найти игрока" list="ks-found-names" autoComplete="off" {...searchFocusProps} /><NameDatalist id="ks-found-names" names={found.map(f => f.full_name)} />
       <div style={{ marginTop: 8, marginBottom: 16, display: 'grid', gap: 8 }}>
       {found.filter(f => !players.some(p => p.id === f.id)).map(f => (
