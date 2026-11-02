@@ -74,3 +74,10 @@ h3 { font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color
 /* выбор роли */
 .ks-row.role { align-items: flex-start; padding: 14px; }
 .role-icon { flex: none; width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; background: var(--bg); color: var(--accent); }
+
+/* Карточки «К оплате» на телефоне: компактнее, поля не обрезаются (задача #253). Суммы и логика оплаты не затронуты. */
+.ks-due .ks-btn { min-height: var(--ks-tap); }
+.ks-due .field { margin-top: 8px; }
+.ks-due .ks-line > span[role='img'] { display: inline-flex; flex: none; }
+/* На самой узкой ширине (320 px) дата и способ оплаты в два столбца обрезали значение даты: ставим друг под другом */
+@media (max-width: 359px) { .ks-due .two.pay-fields { grid-template-columns: minmax(0, 1fr); } }
