@@ -57,7 +57,7 @@ function useNumberNote(playerId: string | undefined, number: string): string | n
         const who = [...new Set(((o.data ?? []) as unknown as Who[])
           .filter(x => x.players && normNumber(x.number) === normNumber(t) && family(x.players.groups?.name) === mine)
           .map(x => `${x.players!.full_name} (${x.players!.groups?.name})`))].slice(0, 3);
-        if (alive) setNote(who.length ? `Номер ${t} уже есть в группе ${groupName}: ${who.join(', ')}. Заказ можно сохранить. Если это тот же ребёнок, объедините его карточки.` : null);
+        if (alive) setNote(who.length ? `Номер ${t} уже есть в группе ${groupName}: ${who.join(', ')}.` : null);
       })();
     }, 250);
     return () => { alive = false; clearTimeout(timer); };

@@ -155,7 +155,7 @@ describe('«Экипировка»', () => {
     fireEvent.click(await screen.findByLabelText(/Форма/));
     fireEvent.change(screen.getByLabelText('Номер'), { target: { value: '19' } });
     const msg = await screen.findByText(/Номер 19 уже есть в группе U9-A/);
-    expect(msg.textContent).toContain('Заказ можно сохранить');
+    expect(msg.textContent).not.toContain('объедините');
     expect(msg.textContent).toContain('Тот Же Возраст (U9-B)');
     expect(msg.textContent).not.toContain('Другая Группа');
     expect(msg.textContent).not.toContain('Площадка Исани');
