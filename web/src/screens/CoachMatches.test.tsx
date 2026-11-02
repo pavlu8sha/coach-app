@@ -274,6 +274,34 @@ describe('«Новое событие»', () => {
     expect(screen.queryByRole('button', { name: /Завершить соревнование|Вернуть в работу/ })).not.toBeInTheDocument();
   });
 
+  describe('матч чемпионата и ушедшие игроки', () => {
+    const setupChamp = (rows: Record<string, unknown>[]) => {
+      fake.db.matches = [{ id: 'm1', team: 'U9', played_on: '2026-11-02', opponent: 'Олимп', goals_for: null, goals_against: null }];
+      fake.db.players = [
+        { id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'active' },
+        { id: 'p2', full_name: 'Сидоров Ян', group_id: 'g1', status: 'inactive' },
+      ];
+      fake.db.match_players = rows;
+      fake.rpc.match_tournaments = () => [{ match_id: 'm1', tournament_id: 't1', tournament_name: 'Ч1', tournament_kind: 'championship', match_kind: 'game' }];
+      fake.rpc.event_roster = () => [{ player_id: 'p1', full_name: 'Иванов Пётр', group_name: 'U9' }, { player_id: 'p2', full_name: 'Сидоров Ян', group_name: 'U9' }];
+    };
+
+    it('игрок со статусом «не занимается» не предлагается в составе матча события', async () => {
+      setupChamp([]);
+      render(<CoachMatches groups={groups} />);
+      fireEvent.click(await screen.findByText('Олимп'));
+      await screen.findByText('Иванов Пётр');
+      expect(screen.queryByText('Сидоров Ян')).not.toBeInTheDocument();
+    });
+
+    it('если у ушедшего игрока уже есть запись в этом матче, он остаётся в нём', async () => {
+      setupChamp([{ match_id: 'm1', player_id: 'p2', played: true, goals: 0, best: false }]);
+      render(<CoachMatches groups={groups} />);
+      fireEvent.click(await screen.findByText('Олимп'));
+      expect(await screen.findByText('Сидоров Ян')).toBeInTheDocument();
+    });
+  });
+
   it('в составе события у каждого игрока кнопка «Убрать», пометки «играл в матче» нет', async () => {
     fake.db.matches = [];
     fake.rpc.event_list = () => [{ id: 'e1', team: 'U9', kind: 'championship', name: 'Ч2', starts_on: '2026-11-01', players: 2, games: 0 }];
