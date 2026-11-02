@@ -134,7 +134,7 @@ export function EventScreen({ event, groups, admin = false, onBack }: { event: E
       <BackNav onBack={onBack} />
       <h1>{eventTitle(event)}</h1>
       <p className="muted">{KIND_TITLE[event.kind]} · {event.team}{event.starts_on ? ` · ${fmtDate(event.starts_on)}` : ''}</p>
-      <h3>Состав на чемпионат: {roster.length}</h3>
+      <h2 className="ks-sub">Состав на чемпионат: {roster.length}</h2>
       <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>Эти игроки автоматически попадают во все матчи события. Внутри матча отмечается, кто играл; гостя, которого нет в списке, добавляют в конкретный матч.</p>
       {teamGroups.length > 0 && <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => void addGroup()}>Добавить всю команду {event.team}</button>}
       {roster.length === 0 ? (
@@ -145,13 +145,13 @@ export function EventScreen({ event, groups, admin = false, onBack }: { event: E
             end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} aria-label={`Убрать: ${p.full_name}`} disabled={busy} onClick={() => void run(supabase.rpc('event_roster_remove', { t: event.id, pid: p.player_id }))}>Убрать</button>} />
         ))
       )}
-      <h3>Добавить игрока</h3>
+      <h2 className="ks-sub">Добавить игрока</h2>
       <input className="ks-input" value={q} onChange={e => setQ(e.target.value)} placeholder="Фамилия или имя (от 2 букв)" aria-label="Найти игрока" list="ks-found-names" autoComplete="off" {...searchFocusProps} /><NameDatalist id="ks-found-names" names={found.map(f => f.full_name)} />
       {found.filter(f => !roster.some(r => r.player_id === f.id)).map(f => (
         <ListRow key={f.id} avatar={f.full_name} title={f.full_name} end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} disabled={busy} onClick={() => { setQ(''); setFound([]); void add([f.id]); }}>Добавить</button>} />
       ))}
       {admin && <EventFees eventId={event.id} reloadKey={reload} onChanged={() => setReload(n => n + 1)} />}
-      <h3>Добавить игру</h3>
+      <h2 className="ks-sub">Добавить игру</h2>
       <label className="ks-label" htmlFor="g-date">Дата</label>
       <input id="g-date" className="ks-input" type="date" value={gameDate} onChange={e => setGameDate(e.target.value)} />
       <label className="ks-label" htmlFor="g-opp">Соперник</label>

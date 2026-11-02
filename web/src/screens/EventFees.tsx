@@ -98,7 +98,7 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
 
   return (
     <section>
-      <h3>Взносы</h3>
+      <h2 className="ks-sub">Взносы</h2>
       <p className="muted" style={{ marginBottom: 8 }}>Не оплачено всего: {money(debt)}</p>
       <label className="ks-label" htmlFor="ef-fee">Взнос с игрока, ₾</label>
       <div className="ks-line">
@@ -135,7 +135,7 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
           </div>
         );
       })}
-      <h3>Принять оплату</h3>
+      <h2 className="ks-sub">Принять оплату</h2>
       <div className="ks-actions" style={{ marginBottom: 8 }}>
         <button type="button" className="ks-btn secondary sm" disabled={fees.every(f => f.due - f.paid <= 0)} onClick={() => setSel(new Set(fees.filter(f => f.due - f.paid > 0).map(f => f.player_id)))}>Выбрать всех должников</button>
         <button type="button" className="ks-btn secondary sm" disabled={sel.size === 0} onClick={() => setSel(new Set())}>Снять выбор</button>
@@ -156,7 +156,7 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
       {msg && <p className={msg.ok ? 'ks-ok' : 'error'}>{msg.text}</p>}
       {pays.length > 0 && (
         <>
-          <h3>Платежи</h3>
+          <h2 className="ks-sub">Платежи</h2>
           {pays.map(p => (
             <ListRow
               key={p.id}

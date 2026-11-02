@@ -22,3 +22,23 @@ describe('Failure', () => {
     expect(container.querySelectorAll('main')).toHaveLength(1);
   });
 });
+
+describe('Правила обработки данных', () => {
+  it('заголовок экрана — h1, разделы — h2', async () => {
+    const Privacy = (await import('../screens/Privacy')).default;
+    render(<Privacy onBack={() => {}} />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Политика конфиденциальности' })).toBeInTheDocument();
+    expect(screen.queryAllByRole('heading', { level: 3 })).toHaveLength(0);
+  });
+});
+
+describe('Заявка на пробную', () => {
+  it('отдельным экраном заголовок — h1, во встроенной карточке — h2', async () => {
+    const TrialForm = (await import('../screens/TrialForm')).default;
+    const a = render(<TrialForm startOpen />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Запись на пробную тренировку' })).toBeInTheDocument();
+    a.unmount();
+    render(<TrialForm />);
+    expect(screen.getByRole('heading', { level: 2, name: 'Записаться на пробную тренировку' })).toBeInTheDocument();
+  });
+});
