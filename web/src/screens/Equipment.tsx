@@ -5,8 +5,8 @@ import { EmptyState, ListRow, Pill, SearchInput, Segmented, SwitchRow } from '..
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
-import { useClubSettings } from '../lib/clubSettings';
-import { bundleDiscount } from '../lib/equipmentDiscount';
+import { settingText, useClubSettings } from '../lib/clubSettings';
+import { bundleDiscount, parseKitList } from '../lib/equipmentDiscount';
 import { EQUIPMENT_REQUIRED_KEY, EQUIPMENT_REQUIRED_TEXT, lastStatusDate, nextStatus, orderStatusLabel, prevStatus, type StatusEvent } from '../lib/equipment';
 
 interface Line { kit: string; size: string | null; quantity: number }
@@ -285,15 +285,15 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
   const [err, setErr] = useState<string | null>(null);
   const settings = useClubSettings();
   const numberNote = useNumberNote(player?.id, number);
-  const [pastKits, setPastKits] = useState<string[]>([]);
+  const [past, setPast] = useState<{ total: number; lines: { kit: string; quantity: number; unit_price: number | null }[] }[]>([]);
 
-  // Что игрок заказывал раньше: нужно, чтобы посчитать скидку на комплект.
+  // Что игрок заказывал раньше и на какую сумму: нужно, чтобы посчитать скидку на весь набор.
   useEffect(() => {
-    if (!player) return setPastKits([]);
+    if (!player) return setPast([]);
     let alive = true;
-    void supabase.from('equipment_orders').select('equipment_order_lines(kit)').eq('player_id', player.id).then(r => {
+    void supabase.from('equipment_orders').select('total, equipment_order_lines(kit, quantity, unit_price)').eq('player_id', player.id).then(r => {
       if (!alive || r.error) return;
-      setPastKits(((r.data ?? []) as unknown as { equipment_order_lines: { kit: string }[] | null }[]).flatMap(o => (o.equipment_order_lines ?? []).map(l => l.kit)));
+      setPast(((r.data ?? []) as unknown as { total: number | string | null; equipment_order_lines: { kit: string; quantity: number; unit_price: number | null }[] | null }[]).map(o => ({ total: Number(o.total ?? 0), lines: o.equipment_order_lines ?? [] })));
     });
     return () => { alive = false; };
   }, [player]);
@@ -316,9 +316,11 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
     if (n) setNumber(cur => (cur.trim() ? cur : n));
   };
   const total = (kits ?? []).reduce((s, k) => s + (pick[k.kit] ? k.price * pick[k.kit].quantity : 0), 0);
+  const fullKits = new Set(parseKitList(settingText(settings.values, 'equip.fullPrice')));
+  const pastAmount = past.reduce((sum, o) => sum + Math.max(0, o.total - o.lines.filter(l => fullKits.has(l.kit.trim().toLowerCase())).reduce((x, l) => x + Number(l.unit_price ?? 0) * l.quantity, 0)), 0);
   const disc = bundleDiscount({
     lines: (kits ?? []).filter(k => pick[k.kit]).map(k => ({ kit: k.kit, amount: k.price * pick[k.kit].quantity })),
-    pastKits, installment: inst, settings: settings.values,
+    pastKits: past.flatMap(o => o.lines.map(l => l.kit)), pastAmount, installment: inst, settings: settings.values,
   });
   const save = async () => {
     if (!player) return;
@@ -366,8 +368,14 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
       <label className="field">Локация<input value={loc} maxLength={40} onChange={e => setLoc(e.target.value)} /></label>
       <div style={{ marginTop: 12 }}><SwitchRow id="inst" label="Рассрочка" checked={inst} onChange={setInst} /></div>
       <label className="field">Своя сумма, ₾ (если со скидкой; иначе пусто)<input inputMode="decimal" value={custom} onChange={e => setCustom(e.target.value)} /></label>
-      <p className="muted">По каталогу: {gel(total)}</p>
-      {disc.applies && custom.trim() === '' && <p className="ks-callout">Скидка {disc.pct}%: {gel(disc.total)} вместо {gel(disc.base)} (−{gel(disc.discount)}). Заказ создастся с этой суммой; если нужна другая, впишите её выше.</p>}
+      {disc.applies && custom.trim() === '' ? (
+        <div className="ks-callout">
+          <div>По каталогу: {gel(disc.base)}</div>
+          <div>Скидка на комплект {disc.pct}%: −{gel(disc.discount)}</div>
+          <div><b>К оплате: {gel(disc.total)}</b></div>
+          {disc.pastAmount > 0 && <div className="muted">Считается от всего набора: {gel(disc.allBase)} с прошлыми заказами, со скидкой {gel(disc.allTotal)}, минус прошлые {gel(disc.pastAmount)}. Другую сумму можно вписать выше.</div>}
+        </div>
+      ) : <p className="muted">По каталогу: {gel(total)}</p>}
       {err && <p className="error" style={{ marginBottom: 12 }}>{err}</p>}
       <button type="button" className="ks-btn" style={{ marginTop: 16 }} disabled={busy || !player || Object.keys(pick).length === 0 || (custom.trim() !== '' && Number.isNaN(num(custom)))} onClick={() => void save()}>Создать заказ</button>
     </main>
@@ -480,7 +488,7 @@ function OrderView({ order, knownNumber, onBack }: { order: Order; knownNumber?:
       <label className="field">Локация<input value={loc} maxLength={40} onChange={e => setLoc(e.target.value)} /></label>
       <label className="field">Сумма заказа, ₾<input inputMode="decimal" value={total} onChange={e => setTotal(e.target.value)} /></label>
       <div style={{ marginTop: 12 }}><SwitchRow id="inst" label="Рассрочка" checked={inst} onChange={setInst} /></div>
-      <button type="button" className="ks-btn" disabled={busy === 'edit' || Number.isNaN(num(total))} onClick={() => void run('edit', () => supabase.rpc('eq_edit_order', { o: o.id, insc, num: number, inst, loc, new_total: num(total) }), 'Сохранено.')}>Сохранить</button>
+      <button type="button" className="ks-btn" style={{ marginTop: 16 }} disabled={busy === 'edit' || Number.isNaN(num(total))} onClick={() => void run('edit', () => supabase.rpc('eq_edit_order', { o: o.id, insc, num: number, inst, loc, new_total: num(total) }), 'Сохранено.')}>Сохранить</button>
       <div style={{ height: 8 }} />
       <button type="button" className="ks-btn secondary" disabled={busy === 'del'} onClick={() => void deleteOrder()}>Удалить заказ</button>
       {confirmDialog}
