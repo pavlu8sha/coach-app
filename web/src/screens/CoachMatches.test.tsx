@@ -81,6 +81,7 @@ describe('«Матчи» тренера', () => {
     seed();
     render(<CoachMatches groups={groups} />);
     fireEvent.click(await screen.findByText('Добавить матч'));
+    fireEvent.click(within(screen.getByLabelText('Выбор команды')).getByText('U9'));
     fireEvent.click(screen.getByText('Товарищеский или кубковый'));
     await screen.findByText('Иванов Пётр');
     fireEvent.change(screen.getByLabelText('Забила наша команда'), { target: { value: '1' } });
@@ -97,6 +98,7 @@ describe('«Матчи» тренера', () => {
     seed();
     render(<CoachMatches groups={groups} />);
     fireEvent.click(await screen.findByText('Добавить матч'));
+    fireEvent.click(within(screen.getByLabelText('Выбор команды')).getByText('U9'));
     fireEvent.click(screen.getByText('Товарищеский или кубковый'));
     await screen.findByText('Иванов Пётр');
     fireEvent.change(screen.getByLabelText('Забила наша команда'), { target: { value: '2' } });
@@ -204,11 +206,22 @@ describe('«Новое событие»', () => {
     fake.rpc.event_roster = () => [];
     render(<CoachMatches groups={groups} />);
     fireEvent.click(await screen.findByText('Добавить матч'));
+    fireEvent.click(within(screen.getByLabelText('Выбор команды')).getByText('U9'));
     expect(screen.getByText('Товарищеский или кубковый')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Матч чемпионата или фестиваля'));
     fireEvent.click(within(screen.getByLabelText('Выбор события')).getByText('Чемпионат осени'));
     expect(await screen.findByRole('button', { name: 'Добавить игру' })).toBeInTheDocument();
     expect(screen.queryByText('Сохранить матч')).not.toBeInTheDocument();
+  });
+
+  it('«Добавить матч»: сначала команда, потом тип; товарищеский открывает форму с этой командой', async () => {
+    seed();
+    render(<CoachMatches groups={allGroups} allTeams />);
+    fireEvent.click(await screen.findByText('Добавить матч'));
+    fireEvent.click(within(screen.getByLabelText('Выбор команды')).getByText('U11'));
+    fireEvent.click(screen.getByText('Товарищеский или кубковый'));
+    expect(await screen.findByRole('heading', { name: 'Новый матч' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Группа')).toHaveValue('g2');
   });
 
   it('в составе события у каждого игрока кнопка «Убрать», пометки «играл в матче» нет', async () => {

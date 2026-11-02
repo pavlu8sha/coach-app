@@ -28,7 +28,8 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   const [playedBy, setPlayedBy] = useState<Map<string, number>>(new Map());
   const [eventView, setEventView] = useState<{ event: EventRow | null } | null>(null);
   // «Добавить матч»: сначала тип игры, потом либо товарищеский/кубковый матч, либо событие (чемпионат, фестиваль), где добавляется игра
-  const [addStep, setAddStep] = useState<'type' | 'event' | null>(null);
+  const [addStep, setAddStep] = useState<'team' | 'type' | 'event' | null>(null);
+  const [addTeam, setAddTeam] = useState('');
 
   useEffect(() => {
     void (async () => {
@@ -69,7 +70,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
     const allTeams2 = [...new Set([...groups.map(g => g.name), ...(matches ?? []).map(m => m.team), ...events.map(e => e.team)].filter(playsMatches).map(matchTeam))].sort(compareGroups);
     return <EventForm teams={allTeams2} events={events} admin={admin} onBack={back} onCreated={id => void openCreated(id)} />;
   }
-  if (form) return <MatchForm groups={groups} match={form.match} admin={admin} rosterOf={form.match && !(!tours.get(form.match.id)?.tournament_id || tours.get(form.match.id)?.match_kind === 'friendly' || tours.get(form.match.id)?.tournament_kind === 'cup') ? tours.get(form.match.id)?.tournament_id ?? null : null} feeMode={!form.match || !tours.get(form.match.id)?.tournament_id || tours.get(form.match.id)?.match_kind === 'friendly' || tours.get(form.match.id)?.tournament_kind === 'cup'} onBack={() => { setForm(null); setReload(n => n + 1); }} />;
+  if (form) return <MatchForm groups={groups} match={form.match} admin={admin} rosterOf={form.match && !(!tours.get(form.match.id)?.tournament_id || tours.get(form.match.id)?.match_kind === 'friendly' || tours.get(form.match.id)?.tournament_kind === 'cup') ? tours.get(form.match.id)?.tournament_id ?? null : null} feeMode={!form.match || !tours.get(form.match.id)?.tournament_id || tours.get(form.match.id)?.match_kind === 'friendly' || tours.get(form.match.id)?.tournament_kind === 'cup'} presetTeam={addTeam} onBack={() => { setForm(null); setReload(n => n + 1); }} />;
   if (!matches) return <Loading />;
 
   const teams = [...new Set(matches.map(m => m.team))].sort(compareGroups);
@@ -97,33 +98,46 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   for (const [id, g] of byTour) sections.push({ key: id, ...g });
   // события, в которые можно добавить игру: свои команды тренера (администратор и тренеры со всеми командами — все)
   const champEvents = events.filter(e => showAll || groups.some(g => g.name === e.team || matchTeam(g.name) === e.team));
+  // команды для «Добавить матч»: свои группы тренера; у администратора и тренера со всеми командами — все команды клуба
+  const addTeams = [...new Set((showAll ? [...groups.map(g => g.name), ...matches.map(m => m.team), ...events.map(e => e.team)] : groups.map(g => g.name)).filter(playsMatches).map(matchTeam))].sort(compareGroups);
   if (other.length) sections.push({ key: 'other', title: byTour.size ? 'Товарищеские и кубки' : 'Матчи', items: other });
   return (
     <main className="page">
       <h1>Матчи</h1>
-      <button type="button" className="ks-btn" onClick={() => setAddStep('type')}>Добавить матч</button>
+      <button type="button" className="ks-btn" onClick={() => setAddStep('team')}>Добавить матч</button>
       <div style={{ height: 8 }} />
       <button type="button" className="ks-btn secondary" onClick={() => setEventView({ event: null })}>Новое событие</button>
-      {addStep === 'type' && (
-        <div className="ks-card" aria-label="Тип игры">
-          <p className="ks-label">Какой матч добавить?</p>
-          <button type="button" className="ks-btn" onClick={() => { setAddStep(null); setForm({ match: null }); }}>Товарищеский или кубковый</button>
-          <div style={{ height: 8 }} />
-          <button type="button" className="ks-btn secondary" onClick={() => setAddStep('event')}>Матч чемпионата или фестиваля</button>
+      {addStep === 'team' && (
+        <div className="ks-card" aria-label="Выбор команды">
+          <p className="ks-label">Для какой команды матч?</p>
+          {addTeams.length === 0 && <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>Нет команд, для которых можно добавить матч.</p>}
+          {addTeams.map(t => (
+            <ListRow key={t} title={t} onClick={() => { setAddTeam(t); setAddStep('type'); }} />
+          ))}
           <div style={{ height: 8 }} />
           <button type="button" className="ks-btn secondary" onClick={() => setAddStep(null)}>Отмена</button>
         </div>
       )}
+      {addStep === 'type' && (
+        <div className="ks-card" aria-label="Тип игры">
+          <p className="ks-label">{addTeam}: какой матч добавить?</p>
+          <button type="button" className="ks-btn" onClick={() => { setAddStep(null); setForm({ match: null }); }}>Товарищеский или кубковый</button>
+          <div style={{ height: 8 }} />
+          <button type="button" className="ks-btn secondary" onClick={() => setAddStep('event')}>Матч чемпионата или фестиваля</button>
+          <div style={{ height: 8 }} />
+          <button type="button" className="ks-btn secondary" onClick={() => setAddStep('team')}>Назад</button>
+        </div>
+      )}
       {addStep === 'event' && (
         <div className="ks-card" aria-label="Выбор события">
-          <p className="ks-label">Чемпионат или фестиваль</p>
-          {champEvents.length === 0 ? (
-            <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>Сначала создайте чемпионат или фестиваль, потом добавляйте в него игры.</p>
+          <p className="ks-label">{addTeam}: чемпионат или фестиваль</p>
+          {champEvents.filter(e => e.team === addTeam).length === 0 ? (
+            <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>У команды пока нет чемпионата или фестиваля. Создайте событие, потом добавляйте в него игры.</p>
           ) : (
             <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>Выберите событие, в нём добавится игра.</p>
           )}
-          {champEvents.map(e => (
-            <ListRow key={e.id} title={eventTitle(e)} sub={[e.team, eventCounts(e)]} onClick={() => { setAddStep(null); setEventView({ event: e }); }} />
+          {champEvents.filter(e => e.team === addTeam).map(e => (
+            <ListRow key={e.id} title={eventTitle(e)} sub={[eventCounts(e)]} onClick={() => { setAddStep(null); setEventView({ event: e }); }} />
           ))}
           <div style={{ height: 8 }} />
           <button type="button" className="ks-btn secondary" onClick={() => { setAddStep(null); setEventView({ event: null }); }}>Новое событие</button>
@@ -169,12 +183,14 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
 }
 
 // feeMode: у товарищеских и кубковых матчей взнос свой (на матч); у чемпионатов и фестивалей он на событие
-function MatchForm({ groups, match, admin, feeMode, rosterOf, onBack }: { groups: CoachGroup[]; match: Match | null; admin: boolean; feeMode: boolean; rosterOf: string | null; onBack: () => void }) {
+function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack }: { groups: CoachGroup[]; match: Match | null; admin: boolean; feeMode: boolean; rosterOf: string | null; presetTeam?: string; onBack: () => void }) {
   const { ask, dialog: confirmDialog } = useConfirm();
   const matchGroups = groups.filter(g => playsMatches(g.name));
   const matched = match ? (groups.find(g => g.name === match.team) ?? groups.find(g => matchTeam(g.name) === match.team))?.id : undefined;
   // у тренера матч всегда своей группы; у администратора название команды может не совпасть ни с одной группой — тогда группа не нужна
-  const initialGid = match ? matched ?? (admin ? '' : groups[0]?.id ?? '') : matchGroups[0]?.id ?? '';
+  // новый матч: группа команды, выбранной раньше (presetTeam), иначе первая группа
+  const presetGid = presetTeam ? matchGroups.find(g => matchTeam(g.name) === presetTeam)?.id : undefined;
+  const initialGid = match ? matched ?? (admin ? '' : groups[0]?.id ?? '') : presetGid ?? matchGroups[0]?.id ?? '';
   const [gid, setGid] = useState(initialGid);
   const [date, setDate] = useState(match?.played_on ?? today());
   const [opp, setOpp] = useState(match?.opponent ?? '');
