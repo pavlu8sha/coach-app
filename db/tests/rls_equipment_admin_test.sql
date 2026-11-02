@@ -37,7 +37,7 @@ select as_user('00000000-0000-0000-0000-0000000000a1');
 insert into oid_t select eq_create_order('00000000-0000-0000-0000-00000000d001', '[{"kit":"Форма","size":"128","quantity":2},{"kit":"Куртка","size":"128"}]'::jsonb, 'ANYA', '7', true, 'Зал');
 select is((select total from equipment_orders where id = (select id from oid_t)), 260::numeric, 'сумма по каталогу: 2×100 + 60');
 select is((select count(*)::int from equipment_order_lines where order_id = (select id from oid_t)), 2, 'две позиции');
-select throws_ok($$select eq_create_order('00000000-0000-0000-0000-00000000d002', '[{"kit":"Форма"}]'::jsonb, null, '7', false, null)$$, '23505', 'number taken', 'номер 7 занят в группе u7 (u7-a и u7-b — одна группа)');
+select lives_ok($$select eq_create_order('00000000-0000-0000-0000-00000000d002', '[{"kit":"Форма"}]'::jsonb, null, '7', false, null)$$, 'номер 7 занят в группе u7, но заказ создаётся: номер больше не блокирует (0102)');
 select lives_ok($$select eq_create_order('00000000-0000-0000-0000-00000000d003', '[{"kit":"Форма"}]'::jsonb, null, '7', false, null)$$, 'в другой группе тот же номер можно');
 select throws_ok($$select eq_create_order('00000000-0000-0000-0000-00000000d002', '[{"kit":"Шапка"}]'::jsonb, null, null, false, null)$$, '22023', 'kit not in catalog', 'позиции вне каталога отклоняются');
 select throws_ok($$select eq_create_order('00000000-0000-0000-0000-00000000d002', '[]'::jsonb, null, null, false, null)$$, '22023', 'no items', 'пустой заказ отклоняется');

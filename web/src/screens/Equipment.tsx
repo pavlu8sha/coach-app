@@ -21,7 +21,7 @@ interface Kit { kit: string; price: number }
 const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
 const num = (s: string) => Number(s.replace(',', '.'));
 const errText = (m: string) =>
-  m.includes('number taken') ? 'Этот номер уже занят в группе.' : m.includes('paid above total') ? 'Оплата больше суммы заказа.' : m.includes('paid below zero') ? 'Оплачено не может быть меньше нуля.' : m.includes('total below paid') ? 'Сумма заказа меньше уже оплаченного.' :
+  m.includes('paid above total') ? 'Оплата больше суммы заказа.' : m.includes('paid below zero') ? 'Оплачено не может быть меньше нуля.' : m.includes('total below paid') ? 'Сумма заказа меньше уже оплаченного.' :
   m.includes('order has payments') ? 'У заказа есть оплата: сначала верните её записью с минусом.' : m.includes('order has issues') ? 'У заказа есть выданные вещи: сначала снимите выдачу.' : m.includes('kit not in catalog') ? 'Позиции нет в каталоге.' : m.includes('no items') ? 'Выберите хотя бы одну вещь.' : m.includes('bad amount') ? 'Сумма указана неверно.' :
   m.includes('bad transition') ? 'Статус можно менять только на один шаг вперёд (назад — администратору).' : m.includes('bad status') ? 'Такого статуса нет.' :
   m.includes('Could not find the function') || m.includes('equipment_issues') ? 'Модуль ещё не установлен в базе (миграция 0036).' : coachError(m);
@@ -37,6 +37,34 @@ const missingOf = (o: Pick<Order, 'number' | 'equipment_order_lines'>): string[]
 };
 
 // Номер игрока: берём из его самого свежего заказа, где номер указан.
+// Номер уже у другого игрока той же возрастной группы («U10-A» и «U10-B» считаются одной группой U10)? Только подсказка: заказ это не блокирует (#339).
+const family = (n: string | null | undefined) => (n ?? '').toLowerCase().replace(/-.*$/, '');
+const normNumber = (n: string | null | undefined) => (n ?? '').replace(/\//g, ',').replace(/\s+/g, '');
+function useNumberNote(playerId: string | undefined, number: string): string | null {
+  const [note, setNote] = useState<string | null>(null);
+  useEffect(() => {
+    const t = number.trim();
+    if (!playerId || !t) return setNote(null);
+    let alive = true;
+    const timer = setTimeout(() => {
+      void (async () => {
+        const g = await supabase.from('players').select('groups(name)').eq('id', playerId).maybeSingle();
+        const mine = family((g.data as unknown as { groups?: { name: string } | null } | null)?.groups?.name);
+        const groupName = (g.data as unknown as { groups?: { name: string } | null } | null)?.groups?.name ?? '';
+        if (mine === '') return alive && setNote(null);
+        const o = await supabase.from('equipment_orders').select('player_id, number, players(full_name, groups(name))').ilike('number', `%${t}%`).neq('player_id', playerId).limit(200);
+        type Who = { players: { full_name: string; groups: { name: string } | null } | null; number: string | null };
+        const who = [...new Set(((o.data ?? []) as unknown as Who[])
+          .filter(x => x.players && normNumber(x.number) === normNumber(t) && family(x.players.groups?.name) === mine)
+          .map(x => `${x.players!.full_name} (${x.players!.groups?.name})`))].slice(0, 3);
+        if (alive) setNote(who.length ? `Номер ${t} уже есть в группе ${groupName}: ${who.join(', ')}. Заказ можно сохранить. Если это тот же ребёнок, объедините его карточки.` : null);
+      })();
+    }, 250);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [playerId, number]);
+  return note;
+}
+
 const knownNumbers = (orders: Pick<Order, 'player_id' | 'number' | 'ordered_on'>[]) => {
   const m = new Map<string, string>();
   [...orders].sort((a, b) => (b.ordered_on ?? '').localeCompare(a.ordered_on ?? '')).forEach(o => {
@@ -256,6 +284,7 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const settings = useClubSettings();
+  const numberNote = useNumberNote(player?.id, number);
   const [pastKits, setPastKits] = useState<string[]>([]);
 
   // Что игрок заказывал раньше: нужно, чтобы посчитать скидку на комплект.
@@ -298,21 +327,7 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
     const lines = Object.entries(pick).map(([kit, v]) => ({ kit, size: v.size, quantity: v.quantity }));
     const r = await supabase.rpc('eq_create_order', { p: player.id, lines, insc, num: number, inst, loc, custom_total: custom.trim() !== '' ? num(custom) : disc.applies ? disc.total : null });
     setBusy(false);
-    if (r.error) {
-      if (!r.error.message.includes('number taken')) return setErr(errText(r.error.message));
-      // Номер занят другим игроком той же возрастной группы (как в базе: «U10-A» и «U10-B» считаются одной группой U10).
-      // Показываем, кем именно, чтобы было видно, свой это номер или чужой.
-      const t = number.trim();
-      const family = (n: string | null | undefined) => (n ?? '').toLowerCase().replace(/-.*$/, '');
-      const norm = (n: string | null | undefined) => (n ?? '').replace(/\//g, ',').replace(/\s+/g, '');
-      const mine = family(player.groups?.name);
-      const o = await supabase.from('equipment_orders').select('player_id, number, players(full_name, groups(name))').ilike('number', `%${t}%`).neq('player_id', player.id).limit(200);
-      type Who = { players: { full_name: string; groups: { name: string } | null } | null; number: string | null };
-      const who = [...new Set(((o.data ?? []) as unknown as Who[])
-        .filter(x => x.players && norm(x.number) === norm(t) && mine !== '' && family(x.players.groups?.name) === mine)
-        .map(x => `${x.players!.full_name} (${x.players!.groups?.name})`))].slice(0, 3);
-      return setErr(who.length ? `Номер ${t} уже занят в группе ${player.groups?.name ?? ''}: ${who.join(', ')}. Если это тот же ребёнок, объедините его карточки.` : errText(r.error.message));
-    }
+    if (r.error) return setErr(errText(r.error.message));
     onDone();
   };
   return (
@@ -347,6 +362,7 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
       })}
       <label className="field">Надпись<input value={insc} maxLength={40} onChange={e => setInsc(e.target.value)} /></label>
       <label className="field">Номер<input value={number} maxLength={10} onChange={e => setNumber(e.target.value)} /></label>
+      {numberNote && <p className="ks-callout" role="status">{numberNote}</p>}
       <label className="field">Локация<input value={loc} maxLength={40} onChange={e => setLoc(e.target.value)} /></label>
       <div style={{ marginTop: 12 }}><SwitchRow id="inst" label="Рассрочка" checked={inst} onChange={setInst} /></div>
       <label className="field">Своя сумма, ₾ (если со скидкой; иначе пусто)<input inputMode="decimal" value={custom} onChange={e => setCustom(e.target.value)} /></label>
@@ -364,6 +380,7 @@ function OrderView({ order, knownNumber, onBack }: { order: Order; knownNumber?:
   const [method, setMethod] = useState('');
   const [insc, setInsc] = useState(order.inscription ?? '');
   const [number, setNumber] = useState(order.number ?? '');
+  const numberNote = useNumberNote(order.player_id ?? undefined, number);
   const [loc, setLoc] = useState(order.location ?? '');
   const [inst, setInst] = useState(order.installment);
   const [total, setTotal] = useState(String(order.total));
@@ -458,6 +475,7 @@ function OrderView({ order, knownNumber, onBack }: { order: Order; knownNumber?:
       <h3>Данные заказа</h3>
       <label className="field">Надпись<input value={insc} maxLength={40} onChange={e => setInsc(e.target.value)} /></label>
       <label className="field">Номер<input value={number} maxLength={10} onChange={e => setNumber(e.target.value)} /></label>
+      {numberNote && <p className="ks-callout" role="status">{numberNote}</p>}
       {!number.trim() && knownNumber && <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} onClick={() => setNumber(knownNumber)}>Подставить номер {knownNumber} из другого заказа игрока</button>}
       <label className="field">Локация<input value={loc} maxLength={40} onChange={e => setLoc(e.target.value)} /></label>
       <label className="field">Сумма заказа, ₾<input inputMode="decimal" value={total} onChange={e => setTotal(e.target.value)} /></label>

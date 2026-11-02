@@ -13,7 +13,7 @@ interface DebtRow { session_id: string; player_id: string; players: { full_name:
 const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
 const METHODS = ['Наличные', 'Перевод'];
 const errText = (m: string) =>
-  m.includes('already booked') ? 'Игрок уже записан.' : m.includes('booking is paid') ? 'Сначала отмените оплату.' : m.includes('session has payments') ? 'На тренировке есть оплаты: дату и сумму менять и удалять нельзя.' : m.includes('session exists') ? 'Тренировка на эту дату уже есть.' : m.includes('bad amount') ? 'Сумма указана неверно.' : m.includes('end before start') ? 'Окончание должно быть позже начала.' : m.includes('start required') ? 'Укажите время начала.' : coachError(m);
+  m.includes('already booked') ? 'Игрок уже записан.' : m.includes('session full') ? 'Все места заняты (лимит из настроек).' : m.includes('booking is paid') ? 'Сначала отмените оплату.' : m.includes('session has payments') ? 'На тренировке есть оплаты: дату и сумму менять и удалять нельзя.' : m.includes('session exists') ? 'Тренировка на эту дату уже есть.' : m.includes('bad amount') ? 'Сумма указана неверно.' : m.includes('end before start') ? 'Окончание должно быть позже начала.' : m.includes('start required') ? 'Укажите время начала.' : coachError(m);
 
 // Время занятия «ЧЧ:ММ–ЧЧ:ММ» (миграция 0070); пусто, если время не указано
 const timeSpan = (s: { starts_time: string | null; ends_time: string | null }) => (s.starts_time ? ` ${s.starts_time.slice(0, 5)}${s.ends_time ? `–${s.ends_time.slice(0, 5)}` : ''}` : '');
