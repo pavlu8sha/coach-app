@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fmtDate } from '../lib/coach';
-import type { PlayerStatus } from '../lib/playerStatus';
+import { pausedMonthTest, type PlayerStatus, type StatusLogPoint } from '../lib/playerStatus';
 import { supabase } from '../lib/supabase';
 import { Avatar, Segmented } from '../ui/components';
 import { BackNav } from '../ui/nav';
@@ -50,7 +50,7 @@ export default function PlayerCard({ player, onBack, onEdit, onStatus }: { playe
   const [shirt, setShirt] = useState<string | null>(null); // номер из самого свежего заказа экипировки
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const [pauseFrom, setPauseFrom] = useState<string | null>(null); // с какого месяца пауза: дальше пустые месяцы не рисуем
+  const [statusLog, setStatusLog] = useState<StatusLogPoint[]>([]); // журнал статусов: месяцы паузы без платежей не рисуем
   const [openMonth, setOpenMonth] = useState<string | null>(null);
   const [tab, setTab] = useState<'sub' | 'dues' | 'sessions' | 'equip' | 'matches' | 'points'>('sub');
 
@@ -72,15 +72,14 @@ export default function PlayerCard({ player, onBack, onEdit, onStatus }: { playe
   }, [player.id, reload]);
 
   useEffect(() => {
-    if (status !== 'paused') return setPauseFrom(null);
-    void supabase.from('player_status_log').select('on_date').eq('player_id', player.id).eq('status', 'paused').order('on_date', { ascending: false }).order('created_at', { ascending: false }).limit(1).then(r => {
-      const d = (r.data as { on_date: string }[] | null)?.[0]?.on_date;
-      setPauseFrom(!r.error && d ? `${d.slice(0, 7)}-01` : null);
+    void supabase.from('player_status_log').select('status, on_date, created_at').eq('player_id', player.id).limit(200).then(r => {
+      setStatusLog(!r.error ? ((r.data ?? []) as StatusLogPoint[]) : []);
     });
   }, [player.id, status, reload]);
 
   if (error) return <Failure title="Не удалось загрузить игрока" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} />} />;
   const payMonths = (pays ?? []).map(x => ({ amount: x.amount, month: x.pay_month ?? x.paid_on.slice(0, 7) + '-01' }));
+  const isPausedMonth = pausedMonthTest(statusLog);
   const gotIn = (m: string) => (pays ?? []).filter(p => (p.pay_month ?? p.paid_on.slice(0, 7) + '-01') === m).reduce((s, p) => s + p.amount, 0);
 
   return (
@@ -108,7 +107,7 @@ export default function PlayerCard({ player, onBack, onEdit, onStatus }: { playe
       {tab === 'equip' && <EquipmentTab playerId={player.id} staff />}
       {tab === 'matches' && <MatchesTab playerId={player.id} />}
       {tab === 'points' && <PointsTab playerId={player.id} />}
-      {tab === 'sub' && (pays === null ? <Loading /> : visibleMonths(months, firstMonth([...subs.keys()], payMonths, created, SEASON_START), status === 'paused' && pauseFrom ? lastMonth([], payMonths, pauseFrom) : status !== 'active' ? lastMonth([...subs.keys()], payMonths, firstMonth([...subs.keys()], payMonths, created, SEASON_START)) : null).map(m => {
+      {tab === 'sub' && (pays === null ? <Loading /> : visibleMonths(months, firstMonth([...subs.keys()], payMonths, created, SEASON_START), status !== 'active' ? lastMonth([...subs.keys()], payMonths, firstMonth([...subs.keys()], payMonths, created, SEASON_START)) : null).filter(m => !(isPausedMonth(m) && gotIn(m) <= 0)).map(m => {
         const tariff = player.group_id ? tariffFor(prices, player.group_id, m) : null;
         const got = gotIn(m);
         const sub = subs.get(m);
