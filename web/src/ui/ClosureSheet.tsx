@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { sheetCardStyle, sheetOverlayStyle } from './ConfirmSheet';
 
 // Закрытие долга без поступления денег (#260): вид и причина обязательны, пишутся в абонемент вместе с автором и датой (миграция 0100).
 export type ClosureKind = 'discount' | 'forgiven' | 'paid_elsewhere';
@@ -30,8 +31,8 @@ export function ClosureSheet({ title, lines = [], defaultKind = 'discount', onDo
   const ok = reason.trim().length >= 3;
   return (
     <div role="dialog" aria-modal="true" aria-label={title} onClick={onCancel}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
-      <div className="ks-card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, margin: 0, borderRadius: 20, padding: 20 }}>
+      style={sheetOverlayStyle}>
+      <div className="ks-card" onClick={e => e.stopPropagation()} style={sheetCardStyle}>
         <h3 style={{ marginTop: 0, textAlign: 'center' }}>{title}</h3>
         {lines.filter(l => l[1]).map(([k, v]) => <p key={k} className="ks-muted" style={{ margin: '4px 0' }}>{k}: <b>{v}</b></p>)}
         <label className="field">Вид закрытия
