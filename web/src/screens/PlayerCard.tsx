@@ -12,6 +12,11 @@ import type { PlayerForm } from './PlayerEdit';
 interface Price { group_id: string | null; amount: number; valid_from: string; valid_to: string | null }
 interface Pay { amount: number; paid_on: string; pay_month?: string | null }
 
+/** Прошедшие месяцы показываем, только если за них есть абонемент или платёж (иначе новичку висят месяцы до прихода); текущий и будущие всегда. */
+export function visibleMonths(months: string[], current: string, withSub: Set<string>, withPay: Set<string>): string[] {
+  return months.filter(m => m >= current || withSub.has(m) || withPay.has(m));
+}
+
 export interface CardPlayer extends PlayerForm { id: string; external_id: string | null; group_name: string | null }
 
 // Карточка игрока для администратора: данные и абонемент по месяцам сезона с быстрым платежом.
@@ -75,7 +80,7 @@ export default function PlayerCard({ player, onBack, onEdit }: { player: CardPla
       {tab === 'equip' && <EquipmentTab playerId={player.id} />}
       {tab === 'matches' && <MatchesTab playerId={player.id} />}
       {tab === 'points' && <PointsTab playerId={player.id} />}
-      {tab === 'sub' && (pays === null ? <Loading /> : months.map(m => {
+      {tab === 'sub' && (pays === null ? <Loading /> : visibleMonths(months, monthIso(new Date()), new Set(subs.keys()), new Set((pays ?? []).map(p => p.pay_month ?? p.paid_on.slice(0, 7) + '-01'))).map(m => {
         const tariff = player.group_id ? tariffFor(prices, player.group_id, m) : null;
         const got = gotIn(m);
         const sub = subs.get(m);
