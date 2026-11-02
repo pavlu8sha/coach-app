@@ -81,8 +81,7 @@ describe('«Матчи» тренера', () => {
     seed();
     render(<CoachMatches groups={groups} />);
     fireEvent.click(await screen.findByText('Добавить матч'));
-    fireEvent.click(within(screen.getByLabelText('Выбор команды')).getByText('U9'));
-    fireEvent.click(screen.getByText('Товарищеский или кубковый'));
+    fireEvent.click(within(screen.getByLabelText('Добавить матч')).getByText('U9'));
     await screen.findByText('Иванов Пётр');
     fireEvent.change(screen.getByLabelText('Забила наша команда'), { target: { value: '1' } });
     fireEvent.change(screen.getByLabelText('Забил соперник'), { target: { value: '0' } });
@@ -98,8 +97,7 @@ describe('«Матчи» тренера', () => {
     seed();
     render(<CoachMatches groups={groups} />);
     fireEvent.click(await screen.findByText('Добавить матч'));
-    fireEvent.click(within(screen.getByLabelText('Выбор команды')).getByText('U9'));
-    fireEvent.click(screen.getByText('Товарищеский или кубковый'));
+    fireEvent.click(within(screen.getByLabelText('Добавить матч')).getByText('U9'));
     await screen.findByText('Иванов Пётр');
     fireEvent.change(screen.getByLabelText('Забила наша команда'), { target: { value: '2' } });
     fireEvent.click(screen.getByText('Сохранить матч'));
@@ -200,26 +198,24 @@ describe('«Новое событие»', () => {
     expect(await screen.findByText('Иванов Пётр')).toBeInTheDocument();
   });
 
-  it('«Добавить матч»: выбор типа игры; чемпионат открывает событие, где добавляется игра', async () => {
+  it('«Добавить матч»: одно окно; чемпионат открывает событие, где добавляется игра', async () => {
     fake.db.matches = [];
     fake.rpc.event_list = () => [{ id: 'e1', team: 'U9', kind: 'championship', name: 'Чемпионат осени', starts_on: '2026-10-01', players: 0, games: 0 }];
     fake.rpc.event_roster = () => [];
     render(<CoachMatches groups={groups} />);
     fireEvent.click(await screen.findByText('Добавить матч'));
-    fireEvent.click(within(screen.getByLabelText('Выбор команды')).getByText('U9'));
-    expect(screen.getByText('Товарищеский или кубковый')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('Матч чемпионата или фестиваля'));
-    fireEvent.click(within(screen.getByLabelText('Выбор события')).getByText('Чемпионат осени'));
+    const card = screen.getByLabelText('Добавить матч');
+    expect(within(card).getByText('Товарищеский или кубковый матч')).toBeInTheDocument();
+    fireEvent.click(within(card).getByText('Чемпионат осени'));
     expect(await screen.findByRole('button', { name: 'Добавить игру' })).toBeInTheDocument();
     expect(screen.queryByText('Сохранить матч')).not.toBeInTheDocument();
   });
 
-  it('«Добавить матч»: сначала команда, потом тип; товарищеский открывает форму с этой командой', async () => {
+  it('«Добавить матч»: команда для товарищеского выбирается сразу, форма открывается с этой группой', async () => {
     seed();
     render(<CoachMatches groups={allGroups} allTeams />);
     fireEvent.click(await screen.findByText('Добавить матч'));
-    fireEvent.click(within(screen.getByLabelText('Выбор команды')).getByText('U11'));
-    fireEvent.click(screen.getByText('Товарищеский или кубковый'));
+    fireEvent.click(within(screen.getByLabelText('Добавить матч')).getByText('U11'));
     expect(await screen.findByRole('heading', { name: 'Новый матч' })).toBeInTheDocument();
     expect(screen.getByLabelText('Группа')).toHaveValue('g2');
   });
