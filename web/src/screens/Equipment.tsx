@@ -140,7 +140,7 @@ export default function Equipment() {
       <div style={{ height: 10 }} />
       <button type="button" className="ks-btn" onClick={() => setCreating(true)}>Новый заказ</button>
       <div style={{ height: 10 }} />
-      <SearchInput label="Найти игрока" placeholder="Фамилия или имя" value={q} onChange={setQ} suggestions={q.trim().length >= 2 ? shown.slice(0, 8).map(o => o.players?.full_name ?? "") .filter(Boolean) : []} />
+      <SearchInput label="Найти игрока" placeholder="Фамилия или имя" value={q} onChange={setQ} />
       <div className="ks-pair">
         <select className="ks-select" aria-label="Группа" value={fGroup} onChange={e => setFGroup(e.target.value)}><option value="">Все группы</option>{options.groups.map(g => <option key={g}>{g}</option>)}</select>
         <select className="ks-select" aria-label="Товар" value={fKit} onChange={e => setFKit(e.target.value)}><option value="">Все товары</option>{options.kits.map(k => <option key={k}>{k}</option>)}</select>
