@@ -388,3 +388,8 @@ html.ks-kbd body { padding-bottom: 70vh; }
 }
 .ks-group > summary .ks-line { justify-content: flex-start; flex-wrap: nowrap; }
 .ks-group > summary .ks-line > .muted { margin-left: auto; }
+
+/* Переход между экранами: новый экран мягко проявляется (запускается при каждом открытии) */
+@keyframes ks-screen-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+main.page { animation: ks-screen-in 0.22s var(--ks-ease) backwards; }
+@media (prefers-reduced-motion: reduce) { main.page { animation: none; } }
