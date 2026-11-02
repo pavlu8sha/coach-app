@@ -393,3 +393,24 @@ html.ks-kbd body { padding-bottom: 70vh; }
 @keyframes ks-screen-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 main.page { animation: ks-screen-in 0.22s var(--ks-ease) backwards; }
 @media (prefers-reduced-motion: reduce) { main.page { animation: none; } }
+
+/* Нижнее меню: нажатие и плавная смена активной вкладки */
+.ks-bottomnav button { -webkit-tap-highlight-color: transparent; transition: color 0.2s ease, transform 0.2s var(--ks-ease); }
+.ks-bottomnav button:active { transform: scale(0.92); transition-duration: 0.08s; }
+@keyframes ks-nav-pop { 40% { transform: translateY(-3px) scale(1.12); } }
+.ks-bottomnav button[aria-current='page'] > :first-child { animation: ks-nav-pop 0.3s var(--ks-ease); }
+
+/* Каскад карточек, строк и плиток на экране (первые 8) */
+main.page > .ks-card, main.page > .ks-row, main.page > .ks-cover, main.page.ks-menu > div { animation: ks-rise 0.26s var(--ks-ease) backwards; }
+main.page > :nth-child(2) { animation-delay: 25ms; }
+main.page > :nth-child(3) { animation-delay: 50ms; }
+main.page > :nth-child(4) { animation-delay: 75ms; }
+main.page > :nth-child(5) { animation-delay: 100ms; }
+main.page > :nth-child(6) { animation-delay: 125ms; }
+main.page > :nth-child(7) { animation-delay: 150ms; }
+main.page > :nth-child(n+8) { animation-delay: 175ms; }
+@media (prefers-reduced-motion: reduce) {
+  .ks-bottomnav button { transition: none; }
+  .ks-bottomnav button:active { transform: none; }
+  .ks-bottomnav button[aria-current='page'] > :first-child, main.page > .ks-card, main.page > .ks-row, main.page > .ks-cover, main.page.ks-menu > div { animation: none; }
+}
