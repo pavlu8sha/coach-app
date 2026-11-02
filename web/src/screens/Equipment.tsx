@@ -5,12 +5,15 @@ import { EmptyState, ListRow, Pill, SearchInput, Segmented, SwitchRow } from '..
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
+import { EQUIPMENT_REQUIRED_KEY, EQUIPMENT_REQUIRED_TEXT, lastStatusDate, nextStatus, orderStatusLabel, prevStatus, type StatusEvent } from '../lib/equipment';
 
 interface Line { kit: string; size: string | null; quantity: number }
 interface Order {
   id: string; player_id: string | null; ordered_on: string | null; total: number; paid: number; installment: boolean; number: string | null; inscription: string | null; location: string | null;
+  status: string; equipment_order_status_history: StatusEvent[];
   players: { full_name: string; groups?: { name: string } | null } | null; equipment_order_lines: Line[]; equipment_issues: { kit: string; issued_on: string; issued_by: string | null }[];
 }
+const ORDER_COLS = 'id, player_id, ordered_on, total, paid, installment, number, inscription, location, status, equipment_order_status_history(status, changed_at, changed_by_name), equipment_order_lines(kit, size, quantity), equipment_issues(kit, issued_on, issued_by)';
 interface Kit { kit: string; price: number }
 
 const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
@@ -18,6 +21,7 @@ const num = (s: string) => Number(s.replace(',', '.'));
 const errText = (m: string) =>
   m.includes('number taken') ? 'Этот номер уже занят в группе.' : m.includes('paid above total') ? 'Оплата больше суммы заказа.' : m.includes('paid below zero') ? 'Оплачено не может быть меньше нуля.' : m.includes('total below paid') ? 'Сумма заказа меньше уже оплаченного.' :
   m.includes('order has payments') ? 'У заказа есть оплата: сначала верните её записью с минусом.' : m.includes('order has issues') ? 'У заказа есть выданные вещи: сначала снимите выдачу.' : m.includes('kit not in catalog') ? 'Позиции нет в каталоге.' : m.includes('no items') ? 'Выберите хотя бы одну вещь.' : m.includes('bad amount') ? 'Сумма указана неверно.' :
+  m.includes('bad transition') ? 'Статус можно менять только на один шаг вперёд (назад — администратору).' : m.includes('bad status') ? 'Такого статуса нет.' :
   m.includes('Could not find the function') || m.includes('equipment_issues') ? 'Модуль ещё не установлен в базе (миграция 0036).' : coachError(m);
 const issueState = (o: Order) => (o.equipment_issues.length === 0 ? 'Нет' : o.equipment_issues.length >= new Set(o.equipment_order_lines.map(l => l.kit)).size ? 'Да' : 'Частично');
 
@@ -40,7 +44,7 @@ const knownNumbers = (orders: Pick<Order, 'player_id' | 'number' | 'ordered_on'>
   return m;
 };
 
-type Tab = 'all' | 'unpaid' | 'noissue' | 'incomplete' | 'catalog';
+type Tab = 'all' | 'unpaid' | 'noissue' | 'incomplete' | 'catalog' | 'text';
 
 // Экипировка для администратора (миграция 0036): заказы, оплата, выдача, каталог.
 export default function Equipment() {
@@ -60,7 +64,7 @@ export default function Equipment() {
     void (async () => {
       const r = await supabase
         .from('equipment_orders')
-        .select('id, player_id, ordered_on, total, paid, installment, number, inscription, location, players(full_name, groups(name)), equipment_order_lines(kit, size, quantity), equipment_issues(kit, issued_on, issued_by)')
+        .select(`${ORDER_COLS}, players(full_name, groups(name))`)
         .order('ordered_on', { ascending: false, nullsFirst: false })
         .limit(500);
       if (r.error) return setError(errText(r.error.message));
@@ -95,13 +99,14 @@ export default function Equipment() {
   if (error) return <Failure title="Не удалось загрузить заказы" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   if (creating) return <NewOrder onBack={() => setCreating(false)} onDone={done} />;
   if (tab === 'catalog') return <Catalog onTab={setTab} />;
+  if (tab === 'text') return <RequirementEditor onBack={() => setTab('all')} />;
   const open = orders?.find(o => o.id === openId);
   if (open) return <OrderView order={open} knownNumber={open.player_id ? numbers.get(open.player_id) : undefined} onBack={() => { setOpenId(null); done(); }} />;
 
   return (
     <main className="page">
       <h1>Экипировка</h1>
-      <Segmented label="Раздел" value={tab} onChange={setTab} items={[{ value: 'all', label: 'Все' }, { value: 'unpaid', label: 'Не оплачены' }, { value: 'noissue', label: 'Не выданы' }, { value: 'incomplete', label: 'Неполные' }, { value: 'catalog', label: 'Каталог' }]} />
+      <Segmented label="Раздел" value={tab} onChange={setTab} items={[{ value: 'all', label: 'Все' }, { value: 'unpaid', label: 'Не оплачены' }, { value: 'noissue', label: 'Не выданы' }, { value: 'incomplete', label: 'Неполные' }, { value: 'catalog', label: 'Каталог' }, { value: 'text', label: 'Текст' }]} />
       <div style={{ height: 10 }} />
       <button type="button" className="ks-btn" onClick={() => setCreating(true)}>Новый заказ</button>
       <div style={{ height: 10 }} />
@@ -133,7 +138,7 @@ export default function Equipment() {
                 key={o.id}
                 avatar={o.players?.full_name ?? '—'}
                 title={o.players?.full_name ?? 'Игрок'}
-                sub={[[...new Set(o.equipment_order_lines.map(l => l.kit))].join(' + ') || 'без позиций', `${o.ordered_on ? fmtDate(o.ordered_on) : 'без даты'} · выдано: ${issueState(o)}${missingOf(o).length ? ` · не заполнено: ${missingOf(o).join(', ')}${missingOf(o).includes('номер') && o.player_id && numbers.has(o.player_id) ? ` (номер ${numbers.get(o.player_id)} есть в другом заказе)` : ''}` : ''}`]}
+                sub={[[...new Set(o.equipment_order_lines.map(l => l.kit))].join(' + ') || 'без позиций', `${o.ordered_on ? fmtDate(o.ordered_on) : 'без даты'} · ${orderStatusLabel(o.status)} · выдано: ${issueState(o)}${missingOf(o).length ? ` · не заполнено: ${missingOf(o).join(', ')}${missingOf(o).includes('номер') && o.player_id && numbers.has(o.player_id) ? ` (номер ${numbers.get(o.player_id)} есть в другом заказе)` : ''}` : ''}`]}
                 end={<Pill tone={o.paid >= o.total ? 'success' : 'danger'} dot>{o.paid >= o.total ? 'Оплачен' : `${o.paid} из ${gel(o.total)}`}</Pill>}
                 onClick={() => setOpenId(o.id)}
               />
@@ -185,6 +190,52 @@ function Catalog({ onTab }: { onTab: (t: Tab) => void }) {
       <label className="field">Цена, ₾<input inputMode="decimal" value={price} onChange={e => setPrice(e.target.value)} /></label>
       {msg && <p className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}
       <button type="button" className="ks-btn" disabled={busy || !kit.trim() || price.trim() === '' || Number.isNaN(num(price))} onClick={() => void save()}>Сохранить</button>
+    </main>
+  );
+}
+
+// Требование к тренировочной форме (#240): текст в club_settings, его видит родитель; правит администратор.
+function RequirementEditor({ onBack }: { onBack: () => void }) {
+  const [clubId, setClubId] = useState<string | null>(null);
+  const [text, setText] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  useEffect(() => {
+    void (async () => {
+      const c = await supabase.from('clubs').select('id').limit(1);
+      if (c.error) return setError(c.error.message);
+      const cid = ((c.data ?? []) as { id: string }[])[0]?.id ?? null;
+      if (!cid) return setError('Клуб не найден');
+      setClubId(cid);
+      const r = await supabase.from('club_settings').select('value').eq('club_id', cid).eq('key', EQUIPMENT_REQUIRED_KEY).eq('scope', '').maybeSingle();
+      if (r.error) return setError(r.error.message);
+      setText(((r.data as { value: string } | null)?.value ?? '').trim() || EQUIPMENT_REQUIRED_TEXT);
+    })();
+  }, []);
+  const save = async () => {
+    if (!clubId || text === null) return;
+    setBusy(true);
+    setMsg(null);
+    const r = await supabase.from('club_settings').upsert({ club_id: clubId, key: EQUIPMENT_REQUIRED_KEY, scope: '', value: text.trim(), updated_at: today() }, { onConflict: 'club_id,key,scope' });
+    setBusy(false);
+    setMsg(r.error ? { ok: false, text: 'Не удалось сохранить текст.' } : { ok: true, text: 'Текст сохранён. Родители увидят его сразу.' });
+  };
+  if (error) return <Failure title="Не удалось загрузить текст" text={error} onRetry={() => { setError(null); onBack(); }} />;
+  return (
+    <main className="page">
+      <BackNav onBack={onBack} />
+      <h1>Требование к форме</h1>
+      <p className="muted">Этот текст видят родители в экипировке. Пишите только утверждённые условия: сроки, состав и цены без согласования не добавляйте.</p>
+      {text === null ? <Loading /> : (
+        <>
+          <label className="field">Требование к форме<textarea rows={6} maxLength={1000} value={text} onChange={e => setText(e.target.value)} /></label>
+          {msg && <p className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}
+          <button type="button" className="ks-btn" disabled={busy || !text.trim()} onClick={() => void save()}>Сохранить</button>
+          <div style={{ height: 8 }} />
+          <button type="button" className="ks-btn secondary" disabled={busy || text === EQUIPMENT_REQUIRED_TEXT} onClick={() => setText(EQUIPMENT_REQUIRED_TEXT)}>Вернуть утверждённый текст</button>
+        </>
+      )}
     </main>
   );
 }
@@ -290,7 +341,7 @@ function OrderView({ order, knownNumber, onBack }: { order: Order; knownNumber?:
   useEffect(() => { if (gone) onBack(); }, [gone]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const refresh = async () => {
-    const r = await supabase.from('equipment_orders').select('id, player_id, ordered_on, total, paid, installment, number, inscription, location, players(full_name), equipment_order_lines(kit, size, quantity), equipment_issues(kit, issued_on, issued_by)').eq('id', order.id).maybeSingle();
+    const r = await supabase.from('equipment_orders').select(`${ORDER_COLS}, players(full_name)`).eq('id', order.id).maybeSingle();
     if (!r.error && r.data) {
       const d = r.data as unknown as Order;
       setO({ ...d, total: Number(d.total), paid: Number(d.paid) });
@@ -307,9 +358,17 @@ function OrderView({ order, knownNumber, onBack }: { order: Order; knownNumber?:
     return true;
   };
   if (gone) return null;
+  const hist = o.equipment_order_status_history ?? [];
   const issued = new Map(o.equipment_issues.map(i => [i.kit, i]));
   const kitsInOrder = [...new Set(o.equipment_order_lines.map(l => l.kit))];
 
+  // Шаг назад только для администратора (проверяет база). Спрашиваем подтверждение: запись попадёт в историю.
+  const stepBack = async () => {
+    const prev = prevStatus(o.status);
+    if (!prev) return;
+    if (!(await ask({ title: 'Вернуть статус?', lines: [['Игрок', o.players?.full_name ?? 'Игрок'], ['Сейчас', orderStatusLabel(o.status)], ['Будет', orderStatusLabel(prev)]], note: 'Возврат попадёт в историю статусов.', confirmLabel: 'Вернуть' }))) return;
+    await run('status', () => supabase.rpc('eq_set_order_status', { o: o.id, st: prev }), 'Статус возвращён.');
+  };
   const deleteOrder = async () => {
     if (!(await ask({ title: 'Удалить заказ?', lines: [['Игрок', o.players?.full_name ?? 'Игрок'], ['Сумма', gel(o.total)]], note: 'Заказ будет удалён. Отменить нельзя.', confirmLabel: 'Удалить', danger: true }))) return;
     if (await run('del', () => supabase.rpc('eq_delete_order', { o: o.id }))) setGone(true);
@@ -320,6 +379,28 @@ function OrderView({ order, knownNumber, onBack }: { order: Order; knownNumber?:
       <h1 style={{ overflowWrap: 'anywhere' }}>{o.players?.full_name ?? 'Заказ'}</h1>
       <p className="muted">{o.ordered_on ? fmtDate(o.ordered_on) : 'Дата не указана'} · оплачено {gel(o.paid)} из {gel(o.total)}{o.installment ? ' · рассрочка' : ''}</p>
       {msg && <p className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}
+
+      <h3>Статус заказа</h3>
+      <div className="ks-card">
+        <div className="ks-line"><b>{orderStatusLabel(o.status)}</b>{lastStatusDate(hist) && <span className="muted">с {fmtDate(lastStatusDate(hist) as string)}</span>}</div>
+        {nextStatus(o.status) && (
+          <button type="button" className="ks-btn" style={{ marginTop: 8 }} disabled={busy === 'status'} onClick={() => void run('status', () => supabase.rpc('eq_set_order_status', { o: o.id, st: nextStatus(o.status) }), 'Статус обновлён.')}>
+            Перевести: {orderStatusLabel(nextStatus(o.status))}
+          </button>
+        )}
+        {prevStatus(o.status) && (
+          <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy === 'status'} onClick={() => void stepBack()}>
+            Вернуть: {orderStatusLabel(prevStatus(o.status))}
+          </button>
+        )}
+        {hist.length > 0 && (
+          <div className="ks-muted" style={{ fontSize: 13, marginTop: 8 }}>
+            {[...hist].sort((a, b) => b.changed_at.localeCompare(a.changed_at)).map((h, i) => (
+              <div key={i}>{fmtDate(h.changed_at.slice(0, 10))} · {orderStatusLabel(h.status)}{h.changed_by_name ? ` · ${h.changed_by_name}` : ''}</div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <h3>Вещи и выдача</h3>
       <label className="field">Кто выдаёт (для отметок)<input value={who} maxLength={40} onChange={e => setWho(e.target.value)} /></label>

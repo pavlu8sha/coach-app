@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { EmptyState, Pill } from '../ui/components';
 import { Loading } from './Message';
 import { gel } from './MonthPayments';
+import { lastStatusDate, orderStatusLabel, useEquipmentRequirement, type StatusEvent } from '../lib/equipment';
 
 // Вкладки карточки игрока (только просмотр; платежи — вкладки «Абонемент» и «К оплате»). Каждая вкладка читает свои таблицы по player_id.
 function useRows<T>(load: () => PromiseLike<{ data: unknown; error: { message: string } | null }>, deps: unknown[]) {
@@ -44,16 +45,19 @@ export function SessionsTab({ playerId }: { playerId: string }) {
   );
 }
 
-interface Ord { id: string; ordered_on: string | null; total: number; paid: number; installment: boolean; number: string | null; equipment_order_lines: { kit: string; size: string | null; quantity: number }[]; equipment_issues: { kit: string; issued_on: string }[] }
+interface Ord { id: string; ordered_on: string | null; total: number; paid: number; installment: boolean; number: string | null; status: string; equipment_order_status_history: StatusEvent[]; equipment_order_lines: { kit: string; size: string | null; quantity: number }[]; equipment_issues: { kit: string; issued_on: string }[] }
 
 export function EquipmentTab({ playerId }: { playerId: string }) {
-  const { rows, error } = useRows<Ord>(() => supabase.from('equipment_orders').select('id, ordered_on, total, paid, installment, number, equipment_order_lines(kit, size, quantity), equipment_issues(kit, issued_on)').eq('player_id', playerId).order('ordered_on', { ascending: false }), [playerId]);
+  const requirement = useEquipmentRequirement();
+  const { rows, error } = useRows<Ord>(() => supabase.from('equipment_orders').select('id, ordered_on, total, paid, installment, number, status, equipment_order_status_history(status, changed_at, changed_by_name), equipment_order_lines(kit, size, quantity), equipment_issues(kit, issued_on)').eq('player_id', playerId).order('ordered_on', { ascending: false }), [playerId]);
   if (error) return <Err text={error} />;
   if (!rows) return <Loading />;
-  if (rows.length === 0) return <EmptyState icon="box" title="Заказов нет" text="У игрока нет заказов экипировки." />;
+  const note = <p className="ks-callout" style={{ marginTop: 0 }}>{requirement}</p>;
+  if (rows.length === 0) return <>{note}<EmptyState icon="box" title="Заказов нет" text="У игрока нет заказов экипировки." /></>;
   const playerNumber = [...rows].sort((x, y) => (y.ordered_on ?? '').localeCompare(x.ordered_on ?? '')).map(o => (o.number ?? '').trim()).find(Boolean);
   return (
     <>
+      {note}
       {playerNumber && <p style={{ marginBottom: 8 }}>Номер игрока: <b>{playerNumber}</b></p>}
       {rows.map(o => {
         const kits = [...new Set(o.equipment_order_lines.map(l => l.kit))];
@@ -63,6 +67,7 @@ export function EquipmentTab({ playerId }: { playerId: string }) {
           <div className="ks-card" key={o.id}>
             <div className="ks-line"><b style={{ overflowWrap: 'anywhere' }}>{kits.join(' + ') || 'Заказ'}</b><Pill tone={left <= 0 ? 'success' : 'danger'} dot>{left <= 0 ? 'Оплачен' : `${gel(Number(o.paid))} из ${gel(Number(o.total))}`}</Pill></div>
             <div className="ks-muted" style={{ fontSize: 13 }}>{[o.ordered_on ? fmtDate(o.ordered_on) : 'без даты', o.number ? `№ ${o.number}` : null, o.installment ? 'рассрочка' : null].filter(Boolean).join(' · ')}</div>
+            <div className="ks-muted" style={{ fontSize: 13 }}>Статус: <b>{orderStatusLabel(o.status)}</b>{lastStatusDate(o.equipment_order_status_history) ? ` · с ${fmtDate(lastStatusDate(o.equipment_order_status_history) as string)}` : ''}</div>
             <div className="ks-muted" style={{ fontSize: 13 }}>Выдано: {kits.filter(k => issued.has(k)).length} из {kits.length}{kits.length > 0 && kits.every(k => issued.has(k)) ? ' (всё)' : ''}</div>
           </div>
         );
