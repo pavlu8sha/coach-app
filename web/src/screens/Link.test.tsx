@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
+import { CONSENT_VERSION } from '../lib/consent';
 import Link from './Link';
 
 const search = (q: string) => {
@@ -30,7 +31,7 @@ describe('привязка ребёнка', () => {
     expect(send).toBeEnabled();
     fireEvent.click(send);
     await waitFor(() => expect(opened).toBe(1));
-    expect(fake.rpcCalls('request_link')).toEqual([{ p: 'p1', consent: expect.stringMatching(/^draft-/) }]);
+    expect(fake.rpcCalls('request_link')).toEqual([{ p: 'p1', consent: CONSENT_VERSION }]);
   });
 
   it('слишком частый поиск: родитель видит понятное сообщение', async () => {
