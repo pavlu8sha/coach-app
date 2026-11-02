@@ -57,6 +57,21 @@ describe('«Приём оплат»', () => {
     expect(fake.writes('payments', 'insert')[0]).toMatchObject({ player_id: 'p1', amount: 60, method: 'Перевод', paid_on: today() });
   });
 
+  it('абонемент: «Оплатить со скидкой» записывает меньшую сумму и сразу ставит скидку месяца', async () => {
+    seed();
+    await openPlayer();
+    await screen.findByText(/Внесено 50 ₾ из 165 ₾/);
+    const sub = card(/Внесено 50 ₾ из 165 ₾/);
+    fireEvent.click(within(sub).getByRole('button', { name: 'Принять оплату' }));
+    fireEvent.change(within(sub).getByLabelText(/Сумма/), { target: { value: '60' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Перевод' }));
+    fireEvent.click(within(sub).getByRole('button', { name: 'Оплатить со скидкой' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Оплатить' }));
+    await waitFor(() => expect(fake.writes('subscriptions', 'upsert')).toHaveLength(1));
+    expect(fake.writes('payments', 'insert')[0]).toMatchObject({ player_id: 'p1', amount: 60, method: 'Перевод', for_month: M });
+    expect(fake.writes('subscriptions', 'upsert')[0]).toMatchObject({ player_id: 'p1', month: M, discount: true });
+  });
+
   it('экипировка, индивидуальные, доп. тренировки и сборы платятся через свои функции', async () => {
     seed();
     fake.rpc.eq_add_payment = () => 160;
