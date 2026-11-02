@@ -27,6 +27,8 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   const [events, setEvents] = useState<EventRow[]>([]);
   const [playedBy, setPlayedBy] = useState<Map<string, number>>(new Map());
   const [eventView, setEventView] = useState<{ event: EventRow | null } | null>(null);
+  // «Добавить матч»: сначала тип игры, потом либо товарищеский/кубковый матч, либо событие (чемпионат, фестиваль), где добавляется игра
+  const [addStep, setAddStep] = useState<'type' | 'event' | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -93,13 +95,42 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
     byTour.set(e.id, { title: `${eventTitle(e)}${multi ? ' · ' + e.team : ''}`, items: [], event: e });
   }
   for (const [id, g] of byTour) sections.push({ key: id, ...g });
+  // события, в которые можно добавить игру: свои команды тренера (администратор и тренеры со всеми командами — все)
+  const champEvents = events.filter(e => showAll || groups.some(g => g.name === e.team || matchTeam(g.name) === e.team));
   if (other.length) sections.push({ key: 'other', title: byTour.size ? 'Товарищеские и кубки' : 'Матчи', items: other });
   return (
     <main className="page">
       <h1>Матчи</h1>
-      <button type="button" className="ks-btn" onClick={() => setForm({ match: null })}>Добавить матч</button>
+      <button type="button" className="ks-btn" onClick={() => setAddStep('type')}>Добавить матч</button>
       <div style={{ height: 8 }} />
       <button type="button" className="ks-btn secondary" onClick={() => setEventView({ event: null })}>Новое событие</button>
+      {addStep === 'type' && (
+        <div className="ks-card" aria-label="Тип игры">
+          <p className="ks-label">Какой матч добавить?</p>
+          <button type="button" className="ks-btn" onClick={() => { setAddStep(null); setForm({ match: null }); }}>Товарищеский или кубковый</button>
+          <div style={{ height: 8 }} />
+          <button type="button" className="ks-btn secondary" onClick={() => setAddStep('event')}>Матч чемпионата или фестиваля</button>
+          <div style={{ height: 8 }} />
+          <button type="button" className="ks-btn secondary" onClick={() => setAddStep(null)}>Отмена</button>
+        </div>
+      )}
+      {addStep === 'event' && (
+        <div className="ks-card" aria-label="Выбор события">
+          <p className="ks-label">Чемпионат или фестиваль</p>
+          {champEvents.length === 0 ? (
+            <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>Сначала создайте чемпионат или фестиваль, потом добавляйте в него игры.</p>
+          ) : (
+            <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>Выберите событие, в нём добавится игра.</p>
+          )}
+          {champEvents.map(e => (
+            <ListRow key={e.id} title={eventTitle(e)} sub={[e.team, eventCounts(e)]} onClick={() => { setAddStep(null); setEventView({ event: e }); }} />
+          ))}
+          <div style={{ height: 8 }} />
+          <button type="button" className="ks-btn secondary" onClick={() => { setAddStep(null); setEventView({ event: null }); }}>Новое событие</button>
+          <div style={{ height: 8 }} />
+          <button type="button" className="ks-btn secondary" onClick={() => setAddStep('type')}>Назад</button>
+        </div>
+      )}
       <div style={{ height: 12 }} />
       {showAll && teams.length > 1 && (
         <select className="ks-select" aria-label="Команда" value={team} onChange={e => setTeam(e.target.value)}>
