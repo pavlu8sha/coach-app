@@ -10,7 +10,7 @@ interface Camp { id: string; name: string; location: string | null; starts_on: s
 interface Tariff { id: string; name: string; price: number; active: boolean }
 interface Pay { id: string; amount: number; paid_on: string; kind: 'booking' | 'payment' | 'refund'; method: string | null; comment: string | null; legacy_ref?: string | null }
 interface Part {
-  id: string; player_id: string; tariff_id: string | null; amount: number; tshirt_size: string | null; comment: string | null; status: 'registered' | 'declined';
+  id: string; player_id: string | null; guest_name: string | null; guest_contact: string | null; tariff_id: string | null; amount: number; tshirt_size: string | null; comment: string | null; status: 'registered' | 'declined';
   players: { full_name: string; groups: { name: string } | null } | null; camp_tariffs: { name: string } | null; camp_payments: Pay[];
 }
 
@@ -19,9 +19,11 @@ const num = (s: string) => Number(s.replace(',', '.'));
 const METHODS = ['Наличные', 'Перевод'];
 const KIND: Record<Pay['kind'], string> = { booking: 'Бронь', payment: 'Оплата', refund: 'Возврат' };
 const errText = (m: string) =>
-  m.includes('already registered') ? 'Игрок уже записан на этот сбор.' : m.includes('already cancelled') ? 'Этот платёж уже отменён.' : m.includes('not cancellable') ? 'Этот платёж отменить нельзя.' : m.includes('paid below zero') ? 'Отмена увела бы оплату ниже нуля.' :
+  m.includes('already registered') ? 'Уже записан на этот сбор.' : m.includes('not a guest') ? 'Имя и контакт правятся только у гостя.' : m.includes('already cancelled') ? 'Этот платёж уже отменён.' : m.includes('not cancellable') ? 'Этот платёж отменить нельзя.' : m.includes('paid below zero') ? 'Отмена увела бы оплату ниже нуля.' :
   m.includes('bad dates') ? 'Дата конца раньше даты начала.' : m.includes('bad amount') ? 'Сумма указана неверно.' : m.includes('amount below paid') ? 'Сумма участника не может быть меньше уже оплаченного.' : m.includes('name required') ? 'Введите название.' : m.includes('tariff not found') ? 'Выберите действующий тариф.' :
   m.includes('Could not find the function') || m.includes('camp_') ? 'Модуль ещё не установлен в базе (миграция 0037).' : coachError(m);
+const nameOf = (p: Pick<Part, 'players' | 'guest_name'>) => p.players?.full_name ?? p.guest_name ?? 'Участник';
+const groupOf = (p: Pick<Part, 'players' | 'player_id'>) => (p.player_id ? p.players?.groups?.name ?? 'Без группы' : 'Гости');
 const paidOf = (p: Part) => p.camp_payments.reduce((s, x) => s + Number(x.amount), 0);
 
 // Сборы для администратора (миграция 0037): сборы, тарифы, участники, платежи, список для отправки.
@@ -105,15 +107,15 @@ function CampView({ camp, onBack, onEdit }: { camp: Camp; onBack: () => void; on
       const t = await supabase.from('camp_tariffs').select('id, name, price, active').eq('camp_id', camp.id).order('name');
       if (t.error) return setError(errText(t.error.message));
       setTariffs(((t.data ?? []) as Tariff[]).map(x => ({ ...x, price: Number(x.price) })));
-      const r = await supabase.from('camp_participants').select('id, player_id, tariff_id, amount, tshirt_size, comment, status, players(full_name, groups(name)), camp_tariffs(name), camp_payments(id, amount, paid_on, kind, method, comment, legacy_ref)').eq('camp_id', camp.id).limit(500);
+      const r = await supabase.from('camp_participants').select('id, player_id, guest_name, guest_contact, tariff_id, amount, tshirt_size, comment, status, players(full_name, groups(name)), camp_tariffs(name), camp_payments(id, amount, paid_on, kind, method, comment, legacy_ref)').eq('camp_id', camp.id).limit(500);
       if (r.error) return setError(errText(r.error.message));
-      setParts(((r.data ?? []) as unknown as Part[]).map(p => ({ ...p, amount: Number(p.amount) })).sort((a, b) => (a.players?.full_name ?? '').localeCompare(b.players?.full_name ?? '', 'ru')));
+      setParts(((r.data ?? []) as unknown as Part[]).map(p => ({ ...p, amount: Number(p.amount) })).sort((a, b) => nameOf(a).localeCompare(nameOf(b), 'ru')));
     })();
   }, [camp.id, reload]);
 
   const refresh = () => { setParts(null); setReload(n => n + 1); };
   if (error) return <Failure title="Не удалось загрузить сбор" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
-  if (adding) return <AddPart camp={camp} tariffs={tariffs.filter(t => t.active)} taken={new Set((parts ?? []).filter(p => p.status === 'registered').map(p => p.player_id))} onBack={() => setAdding(false)} onDone={() => { setAdding(false); refresh(); }} />;
+  if (adding) return <AddPart camp={camp} tariffs={tariffs.filter(t => t.active)} taken={new Set((parts ?? []).filter(p => p.status === 'registered' && p.player_id).map(p => p.player_id as string))} onBack={() => setAdding(false)} onDone={() => { setAdding(false); refresh(); }} />;
   const open = parts?.find(p => p.id === openId);
   if (open) return <PartView part={open} camp={camp} tariffs={tariffs} onBack={() => { setOpenId(null); refresh(); }} />;
 
@@ -132,11 +134,11 @@ function CampView({ camp, onBack, onEdit }: { camp: Camp; onBack: () => void; on
         <>
           <p className="muted" style={{ margin: '10px 0' }}>Записано: {reg.length} · оплачено {gel(paid)} из {gel(owed)}</p>
           <button type="button" className="ks-btn" onClick={() => setAdding(true)} disabled={tariffs.filter(t => t.active).length === 0}>{tariffs.some(t => t.active) ? 'Записать игрока' : 'Сначала добавьте тариф'}</button>
-          {parts.length === 0 ? <EmptyState icon="users" title="Пока никого" /> : groupByGroupName(parts, p => p.players?.groups?.name ?? 'Без группы').map(([group, items]) => (
+          {parts.length === 0 ? <EmptyState icon="users" title="Пока никого" /> : groupByGroupName(parts, groupOf).map(([group, items]) => (
             <details className="ks-group" key={group}>
               <summary><div className="ks-line"><b>{group}</b><span className="muted">{items.length} уч.</span></div></summary>
               {items.map(p => (
-                <ListRow key={p.id} avatar={p.players?.full_name ?? '—'} title={p.players?.full_name ?? 'Игрок'} sub={[p.camp_tariffs?.name ?? 'без тарифа', p.status === 'declined' ? 'отказ' : p.players?.groups?.name ?? 'без группы']}
+                <ListRow key={p.id} avatar={nameOf(p)} title={nameOf(p)} sub={[p.camp_tariffs?.name ?? 'без тарифа', p.status === 'declined' ? 'отказ' : p.player_id ? p.players?.groups?.name ?? 'без группы' : 'гость']}
                   end={p.status === 'declined' ? <Pill>Отказ</Pill> : <Pill tone={paidOf(p) >= p.amount ? 'success' : 'danger'} dot>{paidOf(p) >= p.amount ? 'Оплачен' : `${gel(paidOf(p))} из ${gel(p.amount)}`}</Pill>} onClick={() => setOpenId(p.id)} />
               ))}
             </details>
@@ -177,8 +179,9 @@ function Tariffs({ camp, tariffs, onChanged }: { camp: Camp; tariffs: Tariff[]; 
 function ListText({ parts }: { parts: Part[] }) {
   const [copied, setCopied] = useState(false);
   const key = (g: string | undefined) => (g ?? 'Без группы').replace(/-[A-Za-zА-Яа-я]$/, '');
+  const gk = (p: Part) => (p.player_id ? key(p.players?.groups?.name) : 'Гости');
   const groups = new Map<string, string[]>();
-  parts.forEach(p => groups.set(key(p.players?.groups?.name), [...(groups.get(key(p.players?.groups?.name)) ?? []), p.players?.full_name ?? '—']));
+  parts.forEach(p => groups.set(gk(p), [...(groups.get(gk(p)) ?? []), nameOf(p)]));
   const text = [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0], 'ru')).map(([g, names]) => `${g}\n${names.sort((a, b) => a.localeCompare(b, 'ru')).map((n, i) => `${i + 1} — ${n}`).join('\n')}`).join('\n\n');
   return (
     <>
@@ -193,6 +196,9 @@ function AddPart({ camp, tariffs, taken, onBack, onDone }: { camp: Camp; tariffs
   const [q, setQ] = useState('');
   const [found, setFound] = useState<{ id: string; full_name: string }[]>([]);
   const [player, setPlayer] = useState<{ id: string; full_name: string } | null>(null);
+  const [who, setWho] = useState<'player' | 'guest'>('player');
+  const [guestName, setGuestName] = useState('');
+  const [guestContact, setGuestContact] = useState('');
   const [tid, setTid] = useState(tariffs[0]?.id ?? '');
   const [amount, setAmount] = useState('');
   const [size, setSize] = useState('');
@@ -209,10 +215,13 @@ function AddPart({ camp, tariffs, taken, onBack, onDone }: { camp: Camp; tariffs
     return () => clearTimeout(t);
   }, [q, taken]);
   const save = async () => {
-    if (!player) return;
+    if (who === 'player' && !player) return;
     setBusy(true);
     setErr(null);
-    const r = await supabase.rpc('camp_register', { cid: camp.id, p: player.id, tid, amt: amount.trim() === '' ? null : num(amount), tshirt: size, cmt });
+    const amt = amount.trim() === '' ? null : num(amount);
+    const r = who === 'guest'
+      ? await supabase.rpc('camp_register_guest', { cid: camp.id, nm: guestName, contact: guestContact, tid, amt, tshirt: size, cmt })
+      : await supabase.rpc('camp_register', { cid: camp.id, p: (player as { id: string }).id, tid, amt, tshirt: size, cmt });
     setBusy(false);
     if (r.error) return setErr(errText(r.error.message));
     onDone();
@@ -221,7 +230,14 @@ function AddPart({ camp, tariffs, taken, onBack, onDone }: { camp: Camp; tariffs
     <main className="page">
       <BackNav onBack={onBack} />
       <h1>Записать на сбор</h1>
-      {player ? <ListRow avatar={player.full_name} title={player.full_name} end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} onClick={() => setPlayer(null)}>Сменить</button>} /> : (
+      <Segmented label="Кого записать" value={who} onChange={setWho} items={[{ value: 'player', label: 'Игрок клуба' }, { value: 'guest', label: 'Гость' }]} />
+      {who === 'guest' ? (
+        <>
+          <p className="muted" style={{ margin: '10px 0' }}>Гость не заводится как игрок клуба: достаточно имени и контакта.</p>
+          <label className="field">Имя гостя<input value={guestName} maxLength={80} onChange={e => setGuestName(e.target.value)} /></label>
+          <label className="field">Контакт (телефон или Telegram)<input value={guestContact} maxLength={80} onChange={e => setGuestContact(e.target.value)} /></label>
+        </>
+      ) : player ? <ListRow avatar={player.full_name} title={player.full_name} end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} onClick={() => setPlayer(null)}>Сменить</button>} /> : (
         <>
           <SearchInput label="Найти игрока" placeholder="Фамилия или имя (от 2 букв)" value={q} onChange={setQ} suggestions={found.map(f => f.full_name)} />
           {found.map(p => <ListRow key={p.id} avatar={p.full_name} title={p.full_name} onClick={() => setPlayer(p)} />)}
@@ -232,7 +248,7 @@ function AddPart({ camp, tariffs, taken, onBack, onDone }: { camp: Camp; tariffs
       <label className="field">Размер футболки<input value={size} maxLength={20} onChange={e => setSize(e.target.value)} /></label>
       <label className="field">Комментарий<input value={cmt} maxLength={120} onChange={e => setCmt(e.target.value)} /></label>
       {err && <p className="error">{err}</p>}
-      <button type="button" className="ks-btn" disabled={busy || !player || !tid || (amount.trim() !== '' && Number.isNaN(num(amount)))} onClick={() => void save()}>Записать</button>
+      <button type="button" className="ks-btn" disabled={busy || (who === 'player' ? !player : !guestName.trim()) || !tid || (amount.trim() !== '' && Number.isNaN(num(amount)))} onClick={() => void save()}>Записать</button>
     </main>
   );
 }
@@ -243,6 +259,8 @@ function PartView({ part, camp, tariffs, onBack }: { part: Part; camp: Camp; tar
   const [amount, setAmount] = useState(String(part.amount));
   const [size, setSize] = useState(part.tshirt_size ?? '');
   const [cmt, setCmt] = useState(part.comment ?? '');
+  const [gName, setGName] = useState(part.guest_name ?? '');
+  const [gContact, setGContact] = useState(part.guest_contact ?? '');
   const [payAmount, setPayAmount] = useState('');
   const [kind, setKind] = useState<'booking' | 'payment'>(camp.booking_fee > 0 && part.camp_payments.length === 0 ? 'booking' : 'payment');
   const [date, setDate] = useState(today());
@@ -255,7 +273,7 @@ function PartView({ part, camp, tariffs, onBack }: { part: Part; camp: Camp; tar
   const recordPay = async () => {
     const ok = await ask({
       title: 'Записать платёж?',
-      lines: [['Игрок', p.players?.full_name], ['Кемп', camp.name], ['Сумма', gel(num(payAmount))], ['Вид', KIND[kind]], ['Способ', method], ['Дата', fmtDate(date)]],
+      lines: [[p.player_id ? 'Игрок' : 'Гость', nameOf(p)], ['Кемп', camp.name], ['Сумма', gel(num(payAmount))], ['Вид', KIND[kind]], ['Способ', method], ['Дата', fmtDate(date)]],
       note: 'Запись нельзя изменить или удалить, ошибку исправляют записью с минусом.',
       confirmLabel: 'Записать',
     });
@@ -267,7 +285,7 @@ function PartView({ part, camp, tariffs, onBack }: { part: Part; camp: Camp; tar
   const cancelPay = async (x: Pay) => {
     const ok = await ask({
       title: 'Отменить платёж?',
-      lines: [['Игрок', p.players?.full_name], ['Сумма', gel(Number(x.amount))], ['Вид', KIND[x.kind]], ['Дата', fmtDate(x.paid_on)]],
+      lines: [[p.player_id ? 'Игрок' : 'Гость', nameOf(p)], ['Сумма', gel(Number(x.amount))], ['Вид', KIND[x.kind]], ['Дата', fmtDate(x.paid_on)]],
       note: 'Будет записана запись с минусом на ту же сумму. Сам платёж удалить нельзя.',
       confirmLabel: 'Отменить платёж',
       danger: true,
@@ -276,7 +294,7 @@ function PartView({ part, camp, tariffs, onBack }: { part: Part; camp: Camp; tar
   };
 
   const refresh = async () => {
-    const r = await supabase.from('camp_participants').select('id, player_id, tariff_id, amount, tshirt_size, comment, status, players(full_name, groups(name)), camp_tariffs(name), camp_payments(id, amount, paid_on, kind, method, comment, legacy_ref)').eq('id', part.id).maybeSingle();
+    const r = await supabase.from('camp_participants').select('id, player_id, guest_name, guest_contact, tariff_id, amount, tshirt_size, comment, status, players(full_name, groups(name)), camp_tariffs(name), camp_payments(id, amount, paid_on, kind, method, comment, legacy_ref)').eq('id', part.id).maybeSingle();
     if (!r.error && r.data) setP({ ...(r.data as unknown as Part), amount: Number((r.data as { amount: number }).amount) });
   };
   const run = async (key: string, f: () => PromiseLike<{ error: { message: string } | null }>, ok?: string) => {
@@ -294,8 +312,8 @@ function PartView({ part, camp, tariffs, onBack }: { part: Part; camp: Camp; tar
   return (
     <main className="page">
       <BackNav onBack={onBack} />
-      <h1 style={{ overflowWrap: 'anywhere' }}>{p.players?.full_name ?? 'Участник'}</h1>
-      <p className="muted">{camp.name} · оплачено {gel(paidOf(p))} из {gel(p.amount)}{p.status === 'declined' ? ' · отказ' : ''}</p>
+      <h1 style={{ overflowWrap: 'anywhere' }}>{nameOf(p)}</h1>
+      <p className="muted">{camp.name}{p.player_id ? '' : ' · гость'}{p.guest_contact ? ` · ${p.guest_contact}` : ''} · оплачено {gel(paidOf(p))} из {gel(p.amount)}{p.status === 'declined' ? ' · отказ' : ''}</p>
       {msg && <p className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}
 
       {dialog}
@@ -318,6 +336,14 @@ function PartView({ part, camp, tariffs, onBack }: { part: Part; camp: Camp; tar
       </div>
       <button type="button" className="ks-btn" disabled={busy === 'pay' || !method || payAmount.trim() === '' || Number.isNaN(num(payAmount)) || num(payAmount) <= 0} onClick={() => void recordPay()}>Записать платёж</button>
 
+      {!p.player_id && (
+        <>
+          <h3>Гость</h3>
+          <label className="field">Имя гостя<input value={gName} maxLength={80} onChange={e => setGName(e.target.value)} /></label>
+          <label className="field">Контакт (телефон или Telegram)<input value={gContact} maxLength={80} onChange={e => setGContact(e.target.value)} /></label>
+          <button type="button" className="ks-btn" disabled={busy === 'guest' || !gName.trim()} onClick={() => void run('guest', () => supabase.rpc('camp_update_guest', { pid: p.id, nm: gName, contact: gContact }), 'Данные гостя сохранены.')}>Сохранить имя и контакт</button>
+        </>
+      )}
       <h3>Данные участника</h3>
       <label className="field">Тариф<select value={tid} onChange={e => setTid(e.target.value)}>{tariffs.map(t => <option key={t.id} value={t.id}>{t.name} — {gel(t.price)}{t.active ? '' : ' (не активен)'}</option>)}</select></label>
       <label className="field">Сумма, ₾<input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /></label>

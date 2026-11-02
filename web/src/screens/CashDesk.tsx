@@ -127,7 +127,7 @@ export default function CashDesk() {
     setTodayRows(null);
     void (async () => {
       const a = await supabase.from('payments').select('id, amount, method, player_id, pay_month, cancels, recorded_at, players(full_name)').eq('paid_on', day).limit(500);
-      const c = await supabase.from('camp_payments').select('id, amount, method, kind, player_id, recorded_at, players(full_name), camps(name)').eq('paid_on', day).limit(500);
+      const c = await supabase.from('camp_payments').select('id, amount, method, kind, player_id, recorded_at, players(full_name), camps(name), camp_participants(guest_name)').eq('paid_on', day).limit(500);
       if (a.error) return;
       const rows = ((a.data ?? []) as unknown as { id: string; amount: number; method: string | null; player_id: string; pay_month?: string | null; cancels?: string | null; players: { full_name: string } | null }[]).map(x => ({ ...x, what: 'Абонемент' }));
       // какие платежи уже отменены записью со ссылкой cancels (отмена может быть записана в другой день)
@@ -137,7 +137,7 @@ export default function CashDesk() {
         const cx = await supabase.from('payments').select('cancels').in('cancels', payIds).limit(1000);
         for (const y of ((cx.data ?? []) as unknown as { cancels: string | null }[])) if (y.cancels) cancelledIds.add(y.cancels);
       }
-      const camp = c.error ? [] : ((c.data ?? []) as unknown as { id: string; amount: number; method: string | null; kind: string; player_id?: string; players: { full_name: string } | null; camps?: { name: string } | null }[]).map(x => ({ ...x, what: 'Сбор', detail: x.camps?.name }));
+      const camp = c.error ? [] : ((c.data ?? []) as unknown as { id: string; amount: number; method: string | null; kind: string; player_id?: string; players: { full_name: string } | null; camps?: { name: string } | null; camp_participants?: { guest_name: string | null } | null }[]).map(x => ({ ...x, players: x.players ?? (x.camp_participants?.guest_name ? { full_name: `${x.camp_participants.guest_name} (гость)` } : null), what: 'Сбор', detail: x.camps?.name }));
       const svc = await supabase.rpc('cash_day_service', { p_day: day });
       const service = svc.error ? [] : ((svc.data ?? []) as unknown as { id: string; amount: number; method: string | null; what: string; player_id: string; full_name: string; recorded_at?: string | null }[]).map(x => ({ id: x.id, amount: x.amount, method: x.method, what: x.what, recorded_at: x.recorded_at ?? null, player_id: x.player_id, players: { full_name: x.full_name } }));
       // все виды платежей одним списком: новые сверху по времени записи; платежи без времени (импорт) в конце
