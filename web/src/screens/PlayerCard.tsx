@@ -12,9 +12,9 @@ import type { PlayerForm } from './PlayerEdit';
 interface Price { group_id: string | null; amount: number; valid_from: string; valid_to: string | null }
 interface Pay { amount: number; paid_on: string; pay_month?: string | null }
 
-/** Прошедшие месяцы показываем, только если за них есть абонемент или платёж (иначе новичку висят месяцы до прихода); текущий и будущие всегда. */
-export function visibleMonths(months: string[], current: string, withSub: Set<string>, withPay: Set<string>): string[] {
-  return months.filter(m => m >= current || withSub.has(m) || withPay.has(m));
+/** История платежей начинается с первого месяца игрока: самый ранний из месяца создания, абонемента и платежа. Месяцы до него не показываем (пришёл в декабре, значит история с декабря). */
+export function visibleMonths(months: string[], start: string): string[] {
+  return months.filter(m => m >= start);
 }
 
 export interface CardPlayer extends PlayerForm { id: string; external_id: string | null; group_name: string | null }
@@ -31,6 +31,7 @@ export default function PlayerCard({ player, onBack, onEdit }: { player: CardPla
   const [prices, setPrices] = useState<Price[]>([]);
   const [pays, setPays] = useState<Pay[] | null>(null);
   const [subs, setSubs] = useState<Map<string, Sub>>(new Map());
+  const [created, setCreated] = useState<string | null>(null); // месяц создания игрока
   const [shirt, setShirt] = useState<string | null>(null); // номер из самого свежего заказа экипировки
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -42,6 +43,8 @@ export default function PlayerCard({ player, onBack, onEdit }: { player: CardPla
       const pr = await supabase.from('prices').select('group_id, amount, valid_from, valid_to').eq('kind', 'subscription');
       const pay = await supabase.from('payments').select('amount, paid_on, pay_month').eq('player_id', player.id).gte('pay_month', SEASON_START).limit(1000);
       const sb = await supabase.from('subscriptions').select('player_id, month, discount, written_off').eq('player_id', player.id);
+      const cr = await supabase.from('players').select('created_at').eq('id', player.id).maybeSingle();
+      if (!cr.error && cr.data?.created_at) setCreated(monthIso(new Date(cr.data.created_at)));
       const eq = await supabase.from('equipment_orders').select('number, ordered_on').eq('player_id', player.id);
       if (!eq.error) setShirt(((eq.data ?? []) as { number: string | null; ordered_on: string | null }[]).sort((a, b) => (b.ordered_on ?? '').localeCompare(a.ordered_on ?? '')).map(o => (o.number ?? '').trim()).find(Boolean) ?? null);
       const bad = pr.error ?? pay.error ?? sb.error;
@@ -80,7 +83,7 @@ export default function PlayerCard({ player, onBack, onEdit }: { player: CardPla
       {tab === 'equip' && <EquipmentTab playerId={player.id} />}
       {tab === 'matches' && <MatchesTab playerId={player.id} />}
       {tab === 'points' && <PointsTab playerId={player.id} />}
-      {tab === 'sub' && (pays === null ? <Loading /> : visibleMonths(months, monthIso(new Date()), new Set(subs.keys()), new Set((pays ?? []).map(p => p.pay_month ?? p.paid_on.slice(0, 7) + '-01'))).map(m => {
+      {tab === 'sub' && (pays === null ? <Loading /> : visibleMonths(months, [...subs.keys(), ...(pays ?? []).map(p => p.pay_month ?? p.paid_on.slice(0, 7) + '-01'), created ?? SEASON_START].sort()[0]).map(m => {
         const tariff = player.group_id ? tariffFor(prices, player.group_id, m) : null;
         const got = gotIn(m);
         const sub = subs.get(m);

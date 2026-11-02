@@ -92,10 +92,10 @@ describe('карточка игрока: вкладки', () => {
 });
 
 describe('visibleMonths', () => {
-  it('новичку не показывает прошедшие месяцы без абонемента и платежа', async () => {
+  it('история начинается с месяца прихода игрока', async () => {
     const { visibleMonths } = await import('./PlayerCard');
-    const ms = ['2026-12-01', '2026-11-01', '2026-10-01', '2026-09-01'];
-    expect(visibleMonths(ms, '2026-11-01', new Set(), new Set())).toEqual(['2026-12-01', '2026-11-01']);
-    expect(visibleMonths(ms, '2026-11-01', new Set(['2026-10-01']), new Set(['2026-09-01']))).toEqual(ms);
+    const ms = ['2027-01-01', '2026-12-01', '2026-11-01', '2026-10-01', '2026-09-01'];
+    expect(visibleMonths(ms, '2026-12-01')).toEqual(['2027-01-01', '2026-12-01']);
+    expect(visibleMonths(ms, '2026-09-01')).toEqual(ms);
   });
 });
