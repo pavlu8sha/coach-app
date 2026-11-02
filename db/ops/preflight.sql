@@ -96,6 +96,7 @@ select * from (values
   ('0092_ind_autocreate_window',   coalesce((pg_get_functiondef(to_regprocedure('ind_autocreate(date)')) like '%generate_series%'), false)),
   ('0093_discount_without_payment', coalesce((pg_get_functiondef(to_regprocedure('debtors(date)')) not like '%pm.amt, 0) > 0)%'), false)),
   ('0094_event_roster_championship_only', coalesce((pg_get_functiondef(to_regprocedure('event_roster(uuid)')) not like '%match_players%'), false)),
-  ('0095_cash_day_service_time',   coalesce((pg_get_functiondef(to_regprocedure('cash_day_service(date)')) like '%''recorded_at''%'), false))
+  ('0095_cash_day_service_time',   coalesce((pg_get_functiondef(to_regprocedure('cash_day_service(date)')) like '%''recorded_at''%'), false)),
+  ('0096_consent_lawyer_2026_11',  coalesce((exists (select 1 from consent_versions where version = 'lawyer-2026-11-v1')), false))
 ) as t(migration, applied)
 order by migration;
