@@ -54,7 +54,7 @@ export default function MonthPayments() {
   const picked = useRef(false);
   useEffect(() => {
     if (!settings.loaded || picked.current) return;
-    if (new Date().getDate() >= settingNumber(settings.values, 'payments.next_month_day')) setMonth(nextMonth(monthIso(new Date())));
+    if (new Date().getDate() >= settingNumber(settings.values, 'payments.nextMonthDay')) setMonth(nextMonth(monthIso(new Date())));
   }, [settings.loaded, settings.values]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [prices, setPrices] = useState<Price[]>([]);

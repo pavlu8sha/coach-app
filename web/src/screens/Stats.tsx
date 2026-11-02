@@ -147,7 +147,7 @@ function SeasonTiles({ t, games }: { t: MRow; games: ScoredMatch[] }) {
 
 // Посещаемость по группам за период. Занятие считается проведённым, если кто-то отмечен «был».
 function Attendance({ own }: { own: boolean }) {
-  const lowPct = settingNumber(useClubSettings().values, 'stats.low_pct'); // порог низкой посещаемости, настройка клуба
+  const lowPct = settingNumber(useClubSettings().values, 'stats.lowPct'); // порог низкой посещаемости, настройка клуба
   const [range, setRange] = useState<Range>('month');
   const [from, setFrom] = useState(monthStart(today()));
   const [to, setTo] = useState(today());

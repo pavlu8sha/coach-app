@@ -224,6 +224,24 @@ describe('«Новое событие»', () => {
     expect(fake.rpcCalls('event_create')[0]).toMatchObject({ k: 'championship', tm: 'U9', nm: 'Чемпионат 2', fee: null });
   });
 
+  it('администратор: взнос за чемпионат подставляется из настроек клуба (свой у команды или общий), введённый вручную важнее (#339)', async () => {
+    fake.db.matches = [];
+    fake.db.clubs = [{ id: 'c1' }];
+    fake.db.club_settings = [
+      { club_id: 'c1', key: 'matches.champFee', scope: '', value: '200' },
+      { club_id: 'c1', key: 'matches.champFee', scope: 'U9', value: '300' },
+    ];
+    fake.rpc.event_list = () => [];
+    fake.rpc.event_create = () => 'e-new';
+    render(<CoachMatches groups={groups} allTeams admin />);
+    fireEvent.click(await screen.findByText('Новое событие'));
+    fireEvent.change(await screen.findByLabelText('Название'), { target: { value: 'Чемпионат 2' } });
+    await waitFor(() => expect(screen.getByLabelText(/Взнос/)).toHaveAttribute('placeholder', '300'));
+    fireEvent.click(screen.getByText('Создать событие'));
+    await waitFor(() => expect(fake.rpcCalls('event_create')).toHaveLength(1));
+    expect(fake.rpcCalls('event_create')[0]).toMatchObject({ tm: 'U9', fee: 300 });
+  });
+
   it('состав копируется из выбранного события, по умолчанию не копируется', async () => {
     fake.db.matches = [];
     fake.rpc.event_list = () => [{ id: 'e1', team: 'U9', kind: 'championship', name: 'Ч1', starts_on: '2026-11-01', players: 2, games: 0 }];
