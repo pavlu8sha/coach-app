@@ -24,6 +24,7 @@ export default function PlayerStatusPanel({ playerId, status, externalId, onChan
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [dates, setDates] = useState<{ starts_on: string | null; ends_on: string | null }>({ starts_on: null, ends_on: null });
 
   useEffect(() => {
     void supabase.from('player_status_log').select('status, on_date, until_on, comment').eq('player_id', playerId).order('on_date', { ascending: false }).order('created_at', { ascending: false }).limit(30).then(r => {
@@ -31,6 +32,13 @@ export default function PlayerStatusPanel({ playerId, status, externalId, onChan
       if (!r.error) setLog((r.data ?? []) as LogRow[]);
     });
   }, [playerId, reload]);
+
+  // даты из старого приложения лежат в players.starts_on / ends_on (без журнала): показываем их, пока журнал пуст
+  useEffect(() => {
+    void supabase.from('players').select('starts_on, ends_on').eq('id', playerId).maybeSingle().then(r => {
+      if (!r.error && r.data) setDates(r.data as { starts_on: string | null; ends_on: string | null });
+    });
+  }, [playerId, reload, status]);
 
   const open = (m: PlayerStatus) => { setMode(m); setDate(today()); setUntil(''); setNote(''); setError(null); };
   const save = async () => {
@@ -47,7 +55,9 @@ export default function PlayerStatusPanel({ playerId, status, externalId, onChan
   };
 
   const last = log[0];
-  const detail = last && last.status === status ? `с ${fmtDate(last.on_date)}${status === 'paused' && last.until_on ? `, вернётся ${fmtDate(last.until_on)}` : ''}` : '';
+  const fromLog = last && last.status === status ? `с ${fmtDate(last.on_date)}${status === 'paused' && last.until_on ? `, вернётся ${fmtDate(last.until_on)}` : ''}` : '';
+  const legacy = [dates.starts_on ? `занимался с ${fmtDate(dates.starts_on)}` : '', status === 'inactive' && dates.ends_on ? `ушёл ${fmtDate(dates.ends_on)}` : ''].filter(Boolean).join(', ');
+  const detail = fromLog || legacy;
   const guest = status === 'inactive' && isGuest(externalId);
 
   return (
