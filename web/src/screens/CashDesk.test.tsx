@@ -182,14 +182,25 @@ describe('«Приём оплат»: платежи дня', () => {
     seed();
     fake.db.payments = [];
     fake.rpc.cash_day_service = () => [
-      { id: 's1', amount: 40, method: 'Перевод', what: 'Экипировка', player_id: 'p1', full_name: 'Иванов Пётр', recorded_at: '2026-11-01T06:46:00Z' },
-      { id: 's2', amount: 50, method: 'Наличные', what: 'Индивидуальное', player_id: 'p1', full_name: 'Иванов Пётр', recorded_at: '2026-11-01T10:05:00Z' },
+      { id: 's1', amount: 40, method: 'Перевод', what: 'Экипировка', player_id: 'p1', full_name: 'Иванов Пётр', recorded_at: `${today()}T02:46:00Z` },
+      { id: 's2', amount: 50, method: 'Наличные', what: 'Индивидуальное', player_id: 'p1', full_name: 'Иванов Пётр', recorded_at: `${today()}T06:05:00Z` },
     ];
     render(<CashDesk />);
     await screen.findByRole('heading', { name: /Внесено сегодня.*90 ₾/ });
-    const a = screen.getByText(/14:05 · Индивидуальное/);
-    const b = screen.getByText(/10:46 · Экипировка/);
+    const a = screen.getByText(/10:05 · Индивидуальное/);
+    const b = screen.getByText(/06:46 · Экипировка/);
     expect(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('оплата, внесённая в другой день, показывает дату записи рядом со временем', async () => {
+    seed();
+    fake.db.payments = [];
+    fake.rpc.cash_day_service = () => [
+      { id: 's3', amount: 40, method: 'Перевод', what: 'Экипировка', player_id: 'p1', full_name: 'Иванов Пётр', recorded_at: '2099-01-02T06:46:00Z' },
+    ];
+    render(<CashDesk />);
+    await screen.findByRole('heading', { name: /Внесено сегодня.*40 ₾/ });
+    expect(screen.getByText(/внесено 02\.01\.2099 10:46 · Экипировка/)).toBeInTheDocument();
   });
 
   it('индивидуальную можно оплатить задним числом: дата уходит в ind_set_paid', async () => {
