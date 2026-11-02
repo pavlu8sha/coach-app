@@ -99,3 +99,12 @@ describe('visibleMonths', () => {
     expect(visibleMonths(ms, '2026-09-01')).toEqual(ms);
   });
 });
+
+describe('firstMonth', () => {
+  it('платёж и его отмена не открывают месяц', async () => {
+    const { firstMonth } = await import('./PlayerCard');
+    const pays = [{ amount: 130, month: '2026-10-01' }, { amount: -130, month: '2026-10-01' }, { amount: 130, month: '2026-11-01' }];
+    expect(firstMonth([], pays, '2026-11-01', '2026-09-01')).toBe('2026-11-01');
+    expect(firstMonth([], [{ amount: 130, month: '2026-10-01' }], '2026-11-01', '2026-09-01')).toBe('2026-10-01');
+  });
+});
