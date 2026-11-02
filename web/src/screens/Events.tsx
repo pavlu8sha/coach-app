@@ -7,7 +7,9 @@ import { BackNav } from '../ui/nav';
 import EventFees from './EventFees';
 import { Failure, Loading } from './Message';
 
-export interface EventRow { id: string; team: string; kind: string; name: string | null; starts_on: string | null; players: number; games: number }
+// status появился в миграции 0103; без неё поле не приходит, и событие считается идущим
+export interface EventRow { id: string; team: string; kind: string; name: string | null; starts_on: string | null; players: number; games: number; status?: 'active' | 'finished' }
+export const isFinished = (e: Pick<EventRow, 'status'>) => e.status === 'finished';
 interface RosterRow { player_id: string; full_name: string; group_name: string | null }
 interface Player { id: string; full_name: string }
 
@@ -85,6 +87,8 @@ export function EventScreen({ event, groups, admin = false, onBack }: { event: E
   const [gameDate, setGameDate] = useState(today());
   const [opp, setOpp] = useState('');
   const [busy, setBusy] = useState(false);
+  const [finished, setFinished] = useState(isFinished(event));
+  const [statusErr, setStatusErr] = useState<string | null>(null);
   // команда «U10» объединяет группы U10-A и U10-B
   const teamGroups = groups.filter(g => g.name === event.team || matchTeam(g.name) === event.team);
 
@@ -131,13 +135,29 @@ export function EventScreen({ event, groups, admin = false, onBack }: { event: E
     onBack();
   };
 
+  // статус соревнования меняет только администратор (event_set_status, миграция 0103)
+  const toggleStatus = async () => {
+    setBusy(true);
+    setStatusErr(null);
+    const r = await supabase.rpc('event_set_status', { t: event.id, s: finished ? 'active' : 'finished' });
+    setBusy(false);
+    if (r.error) return setStatusErr(coachError(r.error.message));
+    setFinished(!finished);
+  };
+
   if (error) return <Failure title="Не удалось загрузить состав" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} />} />;
   if (!roster) return <Loading />;
   return (
     <main className="page">
       <BackNav onBack={onBack} />
       <h1>{eventTitle(event)}</h1>
-      <p className="muted">{KIND_TITLE[event.kind]} · {event.team}{event.starts_on ? ` · ${fmtDate(event.starts_on)}` : ''}</p>
+      <p className="muted">{KIND_TITLE[event.kind]} · {event.team}{event.starts_on ? ` · ${fmtDate(event.starts_on)}` : ''} · {finished ? 'завершено' : 'идёт'}</p>
+      {admin && (
+        <>
+          <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => void toggleStatus()}>{finished ? 'Вернуть в работу' : 'Завершить соревнование'}</button>
+          {statusErr && <p className="error">{statusErr}</p>}
+        </>
+      )}
       <h2 className="ks-sub">Состав на чемпионат: {roster.length}</h2>
       <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>Эти игроки автоматически попадают во все матчи события. Внутри матча отмечается, кто играл; гостя, которого нет в списке, добавляют в конкретный матч.</p>
       {teamGroups.length > 0 && <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => void addGroup()}>Добавить всю команду {event.team}</button>}
