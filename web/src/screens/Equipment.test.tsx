@@ -93,9 +93,9 @@ describe('«Экипировка»', () => {
     await waitFor(() => expect(fake.rpcCalls('eq_set_issued')[0]).toMatchObject({ o: 'o2', k: 'Форма', on_: true }));
   });
 
-  it('новый заказ: позиции из каталога, сумма по каталогу, вызов eq_create_order; номер занят — сообщение', async () => {
+  it('новый заказ: позиции из каталога, сумма по каталогу, вызов eq_create_order', async () => {
     seed();
-    fake.rpc.eq_create_order = () => ({ error: { message: 'number taken' } });
+    fake.rpc.eq_create_order = () => 'new-order';
     render(<Equipment />);
     fireEvent.click(await screen.findByRole('button', { name: 'Новый заказ' }));
     fireEvent.change(screen.getByLabelText('Найти игрока'), { target: { value: 'Иванов' } });
@@ -106,7 +106,7 @@ describe('«Экипировка»', () => {
     fireEvent.change(screen.getByLabelText('Размер: Форма'), { target: { value: '128' } });
     fireEvent.change(screen.getByLabelText('Номер'), { target: { value: '7' } });
     fireEvent.click(screen.getByRole('button', { name: 'Создать заказ' }));
-    expect(await screen.findByText('Этот номер уже занят в группе.')).toBeInTheDocument();
+    await waitFor(() => expect(fake.rpcCalls('eq_create_order')).toHaveLength(1));
     const call = fake.rpcCalls('eq_create_order')[0];
     expect(call.p).toBe('p1');
     expect(call.lines).toEqual([{ kit: 'Форма', size: '128', quantity: 1 }, { kit: 'Куртка', size: '', quantity: 1 }]);
@@ -137,7 +137,7 @@ describe('«Экипировка»', () => {
     await waitFor(() => expect(fake.rpcCalls('eq_create_order')[0]).toMatchObject({ p: 'p1', custom_total: 355 }));
   });
 
-  it('номер занят: называем только игрока из той же возрастной группы, чужие группы и самого игрока не показываем', async () => {
+  it('номер занят: подсказка называет только игрока из той же возрастной группы и не мешает создать заказ', async () => {
     seed();
     const ord = (id: string, pid: string, name: string, grp: string, number: string) => ({ id, player_id: pid, number, players: { full_name: name, groups: { name: grp } }, equipment_order_lines: [], equipment_issues: [], equipment_order_status_history: [] });
     fake.db.equipment_orders = [
@@ -147,18 +147,20 @@ describe('«Экипировка»', () => {
       ord('o9', 'p9', 'Площадка Исани', 'Isani', '19'),
     ];
     fake.db.players = [{ id: 'p1', full_name: 'Иванов Пётр', groups: { location: null, name: 'U9-A' } }];
-    fake.rpc.eq_create_order = () => ({ error: { message: 'number taken' } });
+    fake.rpc.eq_create_order = () => 'new-order';
     render(<Equipment />);
     fireEvent.click(await screen.findByRole('button', { name: 'Новый заказ' }));
     fireEvent.change(screen.getByLabelText('Найти игрока'), { target: { value: 'Иванов' } });
     fireEvent.click(await screen.findByText('Иванов Пётр'));
     fireEvent.click(await screen.findByLabelText(/Форма/));
     fireEvent.change(screen.getByLabelText('Номер'), { target: { value: '19' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Создать заказ' }));
-    const msg = await screen.findByText(/Номер 19 уже занят в группе U9-A/);
+    const msg = await screen.findByText(/Номер 19 уже есть в группе U9-A/);
+    expect(msg.textContent).toContain('Заказ можно сохранить');
     expect(msg.textContent).toContain('Тот Же Возраст (U9-B)');
     expect(msg.textContent).not.toContain('Другая Группа');
     expect(msg.textContent).not.toContain('Площадка Исани');
+    fireEvent.click(screen.getByRole('button', { name: 'Создать заказ' }));
+    await waitFor(() => expect(fake.rpcCalls('eq_create_order')).toHaveLength(1));
   });
 
   it('заказ с оплатой: ошибка удаления объясняет, что делать', async () => {
