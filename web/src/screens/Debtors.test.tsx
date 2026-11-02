@@ -47,6 +47,15 @@ describe('«Должники» (администратор)', () => {
     await waitFor(() => expect(fake.writes('subscriptions', 'upsert')).toContainEqual({ player_id: 'p9', month: monthIso(), discount: false }));
   });
 
+  it('переведённый в индивидуальные не числится должником (абонемент остался в старой группе)', async () => {
+    seed();
+    fake.db.groups = [{ id: 'gi', name: 'Индивидуальные / Вратарские' }, { id: 'g9', name: 'U9-A' }];
+    fake.db.players = [{ id: 'p1', status: 'active', group_id: 'g9' }, { id: 'p2', status: 'active', group_id: 'gi' }, { id: 'p3', status: 'active', group_id: 'g9' }];
+    render(<Debtors />);
+    expect(await screen.findByText('Должны: 2, всего 195 ₾')).toBeInTheDocument();
+    expect(screen.queryByText('Сидоров Ян')).toBeNull();
+  });
+
   it('пустой список — «Должников нет»', async () => {
     seed();
     fake.rpc.debtors = () => [];
