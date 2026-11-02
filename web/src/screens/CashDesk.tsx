@@ -81,6 +81,9 @@ async function loadDues(p: Pl): Promise<Due[]> {
 
 // время записи платежа по Тбилиси, ЧЧ:ММ
 const timeOf = (iso: string) => new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tbilisi' }).format(new Date(iso));
+const dayOf = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tbilisi' }).format(new Date(iso)); // YYYY-MM-DD по Тбилиси
+// время записи: если внесено в тот же день, что и оплата, только время; иначе «внесено 02.11 08:41», чтобы вчерашняя оплата не выглядела сегодняшней
+const whenOf = (iso: string, payDay: string) => dayOf(iso) === payDay ? timeOf(iso) : `внесено ${fmtDate(dayOf(iso))} ${timeOf(iso)}`;
 type TodayRow = { id: string; amount: number; method: string | null; recorded_at?: string | null; what: string; kind?: string; player_id?: string; pay_month?: string | null; detail?: string; sub?: string; players: { full_name: string } | null };
 const monthShort = (iso: string) => `${iso.slice(5, 7)}.${iso.slice(2, 4)}`; // 2026-10-01 → 10.26
 const CAMP_KIND: Record<string, string> = { booking: 'Бронь', payment: 'Оплата', refund: 'Возврат' };
@@ -154,7 +157,7 @@ export default function CashDesk() {
         const group = pid ? (x.what === 'Абонемент' && x.pay_month ? gBySub.get(`${pid}|${x.pay_month}`) : undefined) ?? gById.get(pid) : undefined;
         const detail = x.what === 'Абонемент' ? (x.pay_month ? monthShort(x.pay_month) : undefined) : x.what === 'Экипировка' && pid && kits.has(pid) ? (kits.get(pid) as string[]).join(' + ') : x.detail;
         const line = payLine(x, group, detail);
-        return { ...x, sub: x.recorded_at ? `${timeOf(x.recorded_at)} · ${line}` : line };
+        return { ...x, sub: x.recorded_at ? `${whenOf(x.recorded_at, day)} · ${line}` : line };
       }));
     })();
   }, [reload, player, day]);
