@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 
 export interface ConfirmRequest {
   title: string;
@@ -10,6 +10,21 @@ export interface ConfirmRequest {
   /** Для необратимых действий: кнопка подтверждения красная, «Отмена» в фокусе. */
   danger?: boolean;
 }
+
+/**
+ * Общий вид модальных окон. Подложка почти непрозрачная, а карточка получает свой непрозрачный фон:
+ * `.ks-group .ks-card` делает карточки прозрачными, и без явного фона блоки под окном просвечивали бы.
+ * Окно центрируется через `margin: auto`, поэтому высокое окно не обрезается сверху и прокручивается
+ * внутри подложки; `overscrollBehavior: contain` не даёт прокрутке уходить в страницу под окном.
+ */
+export const sheetOverlayStyle: CSSProperties = {
+  position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', zIndex: 1000, padding: 16,
+  overflowY: 'auto', overscrollBehavior: 'contain',
+};
+export const sheetCardStyle: CSSProperties = {
+  width: '100%', maxWidth: 420, margin: 'auto', borderRadius: 20, padding: 20,
+  background: 'var(--ks-surface, #ffffff)', opacity: 1, position: 'relative',
+};
 
 /** Окно подтверждения: показывает, что именно будет сделано, и ждёт явного нажатия. Esc и фон закрывают без действия. */
 export function ConfirmSheet({ title, lines = [], note, confirmLabel, danger, onConfirm, onCancel }: ConfirmRequest & { onConfirm: () => void; onCancel: () => void }) {
@@ -36,9 +51,9 @@ export function ConfirmSheet({ title, lines = [], note, confirmLabel, danger, on
       aria-modal="true"
       aria-label={title}
       onClick={onCancel}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}
+      style={sheetOverlayStyle}
     >
-      <div className="ks-card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, margin: 0, borderRadius: 20, padding: 20 }}>
+      <div className="ks-card" onClick={e => e.stopPropagation()} style={sheetCardStyle}>
         <h3 style={{ marginTop: 0, textAlign: 'center' }}>{title}</h3>
         {shown.length > 0 && (
           <dl style={{ margin: '12px 0', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '8px 16px', alignItems: 'baseline' }}>
