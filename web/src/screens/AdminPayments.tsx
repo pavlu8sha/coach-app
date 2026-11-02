@@ -3,6 +3,7 @@ import { today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput } from '../ui/components';
 import { Failure, Loading } from './Message';
+import { useConfirm } from '../ui/ConfirmSheet';
 
 interface Player { id: string; full_name: string; groups: { name: string } | null }
 interface Pay { id: string; amount: number; paid_on: string; method: string | null }
@@ -44,13 +45,13 @@ export default function AdminPayments() {
 }
 
 function PlayerPayments({ player, onBack }: { player: Player; onBack: () => void }) {
+  const { ask, dialog: confirmDialog } = useConfirm();
   const [pays, setPays] = useState<Pay[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(today());
   const [method, setMethod] = useState('');
-  const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [undo, setUndo] = useState<Pay | null>(null);
@@ -71,12 +72,18 @@ function PlayerPayments({ player, onBack }: { player: Player; onBack: () => void
     if (!method) return 'Выберите способ оплаты.';
     return null;
   };
+  const askAdd = async () => {
+    const p = problem();
+    if (p) return setMsg({ ok: false, text: p });
+    if (!(await ask({ title: 'Записать платёж?', lines: [['Игрок', player.full_name], ['Сумма', gel(num)], ['Дата', fmt(date)], ['Способ', method]], note: 'Запись нельзя изменить или удалить, ошибку исправляют записью с минусом.', confirmLabel: 'Записать платёж' }))) return;
+    await add({ amount: num, paid_on: date, method });
+  };
   const add = async (row: { amount: number; paid_on: string; method: string }) => {
     setBusy(true);
     setMsg(null);
     const r = await supabase.from('payments').insert({ player_id: player.id, amount: Math.round(row.amount * 100) / 100, paid_on: row.paid_on, method: row.method });
     setBusy(false);
-    setConfirm(false);
+   
     setUndo(null);
     if (r.error) return setMsg({ ok: false, text: r.error.message });
     setAmount('');
@@ -100,9 +107,9 @@ function PlayerPayments({ player, onBack }: { player: Player; onBack: () => void
       <h3>Внести платёж</h3>
       <div className="ks-card">
         <label className="ks-label" htmlFor="pay-amount">Сумма, ₾ (минус — исправление)</label>
-        <input id="pay-amount" className="ks-input" inputMode="decimal" value={amount} onChange={e => { setAmount(e.target.value); setMsg(null); setConfirm(false); }} placeholder="Например: 165" />
+        <input id="pay-amount" className="ks-input" inputMode="decimal" value={amount} onChange={e => { setAmount(e.target.value); setMsg(null); }} placeholder="Например: 165" />
         <label className="ks-label" htmlFor="pay-date">Дата платежа</label>
-        <input id="pay-date" className="ks-input" type="date" value={date} onChange={e => { setDate(e.target.value); setConfirm(false); }} />
+        <input id="pay-date" className="ks-input" type="date" value={date} onChange={e => { setDate(e.target.value); }} />
         <label className="ks-label" htmlFor="pay-method">Способ</label>
         <select id="pay-method" className="ks-select" value={method} onChange={e => setMethod(e.target.value)}>
           <option value="">Выберите способ</option>
@@ -111,16 +118,7 @@ function PlayerPayments({ player, onBack }: { player: Player; onBack: () => void
           ))}
         </select>
         {msg && <p className={msg.ok ? 'ks-ok' : 'error'}>{msg.text}</p>}
-        {confirm ? (
-          <>
-            <p style={{ marginBottom: 8 }}>Записать {gel(num)} за {fmt(date)} ({method})? Запись нельзя изменить или удалить, ошибку исправляют записью с минусом.</p>
-            <button type="button" className="ks-btn" disabled={busy} onClick={() => void add({ amount: num, paid_on: date, method })}>Записать платёж</button>
-            <div style={{ height: 8 }} />
-            <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => setConfirm(false)}>Отмена</button>
-          </>
-        ) : (
-          <button type="button" className="ks-btn" onClick={() => { const p = problem(); if (p) return setMsg({ ok: false, text: p }); setConfirm(true); }}>Внести платёж</button>
-        )}
+        <button type="button" className="ks-btn" onClick={() => void askAdd()}>Внести платёж</button>
       </div>
 
       <h3>Платежи игрока</h3>
@@ -146,6 +144,7 @@ function PlayerPayments({ player, onBack }: { player: Player; onBack: () => void
           </div>
         ))
       )}
+      {confirmDialog}
     </main>
   );
 }

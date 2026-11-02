@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput, Segmented, SwitchRow } from '../ui/components';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
+import { useConfirm } from '../ui/ConfirmSheet';
 
 interface Line { kit: string; size: string | null; quantity: number }
 interface Order {
@@ -284,7 +285,7 @@ function OrderView({ order, knownNumber, onBack }: { order: Order; knownNumber?:
   const [who, setWho] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [confirmDel, setConfirmDel] = useState(false);
+  const { ask, dialog: confirmDialog } = useConfirm();
   const [gone, setGone] = useState(false);
   useEffect(() => { if (gone) onBack(); }, [gone]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -308,6 +309,11 @@ function OrderView({ order, knownNumber, onBack }: { order: Order; knownNumber?:
   if (gone) return null;
   const issued = new Map(o.equipment_issues.map(i => [i.kit, i]));
   const kitsInOrder = [...new Set(o.equipment_order_lines.map(l => l.kit))];
+
+  const deleteOrder = async () => {
+    if (!(await ask({ title: 'Удалить заказ?', lines: [['Игрок', o.players?.full_name ?? 'Игрок'], ['Сумма', gel(o.total)]], note: 'Заказ будет удалён. Отменить нельзя.', confirmLabel: 'Удалить', danger: true }))) return;
+    if (await run('del', () => supabase.rpc('eq_delete_order', { o: o.id }))) setGone(true);
+  };
   return (
     <main className="page">
       <BackNav onBack={onBack} />
@@ -343,16 +349,8 @@ function OrderView({ order, knownNumber, onBack }: { order: Order; knownNumber?:
       <div style={{ marginTop: 12 }}><SwitchRow id="inst" label="Рассрочка" checked={inst} onChange={setInst} /></div>
       <button type="button" className="ks-btn" disabled={busy === 'edit' || Number.isNaN(num(total))} onClick={() => void run('edit', () => supabase.rpc('eq_edit_order', { o: o.id, insc, num: number, inst, loc, new_total: num(total) }), 'Сохранено.')}>Сохранить</button>
       <div style={{ height: 8 }} />
-      {confirmDel ? (
-        <>
-          <p className="muted">Удалить заказ? Это нельзя отменить.</p>
-          <button type="button" className="ks-btn" disabled={busy === 'del'} onClick={() => void run('del', () => supabase.rpc('eq_delete_order', { o: o.id })).then(ok => { if (ok) setGone(true); })}>Да, удалить</button>
-          <div style={{ height: 8 }} />
-          <button type="button" className="ks-btn secondary" onClick={() => setConfirmDel(false)}>Не удалять</button>
-        </>
-      ) : (
-        <button type="button" className="ks-btn secondary" onClick={() => setConfirmDel(true)}>Удалить заказ</button>
-      )}
+      <button type="button" className="ks-btn secondary" disabled={busy === 'del'} onClick={() => void deleteOrder()}>Удалить заказ</button>
+      {confirmDialog}
     </main>
   );
 }

@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
+import { useConfirm } from '../ui/ConfirmSheet';
 
 const fmt = (iso: string) => iso.split('-').reverse().join('.');
 
 // Для администратора: с какой даты считаются баллы (миграция 0040). Баллы раньше этой даты никому не показываются.
 export default function PointsStart() {
+  const { ask, dialog: confirmDialog } = useConfirm();
   const [current, setCurrent] = useState<string | null | undefined>(undefined); // undefined — ещё не знаем
   const [date, setDate] = useState(today());
-  const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -24,10 +25,15 @@ export default function PointsStart() {
     setMsg(null);
     const r = await supabase.rpc('set_points_start', { d });
     setBusy(false);
-    setConfirm(false);
+   
     if (r.error) return setMsg({ ok: false, text: r.error.message.includes('forbidden') ? 'Нет прав: дату задаёт только администратор.' : r.error.message });
     setMsg({ ok: true, text: d ? `Баллы считаются с ${fmt(d)}.` : 'Ограничение снято: видна вся история баллов.' });
     await load();
+  };
+
+  const askSave = async () => {
+    if (!(await ask({ title: 'Задать дату старта?', lines: [['Дата', fmt(date)]], note: 'Всё, что набрано раньше, перестанет показываться. Записи не удаляются.', confirmLabel: 'Задать дату', danger: true }))) return;
+    await save(date);
   };
 
   return (
@@ -40,23 +46,15 @@ export default function PointsStart() {
         <b>Сейчас: {current === undefined ? 'загрузка…' : current ? `с ${fmt(current)}` : 'ограничения нет, видна вся история'}</b>
       </div>
       {msg && <p className={msg.ok ? 'ks-ok' : 'error'}>{msg.text}</p>}
-      <label className="field">Дата старта<input type="date" value={date} onChange={e => { setDate(e.target.value); setConfirm(false); }} /></label>
-      {confirm ? (
-        <div className="ks-card">
-          <p style={{ marginBottom: 10 }}>Считать баллы с {fmt(date)}? Всё, что набрано раньше, перестанет показываться.</p>
-          <button type="button" className="ks-btn" disabled={busy} onClick={() => void save(date)}>Да, задать дату</button>
-          <div style={{ height: 8 }} />
-          <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => setConfirm(false)}>Отмена</button>
-        </div>
-      ) : (
-        <button type="button" className="ks-btn" disabled={!date} onClick={() => setConfirm(true)}>Задать дату старта</button>
-      )}
+      <label className="field">Дата старта<input type="date" value={date} onChange={e => { setDate(e.target.value); }} /></label>
+      <button type="button" className="ks-btn" disabled={!date} onClick={() => void askSave()}>Задать дату старта</button>
       {current && (
         <>
           <div style={{ height: 8 }} />
           <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => void save(null)}>Снять ограничение</button>
         </>
       )}
+      {confirmDialog}
     </main>
   );
 }

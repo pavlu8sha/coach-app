@@ -33,10 +33,10 @@ describe('«Дополнительные»', () => {
   it('долг гасится из вкладки «Долги» со способом оплаты', async () => {
     seed();
     fake.rpc.extra_set_paid = () => null;
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<Extra />);
     fireEvent.click(await screen.findByRole('tab', { name: 'Долги' }));
     fireEvent.click(await screen.findByRole('button', { name: /Перевод: Иванов Пётр/ }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Принять оплату' }));
     await waitFor(() => expect(fake.rpcCalls('extra_set_paid')).toHaveLength(1));
     expect(fake.rpcCalls('extra_set_paid')[0]).toMatchObject({ p: 'p1', is_paid: true, mth: 'Перевод' });
   });

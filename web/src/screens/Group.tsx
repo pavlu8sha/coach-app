@@ -6,6 +6,7 @@ import { GroupPicker } from '../ui/coach';
 import NotifyToggle from '../ui/NotifyToggle';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
+import { useConfirm } from '../ui/ConfirmSheet';
 
 interface Player { id: string; full_name: string }
 interface Ev { id: string; points: number; explanation: string; occurred_on: string; source_type: string }
@@ -71,6 +72,7 @@ export default function Group({ groups, notify = false }: { groups: CoachGroup[]
 }
 
 function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBack: () => void }) {
+  const { ask, dialog: confirmDialog } = useConfirm();
   const [events, setEvents] = useState<Ev[] | null>(null);
   const [parents, setParents] = useState<Parent[] | null | 'na'>(null);
   const [error, setError] = useState<string | null>(null);
@@ -78,7 +80,6 @@ function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBa
   const [pts, setPts] = useState('1');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
-  const [confirmId, setConfirmId] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
@@ -112,12 +113,15 @@ function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBa
     setMsg({ ok: true, text: 'Баллы начислены.' });
     setReload(n => n + 1);
   };
+  const askRevoke = async (e: Ev) => {
+    if (!(await ask({ title: 'Отменить начисление?', lines: [['Начисление', e.explanation], ['Баллы', `+${e.points}`], ['Дата', fmtDate(e.occurred_on)]], note: 'Баллы будут сняты у игрока.', confirmLabel: 'Отменить начисление', danger: true }))) return;
+    await revoke(e.id);
+  };
   const revoke = async (id: string) => {
     setBusy(true);
     setMsg(null);
     const r = await supabase.rpc('revoke_bonus', { e: id });
     setBusy(false);
-    setConfirmId(null);
     if (r.error) setMsg({ ok: false, text: coachError(r.error.message) });
     setReload(n => n + 1);
   };
@@ -179,18 +183,13 @@ function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBa
             </div>
             <div className="ks-muted" style={{ fontSize: 13 }}>{fmtDate(e.occurred_on)}</div>
             {e.source_type === 'coach' &&
-              (confirmId === e.id ? (
-                <div style={{ marginTop: 8 }}>
-                  <button type="button" className="ks-btn" disabled={busy} onClick={() => void revoke(e.id)}>Отменить начисление</button>
-                  <div style={{ height: 8 }} />
-                  <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => setConfirmId(null)}>Не отменять</button>
-                </div>
-              ) : (
-                <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} onClick={() => setConfirmId(e.id)}>Отменить</button>
-              ))}
+              (
+                <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy} onClick={() => void askRevoke(e)}>Отменить</button>
+              )}
           </div>
         ))
       )}
+      {confirmDialog}
     </main>
   );
 }

@@ -37,23 +37,23 @@ describe('«Должники»: списание и создание абоне�
   it('создание абонементов: без подтверждения ничего не происходит, с ним — вызов и число созданных', async () => {
     seed();
     fake.rpc.create_subscription_month = () => 12;
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
     render(<Debtors />);
     const btn = await screen.findByRole('button', { name: 'Создать абонементы на месяц' });
     fireEvent.click(btn);
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отмена' }));
     expect(fake.rpcCalls('create_subscription_month')).toHaveLength(0);
     fireEvent.click(btn);
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Создать' }));
     expect(await screen.findByText('Создано абонементов: 12. Уже существующие не менялись.')).toBeInTheDocument();
     expect(fake.rpcCalls('create_subscription_month')).toEqual([{ m: monthIso() }]);
-    expect(confirm).toHaveBeenCalledTimes(2);
   });
 
   it('если миграция 0032 не применена, экран говорит об этом', async () => {
     seed();
     fake.rpc.create_subscription_month = () => ({ error: { message: 'Could not find the function public.create_subscription_month' } });
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<Debtors />);
     fireEvent.click(await screen.findByRole('button', { name: 'Создать абонементы на месяц' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Создать' }));
     expect(await screen.findByText(/миграция 0032/)).toBeInTheDocument();
   });
 });

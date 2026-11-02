@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import LinkStatus from './LinkStatus';
@@ -27,10 +27,10 @@ describe('«Статус привязки»', () => {
     render(<LinkStatus onBack={() => {}} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Отменить запрос' }));
     expect(fake.rpcCalls('cancel_link')).toHaveLength(0);
-    fireEvent.click(await screen.findByRole('button', { name: 'Не отменять' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отмена' }));
     expect(fake.rpcCalls('cancel_link')).toHaveLength(0);
     fireEvent.click(screen.getByRole('button', { name: 'Отменить запрос' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Отменить запрос' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отменить запрос' }));
     await waitFor(() => expect(fake.rpcCalls('cancel_link')).toEqual([{ r: 'r1' }]));
   });
 
@@ -48,7 +48,7 @@ describe('«Статус привязки»', () => {
     fake.rpc.cancel_link = () => ({ error: { message: 'Could not find the function public.cancel_link' } });
     render(<LinkStatus onBack={() => {}} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Отменить запрос' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Отменить запрос' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отменить запрос' }));
     expect(await screen.findByText('Это действие пока недоступно.')).toBeInTheDocument();
   });
 

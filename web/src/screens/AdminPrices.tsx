@@ -3,6 +3,7 @@ import { sortGroups } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { Pill } from '../ui/components';
 import { Failure, Loading } from './Message';
+import { useConfirm } from '../ui/ConfirmSheet';
 
 interface Price { id: string; group_id: string | null; kind: string; amount: number; valid_from: string; valid_to: string | null }
 interface Group { id: string; name: string }
@@ -19,6 +20,7 @@ const thisMonth = () => new Date().toLocaleDateString('en-CA').slice(0, 7);
 // Для администратора: цены абонемента и индивидуального занятия по месяцам. Новая цена действует с выбранного месяца, прошлые
 // месяцы остаются по своей цене (как в старом приложении): добавлять можно с текущего месяца, удалять только будущие.
 export default function AdminPrices() {
+  const { ask, dialog: confirmDialog } = useConfirm();
   const [prices, setPrices] = useState<Price[] | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
   const [clubId, setClubId] = useState<string | null>(null);
@@ -65,7 +67,7 @@ export default function AdminPrices() {
     setReload(n => n + 1);
   };
   const remove = async (p: Price) => {
-    if (!window.confirm(`Удалить цену ${gel(p.amount)} с ${monthLabel(p.valid_from)}?`)) return;
+    if (!(await ask({ title: 'Удалить цену?', lines: [['Сумма', gel(p.amount)], ['Действует с', monthLabel(p.valid_from)]], note: 'Отменить нельзя.', confirmLabel: 'Удалить', danger: true }))) return;
     const r = await supabase.from('prices').delete().eq('id', p.id);
     if (r.error) return setMsg({ ok: false, text: r.error.message });
     setReload(n => n + 1);
@@ -120,6 +122,7 @@ export default function AdminPrices() {
           </div>
         );
       })}
+      {confirmDialog}
     </main>
   );
 }

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import { today } from '../lib/coach';
@@ -25,7 +25,7 @@ describe('«Платежи» (администратор)', () => {
     expect(await screen.findByText('Выберите способ оплаты.')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(/^Способ/), { target: { value: 'Наличные' } });
     fireEvent.click(screen.getByRole('button', { name: 'Внести платёж' }));
-    expect(screen.getByText(/Записать 65\.50 ₾/)).toBeInTheDocument();
+    expect(await screen.findByRole('dialog')).toHaveTextContent('65.50 ₾');
     expect(fake.writes('payments', 'insert')).toHaveLength(0);
     fireEvent.click(screen.getByRole('button', { name: 'Записать платёж' }));
     await waitFor(() => expect(fake.writes('payments', 'insert')).toEqual([{ player_id: 'p1', amount: 65.5, paid_on: today(), method: 'Наличные' }]));
@@ -93,11 +93,11 @@ describe('«Цены» (администратор)', () => {
   });
   it('удалить можно только будущую цену и после подтверждения', async () => {
     seedPrices();
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<AdminPrices />);
     const del = await screen.findAllByRole('button', { name: 'Удалить будущую цену' });
     expect(del).toHaveLength(1); // у действующей цены кнопки нет
     fireEvent.click(del[0]);
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Удалить' }));
     await waitFor(() => expect(fake.calls.some(c => c.kind === 'delete' && c.name === 'prices')).toBe(true));
   });
 });

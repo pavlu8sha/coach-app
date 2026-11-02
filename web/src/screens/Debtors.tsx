@@ -107,7 +107,7 @@ export default function Debtors() {
     }
   };
   const createMonth = async () => {
-    if (!window.confirm(`Создать абонементы на ${monthName(month).toLowerCase()} для всех активных игроков?`)) return;
+    if (!(await ask({ title: 'Создать абонементы?', lines: [['Месяц', monthName(month)]], note: 'Абонемент появится у всех активных игроков.', confirmLabel: 'Создать' }))) return;
     setBusy('month');
     setMsg(null);
     const r = await supabase.rpc('create_subscription_month', { m: month });

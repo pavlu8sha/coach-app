@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { Avatar, EmptyState, Pill, type Tone } from '../ui/components';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
+import { useConfirm } from '../ui/ConfirmSheet';
 
 export interface Req { id: string; status: 'pending' | 'approved' | 'rejected'; players: { full_name: string } | null }
 
@@ -31,12 +32,16 @@ const actionError = (m: string) =>
 
 // Запросы родителя на привязку ребёнка и их статусы. Можно отменить неподтверждённый запрос и повторить отклонённый.
 export default function LinkStatus({ onBack }: { onBack: () => void }) {
+  const { ask, dialog: confirmDialog } = useConfirm();
   const [reqs, setReqs] = useState<Req[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const [confirmId, setConfirmId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ id: string; text: string } | null>(null);
+  const askCancel = async (id: string) => {
+    if (!(await ask({ title: 'Отменить запрос?', note: 'Ребёнок снова появится в поиске.', confirmLabel: 'Отменить запрос', danger: true }))) return;
+    await act(id, 'cancel_link');
+  };
 
   useEffect(() => {
     void (async () => {
@@ -54,7 +59,6 @@ export default function LinkStatus({ onBack }: { onBack: () => void }) {
     setNotice(null);
     const r = await supabase.rpc(fn, { r: id });
     setBusyId(null);
-    setConfirmId(null);
     if (r.error) setNotice({ id, text: actionError(r.error.message) });
     setReload(n => n + 1);
   };
@@ -87,16 +91,8 @@ export default function LinkStatus({ onBack }: { onBack: () => void }) {
               </div>
               {notice?.id === r.id && <p className="error">{notice.text}</p>}
               {r.status === 'pending' &&
-                (confirmId === r.id ? (
-                  <div style={{ marginTop: 10 }}>
-                    <p style={{ marginBottom: 8 }}>Отменить запрос? Ребёнок снова появится в поиске.</p>
-                    <button type="button" className="ks-btn" disabled={busy} onClick={() => void act(r.id, 'cancel_link')}>Отменить запрос</button>
-                    <div style={{ height: 8 }} />
-                    <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => setConfirmId(null)}>Не отменять</button>
-                  </div>
-                ) : (
-                  <button type="button" className="ks-btn secondary" style={{ marginTop: 10 }} onClick={() => setConfirmId(r.id)}>Отменить запрос</button>
-                ))}
+                <button type="button" className="ks-btn secondary" style={{ marginTop: 10 }} disabled={busy} onClick={() => void askCancel(r.id)}>Отменить запрос</button>
+              }
               {r.status === 'rejected' && (
                 <button type="button" className="ks-btn secondary" style={{ marginTop: 10 }} disabled={busy} onClick={() => void act(r.id, 'retry_link')}>Попробовать снова</button>
               )}
@@ -104,6 +100,7 @@ export default function LinkStatus({ onBack }: { onBack: () => void }) {
           );
         })
       )}
+      {confirmDialog}
     </main>
   );
 }

@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { Pill } from '../ui/components';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
+import { useConfirm } from '../ui/ConfirmSheet';
 
 interface Req { id: string; status: 'open' | 'done' | 'rejected'; created_at: string; note: string | null }
 
@@ -11,11 +12,11 @@ const fmt = (iso: string) => iso.slice(0, 10).split('-').reverse().join('.');
 
 // «Мои данные»: выгрузка своих данных одним файлом и запрос на удаление данных (обрабатывает администратор клуба).
 export default function MyData({ onBack }: { onBack: () => void }) {
+  const { ask, dialog: confirmDialog } = useConfirm();
   const [req, setReq] = useState<Req | null | undefined>(undefined); // undefined — загрузка, null — запросов нет
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [busy, setBusy] = useState(false);
-  const [confirm, setConfirm] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [dump, setDump] = useState<string | null>(null);
 
@@ -58,12 +59,16 @@ export default function MyData({ onBack }: { onBack: () => void }) {
       setMsg({ ok: false, text: 'Не удалось скопировать: выделите текст ниже и скопируйте вручную.' });
     }
   };
+  const askRequestDelete = async () => {
+    if (!(await ask({ title: 'Отправить запрос на удаление данных?', note: 'Вы потеряете доступ к детям в приложении. Администратор удалит ваши данные.', confirmLabel: 'Отправить запрос', danger: true }))) return;
+    await requestDelete();
+  };
   const requestDelete = async () => {
     setBusy(true);
     setMsg(null);
     const r = await supabase.rpc('request_data_deletion');
     setBusy(false);
-    setConfirm(false);
+   
     if (r.error) return setMsg({ ok: false, text: r.error.message.includes('already open') ? 'Запрос уже отправлен и ждёт обработки.' : unavailable(r.error.message) });
     setReload(n => n + 1);
   };
@@ -104,19 +109,11 @@ export default function MyData({ onBack }: { onBack: () => void }) {
             <p className="ks-muted" style={{ margin: '8px 0 10px' }}>
               Администратор клуба удалит ваши данные в приложении: связи с детьми, запросы, отметки о согласии и имя. Данные самих игроков принадлежат клубу и этим запросом не удаляются.
             </p>
-            {confirm ? (
-              <>
-                <p style={{ marginBottom: 10 }}>Отправить запрос на удаление данных? Вы потеряете доступ к детям в приложении.</p>
-                <button type="button" className="ks-btn" disabled={busy} onClick={() => void requestDelete()}>Отправить запрос</button>
-                <div style={{ height: 8 }} />
-                <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => setConfirm(false)}>Отмена</button>
-              </>
-            ) : (
-              <button type="button" className="ks-btn secondary" onClick={() => setConfirm(true)}>Удалить мои данные</button>
-            )}
+            <button type="button" className="ks-btn secondary" onClick={() => void askRequestDelete()}>Удалить мои данные</button>
           </>
         )}
       </div>
+      {confirmDialog}
     </main>
   );
 }

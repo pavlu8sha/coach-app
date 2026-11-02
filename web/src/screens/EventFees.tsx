@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { coachError, fmtDate, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { ListRow, Pill } from '../ui/components';
+import { useConfirm } from '../ui/ConfirmSheet';
 
 interface FeeRow { player_id: string; full_name: string; group_name: string | null; due: number; paid: number }
 interface PayRow { id: string; player_id: string; full_name: string; amount: number; paid_on: string; method: string | null; comment: string | null; cancelled: boolean }
@@ -30,6 +31,7 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
   const [discountFor, setDiscountFor] = useState<string | null>(null);
   const [discount, setDiscount] = useState('');
   const [busy, setBusy] = useState(false);
+  const { ask, dialog: confirmDialog } = useConfirm();
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [n, setN] = useState(0);
 
@@ -87,6 +89,11 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
     if (!method) return setMsg({ ok: false, text: 'Выберите способ оплаты.' });
     if (amt !== '' && !(Number(amt) > 0)) return setMsg({ ok: false, text: 'Сумма должна быть больше нуля.' });
     void run(supabase.rpc(api.pay, { [api.key]: eventId, ids: [...sel], amt: amt === '' ? null : Number(amt), d: date, mth: method, cmt: note }), 'Оплата записана.', () => { setSel(new Set()); setAmt(''); setNote(''); });
+  };
+
+  const cancelPay = async (p: PayRow) => {
+    if (!(await ask({ title: 'Отменить оплату?', lines: [['Игрок', p.full_name], ['Сумма', money(p.amount)], ['Дата', fmtDate(p.paid_on)]], note: 'Оплата будет отменена. Запись останется в истории.', confirmLabel: 'Отменить оплату', danger: true }))) return;
+    void run(supabase.rpc(api.cancel, { payid: p.id }), 'Оплата отменена.');
   };
 
   return (
@@ -155,11 +162,12 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
               key={p.id}
               title={`${p.full_name} · ${money(p.amount)}`}
               sub={[`${fmtDate(p.paid_on)}${p.method ? ' · ' + p.method : ''}${p.comment ? ' · ' + p.comment : ''}`]}
-              end={!coach && p.amount > 0 && !p.cancelled ? <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 36 }} aria-label={`Отменить оплату: ${p.full_name}`} disabled={busy} onClick={() => { if (window.confirm('Отменить эту оплату?')) void run(supabase.rpc(api.cancel, { payid: p.id }), 'Оплата отменена.'); }}>Отменить</button> : p.cancelled ? <Pill tone="neutral">Отменён</Pill> : undefined}
+              end={!coach && p.amount > 0 && !p.cancelled ? <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 36 }} aria-label={`Отменить оплату: ${p.full_name}`} disabled={busy} onClick={() => void cancelPay(p)}>Отменить</button> : p.cancelled ? <Pill tone="neutral">Отменён</Pill> : undefined}
             />
           ))}
         </>
       )}
+      {confirmDialog}
     </section>
   );
 }

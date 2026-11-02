@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useConfirm } from '../ui/ConfirmSheet';
 
 export interface SlotForm { id?: string; weekday: number; starts_at: string; ends_at: string | null; location: string | null; kind: string; coaches: string | null }
 
@@ -8,6 +9,7 @@ const hm = (t: string | null) => (t ? t.slice(0, 5) : '');
 
 // Форма тренировки в расписании группы (для администратора). Права проверяет база (политика weekly_schedule_admin).
 export default function SlotEdit({ groupId, initial, onDone, onCancel }: { groupId: string; initial: SlotForm; onDone: () => void; onCancel: () => void }) {
+  const { ask, dialog: confirmDialog } = useConfirm();
   const [f, setF] = useState<SlotForm>({ ...initial, starts_at: hm(initial.starts_at), ends_at: hm(initial.ends_at) || null });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,8 +30,10 @@ export default function SlotEdit({ groupId, initial, onDone, onCancel }: { group
     void run(initial.id ? supabase.from('weekly_schedule').update(row).eq('id', initial.id) : supabase.from('weekly_schedule').insert({ ...row, group_id: groupId }));
   };
 
-  const remove = () => {
-    if (initial.id && window.confirm('Удалить эту тренировку из расписания?')) void run(supabase.from('weekly_schedule').delete().eq('id', initial.id));
+  const remove = async () => {
+    if (!initial.id) return;
+    if (!(await ask({ title: 'Удалить тренировку из расписания?', note: 'Слот пропадёт из расписания группы. Отменить нельзя.', confirmLabel: 'Удалить', danger: true }))) return;
+    void run(supabase.from('weekly_schedule').delete().eq('id', initial.id));
   };
 
   return (
@@ -80,6 +84,7 @@ export default function SlotEdit({ groupId, initial, onDone, onCancel }: { group
           </button>
         )}
       </div>
+      {confirmDialog}
     </div>
   );
 }

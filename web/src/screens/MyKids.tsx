@@ -5,16 +5,17 @@ import { BackNav } from '../ui/nav';
 import Link from './Link';
 import LinkStatus from './LinkStatus';
 import { Failure, Loading } from './Message';
+import { useConfirm } from '../ui/ConfirmSheet';
 
 interface Kid { id: string; name: string; group: string | null }
 
 // «Мои дети»: привязанные дети текущего пользователя, добавление ребёнка и статус запросов.
 export default function MyKids({ onBack }: { onBack: () => void }) {
+  const { ask, dialog: confirmDialog } = useConfirm();
   const [kids, setKids] = useState<Kid[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [statusOpen, setStatusOpen] = useState(false);
-  const [confirmId, setConfirmId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [codes, setCodes] = useState<Record<string, string>>({}); // выданные в этой сессии коды для ребёнка
@@ -61,12 +62,15 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
     setReload(n => n + 1);
   };
 
+  const askRevoke = async (k: Kid) => {
+    if (!(await ask({ title: 'Отозвать согласие?', lines: [['Ребёнок', k.name]], note: 'Ребёнок и все его данные пропадут из вашего приложения. Чтобы вернуть ребёнка, нужен новый код.', confirmLabel: 'Отозвать согласие', danger: true }))) return;
+    await revoke(k.id);
+  };
   const revoke = async (id: string) => {
     setBusy(true);
     setMsg(null);
     const r = await supabase.rpc('revoke_consent', { p: id });
     setBusy(false);
-    setConfirmId(null);
     if (r.error) setMsg(r.error.message.includes('Could not find the function') ? 'Это действие пока недоступно.' : r.error.message);
     setReload(n => n + 1);
   };
@@ -95,22 +99,14 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
             ) : (
               <button type="button" className="ks-back" style={{ marginBottom: 8 }} disabled={busy} onClick={() => void makeCode(k.id)}>Код для ребёнка</button>
             )}
-            {confirmId === k.id ? (
-              <div className="ks-card" style={{ marginTop: -4 }}>
-                <p style={{ marginBottom: 10 }}>Отозвать согласие? Ребёнок и все его данные пропадут из вашего приложения. Чтобы вернуть ребёнка, нужно будет подать новый запрос и снова дать согласие.</p>
-                <button type="button" className="ks-btn" disabled={busy} onClick={() => void revoke(k.id)}>Отозвать согласие</button>
-                <div style={{ height: 8 }} />
-                <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => setConfirmId(null)}>Не отзывать</button>
-              </div>
-            ) : (
-              <button type="button" className="ks-back" style={{ marginBottom: 8 }} onClick={() => setConfirmId(k.id)}>Отозвать согласие</button>
-            )}
+            <button type="button" className="ks-back" style={{ marginBottom: 8 }} disabled={busy} onClick={() => void askRevoke(k)}>Отозвать согласие</button>
           </div>
         ))
       )}
       {msg && <p className="error">{msg}</p>}
       <div style={{ height: 8 }} />
       <Link onApproved={() => setReload(n => n + 1)} onOpenStatus={() => setStatusOpen(true)} />
+      {confirmDialog}
     </main>
   );
 }

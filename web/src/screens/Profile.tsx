@@ -8,12 +8,13 @@ import HomeScreenPrompt from '../ui/HomeScreenPrompt';
 import NotifyToggle from '../ui/NotifyToggle';
 import MyData from './MyData';
 import MyKids from './MyKids';
+import { useConfirm } from '../ui/ConfirmSheet';
 
 // Профиль родителя. Имя берётся из Telegram и видно только владельцу. Уведомления в Telegram — миграция 0026, docs/NOTIFICATIONS.md.
 export default function Profile() {
+  const { ask, dialog: confirmDialog } = useConfirm();
   const [view, setView] = useState<'main' | 'kids' | 'data'>('main');
   const [pref, setPref] = useState<ThemePref>(getThemePref());
-  const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const name = telegramName();
   if (view === 'kids') return <MyKids onBack={() => setView('main')} />;
@@ -23,6 +24,10 @@ export default function Profile() {
     saveThemePref(p);
     setPref(p);
     applyTelegramTheme('hybrid');
+  };
+  const askLogout = async () => {
+    if (!(await ask({ title: 'Выйти из аккаунта?', note: 'Приложение закроется. При следующем открытии из Telegram вход произойдёт снова.', confirmLabel: 'Выйти', danger: true }))) return;
+    await logout();
   };
   const logout = async () => {
     setBusy(true);
@@ -59,22 +64,10 @@ export default function Profile() {
       <HomeScreenPrompt />
       <NotifyToggle hint="Бот пришлёт сообщение, когда администратор ответит на запрос о ребёнке, при оплате и при баллах от тренера. Чтобы сообщения приходили, один раз нажмите «Старт» в чате с ботом клуба." />
 
-      {confirm ? (
-        <div className="ks-card">
-          <p style={{ marginBottom: 10 }}>Выйти из аккаунта? Приложение закроется. При следующем открытии из Telegram вход произойдёт снова.</p>
-          <button type="button" className="ks-btn" disabled={busy} onClick={() => void logout()}>
-            Выйти
-          </button>
-          <div style={{ height: 8 }} />
-          <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => setConfirm(false)}>
-            Отмена
-          </button>
-        </div>
-      ) : (
-        <button type="button" className="ks-btn secondary" onClick={() => setConfirm(true)}>
-          Выйти
-        </button>
-      )}
+      <button type="button" className="ks-btn secondary" onClick={() => void askLogout()}>
+        Выйти
+      </button>
+      {confirmDialog}
     </main>
   );
 }

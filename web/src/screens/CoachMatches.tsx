@@ -7,6 +7,7 @@ import { BackNav, useMainButton } from '../ui/nav';
 import EventFees from './EventFees';
 import { EventForm, EventScreen, eventCounts, eventTitle, type EventRow } from './Events';
 import { Failure, Loading } from './Message';
+import { useConfirm } from '../ui/ConfirmSheet';
 
 interface Match { id: string; team: string; played_on: string; opponent: string | null; goals_for: number | null; goals_against: number | null }
 interface Tour { match_id: string; tournament_id: string | null; tournament_name: string | null; tournament_kind: string | null; match_kind: string | null }
@@ -138,6 +139,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
 
 // feeMode: у товарищеских и кубковых матчей взнос свой (на матч); у чемпионатов и фестивалей он на событие
 function MatchForm({ groups, match, admin, feeMode, rosterOf, onBack }: { groups: CoachGroup[]; match: Match | null; admin: boolean; feeMode: boolean; rosterOf: string | null; onBack: () => void }) {
+  const { ask, dialog: confirmDialog } = useConfirm();
   const matchGroups = groups.filter(g => playsMatches(g.name));
   const matched = match ? (groups.find(g => g.name === match.team) ?? groups.find(g => matchTeam(g.name) === match.team))?.id : undefined;
   // у тренера матч всегда своей группы; у администратора название команды может не совпасть ни с одной группой — тогда группа не нужна
@@ -251,7 +253,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, onBack }: { groups
     setMsg({ ok: true, text: 'Матч сохранён. Баллы за матч начислены автоматически.' });
   };
   const remove = async () => {
-    if (!savedId || !window.confirm('Удалить матч вместе с составом и начисленными за него баллами? Отменить нельзя.')) return;
+    if (!savedId || !(await ask({ title: 'Удалить матч?', note: 'Матч удалится вместе с составом и начисленными за него баллами. Отменить нельзя.', confirmLabel: 'Удалить', danger: true }))) return;
     setBusy(true);
     const r = await supabase.rpc('delete_match', { m: savedId });
     setBusy(false);
@@ -334,6 +336,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, onBack }: { groups
           <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => void remove()}>Удалить матч</button>
         </>
       )}
+      {confirmDialog}
     </main>
   );
 }
