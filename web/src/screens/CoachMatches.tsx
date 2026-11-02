@@ -307,6 +307,31 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     if (r.error) return setMsg({ ok: false, text: coachError(r.error.message) });
     onBack();
   };
+  // Убрать игрока из матча совсем (администратор): снять отметку и очки сохранением, затем удалить строку состава.
+  // Нужно для ушедших игроков: снятая отметка «играл» оставляла их в составе матча. Тренерам удаление недоступно (запись match_players только у администратора).
+  const removeFromMatch = async (p: Player) => {
+    if (!savedId) return;
+    if (!(await ask({ title: 'Убрать игрока из матча?', note: `${p.full_name}: пропадут его отметка, голы и баллы за этот матч. Из чемпионата и команды он не удаляется.`, confirmLabel: 'Убрать', danger: true }))) return;
+    const rest = { ...lines, [p.id]: { played: false, goals: 0 } };
+    const g = Object.entries(rest).reduce((s, [, l]) => s + (l.played ? l.goals : 0), 0);
+    if (gf !== '' && g > Number(gf)) return setMsg({ ok: false, text: 'Голов у игроков больше, чем забила команда.' });
+    setBusy(true);
+    setMsg(null);
+    const roster = (players ?? []).map(pl => {
+      const l = rest[pl.id] ?? { played: false, goals: 0 };
+      return { player_id: pl.id, played: l.played, goals: l.played ? l.goals : 0, best: bestId === pl.id && pl.id !== p.id && l.played };
+    });
+    const r = await supabase.rpc('save_match', { m: savedId, g: gid || null, d: date, opp, gf: gf === '' ? null : Number(gf), ga: ga === '' ? null : Number(ga), roster });
+    if (r.error) { setBusy(false); return setMsg({ ok: false, text: coachError(r.error.message) }); }
+    const del = await supabase.from('match_players').delete().eq('match_id', savedId).eq('player_id', p.id);
+    setBusy(false);
+    if (del.error) return setMsg({ ok: false, text: coachError(del.error.message) });
+    setPlayers(list => (list ?? []).filter(x => x.id !== p.id));
+    setLines(s => { const n = { ...s }; delete n[p.id]; return n; });
+    setShownIds(ids => (ids ? ids.filter(id => id !== p.id) : ids));
+    if (bestId === p.id) setBestId(null);
+    setMsg({ ok: true, text: `${p.full_name} убран из матча.` });
+  };
   const native = useMainButton({ text: 'Сохранить матч', visible: true, enabled: !busy && Boolean(players), loading: busy, onClick: () => void save() });
 
   if (error) return <Failure title="Не удалось загрузить состав" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} />} />;
@@ -352,6 +377,11 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
                   {bestId === p.id ? '★ Лучший игрок матча' : 'Назначить лучшим игроком'}
                 </button>
               </>
+            )}
+            {admin && savedId && (
+              <button type="button" className="ks-btn secondary" style={{ marginTop: 8, minHeight: 40 }} disabled={busy} aria-label={`Убрать из матча: ${p.full_name}`} onClick={() => void removeFromMatch(p)}>
+                Убрать из матча
+              </button>
             )}
           </div>
         ))

@@ -154,6 +154,29 @@ describe('«Матчи» администратора', () => {
     await waitFor(() => expect(fake.rpcCalls('delete_match')).toEqual([{ m: 'm1' }]));
   });
 
+  it('администратор убирает из матча ушедшего игрока: сохранение без отметки и удаление строки состава', async () => {
+    seed();
+    render(<CoachMatches groups={allGroups} admin />);
+    fireEvent.click(await screen.findByText('Олимп'));
+    await screen.findByText('Гость Игорь');
+    fireEvent.click(screen.getByRole('button', { name: 'Убрать из матча: Гость Игорь' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Убрать' }));
+    await waitFor(() => expect(screen.queryByText('Гость Игорь')).not.toBeInTheDocument());
+    const roster = (fake.rpcCalls('save_match')[0] as { roster: { player_id: string; played: boolean }[] }).roster;
+    expect(roster.find(r => r.player_id === 'p9')).toMatchObject({ played: false, goals: 0, best: false });
+    expect(fake.calls.some(c => c.kind === 'delete' && c.name === 'match_players')).toBe(true);
+    expect((fake.db.match_players as { player_id: string }[]).some(r => r.player_id === 'p9')).toBe(false);
+    expect(await screen.findByText('Гость Игорь убран из матча.')).toBeInTheDocument();
+  });
+
+  it('у тренера кнопки «Убрать из матча» нет', async () => {
+    seed();
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText('Олимп'));
+    await screen.findByText('Иванов Пётр');
+    expect(screen.queryByRole('button', { name: /Убрать из матча/ })).not.toBeInTheDocument();
+  });
+
   it('не удаляет, если администратор отказался в подтверждении', async () => {
     seed();
     render(<CoachMatches groups={allGroups} admin />);
