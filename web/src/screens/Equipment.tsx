@@ -5,6 +5,8 @@ import { EmptyState, ListRow, Pill, SearchInput, Segmented, SwitchRow } from '..
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
+import { useClubSettings } from '../lib/clubSettings';
+import { bundleDiscount } from '../lib/equipmentDiscount';
 import { EQUIPMENT_REQUIRED_KEY, EQUIPMENT_REQUIRED_TEXT, lastStatusDate, nextStatus, orderStatusLabel, prevStatus, type StatusEvent } from '../lib/equipment';
 
 interface Line { kit: string; size: string | null; quantity: number }
@@ -253,6 +255,19 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
   const [custom, setCustom] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const settings = useClubSettings();
+  const [pastKits, setPastKits] = useState<string[]>([]);
+
+  // Что игрок заказывал раньше: нужно, чтобы посчитать скидку на комплект.
+  useEffect(() => {
+    if (!player) return setPastKits([]);
+    let alive = true;
+    void supabase.from('equipment_orders').select('equipment_order_lines(kit)').eq('player_id', player.id).then(r => {
+      if (!alive || r.error) return;
+      setPastKits(((r.data ?? []) as unknown as { equipment_order_lines: { kit: string }[] | null }[]).flatMap(o => (o.equipment_order_lines ?? []).map(l => l.kit)));
+    });
+    return () => { alive = false; };
+  }, [player]);
 
   useEffect(() => {
     if (q.trim().length < 2) return setFound([]);
@@ -272,14 +287,25 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
     if (n) setNumber(cur => (cur.trim() ? cur : n));
   };
   const total = (kits ?? []).reduce((s, k) => s + (pick[k.kit] ? k.price * pick[k.kit].quantity : 0), 0);
+  const disc = bundleDiscount({
+    lines: (kits ?? []).filter(k => pick[k.kit]).map(k => ({ kit: k.kit, amount: k.price * pick[k.kit].quantity })),
+    pastKits, installment: inst, settings: settings.values,
+  });
   const save = async () => {
     if (!player) return;
     setBusy(true);
     setErr(null);
     const lines = Object.entries(pick).map(([kit, v]) => ({ kit, size: v.size, quantity: v.quantity }));
-    const r = await supabase.rpc('eq_create_order', { p: player.id, lines, insc, num: number, inst, loc, custom_total: custom.trim() === '' ? null : num(custom) });
+    const r = await supabase.rpc('eq_create_order', { p: player.id, lines, insc, num: number, inst, loc, custom_total: custom.trim() !== '' ? num(custom) : disc.applies ? disc.total : null });
     setBusy(false);
-    if (r.error) return setErr(errText(r.error.message));
+    if (r.error) {
+      if (!r.error.message.includes('number taken')) return setErr(errText(r.error.message));
+      // Номер занят другим игроком группы: показываем, кем именно, чтобы было видно, свой это номер или чужой.
+      const t = number.trim();
+      const o = await supabase.from('equipment_orders').select('player_id, number, players(full_name, groups(name))').eq('number', t).neq('player_id', player.id).limit(3);
+      const who = ((o.data ?? []) as unknown as { players: { full_name: string; groups: { name: string } | null } | null }[]).map(x => x.players ? `${x.players.full_name}${x.players.groups ? ` (${x.players.groups.name})` : ''}` : '').filter(Boolean);
+      return setErr(who.length ? `Номер ${t} уже занят другим игроком группы: ${who.join(', ')}. Если это тот же ребёнок, объедините его карточки.` : errText(r.error.message));
+    }
     onDone();
   };
   return (
@@ -318,8 +344,9 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
       <div style={{ marginTop: 12 }}><SwitchRow id="inst" label="Рассрочка" checked={inst} onChange={setInst} /></div>
       <label className="field">Своя сумма, ₾ (если со скидкой; иначе пусто)<input inputMode="decimal" value={custom} onChange={e => setCustom(e.target.value)} /></label>
       <p className="muted">По каталогу: {gel(total)}</p>
-      {err && <p className="error">{err}</p>}
-      <button type="button" className="ks-btn" disabled={busy || !player || Object.keys(pick).length === 0 || (custom.trim() !== '' && Number.isNaN(num(custom)))} onClick={() => void save()}>Создать заказ</button>
+      {disc.applies && custom.trim() === '' && <p className="ks-callout">Скидка {disc.pct}%: {gel(disc.total)} вместо {gel(disc.base)} (−{gel(disc.discount)}). Заказ создастся с этой суммой; если нужна другая, впишите её выше.</p>}
+      {err && <p className="error" style={{ marginBottom: 12 }}>{err}</p>}
+      <button type="button" className="ks-btn" style={{ marginTop: 16 }} disabled={busy || !player || Object.keys(pick).length === 0 || (custom.trim() !== '' && Number.isNaN(num(custom)))} onClick={() => void save()}>Создать заказ</button>
     </main>
   );
 }

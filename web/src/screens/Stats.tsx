@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { addDays, coachError, today } from '../lib/coach';
 import { matchHighlights, seasonStart, type ScoredMatch } from '../lib/seasonStats';
+import { settingNumber, useClubSettings } from '../lib/clubSettings';
 import { supabase } from '../lib/supabase';
 import { EmptyState, Pill, Segmented } from '../ui/components';
 import { Failure, Loading } from './Message';
 
 interface Row { group_id: string; group_name: string; player_id: string; full_name: string; attended: number; total: number }
 
-const LOW_PCT = 50; // порог «низкой посещаемости» (в старом приложении настройка stats.lowPct, по умолчанию 50)
 const pct = (a: number, t: number) => (t ? Math.round((a * 1000) / t) / 10 : null);
 const monthStart = (iso: string) => iso.slice(0, 8) + '01';
 const prevMonthStart = (iso: string) => {
@@ -147,6 +147,7 @@ function SeasonTiles({ t, games }: { t: MRow; games: ScoredMatch[] }) {
 
 // Посещаемость по группам за период. Занятие считается проведённым, если кто-то отмечен «был».
 function Attendance({ own }: { own: boolean }) {
+  const lowPct = settingNumber(useClubSettings().values, 'stats.low_pct'); // порог низкой посещаемости, настройка клуба
   const [range, setRange] = useState<Range>('month');
   const [from, setFrom] = useState(monthStart(today()));
   const [to, setTo] = useState(today());
@@ -218,7 +219,7 @@ function Attendance({ own }: { own: boolean }) {
                   <div className="ks-card" key={r.player_id}>
                     <div className="ks-line">
                       <span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>{r.full_name}</span>
-                      <Pill tone={v !== null && v < LOW_PCT ? 'danger' : 'primary'}>{r.attended} из {r.total}{v !== null ? ` · ${v}%` : ''}</Pill>
+                      <Pill tone={v !== null && v < lowPct ? 'danger' : 'primary'}>{r.attended} из {r.total}{v !== null ? ` · ${v}%` : ''}</Pill>
                     </div>
                   </div>
                 );

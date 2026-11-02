@@ -23,7 +23,7 @@
 | Сборы (Camps) | `appCampData`, `appCampAdd/Update/Pay/Cancel/List`, `appSaveCampList`, `appCampTariffSave`, `appCampSave` | экран «Сборы» (0037): сборы, тарифы, участники, платежи, список для отправки; гости без заведения игрока клуба (0101, #337) | есть | — |
 | Новые игроки (воронка) | `appFunnelData`, `appFunnelSet`, `appFunnelGroup`, `appFunnelAdd`, `appFunnelCandidates` | экранов нет | нет | M |
 | Посещаемость тренеров (учёт) | `appAccountMonths`, `appTrainingAdd`, `appTrainingsList`, `appAddTrainer`, `appAddTrainerDaily`, `appTrainingOptions`, `appTrainingReplaceTrainers`, `appConfirmDaily` | «Тренеры» (роли и группы) есть; учёта тренировок и оплат тренерам нет | нет | L |
-| Настройки | `appSettings`, `appSettingsSave` | таблица настроек (0010) и выключатели (`parent_debt_enabled`), экрана общих настроек нет | частично | S |
+| Настройки | `appSettings`, `appSettingsSave` | экран «Настройки клуба» (#339): порог низкой посещаемости, число «следующий месяц» в «Оплатах», правила и процент скидки на комплект экипировки (таблица `club_settings`, миграций нет). Порядок групп, места по умолчанию и общий взнос за чемпионат в следующем проходе | частично | S |
 | Обновление данных | `appRefreshData` | не нужно: данные живые | не требуется | — |
 
 ## 2. Что есть только в новом приложении

@@ -1,7 +1,12 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import MonthPayments, { inMonth, tariffFor } from './MonthPayments';
+
+// Дата зафиксирована: с 22-го числа экран открывается на следующем месяце, и тесты не должны зависеть от дня запуска.
+vi.useFakeTimers({ toFake: ['Date'] });
+vi.setSystemTime(new Date(2026, 9, 15, 12, 0, 0));
+afterEach(() => vi.setSystemTime(new Date(2026, 9, 15, 12, 0, 0)));
 
 const monthIso = () => {
   const d = new Date();
@@ -139,6 +144,37 @@ describe('«Оплаты за месяц»', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Записать платёж' }));
     expect(await screen.findByText(/Дата платежа не может быть в будущем/)).toBeInTheDocument();
     expect(fake.writes('payments', 'insert')).toHaveLength(0);
+  });
+});
+
+describe('«Оплаты за месяц»: когда предлагать следующий месяц (#339)', () => {
+  const opened = async () => {
+    seed();
+    fake.db.clubs = [{ id: 'c1' }];
+    render(<MonthPayments />);
+    await screen.findByRole('combobox', { name: 'Месяц' });
+  };
+
+  it('до 22-го открыт текущий месяц', async () => {
+    fake.db.club_settings = [];
+    await opened();
+    await new Promise(r => setTimeout(r, 30));
+    expect((screen.getByRole('combobox', { name: 'Месяц' }) as HTMLSelectElement).value).toBe('2026-10-01');
+  });
+
+  it('с 22-го по умолчанию предлагается следующий месяц', async () => {
+    vi.setSystemTime(new Date(2026, 9, 22, 12, 0, 0));
+    fake.db.club_settings = [];
+    await opened();
+    await waitFor(() => expect((screen.getByRole('combobox', { name: 'Месяц' }) as HTMLSelectElement).value).toBe('2026-11-01'));
+  });
+
+  it('число берётся из настроек клуба', async () => {
+    vi.setSystemTime(new Date(2026, 9, 22, 12, 0, 0));
+    fake.db.club_settings = [{ club_id: 'c1', key: 'payments.next_month_day', scope: '', value: '25' }];
+    await opened();
+    await new Promise(r => setTimeout(r, 30));
+    expect((screen.getByRole('combobox', { name: 'Месяц' }) as HTMLSelectElement).value).toBe('2026-10-01');
   });
 });
 

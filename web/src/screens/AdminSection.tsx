@@ -4,6 +4,7 @@ import AdminPhotos from './AdminPhotos';
 import AdminPrices from './AdminPrices';
 import Admin from './Admin';
 import Camps from './Camps';
+import ClubSettings from './ClubSettings';
 import Coaches from './Coaches';
 import CoachMatches from './CoachMatches';
 import Equipment from './Equipment';
@@ -43,6 +44,7 @@ export default function AdminSection({ id, groups, onMenuChanged }: { id: Sectio
     case 'coaches': return <Coaches />;
     case 'prices': return <AdminPrices />;
     case 'payinfo': return <PaymentInfoEditor />;
+    case 'club': return <ClubSettings />;
     case 'pstart': return <PointsStart />;
     case 'recalc': return <RecalcPoints />;
     case 'menu': return <MenuSettings onChanged={onMenuChanged} />;
