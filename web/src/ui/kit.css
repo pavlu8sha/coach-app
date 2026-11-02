@@ -344,3 +344,47 @@ a.ks-cover { text-decoration: none; display: block; }
 /* Клавиатура открыта в поле поиска: запас снизу, чтобы поле можно было поднять к верху экрана. */
 html.ks-kbd body { padding-bottom: 70vh; }
 .ks-search, .ks-input { scroll-margin-top: 8px; }
+
+/* Анимации: единые параметры. Только прозрачность и сдвиг (плавно на телефоне). */
+:root { --ks-ease: cubic-bezier(0.22, 1, 0.36, 1); --ks-dur: 0.22s; }
+@keyframes ks-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* Группы: без серой системной подсветки, нажатие, плавное раскрытие */
+.ks-group > summary, .ks-details > summary { -webkit-tap-highlight-color: transparent; outline: none; }
+.ks-group > summary:focus-visible, .ks-details > summary:focus-visible { outline: 3px solid var(--ks-primary); outline-offset: 2px; border-radius: 8px; }
+.ks-group { transition: transform 0.2s var(--ks-ease), border-color 0.2s ease, box-shadow 0.2s ease; }
+.ks-group > summary:active { opacity: 0.7; transition: opacity 0.08s; }
+.ks-group[open] { border-color: var(--ks-border-strong); }
+.ks-group > summary .ks-line::after { content: ''; flex: none; width: 8px; height: 8px; margin: 0 4px 0 10px; border-right: 2px solid var(--ks-text-muted); border-bottom: 2px solid var(--ks-text-muted); transform: rotate(45deg); transition: transform 0.2s var(--ks-ease); }
+.ks-group[open] > summary .ks-line::after { transform: rotate(-135deg); }
+.ks-group[open] > :not(summary), .ks-details[open] > :not(summary) { animation: ks-rise var(--ks-dur) var(--ks-ease) both; }
+.ks-group[open] > :nth-child(2) { animation-delay: 0ms; }
+.ks-group[open] > :nth-child(3) { animation-delay: 30ms; }
+.ks-group[open] > :nth-child(4) { animation-delay: 60ms; }
+.ks-group[open] > :nth-child(5) { animation-delay: 90ms; }
+.ks-group[open] > :nth-child(6) { animation-delay: 120ms; }
+.ks-group[open] > :nth-child(7) { animation-delay: 150ms; }
+.ks-group[open] > :nth-child(8) { animation-delay: 180ms; }
+.ks-group[open] > :nth-child(n+9) { animation-delay: 210ms; }
+
+/* Чипы: плавная смена цвета, выбранный слегка «пружинит» */
+.ks-chip { transition: transform 0.2s var(--ks-ease), filter 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease; }
+@keyframes ks-pop { 50% { transform: scale(1.06); } }
+.ks-chip[aria-pressed='true'] { animation: ks-pop 0.28s var(--ks-ease); }
+
+/* Появление списка групп (первые 8) */
+.page > .ks-group { animation: ks-rise 0.26s var(--ks-ease) both; }
+.page > .ks-group:nth-of-type(2) { animation-delay: 30ms; }
+.page > .ks-group:nth-of-type(3) { animation-delay: 60ms; }
+.page > .ks-group:nth-of-type(4) { animation-delay: 90ms; }
+.page > .ks-group:nth-of-type(5) { animation-delay: 120ms; }
+.page > .ks-group:nth-of-type(6) { animation-delay: 150ms; }
+.page > .ks-group:nth-of-type(7) { animation-delay: 180ms; }
+.page > .ks-group:nth-of-type(n+8) { animation-delay: 210ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ks-group, .ks-group > summary .ks-line::after, .ks-chip { transition: none; }
+  .ks-group[open] > :not(summary), .ks-details[open] > :not(summary), .page > .ks-group, .ks-chip[aria-pressed='true'] { animation: none; }
+}
+.ks-group > summary .ks-line { justify-content: flex-start; flex-wrap: nowrap; }
+.ks-group > summary .ks-line > .muted { margin-left: auto; }
