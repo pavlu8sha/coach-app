@@ -20,8 +20,13 @@ export function firstMonth(subMonths: string[], pays: { amount: number; month: s
   return [...subMonths, ...paid, created ?? fallback].sort()[0];
 }
 
-export function visibleMonths(months: string[], start: string): string[] {
-  return months.filter(m => m >= start);
+export function visibleMonths(months: string[], start: string, end?: string | null): string[] {
+  return months.filter(m => m >= start && (!end || m <= end));
+}
+
+/** Последний месяц ушедшего игрока: самый поздний из абонементов и платежей. Дальше месяцы не рисуем: это не долги, а пустые строки после ухода. */
+export function lastMonth(subMonths: string[], pays: { month: string }[], fallback: string): string {
+  return [...subMonths, ...pays.map(x => x.month), fallback].sort().slice(-1)[0];
 }
 
 export interface CardPlayer extends PlayerForm { id: string; external_id: string | null; group_name: string | null }
@@ -63,6 +68,7 @@ export default function PlayerCard({ player, onBack, onEdit }: { player: CardPla
   }, [player.id, reload]);
 
   if (error) return <Failure title="Не удалось загрузить игрока" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} />} />;
+  const payMonths = (pays ?? []).map(x => ({ amount: x.amount, month: x.pay_month ?? x.paid_on.slice(0, 7) + '-01' }));
   const gotIn = (m: string) => (pays ?? []).filter(p => (p.pay_month ?? p.paid_on.slice(0, 7) + '-01') === m).reduce((s, p) => s + p.amount, 0);
 
   return (
@@ -90,7 +96,7 @@ export default function PlayerCard({ player, onBack, onEdit }: { player: CardPla
       {tab === 'equip' && <EquipmentTab playerId={player.id} />}
       {tab === 'matches' && <MatchesTab playerId={player.id} />}
       {tab === 'points' && <PointsTab playerId={player.id} />}
-      {tab === 'sub' && (pays === null ? <Loading /> : visibleMonths(months, firstMonth([...subs.keys()], (pays ?? []).map(x => ({ amount: x.amount, month: x.pay_month ?? x.paid_on.slice(0, 7) + '-01' })), created, SEASON_START)).map(m => {
+      {tab === 'sub' && (pays === null ? <Loading /> : visibleMonths(months, firstMonth([...subs.keys()], payMonths, created, SEASON_START), player.status === 'inactive' ? lastMonth([...subs.keys()], payMonths, firstMonth([...subs.keys()], payMonths, created, SEASON_START)) : null).map(m => {
         const tariff = player.group_id ? tariffFor(prices, player.group_id, m) : null;
         const got = gotIn(m);
         const sub = subs.get(m);

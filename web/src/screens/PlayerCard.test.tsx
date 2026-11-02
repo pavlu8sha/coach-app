@@ -100,6 +100,17 @@ describe('visibleMonths', () => {
   });
 });
 
+describe('месяцы ушедшего игрока', () => {
+  it('после последнего абонемента или платежа месяцы не показываются', async () => {
+    const { visibleMonths, lastMonth } = await import('./PlayerCard');
+    const ms = ['2026-12-01', '2026-11-01', '2026-10-01', '2026-09-01'];
+    const end = lastMonth(['2026-09-01'], [{ month: '2026-09-01' }], '2026-09-01');
+    expect(end).toBe('2026-09-01');
+    expect(visibleMonths(ms, '2026-09-01', end)).toEqual(['2026-09-01']);
+    expect(visibleMonths(ms, '2026-09-01', null)).toEqual(ms);
+  });
+});
+
 describe('firstMonth', () => {
   it('платёж и его отмена не открывают месяц', async () => {
     const { firstMonth } = await import('./PlayerCard');
