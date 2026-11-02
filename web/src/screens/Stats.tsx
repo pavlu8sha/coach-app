@@ -27,9 +27,9 @@ export default function Stats({ own = false }: { own?: boolean }) {
   const [kind, setKind] = useState<Kind>('att');
   return (
     <>
-      <div style={{ maxWidth: 560, margin: '0 auto', padding: '8px 16px 0' }}>
+      <header style={{ maxWidth: 560, margin: '0 auto', padding: '8px 16px 0' }}>
         <Segmented label="Статистика" value={kind} onChange={setKind} items={[{ value: 'att', label: 'Посещаемость' }, { value: 'matches', label: 'Матчи' }]} />
-      </div>
+      </header>
       {kind === 'att' ? <Attendance own={own} /> : <Matches own={own} />}
     </>
   );

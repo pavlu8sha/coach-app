@@ -42,7 +42,7 @@ export function Shell() {
   return (
     <>
       {preview && (
-        <div role="status" style={{ position: 'sticky', top: 0, zIndex: 20, display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px', background: 'var(--ks-primary, #14213d)', color: '#fff', fontSize: 14 }}>
+        <div role="status" style={{ position: 'sticky', top: 0, zIndex: 20, display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px', background: 'var(--ks-primary, #14213d)', color: 'var(--ks-on-primary, #fff)', fontSize: 14 }}>
           <span>Режим просмотра: {PREVIEW_LABEL[preview]}</span>
           <button type="button" className="ks-btn sm" style={{ width: 'auto' }} onClick={() => setPreview(null)}>Выйти</button>
         </div>

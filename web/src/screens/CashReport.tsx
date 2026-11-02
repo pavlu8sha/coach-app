@@ -69,16 +69,16 @@ export default function CashReport() {
 
       {report && (
         <>
-          <h3 className="ks-list-head"><span>{from === to ? fmtDate(from) : `${fmtDate(from)} — ${fmtDate(to)}`}</span><span>{gel(report.total)}</span></h3>
+          <h2 className="ks-list-head"><span>{from === to ? fmtDate(from) : `${fmtDate(from)} — ${fmtDate(to)}`}</span><span>{gel(report.total)}</span></h2>
           <div className="ks-tiles">
             {report.by_method.map(m => <div key={m.method} className="ks-tile"><b>{m.method}</b>{gel(m.sum)}</div>)}
           </div>
 
-          <h3 className="ks-list-head"><span>По сотрудникам</span></h3>
+          <h2 className="ks-list-head"><span>По сотрудникам</span></h2>
           {report.by_staff.length === 0 && <div className="ks-muted">Нет поступлений</div>}
           {report.by_staff.map(s => <ListRow key={s.staff_id ?? 'none'} title={s.name} end={<Pill tone={s.sum < 0 ? 'danger' : 'success'}>{gel(s.sum)}</Pill>} />)}
 
-          <h3 className="ks-list-head"><span>Операции</span><span>{report.rows.length}</span></h3>
+          <h2 className="ks-list-head"><span>Операции</span><span>{report.rows.length}</span></h2>
           {report.rows.length === 0 && <EmptyState icon="box" title="За период платежей нет" />}
           {report.rows.map(x => (
             <ListRow key={x.id} title={x.player}
