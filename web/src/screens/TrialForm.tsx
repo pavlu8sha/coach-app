@@ -29,11 +29,12 @@ export default function TrialForm({ startOpen = false }: { startOpen?: boolean }
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
+  const H = startOpen ? 'h1' : 'h2'; // отдельным экраном (startOpen) это заголовок страницы
   if (policy) return <Privacy onBack={() => setPolicy(false)} />;
   if (sent) {
     return (
       <section className="ks-card">
-        <h2>Заявка отправлена</h2>
+        <H>Заявка отправлена</H>
         <p className="muted">Администратор клуба свяжется с вами и предложит время пробной тренировки.</p>
       </section>
     );
@@ -60,7 +61,7 @@ export default function TrialForm({ startOpen = false }: { startOpen?: boolean }
   };
   return (
     <section className="ks-card">
-      <h2>Запись на пробную тренировку</h2>
+      <H>Запись на пробную тренировку</H>
       <form onSubmit={e => { e.preventDefault(); if (valid && !busy) void submit(); }}>
         <input className="ks-input" value={parent} onChange={e => setParent(e.target.value)} placeholder="Ваше имя" aria-label="Ваше имя" autoComplete="name" />
         <input className="ks-input" style={{ marginTop: 8 }} value={child} onChange={e => setChild(e.target.value)} placeholder="Имя и фамилия ребёнка" aria-label="Имя и фамилия ребёнка" autoComplete="off" />
