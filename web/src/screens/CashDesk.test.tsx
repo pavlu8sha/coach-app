@@ -68,6 +68,8 @@ describe('«Приём оплат»', () => {
     const pay = async (title: string | RegExp, btn: string) => {
       await screen.findByText(title);
       const c = card(title);
+      // после предыдущей оплаты карточки заблокированы на время обновления списка
+      await waitFor(() => expect(within(c).getByRole('button', { name: 'Принять оплату' })).toBeEnabled());
       fireEvent.click(within(c).getByRole('button', { name: 'Принять оплату' }));
       fireEvent.click(within(c).getByRole('button', { name: btn }));
       fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
