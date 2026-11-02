@@ -1,34 +1,39 @@
 import { useEffect, useRef, useState } from 'react';
 import { SETTINGS, settingError, settingText, useClubSettings, type SettingDef, type SettingValues } from '../lib/clubSettings';
 import { supabase } from '../lib/supabase';
+import { Pill } from '../ui/components';
 import { Loading } from './Message';
 
 // «Настройки клуба» (#339): общие значения, которые раньше были зашиты в код или стояли в старом приложении.
 // Пустое поле и «По умолчанию» убирают запись, тогда действует значение по умолчанию.
 
 function Row({ def, saved, clubId, onSaved }: { def: SettingDef; saved: string | undefined; clubId: string; onSaved: () => void }) {
-  const [value, setValue] = useState(saved ?? '');
+  const custom = saved !== undefined && saved.trim() !== '';
+  const effective = custom ? saved!.trim() : def.def;
+  // В поле всегда стоит действующее значение (своё или по умолчанию), как обычный текст, а не серая подсказка.
+  const [value, setValue] = useState(effective);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  // Поле подстраивается под сохранённое значение только когда оно изменилось (после сохранения или сброса),
+  // Поле подстраивается под действующее значение только когда оно изменилось (после сохранения или сброса),
   // но не при первом показе: иначе отложенный эффект мог бы стереть уже введённый текст.
-  const prevSaved = useRef(saved);
+  const prev = useRef(effective);
   useEffect(() => {
-    if (prevSaved.current === saved) return;
-    prevSaved.current = saved;
-    setValue(saved ?? '');
-  }, [saved]);
-  const custom = saved !== undefined && saved.trim() !== '';
-  const shown = value.trim() === '' ? def.def : value;
+    if (prev.current === effective) return;
+    prev.current = effective;
+    setValue(effective);
+  }, [effective]);
+  const inputId = `setting-${def.key}`;
 
   const save = async () => {
-    const bad = settingError(def, shown);
+    const text = value.trim() === '' ? def.def : value.trim();
+    const bad = settingError(def, text);
     if (bad) return setMsg({ ok: false, text: bad });
     setBusy(true);
     setMsg(null);
-    const r = await supabase.from('club_settings').upsert({ club_id: clubId, key: def.key, scope: '', value: shown.trim(), updated_at: new Date().toISOString() }, { onConflict: 'club_id,key,scope' });
+    const r = await supabase.from('club_settings').upsert({ club_id: clubId, key: def.key, scope: '', value: text, updated_at: new Date().toISOString() }, { onConflict: 'club_id,key,scope' });
     setBusy(false);
     if (r.error) return setMsg({ ok: false, text: 'Не удалось сохранить. Проверьте, что вы вошли как администратор.' });
+    setValue(text);
     setMsg({ ok: true, text: 'Сохранено.' });
     onSaved();
   };
@@ -38,26 +43,29 @@ function Row({ def, saved, clubId, onSaved }: { def: SettingDef; saved: string |
     const r = await supabase.from('club_settings').delete().eq('club_id', clubId).eq('key', def.key).eq('scope', '');
     setBusy(false);
     if (r.error) return setMsg({ ok: false, text: 'Не удалось вернуть значение по умолчанию.' });
-    setValue('');
+    setValue(def.def);
     setMsg({ ok: true, text: 'Действует значение по умолчанию.' });
     onSaved();
   };
 
   return (
     <div className="ks-card">
-      <label className="field" style={{ marginBottom: 8 }}>
-        {def.title} <span className="muted">{custom ? 'из настроек' : 'по умолчанию'}</span>
-        {def.kind === 'list'
-          ? <textarea rows={3} value={value} placeholder={def.def} onChange={e => setValue(e.target.value)} />
-          : <input inputMode="decimal" value={value} placeholder={def.def} onChange={e => setValue(e.target.value)} />}
-      </label>
-      <div className="two">
-        <button type="button" className="ks-btn" disabled={busy || value.trim() === (saved ?? '').trim()} onClick={() => void save()}>Сохранить</button>
-        <button type="button" className="ks-btn secondary" disabled={busy || !custom} onClick={() => void reset()}>По умолчанию</button>
+      <div className="ks-line" style={{ alignItems: 'flex-start', gap: 8 }}>
+        <label htmlFor={inputId} style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--ks-text, inherit)', overflowWrap: 'anywhere' }}>{def.title}</label>
+        <Pill tone={custom ? 'primary' : 'neutral'}>{custom ? 'своё' : 'по умолчанию'}</Pill>
       </div>
-      <p className="muted" style={{ marginTop: 6 }}>По умолчанию: {def.def}</p>
-      {def.hint && <p className="muted">{def.hint}</p>}
-      {msg && <p className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}
+      {def.hint && <p className="muted" style={{ margin: '4px 0 0' }}>{def.hint}</p>}
+      <div className="field" style={{ marginTop: 10 }}>
+        {def.kind === 'list'
+          ? <textarea id={inputId} rows={3} value={value} onChange={e => setValue(e.target.value)} style={{ font: 'inherit', fontSize: '1rem', padding: 12, borderRadius: 'var(--ks-radius)', border: '1px solid var(--ks-border-strong)' }} />
+          : <input id={inputId} inputMode="decimal" value={value} onChange={e => setValue(e.target.value)} />}
+      </div>
+      <div className="two" style={{ marginTop: 10 }}>
+        <button type="button" className="ks-btn" disabled={busy} onClick={() => void save()}>Сохранить</button>
+        {custom && <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => void reset()}>По умолчанию</button>}
+      </div>
+      {custom && <p className="muted" style={{ margin: '8px 0 0' }}>По умолчанию: {def.def}</p>}
+      {msg && <p className={msg.ok ? 'muted' : 'error'} style={{ margin: '8px 0 0' }}>{msg.text}</p>}
     </div>
   );
 }
