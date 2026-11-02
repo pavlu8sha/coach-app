@@ -36,6 +36,13 @@ async function loadDues(p: Pl): Promise<Due[]> {
   const bad = [prices, pays, subs, orders, ind, extra, camps].find(r => r.error);
   if (bad?.error) throw new Error(bad.error.message);
 
+  // на паузе месяцы после начала паузы долгом не считаются, если по ним нет денег (плату за паузу не берём)
+  let pauseMonth: string | null = null;
+  if (p.status === 'paused') {
+    const lg = await supabase.from('player_status_log').select('on_date').eq('player_id', p.id).eq('status', 'paused').order('on_date', { ascending: false }).order('created_at', { ascending: false }).limit(1);
+    const d = (lg.data as { on_date: string }[] | null)?.[0]?.on_date;
+    if (!lg.error && d) pauseMonth = `${d.slice(0, 7)}-01`;
+  }
   if (!noSub) {
     const pr = ((prices.data ?? []) as { group_id: string | null; amount: number; valid_from: string; valid_to: string | null }[]).map(x => ({ ...x, amount: Number(x.amount) }));
     const paidBy = new Map<string, number>();
@@ -44,6 +51,7 @@ async function loadDues(p: Pl): Promise<Due[]> {
     const cur = monthIso(new Date());
     for (let m = SEASON_START; m <= nextMonth(cur); m = nextMonth(m)) {
       const s = sb.get(m);
+      if (pauseMonth && m > pauseMonth && (paidBy.get(m) ?? 0) <= 0) continue;
       // ушедшему игроку текущий и будущий месяцы долгом не считаются, пока нет строки абонемента или платежа
       if ((m < cur || (p.status ?? 'active') !== 'active') && !s && (paidBy.get(m) ?? 0) <= 0) continue; // прошлый месяц без строки абонемента и без внесённых денег (платёж и его отмена дают 0) долгом не считается
       const gid = s?.group_id ?? p.group_id;

@@ -283,6 +283,16 @@ describe('«Приём оплат»: платежи дня', () => {
     expect(within(sub).getByLabelText('Дата').closest('.two')).toHaveClass('pay-fields');
     expect(within(sub).getByLabelText('Способ')).toBeInTheDocument();
   });
+  it('игрок на паузе: месяцы после начала паузы без платежей долгом не считаются', async () => {
+    seed();
+    fake.db.payments = [];
+    fake.db.subscriptions = [{ player_id: 'p1', month: monthIso(new Date()), group_id: 'g1', discount: false, written_off: false }];
+    fake.db.player_status_log = [{ player_id: 'p1', status: 'paused', on_date: '2026-09-30', created_at: '2026-11-02T17:00:00Z' }];
+    render(<PlayerDues embedded player={{ id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', groups: { name: 'U9-A' }, status: 'paused' }} />);
+    await screen.findByText(/Форма/);
+    expect(screen.queryByText(/Октябрь 2026/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Ноябрь 2026/)).not.toBeInTheDocument();
+  });
   it('«Внесено сегодня»: новые платежи сверху по времени записи, без времени в конце', async () => {
     seed();
     const pl = { full_name: 'Иванов Пётр' };
