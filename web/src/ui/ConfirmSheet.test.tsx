@@ -49,4 +49,16 @@ describe('окно подтверждения', () => {
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Отмена' })); });
     expect(document.body.style.overflow).toBe('');
   });
+
+  it('окно выносится в body и фиксирует страницу (iOS-вебвью игнорирует overflow на body)', async () => {
+    const { container } = render(<Probe onResult={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: 'открыть' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog.parentElement).toBe(document.body);
+    expect(container.contains(dialog)).toBe(false);
+    expect(document.body.style.position).toBe('fixed');
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Отмена' })); });
+    expect(document.body.style.position).toBe('');
+    expect(document.body.style.top).toBe('');
+  });
 });

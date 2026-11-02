@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { sheetCardStyle, sheetOverlayStyle } from './ConfirmSheet';
+import { createPortal } from 'react-dom';
+import { sheetCardStyle, sheetOverlayStyle, useBodyScrollLock } from './ConfirmSheet';
 
 // Закрытие долга без поступления денег (#260): вид и причина обязательны, пишутся в абонемент вместе с автором и датой (миграция 0100).
 export type ClosureKind = 'discount' | 'forgiven' | 'paid_elsewhere';
@@ -29,7 +30,8 @@ export function ClosureSheet({ title, lines = [], defaultKind = 'discount', onDo
     return () => window.removeEventListener('keydown', onKey);
   }, [onCancel]);
   const ok = reason.trim().length >= 3;
-  return (
+  useBodyScrollLock();
+  return createPortal(
     <div role="dialog" aria-modal="true" aria-label={title} onClick={onCancel}
       style={sheetOverlayStyle}>
       <div className="ks-card" onClick={e => e.stopPropagation()} style={sheetCardStyle}>
@@ -50,7 +52,8 @@ export function ClosureSheet({ title, lines = [], defaultKind = 'discount', onDo
           <button type="button" className="ks-btn" style={{ flex: '1 1 120px' }} disabled={!ok} onClick={() => onDone({ kind, reason: reason.trim() })}>Закрыть без оплаты</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
