@@ -73,7 +73,7 @@ describe('«Игроки»', () => {
     await screen.findByText('Amodeo Nolan');
     fireEvent.change(screen.getByLabelText('Статус'), { target: { value: 'inactive' } });
     const row = screen.getByText('Старый Игрок').closest('button')!;
-    expect(within(row).getByText('Не занимается')).toBeInTheDocument();
+    expect(within(row).getByText('Ушёл')).toBeInTheDocument();
   });
 
   it('нажатие на игрока открывает карточку с абонементом по месяцам', async () => {

@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { today } from '../lib/coach';
+import type { PlayerStatus } from '../lib/playerStatus';
 
-export interface PlayerForm { id?: string; full_name: string; birth_date: string | null; group_id: string | null; status: 'active' | 'inactive' }
+export interface PlayerForm { id?: string; full_name: string; birth_date: string | null; group_id: string | null; status: PlayerStatus }
 interface GroupRow { id: string; name: string }
 
 // Форма ребёнка для администратора: правка и добавление. Права проверяет база (политика players_admin_write).
@@ -74,8 +75,10 @@ export default function PlayerEdit({ initial, groups, clubId, onDone, onCancel }
         Статус
         <select value={f.status} onChange={e => setF({ ...f, status: e.target.value as PlayerForm['status'] })}>
           <option value="active">Занимается</option>
-          <option value="inactive">Не занимается</option>
+          {f.status === 'paused' && <option value="paused">Пауза</option>}
+          <option value="inactive">Ушёл</option>
         </select>
+        {!isNew && <span className="muted" style={{ fontSize: 13 }}>Паузу и уход с датами ставьте в карточке игрока: там сохраняется история.</span>}
       </label>
       {dup && <p className="error">Игрок с таким именем уже есть: {dup}. Если это другой ребёнок, нажмите «Всё равно добавить».</p>}
       {error && <p className="error">{error}</p>}

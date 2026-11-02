@@ -45,7 +45,7 @@ async function loadDues(p: Pl): Promise<Due[]> {
     for (let m = SEASON_START; m <= nextMonth(cur); m = nextMonth(m)) {
       const s = sb.get(m);
       // ушедшему игроку текущий и будущий месяцы долгом не считаются, пока нет строки абонемента или платежа
-      if ((m < cur || p.status === 'inactive') && !s && (paidBy.get(m) ?? 0) <= 0) continue; // прошлый месяц без строки абонемента и без внесённых денег (платёж и его отмена дают 0) долгом не считается
+      if ((m < cur || (p.status ?? 'active') !== 'active') && !s && (paidBy.get(m) ?? 0) <= 0) continue; // прошлый месяц без строки абонемента и без внесённых денег (платёж и его отмена дают 0) долгом не считается
       const gid = s?.group_id ?? p.group_id;
       const tariff = gid ? tariffFor(pr, gid, m) : null;
       if (tariff === null || s?.written_off) continue;
