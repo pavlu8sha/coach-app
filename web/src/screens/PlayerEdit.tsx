@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { today } from '../lib/coach';
 
 export interface PlayerForm { id?: string; full_name: string; birth_date: string | null; group_id: string | null; status: 'active' | 'inactive' }
 interface GroupRow { id: string; name: string }
@@ -30,8 +31,20 @@ export default function PlayerEdit({ initial, groups, clubId, onDone, onCancel }
     }
     const row = { full_name: name, birth_date: f.birth_date || null, group_id: f.group_id || null, status: f.status };
     const r = isNew ? await supabase.from('players').insert({ ...row, club_id: clubId }) : await supabase.from('players').update(row).eq('id', initial.id!);
+    if (r.error) {
+      setBusy(false);
+      return setError(r.error.message);
+    }
+    // Перевод в другую группу: тариф и группа месяца берутся из строки абонемента, поэтому меняем группу в строке текущего месяца
+    // (прошлые месяцы не трогаем: их группа и тариф остаются как были, #261)
+    if (!isNew && row.group_id && row.group_id !== (initial.group_id ?? null)) {
+      const sub = await supabase.from('subscriptions').update({ group_id: row.group_id }).eq('player_id', initial.id!).eq('month', today().slice(0, 7) + '-01');
+      if (sub.error) {
+        setBusy(false);
+        return setError(`Группа игрока изменена, но группу в абонементе этого месяца обновить не удалось: ${sub.error.message}. Нажмите «Сохранить» ещё раз.`);
+      }
+    }
     setBusy(false);
-    if (r.error) return setError(r.error.message);
     onDone();
   };
 
