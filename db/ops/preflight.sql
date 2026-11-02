@@ -99,6 +99,7 @@ select * from (values
   ('0095_cash_day_service_time',   coalesce((pg_get_functiondef(to_regprocedure('cash_day_service(date)')) like '%''recorded_at''%'), false)),
   ('0096_consent_lawyer_2026_11',  coalesce((exists (select 1 from consent_versions where version = 'lawyer-2026-11-v1')), false)),
   ('0097_payment_cancels',         coalesce((exists (select 1 from information_schema.columns where table_name = 'payments' and column_name = 'cancels')), false)),
-  ('0098_equipment_order_status',  coalesce((exists (select 1 from information_schema.columns where table_name = 'equipment_orders' and column_name = 'status')), false))
+  ('0098_equipment_order_status',  coalesce((exists (select 1 from information_schema.columns where table_name = 'equipment_orders' and column_name = 'status')), false)),
+  ('0099_payment_info',            coalesce((exists (select 1 from information_schema.tables where table_name = 'payment_info')), false))
 ) as t(migration, applied)
 order by migration;

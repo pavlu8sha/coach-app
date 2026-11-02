@@ -1,10 +1,6 @@
 import { useState } from 'react';
-import { INSTALLMENT_CHAT, PAYMENT_DETAILS, PAYMENT_INFO_UPDATED, PAYMENT_RULES } from '../lib/clubInfo';
-
-const updatedLabel = (iso: string) => {
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('ru', { day: 'numeric', month: 'long', year: 'numeric' });
-};
+import { INSTALLMENT_CHAT } from '../lib/clubInfo';
+import { COPY_LABELS, updatedLabel, usePaymentInfo } from '../lib/paymentInfo';
 
 const MENTION = '@coach_siordia';
 
@@ -39,26 +35,27 @@ function CopyButton({ value, label }: { value: string; label: string }) {
   );
 }
 
-// Реквизиты и утверждённые правила оплаты для родителя. Значения — единый источник в lib/clubInfo.
+// Реквизиты и утверждённые правила оплаты для родителя. Значения из таблицы payment_info (правит администратор); запасной вариант в lib/clubInfo.
 export default function PaymentInfo() {
+  const info = usePaymentInfo();
   return (
     <>
       <section className="ks-card" aria-labelledby="payment-details">
         <h2 id="payment-details">Реквизиты для оплаты</h2>
         <p className="muted" style={{ marginTop: 0 }}>Перевод по реквизитам ниже. IBAN и имя получателя можно скопировать одним нажатием.</p>
-        {PAYMENT_DETAILS.map(d => (
+        {info.details.map(d => (
           <div className="ks-line" key={d.label} style={{ alignItems: 'center', gap: 8 }}>
             <span className="muted">{d.label}</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 8, textAlign: 'right' }}>
               <b>{d.value}</b>
-              {d.copy && <CopyButton value={d.value} label={d.label} />}
+              {COPY_LABELS.has(d.label) && <CopyButton value={d.value} label={d.label} />}
             </span>
           </div>
         ))}
       </section>
       <section className="ks-card" aria-labelledby="payment-rules">
         <h2 id="payment-rules">Правила оплаты</h2>
-        {PAYMENT_RULES.map(r => (
+        {info.rules.map(r => (
           <div key={r.title}>
             <h3>{r.title}</h3>
             <ul className="ks-checks plain">
@@ -66,7 +63,7 @@ export default function PaymentInfo() {
             </ul>
           </div>
         ))}
-        <p className="ks-hint">Правила и реквизиты обновлены: {updatedLabel(PAYMENT_INFO_UPDATED)}.</p>
+        <p className="ks-hint">Правила и реквизиты обновлены: {updatedLabel(info.updatedAt)}.</p>
       </section>
     </>
   );
