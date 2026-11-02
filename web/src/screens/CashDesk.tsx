@@ -8,7 +8,7 @@ import { Failure, Loading } from './Message';
 import { gel, monthIso, monthName, nextMonth, SEASON_START, tariffFor } from './MonthPayments';
 
 interface Pl { id: string; full_name: string; group_id: string | null; groups: { name: string } | null; external_id?: string | null; birth_date?: string | null; status?: string }
-interface Due { key: string; kind: 'sub' | 'eq' | 'ind' | 'extra' | 'camp'; section: string; title: string; sub?: string; due: number; paid: number; month?: string; advance?: boolean; pay: (amount: number, method: string, date: string) => PromiseLike<{ error: { message: string } | null }> }
+interface Due { key: string; kind: 'sub' | 'eq' | 'ind' | 'extra' | 'camp'; section: string; title: string; sub?: string; due: number; paid: number; month?: string; advance?: boolean; pay: (amount: number, method: string, date: string) => PromiseLike<{ error: { message: string } | null }>; discount?: () => PromiseLike<{ error: { message: string } | null }> }
 
 const METHODS = ['Наличные', 'Перевод'];
 const PAY_METHODS = ['Наличные', 'Перевод'];
@@ -55,6 +55,7 @@ async function loadDues(p: Pl): Promise<Due[]> {
       out.push({
         key: 'sub' + m, kind: 'sub', section: SECTIONS[0], title: m > cur ? `${monthName(m)} (вперёд)` : monthName(m), sub: s?.discount ? 'скидка по договорённости: оплатите любую сумму' : m > cur ? 'оплата вперёд: дата — день, когда внесли деньги' : undefined, due: tariff, paid: got, month: m, advance: m > cur,
         pay: (amount, method, date) => supabase.from('payments').insert({ player_id: p.id, amount: r2(amount), paid_on: date, for_month: m, method }),
+        discount: () => supabase.from('subscriptions').upsert({ player_id: p.id, month: m, discount: true }, { onConflict: 'player_id,month' }),
       });
     }
   }
@@ -330,6 +331,28 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false 
     if (r.error) return setErr(errText(r.error.message));
     onPaid();
   };
+  // «Оплатить со скидкой»: то же, что внести меньшую сумму и затем применить скидку месяца, одним действием
+  const payWithDiscount = async () => {
+    if (!method) return setErr(sharedMethod !== undefined ? 'Выберите способ оплаты вверху экрана: «Наличные» или «Перевод».' : 'Выберите способ оплаты.');
+    if (!due.discount || !Number.isFinite(num) || num <= 0 || num >= left) return setErr('Введите сумму больше нуля и меньше остатка.');
+    if (date > today()) return setErr('Дата платежа не может быть в будущем.');
+    const ok = await ask({
+      title: 'Оплатить со скидкой?',
+      lines: [['Игрок', who], ['За что', due.title], ['Внесём', gel(num)], ['Скидка', 'месяц закрывается, остаток не считается долгом'], ['Способ', method], ['Дата', fmtDate(date)]],
+      note: 'Запись нельзя изменить или удалить, ошибку исправляют записью с минусом.',
+      confirmLabel: 'Оплатить',
+    });
+    if (!ok) return;
+    setBusy(true);
+    setErr(null);
+    const p = await due.pay(num, method, date);
+    if (p.error) { setBusy(false); return setErr(errText(p.error.message)); }
+    const d = await due.discount!();
+    setBusy(false);
+    // платёж уже записан: повторно его не отправляем, только сообщаем об ошибке скидки
+    if (d.error) return setErr(`Платёж записан, но скидку не применили (${d.error.message}). Примените скидку в «Оплатах за месяц», платёж повторять не нужно.`);
+    onPaid();
+  };
   return (
     <div className="ks-card ks-due">
       <div className="ks-line"><b style={{ overflowWrap: 'anywhere' }}>{due.title}</b><span role="img" aria-label={`Осталось оплатить ${gel(left)}`}><Pill tone="danger" dot>{gel(left)}</Pill></span></div>
@@ -345,6 +368,7 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false 
           })()}
           {err && <p className="error">{err}</p>}
           <button type="button" className="ks-btn" disabled={busy} onClick={() => void save()}>{fixedAmount ? `Отметить оплаченным (${gel(left)})` : 'Записать платёж'}</button>
+          {!fixedAmount && due.discount && num > 0 && num < left && <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy} onClick={() => void payWithDiscount()}>Оплатить со скидкой</button>}
         </div>
       )}
       {dialog}
