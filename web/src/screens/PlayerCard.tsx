@@ -96,7 +96,7 @@ export default function PlayerCard({ player, onBack, onEdit, onStatus }: { playe
       <div style={{ height: 12 }} />
       {tab === 'dues' && <PlayerDues embedded player={{ id: player.id, full_name: player.full_name, group_id: player.group_id, groups: player.group_name ? { name: player.group_name } : null, status }} />}
       {tab === 'sessions' && <SessionsTab playerId={player.id} />}
-      {tab === 'equip' && <EquipmentTab playerId={player.id} />}
+      {tab === 'equip' && <EquipmentTab playerId={player.id} staff />}
       {tab === 'matches' && <MatchesTab playerId={player.id} />}
       {tab === 'points' && <PointsTab playerId={player.id} />}
       {tab === 'sub' && (pays === null ? <Loading /> : visibleMonths(months, firstMonth([...subs.keys()], payMonths, created, SEASON_START), status !== 'active' ? lastMonth([...subs.keys()], payMonths, firstMonth([...subs.keys()], payMonths, created, SEASON_START)) : null).map(m => {
