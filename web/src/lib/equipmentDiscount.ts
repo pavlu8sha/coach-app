@@ -2,7 +2,8 @@ import { settingNumber, settingText, type SettingValues } from './clubSettings';
 
 // Скидка на комплект экипировки (#339). Правила и проценты берутся из настроек клуба.
 // Скидка действует, если в новом заказе есть нужные позиции, а у игрока в итоге (в прошлых заказах или в этом) есть полный набор.
-// Скидка применяется к позициям нового заказа, кроме позиций «по полной цене»; при рассрочке скидки нет.
+// Скидка считается от общей суммы набора: прошлые заказы игрока (без позиций «по полной цене») плюс новый заказ.
+// От результата отнимается то, что игрок уже заказал раньше, разница и есть сумма нового заказа. При рассрочке скидки нет.
 
 /** «A или B, C» → [[A, B], [C]]: каждая группа через запятую обязательна, внутри группы достаточно любой из позиций. */
 export function parseKitRule(s: string): string[][] {
@@ -14,12 +15,14 @@ export const parseKitList = (s: string) => s.split(',').map(x => x.trim().toLowe
 const satisfied = (rule: string[][], have: Set<string>) => rule.length > 0 && rule.every(g => g.some(k => have.has(k)));
 
 export interface OrderLine { kit: string; amount: number }
-export interface DiscountResult { applies: boolean; base: number; total: number; discount: number; pct: number }
+/** pastAmount — сумма прошлых заказов игрока без позиций «по полной цене»; allBase и allTotal — набор целиком до и после скидки. */
+export interface DiscountResult { applies: boolean; base: number; total: number; discount: number; pct: number; pastAmount: number; allBase: number; allTotal: number }
 
-export function bundleDiscount(args: { lines: OrderLine[]; pastKits: string[]; installment: boolean; settings: SettingValues }): DiscountResult {
+export function bundleDiscount(args: { lines: OrderLine[]; pastKits: string[]; pastAmount?: number; installment: boolean; settings: SettingValues }): DiscountResult {
   const { lines, pastKits, installment, settings } = args;
+  const pastAmount = Math.max(0, args.pastAmount ?? 0);
   const sum = lines.reduce((s, l) => s + l.amount, 0);
-  const none: DiscountResult = { applies: false, base: sum, total: sum, discount: 0, pct: 0 };
+  const none: DiscountResult = { applies: false, base: sum, total: sum, discount: 0, pct: 0, pastAmount, allBase: sum + pastAmount, allTotal: sum + pastAmount };
   const pct = settingNumber(settings, 'equip.discPct');
   if (installment || pct <= 0 || lines.length === 0) return none;
   const inOrder = new Set(lines.map(l => l.kit.trim().toLowerCase()));
@@ -28,11 +31,11 @@ export function bundleDiscount(args: { lines: OrderLine[]; pastKits: string[]; i
   if (!satisfied(parseKitRule(settingText(settings, 'equip.discNeedAll')), all)) return none;
   const full = new Set(parseKitList(settingText(settings, 'equip.fullPrice')));
   const fullSum = lines.filter(l => full.has(l.kit.trim().toLowerCase())).reduce((s, l) => s + l.amount, 0);
-  const part = sum - fullSum;
+  const allBase = (sum - fullSum) + pastAmount;
   const round = settingNumber(settings, 'equip.discRound');
-  let discounted = part * (1 - pct / 100);
-  if (round > 0) discounted = Math.round(discounted / round) * round;
-  discounted = Math.max(0, Math.round(discounted * 100) / 100);
-  const total = fullSum + discounted;
-  return { applies: total < sum, base: sum, total, discount: sum - total, pct };
+  let allTotal = allBase * (1 - pct / 100);
+  if (round > 0) allTotal = Math.round(allTotal / round) * round;
+  allTotal = Math.max(0, Math.round(allTotal * 100) / 100);
+  const total = fullSum + Math.max(0, Math.round((allTotal - pastAmount) * 100) / 100);
+  return { applies: total < sum, base: sum, total, discount: sum - total, pct, pastAmount, allBase, allTotal };
 }

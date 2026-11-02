@@ -16,6 +16,11 @@ describe('Скидка на комплект (#339)', () => {
     expect(r.total).toBe(Math.round(420 * 0.85 / 5) * 5);
   });
 
+  it('скидка от всего набора с прошлыми заказами: 300 + 320 = 620, со скидкой 525, новый заказ 225', () => {
+    const r = bundleDiscount({ lines: [line('Спортивный костюм', 150), line('Дождевик', 170)], pastKits: ['Игровая форма', 'Тренировочная форма'], pastAmount: 300, installment: false, settings: {} });
+    expect(r).toMatchObject({ applies: true, base: 320, total: 225, discount: 95, pastAmount: 300, allBase: 620, allTotal: 525 });
+  });
+
   it('вратарская форма заменяет игровую; регистр названий не важен', () => {
     const r = bundleDiscount({ lines: [line('ДОЖДЕВИК', 100)], pastKits: ['вратарская форма', 'Тренировочная форма', 'Спортивный костюм'], installment: false, settings: {} });
     expect(r.applies).toBe(true);

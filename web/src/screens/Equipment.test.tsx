@@ -131,10 +131,11 @@ describe('«Экипировка»', () => {
     fireEvent.click(await screen.findByLabelText(/Тренировочная форма/));
     fireEvent.click(screen.getByLabelText(/Спортивный костюм/));
     fireEvent.click(screen.getByLabelText(/Дождевик/));
+    expect(await screen.findByText('К оплате: 325 ₾')).toBeInTheDocument();
     expect(screen.getByText('По каталогу: 420 ₾')).toBeInTheDocument();
-    expect(await screen.findByText(/Скидка 15%: 355 ₾ вместо 420 ₾/)).toBeInTheDocument();
+    expect(screen.getByText('Скидка на комплект 15%: −95 ₾')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Создать заказ' }));
-    await waitFor(() => expect(fake.rpcCalls('eq_create_order')[0]).toMatchObject({ p: 'p1', custom_total: 355 }));
+    await waitFor(() => expect(fake.rpcCalls('eq_create_order')[0]).toMatchObject({ p: 'p1', custom_total: 325 }));
   });
 
   it('номер занят: подсказка называет только игрока из той же возрастной группы и не мешает создать заказ', async () => {
@@ -155,7 +156,7 @@ describe('«Экипировка»', () => {
     fireEvent.click(await screen.findByLabelText(/Форма/));
     fireEvent.change(screen.getByLabelText('Номер'), { target: { value: '19' } });
     const msg = await screen.findByText(/Номер 19 уже есть в группе U9-A/);
-    expect(msg.textContent).toContain('Заказ можно сохранить');
+    expect(msg.textContent).not.toContain('объедините');
     expect(msg.textContent).toContain('Тот Же Возраст (U9-B)');
     expect(msg.textContent).not.toContain('Другая Группа');
     expect(msg.textContent).not.toContain('Площадка Исани');
