@@ -195,11 +195,15 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     setPlayers(null);
     void (async () => {
       let list: Player[] = [];
+      const notActive = new Set<string>();
       if (rosterOf) {
         // матч чемпионата или фестиваля: в составе только заявленные на событие
         const r = await supabase.rpc('event_roster', { t: rosterOf });
         if (r.error) return setError(r.error.message);
         list = ((r.data ?? []) as { player_id: string; full_name: string }[]).map(x => ({ id: x.player_id, full_name: x.full_name }));
+        // ушедшие и игроки на паузе не попадают в новые матчи события (заявка на событие статус не проверяет); без ответа базы список остаётся прежним
+        const st = list.length ? await supabase.from('players').select('id, status').in('id', list.map(p => p.id)) : null;
+        if (st && !st.error) for (const s of (st.data ?? []) as { id: string; status: string }[]) if (s.status !== 'active') notActive.add(s.id);
       } else if (gid) {
         // команда «U10» объединяет группы U10-A и U10-B: в составе игроки всех её групп
         const sel = groups.find(g => g.id === gid)?.name;
@@ -230,6 +234,8 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
           list = [...list, ...((ex.data ?? []) as Player[])].sort((a, b) => a.full_name.localeCompare(b.full_name));
         }
       }
+      // неактивные остаются только там, где у них уже есть запись в этом матче (прошлые матчи не меняются)
+      list = list.filter(p => !notActive.has(p.id) || p.id in init);
       setLines(init);
       setBestId(best);
       const playedIds = Object.entries(init).filter(([, l]) => l.played).map(([id]) => id);
