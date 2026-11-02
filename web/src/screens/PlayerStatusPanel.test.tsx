@@ -57,6 +57,13 @@ describe('статус игрока в карточке', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
+  it('даты из старого приложения показываются, пока журнал пуст', async () => {
+    fake.db.player_status_log = [];
+    fake.db.players = [{ id: 'p1', starts_on: '2025-09-01', ends_on: '2026-05-20' }];
+    render(<PlayerStatusPanel playerId="p1" status="inactive" externalId="KS-001" onChanged={() => {}} />);
+    expect(await screen.findByText(/занимался с 01\.09\.2025, ушёл 20\.05\.2026/)).toBeInTheDocument();
+  });
+
   it('ошибка базы показывается по-русски, форма остаётся открытой', async () => {
     fake.db.player_status_log = [];
     fake.rpc.player_set_status = () => ({ error: { message: 'invalid return date' } });
