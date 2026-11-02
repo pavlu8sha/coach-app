@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SETTINGS, settingError, settingText, useClubSettings, type SettingDef, type SettingValues } from '../lib/clubSettings';
 import { supabase } from '../lib/supabase';
 import { Loading } from './Message';
@@ -10,7 +10,14 @@ function Row({ def, saved, clubId, onSaved }: { def: SettingDef; saved: string |
   const [value, setValue] = useState(saved ?? '');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  useEffect(() => { setValue(saved ?? ''); }, [saved]);
+  // Поле подстраивается под сохранённое значение только когда оно изменилось (после сохранения или сброса),
+  // но не при первом показе: иначе отложенный эффект мог бы стереть уже введённый текст.
+  const prevSaved = useRef(saved);
+  useEffect(() => {
+    if (prevSaved.current === saved) return;
+    prevSaved.current = saved;
+    setValue(saved ?? '');
+  }, [saved]);
   const custom = saved !== undefined && saved.trim() !== '';
   const shown = value.trim() === '' ? def.def : value;
 
