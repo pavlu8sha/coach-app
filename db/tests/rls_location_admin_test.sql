@@ -2,7 +2,7 @@
 -- долги и обычный тренер — нет. Отчёт локального админа — только строки своих локаций.
 begin;
 create extension if not exists pgtap;
-select plan(21);
+select plan(22);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -69,11 +69,12 @@ select throws_ok($$select extra_set_paid((select id from ids where k = 'ex3'), '
 -- всё, что не локальное, закрыто: долги и игроки чужих локаций
 select throws_ok($$select debtors('2026-10-01')$$, '42501', 'forbidden', 'долги — только у глобального администратора');
 
--- отчёт Гио: 100 + 30 + 40 + 20 + 25 = 215 (строки чужих локаций не входят)
-select is((select (cash_report('2026-10-01', '2026-10-31')->>'total')::numeric), 215::numeric, 'отчёт Гио — только его локации');
+-- отчёт Гио (0110): только принятые им самим платежи своих локаций: 30 + 40 + 20 + 25 = 115 (засеянные 100 приняты не им)
+select is((select (cash_report('2026-10-01', '2026-10-31')->>'total')::numeric), 115::numeric, 'отчёт Гио — только его платежи в его локациях');
+select is((select count(distinct x->>'staff') from jsonb_array_elements(cash_report('2026-10-01', '2026-10-31')->'rows') x)::int, 1, 'в отчёте Гио один сотрудник — он сам');
 select is((select (cash_report('2026-10-01', '2026-10-31', 'Квартал')->>'total')::numeric), 0::numeric, 'отчёт Гио по чужой локации пуст');
 
--- глобальный админ видит всё: 215 + платёж Вики 50 = 265
+-- глобальный админ видит всё: 100 + 115 + платёж Вики 50 = 265
 select as_user('00000000-0000-0000-0000-0000000000a1');
 select is((select (cash_report('2026-10-01', '2026-10-31')->>'total')::numeric), 265::numeric, 'глобальный админ видит все локации');
 

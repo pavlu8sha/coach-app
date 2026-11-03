@@ -109,6 +109,7 @@ select * from (values
   ('0105_paused_months_not_due',   coalesce((to_regproc('player_paused_month') is not null), false)),
   ('0106_friendly_match_without_group', coalesce((to_regproc('save_match_team') is not null), false)),
   ('0107_equipment_status_backfill', coalesce((to_regprocedure('eq_order_fully_issued(uuid)') is not null), false)),
-  ('0108_location_admin_equipment_issue', coalesce((exists (select 1 from pg_policies where tablename = 'equipment_issues' and policyname = 'equipment_issues_location_read')), false))
+  ('0108_location_admin_equipment_issue', coalesce((exists (select 1 from pg_policies where tablename = 'equipment_issues' and policyname = 'equipment_issues_location_read')), false)),
+  ('0110_location_admin_report_own', coalesce((pg_get_functiondef(to_regprocedure('cash_report(date,date,text,uuid,text)')) like '%recorded_by = current_user_id()%'), false))
 ) as t(migration, applied)
 order by migration;
