@@ -9,6 +9,8 @@ import { Failure, Loading } from './Message';
 interface Group { id: string; name: string }
 export interface Player { id: string; full_name: string }
 interface Price { group_id: string | null; amount: number; valid_from: string; valid_to: string | null }
+// Заглушка миграции 0100 для закрытий, сделанных до появления причины: настоящей причины нет, не показываем
+const LEGACY_REASON = 'до 02.11.2026';
 export interface Sub { player_id: string; discount: boolean; written_off: boolean; closed_kind?: ClosureKind | null; closed_reason?: string | null }
 
 export const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
@@ -210,7 +212,7 @@ export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOp
         <b style={{ overflowWrap: 'anywhere' }}>{title ?? player.full_name}</b>
         <Pill tone={paidUp ? 'success' : 'danger'} dot>{sub?.written_off || sub?.discount ? `${CLOSURE_LABELS[sub.closed_kind ?? (sub.written_off ? 'forgiven' : 'discount')]}${got > 0 ? ` · внесено ${gel(got)}` : ''}` : `${gel(got)}${tariff !== null ? ` из ${gel(tariff)}` : ''}`}</Pill>
       </div>
-      {(sub?.discount || sub?.written_off) && sub.closed_reason && <p className="ks-muted" style={{ fontSize: 13, margin: '4px 0 0' }}>Причина: {sub.closed_reason}</p>}
+      {(sub?.discount || sub?.written_off) && sub.closed_reason && sub.closed_reason !== LEGACY_REASON && <p className="ks-muted" style={{ fontSize: 13, margin: '4px 0 0' }}>Причина: {sub.closed_reason}</p>}
       <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} onClick={onOpen}>{open ? 'Свернуть' : 'Внести платёж'}</button>
       {!paidUp && (
         <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy} onClick={() => void discount()}>Закрыть без оплаты</button>
