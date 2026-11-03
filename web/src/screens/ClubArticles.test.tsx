@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
-import ClubArticles from './ClubArticles';
+import ClubArticles, { resetArticlesCache } from './ClubArticles';
 
 const article = (over: Record<string, unknown> = {}) => ({
   id: 'a1',
@@ -25,7 +25,7 @@ const article = (over: Record<string, unknown> = {}) => ({
 });
 
 describe('Чтение материалов клуба (#236)', () => {
-  beforeEach(() => fake.reset());
+  beforeEach(() => { fake.reset(); resetArticlesCache(); });
 
   it('гость видит общие и гостевые статьи, но не родительские и не черновики', async () => {
     fake.db.club_articles = [
