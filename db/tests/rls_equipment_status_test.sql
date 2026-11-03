@@ -1,7 +1,7 @@
 -- pgTAP: статусы заказов экипировки, история и текст требования к форме (0098, #240).
 begin;
 create extension if not exists pgtap;
-select plan(15);
+select plan(16);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -59,6 +59,7 @@ select is((select count(*)::int from equipment_order_status_history where order_
 
 -- требование к форме: утверждённый текст по умолчанию, затем правка администратором; club_settings родителю закрыта
 select ok(equipment_requirement() like '%обязателен для всех воспитанников%', 'по умолчанию отдаётся утверждённый текст');
+select ok(equipment_requirement() like E'%единую тренировочную экипировку.\nЕсли у ребёнка%', 'утверждённый текст — две строки');
 select as_user('00000000-0000-0000-0000-0000000000a1');
 insert into club_settings (club_id, key, scope, value, updated_at) values ('00000000-0000-0000-0000-00000000c001', 'equipment.required_text', '', 'Новый текст требования', current_date);
 select as_user('00000000-0000-0000-0000-0000000000b2');
