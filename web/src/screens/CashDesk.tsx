@@ -5,7 +5,7 @@ import { EmptyState, ListRow, Pill, SearchInput } from '../ui/components';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
-import { pausedMonthTest, type StatusLogPoint } from '../lib/playerStatus';
+import { afterLeftMonthTest, pausedMonthTest, type StatusLogPoint } from '../lib/playerStatus';
 import { gel, monthIso, monthName, nextMonth, SEASON_START, tariffFor } from './MonthPayments';
 
 interface Pl { id: string; full_name: string; group_id: string | null; groups: { name: string } | null; external_id?: string | null; birth_date?: string | null; status?: string }
@@ -39,7 +39,15 @@ async function loadDues(p: Pl): Promise<Due[]> {
 
   // месяцы, прожитые целиком на паузе, долгом не считаются (плату за паузу не берём), даже если игрок уже вернулся
   const lg = await supabase.from('player_status_log').select('status, on_date, created_at').eq('player_id', p.id).limit(200);
-  const isPausedMonth = pausedMonthTest(lg.error ? [] : ((lg.data ?? []) as StatusLogPoint[]));
+  const logRows = lg.error ? [] : ((lg.data ?? []) as StatusLogPoint[]);
+  const isPausedMonth = pausedMonthTest(logRows);
+  // ушедшему месяцы после месяца ухода долгом не считаются (дата ухода: журнал, а без него players.ends_on)
+  let endsOn: string | null = null;
+  if (p.status === 'inactive') {
+    const en = await supabase.from('players').select('ends_on').eq('id', p.id).maybeSingle();
+    endsOn = en.error ? null : ((en.data as { ends_on?: string | null } | null)?.ends_on ?? null);
+  }
+  const afterLeft = afterLeftMonthTest(p.status, logRows, endsOn);
   if (!noSub) {
     const pr = ((prices.data ?? []) as { group_id: string | null; amount: number; valid_from: string; valid_to: string | null }[]).map(x => ({ ...x, amount: Number(x.amount) }));
     const paidBy = new Map<string, number>();
@@ -48,7 +56,7 @@ async function loadDues(p: Pl): Promise<Due[]> {
     const cur = monthIso(new Date());
     for (let m = SEASON_START; m <= nextMonth(cur); m = nextMonth(m)) {
       const s = sb.get(m);
-      if (isPausedMonth(m) && (paidBy.get(m) ?? 0) <= 0) continue;
+      if ((isPausedMonth(m) || afterLeft(m)) && (paidBy.get(m) ?? 0) <= 0) continue;
       // ушедшему игроку текущий и будущий месяцы долгом не считаются, пока нет строки абонемента или платежа
       if ((m < cur || (p.status ?? 'active') !== 'active') && !s && (paidBy.get(m) ?? 0) <= 0) continue; // прошлый месяц без строки абонемента и без внесённых денег (платёж и его отмена дают 0) долгом не считается
       const gid = s?.group_id ?? p.group_id;
