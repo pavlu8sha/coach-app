@@ -26,6 +26,8 @@ const Price = ({ name, note, price }: { name: string; note?: string; price: stri
 const Sign = ({ text = 'Записаться' }: { text?: string }) => (
   <a className="ks-btn" href={ADMIN_CHAT} target="_blank" rel="noreferrer">{text}</a>
 );
+// Родителю с привязанным ребёнком запись доступна в приложении, чат админа не нужен.
+const BookHint = () => <p className="ks-hint">Записаться на свободное место можно во вкладке «Расписание» → «Запись на занятия».</p>;
 const Card = ({ title, children }: { title?: string; children: ReactNode }) => (
   <section className="ks-card">
     {title && <h2 className="ks-h">{title}</h2>}
@@ -69,7 +71,7 @@ function Championships() {
   );
 }
 
-function Individual() {
+function Individual({ cabinet }: { cabinet?: boolean }) {
   return (
     <>
       <CoverBanner id="individual" title="Индивидуальные тренировки" sub={INDIVIDUAL.note} />
@@ -83,13 +85,13 @@ function Individual() {
       </Card>
       <Card title="Расписание">
         <div className="ks-chips">{INDIVIDUAL.schedule.map(s => <Pill key={s} tone="primary">{s}</Pill>)}</div>
-        <Sign />
+        {cabinet ? <BookHint /> : <Sign />}
       </Card>
     </>
   );
 }
 
-function Goalkeepers() {
+function Goalkeepers({ cabinet }: { cabinet?: boolean }) {
   return (
     <>
       <CoverBanner id="gk" title="Вратарские тренировки" sub="Отдельная роль в команде" />
@@ -98,7 +100,7 @@ function Goalkeepers() {
       </Card>
       <Card title="Что отрабатываем">
         <Checks items={GOALKEEPERS.skills} />
-        <Sign />
+        {cabinet ? <BookHint /> : <Sign />}
       </Card>
     </>
   );
@@ -274,11 +276,11 @@ const TILES: { id: Exclude<CoverId, 'channel'>; title: string; sub: string; wide
   { id: 'gk', title: 'Вратарские', sub: 'Отдельные тренировки' },
   { id: 'equipment', title: 'Экипировка', sub: 'Комплекты от 100 GEL', photo: 'kit-game' },
 ];
-const SCREENS: Record<Exclude<CoverId, 'channel'>, () => ReactNode> = { branches: Branches, champ: Championships, individual: Individual, gk: Goalkeepers, equipment: () => null, camp: Camp };
+const SCREENS: Record<Exclude<CoverId, 'channel'>, (p: { cabinet?: boolean }) => ReactNode> = { branches: Branches, champ: Championships, individual: Individual, gk: Goalkeepers, equipment: () => null, camp: Camp };
 
 // «О клубе» для гостя, ребёнка и тренера без назначенных групп: только открытая информация, без данных детей и результатов игроков.
 // Главный экран — плитки-разделы; каждый раздел открывается отдельным экраном.
-export default function About({ role, onChangeRole, onBack, hideTrial }: { role: Role | null; onChangeRole: () => void; onBack?: () => void; hideTrial?: boolean }) {
+export default function About({ role, onChangeRole, onBack, cabinet }: { role: Role | null; onChangeRole: () => void; onBack?: () => void; cabinet?: boolean }) {
   const [open, setOpen] = useState<Id | null>(null);
   const [product, setProduct] = useState<Product['id'] | null>(null);
   const [materials, setMaterials] = useState<ArticleSection | null>(null);
@@ -293,7 +295,7 @@ export default function About({ role, onChangeRole, onBack, hideTrial }: { role:
     return (
       <main className="page">
         <BackNav onBack={() => (product ? setProduct(null) : setOpen(null))} />
-        {open === 'equipment' ? <Equipment product={product} setProduct={setProduct} /> : Screen ? <Screen /> : <TrialForm startOpen />}
+        {open === 'equipment' ? <Equipment product={product} setProduct={setProduct} /> : Screen ? <Screen cabinet={cabinet} /> : <TrialForm startOpen />}
       </main>
     );
   }
@@ -302,13 +304,17 @@ export default function About({ role, onChangeRole, onBack, hideTrial }: { role:
       {onBack && <BackNav onBack={onBack} />}
       <div className="ks-intro">
         <h1>FC KickStart Tbilisi</h1>
-        <p className="muted">Футбольная школа в Тбилиси. {hideTrial ? 'Выберите раздел.' : 'Запишитесь на пробную тренировку или выберите раздел.'}</p>
-        {role !== 'child' && !hideTrial && <button type="button" className="ks-btn" onClick={() => setOpen('trial')}>Записаться на пробную</button>}
+        <p className="muted">Футбольная школа в Тбилиси. {cabinet ? 'Выберите раздел.' : 'Запишитесь на пробную тренировку или выберите раздел.'}</p>
+        {role !== 'child' && !cabinet && <button type="button" className="ks-btn" onClick={() => setOpen('trial')}>Записаться на пробную</button>}
         <a className="ks-btn secondary" href={ADMIN_CHAT} target="_blank" rel="noreferrer">Написать администратору</a>
       </div>
-      <ListRow title="Новости клуба" sub={[SECTION_HINT.news]} onClick={() => setMaterials('news')} />
-      <ListRow title="Турниры и матчи" sub={[SECTION_HINT.tournaments]} onClick={() => setMaterials('tournaments')} />
-      <ListRow title="Материалы клуба" sub={[SECTION_HINT.article]} onClick={() => setMaterials('article')} />
+      {!cabinet && (
+        <>
+          <ListRow title="Новости клуба" sub={[SECTION_HINT.news]} onClick={() => setMaterials('news')} />
+          <ListRow title="Турниры и матчи" sub={[SECTION_HINT.tournaments]} onClick={() => setMaterials('tournaments')} />
+          <ListRow title="Материалы клуба" sub={[SECTION_HINT.article]} onClick={() => setMaterials('article')} />
+        </>
+      )}
       {role === 'coach' && (
         <section className="ks-card">
           <h2>Вы вошли как тренер</h2>
