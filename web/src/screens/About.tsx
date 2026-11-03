@@ -277,15 +277,17 @@ const SCREENS: Record<Exclude<CoverId, 'channel'>, () => ReactNode> = { branches
 
 // «О клубе» для гостя, ребёнка и тренера без назначенных групп: только открытая информация, без данных детей и результатов игроков.
 // Главный экран — плитки-разделы; каждый раздел открывается отдельным экраном.
-export default function About({ role, onChangeRole }: { role: Role | null; onChangeRole: () => void }) {
+export default function About({ role, onChangeRole, onBack }: { role: Role | null; onChangeRole: () => void; onBack?: () => void }) {
   const [open, setOpen] = useState<Id | null>(null);
   const [product, setProduct] = useState<Product['id'] | null>(null);
   const [materials, setMaterials] = useState(false);
   useEffect(() => { document.documentElement.scrollTop = 0; }, [open, product, materials]);
 
-  if (materials) return <ClubArticles role="guest" onBack={() => setMaterials(false)} />;
+  if (materials) return <ClubArticles role={role === 'parent' ? 'parent' : 'guest'} onBack={() => setMaterials(false)} />;
 
-  if (open) {
+  // «Экипировка» не для гостя (#234): плитки нет, а прямое открытие раздела закрыто. Родителю раздел остаётся.
+  const tiles = role === 'guest' ? TILES.filter(t => t.id !== 'equipment') : TILES;
+  if (open && (open !== 'equipment' || role !== 'guest')) {
     const Screen = open === 'trial' ? null : SCREENS[open];
     return (
       <main className="page">
@@ -296,6 +298,7 @@ export default function About({ role, onChangeRole }: { role: Role | null; onCha
   }
   return (
     <main className="page">
+      {onBack && <BackNav onBack={onBack} />}
       <div className="ks-intro">
         <h1>FC KickStart Tbilisi</h1>
         <p className="muted">Футбольная школа в Тбилиси. Запишитесь на пробную тренировку или выберите раздел.</p>
@@ -310,12 +313,14 @@ export default function About({ role, onChangeRole }: { role: Role | null; onCha
         </section>
       )}
       <div className="ks-hub">
-        {TILES.map(t => <CoverTile key={t.id} {...t} onClick={() => setOpen(t.id)} />)}
+        {tiles.map(t => <CoverTile key={t.id} {...t} onClick={() => setOpen(t.id)} />)}
         <CoverTile id="channel" title="Наш канал" sub="Новости и фото клуба" href={CLUB_CHANNEL} />
       </div>
-      <button type="button" className="ks-btn secondary" onClick={onChangeRole}>
-        Сменить роль
-      </button>
+      {!onBack && (
+        <button type="button" className="ks-btn secondary" onClick={onChangeRole}>
+          Сменить роль
+        </button>
+      )}
     </main>
   );
 }

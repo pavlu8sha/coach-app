@@ -8,13 +8,23 @@ describe('«О клубе» для гостя', () => {
 
   it('главный экран: плитки разделов, запись на пробную и канал', () => {
     render(<About role="guest" onChangeRole={() => undefined} />);
-    for (const t of [/Winter Camp 2027/, /^Филиалы/, /^Чемпионаты/, /^Индивидуальные/, /^Вратарские/, /^Экипировка/]) {
+    for (const t of [/Winter Camp 2027/, /^Филиалы/, /^Чемпионаты/, /^Индивидуальные/, /^Вратарские/]) {
       expect(screen.getByRole('button', { name: t })).toBeInTheDocument();
     }
     expect(screen.getByRole('button', { name: 'Записаться на пробную' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Наш канал/ })).toHaveAttribute('href', 'https://t.me/fc_kickstart_tbs');
     // подробности спрятаны в разделах, а не на главном экране
     expect(screen.queryByText(/525 GEL вместо 620/)).toBeNull();
+  });
+
+  it('гость не видит экипировку, родитель видит все плитки гостя (#234)', () => {
+    const { unmount } = render(<About role="guest" onChangeRole={() => undefined} />);
+    expect(screen.queryByRole('button', { name: /^Экипировка/ })).toBeNull();
+    unmount();
+    render(<About role="parent" onChangeRole={() => undefined} onBack={() => undefined} />);
+    expect(screen.getByRole('button', { name: /^Экипировка/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Филиалы/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Сменить роль' })).toBeNull();
   });
 
   it('гостю открываются материалы клуба и возвращаются назад', async () => {
@@ -53,9 +63,6 @@ describe('«О клубе» для гостя', () => {
     open(/^Вратарские/);
     expect(screen.getByRole('heading', { name: 'Вратарские тренировки' })).toBeInTheDocument();
     back();
-    open(/^Экипировка/);
-    expect(screen.getByText(/525 GEL вместо 620/)).toBeInTheDocument();
-    back();
     open(/Winter Camp 2027/);
     expect(screen.getByText(/Новый год\. Новое место/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: 'Стоимость' }));
@@ -67,7 +74,7 @@ describe('«О клубе» для гостя', () => {
   });
 
   it('экипировка: карточки товаров, размерная таблица костюма и возврат к списку', () => {
-    render(<About role="guest" onChangeRole={() => undefined} />);
+    render(<About role="parent" onChangeRole={() => undefined} />);
     open(/^Экипировка/);
     for (const n of ['Тренировочный комплект', 'Игровой комплект', 'Вратарский комплект', 'Спортивный костюм', 'Дождевик']) expect(screen.getByRole('button', { name: new RegExp(n) })).toBeInTheDocument();
     open(/Спортивный костюм/);
