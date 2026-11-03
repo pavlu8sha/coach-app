@@ -11,7 +11,7 @@ create policy equipment_issues_location_read on equipment_issues for select
 -- Та же сигнатура, что в 0036 (права execute сохраняются). Для локального админа: только заказы своей локации и только «выдать».
 create or replace function eq_set_issued(o uuid, k text, on_ boolean, who text default null, d date default current_date) returns void
 language plpgsql security definer set search_path = public as $$
-declare eo equipment_orders; by text;
+declare eo equipment_orders; issuer text;
 begin
   if not (is_admin() or has_location_admin()) then raise exception 'forbidden' using errcode = '42501'; end if;
   select * into eo from equipment_orders where id = o;
@@ -25,8 +25,8 @@ begin
   if not exists (select 1 from equipment_order_lines where order_id = o and kit = k) then raise exception 'item not in order' using errcode = 'P0002'; end if;
   if on_ then
     -- кто выдал: введённое имя, иначе имя пользователя из профиля
-    by := coalesce(nullif(trim(who), ''), (select u.display_name from users u where u.id = current_user_id()));
-    insert into equipment_issues (order_id, kit, issued_on, issued_by) values (o, k, coalesce(d, current_date), by)
+    issuer := coalesce(nullif(trim(who), ''), (select u.display_name from users u where u.id = current_user_id()));
+    insert into equipment_issues (order_id, kit, issued_on, issued_by) values (o, k, coalesce(d, current_date), issuer)
     on conflict (order_id, kit) do update set issued_on = excluded.issued_on, issued_by = excluded.issued_by;
   else
     delete from equipment_issues where order_id = o and kit = k;
