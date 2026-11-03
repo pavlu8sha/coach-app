@@ -1,7 +1,7 @@
 -- pgTAP: взносы за матч — только администратор; оплата, остаток, скидка, отмена; импортированные оплаты не пропадают.
 begin;
 create extension if not exists pgtap;
-select plan(17);
+select plan(20);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -32,7 +32,8 @@ select throws_ok($$select * from match_fees_list('00000000-0000-0000-0000-000000
 select throws_ok($$select match_pay('00000000-0000-0000-0000-0000000000f2', array['00000000-0000-0000-0000-00000000d002']::uuid[], 10, null, 'Наличные', null)$$, '42501', null, 'оплату матча чемпионата тренер принять не может');
 select is(match_fee_add('00000000-0000-0000-0000-0000000000f1', array['00000000-0000-0000-0000-00000000d003']::uuid[], 25), 1, 'тренер назначает взнос товарищеского матча');
 select is(match_pay('00000000-0000-0000-0000-0000000000f1', array['00000000-0000-0000-0000-00000000d003']::uuid[], 25, null, 'Перевод', null), 1, 'тренер принимает оплату товарищеского матча');
-select throws_ok($$select match_discount('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-00000000d003', 10)$$, '42501', null, 'скидка только у администратора');
+select throws_ok($$select match_discount('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-00000000d003', 10, 'по просьбе')$$, '42501', null, 'скидка только у администратора');
+select throws_ok($$select * from fee_discounts('match', '00000000-0000-0000-0000-0000000000f1')$$, '42501', null, 'журнал скидок тренеру закрыт');
 select throws_ok($$select match_cancel_payment((select id from match_payments_list('00000000-0000-0000-0000-0000000000f1') limit 1))$$, '42501', null, 'отмена платежа только у администратора');
 
 select as_user('00000000-0000-0000-0000-0000000000a1');
@@ -46,6 +47,9 @@ select is((select paid from match_fees where player_id = '00000000-0000-0000-000
 select match_cancel_payment((select id from match_payments_list('00000000-0000-0000-0000-0000000000f1') where amount = 5));
 select is((select paid from match_fees where player_id = '00000000-0000-0000-0000-00000000d001'), false, 'после отмены снова не оплачено');
 select throws_ok($$select match_fee_remove('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-00000000d001')$$, null, 'fee already paid', 'с оплатами не убрать');
+select throws_ok($$select match_discount('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-00000000d003', 20, '')$$, '22023', 'discount needs reason', 'скидка на взнос матча без причины отклоняется');
+select match_discount('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-00000000d003', 20, 'скидка по договорённости');
+select is((select old_amount || '>' || new_amount || '|' || reason from fee_discounts('match', '00000000-0000-0000-0000-0000000000f1') where player_id = '00000000-0000-0000-0000-00000000d003'), '25.00>20.00|скидка по договорённости', 'журнал матча хранит прежнюю сумму, новую и причину');
 -- 0053: импортированный взнос события остаётся оплаченным после пересчёта и не оплачивается повторно
 select event_set_fee('00000000-0000-0000-0000-0000000000aa', 60);
 select is((select paid from event_fees('00000000-0000-0000-0000-0000000000aa')), 50::numeric, 'оплата события из импорта сохранилась');
