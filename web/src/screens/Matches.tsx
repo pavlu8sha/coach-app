@@ -123,7 +123,7 @@ export default function Matches() {
       />
 
       {tourNames.length > 0 && filter !== 'upcoming' && (
-        <select aria-label="Турнир" value={tour} onChange={e => setTour(e.target.value)} style={{ margin: '10px 0' }}>
+        <select aria-label="Турнир" className="ks-select" value={tour} onChange={e => setTour(e.target.value)}>
           <option value="">Все турниры</option>
           {tourNames.map(n => <option key={n} value={n}>{n}</option>)}
         </select>
