@@ -104,4 +104,17 @@ describe('«Отметки»: вкладка «Индивидуальные»', 
     fireEvent.click(await screen.findByRole('tab', { name: 'Индивидуальные' }));
     expect(await screen.findByText('Индивидуальных занятий нет')).toBeInTheDocument();
   });
+
+  it('сбой загрузки не выдаётся за «занятий нет»: показывает ошибку и повтор', async () => {
+    seed();
+    fake.rpc.ind_roster_list = () => ({ data: null, error: { message: 'boom' } });
+    fake.rpc.extra_roster_list = () => [];
+    render(<Sessions groups={groups} />);
+    fireEvent.click(await screen.findByRole('tab', { name: 'Индивидуальные' }));
+    expect(await screen.findByText('Не удалось загрузить занятия')).toBeInTheDocument();
+    expect(screen.queryByText('Индивидуальных занятий нет')).toBeNull();
+    fake.rpc.ind_roster_list = () => [];
+    fireEvent.click(screen.getByRole('button', { name: /Повторить/ }));
+    expect(await screen.findByText('Индивидуальных занятий нет')).toBeInTheDocument();
+  });
 });
