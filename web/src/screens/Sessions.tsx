@@ -57,6 +57,7 @@ export default function Sessions({ groups }: { groups: CoachGroup[] }) {
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [indList, setIndList] = useState<IndSession[] | null>(null);
+  const [indError, setIndError] = useState<string | null>(null);
   const [indOpen, setIndOpen] = useState<string | null>(null);
 
   useEffect(() => {
@@ -77,10 +78,14 @@ export default function Sessions({ groups }: { groups: CoachGroup[] }) {
   useEffect(() => {
     if (tab !== 'ind') return;
     setIndList(null);
+    setIndError(null);
     void (async () => {
       const ind = await supabase.rpc('ind_roster_list', { d_from: date, d_to: date });
       const ext = await supabase.rpc('extra_roster_list', { d_from: date, d_to: date });
-      const list = [...(ind.error ? [] : groupRoster((ind.data ?? []) as RosterRow[])), ...(ext.error ? [] : groupExtraRoster((ext.data ?? []) as ExtraRosterRow[]))];
+      // сбой загрузки не равен «занятий нет»: показываем ошибку и повтор (#244)
+      const failed = ind.error ?? ext.error;
+      if (failed) return setIndError(coachError(failed.message));
+      const list = [...groupRoster((ind.data ?? []) as RosterRow[]), ...groupExtraRoster((ext.data ?? []) as ExtraRosterRow[])];
       setIndList(list.sort((a, b) => a.starts_at.localeCompare(b.starts_at)));
     })();
   }, [tab, date, reload]);
@@ -117,7 +122,7 @@ export default function Sessions({ groups }: { groups: CoachGroup[] }) {
         </>
       )}
       {tab === 'ind' && (
-        !indList ? <Loading /> : indList.length === 0 ? (
+        indError ? <Failure title="Не удалось загрузить занятия" text={indError} onRetry={() => setReload(n => n + 1)} /> : !indList ? <Loading /> : indList.length === 0 ? (
           <EmptyState icon="users" title="Индивидуальных занятий нет" text="На выбранную дату нет индивидуальных, вратарских или дополнительных занятий." />
         ) : indList.map(x => (
           <ListRow key={x.id} title={indTitle(x)} sub={[x.topic ?? 'без темы', `Записано: ${x.individual_bookings.length}`]} onClick={() => setIndOpen(x.id)} />
