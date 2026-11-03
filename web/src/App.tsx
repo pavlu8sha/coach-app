@@ -4,6 +4,7 @@ import { hasSession, signInWithTelegram, signInWithWidget } from './lib/auth';
 import { configured } from './lib/supabase';
 import { initData, prepareTelegram } from './lib/telegram';
 import AdminSection from './screens/AdminSection';
+import AdminArticles from './screens/AdminArticles';
 import { DEFAULT_BAR, MENU_KEY, isSection, parseBar, sectionById, type SectionId } from './lib/adminMenu';
 import Home from './screens/Home';
 import Payments from './screens/Payments';
@@ -220,6 +221,7 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
     : admin && isSection(tab) ? <AdminSection key={tab} id={tab} groups={allGroups} onMenuChanged={() => setMenuKey(k => k + 1)} />
     : (admin || coach) && tab === 'sessions' ? <Sessions groups={allGroups.length ? allGroups : coachGroups} />
     : (admin || coach) && tab === 'cmatches' ? <CoachMatches groups={allGroups.length ? allGroups : coachGroups} admin={admin} allTeams={!admin} />
+    : coach && tab === 'content' ? <AdminArticles />
     : coach && tab === 'group' ? <Group groups={coachGroups} notify />
     : coach && tab === 'attendance' ? <Stats own />
     : coach && tab === 'ledger' ? <TrainerLog readOnly />

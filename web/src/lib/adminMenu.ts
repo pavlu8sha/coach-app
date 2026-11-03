@@ -2,7 +2,7 @@ import type { NavIcon } from '../ui/components';
 
 export type SectionId =
   | 'sessions' | 'players' | 'money' | 'cmatches' | 'requests' | 'ind' | 'extra' | 'schedule'
-  | 'equip' | 'camps' | 'photos' | 'leads' | 'stats' | 'tlog' | 'points' | 'coaches'
+  | 'equip' | 'camps' | 'photos' | 'content' | 'leads' | 'stats' | 'tlog' | 'points' | 'coaches'
   | 'prices' | 'payinfo' | 'club' | 'pstart' | 'recalc' | 'menu';
 
 export interface Section { id: SectionId; title: string; sub: string; icon: NavIcon; group: string }
@@ -20,6 +20,7 @@ export const SECTIONS: Section[] = [
   { id: 'equip', title: 'Экипировка', sub: 'Заказы, оплата, выдача, каталог', icon: 'inbox', group: 'Клуб' },
   { id: 'camps', title: 'Сборы', sub: 'Лагеря и сборы: участники, тарифы, платежи', icon: 'trophy', group: 'Клуб' },
   { id: 'photos', title: 'Фото клуба', sub: 'Заменить фото в «О клубе» и экипировке', icon: 'user', group: 'Клуб' },
+  { id: 'content', title: 'Статьи клуба', sub: 'Цели, правила и полезная информация', icon: 'inbox', group: 'Клуб' },
   { id: 'leads', title: 'Заявки', sub: 'Новые родители из бота «Хочу в KickStart»', icon: 'inbox', group: 'Клуб' },
   { id: 'stats', title: 'Статистика', sub: 'Посещаемость и матчи за период', icon: 'users', group: 'Тренеры и игроки' },
   { id: 'tlog', title: 'Учёт тренеров', sub: 'Проведённые тренировки и часы по месяцам', icon: 'users', group: 'Тренеры и игроки' },

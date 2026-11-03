@@ -6,6 +6,7 @@ import { applyTelegramTheme } from '../ui/telegram-theme';
 import { Avatar, ListRow, Segmented } from '../ui/components';
 import HomeScreenPrompt from '../ui/HomeScreenPrompt';
 import NotifyToggle from '../ui/NotifyToggle';
+import ClubArticles from './ClubArticles';
 import MyData from './MyData';
 import MyKids from './MyKids';
 import { useConfirm } from '../ui/ConfirmSheet';
@@ -13,12 +14,13 @@ import { useConfirm } from '../ui/ConfirmSheet';
 // Профиль родителя. Имя берётся из Telegram и видно только владельцу. Уведомления в Telegram — миграция 0026, docs/NOTIFICATIONS.md.
 export default function Profile() {
   const { ask, dialog: confirmDialog } = useConfirm();
-  const [view, setView] = useState<'main' | 'kids' | 'data'>('main');
+  const [view, setView] = useState<'main' | 'kids' | 'data' | 'articles'>('main');
   const [pref, setPref] = useState<ThemePref>(getThemePref());
   const [busy, setBusy] = useState(false);
   const name = telegramName();
   if (view === 'kids') return <MyKids onBack={() => setView('main')} />;
   if (view === 'data') return <MyData onBack={() => setView('main')} />;
+  if (view === 'articles') return <ClubArticles role="parent" onBack={() => setView('main')} />;
 
   const choose = (p: ThemePref) => {
     saveThemePref(p);
@@ -48,6 +50,7 @@ export default function Profile() {
 
       <ListRow title="Мои дети" onClick={() => setView('kids')} />
       <ListRow title="Мои данные" sub={['Скачать, удалить']} onClick={() => setView('data')} />
+      <ListRow title="Материалы клуба" sub={['Цели, правила и полезная информация']} onClick={() => setView('articles')} />
 
       <p className="ks-label">Тема</p>
       <Segmented

@@ -31,6 +31,17 @@ describe('«Профиль»', () => {
     expect(sw).toHaveAttribute('aria-checked', 'false');
   });
 
+  it('родителю открываются материалы клуба и возвращаются в профиль', async () => {
+    fake.db.users = [{ id: 'u' }];
+    fake.db.club_articles = [];
+    render(<Profile />);
+    fireEvent.click(await screen.findByRole('button', { name: /^Материалы клуба/ }));
+    expect(await screen.findByRole('heading', { name: 'Материалы клуба' })).toBeInTheDocument();
+    expect(await screen.findByText('Материалы скоро появятся')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(await screen.findByRole('button', { name: 'Мои дети' })).toBeInTheDocument();
+  });
+
   it('если настройки уведомлений нет в базе (миграция не применена), переключателя нет', async () => {
     fake.db.users = [];
     render(<Profile />);

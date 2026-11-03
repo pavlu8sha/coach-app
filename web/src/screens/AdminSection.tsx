@@ -1,6 +1,7 @@
 import type { CoachGroup } from '../lib/coach';
 import type { SectionId } from '../lib/adminMenu';
 import AdminPhotos from './AdminPhotos';
+import AdminArticles from './AdminArticles';
 import AdminPrices from './AdminPrices';
 import Admin from './Admin';
 import Camps from './Camps';
@@ -37,6 +38,7 @@ export default function AdminSection({ id, groups, onMenuChanged }: { id: Sectio
     case 'equip': return <Equipment />;
     case 'camps': return <Camps />;
     case 'photos': return <AdminPhotos />;
+    case 'content': return <AdminArticles />;
     case 'leads': return <Leads />;
     case 'stats': return <Stats />;
     case 'tlog': return <TrainerLog />;
