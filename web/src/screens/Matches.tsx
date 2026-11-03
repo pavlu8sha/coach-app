@@ -88,7 +88,7 @@ export default function Matches() {
 
   if (error) return <Failure title="Не удалось загрузить матчи" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   if (!matches) return <Loading title="Матчи" card rows={3} />;
-  if (noGroups) return <Message title="Матчи" text="Матчи появятся, когда администратор подтвердит связь с ребёнком." />;
+  if (noGroups) return <main className="page"><h1>Матчи</h1><EmptyState icon="box" title="Пока пусто" text="Матчи появятся, когда администратор подтвердит связь с ребёнком." /></main>;
 
   const t = today();
   const upcoming = matches.filter(m => m.played_on >= t && m.goals_for === null).reverse();

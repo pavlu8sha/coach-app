@@ -76,7 +76,7 @@ describe('рейтинг по группе', () => {
     ];
     fake.db.point_events.push({ id: 'e9', player_id: 'p2', points: 10, explanation: 'x', occurred_on: '2026-10-21', source_type: 'coach' });
     render(<Group groups={groups} />);
-    expect(await screen.findByText('Место 1')).toBeInTheDocument();
+    expect(await screen.findByText('Место 1 по баллам')).toBeInTheDocument();
     const names = screen.getAllByText(/Сидоров Ян|Иванов Пётр/).map(n => n.textContent);
     expect(names).toEqual(['Сидоров Ян', 'Иванов Пётр']);
     expect(screen.getByText('10')).toBeInTheDocument();

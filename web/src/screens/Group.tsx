@@ -60,7 +60,7 @@ export default function Group({ groups, notify = false }: { groups: CoachGroup[]
             key={p.id}
             avatar={p.full_name}
             title={p.full_name}
-            sub={totals ? [`Место ${i + 1}`] : undefined}
+            sub={totals ? [`Место ${i + 1} по баллам`] : undefined}
             end={totals && <Pill tone="primary">{totals[p.id] ?? 0}</Pill>}
             onClick={() => setOpen(p)}
           />
