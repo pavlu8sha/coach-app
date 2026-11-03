@@ -186,4 +186,12 @@ describe('закрытие без оплаты показывает вид и п
     expect(await screen.findByText(/Оплачено вне приложения/)).toBeInTheDocument();
     expect(screen.getByText('Причина: отдал тренеру')).toBeInTheDocument();
   });
+
+  it('заглушка «до 02.11.2026» из миграции 0100 не показывается', async () => {
+    seed();
+    fake.db.subscriptions = [{ player_id: 'p1', month: monthIso(), discount: true, written_off: false, closed_kind: 'discount', closed_reason: 'до 02.11.2026' }];
+    render(<MonthPayments />);
+    expect(await screen.findByText(/Скидка/)).toBeInTheDocument();
+    expect(screen.queryByText(/до 02\.11\.2026/)).not.toBeInTheDocument();
+  });
 });

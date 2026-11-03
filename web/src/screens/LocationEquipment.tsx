@@ -19,7 +19,7 @@ const kitsOf = (o: Order) => [...new Set(o.equipment_order_lines.map(l => l.kit)
 const pending = (o: Order) => kitsOf(o).filter(k => !o.equipment_issues.some(i => i.kit === k));
 const errText = (m: string) => (m.includes('forbidden') ? 'Нет прав отметить выдачу этого заказа.' : coachError(m));
 
-// Выдача экипировки локальным администратором (0107): только заказы своих локаций, только отметка «выдано».
+// Выдача экипировки локальным администратором (0108): только заказы своих локаций, только отметка «выдано».
 // Снять выдачу, оплату и состав заказа здесь нельзя: это у администратора. Права проверяет база.
 export default function LocationEquipment() {
   const [orders, setOrders] = useState<Order[] | null>(null);

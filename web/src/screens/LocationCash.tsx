@@ -6,7 +6,7 @@ import LocationEquipment from './LocationEquipment';
 
 type Sub = 'cash' | 'report' | 'issue';
 
-// Касса локального администратора (#321): платежи своих локаций и выдача формы (0107). Остальные разделы для него закрыты.
+// Касса локального администратора (#321): платежи своих локаций и выдача формы (0108). Остальные разделы для него закрыты.
 // База проверяет права на каждый запрос; список локаций здесь — только для подписи.
 export default function LocationCash({ locations }: { locations: string[] }) {
   const [sub, setSub] = useState<Sub>('cash');
