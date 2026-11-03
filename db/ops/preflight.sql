@@ -92,7 +92,8 @@ select * from (values
   ('0088_booking_board_ends_at',   coalesce((pg_get_functiondef(to_regprocedure('booking_board()')) like '%ends_time%'), false)),
   ('0089_user_club',               coalesce((exists (select 1 from information_schema.columns where table_name = 'users' and column_name = 'club_id')), false)),
   ('0090_ind_autocreate',          coalesce((to_regclass('individual_templates') is not null and to_regprocedure('ind_autocreate(date)') is not null and to_regprocedure('ind_slot_member_set(uuid,uuid,date,boolean)') is not null), false)),
-  ('0091_event_list_players_count', coalesce((pg_get_functiondef(to_regprocedure('event_list()')) like '%match_players%'), false)),
+  -- 0091 перекрыта 0094 (event_list снова считает только tournament_fees), поэтому проверка на match_players стала ложной: смотрим только на наличие функции
+  ('0091_event_list_players_count', coalesce((to_regprocedure('event_list()') is not null), false)),
   ('0092_ind_autocreate_window',   coalesce((pg_get_functiondef(to_regprocedure('ind_autocreate(date)')) like '%generate_series%'), false)),
   ('0093_discount_without_payment', coalesce((pg_get_functiondef(to_regprocedure('debtors(date)')) not like '%pm.amt, 0) > 0)%'), false)),
   ('0094_event_roster_championship_only', coalesce((pg_get_functiondef(to_regprocedure('event_roster(uuid)')) not like '%match_players%'), false)),
