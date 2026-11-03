@@ -8,6 +8,7 @@ const article = (over: Record<string, unknown> = {}) => ({
   slug: null,
   title: 'Both',
   body: 'Общий текст.',
+  section: 'article',
   audience: 'both',
   status: 'published',
   sort_order: 1,
@@ -75,5 +76,23 @@ describe('Чтение материалов клуба (#236)', () => {
     fake.db.club_articles = [article({ status: 'draft' })];
     render(<ClubArticles role="guest" onBack={() => undefined} />);
     expect(await screen.findByText('Материалы скоро появятся')).toBeInTheDocument();
+  });
+
+  it('новости и турниры читаются отдельно от статей и с той же аудиторией', async () => {
+    fake.db.club_articles = [
+      article({ id: 's1', title: 'Статья', section: 'article' }),
+      article({ id: 'n1', title: 'Новость родителям', section: 'news', audience: 'parent' }),
+      article({ id: 'n2', title: 'Новость всем', section: 'news', audience: 'both' }),
+      article({ id: 't1', title: 'Про турниры', section: 'tournaments', audience: 'both' }),
+    ];
+    const { unmount } = render(<ClubArticles role="guest" section="news" onBack={() => undefined} />);
+    expect(await screen.findByText('Новость всем')).toBeInTheDocument();
+    expect(screen.queryByText('Новость родителям')).toBeNull();
+    expect(screen.queryByText('Статья')).toBeNull();
+    expect(screen.queryByText('Про турниры')).toBeNull();
+    unmount();
+    render(<ClubArticles role="parent" section="tournaments" onBack={() => undefined} />);
+    expect(await screen.findByText('Про турниры')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Турниры и матчи' })).toBeInTheDocument();
   });
 });

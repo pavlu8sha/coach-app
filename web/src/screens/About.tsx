@@ -7,6 +7,7 @@ import { ListRow, Pill, Segmented } from '../ui/components';
 import { BackNav } from '../ui/nav';
 import type { Role } from './RoleSelect';
 import ClubArticles from './ClubArticles';
+import { SECTION_HINT, type ArticleSection } from '../lib/articles';
 import TrialForm from './TrialForm';
 
 export { CLUB_CHANNEL };
@@ -280,10 +281,10 @@ const SCREENS: Record<Exclude<CoverId, 'channel'>, () => ReactNode> = { branches
 export default function About({ role, onChangeRole, onBack }: { role: Role | null; onChangeRole: () => void; onBack?: () => void }) {
   const [open, setOpen] = useState<Id | null>(null);
   const [product, setProduct] = useState<Product['id'] | null>(null);
-  const [materials, setMaterials] = useState(false);
+  const [materials, setMaterials] = useState<ArticleSection | null>(null);
   useEffect(() => { document.documentElement.scrollTop = 0; }, [open, product, materials]);
 
-  if (materials) return <ClubArticles role={role === 'parent' ? 'parent' : 'guest'} onBack={() => setMaterials(false)} />;
+  if (materials) return <ClubArticles role={role === 'parent' ? 'parent' : 'guest'} section={materials} onBack={() => setMaterials(null)} />;
 
   // «Экипировка» не для гостя (#234): плитки нет, а прямое открытие раздела закрыто. Родителю раздел остаётся.
   const tiles = role === 'guest' ? TILES.filter(t => t.id !== 'equipment') : TILES;
@@ -305,7 +306,9 @@ export default function About({ role, onChangeRole, onBack }: { role: Role | nul
         {role !== 'child' && <button type="button" className="ks-btn" onClick={() => setOpen('trial')}>Записаться на пробную</button>}
         <a className="ks-btn secondary" href={ADMIN_CHAT} target="_blank" rel="noreferrer">Написать администратору</a>
       </div>
-      <ListRow title="Материалы клуба" sub={['Цели, правила и полезная информация']} onClick={() => setMaterials(true)} />
+      <ListRow title="Новости клуба" sub={[SECTION_HINT.news]} onClick={() => setMaterials('news')} />
+      <ListRow title="Турниры и матчи" sub={[SECTION_HINT.tournaments]} onClick={() => setMaterials('tournaments')} />
+      <ListRow title="Материалы клуба" sub={[SECTION_HINT.article]} onClick={() => setMaterials('article')} />
       {role === 'coach' && (
         <section className="ks-card">
           <h2>Вы вошли как тренер</h2>

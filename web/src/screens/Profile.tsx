@@ -8,6 +8,7 @@ import HomeScreenPrompt from '../ui/HomeScreenPrompt';
 import NotifyToggle from '../ui/NotifyToggle';
 import About from './About';
 import ClubArticles from './ClubArticles';
+import { SECTION_HINT } from '../lib/articles';
 import MyData from './MyData';
 import MyKids from './MyKids';
 import { useConfirm } from '../ui/ConfirmSheet';
@@ -15,13 +16,14 @@ import { useConfirm } from '../ui/ConfirmSheet';
 // Профиль родителя. Имя берётся из Telegram и видно только владельцу. Уведомления в Telegram — миграция 0026, docs/NOTIFICATIONS.md.
 export default function Profile() {
   const { ask, dialog: confirmDialog } = useConfirm();
-  const [view, setView] = useState<'main' | 'kids' | 'data' | 'articles' | 'about'>('main');
+  const [view, setView] = useState<'main' | 'kids' | 'data' | 'articles' | 'news' | 'tournaments' | 'about'>('main');
   const [pref, setPref] = useState<ThemePref>(getThemePref());
   const [busy, setBusy] = useState(false);
   const name = telegramName();
   if (view === 'kids') return <MyKids onBack={() => setView('main')} />;
   if (view === 'data') return <MyData onBack={() => setView('main')} />;
   if (view === 'about') return <About role="parent" onChangeRole={() => undefined} onBack={() => setView('main')} />;
+  if (view === 'news' || view === 'tournaments') return <ClubArticles role="parent" section={view} onBack={() => setView('main')} />;
   if (view === 'articles') return <ClubArticles role="parent" onBack={() => setView('main')} />;
 
   const choose = (p: ThemePref) => {
@@ -53,6 +55,8 @@ export default function Profile() {
       <ListRow title="Мои дети" onClick={() => setView('kids')} />
       <ListRow title="Мои данные" sub={['Скачать, удалить']} onClick={() => setView('data')} />
       <ListRow title="О клубе" sub={['Филиалы, чемпионаты, экипировка, сборы']} onClick={() => setView('about')} />
+      <ListRow title="Новости клуба" sub={[SECTION_HINT.news]} onClick={() => setView('news')} />
+      <ListRow title="Турниры и матчи" sub={[SECTION_HINT.tournaments]} onClick={() => setView('tournaments')} />
       <ListRow title="Материалы клуба" sub={['Цели, правила и полезная информация']} onClick={() => setView('articles')} />
 
       <p className="ks-label">Тема</p>

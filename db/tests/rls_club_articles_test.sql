@@ -2,7 +2,7 @@
 -- Checks staff rights, author/editor attribution, audience isolation, drafts, unsafe URLs and history on unpublish.
 begin;
 create extension if not exists pgtap;
-select plan(33);
+select plan(38);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c109', 'Club');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -73,6 +73,15 @@ select as_user('00000000-0000-0000-0000-0000000000e1');
 select throws_ok($$select club_article_save(null::uuid, 'Guest', 'x', 'both', 'draft', 1, null, null, null)$$, '42501', 'forbidden', 'guest cannot save articles');
 select throws_ok($$insert into club_articles (club_id, title, body, audience, status, sort_order, author_name) values ('00000000-0000-0000-0000-00000000c109', 'Direct', 'x', 'both', 'draft', 1, 'Hacker')$$, '42501', null, 'direct insert is denied');
 select throws_ok($$update club_articles set title = 'Hacked' where title = 'Both'$$, '42501', null, 'direct update is denied');
+
+-- Sections (0114): news and tournaments live next to articles, with the same audiences and rights.
+select as_user('00000000-0000-0000-0000-0000000000a1');
+select lives_ok($$select club_article_save(null::uuid, 'News one', 'N', 'parent', 'published', 5, null, null, null, 'news')$$, 'admin publishes news');
+select lives_ok($$select club_article_save(null::uuid, 'Cups', 'T', 'both', 'published', 6, null, null, null, 'tournaments')$$, 'admin publishes tournaments text');
+select throws_ok($$select club_article_save(null::uuid, 'Bad', 'x', 'both', 'draft', 1, null, null, null, 'other')$$, '22023', 'bad section', 'unknown section is rejected');
+select is((select section from club_articles where title = 'News one'), 'news', 'section is stored');
+select as_user('00000000-0000-0000-0000-0000000000e1');
+select is((select count(*)::int from club_articles where title = 'News one'), 0, 'guest cannot read parent-only news');
 
 -- Validation and slug uniqueness.
 select as_user('00000000-0000-0000-0000-0000000000a1');

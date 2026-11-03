@@ -1,9 +1,11 @@
 export type ArticleAudience = 'guest' | 'parent' | 'both';
 export type ArticleStatus = 'draft' | 'published';
+export type ArticleSection = 'article' | 'news' | 'tournaments';
 
 export interface ClubArticle {
   id: string;
   slug: string | null;
+  section: ArticleSection;
   title: string;
   body: string;
   audience: ArticleAudience;
@@ -60,3 +62,21 @@ export function articleDate(value: string | null | undefined): string {
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleDateString('ru', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Tbilisi' });
 }
+
+export const SECTION_LABEL: Record<ArticleSection, string> = {
+  article: 'Статьи',
+  news: 'Новости',
+  tournaments: 'Турниры и матчи',
+};
+
+export const SECTION_HINT: Record<ArticleSection, string> = {
+  article: 'Цели, правила и полезная информация',
+  news: 'Публикации клуба с указанием автора',
+  tournaments: 'Турниры, товарищеские матчи и как участвовать',
+};
+
+export const SECTION_EMPTY: Record<ArticleSection, string> = {
+  article: 'Администратор клуба ещё не опубликовал материалы.',
+  news: 'Новостей пока нет.',
+  tournaments: 'Информация о турнирах и матчах появится позже.',
+};
