@@ -302,7 +302,7 @@ export default function About({ role, onChangeRole, onBack }: { role: Role | nul
       <div className="ks-intro">
         <h1>FC KickStart Tbilisi</h1>
         <p className="muted">Футбольная школа в Тбилиси. Запишитесь на пробную тренировку или выберите раздел.</p>
-        <button type="button" className="ks-btn" onClick={() => setOpen('trial')}>Записаться на пробную</button>
+        {role !== 'child' && <button type="button" className="ks-btn" onClick={() => setOpen('trial')}>Записаться на пробную</button>}
         <a className="ks-btn secondary" href={ADMIN_CHAT} target="_blank" rel="noreferrer">Написать администратору</a>
       </div>
       <ListRow title="Материалы клуба" sub={['Цели, правила и полезная информация']} onClick={() => setMaterials(true)} />

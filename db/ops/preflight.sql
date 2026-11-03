@@ -113,6 +113,7 @@ select * from (values
   ('0108_location_admin_equipment_issue', coalesce((exists (select 1 from pg_policies where tablename = 'equipment_issues' and policyname = 'equipment_issues_location_read')), false)),
   ('0109_fee_discount_reason',     coalesce((to_regclass('fee_discount_log') is not null and to_regprocedure('event_discount(uuid,uuid,numeric,text)') is not null and to_regprocedure('match_discount(uuid,uuid,numeric,text)') is not null), false)),
   ('0110_location_admin_report_own', coalesce((pg_get_functiondef(to_regprocedure('cash_report(date,date,text,uuid,text)')) like '%recorded_by = current_user_id()%'), false)),
-  ('0111_club_articles',           coalesce((to_regclass('club_articles') is not null and to_regprocedure('club_article_save(uuid,text,text,text,text,integer,text,text,text)') is not null and exists (select 1 from pg_trigger where tgname = 'club_articles_stamp' and not tgisinternal)), false))
+  ('0111_club_articles',           coalesce((to_regclass('club_articles') is not null and to_regprocedure('club_article_save(uuid,text,text,text,text,integer,text,text,text)') is not null and exists (select 1 from pg_trigger where tgname = 'club_articles_stamp' and not tgisinternal)), false)),
+  ('0112_lead_not_for_child',      coalesce((pg_get_functiondef(to_regprocedure('lead_submit_app(text,text,integer,text,text,boolean)')) like '%child_links%'), false))
 ) as t(migration, applied)
 order by migration;

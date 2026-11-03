@@ -11,6 +11,7 @@ const err = (m: string) =>
   : m.includes('bad phone') ? 'Проверьте телефон: цифры, можно с «+».'
   : m.includes('bad child') ? 'Укажите имя и фамилию ребёнка.'
   : m.includes('too many leads') ? 'Сегодня уже отправлено три заявки. Напишите администратору клуба.'
+  : m.includes('forbidden') ? 'Заявку отправляет родитель. Попросите его записаться.'
   : m.includes('not authenticated') ? 'Сессия закончилась. Закройте приложение и откройте снова.'
   : m.includes('Could not find the function') ? 'Заявки в приложении пока недоступны. Напишите администратору клуба.'
   : coachError(m);

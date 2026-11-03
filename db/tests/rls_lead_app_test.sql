@@ -1,12 +1,14 @@
 -- pgTAP: заявка на пробную из приложения (0044).
 begin;
 create extension if not exists pgtap;
-select plan(8);
+select plan(10);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
   ('00000000-0000-0000-0000-0000000000a1', 8901, 'Админ', true),
-  ('00000000-0000-0000-0000-0000000000b1', 8902, 'Родитель', false);
+  ('00000000-0000-0000-0000-0000000000b1', 8902, 'Родитель', false),
+  ('00000000-0000-0000-0000-0000000000c1', 8903, 'Ребёнок', false);
+update users set chosen_role = 'child' where id = '00000000-0000-0000-0000-0000000000c1';
 
 create or replace function as_user(uid uuid) returns void language plpgsql as $$
 begin
@@ -31,6 +33,11 @@ select is((select count(*)::int from trials), 0, 'родитель заявок 
 reset role;
 select as_user(null);
 select throws_ok($$select lead_submit_app('Мама', 'Игрок', extract(year from now())::int - 8, '+995 555 12 34 56', null, true)$$, '28000', 'not authenticated', 'без входа заявку не принять');
+
+select as_user('00000000-0000-0000-0000-0000000000c1');
+select throws_ok($$select lead_submit_app('Мама', 'Игрок Один', extract(year from now())::int - 8, '+995 555 12 34 56', null, true)$$, '42501', 'forbidden', 'ребёнок заявку отправить не может');
+reset role;
+select is((select count(*)::int from trials where full_name = 'Игрок Один'), 0, 'заявка ребёнка не создана');
 
 select * from finish();
 rollback;
