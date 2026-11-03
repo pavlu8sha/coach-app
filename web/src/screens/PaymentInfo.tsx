@@ -44,12 +44,12 @@ export default function PaymentInfo() {
         <h2 id="payment-details">Реквизиты для оплаты</h2>
         <p className="muted" style={{ marginTop: 0 }}>Перевод по реквизитам ниже. IBAN и имя получателя можно скопировать одним нажатием.</p>
         {info.details.map(d => (
-          <div className="ks-line" key={d.label} style={{ alignItems: 'center', gap: 8 }}>
-            <span className="muted">{d.label}</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8, textAlign: 'right' }}>
-              <b>{d.value}</b>
+          <div key={d.label} style={{ marginTop: 12 }}>
+            <div className="muted" style={{ fontSize: 13 }}>{d.label}</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 2 }}>
+              <b style={{ overflowWrap: 'anywhere', minWidth: 0 }}>{d.value}</b>
               {COPY_LABELS.has(d.label) && <CopyButton value={d.value} label={d.label} />}
-            </span>
+            </div>
           </div>
         ))}
       </section>
