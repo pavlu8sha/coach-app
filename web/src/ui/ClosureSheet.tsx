@@ -16,10 +16,18 @@ export function closureFlags(kind: ClosureKind): { discount: boolean; written_of
   return kind === 'forgiven' ? { discount: false, written_off: true } : { discount: true, written_off: false };
 }
 
-export interface ClosureRequest { title: string; lines?: [string, string | null | undefined][]; defaultKind?: ClosureKind }
+export interface ClosureRequest {
+  title: string;
+  lines?: [string, string | null | undefined][];
+  defaultKind?: ClosureKind;
+  /** Только причина, без выбора вида (скидка на взнос сбора или матча, #422): ответ всегда kind = 'discount'. */
+  reasonOnly?: boolean;
+  confirmLabel?: string;
+  note?: string;
+}
 export interface ClosureAnswer { kind: ClosureKind; reason: string }
 
-export function ClosureSheet({ title, lines = [], defaultKind = 'discount', onDone, onCancel }: ClosureRequest & { onDone: (a: ClosureAnswer) => void; onCancel: () => void }) {
+export function ClosureSheet({ title, lines = [], defaultKind = 'discount', reasonOnly = false, confirmLabel = 'Закрыть без оплаты', note = 'Деньги не записываются, касса и выручка не меняются. Причина и автор сохранятся.', onDone, onCancel }: ClosureRequest & { onDone: (a: ClosureAnswer) => void; onCancel: () => void }) {
   const [kind, setKind] = useState<ClosureKind>(defaultKind);
   const [reason, setReason] = useState('');
   const cancelRef = useRef<HTMLButtonElement | null>(null);
@@ -37,19 +45,23 @@ export function ClosureSheet({ title, lines = [], defaultKind = 'discount', onDo
       <div className="ks-card" onClick={e => e.stopPropagation()} style={sheetCardStyle}>
         <h3 style={{ marginTop: 0, textAlign: 'center' }}>{title}</h3>
         {lines.filter(l => l[1]).map(([k, v]) => <p key={k} className="ks-muted" style={{ margin: '4px 0' }}>{k}: <b>{v}</b></p>)}
-        <label className="field">Вид закрытия
-          <select value={kind} onChange={e => setKind(e.target.value as ClosureKind)}>
-            {(Object.keys(CLOSURE_LABELS) as ClosureKind[]).map(k => <option key={k} value={k}>{CLOSURE_LABELS[k]}</option>)}
-          </select>
-        </label>
-        <p className="ks-muted" style={{ fontSize: 13, margin: '0 0 8px' }}>{CLOSURE_HINTS[kind]}</p>
+        {!reasonOnly && (
+          <>
+            <label className="field">Вид закрытия
+              <select value={kind} onChange={e => setKind(e.target.value as ClosureKind)}>
+                {(Object.keys(CLOSURE_LABELS) as ClosureKind[]).map(k => <option key={k} value={k}>{CLOSURE_LABELS[k]}</option>)}
+              </select>
+            </label>
+            <p className="ks-muted" style={{ fontSize: 13, margin: '0 0 8px' }}>{CLOSURE_HINTS[kind]}</p>
+          </>
+        )}
         <label className="field">Причина (обязательно)
           <input value={reason} maxLength={200} onChange={e => setReason(e.target.value)} placeholder="Например: договорённость с родителем" />
         </label>
-        <p className="muted" style={{ fontSize: 13 }}>Деньги не записываются, касса и выручка не меняются. Причина и автор сохранятся.</p>
+        <p className="muted" style={{ fontSize: 13 }}>{note}</p>
         <div className="ks-actions" style={{ flexWrap: 'wrap' }}>
           <button ref={cancelRef} type="button" className="ks-btn secondary" style={{ flex: '1 1 120px' }} onClick={onCancel}>Отмена</button>
-          <button type="button" className="ks-btn" style={{ flex: '1 1 120px' }} disabled={!ok} onClick={() => onDone({ kind, reason: reason.trim() })}>Закрыть без оплаты</button>
+          <button type="button" className="ks-btn" style={{ flex: '1 1 120px' }} disabled={!ok} onClick={() => onDone({ kind: reasonOnly ? 'discount' : kind, reason: reason.trim() })}>{confirmLabel}</button>
         </div>
       </div>
     </div>,

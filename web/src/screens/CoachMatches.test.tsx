@@ -425,6 +425,15 @@ describe('Взносы события (администратор)', () => {
     expect(fake.rpcCalls('event_pay')[0]).toMatchObject({ t: 'e1', ids: ['p2'], amt: null, mth: 'Наличные' });
   });
 
+  it('показывает причину, прежнюю сумму и автора последней скидки', async () => {
+    setup();
+    fake.rpc.fee_discounts = () => [{ player_id: 'p2', old_amount: 50, new_amount: 40, reason: 'договорённость с родителем', by_name: 'Админ', at: '2026-11-02T10:00:00+04:00' }];
+    render(<CoachMatches groups={groups} admin />);
+    fireEvent.click(await screen.findByText('Состав и игры события'));
+    expect(await screen.findByText(/Скидка: было 50 ₾, стало 40 ₾ · договорённость с родителем · Админ/)).toBeInTheDocument();
+    expect(fake.rpcCalls('fee_discounts')[0]).toEqual({ k: 'event', ref: 'e1' });
+  });
+
   it('скидка и отмена оплаты уходят в базу', async () => {
     setup();
     render(<CoachMatches groups={groups} admin />);
@@ -433,8 +442,14 @@ describe('Взносы события (администратор)', () => {
     fireEvent.click(screen.getByLabelText('Скидка: Сидоров Ян'));
     fireEvent.change(screen.getByLabelText('Сумма к оплате'), { target: { value: '40' } });
     fireEvent.click(screen.getByText('Применить'));
+    // без причины скидка не уходит в базу
+    const dlg = within(await screen.findByRole('dialog'));
+    expect(dlg.getByRole('button', { name: 'Применить скидку' })).toBeDisabled();
+    expect(fake.rpcCalls('event_discount')).toHaveLength(0);
+    fireEvent.change(dlg.getByLabelText(/Причина/), { target: { value: 'договорённость с родителем' } });
+    fireEvent.click(dlg.getByRole('button', { name: 'Применить скидку' }));
     await waitFor(() => expect(fake.rpcCalls('event_discount')).toHaveLength(1));
-    expect(fake.rpcCalls('event_discount')[0]).toMatchObject({ t: 'e1', pid: 'p2', due: 40 });
+    expect(fake.rpcCalls('event_discount')[0]).toMatchObject({ t: 'e1', pid: 'p2', due: 40, why: 'договорённость с родителем' });
     fireEvent.click(screen.getByLabelText('Отменить оплату: Иванов Пётр'));
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отменить оплату' }));
     await waitFor(() => expect(fake.rpcCalls('event_cancel_payment')).toHaveLength(1));

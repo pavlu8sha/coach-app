@@ -1,7 +1,7 @@
 -- pgTAP: взносы за события — только администратор; оплата, остаток, скидка, отмена, защита от удаления из состава.
 begin;
 create extension if not exists pgtap;
-select plan(13);
+select plan(18);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -34,7 +34,13 @@ select is((select paid from event_fees('00000000-0000-0000-0000-0000000000aa') w
 select is((select paid from tournament_fees where player_id = '00000000-0000-0000-0000-00000000d001'), false, 'флаг paid ещё не стоит');
 select is(event_pay('00000000-0000-0000-0000-0000000000aa', array['00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-00000000d002']::uuid[], null, null, 'Наличные', null), 2, 'массовая доплата остатка');
 select is((select count(*)::int from tournament_fees where paid), 2, 'оба оплатили');
-select event_discount('00000000-0000-0000-0000-0000000000aa', '00000000-0000-0000-0000-00000000d002', 40);
+select throws_ok($$select event_discount('00000000-0000-0000-0000-0000000000aa', '00000000-0000-0000-0000-00000000d002', 40, '  ')$$, '22023', 'discount needs reason', 'скидка без причины отклоняется');
+select throws_ok($$select event_discount('00000000-0000-0000-0000-0000000000aa', '00000000-0000-0000-0000-00000000d002', 40, null)$$, '22023', 'discount needs reason', 'скидка без причины (null) отклоняется');
+select event_discount('00000000-0000-0000-0000-0000000000aa', '00000000-0000-0000-0000-00000000d002', 40, ' договорённость с родителем ');
+select is((select old_amount || '>' || new_amount || '|' || reason from fee_discounts('event', '00000000-0000-0000-0000-0000000000aa') where player_id = '00000000-0000-0000-0000-00000000d002'), '50.00>40.00|договорённость с родителем', 'журнал хранит прежнюю сумму, новую и причину');
+select is((select by_name from fee_discounts('event', '00000000-0000-0000-0000-0000000000aa') where player_id = '00000000-0000-0000-0000-00000000d002'), 'Админ', 'журнал хранит автора');
+select event_discount('00000000-0000-0000-0000-0000000000aa', '00000000-0000-0000-0000-00000000d002', 40, 'повтор той же суммы');
+select is((select count(*)::int from fee_discount_log), 1, 'та же сумма не пишет лишнюю строку журнала');
 select is((select due from event_fees('00000000-0000-0000-0000-0000000000aa') where player_id = '00000000-0000-0000-0000-00000000d002'), 40::numeric, 'скидка меняет сумму к оплате');
 select event_cancel_payment((select id from event_payments('00000000-0000-0000-0000-0000000000aa') where player_id = '00000000-0000-0000-0000-00000000d001' and amount = 30));
 select is((select paid from tournament_fees where player_id = '00000000-0000-0000-0000-00000000d001'), false, 'после отмены снова не оплачено');
