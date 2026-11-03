@@ -277,11 +277,16 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
   const save = async () => {
     const p = problem();
     if (p) return setMsg({ ok: false, text: p });
-    if (!savedId && !gid) return setMsg({ ok: false, text: 'В клубе нет группы для этой команды, матч не сохранить.' });
+    // команда без группы: администратор создаёт товарищеский матч по названию команды (миграция 0106)
+    const teamOnly = !savedId && !gid && admin && presetMissing;
+    if (!savedId && !gid && !teamOnly) return setMsg({ ok: false, text: 'В клубе нет группы для этой команды, матч не сохранить.' });
     setBusy(true);
     setMsg(null);
     const roster = (players ?? []).map(pl => ({ player_id: pl.id, played: line(pl.id).played, goals: line(pl.id).played ? line(pl.id).goals : 0, best: bestId === pl.id && line(pl.id).played }));
-    const r = await supabase.rpc('save_match', { m: savedId, g: gid || null, d: date, opp, gf: gf === '' ? null : Number(gf), ga: ga === '' ? null : Number(ga), roster });
+    const score = { gf: gf === '' ? null : Number(gf), ga: ga === '' ? null : Number(ga) };
+    const r = teamOnly
+      ? await supabase.rpc('save_match_team', { tm: presetTeam, d: date, opp, gf: score.gf, ga: score.ga, roster })
+      : await supabase.rpc('save_match', { m: savedId, g: gid || null, d: date, opp, gf: score.gf, ga: score.ga, roster });
     setBusy(false);
     if (r.error) return setMsg({ ok: false, text: coachError(r.error.message) });
     setSavedId(r.data as string);
@@ -333,7 +338,8 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     <main className="page">
       <BackNav onBack={onBack} />
       <h1>{match ? 'Матч' : 'Новый матч'}</h1>
-      {canPickGroup && presetMissing && <p className="error" style={{ marginBottom: 8 }}>В клубе нет группы «{presetTeam}», поэтому матч для неё не сохранить. Вернитесь и выберите другую команду.</p>}
+      {canPickGroup && presetMissing && !admin && <p className="error" style={{ marginBottom: 8 }}>В клубе нет группы «{presetTeam}», поэтому матч для неё не сохранить. Вернитесь и выберите другую команду.</p>}
+      {canPickGroup && presetMissing && admin && <p className="muted" style={{ marginBottom: 8 }}>Команда «{presetTeam}» без группы: состав собирайте поиском по игрокам клуба.</p>}
       {canPickGroup && !presetMissing && <GroupPicker groups={matchGroups} value={gid} onChange={setGid} />}
       {match && admin && <p className="muted" style={{ marginBottom: 8 }}>Команда: {match.team}</p>}
       <label className="ks-label" htmlFor="m-date">Дата</label>

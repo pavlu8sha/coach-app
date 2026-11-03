@@ -257,6 +257,21 @@ describe('«Новое событие»', () => {
     expect(screen.getByText(/В клубе нет группы «U12»/)).toBeInTheDocument();
   });
 
+  it('«Добавить матч»: администратор создаёт матч команды без группы через save_match_team', async () => {
+    seed();
+    const calls: { name: string; args: Record<string, unknown> }[] = [];
+    fake.rpc.event_list = () => [{ id: 'e5', team: 'U12', kind: 'cup', name: 'Newton cup', starts_on: '2026-06-14', players: 0, games: 0, status: 'finished' }];
+    fake.rpc.save_match_team = a => { calls.push({ name: 'save_match_team', args: a }); return 'm-u12'; };
+    fake.rpc.save_match = a => { calls.push({ name: 'save_match', args: a }); return 'm-x'; };
+    render(<CoachMatches groups={allGroups} admin />);
+    fireEvent.click(await screen.findByText('Добавить матч'));
+    fireEvent.click(within(screen.getByLabelText('Добавить матч')).getByText('U12'));
+    expect(await screen.findByText(/состав собирайте поиском/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить матч' }));
+    await waitFor(() => expect(calls.some(c => c.name === 'save_match_team' && c.args.tm === 'U12')).toBe(true));
+    expect(calls.some(c => c.name === 'save_match')).toBe(false);
+  });
+
   it('«Добавить матч»: завершённые соревнования не предлагаются, в списке они помечены', async () => {
     fake.db.matches = [];
     fake.rpc.event_list = () => [
