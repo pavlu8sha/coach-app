@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fmtDate } from '../lib/coach';
+import { pausedMonthTest, type PlayerStatus, type StatusLogPoint } from '../lib/playerStatus';
 import { supabase } from '../lib/supabase';
-import { Avatar, Pill, Segmented } from '../ui/components';
+import { Avatar, Segmented } from '../ui/components';
 import { BackNav } from '../ui/nav';
 import { PlayerDues } from './CashDesk';
+import PlayerStatusPanel from './PlayerStatusPanel';
 import { Failure, Loading } from './Message';
 import { EquipmentTab, MatchesTab, PointsTab, SessionsTab } from './PlayerCardTabs';
 import { monthIso, monthName, nextMonth, Row, SEASON_START, tariffFor, type Sub } from './MonthPayments';
@@ -32,7 +34,8 @@ export function lastMonth(subMonths: string[], pays: { month: string }[], fallba
 export interface CardPlayer extends PlayerForm { id: string; external_id: string | null; group_name: string | null }
 
 // Карточка игрока для администратора: данные и абонемент по месяцам сезона с быстрым платежом.
-export default function PlayerCard({ player, onBack, onEdit }: { player: CardPlayer; onBack: () => void; onEdit: () => void }) {
+export default function PlayerCard({ player, onBack, onEdit, onStatus }: { player: CardPlayer; onBack: () => void; onEdit: () => void; onStatus?: (s: PlayerStatus) => void }) {
+  const [status, setStatus] = useState<PlayerStatus>(player.status);
   const months = useMemo(() => {
     const out: string[] = [];
     const now = new Date();
@@ -47,6 +50,7 @@ export default function PlayerCard({ player, onBack, onEdit }: { player: CardPla
   const [shirt, setShirt] = useState<string | null>(null); // номер из самого свежего заказа экипировки
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [statusLog, setStatusLog] = useState<StatusLogPoint[]>([]); // журнал статусов: месяцы паузы без платежей не рисуем
   const [openMonth, setOpenMonth] = useState<string | null>(null);
   const [tab, setTab] = useState<'sub' | 'dues' | 'sessions' | 'equip' | 'matches' | 'points'>('sub');
 
@@ -67,8 +71,15 @@ export default function PlayerCard({ player, onBack, onEdit }: { player: CardPla
     })();
   }, [player.id, reload]);
 
+  useEffect(() => {
+    void supabase.from('player_status_log').select('status, on_date, created_at').eq('player_id', player.id).limit(200).then(r => {
+      setStatusLog(!r.error ? ((r.data ?? []) as StatusLogPoint[]) : []);
+    });
+  }, [player.id, status, reload]);
+
   if (error) return <Failure title="Не удалось загрузить игрока" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} />} />;
   const payMonths = (pays ?? []).map(x => ({ amount: x.amount, month: x.pay_month ?? x.paid_on.slice(0, 7) + '-01' }));
+  const isPausedMonth = pausedMonthTest(statusLog);
   const gotIn = (m: string) => (pays ?? []).filter(p => (p.pay_month ?? p.paid_on.slice(0, 7) + '-01') === m).reduce((s, p) => s + p.amount, 0);
 
   return (
@@ -83,7 +94,7 @@ export default function PlayerCard({ player, onBack, onEdit }: { player: CardPla
           <p className="muted">{player.birth_date ? `Дата рождения: ${fmtDate(player.birth_date)}` : 'Дата рождения не указана'}</p>
         </div>
       </div>
-      <p style={{ margin: '8px 0 12px' }}><Pill tone={player.status === 'active' ? 'success' : 'neutral'} dot>{player.status === 'active' ? 'Занимается' : 'Не занимается'}</Pill></p>
+      <PlayerStatusPanel playerId={player.id} status={status} externalId={player.external_id} onChanged={st => { setStatus(st); onStatus?.(st); }} />
       <button type="button" className="ks-btn secondary" onClick={onEdit}>Изменить данные</button>
 
       <Segmented label="Раздел карточки" value={tab} onChange={setTab} items={[
@@ -91,12 +102,12 @@ export default function PlayerCard({ player, onBack, onEdit }: { player: CardPla
         { value: 'equip', label: 'Экипировка' }, { value: 'matches', label: 'Матчи' }, { value: 'points', label: 'Баллы' },
       ]} />
       <div style={{ height: 12 }} />
-      {tab === 'dues' && <PlayerDues embedded player={{ id: player.id, full_name: player.full_name, group_id: player.group_id, groups: player.group_name ? { name: player.group_name } : null, status: player.status }} />}
+      {tab === 'dues' && <PlayerDues embedded player={{ id: player.id, full_name: player.full_name, group_id: player.group_id, groups: player.group_name ? { name: player.group_name } : null, status }} />}
       {tab === 'sessions' && <SessionsTab playerId={player.id} />}
-      {tab === 'equip' && <EquipmentTab playerId={player.id} />}
+      {tab === 'equip' && <EquipmentTab playerId={player.id} staff />}
       {tab === 'matches' && <MatchesTab playerId={player.id} />}
       {tab === 'points' && <PointsTab playerId={player.id} />}
-      {tab === 'sub' && (pays === null ? <Loading /> : visibleMonths(months, firstMonth([...subs.keys()], payMonths, created, SEASON_START), player.status === 'inactive' ? lastMonth([...subs.keys()], payMonths, firstMonth([...subs.keys()], payMonths, created, SEASON_START)) : null).map(m => {
+      {tab === 'sub' && (pays === null ? <Loading /> : visibleMonths(months, firstMonth([...subs.keys()], payMonths, created, SEASON_START), status !== 'active' ? lastMonth([...subs.keys()], payMonths, firstMonth([...subs.keys()], payMonths, created, SEASON_START)) : null).filter(m => !(isPausedMonth(m) && gotIn(m) <= 0)).map(m => {
         const tariff = player.group_id ? tariffFor(prices, player.group_id, m) : null;
         const got = gotIn(m);
         const sub = subs.get(m);

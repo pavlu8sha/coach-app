@@ -5,6 +5,7 @@ import { EmptyState, ListRow, Pill, SearchInput } from '../ui/components';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
+import { pausedMonthTest, type StatusLogPoint } from '../lib/playerStatus';
 import { gel, monthIso, monthName, nextMonth, SEASON_START, tariffFor } from './MonthPayments';
 
 interface Pl { id: string; full_name: string; group_id: string | null; groups: { name: string } | null; external_id?: string | null; birth_date?: string | null; status?: string }
@@ -36,6 +37,9 @@ async function loadDues(p: Pl): Promise<Due[]> {
   const bad = [prices, pays, subs, orders, ind, extra, camps].find(r => r.error);
   if (bad?.error) throw new Error(bad.error.message);
 
+  // месяцы, прожитые целиком на паузе, долгом не считаются (плату за паузу не берём), даже если игрок уже вернулся
+  const lg = await supabase.from('player_status_log').select('status, on_date, created_at').eq('player_id', p.id).limit(200);
+  const isPausedMonth = pausedMonthTest(lg.error ? [] : ((lg.data ?? []) as StatusLogPoint[]));
   if (!noSub) {
     const pr = ((prices.data ?? []) as { group_id: string | null; amount: number; valid_from: string; valid_to: string | null }[]).map(x => ({ ...x, amount: Number(x.amount) }));
     const paidBy = new Map<string, number>();
@@ -44,8 +48,9 @@ async function loadDues(p: Pl): Promise<Due[]> {
     const cur = monthIso(new Date());
     for (let m = SEASON_START; m <= nextMonth(cur); m = nextMonth(m)) {
       const s = sb.get(m);
+      if (isPausedMonth(m) && (paidBy.get(m) ?? 0) <= 0) continue;
       // ушедшему игроку текущий и будущий месяцы долгом не считаются, пока нет строки абонемента или платежа
-      if ((m < cur || p.status === 'inactive') && !s && (paidBy.get(m) ?? 0) <= 0) continue; // прошлый месяц без строки абонемента и без внесённых денег (платёж и его отмена дают 0) долгом не считается
+      if ((m < cur || (p.status ?? 'active') !== 'active') && !s && (paidBy.get(m) ?? 0) <= 0) continue; // прошлый месяц без строки абонемента и без внесённых денег (платёж и его отмена дают 0) долгом не считается
       const gid = s?.group_id ?? p.group_id;
       const tariff = gid ? tariffFor(pr, gid, m) : null;
       if (tariff === null || s?.written_off) continue;
@@ -232,7 +237,7 @@ export default function CashDesk() {
         </>
       ) : (
         <>
-          <SearchInput label="Игрок (введите ФИ и выберите из списка)" placeholder="Фамилия или имя (от 2 букв)" value={q} onChange={setQ} />
+          <SearchInput label="Игрок (введите ФИ и выберите из списка)" placeholder="Фамилия или имя (от 2 букв)" value={q} onChange={setQ} suggestions={found.map(f => f.full_name)} />
           {q.trim().length >= 2 && found.length === 0 ? (
             <EmptyState icon="search" title="Никого не найдено" text="Проверьте написание." />
           ) : (

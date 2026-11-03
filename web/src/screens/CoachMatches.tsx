@@ -5,7 +5,7 @@ import { EmptyState, ListRow, Pill, NameDatalist, searchFocusProps } from '../ui
 import { GroupPicker, Stepper } from '../ui/coach';
 import { BackNav, useMainButton } from '../ui/nav';
 import EventFees from './EventFees';
-import { EventForm, EventScreen, eventCounts, eventTitle, type EventRow } from './Events';
+import { EventForm, EventScreen, eventCounts, eventTitle, isFinished, type EventRow } from './Events';
 import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
 
@@ -96,8 +96,8 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
     byTour.set(e.id, { title: `${eventTitle(e)}${multi ? ' · ' + e.team : ''}`, items: [], event: e });
   }
   for (const [id, g] of byTour) sections.push({ key: id, ...g });
-  // события, в которые можно добавить игру: свои команды тренера (администратор и тренеры со всеми командами — все)
-  const champEvents = events.filter(e => showAll || groups.some(g => g.name === e.team || matchTeam(g.name) === e.team));
+  // события, в которые можно добавить игру: только идущие, свои команды тренера (администратор и тренеры со всеми командами — все)
+  const champEvents = events.filter(e => !isFinished(e) && (showAll || groups.some(g => g.name === e.team || matchTeam(g.name) === e.team)));
   // команды для «Добавить матч»: свои группы тренера; у администратора и тренера со всеми командами — все команды клуба
   const addTeams = [...new Set((showAll ? [...groups.map(g => g.name), ...matches.map(m => m.team), ...events.map(e => e.team)] : groups.map(g => g.name)).filter(playsMatches).map(matchTeam))].sort(compareGroups);
   if (other.length) sections.push({ key: 'other', title: byTour.size ? 'Товарищеские и кубки' : 'Матчи', items: other });
@@ -141,7 +141,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
         sections.map(sec => (
           <section key={sec.key}>
             <p className="ks-label">{sec.title}</p>
-            {sec.event && <ListRow title="Состав и игры события" sub={[eventCounts(sec.event)]} onClick={() => setEventView({ event: sec.event ?? null })} />}
+            {sec.event && <ListRow title="Состав и игры события" sub={[eventCounts(sec.event), ...(isFinished(sec.event) ? ['завершено'] : [])]} onClick={() => setEventView({ event: sec.event ?? null })} />}
             {sec.items.map(m => {
               const done = m.goals_for !== null && m.goals_against !== null;
               const cup = sec.key === 'other' ? tours.get(m.id) : undefined;
@@ -190,16 +190,21 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
   // после первого сохранения в составе остаются только сыгравшие; остальных можно показать кнопкой, чтобы добавить забытого
   const [shownIds, setShownIds] = useState<string[] | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [editLineup, setEditLineup] = useState(false); // кнопки «Убрать из матча» показываем только в режиме правки состава
 
   useEffect(() => {
     setPlayers(null);
     void (async () => {
       let list: Player[] = [];
+      const notActive = new Set<string>();
       if (rosterOf) {
         // матч чемпионата или фестиваля: в составе только заявленные на событие
         const r = await supabase.rpc('event_roster', { t: rosterOf });
         if (r.error) return setError(r.error.message);
         list = ((r.data ?? []) as { player_id: string; full_name: string }[]).map(x => ({ id: x.player_id, full_name: x.full_name }));
+        // ушедшие и игроки на паузе не попадают в новые матчи события (заявка на событие статус не проверяет); без ответа базы список остаётся прежним
+        const st = list.length ? await supabase.from('players').select('id, status').in('id', list.map(p => p.id)) : null;
+        if (st && !st.error) for (const s of (st.data ?? []) as { id: string; status: string }[]) if (s.status !== 'active') notActive.add(s.id);
       } else if (gid) {
         // команда «U10» объединяет группы U10-A и U10-B: в составе игроки всех её групп
         const sel = groups.find(g => g.id === gid)?.name;
@@ -230,6 +235,8 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
           list = [...list, ...((ex.data ?? []) as Player[])].sort((a, b) => a.full_name.localeCompare(b.full_name));
         }
       }
+      // неактивные остаются только там, где у них уже есть запись в этом матче (прошлые матчи не меняются)
+      list = list.filter(p => !notActive.has(p.id) || p.id in init);
       setLines(init);
       setBestId(best);
       const playedIds = Object.entries(init).filter(([, l]) => l.played).map(([id]) => id);
@@ -288,6 +295,31 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     if (r.error) return setMsg({ ok: false, text: coachError(r.error.message) });
     onBack();
   };
+  // Убрать игрока из матча совсем (администратор): снять отметку и очки сохранением, затем удалить строку состава.
+  // Нужно для ушедших игроков: снятая отметка «играл» оставляла их в составе матча. Тренерам удаление недоступно (запись match_players только у администратора).
+  const removeFromMatch = async (p: Player) => {
+    if (!savedId) return;
+    if (!(await ask({ title: 'Убрать игрока из матча?', note: `${p.full_name}: пропадут его отметка, голы и баллы за этот матч. Из чемпионата и команды он не удаляется.`, confirmLabel: 'Убрать', danger: true }))) return;
+    const rest = { ...lines, [p.id]: { played: false, goals: 0 } };
+    const g = Object.entries(rest).reduce((s, [, l]) => s + (l.played ? l.goals : 0), 0);
+    if (gf !== '' && g > Number(gf)) return setMsg({ ok: false, text: 'Голов у игроков больше, чем забила команда.' });
+    setBusy(true);
+    setMsg(null);
+    const roster = (players ?? []).map(pl => {
+      const l = rest[pl.id] ?? { played: false, goals: 0 };
+      return { player_id: pl.id, played: l.played, goals: l.played ? l.goals : 0, best: bestId === pl.id && pl.id !== p.id && l.played };
+    });
+    const r = await supabase.rpc('save_match', { m: savedId, g: gid || null, d: date, opp, gf: gf === '' ? null : Number(gf), ga: ga === '' ? null : Number(ga), roster });
+    if (r.error) { setBusy(false); return setMsg({ ok: false, text: coachError(r.error.message) }); }
+    const del = await supabase.from('match_players').delete().eq('match_id', savedId).eq('player_id', p.id);
+    setBusy(false);
+    if (del.error) return setMsg({ ok: false, text: coachError(del.error.message) });
+    setPlayers(list => (list ?? []).filter(x => x.id !== p.id));
+    setLines(s => { const n = { ...s }; delete n[p.id]; return n; });
+    setShownIds(ids => (ids ? ids.filter(id => id !== p.id) : ids));
+    if (bestId === p.id) setBestId(null);
+    setMsg({ ok: true, text: `${p.full_name} убран из матча.` });
+  };
   const native = useMainButton({ text: 'Сохранить матч', visible: true, enabled: !busy && Boolean(players), loading: busy, onClick: () => void save() });
 
   if (error) return <Failure title="Не удалось загрузить состав" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} />} />;
@@ -314,6 +346,11 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
       <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>
         Баллы начисляются автоматически, когда внесён счёт: победа — 2 играющим, лучшему игроку — 3; поражение или ничья — 1 играющим; за каждый гол +1. Лучший игрок учитывается только при победе.
       </p>
+      {admin && savedId && players.length > 0 && (
+        <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 36, marginBottom: 8 }} aria-pressed={editLineup} onClick={() => setEditLineup(v => !v)}>
+          {editLineup ? 'Готово' : 'Править состав'}
+        </button>
+      )}
       {players.length === 0 ? (
         <EmptyState icon="users" title="В составе пока никого" text="Найдите игрока ниже, чтобы добавить его в состав." />
       ) : (
@@ -333,6 +370,11 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
                   {bestId === p.id ? '★ Лучший игрок матча' : 'Назначить лучшим игроком'}
                 </button>
               </>
+            )}
+            {admin && savedId && editLineup && (
+              <button type="button" className="ks-btn secondary" style={{ marginTop: 8, minHeight: 40 }} disabled={busy} aria-label={`Убрать из матча: ${p.full_name}`} onClick={() => void removeFromMatch(p)}>
+                Убрать из матча
+              </button>
             )}
           </div>
         ))

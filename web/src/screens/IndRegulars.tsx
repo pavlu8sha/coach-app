@@ -91,7 +91,7 @@ export default function IndRegulars() {
 
       <h3>Добавить постоянного</h3>
       <label className="field">Слот<select value={tplId} onChange={e => setTplId(e.target.value)}>{templates.map(t => <option key={t.id} value={t.id}>{slotTitle(t)}</option>)}</select></label>
-      <SearchInput label="Найти игрока" placeholder="Фамилия или имя (от 2 букв)" value={q} onChange={setQ} />
+      <SearchInput label="Найти игрока" placeholder="Фамилия или имя (от 2 букв)" value={q} onChange={setQ} suggestions={found.map(f => f.full_name)} />
       {found.map(p => (
         <ListRow key={p.id} avatar={p.full_name} title={p.full_name}
           end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} disabled={busy === 'a' + tplId + p.id || !tplId} onClick={() => void setMember(tplId, p.id, true).then(ok => { if (ok) setQ(''); })}>Добавить</button>} />

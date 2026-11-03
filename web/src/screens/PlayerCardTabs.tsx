@@ -47,12 +47,13 @@ export function SessionsTab({ playerId }: { playerId: string }) {
 
 interface Ord { id: string; ordered_on: string | null; total: number; paid: number; installment: boolean; number: string | null; status: string; equipment_order_status_history: StatusEvent[]; equipment_order_lines: { kit: string; size: string | null; quantity: number }[]; equipment_issues: { kit: string; issued_on: string }[] }
 
-export function EquipmentTab({ playerId }: { playerId: string }) {
+// staff: администратору и тренеру требование к форме не показываем, оно написано для родителя
+export function EquipmentTab({ playerId, staff = false }: { playerId: string; staff?: boolean }) {
   const requirement = useEquipmentRequirement();
   const { rows, error } = useRows<Ord>(() => supabase.from('equipment_orders').select('id, ordered_on, total, paid, installment, number, status, equipment_order_status_history(status, changed_at, changed_by_name), equipment_order_lines(kit, size, quantity), equipment_issues(kit, issued_on)').eq('player_id', playerId).order('ordered_on', { ascending: false }), [playerId]);
   if (error) return <Err text={error} />;
   if (!rows) return <Loading />;
-  const note = <p className="ks-callout" style={{ marginTop: 0, whiteSpace: 'pre-line' }}>{requirement}</p>;
+  const note = staff ? null : <p className="ks-callout" style={{ marginTop: 0, whiteSpace: 'pre-line' }}>{requirement}</p>;
   if (rows.length === 0) return <>{note}<EmptyState icon="box" title="Заказов нет" text="У игрока нет заказов экипировки." /></>;
   const playerNumber = [...rows].sort((x, y) => (y.ordered_on ?? '').localeCompare(x.ordered_on ?? '')).map(o => (o.number ?? '').trim()).find(Boolean);
   return (

@@ -152,6 +152,32 @@ describe('«Матчи» администратора', () => {
     await waitFor(() => expect(fake.rpcCalls('delete_match')).toEqual([{ m: 'm1' }]));
   });
 
+  it('администратор убирает из матча ушедшего игрока: сохранение без отметки и удаление строки состава', async () => {
+    seed();
+    render(<CoachMatches groups={allGroups} admin />);
+    fireEvent.click(await screen.findByText('Олимп'));
+    await screen.findByText('Гость Игорь');
+    expect(screen.queryByRole('button', { name: /Убрать из матча/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Править состав' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Убрать из матча: Гость Игорь' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Убрать' }));
+    await waitFor(() => expect(screen.queryByText('Гость Игорь')).not.toBeInTheDocument());
+    const roster = (fake.rpcCalls('save_match')[0] as { roster: { player_id: string; played: boolean }[] }).roster;
+    expect(roster.find(r => r.player_id === 'p9')).toMatchObject({ played: false, goals: 0, best: false });
+    expect(fake.calls.some(c => c.kind === 'delete' && c.name === 'match_players')).toBe(true);
+    expect((fake.db.match_players as { player_id: string }[]).some(r => r.player_id === 'p9')).toBe(false);
+    expect(await screen.findByText('Гость Игорь убран из матча.')).toBeInTheDocument();
+  });
+
+  it('у тренера кнопки «Убрать из матча» нет', async () => {
+    seed();
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText('Олимп'));
+    await screen.findByText('Иванов Пётр');
+    expect(screen.queryByRole('button', { name: /Убрать из матча/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Править состав' })).not.toBeInTheDocument();
+  });
+
   it('не удаляет, если администратор отказался в подтверждении', async () => {
     seed();
     render(<CoachMatches groups={allGroups} admin />);
@@ -218,6 +244,65 @@ describe('«Новое событие»', () => {
     fireEvent.click(within(screen.getByLabelText('Добавить матч')).getByText('U11'));
     expect(await screen.findByRole('heading', { name: 'Новый матч' })).toBeInTheDocument();
     expect(screen.getByLabelText('Группа')).toHaveValue('g2');
+  });
+
+  it('«Добавить матч»: завершённые соревнования не предлагаются, в списке они помечены', async () => {
+    fake.db.matches = [];
+    fake.rpc.event_list = () => [
+      { id: 'e1', team: 'U9', kind: 'championship', name: 'Championship 2', starts_on: '2026-10-20', players: 0, games: 0, status: 'active' },
+      { id: 'e2', team: 'U9', kind: 'championship', name: 'Championship 1', starts_on: '2026-09-01', players: 0, games: 0, status: 'finished' },
+    ];
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText('Добавить матч'));
+    const card = screen.getByLabelText('Добавить матч');
+    expect(within(card).getByText('Championship 2')).toBeInTheDocument();
+    expect(within(card).queryByText('Championship 1')).not.toBeInTheDocument();
+    expect(screen.getByText('завершено')).toBeInTheDocument();
+  });
+
+  it('администратор завершает и возвращает соревнование, тренеру кнопки нет', async () => {
+    fake.db.matches = [];
+    fake.rpc.event_list = () => [{ id: 'e1', team: 'U9', kind: 'championship', name: 'Championship 2', starts_on: '2026-10-20', players: 0, games: 0, status: 'active' }];
+    fake.rpc.event_roster = () => [];
+    fake.rpc.event_set_status = () => null;
+    const first = render(<CoachMatches groups={groups} admin />);
+    fireEvent.click(await screen.findByText('Состав и игры события'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Завершить соревнование' }));
+    await waitFor(() => expect(fake.rpcCalls('event_set_status')).toEqual([{ t: 'e1', s: 'finished' }]));
+    expect(await screen.findByRole('button', { name: 'Вернуть в работу' })).toBeInTheDocument();
+    first.unmount();
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText('Состав и игры события'));
+    await screen.findByText('Добавить игру', { selector: 'h2' });
+    expect(screen.queryByRole('button', { name: /Завершить соревнование|Вернуть в работу/ })).not.toBeInTheDocument();
+  });
+
+  describe('матч чемпионата и ушедшие игроки', () => {
+    const setupChamp = (rows: Record<string, unknown>[]) => {
+      fake.db.matches = [{ id: 'm1', team: 'U9', played_on: '2026-11-02', opponent: 'Олимп', goals_for: null, goals_against: null }];
+      fake.db.players = [
+        { id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'active' },
+        { id: 'p2', full_name: 'Сидоров Ян', group_id: 'g1', status: 'inactive' },
+      ];
+      fake.db.match_players = rows;
+      fake.rpc.match_tournaments = () => [{ match_id: 'm1', tournament_id: 't1', tournament_name: 'Ч1', tournament_kind: 'championship', match_kind: 'game' }];
+      fake.rpc.event_roster = () => [{ player_id: 'p1', full_name: 'Иванов Пётр', group_name: 'U9' }, { player_id: 'p2', full_name: 'Сидоров Ян', group_name: 'U9' }];
+    };
+
+    it('игрок со статусом «не занимается» не предлагается в составе матча события', async () => {
+      setupChamp([]);
+      render(<CoachMatches groups={groups} />);
+      fireEvent.click(await screen.findByText('Олимп'));
+      await screen.findByText('Иванов Пётр');
+      expect(screen.queryByText('Сидоров Ян')).not.toBeInTheDocument();
+    });
+
+    it('если у ушедшего игрока уже есть запись в этом матче, он остаётся в нём', async () => {
+      setupChamp([{ match_id: 'm1', player_id: 'p2', played: true, goals: 0, best: false }]);
+      render(<CoachMatches groups={groups} />);
+      fireEvent.click(await screen.findByText('Олимп'));
+      expect(await screen.findByText('Сидоров Ян')).toBeInTheDocument();
+    });
   });
 
   it('в составе события у каждого игрока кнопка «Убрать», пометки «играл в матче» нет', async () => {
