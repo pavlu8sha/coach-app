@@ -53,8 +53,8 @@ export default function PaymentInfo() {
           </div>
         ))}
       </section>
-      <section className="ks-card" aria-labelledby="payment-rules">
-        <h2 id="payment-rules">Правила оплаты</h2>
+      <details className="ks-details ks-card" aria-labelledby="payment-rules">
+        <summary><h2 id="payment-rules" style={{ margin: 0 }}>Правила оплаты</h2></summary>
         {info.rules.map(r => (
           <div key={r.title}>
             <h3>{r.title}</h3>
@@ -64,7 +64,7 @@ export default function PaymentInfo() {
           </div>
         ))}
         <p className="ks-hint">Правила и реквизиты обновлены: {updatedLabel(info.updatedAt)}</p>
-      </section>
+      </details>
     </>
   );
 }

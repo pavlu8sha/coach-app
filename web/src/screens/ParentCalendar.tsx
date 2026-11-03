@@ -168,8 +168,8 @@ export default function ParentCalendar() {
           <h2 style={{ margin: 0, textTransform: 'capitalize', fontSize: 18 }}>{formatMonth(month)}</h2>
           <button type="button" className="ks-btn sm ks-tap" aria-label="Следующий месяц" onClick={() => shiftMonth(1)}>›</button>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-          <button type="button" className="ks-btn sm ks-tap" onClick={goToday}>Сегодня</button>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+          <button type="button" className="ks-btn secondary sm ks-tap" onClick={goToday}>Сегодня</button>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 4 }} role="group" aria-label={`Дни ${formatMonth(month)}`}>
           {WEEKDAYS.map(day => <div key={day} aria-hidden="true" style={{ textAlign: 'center', fontSize: 12, color: 'var(--ks-text-muted, #5a6584)', padding: '6px 0' }}>{day}</div>)}
