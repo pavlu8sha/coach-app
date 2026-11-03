@@ -106,6 +106,7 @@ select * from (values
   ('0102_extra_cap_number_info',   coalesce((to_regprocedure('extra_cap(uuid)') is not null), false)),
   ('0103_event_status',            coalesce((exists (select 1 from information_schema.columns where table_name = 'tournaments' and column_name = 'status')), false)),
   ('0104_player_status_pause',     coalesce((to_regclass('player_status_log') is not null), false)),
-  ('0105_paused_months_not_due',   coalesce((to_regproc('player_paused_month') is not null), false))
+  ('0105_paused_months_not_due',   coalesce((to_regproc('player_paused_month') is not null), false)),
+  ('0106_friendly_match_without_group', coalesce((to_regproc('save_match_team') is not null), false))
 ) as t(migration, applied)
 order by migration;
