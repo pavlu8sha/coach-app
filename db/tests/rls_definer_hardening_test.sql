@@ -69,7 +69,9 @@ select is(
         -- 0085: локальный админ по локации (вызываются из политик RLS, данные — только по своему id)
         'is_location_admin', 'has_location_admin', 'group_location', 'player_location', 'camp_location', 'extra_place', 'my_locations',
         -- 0086: список оплат дня в кассе (область видимости как у отчёта)
-        'cash_day_service')),
+        'cash_day_service',
+        -- 0106: товарищеский матч команды без группы (только админ; проверка внутри)
+        'save_match_team')),
   '', 'список функций, доступных вошедшим пользователям, не расширился без решения');
 
 select is(
