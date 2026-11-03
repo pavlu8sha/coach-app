@@ -171,7 +171,9 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
   // у тренера матч всегда своей группы; у администратора название команды может не совпасть ни с одной группой — тогда группа не нужна
   // новый матч: группа команды, выбранной раньше (presetTeam), иначе первая группа
   const presetGid = presetTeam ? matchGroups.find(g => matchTeam(g.name) === presetTeam)?.id : undefined;
-  const initialGid = match ? matched ?? (admin ? '' : groups[0]?.id ?? '') : presetGid ?? matchGroups[0]?.id ?? '';
+  // команда без своей группы (например, «U12» из кубка): чужую группу не подставляем, матч для неё не сохраняется
+  const presetMissing = !match && Boolean(presetTeam) && !presetGid;
+  const initialGid = match ? matched ?? (admin ? '' : groups[0]?.id ?? '') : presetTeam ? presetGid ?? '' : matchGroups[0]?.id ?? '';
   const [gid, setGid] = useState(initialGid);
   const [date, setDate] = useState(match?.played_on ?? today());
   const [opp, setOpp] = useState(match?.opponent ?? '');
@@ -275,10 +277,16 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
   const save = async () => {
     const p = problem();
     if (p) return setMsg({ ok: false, text: p });
+    // команда без группы: администратор создаёт товарищеский матч по названию команды (миграция 0106)
+    const teamOnly = !savedId && !gid && admin && presetMissing;
+    if (!savedId && !gid && !teamOnly) return setMsg({ ok: false, text: 'В клубе нет группы для этой команды, матч не сохранить.' });
     setBusy(true);
     setMsg(null);
     const roster = (players ?? []).map(pl => ({ player_id: pl.id, played: line(pl.id).played, goals: line(pl.id).played ? line(pl.id).goals : 0, best: bestId === pl.id && line(pl.id).played }));
-    const r = await supabase.rpc('save_match', { m: savedId, g: gid || null, d: date, opp, gf: gf === '' ? null : Number(gf), ga: ga === '' ? null : Number(ga), roster });
+    const score = { gf: gf === '' ? null : Number(gf), ga: ga === '' ? null : Number(ga) };
+    const r = teamOnly
+      ? await supabase.rpc('save_match_team', { tm: presetTeam, d: date, opp, gf: score.gf, ga: score.ga, roster })
+      : await supabase.rpc('save_match', { m: savedId, g: gid || null, d: date, opp, gf: score.gf, ga: score.ga, roster });
     setBusy(false);
     if (r.error) return setMsg({ ok: false, text: coachError(r.error.message) });
     setSavedId(r.data as string);
@@ -330,7 +338,9 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     <main className="page">
       <BackNav onBack={onBack} />
       <h1>{match ? 'Матч' : 'Новый матч'}</h1>
-      {canPickGroup && <GroupPicker groups={matchGroups} value={gid} onChange={setGid} />}
+      {canPickGroup && presetMissing && !admin && <p className="error" style={{ marginBottom: 8 }}>В клубе нет группы «{presetTeam}», поэтому матч для неё не сохранить. Вернитесь и выберите другую команду.</p>}
+      {canPickGroup && presetMissing && admin && <p className="muted" style={{ marginBottom: 8 }}>Команда «{presetTeam}» без группы: состав собирайте поиском по игрокам клуба.</p>}
+      {canPickGroup && !presetMissing && <GroupPicker groups={matchGroups} value={gid} onChange={setGid} />}
       {match && admin && <p className="muted" style={{ marginBottom: 8 }}>Команда: {match.team}</p>}
       <label className="ks-label" htmlFor="m-date">Дата</label>
       <input id="m-date" className="ks-input" type="date" value={date} onChange={e => { setDate(e.target.value); setMsg(null); }} />

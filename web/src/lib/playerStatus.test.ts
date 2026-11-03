@@ -27,3 +27,22 @@ describe('pausedMonthTest: месяцы целиком на паузе не оп
     expect(pausedMonthTest([])('2026-10-01')).toBe(false);
   });
 });
+
+import { afterLeftMonthTest } from './playerStatus';
+describe('afterLeftMonthTest: после месяца ухода платить не нужно', () => {
+  it('ушёл 30.09 по ends_on: октябрь без оплаты, сентябрь платный', () => {
+    const t = afterLeftMonthTest('inactive', [], '2026-09-30');
+    expect(t('2026-09-01')).toBe(false);
+    expect(t('2026-10-01')).toBe(true);
+  });
+  it('журнал важнее ends_on', () => {
+    const t = afterLeftMonthTest('inactive', [{ status: 'inactive', on_date: '2026-10-20' }], '2026-07-31');
+    expect(t('2026-10-01')).toBe(false);
+    expect(t('2026-11-01')).toBe(true);
+  });
+  it('не ушёл или даты нет: всегда платный', () => {
+    expect(afterLeftMonthTest('active', [], '2026-07-31')('2026-10-01')).toBe(false);
+    expect(afterLeftMonthTest('paused', [], '2026-07-31')('2026-10-01')).toBe(false);
+    expect(afterLeftMonthTest('inactive', [], null)('2026-10-01')).toBe(false);
+  });
+});

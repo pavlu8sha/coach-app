@@ -1,9 +1,9 @@
--- pgTAP: исправление статусов, ошибочно выставленных бэкфиллом 0098 (0106, #240).
+-- pgTAP: исправление статусов, ошибочно выставленных бэкфиллом 0098 (0107, #240).
 begin;
 create extension if not exists pgtap;
 select plan(7);
 
-insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c103', 'Клуб 0106');
+insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c103', 'Клуб 0107');
 insert into players (id, club_id, full_name, status) values
   ('00000000-0000-0000-0000-00000000d103', '00000000-0000-0000-0000-00000000c103', 'Игрок', 'active');
 

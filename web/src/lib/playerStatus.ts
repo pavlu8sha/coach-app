@@ -30,3 +30,17 @@ export function pausedMonthTest(log: StatusLogPoint[]): (month: string) => boole
     return spans.some(s => s.from <= month && (s.to === null || s.to >= next));
   };
 }
+
+/**
+ * Ушедший игрок: месяцы после месяца ухода не оплачиваются. Дата ухода: последняя запись «ушёл» в журнале,
+ * а если журнала нет, players.ends_on из старой таблицы. Месяц самого ухода остаётся платным.
+ * Для игрока, который не ушёл (занимается, пауза), всегда false.
+ */
+export function afterLeftMonthTest(status: string | undefined, log: StatusLogPoint[], endsOn: string | null | undefined): (month: string) => boolean {
+  if (status !== 'inactive') return () => false;
+  const fromLog = [...log].filter(r => r.status === 'inactive').sort((a, b) => b.on_date.localeCompare(a.on_date))[0]?.on_date;
+  const left = fromLog ?? endsOn ?? null;
+  if (!left) return () => false;
+  const leftMonth = `${left.slice(0, 7)}-01`;
+  return (month: string) => month > leftMonth;
+}

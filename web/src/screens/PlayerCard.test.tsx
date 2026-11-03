@@ -123,6 +123,18 @@ describe('карточка игрока на паузе', () => {
   });
 });
 
+describe('карточка ушедшего игрока', () => {
+  it('месяцы после ухода без платежей не рисуются, даже если строка абонемента есть', async () => {
+    seed();
+    fake.db.players = [{ id: 'p1', created_at: '2026-09-01T00:00:00Z', ends_on: '2026-09-30' }];
+    fake.db.payments = [{ amount: 165, paid_on: '2026-09-05', pay_month: '2026-09-01' }];
+    fake.db.subscriptions = [{ player_id: 'p1', month: '2026-10-01', group_id: 'g1', discount: false, written_off: false }];
+    render(<PlayerCard player={{ ...player, status: 'inactive' }} onBack={() => {}} onEdit={() => {}} />);
+    expect(await screen.findByText(/Сентябрь 2026/)).toBeInTheDocument();
+    expect(screen.queryByText(/Октябрь 2026/)).not.toBeInTheDocument();
+  });
+});
+
 describe('firstMonth', () => {
   it('платёж и его отмена не открывают месяц', async () => {
     const { firstMonth } = await import('./PlayerCard');
