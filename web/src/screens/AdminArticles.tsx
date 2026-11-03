@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { articleDate, AUDIENCE_LABEL, safeHttpUrl, STATUS_LABEL, type ClubArticle } from '../lib/articles';
+import { articleDate, AUDIENCE_LABEL, safeHttpUrl, SECTION_LABEL, STATUS_LABEL, type ArticleSection, type ClubArticle } from '../lib/articles';
 import { supabase } from '../lib/supabase';
 import ArticleEditor, { type ArticleDraft } from '../ui/ArticleEditor';
-import { EmptyState, ListRow, Pill } from '../ui/components';
+import { EmptyState, ListRow, Pill, Segmented } from '../ui/components';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 
@@ -36,6 +36,7 @@ export default function AdminArticles() {
   const [editorError, setEditorError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [section, setSection] = useState<ArticleSection>('article');
 
   useEffect(() => {
     let alive = true;
@@ -91,6 +92,7 @@ export default function AdminArticles() {
       p_link_url: link,
       p_link_label: link ? draft.linkLabel : null,
       p_slug: current?.slug ?? null,
+      p_section: current?.section ?? section,
     });
     setBusy(false);
     if (r.error) {
@@ -117,6 +119,7 @@ export default function AdminArticles() {
   if (rows === null && !error) return <Loading title="Материалы клуба" rows={4} avatar={false} card />;
   if (error) return <Failure title="Не удалось загрузить материалы" text={error} onRetry={() => setReload(n => n + 1)} />;
 
+  const shown = (rows ?? []).filter(a => (a.section ?? 'article') === section);
   const canEdit = (a: ClubArticle) => isAdmin || (me !== null && a.author_id === me);
 
   return (
@@ -124,15 +127,25 @@ export default function AdminArticles() {
       <h1>Материалы клуба</h1>
       <p className="muted">Цели, правила и полезная информация. Статью видят только выбранная аудитория и сотрудники клуба; черновики — только сотрудники.</p>
       {msg && <p className="ks-ok" role="status">{msg}</p>}
-      <button type="button" className="ks-btn" onClick={() => startNew()}>Создать статью</button>
-      {rows && rows.length === 0 ? (
+      <Segmented
+        label="Раздел"
+        value={section}
+        onChange={setSection}
+        items={(['article', 'news', 'tournaments'] as ArticleSection[]).map(v => ({ value: v, label: SECTION_LABEL[v] }))}
+      />
+      <button type="button" className="ks-btn" onClick={() => startNew()}>{section === 'news' ? 'Создать публикацию' : section === 'tournaments' ? 'Создать текст' : 'Создать статью'}</button>
+      {rows && shown.length === 0 ? (
         <>
           <EmptyState icon="box" title="Пока нет материалов" text="Создайте черновик и заполните текст. Официальные правила и факты публикуйте только после подтверждения владельцем." />
-          <p className="ks-label">Пустые шаблоны</p>
-          {TEMPLATES.map(t => <ListRow key={t} title={t} sub={['Черновик без текста']} onClick={() => startNew(t)} />)}
+          {section === 'article' && (
+            <>
+              <p className="ks-label">Пустые шаблоны</p>
+              {TEMPLATES.map(t => <ListRow key={t} title={t} sub={['Черновик без текста']} onClick={() => startNew(t)} />)}
+            </>
+          )}
         </>
       ) : (
-        rows?.map(a => {
+        shown.map(a => {
           const editable = canEdit(a);
           return (
             <ListRow

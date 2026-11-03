@@ -20,6 +20,7 @@ const article = (over: Record<string, unknown> = {}) => ({
   created_at: '2026-11-01T10:00:00Z',
   updated_at: '2026-11-03T10:00:00Z',
   published_at: null,
+  section: 'article',
   ...over,
 });
 
@@ -68,8 +69,25 @@ describe('Редактор материалов клуба (#236)', () => {
       p_link_url: null,
       p_link_label: null,
       p_slug: null,
+      p_section: 'article',
     });
     expect(await screen.findByText('Сохранено.')).toBeInTheDocument();
+  });
+
+  it('новость создаётся в своём разделе и не смешивается со статьями', async () => {
+    fake.db.club_articles = [article({ id: 'a', title: 'Статья клуба' }), article({ id: 'n', title: 'Новость дня', section: 'news' })];
+    render(<AdminArticles />);
+    await screen.findByRole('button', { name: /Статья клуба/ });
+    expect(screen.queryByText('Новость дня')).toBeNull();
+    fireEvent.click(screen.getByRole('tab', { name: 'Новости' }));
+    expect(await screen.findByRole('button', { name: /Новость дня/ })).toBeInTheDocument();
+    expect(screen.queryByText('Статья клуба')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Создать публикацию' }));
+    fireEvent.change(screen.getByLabelText('Заголовок'), { target: { value: 'Свежая новость' } });
+    fireEvent.change(screen.getByLabelText('Текст'), { target: { value: 'Текст.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() => expect(fake.rpcCalls('club_article_save')).toHaveLength(1));
+    expect(fake.rpcCalls('club_article_save')[0]).toMatchObject({ p_title: 'Свежая новость', p_section: 'news' });
   });
 
   it('публикация требует текст, а опасная ссылка не отправляется', async () => {
