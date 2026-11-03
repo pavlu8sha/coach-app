@@ -3,9 +3,10 @@ import { ADMIN_CHAT, BRANCHES, CAMP, CAMP_MORE, CHAMPIONSHIPS, CLUB_CHANNEL, EQU
 import { Photo } from '../lib/photos';
 import { Gallery, ZoomPhoto } from '../ui/Lightbox';
 import { Art, CoverBanner, CoverTile, type CoverId } from '../ui/Cover';
-import { Pill, Segmented } from '../ui/components';
+import { ListRow, Pill, Segmented } from '../ui/components';
 import { BackNav } from '../ui/nav';
 import type { Role } from './RoleSelect';
+import ClubArticles from './ClubArticles';
 import TrialForm from './TrialForm';
 
 export { CLUB_CHANNEL };
@@ -279,7 +280,10 @@ const SCREENS: Record<Exclude<CoverId, 'channel'>, () => ReactNode> = { branches
 export default function About({ role, onChangeRole }: { role: Role | null; onChangeRole: () => void }) {
   const [open, setOpen] = useState<Id | null>(null);
   const [product, setProduct] = useState<Product['id'] | null>(null);
-  useEffect(() => { document.documentElement.scrollTop = 0; }, [open, product]);
+  const [materials, setMaterials] = useState(false);
+  useEffect(() => { document.documentElement.scrollTop = 0; }, [open, product, materials]);
+
+  if (materials) return <ClubArticles role="guest" onBack={() => setMaterials(false)} />;
 
   if (open) {
     const Screen = open === 'trial' ? null : SCREENS[open];
@@ -298,6 +302,7 @@ export default function About({ role, onChangeRole }: { role: Role | null; onCha
         <button type="button" className="ks-btn" onClick={() => setOpen('trial')}>Записаться на пробную</button>
         <a className="ks-btn secondary" href={ADMIN_CHAT} target="_blank" rel="noreferrer">Написать администратору</a>
       </div>
+      <ListRow title="Материалы клуба" sub={['Цели, правила и полезная информация']} onClick={() => setMaterials(true)} />
       {role === 'coach' && (
         <section className="ks-card">
           <h2>Вы вошли как тренер</h2>

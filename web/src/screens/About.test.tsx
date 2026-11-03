@@ -17,6 +17,16 @@ describe('«О клубе» для гостя', () => {
     expect(screen.queryByText(/525 GEL вместо 620/)).toBeNull();
   });
 
+  it('гостю открываются материалы клуба и возвращаются назад', async () => {
+    fake.db.club_articles = [];
+    render(<About role="guest" onChangeRole={() => undefined} />);
+    open(/^Материалы клуба/);
+    expect(await screen.findByRole('heading', { name: 'Материалы клуба' })).toBeInTheDocument();
+    expect(await screen.findByText('Материалы скоро появятся')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(screen.getByRole('button', { name: /^Материалы клуба/ })).toBeInTheDocument();
+  });
+
   it('раздел «Филиалы» и возврат назад', () => {
     render(<About role="guest" onChangeRole={() => undefined} />);
     open(/^Филиалы/);
