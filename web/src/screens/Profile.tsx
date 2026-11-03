@@ -22,7 +22,7 @@ export default function Profile() {
   const name = telegramName();
   if (view === 'kids') return <MyKids onBack={() => setView('main')} />;
   if (view === 'data') return <MyData onBack={() => setView('main')} />;
-  if (view === 'about') return <About role="parent" hideTrial onChangeRole={() => undefined} onBack={() => setView('main')} />;
+  if (view === 'about') return <About role="parent" cabinet onChangeRole={() => undefined} onBack={() => setView('main')} />;
   if (view === 'news' || view === 'tournaments') return <ClubArticles role="parent" section={view} onBack={() => setView('main')} />;
   if (view === 'articles') return <ClubArticles role="parent" onBack={() => setView('main')} />;
 
