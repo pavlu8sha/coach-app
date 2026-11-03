@@ -2,7 +2,7 @@
 -- Checks staff rights, author/editor attribution, audience isolation, drafts, unsafe URLs and history on unpublish.
 begin;
 create extension if not exists pgtap;
-select plan(32);
+select plan(33);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c109', 'Club');
 insert into users (id, telegram_id, display_name, is_admin) values
