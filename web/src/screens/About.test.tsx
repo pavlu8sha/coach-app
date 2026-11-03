@@ -113,6 +113,12 @@ describe('«О клубе» для гостя', () => {
     expect(fake.rpcCalls('lead_submit_app')).toEqual([{ parent: 'Мама', child: 'Иван Петров', byear: new Date().getFullYear() - 8, phone: '+995 555 12 34 56', wish: 'Филиал: Isani', consent: true }]);
   });
 
+  it('ребёнок кнопки записи на пробную не видит (#235)', () => {
+    render(<About role="child" onChangeRole={() => undefined} />);
+    expect(screen.queryByRole('button', { name: 'Записаться на пробную' })).toBeNull();
+    expect(screen.getByRole('button', { name: /^Филиалы/ })).toBeInTheDocument();
+  });
+
   it('лимит заявок: понятное сообщение', async () => {
     fake.rpc.lead_submit_app = () => ({ error: { message: 'too many leads' } });
     render(<About role="guest" onChangeRole={() => undefined} />);

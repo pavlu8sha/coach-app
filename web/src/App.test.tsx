@@ -20,7 +20,7 @@ describe('нижняя панель по ролям', () => {
     fake.db.coach_groups = CG;
     fake.db.groups = GROUPS;
     render(<App />);
-    expect(await labels()).toEqual(['Занятия', 'Матчи', 'Посещаемость', 'Учёт', 'Группа', 'Статьи']);
+    expect(await labels()).toEqual(['Занятия', 'Матчи', 'Посещаемость', 'Учёт', 'Группа']);
     expect(await current()).toEqual(['Занятия']);
     fireEvent.click((await bar()).getByRole('button', { name: 'Посещаемость' }));
     expect(await current()).toEqual(['Посещаемость']);
@@ -46,7 +46,7 @@ describe('нижняя панель по ролям', () => {
     fake.db.groups = GROUPS;
     fake.db.player_guardians = [{ user_id: 'u', player_id: 'p1', consent_revoked_at: null }];
     render(<App />);
-    expect(await labels()).toEqual(['Занятия', 'Матчи', 'Ребёнок', 'Учёт', 'Группа', 'Статьи']);
+    expect(await labels()).toEqual(['Занятия', 'Матчи', 'Ребёнок', 'Учёт', 'Группа']);
   });
 
   it('тренер с локациями Гио: разделы тренера и «Касса» на нижней панели', async () => {
@@ -55,7 +55,7 @@ describe('нижняя панель по ролям', () => {
     fake.db.groups = GROUPS;
     fake.rpc.my_locations = () => ['Исани', 'Отрачала'];
     render(<App />);
-    expect(await labels()).toEqual(['Занятия', 'Матчи', 'Посещаемость', 'Учёт', 'Группа', 'Статьи', 'Касса']);
+    expect(await labels()).toEqual(['Занятия', 'Матчи', 'Посещаемость', 'Учёт', 'Группа', 'Касса']);
     fireEvent.click((await bar()).getByRole('button', { name: 'Касса' }));
     expect(await screen.findByText('Касса: Исани, Отрачала')).toBeInTheDocument();
   });
