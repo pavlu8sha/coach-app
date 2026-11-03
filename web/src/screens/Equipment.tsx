@@ -7,7 +7,7 @@ import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { settingText, useClubSettings } from '../lib/clubSettings';
 import { bundleDiscount, parseKitList } from '../lib/equipmentDiscount';
-import { EQUIPMENT_REQUIRED_KEY, EQUIPMENT_REQUIRED_TEXT, lastStatusDate, nextStatus, orderStatusLabel, prevStatus, type StatusEvent } from '../lib/equipment';
+import { EQUIPMENT_REQUIRED_KEY, EQUIPMENT_REQUIRED_TEXT, issueStateLabel, lastStatusDate, nextStatus, orderStatusLabel, prevStatus, type StatusEvent } from '../lib/equipment';
 
 interface Line { kit: string; size: string | null; quantity: number }
 interface Order {
@@ -25,7 +25,7 @@ const errText = (m: string) =>
   m.includes('order has payments') ? 'У заказа есть оплата: сначала верните её записью с минусом.' : m.includes('order has issues') ? 'У заказа есть выданные вещи: сначала снимите выдачу.' : m.includes('kit not in catalog') ? 'Позиции нет в каталоге.' : m.includes('no items') ? 'Выберите хотя бы одну вещь.' : m.includes('bad amount') ? 'Сумма указана неверно.' :
   m.includes('bad transition') ? 'Статус можно менять только на один шаг вперёд (назад — администратору).' : m.includes('bad status') ? 'Такого статуса нет.' :
   m.includes('Could not find the function') || m.includes('equipment_issues') ? 'Модуль ещё не установлен в базе (миграция 0036).' : coachError(m);
-const issueState = (o: Order) => (o.equipment_issues.length === 0 ? 'Нет' : o.equipment_issues.length >= new Set(o.equipment_order_lines.map(l => l.kit)).size ? 'Да' : 'Частично');
+const issueState = (o: Order) => issueStateLabel(o.equipment_order_lines, o.equipment_issues);
 
 // Чего не хватает в заказе: позиции, размера, номера (для гетр и носков номер не нужен).
 const missingOf = (o: Pick<Order, 'number' | 'equipment_order_lines'>): string[] => {

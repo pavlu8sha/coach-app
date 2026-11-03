@@ -5,12 +5,15 @@ import { fake } from '../test/fakeSupabase';
 import Equipment from './Equipment';
 import { EquipmentTab } from './PlayerCardTabs';
 
-const order = (id: string, name: string, status: string, history: { status: string; changed_at: string; changed_by_name: string | null }[] = []) => ({
+type OrderLine = { kit: string; size: string | null; quantity: number };
+type Issue = { kit: string; issued_on: string; issued_by: string | null };
+const order = (id: string, name: string, status: string, history: { status: string; changed_at: string; changed_by_name: string | null }[] = [], extra: { equipment_order_lines?: OrderLine[]; equipment_issues?: Issue[] } = {}) => ({
   id, player_id: 'p1', ordered_on: '2026-09-10', total: 160, paid: 160, installment: false, number: '7', inscription: null, location: 'Зал',
   status, equipment_order_status_history: history,
   players: { full_name: name },
   equipment_order_lines: [{ kit: 'Форма', size: '128', quantity: 1 }],
   equipment_issues: [],
+  ...extra,
 });
 
 describe('Экипировка: статусы заказов (#240)', () => {
@@ -76,6 +79,19 @@ describe('Экипировка: статусы заказов (#240)', () => {
     fireEvent.click(await screen.findByRole('tab', { name: 'Текст' }));
     await waitFor(() => expect(screen.getByLabelText('Требование к форме')).toHaveValue(EQUIPMENT_REQUIRED_TEXT));
   });
+
+  it('утверждённый текст требования — две строки', () => {
+    expect(EQUIPMENT_REQUIRED_TEXT.split('\n')).toHaveLength(2);
+  });
+
+  it('частичная выдача по количеству: «Частично», а не «Да»', async () => {
+    fake.db.equipment_orders = [order('o1', 'Иванов Пётр', 'accepted', [], {
+      equipment_order_lines: [{ kit: 'Форма', size: '128', quantity: 2 }],
+      equipment_issues: [{ kit: 'Форма', issued_on: '2026-09-11', issued_by: 'Склад' }],
+    })];
+    render(<Equipment />);
+    expect(await screen.findByText(/выдано: Частично/)).toBeInTheDocument();
+  });
 });
 
 describe('Экипировка у родителя: статус и требование к форме (#240)', () => {
@@ -94,15 +110,25 @@ describe('Экипировка у родителя: статус и требов
 
   it('пока база не ответила или текст не задан, показывается утверждённая формулировка', async () => {
     render(<EquipmentTab playerId="p1" />);
-    expect(await screen.findByText(EQUIPMENT_REQUIRED_TEXT)).toBeInTheDocument();
+    expect(await screen.findByText(EQUIPMENT_REQUIRED_TEXT.replace(/\n/g, ' '))).toBeInTheDocument();
   });
 
   it('требование видно и когда заказов нет; родитель ничего не пишет в базу', async () => {
     fake.db.equipment_orders = [];
     render(<EquipmentTab playerId="p1" />);
-    expect(await screen.findByText(EQUIPMENT_REQUIRED_TEXT)).toBeInTheDocument();
+    expect(await screen.findByText(EQUIPMENT_REQUIRED_TEXT.replace(/\n/g, ' '))).toBeInTheDocument();
     expect(await screen.findByText('Заказов нет')).toBeInTheDocument();
     expect(fake.calls.filter(c => c.kind !== 'rpc')).toHaveLength(0);
     expect(fake.rpcCalls('eq_set_order_status')).toHaveLength(0);
+  });
+
+  it('родитель видит частичную выдачу по количеству', async () => {
+    fake.db.equipment_orders = [order('o1', 'Аня', 'accepted', [], {
+      equipment_order_lines: [{ kit: 'Форма', size: '128', quantity: 2 }],
+      equipment_issues: [{ kit: 'Форма', issued_on: '2026-09-11', issued_by: 'Склад' }],
+    })];
+    render(<EquipmentTab playerId="p1" />);
+    expect(await screen.findByText(/Выдано:/)).toHaveTextContent('Выдано: 1 из 2');
+    expect(screen.queryByText(/\(всё\)/)).not.toBeInTheDocument();
   });
 });
