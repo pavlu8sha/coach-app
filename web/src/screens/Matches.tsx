@@ -21,6 +21,7 @@ const FRIENDLY = 'friendly';
 // подпись турнира для фильтра: название, иначе тип; товарищеские — отдельным пунктом
 const tourLabel = (t: Tour | undefined) => (t?.match_kind === FRIENDLY ? 'Товарищеские' : t?.tournament_name ?? (t?.tournament_kind ? KIND_LABEL[t.tournament_kind] ?? null : null));
 
+const matchWord = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'матч' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'матча' : 'матчей');
 const fmtDate = (iso: string) => iso.split('-').reverse().join('.');
 const today = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD по местному времени телефона
 
@@ -166,7 +167,7 @@ export default function Matches() {
           {filter === 'all' && past.length > 0 && <h2 className="ks-sub">Результаты</h2>}
           {groupInOrder(past, m => m.played_on.slice(0, 7)).map(([ym, items]) => (
             <details className="ks-group" key={ym}>
-              <summary><div className="ks-line"><b>{ym.slice(5)}.{ym.slice(0, 4)}</b><span className="muted">{items.length} матч.</span></div></summary>
+              <summary><div className="ks-line"><b>{ym.slice(5)}.{ym.slice(0, 4)}</b><span className="muted">{items.length} {matchWord(items.length)}</span></div></summary>
               {items.map(m => {
                 const o = outcome(m);
                 return (

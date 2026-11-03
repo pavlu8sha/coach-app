@@ -50,6 +50,7 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 .ks-seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 3px; background: var(--ks-surface); border: 1px solid var(--ks-border); border-radius: var(--ks-radius-card); margin-bottom: 12px; }
 .ks-seg.many { grid-auto-flow: row; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .ks-seg button { min-height: var(--ks-tap); border: 0; border-radius: 10px; background: none; color: var(--ks-text-muted); font: 700 14px var(--ks-font); cursor: pointer; padding: 6px 8px; }
+.ks-seg button { white-space: nowrap; }
 .ks-seg button[aria-selected='true'] { background: var(--ks-primary); color: var(--ks-on-primary); }
 
 /* Тумблер (role=switch) в строке с подписью */
@@ -434,3 +435,7 @@ main.page > :nth-child(n+8) { animation-delay: 175ms; }
   .ks-bottomnav button:active { transform: none; }
   .ks-bottomnav button[aria-current='page'] > :first-child, main.page > .ks-card, main.page > .ks-row, main.page > .ks-cover, main.page.ks-menu > div { animation: none; }
 }
+
+/* Политика и согласие: нумерация в тексте, без второго маркера; абзацы с воздухом */
+ul.policy { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 8px; }
+.policy-doc p { margin: 0 0 10px; }

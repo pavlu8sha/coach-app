@@ -278,7 +278,7 @@ const SCREENS: Record<Exclude<CoverId, 'channel'>, () => ReactNode> = { branches
 
 // «О клубе» для гостя, ребёнка и тренера без назначенных групп: только открытая информация, без данных детей и результатов игроков.
 // Главный экран — плитки-разделы; каждый раздел открывается отдельным экраном.
-export default function About({ role, onChangeRole, onBack }: { role: Role | null; onChangeRole: () => void; onBack?: () => void }) {
+export default function About({ role, onChangeRole, onBack, hideTrial }: { role: Role | null; onChangeRole: () => void; onBack?: () => void; hideTrial?: boolean }) {
   const [open, setOpen] = useState<Id | null>(null);
   const [product, setProduct] = useState<Product['id'] | null>(null);
   const [materials, setMaterials] = useState<ArticleSection | null>(null);
@@ -302,8 +302,8 @@ export default function About({ role, onChangeRole, onBack }: { role: Role | nul
       {onBack && <BackNav onBack={onBack} />}
       <div className="ks-intro">
         <h1>FC KickStart Tbilisi</h1>
-        <p className="muted">Футбольная школа в Тбилиси. Запишитесь на пробную тренировку или выберите раздел.</p>
-        {role !== 'child' && <button type="button" className="ks-btn" onClick={() => setOpen('trial')}>Записаться на пробную</button>}
+        <p className="muted">Футбольная школа в Тбилиси. {hideTrial ? 'Выберите раздел.' : 'Запишитесь на пробную тренировку или выберите раздел.'}</p>
+        {role !== 'child' && !hideTrial && <button type="button" className="ks-btn" onClick={() => setOpen('trial')}>Записаться на пробную</button>}
         <a className="ks-btn secondary" href={ADMIN_CHAT} target="_blank" rel="noreferrer">Написать администратору</a>
       </div>
       <ListRow title="Новости клуба" sub={[SECTION_HINT.news]} onClick={() => setMaterials('news')} />
