@@ -60,13 +60,13 @@ describe('Фото клуба', () => {
 
   it('замена видна в «О клубе»', async () => {
     fake.db.club_photos = [{ key: 'kit-gk', data: 'data:image/jpeg;base64,GK' }];
-    const { container } = render(<About role="guest" onChangeRole={() => undefined} />);
+    const { container } = render(<About role="parent" onChangeRole={() => undefined} />);
     fireEvent.click(screen.getByRole('button', { name: /^Экипировка/ }));
     await waitFor(() => expect(container.innerHTML).toContain('data:image/jpeg;base64,GK'));
   });
 
   it('фото экипировки открывается на весь экран и листается', () => {
-    render(<About role="guest" onChangeRole={() => undefined} />);
+    render(<About role="parent" onChangeRole={() => undefined} />);
     fireEvent.click(screen.getByRole('button', { name: /^Экипировка/ }));
     fireEvent.click(screen.getByRole('button', { name: /Вратарский комплект/ }));
     fireEvent.click(screen.getAllByRole('button', { name: 'Открыть фото: Вратарский комплект' })[0]);
