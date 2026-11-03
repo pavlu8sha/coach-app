@@ -5,17 +5,29 @@ import { EmptyState, ListRow } from '../ui/components';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 
+// Список в памяти до закрытия приложения: повторное открытие раздела показывает его сразу и обновляет тихо, без мигания скелетона.
+const cache = new Map<string, ClubArticle[]>();
+export const resetArticlesCache = () => cache.clear();
+
 // Чтение статей клуба (#236). Права и аудиторию проверяет база; здесь дополнительно
 // выбираются только опубликованные материалы своей аудитории, чтобы экран не зависел от RLS.
 export default function ClubArticles({ role, onBack, section = 'article' }: { role: 'guest' | 'parent'; onBack: () => void; section?: ArticleSection }) {
-  const [rows, setRows] = useState<ClubArticle[] | null>(null);
+  const key = `${role}|${section}`;
+  const [rows, setRows] = useState<ClubArticle[] | null>(cache.get(key) ?? null);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<ClubArticle | null>(null);
   const [reload, setReload] = useState(0);
+  const [slow, setSlow] = useState(false); // скелетон только если загрузка дольше 300 мс: быстрый ответ не мигает
+  useEffect(() => {
+    setSlow(false);
+    if (rows !== null) return;
+    const t = setTimeout(() => setSlow(true), 300);
+    return () => clearTimeout(t);
+  }, [rows, key]);
 
   useEffect(() => {
     let alive = true;
-    setRows(null);
+    setRows(cache.get(key) ?? null);
     setError(null);
     void (async () => {
       const r = await supabase
@@ -28,10 +40,14 @@ export default function ClubArticles({ role, onBack, section = 'article' }: { ro
         .order('published_at', { ascending: false });
       if (!alive) return;
       if (r.error) setError(r.error.message);
-      else setRows((r.data ?? []) as ClubArticle[]);
+      else {
+        const list = (r.data ?? []) as ClubArticle[];
+        cache.set(key, list);
+        setRows(list);
+      }
     })();
     return () => { alive = false; };
-  }, [role, section, reload]);
+  }, [role, section, key, reload]);
 
   if (open) {
     const link = safeHttpUrl(open.link_url);
@@ -63,7 +79,7 @@ export default function ClubArticles({ role, onBack, section = 'article' }: { ro
       <h1>{section === 'article' ? 'Материалы клуба' : SECTION_LABEL[section]}</h1>
       <p className="muted">{SECTION_HINT[section]}</p>
       {rows === null && !error ? (
-        <Loading rows={4} card />
+        slow ? <Loading rows={4} card /> : null
       ) : error ? (
         <Failure embedded title="Не удалось загрузить материалы" text={error} onRetry={() => setReload(n => n + 1)} />
       ) : rows && rows.length === 0 ? (
