@@ -13,7 +13,11 @@ interface Price { group_id: string | null; amount: number; valid_from: string; v
 const LEGACY_REASON = 'до 02.11.2026';
 export interface Sub { player_id: string; discount: boolean; written_off: boolean; closed_kind?: ClosureKind | null; closed_reason?: string | null }
 
-export const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
+// Сумма с пробелом между тысячами: «23 038 ₾».
+export const gel = (n: number) => {
+  const [whole, frac] = (Number.isInteger(n) ? String(n) : n.toFixed(2)).split('.');
+  return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0')}${frac ? `.${frac}` : ''} ₾`;
+};
 const METHODS = ['Наличные', 'Перевод'];
 export const SEASON_START = '2026-09-01'; // как debt_start() в базе
 export const monthIso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
@@ -213,7 +217,7 @@ export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOp
         <Pill tone={paidUp ? 'success' : 'danger'} dot>{sub?.written_off || sub?.discount ? `${CLOSURE_LABELS[sub.closed_kind ?? (sub.written_off ? 'forgiven' : 'discount')]}${got > 0 ? ` · внесено ${gel(got)}` : ''}` : `${gel(got)}${tariff !== null ? ` из ${gel(tariff)}` : ''}`}</Pill>
       </div>
       {(sub?.discount || sub?.written_off) && sub.closed_reason && sub.closed_reason !== LEGACY_REASON && <p className="ks-muted" style={{ fontSize: 13, margin: '4px 0 0' }}>Причина: {sub.closed_reason}</p>}
-      <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} onClick={onOpen}>{open ? 'Свернуть' : 'Внести платёж'}</button>
+      <button type="button" className={paidUp && !open ? 'ks-btn secondary sm' : 'ks-btn secondary'} style={{ marginTop: 8 }} onClick={onOpen}>{open ? 'Свернуть' : 'Внести платёж'}</button>
       {!paidUp && (
         <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy} onClick={() => void discount()}>Закрыть без оплаты</button>
       )}

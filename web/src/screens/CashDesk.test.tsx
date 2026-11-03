@@ -34,7 +34,7 @@ describe('«Приём оплат»', () => {
   it('показывает всё, что к оплате, по разделам; будущие занятия не считаются долгом', async () => {
     seed();
     await openPlayer();
-    expect(await screen.findByText(/к оплате: 1035 ₾/)).toBeInTheDocument(); // 115 + 100 + 50 + 20 + 750
+    expect(await screen.findByText(/к оплате: 1 035 ₾/)).toBeInTheDocument(); // 115 + 100 + 50 + 20 + 750
     for (const h of ['Абонемент', 'Экипировка', 'Индивидуальные и вратари', 'Дополнительные тренировки', 'Сборы']) expect(screen.getByRole('heading', { name: h })).toBeInTheDocument();
     expect(await screen.findByText(/Внесено 50 ₾ из 165 ₾/)).toBeInTheDocument();
     expect(screen.getByText(/Внесено 60 ₾ из 160 ₾/)).toBeInTheDocument();
