@@ -27,21 +27,24 @@ const article = (over: Record<string, unknown> = {}) => ({
 describe('Редактор материалов клуба (#236)', () => {
   beforeEach(() => {
     fake.reset();
-    fake.db.users = [{ id: 'u', is_admin: false }];
+    fake.db.users = [{ id: 'u', is_admin: true }];
     fake.db.club_articles = [article()];
     fake.rpc.club_article_save = () => 'a1';
   });
 
-  it('тренер видит чужие статьи, но редактирует только свои', async () => {
+  it('без прав материалы доступны только для чтения', async () => {
+    fake.db.users = [{ id: 'u', is_admin: false }];
     fake.db.club_articles = [
       article({ id: 'mine', title: 'My article', author_id: 'u' }),
       article({ id: 'other', title: 'Other article', author_id: 'someone' }),
     ];
     render(<AdminArticles />);
-    expect(await screen.findByRole('button', { name: /My article/ })).toBeInTheDocument();
+    expect(await screen.findByText('My article')).toBeInTheDocument();
     expect(screen.getByText('Other article')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /My article/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /Other article/ })).toBeNull();
-    expect(screen.getByText('Изменить может автор или администратор')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Создать статью' })).toBeNull();
+    expect(screen.getAllByText('Изменить может только администратор')).toHaveLength(2);
   });
 
   it('администратор редактирует любую статью', async () => {
@@ -125,6 +128,12 @@ describe('Редактор материалов клуба (#236)', () => {
     fireEvent.click(screen.getByRole('button', { name: /My article/ }));
     fireEvent.change(screen.getByLabelText('Заголовок'), { target: { value: 'Чужая' } });
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
-    expect(await screen.findByText(/чужой материал может изменить только автор/)).toBeInTheDocument();
+    expect(await screen.findByText(/материалы клуба может изменять только администратор/)).toBeInTheDocument();
+  });
+
+  it('ошибка загрузки подсказывает актуальные миграции', async () => {
+    fake.errors.club_articles = 'Could not find the table public.club_articles';
+    render(<AdminArticles />);
+    expect(await screen.findByText(/миграции 0111, 0113 и 0114/)).toBeInTheDocument();
   });
 });
