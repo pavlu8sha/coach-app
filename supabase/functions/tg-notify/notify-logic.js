@@ -1,13 +1,23 @@
 // Отправка уведомлений ботом: сборка вызова Bot API и разбор ответа Telegram. Чистые функции, без сети и секретов.
 
-/** @param {{telegram_id: number|string, text: string}} n  @param {string} appUrl  адрес Mini App (https) */
+/**
+ * @param {{telegram_id: number|string, text: string, buttons?: {text: string, data: string}[][] | null}} n
+ * @param {string} appUrl  адрес Mini App (https)
+ * buttons — кнопки ответа (например, «Будет» / «Не будет» у матча, миграция 0137): строки кнопок над «Открыть приложение»
+ */
 export function buildCall(n, appUrl) {
+  const rows = Array.isArray(n.buttons)
+    ? n.buttons
+        .filter(r => Array.isArray(r) && r.length > 0)
+        .map(r => r.filter(b => b && typeof b.text === 'string' && typeof b.data === 'string' && b.data.length <= 64).map(b => ({ text: b.text, callback_data: b.data })))
+        .filter(r => r.length > 0)
+    : [];
   return {
     method: 'sendMessage',
     body: {
       chat_id: n.telegram_id,
       text: n.text,
-      reply_markup: { inline_keyboard: [[{ text: 'Открыть приложение', web_app: { url: appUrl } }]] },
+      reply_markup: { inline_keyboard: [...rows, [{ text: 'Открыть приложение', web_app: { url: appUrl } }]] },
     },
   };
 }

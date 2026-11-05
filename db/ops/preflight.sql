@@ -138,6 +138,7 @@ select * from (values
   ('0133_equipment_status_follows_lines', coalesce((exists (select 1 from pg_trigger where tgname = 'equipment_lines_sync_status' and not tgisinternal)), false)),
   ('0134_match_rsvp_base', coalesce((to_regclass('match_invitations') is not null and to_regproc('match_rsvp_publish') is not null), false)),
   ('0135_points_benchmark_place', coalesce((select position('''place''' in prosrc) > 0 from pg_proc where proname = 'points_group_benchmark' limit 1), false)),
-  ('0136_match_rsvp_reschedule_marks', coalesce((to_regclass('match_mark_snapshots') is not null), false))
+  ('0136_match_rsvp_reschedule_marks', coalesce((to_regclass('match_mark_snapshots') is not null), false)),
+  ('0137_match_rsvp_notifications', coalesce((to_regproc('rsvp_auto_reminders') is not null and to_regproc('rsvp_answer_by_telegram') is not null), false))
 ) as t(migration, applied)
 order by migration;

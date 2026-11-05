@@ -19,7 +19,7 @@ select is(
 
 select is(
   (select coalesce(string_agg(p.proname, ', ' order by p.proname), '') from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname in ('apply_match_points', 'claim_notifications', 'enqueue_notification', 'enqueue_to_admins', 'enqueue_to_guardians', 'notify_coach_group', 'notify_payment', 'notify_bonus', 'lead_submit', 'ind_book', 'ind_assert_admin', 'ind_price', 'ind_cap', 'extra_cap', 'eq_assert_admin', 'eq_number_taken', 'eq_price', 'camp_assert_admin', 'tl_assert_admin', 'finish_notification', 'notify_link_request', 'notify_data_request', 'rate_limit_hit', 'rule_for', 'tariff_for', 'rsvp_assert_staff', 'rsvp_lock_match', 'rsvp_log', 'rsvp_claim_reminder')
+    where n.nspname = 'public' and p.proname in ('apply_match_points', 'claim_notifications', 'enqueue_notification', 'enqueue_to_admins', 'enqueue_to_guardians', 'notify_coach_group', 'notify_payment', 'notify_bonus', 'lead_submit', 'ind_book', 'ind_assert_admin', 'ind_price', 'ind_cap', 'extra_cap', 'eq_assert_admin', 'eq_number_taken', 'eq_price', 'camp_assert_admin', 'tl_assert_admin', 'finish_notification', 'notify_link_request', 'notify_data_request', 'rate_limit_hit', 'rule_for', 'tariff_for', 'rsvp_assert_staff', 'rsvp_lock_match', 'rsvp_log', 'rsvp_claim_reminder', 'rsvp_notify_parent', 'rsvp_notify_match', 'rsvp_matches_notify', 'rsvp_invitation_notify', 'rsvp_auto_reminders', 'rsvp_answer_by_telegram')
       and has_function_privilege('authenticated', p.oid, 'execute')),
   '', 'служебные функции недоступны из приложения');
 
