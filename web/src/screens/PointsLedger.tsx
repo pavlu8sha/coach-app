@@ -15,6 +15,11 @@ interface SeriesInfo {
   finished_runs: { length: number; from: string; to: string }[];
 }
 
+interface Bench {
+  groups: { group_id: string | null; group_name: string | null; personal: number; status: 'ok' | 'insufficient' | 'no_data' | 'off'; avg: number | null; max: number | null }[];
+}
+
+const fmtAvg = (n: number) => String(n).replace('.', ',');
 const today = () => new Date().toISOString().slice(0, 7);
 
 // Баллы по новым правилам (#18): итог за месяц, всего накоплено, история начислений с пояснениями и серия посещаемости.
@@ -23,6 +28,7 @@ export default function PointsLedger({ playerId }: { playerId: string }) {
   const [rows, setRows] = useState<LedgerRow[] | null>(null);
   const [series, setSeries] = useState<SeriesInfo | null>(null);
   const [month, setMonth] = useState<string | null>(null);
+  const [bench, setBench] = useState<Bench | null>(null);
 
   useEffect(() => {
     setRows(null);
@@ -37,6 +43,13 @@ export default function PointsLedger({ playerId }: { playerId: string }) {
       }
     })();
   }, [playerId]);
+
+  // ориентиры группы за выбранный месяц: анонимно, только числа; без функции (старая база) блок просто не показывается
+  useEffect(() => {
+    if (!month) return;
+    setBench(null);
+    void supabase.rpc('points_group_benchmark', { p: playerId, ym: `${month}-01` }).then(r => setBench(r.error ? null : (r.data as Bench | null)));
+  }, [playerId, month]);
 
   if (!rows || rows.length === 0 || !month) return null;
   const inMonth = rows.filter(r => monthOf(r.event_date) === month);
@@ -71,6 +84,34 @@ export default function PointsLedger({ playerId }: { playerId: string }) {
             </div>
           );
         })
+      )}
+
+      {bench && bench.groups.length > 1 && (
+        <div style={{ marginTop: 10 }}>
+          <p className="ks-label">Ваши баллы по группам</p>
+          {bench.groups.map((g, i) => (
+            <div className="ks-slot" key={i}><span className="ks-slot-main">{g.group_name ?? 'Группа не определена'}</span><Pill tone="primary">{g.personal}</Pill></div>
+          ))}
+        </div>
+      )}
+      {bench && (
+        <div style={{ marginTop: 10 }}>
+          <p className="ks-label">Сравнение с группой</p>
+          {bench.groups.length === 0 ? (
+            <p className="muted">Нет данных</p>
+          ) : (
+            bench.groups.filter(g => g.status !== 'off').map((g, i) => (
+              <p key={i} className="muted" style={{ margin: '2px 0' }}>
+                {g.group_name ? `${g.group_name}: ` : ''}
+                {g.status === 'ok' && g.avg != null && g.max != null
+                  ? `у вас ${g.personal} · среднее по группе ${fmtAvg(g.avg)} · максимум в группе ${g.max}`
+                  : g.status === 'insufficient'
+                    ? 'Недостаточно данных для анонимного сравнения'
+                    : 'Нет данных'}
+              </p>
+            ))
+          )}
+        </div>
       )}
 
       {series && (series.current > 0 || series.record > 0 || series.last_break) && (

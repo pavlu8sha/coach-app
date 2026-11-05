@@ -15,6 +15,28 @@ const seed = () => {
 };
 
 describe('баллы по новым правилам', () => {
+  it('ориентиры группы: свои баллы, среднее и максимум без имён', async () => {
+    seed();
+    fake.rpc.points_group_benchmark = () => ({ groups: [{ group_id: 'g1', group_name: 'U9', personal: 6, status: 'ok', avg: 2.3, max: 10 }] });
+    render(<PointsLedger playerId="p1" />);
+    expect(await screen.findByText(/у вас 6 · среднее по группе 2,3 · максимум в группе 10/)).toBeInTheDocument();
+    expect(fake.rpcCalls('points_group_benchmark')[0]).toEqual({ p: 'p1', ym: '2026-12-01' });
+  });
+
+  it('малая группа: недостаточно данных; нет начислений в месяце: нет данных; две группы: разбивка', async () => {
+    seed();
+    fake.rpc.points_group_benchmark = () => ({ groups: [
+      { group_id: 'g1', group_name: 'U9', personal: 4, status: 'insufficient', avg: null, max: null },
+      { group_id: 'g2', group_name: 'U11', personal: 2, status: 'ok', avg: 1.5, max: 3 },
+    ] });
+    render(<PointsLedger playerId="p1" />);
+    expect(await screen.findByText(/Недостаточно данных для анонимного сравнения/)).toBeInTheDocument();
+    expect(screen.getByText('Ваши баллы по группам')).toBeInTheDocument();
+    fake.rpc.points_group_benchmark = () => ({ groups: [] });
+    fireEvent.click(screen.getByRole('button', { name: 'Предыдущий месяц' }));
+    expect(await screen.findByText('Нет данных')).toBeInTheDocument();
+  });
+
   it('без начислений в новом журнале блока нет', async () => {
     fake.db.points_ledger = [];
     const { container } = render(<PointsLedger playerId="p1" />);
