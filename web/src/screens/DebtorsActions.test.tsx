@@ -61,6 +61,33 @@ describe('«Должники»: списание и создание абоне�
   });
 });
 
+describe('«Должники»: подготовка месяца к долгам (0128)', () => {
+  it('показывает, у скольких игроков нет строки, и объясняет, зачем кнопка', async () => {
+    seed();
+    fake.rpc.subscription_month_missing = () => 3;
+    render(<Debtors />);
+    expect(await screen.findByText('Строки нет у 3 активных игроков: нажмите кнопку, чтобы создать.')).toBeInTheDocument();
+    expect(screen.getByText(/Строки создаются сами 1-го числа каждого месяца/)).toBeInTheDocument();
+    expect(screen.getByText(/Повторное нажатие безопасно/)).toBeInTheDocument();
+  });
+
+  it('если строки есть у всех, пишет «Все готово»', async () => {
+    seed();
+    fake.rpc.subscription_month_missing = () => 0;
+    render(<Debtors />);
+    expect(await screen.findByText('Все готово: у всех активных игроков строка за этот месяц уже есть.')).toBeInTheDocument();
+  });
+
+  it('до миграции 0128 счётчик не показывается, экран работает', async () => {
+    seed();
+    fake.rpc.subscription_month_missing = () => ({ error: { message: 'Could not find the function' } });
+    render(<Debtors />);
+    expect(await screen.findByRole('button', { name: 'Создать абонементы на месяц' })).toBeInTheDocument();
+    expect(screen.queryByText(/Строки нет у/)).toBeNull();
+    expect(screen.queryByText(/Все готово/)).toBeNull();
+  });
+});
+
 describe('«Должники»: оплата из строки, текст для родителей, фильтр группы', () => {
   const seed2 = () => {
     fake.rpc.debtors = () => [
