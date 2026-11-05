@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { fetchLedgerTotals } from '../lib/pointsLedger';
 import { Avatar, EmptyState, ListRow, Pill } from '../ui/components';
 import Link from './Link';
 import LinkOnboarding from './LinkOnboarding';
@@ -7,30 +8,22 @@ import LinkStatus, { STATUS, type Req } from './LinkStatus';
 import { Failure, Loading } from './Message';
 import PointsLedger from './PointsLedger';
 
-interface Event { points: number; explanation: string; occurred_on: string }
 interface Child {
   id: string;
   name: string;
   group: string | null;
   points: number;
-  events: Event[];
   played: number;
   goals: number;
 }
 
-const SHORT = 5; // сколько начислений видно сразу
-const LONG = 30; // сколько максимум по кнопке «Показать ещё»
-const fmtDate = (iso: string) => iso.split('-').reverse().join('.');
-const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${Math.abs(n)}` : '0');
 const plural = (n: number) => {
   const a = Math.abs(n);
   return a % 10 === 1 && a % 100 !== 11 ? 'балл' : a % 10 >= 2 && a % 10 <= 4 && (a % 100 < 10 || a % 100 >= 20) ? 'балла' : 'баллов';
 };
 
-// Карточка ребёнка: имя, группа, сумма баллов и история начислений. Других детей и голов здесь нет.
+// Карточка ребёнка: имя, группа, сумма баллов и история начислений по новому журналу. Других детей и голов здесь нет.
 function ChildCard({ c }: { c: Child }) {
-  const [all, setAll] = useState(false);
-  const shown = c.events.slice(0, all ? LONG : SHORT);
   return (
     <section className="ks-card ks-kid" aria-label={c.name}>
       <div className="ks-kid-head">
@@ -45,31 +38,7 @@ function ChildCard({ c }: { c: Child }) {
         </div>
       </div>
       <p className="muted ks-kid-stats">Матчей сыграно: {c.played} · голов: {c.goals}</p>
-      <PointsLedger playerId={c.id} />
-      {c.events.length === 0 ? (
-        <EmptyState icon="trophy" title="Баллов пока нет" text="Они появятся после тренировок и матчей." />
-      ) : (
-        <>
-          <h3>История начислений</h3>
-          <div>
-            {shown.map((e, i) => (
-              <div className="ks-slot" key={i}>
-                <span className="ks-slot-main">
-                  {e.explanation}
-                  <span className="ks-muted">{fmtDate(e.occurred_on)}</span>
-                </span>
-                <Pill tone={e.points > 0 ? 'success' : e.points < 0 ? 'danger' : 'neutral'}>{signed(e.points)}</Pill>
-              </div>
-            ))}
-          </div>
-          {c.events.length > SHORT && (
-            <button type="button" className="ks-btn secondary sm" style={{ marginTop: 8 }} onClick={() => setAll(v => !v)}>
-              {all ? 'Свернуть' : `Показать ещё (${Math.min(c.events.length, LONG) - SHORT})`}
-            </button>
-          )}
-          {all && c.events.length > LONG && <p className="muted note">Показаны последние {LONG} начислений.</p>}
-        </>
-      )}
+      <PointsLedger playerId={c.id} showEmpty />
     </section>
   );
 }
@@ -110,11 +79,8 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
         group: (l.players?.groups?.name ?? null) as string | null,
       })).filter(k => k.id);
       const ids = kids.map(k => k.id);
-      const events = ids.length
-        ? await supabase.from('point_events').select('player_id, points, explanation, occurred_on').in('player_id', ids).order('occurred_on', { ascending: false }).limit(1000)
-        : { data: [], error: null };
-      if (events.error) return setError(events.error.message);
-      const rows = (events.data ?? []) as (Event & { player_id: string })[];
+      const led = ids.length ? await fetchLedgerTotals(ids) : { totals: {} as Record<string, number>, error: null };
+      if (led.error) return setError(led.error);
       // Голы и матчи видны только своему ребёнку: чужие карточки родитель не получает (RLS), других детей здесь нет
       const mp = ids.length
         ? await supabase.from('match_players').select('player_id, played, goals').in('player_id', ids)
@@ -126,9 +92,8 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
       setReqs(rq.error ? [] : ((rq.data ?? []) as unknown as Req[]));
       setChildren(
         kids.map(k => {
-          const mine = rows.filter(r => r.player_id === k.id);
           const played = parts.filter(p => p.player_id === k.id);
-          return { ...k, points: mine.reduce((s, r) => s + r.points, 0), events: mine, played: played.filter(p => p.played).length, goals: played.reduce((s, p) => s + (p.goals ?? 0), 0) };
+          return { ...k, points: led.totals[k.id] ?? 0, played: played.filter(p => p.played).length, goals: played.reduce((s, p) => s + (p.goals ?? 0), 0) };
         }),
       );
     })();

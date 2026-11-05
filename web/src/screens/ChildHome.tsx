@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react';
+import { fetchLedgerTotals } from '../lib/pointsLedger';
 import { supabase } from '../lib/supabase';
-import { EmptyState } from '../ui/components';
 import { Failure, Loading } from './Message';
 import PointsLedger from './PointsLedger';
 
 export interface ChildPlayer { id: string; name: string; group: string | null }
 
-interface Totals { points: number; recent: { points: number; explanation: string; occurred_on: string }[]; played: number; goals: number }
+interface Totals { points: number; played: number; goals: number }
 
-const fmtDate = (iso: string) => iso.split('-').reverse().join('.');
 const plural = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'балл' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'балла' : 'баллов');
 
 // Ввод кода от родителя: связывает аккаунт ребёнка с игроком.
@@ -51,7 +50,7 @@ export function ChildCode({ onLinked }: { onLinked: () => void }) {
   );
 }
 
-// «Мои баллы» ребёнка: баллы, последние события и сыгранные матчи.
+// «Мои баллы» ребёнка: баллы по новому журналу и сыгранные матчи.
 export default function ChildHome({ player }: { player: ChildPlayer }) {
   const [t, setT] = useState<Totals | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -59,13 +58,12 @@ export default function ChildHome({ player }: { player: ChildPlayer }) {
 
   useEffect(() => {
     void (async () => {
-      const ev = await supabase.from('point_events').select('points, explanation, occurred_on').eq('player_id', player.id).order('occurred_on', { ascending: false }).limit(1000);
-      if (ev.error) return setError(ev.error.message);
+      const led = await fetchLedgerTotals([player.id]);
+      if (led.error) return setError(led.error);
       const mp = await supabase.from('match_players').select('played, goals').eq('player_id', player.id);
       if (mp.error) return setError(mp.error.message);
-      const rows = (ev.data ?? []) as Totals['recent'];
       const parts = (mp.data ?? []) as { played: boolean; goals: number }[];
-      setT({ points: rows.reduce((s, r) => s + r.points, 0), recent: rows.slice(0, 10), played: parts.filter(p => p.played).length, goals: parts.reduce((s, p) => s + (p.goals ?? 0), 0) });
+      setT({ points: led.totals[player.id] ?? 0, played: parts.filter(p => p.played).length, goals: parts.reduce((s, p) => s + (p.goals ?? 0), 0) });
     })();
   }, [player.id, reload]);
 
@@ -86,21 +84,7 @@ export default function ChildHome({ player }: { player: ChildPlayer }) {
           </div>
         </div>
         <p className="muted">Матчей сыграно: {t.played} · голов: {t.goals}</p>
-        <PointsLedger playerId={player.id} />
-        {t.recent.length > 0 ? (
-          <div>
-            {t.recent.map((e, i) => (
-              <div className="ks-slot" key={i}>
-                <span>{e.explanation}</span>
-                <span className="muted">
-                  {fmtDate(e.occurred_on)} · {e.points > 0 ? '+' : ''}{e.points}
-                </span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <EmptyState icon="trophy" title="Пока нет баллов" text="Баллы появятся после тренировок и матчей." />
-        )}
+        <PointsLedger playerId={player.id} showEmpty />
       </section>
     </main>
   );

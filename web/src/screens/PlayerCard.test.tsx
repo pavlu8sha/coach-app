@@ -81,12 +81,12 @@ describe('карточка игрока: вкладки', () => {
     expect(field.parentElement?.querySelector('span:empty')).toBeNull();
   });
 
-  it('«Баллы»: без начислений в новом журнале показывает «Баллов нет»', async () => {
+  it('«Баллы»: без начислений в новом журнале показывает «Баллов пока нет»', async () => {
     seed();
     fake.db.points_ledger = [];
     render(<PlayerCard player={player} onBack={() => {}} onEdit={() => {}} />);
     open('Баллы');
-    expect(await screen.findByText('Баллов нет')).toBeInTheDocument();
+    expect(await screen.findByText('Баллов пока нет')).toBeInTheDocument();
   });
 });
 

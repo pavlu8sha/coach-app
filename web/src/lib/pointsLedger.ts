@@ -1,3 +1,4 @@
+import { supabase } from './supabase';
 // Новый журнал баллов (#18): подписи начислений, месячные итоги. Чистые функции, чтобы родитель, ребёнок и тренер видели одинаковый текст.
 export interface LedgerRow {
   id: string;
@@ -54,3 +55,17 @@ export function ledgerLabel(r: LedgerRow): Label {
 export const monthTotal = (rows: LedgerRow[], ym: string) => rows.filter(r => monthOf(r.event_date) === ym).reduce((s, r) => s + r.points, 0);
 export const grandTotal = (rows: LedgerRow[]) => rows.reduce((s, r) => s + r.points, 0);
 export const latestMonth = (rows: LedgerRow[], fallback: string) => rows.reduce((m, r) => (monthOf(r.event_date) > m ? monthOf(r.event_date) : m), rows.length ? monthOf(rows[0].event_date) : fallback);
+
+// Суммы действующих баллов игроков по новому журналу; ошибка загрузки возвращается строкой
+export async function fetchLedgerTotals(ids: string[]): Promise<{ totals: Record<string, number>; error: string | null }> {
+  const totals: Record<string, number> = {};
+  for (let i = 0; i < ids.length; i += 100) {
+    for (let from = 0; ; from += 1000) {
+      const e = await supabase.from('points_ledger').select('player_id, points').eq('status', 'active').in('player_id', ids.slice(i, i + 100)).order('id').range(from, from + 999);
+      if (e.error) return { totals, error: e.error.message };
+      for (const r of (e.data ?? []) as { player_id: string; points: number }[]) totals[r.player_id] = (totals[r.player_id] ?? 0) + r.points;
+      if ((e.data ?? []).length < 1000) break;
+    }
+  }
+  return { totals, error: null };
+}

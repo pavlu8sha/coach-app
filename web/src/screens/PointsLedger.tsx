@@ -51,7 +51,7 @@ export default function PointsLedger({ playerId, showEmpty = false }: { playerId
     void supabase.rpc('points_group_benchmark', { p: playerId, ym: `${month}-01` }).then(r => setBench(r.error ? null : (r.data as Bench | null)));
   }, [playerId, month]);
 
-  if (rows && rows.length === 0 && showEmpty) return <EmptyState icon="trophy" title="Баллов нет" text="Начислений пока нет." />;
+  if (rows && rows.length === 0 && showEmpty) return <EmptyState icon="trophy" title="Баллов пока нет" text="Они появятся после тренировок и матчей." />;
   if (!rows || rows.length === 0 || !month) return null;
   const inMonth = rows.filter(r => monthOf(r.event_date) === month);
   const total = monthTotal(rows, month);
