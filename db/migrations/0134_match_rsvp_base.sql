@@ -126,7 +126,7 @@ create table match_reminder_log (
   created_at timestamptz not null default clock_timestamp(),
   foreign key (match_id, club_id) references matches (id, club_id) on delete cascade
 );
-create index match_reminder_log_recent on match_reminder_log (match_id, recipient_id, created_at desc);
+create index match_reminder_log_recent on match_reminder_log (recipient_id, created_at desc);
 -- Автоматическое напоминание каждого вида — один раз на родителя, матч и версию расписания (защита от дублей cron)
 create unique index match_reminder_log_auto_once on match_reminder_log (match_id, recipient_id, kind, schedule_version)
   where kind in ('auto_48h', 'auto_24h');
@@ -235,8 +235,8 @@ language sql security definer set search_path = public as $$
     values (m.id, m.club_id, current_user_id(), act, coalesce(pl, '{}'::jsonb))
 $$;
 
--- Ставит напоминание в очередь, если этому родителю по этому матчу не ставили напоминание за последние 24 часа
--- (любого вида: ручное и автоматическое считаются вместе). true — поставлено, false — слишком часто / уже было.
+-- Ставит напоминание в очередь, если этому родителю не ставили напоминание (по любому матчу) за последние 24 часа
+-- (любого вида: ручное и автоматическое считаются вместе; ТЗ: «одному родителю не чаще одного раза в 24 часа»). true — поставлено, false — слишком часто / уже было.
 -- Вызывается из match_rsvp_remind_unanswered и (в PR 2) из cron под service_role; клиентам недоступна.
 create or replace function rsvp_claim_reminder(m uuid, u uuid, k text, actor uuid default null) returns boolean
 language plpgsql security definer set search_path = public as $$
@@ -244,8 +244,8 @@ declare mt matches; n int;
 begin
   select * into mt from matches where id = m;
   if mt.id is null or mt.lifecycle_status <> 'published' then return false; end if;
-  perform pg_advisory_xact_lock(hashtextextended(m::text || ':' || u::text, 0));
-  if exists (select 1 from match_reminder_log where match_id = m and recipient_id = u and created_at > clock_timestamp() - interval '24 hours') then
+  perform pg_advisory_xact_lock(hashtextextended(u::text, 0));
+  if exists (select 1 from match_reminder_log where recipient_id = u and created_at > clock_timestamp() - interval '24 hours') then
     return false;
   end if;
   insert into match_reminder_log (match_id, club_id, recipient_id, kind, schedule_version, sent_by)

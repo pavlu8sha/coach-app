@@ -1,7 +1,7 @@
 -- pgTAP: подтверждение участия в матчах (миграция 0134, Issue #274, PR 1): схема, жизненный цикл, RLS, права, серверные проверки.
 begin;
 create extension if not exists pgtap;
-select plan(164);
+select plan(165);
 
 -- ---------- данные ----------
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб А'), ('00000000-0000-0000-0000-00000000c002', 'Клуб Б');
@@ -240,7 +240,7 @@ select is((select rsvp_claim_reminder(mid('m6'), '00000000-0000-0000-0000-000000
 select is((select rsvp_claim_reminder(mid('m6'), '00000000-0000-0000-0000-0000000000b3', 'auto_24h')), false, 'повтор автонапоминания не создаёт дубль');
 select is((select rsvp_claim_reminder(mid('m6'), '00000000-0000-0000-0000-0000000000b3', 'auto_48h')), false, 'другое автонапоминание в течение 24 часов тоже не ставится');
 select as_user('00000000-0000-0000-0000-0000000000c1');
-select is((select queued::text || '/' || skipped::text from match_rsvp_remind_unanswered(mid('m6'))), '2/1', 'ручное напоминание: родитель 3 пропущен из-за недавнего автоматического, оба родителя d001 получили');
+select is((select queued::text || '/' || skipped::text from match_rsvp_remind_unanswered(mid('m6'))), '1/2', 'ручное напоминание по другому матчу: родитель 3 (недавнее автоматическое) и родитель 1 (недавнее ручное по матчу 1) пропущены, родитель 2 получил');
 select is((select count(*)::int from match_activity where match_id = mid('m6') and action = 'manual_reminder'), 1, 'ручное напоминание записано в журнал (число)');
 select as_user('00000000-0000-0000-0000-0000000000b1');
 select lives_ok($$select match_rsvp_answer(mid('m6'), '00000000-0000-0000-0000-00000000d001', 'yes')$$, 'поздний ответ до начала матча принимается');
@@ -268,6 +268,7 @@ select lives_ok($$insert into ids select 'm4', match_rsvp_create_draft('00000000
 select lives_ok($$select match_rsvp_invite(mid('m4'), array['00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-00000000d002']::uuid[])$$, 'состав матча 4');
 select lives_ok($$select match_rsvp_publish(mid('m4'))$$, 'публикация матча 4');
 reset role;
+select is((select rsvp_claim_reminder(mid('m4'), '00000000-0000-0000-0000-0000000000b1', 'auto_48h')), false, 'лимит на родителя действует и между разными матчами');
 -- имитация прошедшего дедлайна (до начала ещё 30 часов): окно ответа закрыто
 update match_invitations set answer_until = clock_timestamp() - interval '1 minute' where match_id = mid('m4');
 select as_user('00000000-0000-0000-0000-0000000000b1');
