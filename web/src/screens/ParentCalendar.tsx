@@ -31,6 +31,7 @@ const dateFromKey = (key: string) => {
 };
 const formatDate = (key: string) => dateFromKey(key).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 // Назад листаем до месяца первой отметки ребёнка; если отметок нет, до начала сезона (сентябрь 2026): раньше расписание было другим.
+const MATCH_KIND_LABEL: Record<string, string> = { championship: 'Матч чемпионата', festival: 'Матч фестиваля', cup: 'Матч кубка' };
 const SEASON_MONTH = new Date(2026, 8, 1);
 const formatMonth = (date: Date) => date.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
 const formatTime = (time: string | null) => time ? time.slice(0, 5) : null;
@@ -55,7 +56,7 @@ export default function ParentCalendar() {
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
   const [minMonth, setMinMonth] = useState(SEASON_MONTH);
-  const [friendlyIds, setFriendlyIds] = useState<Set<string> | null>(null);
+  const [matchLabels, setMatchLabels] = useState<Map<string, string>>(new Map());
   const [selectedDate, setSelectedDate] = useState(() => keyOf(new Date()));
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [childrenLoading, setChildrenLoading] = useState(true);
@@ -95,17 +96,18 @@ export default function ParentCalendar() {
     return () => { cancelled = true; };
   }, [retry]);
 
-  // тип матча: товарищеский или матч чемпионата (так же, как на экране «Матчи»)
+  // тип матча по настоящему виду: товарищеский, чемпионат, фестиваль, кубок (как на экране «Матчи»)
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       const { data, error } = await supabase.rpc('match_tournaments');
       if (cancelled || error) return;
-      const ids = new Set<string>();
+      const labels = new Map<string, string>();
       for (const t of (data ?? []) as { match_id: string; tournament_name: string | null; tournament_kind: string | null; match_kind: string | null }[]) {
-        if (t.match_kind === 'friendly' || (!t.tournament_name && !t.tournament_kind)) ids.add(t.match_id);
+        const label = t.match_kind === 'friendly' || (!t.tournament_name && !t.tournament_kind) ? 'Товарищеский матч' : MATCH_KIND_LABEL[t.tournament_kind ?? ''];
+        if (label) labels.set(t.match_id, label);
       }
-      setFriendlyIds(ids);
+      setMatchLabels(labels);
     })();
     return () => { cancelled = true; };
   }, []);
@@ -149,10 +151,7 @@ export default function ParentCalendar() {
     return () => { cancelled = true; };
   }, [playerId, month, retry]);
 
-  const matchLabel = (eventId: string) => {
-    if (!friendlyIds) return 'Матч';
-    return friendlyIds.has(eventId.replace(/^match:/, '')) ? 'Товарищеский матч' : 'Матч чемпионата';
-  };
+  const matchLabel = (eventId: string) => matchLabels.get(eventId.replace(/^match:/, '')) ?? 'Матч';
 
   const eventDays = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>();
