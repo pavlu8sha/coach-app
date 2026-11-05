@@ -22,5 +22,7 @@ for t in db/tests/rls*_test.sql; do
   echo "$out" | grep -E '^ *(ok|not ok) ' || true
   if echo "$out" | grep -qE 'not ok|Looks like you (failed|planned)'; then echo "$out"; fail=1; fi
 done
+echo "== db/tests/concurrency_match_rsvp.sh"
+DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_match_rsvp.sh || fail=1
 $PSQL -q -d postgres -c "drop database if exists $DB"
 [ "$fail" = 0 ] && echo "Все тесты доступа прошли" || { echo "ЕСТЬ ПАДЕНИЯ"; exit 1; }
