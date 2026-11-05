@@ -54,16 +54,19 @@ export function coachError(m: string): string {
   return map.find(([k]) => m.includes(k))?.[1] ?? m;
 }
 
-// Единый порядок групп во всём приложении: сначала возрастные (U7-A, U7-B, U9-A … U13-C), затем площадки
-// (Ortachala U9, Ortachala U12, Isani), затем weekends и индивидуальные, «без группы» в самом конце.
+// Единый порядок групп во всём приложении: сначала возрастные (U7-A, U7-B, U9-A … U13-C), затем
+// Ortachala, затем Isani, затем новые группы, weekends и индивидуальные, «без группы» в самом конце.
 function groupRank(name: string): [number, number, string] {
   const n = name.trim();
   const u = /^U(\d+)(?:-(.+))?$/i.exec(n);
   if (u) return [0, Number(u[1]), (u[2] ?? '').toLowerCase()];
-  if (/^без группы$/i.test(n)) return [4, 0, ''];
-  if (/^weekends$/i.test(n)) return [2, 0, n.toLowerCase()];
-  if (/^индивидуальн/i.test(n)) return [3, 0, n.toLowerCase()];
-  return [1, 0, n.toLowerCase()];
+  const o = /^Ortachala(?:\s+U(\d+))?/i.exec(n);
+  if (o) return [1, Number(o[1] ?? 0), n.toLowerCase()];
+  if (/^Isani$/i.test(n)) return [2, 0, n.toLowerCase()];
+  if (/^weekends$/i.test(n)) return [4, 0, n.toLowerCase()];
+  if (/^индивидуальн/i.test(n)) return [5, 0, n.toLowerCase()];
+  if (/^без группы$/i.test(n)) return [6, 0, ''];
+  return [3, 0, n.toLowerCase()];
 }
 // Свой порядок групп из настроек клуба («Порядок групп»): группы из списка идут первыми в заданном порядке, остальные после них в обычном.
 let customOrder: string[] = [];

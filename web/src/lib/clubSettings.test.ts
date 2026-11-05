@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { champFeeFor, settingError, settingDef, settingNumber, settingText } from './clubSettings';
+import { champFeeFor, settingError, settingDef, settingNumber, settingNumberError, settingText } from './clubSettings';
 import { compareGroups, setGroupOrder, sortGroups } from './coach';
 
 afterEach(() => setGroupOrder(''));
@@ -9,20 +9,31 @@ describe('Настройки клуба: значения и проверка', 
     expect(settingText({}, 'stats.lowPct')).toBe('50');
     expect(settingText({ 'stats.lowPct': '' }, 'stats.lowPct')).toBe('50');
     expect(settingNumber({ 'stats.lowPct': '40' }, 'stats.lowPct')).toBe(40);
-    expect(settingNumber({ 'stats.lowPct': '500' }, 'stats.lowPct')).toBe(50); // вне границ → по умолчанию
-    expect(Number.isNaN(settingNumber({}, 'ind.capIndividual'))).toBe(true);
+    expect(Number.isNaN(settingNumber({ 'stats.lowPct': '500' }, 'stats.lowPct'))).toBe(true);
+    expect(settingNumberError({ 'stats.lowPct': '500' }, 'stats.lowPct')).toBe('Не больше 100.');
+    expect(settingNumber({}, 'ind.capIndividual')).toBe(6);
+    expect(settingNumber({}, 'ind.capGoalkeepers')).toBe(7);
     expect(settingNumber({ 'ind.capIndividual': '6' }, 'ind.capIndividual')).toBe(6);
+    expect(settingNumber({ 'ind.capIndividual': 'abc' }, 'ind.capIndividual')).toBeNaN();
   });
 
   it('значения из старого приложения (null) считаются незаданными', () => {
     expect(settingText({ 'equip.discNeedOwn': null as unknown as string }, 'equip.discNeedOwn')).toContain('Игровая форма');
   });
 
-  it('границы: число вне диапазона отклоняется, пустое допустимо только там, где нет значения по умолчанию', () => {
+  it('границы: число вне диапазона отклоняется, пустое поле возвращает значение по умолчанию', () => {
     expect(settingError(settingDef('payments.nextMonthDay')!, '40')).toBe('Не больше 31.');
     expect(settingError(settingDef('payments.nextMonthDay')!, 'abc')).toBe('Нужно число.');
+    expect(settingError(settingDef('payments.nextMonthDay')!, '')).toBeNull();
     expect(settingError(settingDef('ind.capIndividual')!, '')).toBeNull();
     expect(settingError(settingDef('ind.capIndividual')!, '0')).toBe('Не меньше 1.');
+    expect(settingError(settingDef('ind.capIndividual')!, '6,5')).toBe('Нужно целое число.');
+    expect(settingNumber({ 'ind.capIndividual': '6,5' }, 'ind.capIndividual')).toBeNaN();
+    expect(settingError(settingDef('equip.discPct')!, '12,5')).toBeNull();
+    expect(settingError(settingDef('equip.discRound')!, '0')).toBe('Не меньше 1.');
+    expect(settingError(settingDef('equip.discRound')!, '5,5')).toBe('Нужно целое число.');
+    expect(settingError(settingDef('equip.discRound')!, '5')).toBeNull();
+    expect(settingNumber({}, 'equip.discRound')).toBe(5);
     expect(settingError(settingDef('equip.fullPrice')!, '  ')).toBe('Список не может быть пустым.');
   });
 

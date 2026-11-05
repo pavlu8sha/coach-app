@@ -5,8 +5,8 @@ import { EmptyState, ListRow, Pill, SearchInput, Segmented, SwitchRow } from '..
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
-import { settingText, useClubSettings } from '../lib/clubSettings';
-import { bundleDiscount, parseKitList } from '../lib/equipmentDiscount';
+import { settingNumberError, useClubSettings } from '../lib/clubSettings';
+import { bundleDiscount, priorAmount } from '../lib/equipmentDiscount';
 import { EQUIPMENT_REQUIRED_KEY, EQUIPMENT_REQUIRED_TEXT, issueStateLabel, lastStatusDate, nextStatus, orderStatusLabel, prevStatus, type StatusEvent } from '../lib/equipment';
 
 interface Line { kit: string; size: string | null; quantity: number }
@@ -316,12 +316,12 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
     if (n) setNumber(cur => (cur.trim() ? cur : n));
   };
   const total = (kits ?? []).reduce((s, k) => s + (pick[k.kit] ? k.price * pick[k.kit].quantity : 0), 0);
-  const fullKits = new Set(parseKitList(settingText(settings.values, 'equip.fullPrice')));
-  const pastAmount = past.reduce((sum, o) => sum + Math.max(0, o.total - o.lines.filter(l => fullKits.has(l.kit.trim().toLowerCase())).reduce((x, l) => x + Number(l.unit_price ?? 0) * l.quantity, 0)), 0);
+  const pastAmount = priorAmount(past, settings.values);
   const disc = bundleDiscount({
     lines: (kits ?? []).filter(k => pick[k.kit]).map(k => ({ kit: k.kit, amount: k.price * pick[k.kit].quantity })),
     pastKits: past.flatMap(o => o.lines.map(l => l.kit)), pastAmount, installment: inst, settings: settings.values,
   });
+  const discError = settingNumberError(settings.values, 'equip.discPct') ?? settingNumberError(settings.values, 'equip.discRound');
   const save = async () => {
     if (!player) return;
     setBusy(true);
@@ -368,6 +368,7 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
       <label className="field">Локация<input value={loc} maxLength={40} onChange={e => setLoc(e.target.value)} /></label>
       <div style={{ marginTop: 12 }}><SwitchRow id="inst" label="Рассрочка" checked={inst} onChange={setInst} /></div>
       <label className="field">Своя сумма, ₾ (если со скидкой; иначе пусто)<input inputMode="decimal" value={custom} onChange={e => setCustom(e.target.value)} /></label>
+      {discError && <p className="error">Скидка не рассчитана: исправьте настройку в «Настройках клуба». {discError}</p>}
       {disc.applies && custom.trim() === '' ? (
         <div className="ks-callout">
           <div>По каталогу: {gel(disc.base)}</div>

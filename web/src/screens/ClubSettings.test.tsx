@@ -22,6 +22,15 @@ describe('Настройки клуба (#339)', () => {
     expect(within(card(/С какого числа/)).queryByRole('button', { name: 'По умолчанию' })).toBeNull();
     expect(within(card(/Порог низкой посещаемости/)).getByText('своё')).toBeInTheDocument();
     expect(within(card(/Порог низкой посещаемости/)).getByText('По умолчанию: 50')).toBeInTheDocument();
+    expect(within(card(/Мест на индивидуальном занятии/)).getByRole('textbox')).toHaveValue('6');
+    expect(within(card(/Мест на вратарском занятии/)).getByRole('textbox')).toHaveValue('7');
+  });
+
+  it('показывает предупреждение о сохранённом значении вне границ', async () => {
+    fake.db.club_settings = [{ club_id: 'c1', key: 'payments.nextMonthDay', scope: '', value: '40' }];
+    render(<ClubSettings />);
+    expect(await screen.findByText('Сохранённое значение недопустимо: Не больше 31.')).toBeInTheDocument();
+    expect(within(card(/С какого числа/)).getByRole('textbox')).toHaveValue('40');
   });
 
   it('сохраняет число в club_settings', async () => {
@@ -52,7 +61,7 @@ describe('Настройки клуба (#339)', () => {
     await waitFor(() => expect(fake.db.club_settings).toEqual([]));
   });
 
-  it('настройка без значения по умолчанию: пустое поле убирает запись («без ограничения»)', async () => {
+  it('пустое поле убирает запись и возвращает значение по умолчанию', async () => {
     fake.db.club_settings = [{ club_id: 'c1', key: 'ind.capIndividual', scope: '', value: '6' }];
     render(<ClubSettings />);
     await screen.findByText(/Мест на индивидуальном занятии/);

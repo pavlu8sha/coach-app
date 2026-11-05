@@ -6,7 +6,7 @@ import { Pill } from '../ui/components';
 import { Loading } from './Message';
 
 // «Настройки клуба» (#339): общие значения, которые раньше были зашиты в код или стояли в старом приложении.
-// В поле всегда стоит действующее значение. Пустое поле у настройки без значения по умолчанию и «По умолчанию» убирают запись.
+// В поле всегда стоит действующее значение. Пустое поле и «По умолчанию» убирают запись и возвращают значение по умолчанию.
 
 function Row({ def, scope = '', title, saved, clubId, resetLabel = 'По умолчанию', showDefault = true, onSaved }: {
   def: SettingDef; scope?: string; title?: string; saved: string | undefined; clubId: string; resetLabel?: string; showDefault?: boolean; onSaved: () => void;
@@ -26,6 +26,7 @@ function Row({ def, scope = '', title, saved, clubId, resetLabel = 'По умо�
   }, [effective]);
   const inputId = `setting-${def.key}-${scope}`;
   const defText = def.def === '' ? (def.emptyLabel ?? 'не задано') : def.def;
+  const savedError = custom ? settingError(def, saved!.trim()) : null;
 
   const remove = async (okText: string) => {
     setBusy(true);
@@ -39,16 +40,15 @@ function Row({ def, scope = '', title, saved, clubId, resetLabel = 'По умо�
   };
   const save = async () => {
     const text = value.trim();
-    if (text === '' && def.def === '') return void remove('Значение убрано.');
-    const final = text === '' ? def.def : text;
-    const bad = settingError(def, final);
+    if (text === '') return void remove(showDefault ? 'Действует значение по умолчанию.' : 'Значение убрано.');
+    const bad = settingError(def, text);
     if (bad) return setMsg({ ok: false, text: bad });
     setBusy(true);
     setMsg(null);
-    const r = await supabase.from('club_settings').upsert({ club_id: clubId, key: def.key, scope, value: final, updated_at: new Date().toISOString() }, { onConflict: 'club_id,key,scope' });
+    const r = await supabase.from('club_settings').upsert({ club_id: clubId, key: def.key, scope, value: text, updated_at: new Date().toISOString() }, { onConflict: 'club_id,key,scope' });
     setBusy(false);
     if (r.error) return setMsg({ ok: false, text: 'Не удалось сохранить. Проверьте, что вы вошли как администратор.' });
-    setValue(final);
+    setValue(text);
     setMsg({ ok: true, text: 'Сохранено.' });
     onSaved();
   };
@@ -60,10 +60,11 @@ function Row({ def, scope = '', title, saved, clubId, resetLabel = 'По умо�
         <Pill tone={custom ? 'primary' : 'neutral'}>{custom ? 'своё' : showDefault ? 'по умолчанию' : 'общее'}</Pill>
       </div>
       {def.hint && showDefault && <p className="muted" style={{ margin: '4px 0 0' }}>{def.hint}</p>}
+      {savedError && <p className="error" style={{ margin: '4px 0 0' }}>Сохранённое значение недопустимо: {savedError}</p>}
       <div className="field" style={{ marginTop: 10 }}>
         {def.kind === 'list'
           ? <textarea id={inputId} rows={3} value={value} onChange={e => setValue(e.target.value)} style={{ font: 'inherit', fontSize: '1rem', padding: 12, borderRadius: 'var(--ks-radius)', border: '1px solid var(--ks-border-strong)' }} />
-          : <input id={inputId} inputMode="decimal" value={value} onChange={e => setValue(e.target.value)} />}
+          : <input id={inputId} inputMode={def.integer ? 'numeric' : 'decimal'} value={value} onChange={e => setValue(e.target.value)} />}
       </div>
       <div className="two" style={{ marginTop: 10 }}>
         <button type="button" className="ks-btn" disabled={busy} onClick={() => void save()}>Сохранить</button>

@@ -15,8 +15,15 @@ export const parseKitList = (s: string) => s.split(',').map(x => x.trim().toLowe
 const satisfied = (rule: string[][], have: Set<string>) => rule.length > 0 && rule.every(g => g.some(k => have.has(k)));
 
 export interface OrderLine { kit: string; amount: number }
-/** pastAmount — сумма прошлых заказов игрока без позиций «по полной цене»; allBase и allTotal — набор целиком до и после скидки. */
+export interface PastOrder { total: number; lines: { kit: string }[] }
+/** pastAmount — сумма прошлых заказов, где есть позиция из discNeedOwn (как в старом приложении); allBase и allTotal — набор целиком до и после скидки. */
 export interface DiscountResult { applies: boolean; base: number; total: number; discount: number; pct: number; pastAmount: number; allBase: number; allTotal: number }
+
+export function priorAmount(past: PastOrder[], settings: SettingValues): number {
+  const base = new Set(parseKitRule(settingText(settings, 'equip.discNeedOwn')).flat());
+  if (base.size === 0) return 0;
+  return past.reduce((sum, o) => (o.lines ?? []).some(l => base.has(l.kit.trim().toLowerCase())) ? sum + (Number(o.total) || 0) : sum, 0);
+}
 
 export function bundleDiscount(args: { lines: OrderLine[]; pastKits: string[]; pastAmount?: number; installment: boolean; settings: SettingValues }): DiscountResult {
   const { lines, pastKits, installment, settings } = args;
@@ -24,15 +31,15 @@ export function bundleDiscount(args: { lines: OrderLine[]; pastKits: string[]; p
   const sum = lines.reduce((s, l) => s + l.amount, 0);
   const none: DiscountResult = { applies: false, base: sum, total: sum, discount: 0, pct: 0, pastAmount, allBase: sum + pastAmount, allTotal: sum + pastAmount };
   const pct = settingNumber(settings, 'equip.discPct');
-  if (installment || pct <= 0 || lines.length === 0) return none;
+  const round = settingNumber(settings, 'equip.discRound');
+  if (installment || !Number.isFinite(pct) || pct <= 0 || !Number.isFinite(round) || lines.length === 0) return none;
   const inOrder = new Set(lines.map(l => l.kit.trim().toLowerCase()));
   const all = new Set([...inOrder, ...pastKits.map(k => k.trim().toLowerCase())]);
-  if (!satisfied(parseKitRule(settingText(settings, 'equip.discNeedOwn')), inOrder)) return none;
-  if (!satisfied(parseKitRule(settingText(settings, 'equip.discNeedAll')), all)) return none;
+  if (!satisfied(parseKitRule(settingText(settings, 'equip.discNeedAll')), inOrder)) return none;
+  if (!satisfied(parseKitRule(settingText(settings, 'equip.discNeedOwn')), all)) return none;
   const full = new Set(parseKitList(settingText(settings, 'equip.fullPrice')));
   const fullSum = lines.filter(l => full.has(l.kit.trim().toLowerCase())).reduce((s, l) => s + l.amount, 0);
   const allBase = (sum - fullSum) + pastAmount;
-  const round = settingNumber(settings, 'equip.discRound');
   let allTotal = allBase * (1 - pct / 100);
   if (round > 0) allTotal = Math.round(allTotal / round) * round;
   allTotal = Math.max(0, Math.round(allTotal * 100) / 100);
