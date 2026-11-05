@@ -166,10 +166,10 @@ function Day({ readOnly }: { readOnly: boolean }) {
             ) : (
               <>
                 {held.map(r => (
-                  <div className="ks-line" key={r.id} style={{ marginTop: 8 }}>
-                    <span>{r.coach}{r.hours ? ` · ${r.hours} ч` : ''}</span>
-                    <span style={{ display: 'flex', gap: 6 }}>
-                      <select className="ks-select" style={{ minHeight: 40, width: 150, marginBottom: 0 }} aria-label={`Заменить тренера ${r.coach}`} value="" disabled={busy === r.id} onChange={e => e.target.value && void run(r.id, () => supabase.rpc('tl_replace_coach', { i: r.id, new_coach: e.target.value }))}>
+                  <div key={r.id} style={{ marginTop: 8 }}>
+                    <div>{r.coach}{r.hours ? ` · ${r.hours} ч` : ''}</div>
+                    <span style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                      <select className="ks-select" style={{ minHeight: 40, flex: 1, minWidth: 0, marginBottom: 0 }} aria-label={`Заменить тренера ${r.coach}`} value="" disabled={busy === r.id} onChange={e => e.target.value && void run(r.id, () => supabase.rpc('tl_replace_coach', { i: r.id, new_coach: e.target.value }))}>
                         <option value="">Заменить…</option>
                         {known.filter(n => n !== r.coach).map(n => <option key={n}>{n}</option>)}
                       </select>
