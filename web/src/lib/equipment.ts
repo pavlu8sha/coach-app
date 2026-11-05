@@ -12,6 +12,9 @@ export type OrderStatus = (typeof ORDER_STATUSES)[number]['value'];
 
 export const orderStatusLabel = (s: string | null | undefined) => ORDER_STATUSES.find(x => x.value === s)?.label ?? ORDER_STATUSES[0].label;
 export const nextStatus = (s: string) => ORDER_STATUSES[ORDER_STATUSES.findIndex(x => x.value === s) + 1]?.value;
+// «Выдан» ставится, только когда по каждой вещи заказа есть отметка выдачи (0133).
+export const allKitsIssued = (lines: { kit: string }[], issues: { kit: string }[]) =>
+  lines.length > 0 && lines.every(l => issues.some(i => i.kit === l.kit));
 export const prevStatus = (s: string) => ORDER_STATUSES[ORDER_STATUSES.findIndex(x => x.value === s) - 1]?.value;
 
 export interface StatusEvent { status: string; changed_at: string; changed_by_name: string | null }

@@ -23,6 +23,17 @@ describe('Экипировка: статусы заказов (#240)', () => {
     fake.db.equipment_catalog = [];
   });
 
+  it('«Выдан» нельзя нажать, пока выданы не все вещи; когда выданы все, кнопка доступна (0133)', async () => {
+    fake.db.equipment_orders = [
+      order('o1', 'Иванов Пётр', 'ready', [], { equipment_order_lines: [{ kit: 'Форма', size: '128', quantity: 1 }, { kit: 'Костюм', size: '128', quantity: 1 }], equipment_issues: [{ kit: 'Форма', issued_on: '2026-11-05', issued_by: 'Тренер' }] }),
+      order('o2', 'Сидоров Ян', 'ready', [], { equipment_issues: [{ kit: 'Форма', issued_on: '2026-11-05', issued_by: 'Тренер' }] }),
+    ];
+    render(<Equipment />);
+    fireEvent.click(await screen.findByText('Иванов Пётр'));
+    expect(await screen.findByRole('button', { name: 'Перевести: Выдан' })).toBeDisabled();
+    expect(screen.getByText(/станет доступен, когда будут выданы все вещи/)).toBeInTheDocument();
+  });
+
   it('в списке виден статус заказа', async () => {
     render(<Equipment />);
     expect(await screen.findByText(/Принят в заказ/)).toBeInTheDocument();

@@ -1,7 +1,7 @@
 -- pgTAP: статус заказа экипировки следует за выдачей (0132).
 begin;
 create extension if not exists pgtap;
-select plan(5);
+select plan(9);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -35,6 +35,17 @@ select is((select status from equipment_orders where id = (select id from ids wh
 
 select eq_set_issued((select id from ids where k = 'o1'), 'Вратарская форма', true);
 select is((select status from equipment_orders where id = (select id from ids where k = 'o1')), 'issued', 'выдали снова: «Выдан»');
+
+-- 0133: добавили вещь в заказ со статусом «Выдан» → «Готов к выдаче»
+insert into equipment_catalog (club_id, kit, price, valid_from) values ('00000000-0000-0000-0000-00000000c001', 'Костюм', 150, '2026-09-01');
+select eq_add_line((select id from ids where k = 'o1'), 'Костюм', '128', 1);
+select is((select status from equipment_orders where id = (select id from ids where k = 'o1')), 'ready', 'добавили невыданную вещь: «Готов к выдаче»');
+select is((select count(*)::int from equipment_order_status_history where order_id = (select id from ids where k = 'o1') and status = 'ready' and changed_by_name = 'Админ'), 2, 'возврат записан в историю (после снятия выдачи и после добавления вещи)');
+
+-- вручную «Выдан» нельзя, пока выдана не каждая вещь
+select throws_ok($$select eq_set_order_status((select id from ids where k = 'o1'), 'issued')$$, '22023', 'not all issued', 'вручную «Выдан» нельзя, пока не выданы все вещи');
+select eq_set_issued((select id from ids where k = 'o1'), 'Костюм', true);
+select is((select status from equipment_orders where id = (select id from ids where k = 'o1')), 'issued', 'выдали последнюю вещь: «Выдан»');
 
 select * from finish();
 rollback;

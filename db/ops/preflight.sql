@@ -134,6 +134,7 @@ select * from (values
   ('0129_points_test_mode', coalesce((to_regproc('points_consistency_run') is not null), false)),
   ('0130_notify_points_ledger', coalesce((to_regproc('notify_points_ledger') is not null), false)),
   ('0131_points_exceptions_floor', coalesce((select position('floor_day' in prosrc) > 0 from pg_proc where proname = 'points_consistency_run' limit 1), false)),
-  ('0132_equipment_status_auto_issued', coalesce((exists (select 1 from pg_trigger where tgname = 'equipment_issues_sync_status' and not tgisinternal)), false))
+  ('0132_equipment_status_auto_issued', coalesce((exists (select 1 from pg_trigger where tgname = 'equipment_issues_sync_status' and not tgisinternal)), false)),
+  ('0133_equipment_status_follows_lines', coalesce((exists (select 1 from pg_trigger where tgname = 'equipment_lines_sync_status' and not tgisinternal)), false))
 ) as t(migration, applied)
 order by migration;
