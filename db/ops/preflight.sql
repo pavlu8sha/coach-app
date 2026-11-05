@@ -125,6 +125,7 @@ select * from (values
   ('0120_session_class_group_history', coalesce((to_regclass('player_group_history') is not null and exists (select 1 from information_schema.columns where table_name = 'sessions' and column_name = 'class') and to_regproc('open_session_special') is not null), false)),
   ('0121_points_for_training', coalesce((to_regproc('points_reconcile_group_session') is not null and exists (select 1 from pg_trigger where tgname = 'points_attendance_sync' and not tgisinternal) and (pg_get_functiondef(to_regprocedure('mark_attendance(uuid,jsonb)')) like '%roster incomplete%')), false)),
   ('0122_points_for_matches', coalesce((to_regproc('points_reconcile_match') is not null and to_regclass('match_revisions') is not null and exists (select 1 from information_schema.columns where table_name = 'matches' and column_name = 'technical') and to_regproc('set_match_technical') is not null), false)),
-  ('0123_points_manual', coalesce((to_regproc('points_manual_award') is not null and to_regproc('points_manual_cancel') is not null and to_regproc('points_manual_status') is not null), false))
+  ('0123_points_manual', coalesce((to_regproc('points_manual_award') is not null and to_regproc('points_manual_cancel') is not null and to_regproc('points_manual_status') is not null), false)),
+  ('0124_points_series', coalesce((to_regproc('points_reconcile_series') is not null and to_regproc('points_series_info') is not null and exists (select 1 from pg_trigger where tgname = 'points_series_attendance_sync' and not tgisinternal)), false))
 ) as t(migration, applied)
 order by migration;
