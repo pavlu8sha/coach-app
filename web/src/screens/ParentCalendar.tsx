@@ -30,6 +30,8 @@ const dateFromKey = (key: string) => {
   return new Date(year, month - 1, day);
 };
 const formatDate = (key: string) => dateFromKey(key).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+// Сезон начинается в сентябре 2026: раньше расписание было другим, поэтому назад не листаем.
+const MIN_MONTH = new Date(2026, 8, 1);
 const formatMonth = (date: Date) => date.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
 const formatTime = (time: string | null) => time ? time.slice(0, 5) : null;
 
@@ -132,6 +134,7 @@ export default function ParentCalendar() {
   const selectedEvents = eventDays.get(selectedDate) ?? [];
   const shiftMonth = (delta: number) => {
     const next = new Date(month.getFullYear(), month.getMonth() + delta, 1);
+    if (next < MIN_MONTH) return;
     setMonth(next);
     setSelectedDate(keyOf(next));
   };
@@ -164,7 +167,7 @@ export default function ParentCalendar() {
 
       <section aria-label="Календарь событий" style={{ maxWidth: 560, margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12 }}>
-          <button type="button" className="ks-btn sm ks-tap" aria-label="Предыдущий месяц" onClick={() => shiftMonth(-1)}>‹</button>
+          <button type="button" className="ks-btn sm ks-tap" aria-label="Предыдущий месяц" disabled={month <= MIN_MONTH} onClick={() => shiftMonth(-1)}>‹</button>
           <h2 style={{ margin: 0, textTransform: 'capitalize', fontSize: 18 }}>{formatMonth(month)}</h2>
           <button type="button" className="ks-btn sm ks-tap" aria-label="Следующий месяц" onClick={() => shiftMonth(1)}>›</button>
         </div>

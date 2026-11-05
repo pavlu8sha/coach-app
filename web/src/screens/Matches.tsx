@@ -19,7 +19,8 @@ const FORM: Record<'w' | 'd' | 'l', { letter: string; name: string; tone: Tone }
 const KIND_LABEL: Record<string, string> = { championship: 'Чемпионат', festival: 'Фестиваль', cup: 'Кубок' };
 const FRIENDLY = 'friendly';
 // подпись турнира для фильтра: название, иначе тип; товарищеские — отдельным пунктом
-const tourLabel = (t: Tour | undefined) => (t?.match_kind === FRIENDLY ? 'Товарищеские' : t?.tournament_name ?? (t?.tournament_kind ? KIND_LABEL[t.tournament_kind] ?? null : null));
+// матч без турнира считается товарищеским (так же в статистике: миграция 0060)
+const tourLabel = (t: Tour | undefined) => (t && (t.match_kind === FRIENDLY || (!t.tournament_name && !t.tournament_kind)) ? 'Товарищеские' : t?.tournament_name ?? (t?.tournament_kind ? KIND_LABEL[t.tournament_kind] ?? null : null));
 
 const matchWord = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'матч' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'матча' : 'матчей');
 const fmtDate = (iso: string) => iso.split('-').reverse().join('.');
