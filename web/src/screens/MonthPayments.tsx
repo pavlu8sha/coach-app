@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { sortGroups, today } from '../lib/coach';
-import { settingNumber, useClubSettings } from '../lib/clubSettings';
+import { settingNumber, settingNumberError, useClubSettings } from '../lib/clubSettings';
 import { supabase } from '../lib/supabase';
 import { EmptyState, Pill, SearchInput, SwitchRow } from '../ui/components';
 import { CLOSURE_LABELS, closureFlags, useClosure, type ClosureKind } from '../ui/ClosureSheet';
@@ -62,6 +62,7 @@ export default function MonthPayments() {
     if (!settings.loaded || picked.current) return;
     if (new Date().getDate() >= settingNumber(settings.values, 'payments.nextMonthDay')) setMonth(nextMonth(monthIso(new Date())));
   }, [settings.loaded, settings.values]);
+  const nextDayError = settingNumberError(settings.values, 'payments.nextMonthDay');
   const [groups, setGroups] = useState<Group[]>([]);
   const [prices, setPrices] = useState<Price[]>([]);
   const [players, setPlayers] = useState<Pl[] | null>(null);
@@ -137,6 +138,7 @@ export default function MonthPayments() {
   return (
     <main className="page">
       <h1>Оплаты за месяц</h1>
+      {nextDayError && <p className="error">Настройка «С какого числа предлагать следующий месяц» недопустима: {nextDayError} Пока открыт текущий месяц.</p>}
       <div className="ks-pair">
         <select className="ks-select" aria-label="Месяц" value={month} onChange={e => { picked.current = true; setPlayers(null); setOpenId(null); setMonth(e.target.value); }}>
           {months.map(m => <option key={m} value={m}>{monthName(m)}</option>)}
