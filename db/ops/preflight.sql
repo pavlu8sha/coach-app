@@ -135,6 +135,7 @@ select * from (values
   ('0130_notify_points_ledger', coalesce((to_regproc('notify_points_ledger') is not null), false)),
   ('0131_points_exceptions_floor', coalesce((select position('floor_day' in prosrc) > 0 from pg_proc where proname = 'points_consistency_run' limit 1), false)),
   ('0132_equipment_status_auto_issued', coalesce((exists (select 1 from pg_trigger where tgname = 'equipment_issues_sync_status' and not tgisinternal)), false)),
-  ('0133_equipment_status_follows_lines', coalesce((exists (select 1 from pg_trigger where tgname = 'equipment_lines_sync_status' and not tgisinternal)), false))
+  ('0133_equipment_status_follows_lines', coalesce((exists (select 1 from pg_trigger where tgname = 'equipment_lines_sync_status' and not tgisinternal)), false)),
+  ('0134_match_rsvp_base', coalesce((to_regclass('match_invitations') is not null and to_regproc('match_rsvp_publish') is not null), false))
 ) as t(migration, applied)
 order by migration;

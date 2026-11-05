@@ -19,7 +19,7 @@ select is(
 
 select is(
   (select coalesce(string_agg(p.proname, ', ' order by p.proname), '') from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname in ('apply_match_points', 'claim_notifications', 'enqueue_notification', 'enqueue_to_admins', 'enqueue_to_guardians', 'notify_coach_group', 'notify_payment', 'notify_bonus', 'lead_submit', 'ind_book', 'ind_assert_admin', 'ind_price', 'ind_cap', 'extra_cap', 'eq_assert_admin', 'eq_number_taken', 'eq_price', 'camp_assert_admin', 'tl_assert_admin', 'finish_notification', 'notify_link_request', 'notify_data_request', 'rate_limit_hit', 'rule_for', 'tariff_for')
+    where n.nspname = 'public' and p.proname in ('apply_match_points', 'claim_notifications', 'enqueue_notification', 'enqueue_to_admins', 'enqueue_to_guardians', 'notify_coach_group', 'notify_payment', 'notify_bonus', 'lead_submit', 'ind_book', 'ind_assert_admin', 'ind_price', 'ind_cap', 'extra_cap', 'eq_assert_admin', 'eq_number_taken', 'eq_price', 'camp_assert_admin', 'tl_assert_admin', 'finish_notification', 'notify_link_request', 'notify_data_request', 'rate_limit_hit', 'rule_for', 'tariff_for', 'rsvp_assert_staff', 'rsvp_lock_match', 'rsvp_log', 'rsvp_claim_reminder')
       and has_function_privilege('authenticated', p.oid, 'execute')),
   '', 'служебные функции недоступны из приложения');
 
@@ -89,7 +89,12 @@ select is(
         -- 0109: причина и автор скидки на взносы (только админ; проверка внутри)
         'fee_discounts',
         -- 0111: статьи клуба (сохранение: админ и тренеры, автор и права проверяются внутри; is_any_guardian отличает родителя от гостя в RLS)
-        'club_article_save', 'is_any_guardian')),
+        'club_article_save', 'is_any_guardian',
+        -- 0134: подтверждение участия в матчах (RSVP). Проверки доступа для политик RLS и операции тренера/родителя; доступ проверяется внутри каждой
+        'is_coach_of_club', 'is_match_staff', 'rsvp_match_visible', 'rsvp_is_invited_guardian',
+        'match_rsvp_create_draft', 'match_rsvp_update', 'match_rsvp_seed', 'match_rsvp_invite', 'match_rsvp_remove', 'match_rsvp_publish',
+        'match_rsvp_delete_draft', 'match_rsvp_cancel', 'match_rsvp_reschedule', 'match_rsvp_coach_set', 'match_rsvp_remind_unanswered',
+        'match_rsvp_summary', 'match_rsvp_roster', 'match_rsvp_answer', 'match_rsvp_answer_many', 'match_rsvp_my_matches')),
   '', 'список функций, доступных вошедшим пользователям, не расширился без решения');
 
 select is(
