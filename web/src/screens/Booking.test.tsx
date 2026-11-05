@@ -13,7 +13,8 @@ describe('Запись на занятия', () => {
     fake.rpc.booking_signup = () => null;
     render(<Booking />);
     expect(await screen.findByText('Мест: 2')).toBeInTheDocument();
-    expect(screen.getByText('Записаны: Боря Второй')).toBeInTheDocument();
+    expect(screen.getByText('Записаны:')).toBeInTheDocument();
+    expect(screen.getByText('Боря Второй').tagName).toBe('LI');
     fireEvent.click(screen.getByRole('button', { name: 'Записать: Аня Первая' }));
     await waitFor(() => expect(fake.rpcCalls('booking_signup')).toEqual([{ k: 'individual', s: 's1', p: 'p1' }]));
   });

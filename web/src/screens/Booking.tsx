@@ -71,7 +71,14 @@ export default function Booking() {
           <section className="ks-card" key={r.kind + r.session_id}>
             <div className="ks-line"><b>{KIND_LABEL[r.kind]}: {when(r.starts_at, r.kind, r.ends_at)}</b>{left !== null && <Pill tone={left > 0 ? 'success' : 'neutral'}>{left > 0 ? `Мест: ${left}` : 'Мест нет'}</Pill>}</div>
             <div className="ks-muted" style={{ fontSize: 13 }}>{[r.title, r.place, r.amount !== null && Number(r.amount) > 0 ? gel(r.amount) : null].filter(Boolean).join(' · ')}</div>
-            <p style={{ margin: '8px 0' }}>Записаны: {r.booked.length ? r.booked.join(', ') : 'пока никого'}</p>
+            {r.booked.length ? (
+              <div style={{ margin: '8px 0' }}>
+                <div>Записаны:</div>
+                <ol style={{ margin: '4px 0 0', paddingLeft: 22 }}>{r.booked.map((n, i) => <li key={i}>{n}</li>)}</ol>
+              </div>
+            ) : (
+              <p style={{ margin: '8px 0' }}>Записаны: пока никого</p>
+            )}
             {kids.map(k => {
               const mine = r.mine.find(m => m.player_id === k.id);
               return mine ? (
