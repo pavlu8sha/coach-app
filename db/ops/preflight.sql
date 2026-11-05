@@ -121,6 +121,7 @@ select * from (values
   ('0116_parent_calendar_no_dup_log', coalesce((pg_get_functiondef(to_regprocedure('parent_calendar(uuid,date,date)')) like '%distinct on (tl.held_on%'), false)),
   ('0117_points_rule_versions',    coalesce((to_regclass('points_rule_versions') is not null and to_regproc('points_rules_save') is not null), false)),
   ('0118_points_ledger',           coalesce((to_regclass('points_ledger') is not null and to_regclass('points_ledger_audit') is not null and to_regproc('points_ledger_apply') is not null), false)),
+  ('0119_settings_defaults', coalesce((pg_get_functiondef(to_regprocedure('ind_cap(uuid,boolean)')) like '%then 7 else 6%'), false)),
   ('0120_session_class_group_history', coalesce((to_regclass('player_group_history') is not null and exists (select 1 from information_schema.columns where table_name = 'sessions' and column_name = 'class') and to_regproc('open_session_special') is not null), false)),
   ('0121_points_for_training', coalesce((to_regproc('points_reconcile_group_session') is not null and exists (select 1 from pg_trigger where tgname = 'points_attendance_sync' and not tgisinternal) and (pg_get_functiondef(to_regprocedure('mark_attendance(uuid,jsonb)')) like '%roster incomplete%')), false))
 ) as t(migration, applied)
