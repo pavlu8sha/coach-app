@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import ParentCalendar from './ParentCalendar';
@@ -53,5 +53,25 @@ describe('календарь родителя', () => {
     const days = container.querySelectorAll('button[aria-pressed]');
     expect(days.length).toBeGreaterThanOrEqual(28);
     expect(screen.getByRole('group', { name: /^Дни / })).toBeInTheDocument();
+  });
+  // листаем назад, пока кнопка доступна, и возвращаем заголовок месяца, на котором остановились
+  async function earliestMonth() {
+    fake.rpc.parent_calendar = () => [];
+    render(<ParentCalendar />);
+    await screen.findByText('Календарь ребёнка');
+    await new Promise(r => setTimeout(r, 50)); // дать загрузиться первой отметке
+    const prev = screen.getByRole('button', { name: 'Предыдущий месяц' });
+    for (let i = 0; i < 24 && !(prev as HTMLButtonElement).disabled; i++) fireEvent.click(prev);
+    return screen.getAllByRole('heading', { level: 2 })[0].textContent?.toLowerCase();
+  }
+
+  it('назад листается до месяца первой отметки ребёнка', async () => {
+    fake.db.attendance = [{ player_id: 'p1', sessions: { starts_at: '2026-08-20T14:00:00Z' } }, { player_id: 'p1', sessions: { starts_at: '2026-10-02T14:00:00Z' } }];
+    expect(await earliestMonth()).toContain('август');
+  });
+
+  it('без отметок календарь начинается с сентября', async () => {
+    fake.db.attendance = [];
+    expect(await earliestMonth()).toContain('сентябрь');
   });
 });
