@@ -31,6 +31,7 @@ const dateFromKey = (key: string) => {
 };
 const formatDate = (key: string) => dateFromKey(key).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 // Назад листаем до месяца первой отметки ребёнка; если отметок нет, до начала сезона (сентябрь 2026): раньше расписание было другим.
+const MATCH_KIND_LABEL: Record<string, string> = { championship: 'Матч чемпионата', festival: 'Матч фестиваля', cup: 'Матч кубка' };
 const SEASON_MONTH = new Date(2026, 8, 1);
 const formatMonth = (date: Date) => date.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
 const formatTime = (time: string | null) => time ? time.slice(0, 5) : null;
@@ -55,6 +56,7 @@ export default function ParentCalendar() {
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
   const [minMonth, setMinMonth] = useState(SEASON_MONTH);
+  const [matchLabels, setMatchLabels] = useState<Map<string, string>>(new Map());
   const [selectedDate, setSelectedDate] = useState(() => keyOf(new Date()));
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [childrenLoading, setChildrenLoading] = useState(true);
@@ -94,6 +96,22 @@ export default function ParentCalendar() {
     return () => { cancelled = true; };
   }, [retry]);
 
+  // тип матча по настоящему виду: товарищеский, чемпионат, фестиваль, кубок (как на экране «Матчи»)
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await supabase.rpc('match_tournaments');
+      if (cancelled || error) return;
+      const labels = new Map<string, string>();
+      for (const t of (data ?? []) as { match_id: string; tournament_name: string | null; tournament_kind: string | null; match_kind: string | null }[]) {
+        const label = t.match_kind === 'friendly' || (!t.tournament_name && !t.tournament_kind) ? 'Товарищеский матч' : MATCH_KIND_LABEL[t.tournament_kind ?? ''];
+        if (label) labels.set(t.match_id, label);
+      }
+      setMatchLabels(labels);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   // самая ранняя отметка ребёнка задаёт, с какого месяца показывать календарь
   useEffect(() => {
     if (!playerId) return;
@@ -132,6 +150,8 @@ export default function ParentCalendar() {
     })();
     return () => { cancelled = true; };
   }, [playerId, month, retry]);
+
+  const matchLabel = (eventId: string) => matchLabels.get(eventId.replace(/^match:/, '')) ?? 'Матч';
 
   const eventDays = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>();
@@ -230,7 +250,7 @@ export default function ParentCalendar() {
                   <div>
                     <div style={{ fontWeight: 650 }}>{event.title}</div>
                     <div style={{ color: 'var(--ks-text-muted, #5a6584)', fontSize: 13, marginTop: 4 }}>
-                      {[formatTime(event.event_time), event.location].filter(Boolean).join(' · ') || (event.event_type === 'match' ? 'Футбольный матч' : 'Тренировка')}
+                      {[formatTime(event.event_time), event.location].filter(Boolean).join(' · ') || (event.event_type === 'match' ? matchLabel(event.event_id) : 'Тренировка')}
                     </div>
                   </div>
                   <span style={{ flexShrink: 0, fontSize: 12, borderRadius: 999, padding: '4px 8px', background: 'var(--ks-primary-subtle, #dde4f6)', color: 'var(--ks-primary, #25335a)' }}>{statusLabel(event)}</span>
