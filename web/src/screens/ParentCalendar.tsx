@@ -55,6 +55,7 @@ export default function ParentCalendar() {
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
   const [minMonth, setMinMonth] = useState(SEASON_MONTH);
+  const [friendlyIds, setFriendlyIds] = useState<Set<string> | null>(null);
   const [selectedDate, setSelectedDate] = useState(() => keyOf(new Date()));
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [childrenLoading, setChildrenLoading] = useState(true);
@@ -94,6 +95,21 @@ export default function ParentCalendar() {
     return () => { cancelled = true; };
   }, [retry]);
 
+  // тип матча: товарищеский или матч чемпионата (так же, как на экране «Матчи»)
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await supabase.rpc('match_tournaments');
+      if (cancelled || error) return;
+      const ids = new Set<string>();
+      for (const t of (data ?? []) as { match_id: string; tournament_name: string | null; tournament_kind: string | null; match_kind: string | null }[]) {
+        if (t.match_kind === 'friendly' || (!t.tournament_name && !t.tournament_kind)) ids.add(t.match_id);
+      }
+      setFriendlyIds(ids);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   // самая ранняя отметка ребёнка задаёт, с какого месяца показывать календарь
   useEffect(() => {
     if (!playerId) return;
@@ -132,6 +148,11 @@ export default function ParentCalendar() {
     })();
     return () => { cancelled = true; };
   }, [playerId, month, retry]);
+
+  const matchLabel = (eventId: string) => {
+    if (!friendlyIds) return 'Матч';
+    return friendlyIds.has(eventId.replace(/^match:/, '')) ? 'Товарищеский матч' : 'Матч чемпионата';
+  };
 
   const eventDays = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>();
@@ -230,7 +251,7 @@ export default function ParentCalendar() {
                   <div>
                     <div style={{ fontWeight: 650 }}>{event.title}</div>
                     <div style={{ color: 'var(--ks-text-muted, #5a6584)', fontSize: 13, marginTop: 4 }}>
-                      {[formatTime(event.event_time), event.location].filter(Boolean).join(' · ') || (event.event_type === 'match' ? 'Футбольный матч' : 'Тренировка')}
+                      {[formatTime(event.event_time), event.location].filter(Boolean).join(' · ') || (event.event_type === 'match' ? matchLabel(event.event_id) : 'Тренировка')}
                     </div>
                   </div>
                   <span style={{ flexShrink: 0, fontSize: 12, borderRadius: 999, padding: '4px 8px', background: 'var(--ks-primary-subtle, #dde4f6)', color: 'var(--ks-primary, #25335a)' }}>{statusLabel(event)}</span>

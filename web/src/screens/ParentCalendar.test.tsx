@@ -54,6 +54,21 @@ describe('календарь родителя', () => {
     expect(days.length).toBeGreaterThanOrEqual(28);
     expect(screen.getByRole('group', { name: /^Дни / })).toBeInTheDocument();
   });
+  it('подпись матча: товарищеский или матч чемпионата', async () => {
+    const today = new Date();
+    const eventDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const ev = (id: string) => ({ event_id: `match:${id}`, event_date: eventDate, event_time: null, event_type: 'match', title: 'Матч', location: null, event_status: 'past', attendance_status: null });
+    fake.rpc.parent_calendar = () => [ev('f1'), ev('c1')];
+    fake.rpc.match_tournaments = () => [
+      { match_id: 'f1', tournament_id: null, tournament_name: null, tournament_kind: null, match_kind: 'friendly' },
+      { match_id: 'c1', tournament_id: 't1', tournament_name: 'Tbilisi Challenge Cup', tournament_kind: 'championship', match_kind: null },
+    ];
+    render(<ParentCalendar />);
+    expect(await screen.findByText('Товарищеский матч')).toBeInTheDocument();
+    expect(await screen.findByText('Матч чемпионата')).toBeInTheDocument();
+    expect(screen.queryByText('Футбольный матч')).toBeNull();
+  });
+
   // листаем назад, пока кнопка доступна, и возвращаем заголовок месяца, на котором остановились
   async function earliestMonth() {
     fake.rpc.parent_calendar = () => [];
