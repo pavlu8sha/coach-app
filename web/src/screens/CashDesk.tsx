@@ -378,7 +378,7 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false 
         <div style={{ marginTop: 8 }}>
           {!fixedAmount && <label className="field">Сумма, ₾ (меньше остатка — частичный платёж, останется долг)<input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /></label>}
           {(() => {
-            const dateField = due.kind === 'sub' || due.kind === 'camp' || due.kind === 'ind' || due.kind === 'extra' ? <label className="field">Дата<input type="date" value={date} max={today()} onChange={e => setDate(e.target.value)} /></label> : null;
+            const dateField = due.kind === 'sub' || due.kind === 'eq' || due.kind === 'camp' || due.kind === 'ind' || due.kind === 'extra' ? <label className="field">Дата<input type="date" value={date} max={today()} onChange={e => setDate(e.target.value)} /></label> : null;
             const methodField = sharedMethod !== undefined ? null : <label className="field">Способ<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>;
             return dateField && methodField ? <div className="two pay-fields">{dateField}{methodField}</div> : dateField ?? methodField;
           })()}
