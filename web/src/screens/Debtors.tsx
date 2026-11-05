@@ -38,6 +38,7 @@ export default function Debtors() {
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [missing, setMissing] = useState<number | null>(null); // у скольких активных игроков нет строки абонемента за месяц (0128)
   const [busy, setBusy] = useState<string | null>(null);
   const { ask, dialog } = useConfirm();
   const { askClosure, closureDialog } = useClosure();
@@ -52,6 +53,8 @@ export default function Debtors() {
       if (d.error) return setError(d.error.message.includes('Could not find the function') ? 'Функция расчёта долга ещё не установлена в базе (миграция 0023).' : d.error.message);
       const s = await supabase.from('subscriptions').select('id, player_id, players(full_name)').eq('month', month).eq('discount', true);
       if (s.error) return setError(s.error.message);
+      const mi = await supabase.rpc('subscription_month_missing', { m: month });
+      setMissing(mi.error ? null : Number(mi.data ?? 0)); // до миграции 0128 счётчик просто не показываем
       const c = await supabase.from('clubs').select('id').limit(1);
       if (c.error) return setError(c.error.message);
       const cid = ((c.data ?? []) as { id: string }[])[0]?.id ?? null;
@@ -111,7 +114,7 @@ export default function Debtors() {
     }
   };
   const createMonth = async () => {
-    if (!(await ask({ title: 'Создать абонементы?', lines: [['Месяц', monthName(month)]], note: 'Абонемент появится у всех активных игроков.', confirmLabel: 'Создать' }))) return;
+    if (!(await ask({ title: 'Создать абонементы?', lines: [['Месяц', monthName(month)]], note: 'Строка абонемента появится у активных игроков, у которых её ещё нет. Уже созданные не изменятся.', confirmLabel: 'Создать' }))) return;
     setBusy('month');
     setMsg(null);
     const r = await supabase.rpc('create_subscription_month', { m: month });
@@ -157,8 +160,15 @@ export default function Debtors() {
         </button>
       </div>
       <div className="ks-card">
-        <b>Абонементы на {monthName(month).toLowerCase()}</b>
-        <p className="ks-muted" style={{ margin: '6px 0 10px' }}>Создаёт строки абонементов для всех активных игроков с группой (кроме индивидуальных). Только после этого прошлый месяц считается в долге у неплательщиков.</p>
+        <b>Абонементы на {monthName(month).toLowerCase()}: подготовка к долгам</b>
+        <p className="ks-muted" style={{ margin: '6px 0 10px' }}>
+          Оплатить абонемент можно и без этой кнопки. Она нужна, чтобы по окончании месяца неплательщик остался в долге: прошлый месяц считается долгом только у игроков со строкой абонемента. Строки создаются сами 1-го числа каждого месяца; кнопка запасная (например, если игрока добавили посреди месяца). Повторное нажатие безопасно: уже созданное не меняется, дублей не будет.
+        </p>
+        {missing !== null && (
+          <p className="ks-muted" style={{ margin: '0 0 10px' }}>
+            {missing === 0 ? 'Все готово: у всех активных игроков строка за этот месяц уже есть.' : `Строки нет у ${missing} активных игроков: нажмите кнопку, чтобы создать.`}
+          </p>
+        )}
         <button type="button" className="ks-btn secondary" disabled={busy === 'month'} onClick={() => void createMonth()}>Создать абонементы на месяц</button>
       </div>
       {msg && <p className={/^(Создано|Скопировано|Платёж записан)/.test(msg) ? 'muted' : 'error'}>{msg}</p>}
