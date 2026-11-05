@@ -16,7 +16,7 @@ interface SeriesInfo {
 }
 
 interface Bench {
-  groups: { group_id: string | null; group_name: string | null; personal: number; status: 'ok' | 'insufficient' | 'no_data' | 'off'; avg: number | null; max: number | null }[];
+  groups: { group_id: string | null; group_name: string | null; personal: number; status: 'ok' | 'insufficient' | 'no_data' | 'off'; avg: number | null; max: number | null; place?: number | null }[];
 }
 
 const fmtAvg = (n: number) => String(n).replace('.', ',');
@@ -105,7 +105,7 @@ export default function PointsLedger({ playerId, showEmpty = false }: { playerId
               <p key={i} className="muted" style={{ margin: '2px 0' }}>
                 {g.group_name ? `${g.group_name}: ` : ''}
                 {g.status === 'ok' && g.avg != null && g.max != null
-                  ? `у вас ${g.personal} · среднее по группе ${fmtAvg(g.avg)} · максимум в группе ${g.max}`
+                  ? `у вас ${g.personal} · среднее по группе ${fmtAvg(g.avg)} · максимум в группе ${g.max}${g.place ? ` · место в группе ${g.place}` : ''}`
                   : g.status === 'insufficient'
                     ? 'Недостаточно данных для анонимного сравнения'
                     : 'Нет данных'}
