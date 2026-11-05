@@ -20,5 +20,5 @@ begin
   );
 end $$;
 
-revoke all on function parent_first_attendance(uuid) from public;
+revoke execute on function parent_first_attendance(uuid) from public, anon;
 grant execute on function parent_first_attendance(uuid) to authenticated;
