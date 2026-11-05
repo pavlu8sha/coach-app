@@ -26,6 +26,34 @@ describe('«Учёт тренеров»', () => {
     expect(fake.rpcCalls('tl_confirm')[0]).toMatchObject({ d: today(), label: 'U9', kind: 'Групповая', st: '17:00', en: '18:30', coaches: ['Павел', 'Соприк'] });
   });
 
+  it('слоты одной группы с разным временем (16:45 и 17:00) склеиваются в одну карточку с ранним временем', async () => {
+    const dow = isoDow(today());
+    fake.db.weekly_schedule = [
+      { weekday: dow, starts_at: '17:00:00', ends_at: '18:00:00', location: 'Зал', coaches: 'Павел, Соприк', kind: 'Групповая', source_key: `${dow}|16:45|U10-A/B` },
+      { weekday: dow, starts_at: '16:45:00', ends_at: '18:00:00', location: 'Зал', coaches: 'Павел, Соприк', kind: 'Групповая', source_key: `${dow}|16:45|U10-A/B` },
+    ];
+    fake.db.training_log = [];
+    fake.rpc.tl_confirm = () => 2;
+    render(<TrainerLog />);
+    expect(await screen.findByText('U10-A/B · 16:45–18:00')).toBeInTheDocument();
+    expect(screen.getAllByText(/U10-A\/B ·/)).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Проведена' }));
+    await waitFor(() => expect(fake.rpcCalls('tl_confirm')[0]).toMatchObject({ label: 'U10-A/B', st: '16:45', coaches: ['Павел', 'Соприк'] }));
+  });
+
+  it('проведённая запись с другим временем не даёт второй карточки «Не отмечена»', async () => {
+    const dow = isoDow(today());
+    fake.db.weekly_schedule = [
+      { weekday: dow, starts_at: '17:15:00', ends_at: '18:30:00', location: 'Зал', coaches: 'Паша, Цотне', kind: 'Групповая', source_key: `${dow}|17:15|U10-A/B` },
+    ];
+    fake.db.training_log = ['Паша', 'Цотне'].map((c, i) => ({ ...row('x' + i, c), group_label: 'U10-A/B', starts_at: '17:00:00' }));
+    render(<TrainerLog />);
+    expect(await screen.findByText('U10-A/B · 17:00–18:30')).toBeInTheDocument();
+    expect(screen.getAllByText(/U10-A\/B ·/)).toHaveLength(1);
+    expect(screen.queryByText('Не отмечена')).not.toBeInTheDocument();
+    expect(screen.getByText(/Паша · 1.5 ч/)).toBeInTheDocument();
+  });
+
   it('проведённая тренировка: тренеры и часы, замена и добавление', async () => {
     seed([row('l1', 'Павел')]);
     fake.rpc.tl_replace_coach = () => null;
