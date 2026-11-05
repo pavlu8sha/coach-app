@@ -30,8 +30,8 @@ const dateFromKey = (key: string) => {
   return new Date(year, month - 1, day);
 };
 const formatDate = (key: string) => dateFromKey(key).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
-// Сезон начинается в сентябре 2026: раньше расписание было другим, поэтому назад не листаем.
-const MIN_MONTH = new Date(2026, 8, 1);
+// Назад листаем до месяца первой отметки ребёнка; если отметок нет, до начала сезона (сентябрь 2026): раньше расписание было другим.
+const SEASON_MONTH = new Date(2026, 8, 1);
 const formatMonth = (date: Date) => date.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
 const formatTime = (time: string | null) => time ? time.slice(0, 5) : null;
 
@@ -54,6 +54,7 @@ export default function ParentCalendar() {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
+  const [minMonth, setMinMonth] = useState(SEASON_MONTH);
   const [selectedDate, setSelectedDate] = useState(() => keyOf(new Date()));
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [childrenLoading, setChildrenLoading] = useState(true);
@@ -92,6 +93,24 @@ export default function ParentCalendar() {
     })();
     return () => { cancelled = true; };
   }, [retry]);
+
+  // самая ранняя отметка ребёнка задаёт, с какого месяца показывать календарь
+  useEffect(() => {
+    if (!playerId) return;
+    let cancelled = false;
+    setMinMonth(SEASON_MONTH);
+    void (async () => {
+      const { data, error } = await supabase.from('attendance').select('sessions(starts_at)').eq('player_id', playerId).limit(1000);
+      if (cancelled || error) return;
+      let first: Date | null = null;
+      for (const row of (data ?? []) as unknown as { sessions: { starts_at: string } | null }[]) {
+        const d = row.sessions?.starts_at ? new Date(row.sessions.starts_at) : null;
+        if (d && !Number.isNaN(d.getTime()) && (!first || d < first)) first = d;
+      }
+      if (first) setMinMonth(new Date(first.getFullYear(), first.getMonth(), 1));
+    })();
+    return () => { cancelled = true; };
+  }, [playerId]);
 
   useEffect(() => {
     if (!playerId) { setEvents([]); return; }
@@ -134,7 +153,7 @@ export default function ParentCalendar() {
   const selectedEvents = eventDays.get(selectedDate) ?? [];
   const shiftMonth = (delta: number) => {
     const next = new Date(month.getFullYear(), month.getMonth() + delta, 1);
-    if (next < MIN_MONTH) return;
+    if (next < minMonth) return;
     setMonth(next);
     setSelectedDate(keyOf(next));
   };
@@ -167,7 +186,7 @@ export default function ParentCalendar() {
 
       <section aria-label="Календарь событий" style={{ maxWidth: 560, margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12 }}>
-          <button type="button" className="ks-btn sm ks-tap" aria-label="Предыдущий месяц" disabled={month <= MIN_MONTH} onClick={() => shiftMonth(-1)}>‹</button>
+          <button type="button" className="ks-btn sm ks-tap" aria-label="Предыдущий месяц" disabled={month <= minMonth} onClick={() => shiftMonth(-1)}>‹</button>
           <h2 style={{ margin: 0, textTransform: 'capitalize', fontSize: 18 }}>{formatMonth(month)}</h2>
           <button type="button" className="ks-btn sm ks-tap" aria-label="Следующий месяц" onClick={() => shiftMonth(1)}>›</button>
         </div>
