@@ -65,20 +65,32 @@ function Day({ readOnly }: { readOnly: boolean }) {
 
   const items = useMemo<Item[]>(() => {
     if (!slots || !logs) return [];
-    const seen = new Set<string>();
     const out: Item[] = [];
+    // Слоты одного названия за день (например, U10-A и U10-B с разным временем) — одна тренировка: берём самое раннее время начала,
+    // а все записи журнала этого названия подтягиваются к ней, чтобы проведённая тренировка не осталась рядом с «Не отмечена».
+    const byLabel = new Map<string, Slot[]>();
     slots.forEach(x => {
       const label = x.source_key.split('|')[2] ?? '';
-      const key = `${label}|${hm(x.starts_at)}`;
-      if (!label || seen.has(key)) return;
-      seen.add(key);
-      out.push({ label, kind: x.kind, start: hm(x.starts_at), end: x.ends_at ? hm(x.ends_at) : null, loc: x.location, plan: planCoaches(x.coaches), rows: logs.filter(r => r.group_label === label && hm(r.starts_at) === hm(x.starts_at)) });
+      if (label) byLabel.set(label, [...(byLabel.get(label) ?? []), x]);
     });
+    byLabel.forEach((list, label) => {
+      const sorted = [...list].sort((p, q) => hm(p.starts_at).localeCompare(hm(q.starts_at)));
+      const x = sorted[0];
+      const rows = logs.filter(r => r.group_label === label);
+      const held = rows.filter(r => r.held && r.starts_at).sort((p, q) => hm(p.starts_at).localeCompare(hm(q.starts_at)));
+      const h = held[0];
+      // у проведённой тренировки время и место берём из журнала: именно по ним её находят правка и добавление тренеров
+      const plan = [...new Set(sorted.flatMap(y => planCoaches(y.coaches)))];
+      out.push(h
+        ? { label, kind: h.kind, start: hm(h.starts_at), end: h.ends_at ? hm(h.ends_at) : null, loc: h.location, plan, rows: rows.filter(r => hm(r.starts_at) === hm(h.starts_at)) }
+        : { label, kind: x.kind, start: hm(x.starts_at), end: x.ends_at ? hm(x.ends_at) : null, loc: x.location, plan, rows });
+    });
+    const seen = new Set(out.flatMap(i => i.rows.map(r => r.id)));
     logs.forEach(r => {
-      const key = `${r.group_label}|${hm(r.starts_at)}`;
-      if (seen.has(key)) return;
-      seen.add(key);
-      out.push({ label: r.group_label, kind: r.kind, start: r.starts_at ? hm(r.starts_at) : null, end: r.ends_at ? hm(r.ends_at) : null, loc: r.location, plan: [], rows: logs.filter(x => x.group_label === r.group_label && hm(x.starts_at) === hm(r.starts_at)) });
+      if (seen.has(r.id) || byLabel.has(r.group_label)) return;
+      const rows = logs.filter(x => x.group_label === r.group_label && hm(x.starts_at) === hm(r.starts_at));
+      rows.forEach(x => seen.add(x.id));
+      out.push({ label: r.group_label, kind: r.kind, start: r.starts_at ? hm(r.starts_at) : null, end: r.ends_at ? hm(r.ends_at) : null, loc: r.location, plan: [], rows });
     });
     return out.sort((a, b) => (a.start ?? '').localeCompare(b.start ?? ''));
   }, [slots, logs]);
