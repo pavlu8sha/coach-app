@@ -5,6 +5,7 @@ import Link from './Link';
 import LinkOnboarding from './LinkOnboarding';
 import LinkStatus, { STATUS, type Req } from './LinkStatus';
 import { Failure, Loading } from './Message';
+import PointsLedger from './PointsLedger';
 
 interface Event { points: number; explanation: string; occurred_on: string }
 interface Child {
@@ -44,6 +45,7 @@ function ChildCard({ c }: { c: Child }) {
         </div>
       </div>
       <p className="muted ks-kid-stats">Матчей сыграно: {c.played} · голов: {c.goals}</p>
+      <PointsLedger playerId={c.id} />
       {c.events.length === 0 ? (
         <EmptyState icon="trophy" title="Баллов пока нет" text="Они появятся после тренировок и матчей." />
       ) : (
