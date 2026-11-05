@@ -237,6 +237,7 @@ $$;
 
 -- Ставит напоминание в очередь, если этому родителю не ставили напоминание (по любому матчу) за последние 24 часа
 -- (любого вида: ручное и автоматическое считаются вместе; ТЗ: «одному родителю не чаще одного раза в 24 часа»). true — поставлено, false — слишком часто / уже было.
+-- Для автоматических напоминаний допуск 15 минут (решение владельца): опоздание cron не отменяет напоминание за 24 часа после напоминания за 48.
 -- Вызывается из match_rsvp_remind_unanswered и (в PR 2) из cron под service_role; клиентам недоступна.
 create or replace function rsvp_claim_reminder(m uuid, u uuid, k text, actor uuid default null) returns boolean
 language plpgsql security definer set search_path = public as $$
@@ -245,7 +246,7 @@ begin
   select * into mt from matches where id = m;
   if mt.id is null or mt.lifecycle_status <> 'published' then return false; end if;
   perform pg_advisory_xact_lock(hashtextextended(u::text, 0));
-  if exists (select 1 from match_reminder_log where recipient_id = u and created_at > clock_timestamp() - interval '24 hours') then
+  if exists (select 1 from match_reminder_log where recipient_id = u and created_at > clock_timestamp() - case when k like 'auto%' then interval '23 hours 45 minutes' else interval '24 hours' end) then
     return false;
   end if;
   insert into match_reminder_log (match_id, club_id, recipient_id, kind, schedule_version, sent_by)
