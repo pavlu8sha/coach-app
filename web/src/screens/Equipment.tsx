@@ -389,11 +389,13 @@ function LineEditor({ line, locked, last, busy, onSave, onRemove }: { line: Line
   const [qty, setQty] = useState(line.quantity);
   const dirty = size.trim() !== (line.size ?? '') || qty !== line.quantity;
   return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
-      <input aria-label={`Размер: ${line.kit}`} placeholder="Размер" value={size} maxLength={20} style={{ width: 90 }} onChange={e => setSize(e.target.value)} />
-      <input aria-label={`Количество: ${line.kit}`} type="number" min={1} max={10} value={qty} disabled={locked} style={{ width: 64 }} onChange={e => setQty(Math.max(1, Math.min(10, Number(e.target.value) || 1)))} />
-      <button type="button" className="ks-btn secondary" disabled={busy || !dirty} onClick={() => onSave(size, qty)}>Сохранить</button>
-      {!locked && !last && <button type="button" className="ks-btn secondary" disabled={busy} onClick={onRemove}>Убрать</button>}
+    <div>
+      <label className="field">Размер<input aria-label={`Размер: ${line.kit}`} placeholder="Например, 140" value={size} maxLength={40} onChange={e => setSize(e.target.value)} /></label>
+      <label className="field">Количество<input aria-label={`Количество: ${line.kit}`} type="number" inputMode="numeric" min={1} max={10} value={qty} disabled={locked} onChange={e => setQty(Math.max(1, Math.min(10, Number(e.target.value) || 1)))} /></label>
+      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+        <button type="button" className="ks-btn" style={{ flex: 1 }} disabled={busy || !dirty} onClick={() => onSave(size, qty)}>Сохранить</button>
+        {!locked && !last && <button type="button" className="ks-btn secondary" style={{ flex: 1 }} disabled={busy} onClick={onRemove}>Убрать</button>}
+      </div>
     </div>
   );
 }
@@ -507,7 +509,7 @@ function OrderView({ order, knownNumber, onBack }: { order: Order; knownNumber?:
       <h3>Добавить вещь</h3>
       <div className="ks-card">
         <label className="field">Вещь<select value={addKit} onChange={e => setAddKit(e.target.value)}><option value="">Выберите вещь</option>{(catalog ?? []).filter(k => !issued.has(k.kit)).map(k => <option key={k.kit} value={k.kit}>{k.kit} — {gel(k.price)}</option>)}</select></label>
-        <label className="field">Размер новой вещи<input value={addSize} maxLength={20} onChange={e => setAddSize(e.target.value)} /></label>
+        <label className="field">Размер новой вещи<input value={addSize} maxLength={40} onChange={e => setAddSize(e.target.value)} /></label>
         <button type="button" className="ks-btn secondary" disabled={busy === 'add' || !addKit} onClick={() => void run('add', () => supabase.rpc('eq_add_line', { o: o.id, k: addKit, sz: addSize, qty: 1 }), 'Вещь добавлена.').then(ok => { if (ok) { setAddKit(''); setAddSize(''); } })}>Добавить в заказ</button>
       </div>
 
