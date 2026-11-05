@@ -6,12 +6,13 @@ import Group from './Group';
 const groups = [{ id: 'g1', name: 'U9' }];
 function seed() {
   fake.db.players = [{ id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'active' }];
-  fake.db.point_events = [
-    { id: 'e1', player_id: 'p1', points: 1, explanation: 'Пришёл на тренировку', occurred_on: '2026-10-19', source_type: 'session' },
-    { id: 'e2', player_id: 'p1', points: 3, explanation: 'Отлично играл', occurred_on: '2026-10-20', source_type: 'coach' },
+  fake.db.points_ledger = [
+    { id: 'l1', player_id: 'p1', points: 1, event_date: '2026-11-03', source_type: 'group_session', reason_code: 'attended', components: { class: 'regular', base: 1 }, status: 'active', created_at: '2026-11-03T10:00:00Z' },
+    { id: 'l2', player_id: 'p1', points: 3, event_date: '2026-11-04', source_type: 'manual', reason_code: 'manual', components: { note: 'Отлично играл' }, status: 'active', created_at: '2026-11-04T10:00:00Z' },
   ];
   fake.rpc.group_parents = () => [{ player_id: 'p1', parent_name: 'Мама Пети', telegram_id: 4242 }];
-  fake.rpc.award_bonus = () => 'e3';
+  fake.rpc.points_manual_status = () => ({ active: true, remaining: { '1': 3, '2': 2, '3': 1 }, month_total: 3, month_cap: 10 });
+  fake.rpc.points_manual_award = () => 'l9';
 }
 const open = async () => {
   render(<Group groups={groups} />);
@@ -23,7 +24,7 @@ describe('карточка игрока', () => {
   it('показывает сумму баллов и контакт родителя со ссылкой на Telegram', async () => {
     seed();
     await open();
-    expect(screen.getByText(/Всего: 4 балла/)).toBeInTheDocument();
+    expect(screen.getByText(/Всего: 4 балла · начислений: 2/)).toBeInTheDocument();
     expect(await screen.findByText('Мама Пети')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Написать в Telegram' })).toHaveAttribute('href', 'tg://user?id=4242');
   });
@@ -42,28 +43,18 @@ describe('карточка игрока', () => {
     fireEvent.click(screen.getByRole('tab', { name: '+3' }));
     fireEvent.change(screen.getByLabelText(/За что/), { target: { value: ' Отлично в защите ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Начислить' }));
-    await waitFor(() => expect(fake.rpcCalls('award_bonus')).toEqual([{ p: 'p1', pts: 3, note: ' Отлично в защите ' }]));
+    await waitFor(() => expect(fake.rpcCalls('points_manual_award')).toHaveLength(1));
+    expect(fake.rpcCalls('points_manual_award')[0]).toMatchObject({ p: 'p1', pts: 3, note: ' Отлично в защите ' });
     expect(await screen.findByText('Баллы начислены.')).toBeInTheDocument();
   });
 
   it('ошибку функции показывает по-русски', async () => {
     seed();
-    fake.rpc.award_bonus = () => ({ error: { message: 'note required' } });
+    fake.rpc.points_manual_award = () => ({ error: { message: 'note required' } });
     await open();
     fireEvent.change(screen.getByLabelText(/За что/), { target: { value: 'x' } });
     fireEvent.click(screen.getByRole('button', { name: 'Начислить' }));
     expect(await screen.findByText('Напишите, за что баллы.')).toBeInTheDocument();
-  });
-
-  it('отменить можно только ручное начисление, и только после подтверждения', async () => {
-    seed();
-    await open();
-    const cancels = screen.getAllByRole('button', { name: 'Отменить' });
-    expect(cancels).toHaveLength(1); // у автоначисления кнопки нет
-    fireEvent.click(cancels[0]);
-    expect(fake.rpcCalls('revoke_bonus')).toHaveLength(0);
-    fireEvent.click(screen.getByRole('button', { name: 'Отменить начисление' }));
-    await waitFor(() => expect(fake.rpcCalls('revoke_bonus')).toEqual([{ e: 'e2' }]));
   });
 });
 
@@ -76,15 +67,13 @@ describe('ручные баллы по новым правилам', () => {
     ];
   };
 
-  it('пока правила не действуют, работает прежнее начисление', async () => {
+  it('пока правила не действуют, формы ручных баллов нет', async () => {
     seed();
     fake.rpc.points_manual_status = () => ({ active: false });
-    await open();
-    expect(screen.getByRole('tab', { name: '+5' })).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText(/За что/), { target: { value: 'Тест' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Начислить' }));
-    await waitFor(() => expect(fake.rpcCalls('award_bonus')).toHaveLength(1));
-    expect(fake.rpcCalls('points_manual_award')).toHaveLength(0);
+    render(<Group groups={groups} />);
+    fireEvent.click(await screen.findByText('Иванов Пётр'));
+    expect(await screen.findByText('Ручные баллы доступны, когда действуют правила баллов.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Начислить' })).toBeNull();
   });
 
   it('показывает +1/+2/+3 и остаток лимитов, начисляет с идентификатором заявки', async () => {
@@ -101,7 +90,6 @@ describe('ручные баллы по новым правилам', () => {
     const a = fake.rpcCalls('points_manual_award')[0];
     expect(a).toMatchObject({ p: 'p1', pts: 2, note: 'Лидер' });
     expect(typeof a.req).toBe('string');
-    expect(fake.rpcCalls('award_bonus')).toHaveLength(0);
   });
 
   it('отмена требует причину и уходит в базу; отменённое показано с причиной', async () => {
@@ -130,13 +118,21 @@ describe('ручные баллы по новым правилам', () => {
 });
 
 describe('рейтинг по группе', () => {
+  it('старые баллы point_events в итогах не участвуют', async () => {
+    seed();
+    fake.db.point_events = [{ id: 'old', player_id: 'p1', points: 50, explanation: 'старое', occurred_on: '2026-10-01', source_type: 'coach' }];
+    render(<Group groups={groups} />);
+    expect(await screen.findByText('4')).toBeInTheDocument();
+    expect(screen.queryByText('54')).toBeNull();
+  });
+
   it('игроки идут по убыванию баллов с местом и суммой', async () => {
     seed();
     fake.db.players = [
       { id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'active' },
       { id: 'p2', full_name: 'Сидоров Ян', group_id: 'g1', status: 'active' },
     ];
-    fake.db.point_events.push({ id: 'e9', player_id: 'p2', points: 10, explanation: 'x', occurred_on: '2026-10-21', source_type: 'coach' });
+    fake.db.points_ledger.push({ id: 'l9', player_id: 'p2', points: 10, event_date: '2026-11-04', source_type: 'manual', reason_code: 'manual', components: {}, status: 'active', created_at: '2026-11-04T10:00:00Z' });
     render(<Group groups={groups} />);
     expect(await screen.findByText('Место 1 по баллам')).toBeInTheDocument();
     const names = screen.getAllByText(/Сидоров Ян|Иванов Пётр/).map(n => n.textContent);

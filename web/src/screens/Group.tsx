@@ -6,10 +6,9 @@ import { GroupPicker } from '../ui/coach';
 import NotifyToggle from '../ui/NotifyToggle';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
-import { useConfirm } from '../ui/ConfirmSheet';
+import PointsLedger from './PointsLedger';
 
 interface Player { id: string; full_name: string }
-interface Ev { id: string; points: number; explanation: string; occurred_on: string; source_type: string }
 interface ManualRow { id: string; points: number; event_date: string; status: string; cancel_reason: string | null; components: { note?: string } | null }
 interface ManualStatus { active: boolean; remaining?: Record<string, number>; month_total?: number; month_cap?: number }
 interface Parent { player_id: string; parent_name: string | null; telegram_id: number }
@@ -36,7 +35,7 @@ export default function Group({ groups, notify = false }: { groups: CoachGroup[]
       const ids = list.map(x => x.id);
       for (let i = 0; i < ids.length; i += 100) {
         for (let from = 0; ; from += 1000) {
-          const e = await supabase.from('point_events').select('player_id, points').in('player_id', ids.slice(i, i + 100)).order('id').range(from, from + 999);
+          const e = await supabase.from('points_ledger').select('player_id, points').eq('status', 'active').in('player_id', ids.slice(i, i + 100)).order('id').range(from, from + 999);
           if (e.error) return;
           for (const r of (e.data ?? []) as { player_id: string; points: number }[]) sums[r.player_id] = (sums[r.player_id] ?? 0) + r.points;
           if ((e.data ?? []).length < 1000) break;
@@ -74,8 +73,7 @@ export default function Group({ groups, notify = false }: { groups: CoachGroup[]
 }
 
 function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBack: () => void }) {
-  const { ask, dialog: confirmDialog } = useConfirm();
-  const [events, setEvents] = useState<Ev[] | null>(null);
+  const [ledger, setLedger] = useState<{ total: number; count: number } | null>(null);
   const [parents, setParents] = useState<Parent[] | null | 'na'>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -103,14 +101,15 @@ function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBa
 
   useEffect(() => {
     void (async () => {
-      const all: Ev[] = [];
+      let total = 0;
+      let count = 0;
       for (let from = 0; ; from += 1000) {
-        const e = await supabase.from('point_events').select('id, points, explanation, occurred_on, source_type').eq('player_id', player.id).order('occurred_on', { ascending: false }).order('id').range(from, from + 999);
+        const e = await supabase.from('points_ledger').select('id, points').eq('player_id', player.id).eq('status', 'active').order('id').range(from, from + 999);
         if (e.error) return setError(e.error.message);
-        all.push(...((e.data ?? []) as Ev[]));
+        for (const r of (e.data ?? []) as { points: number }[]) { total += r.points; count += 1; }
         if ((e.data ?? []).length < 1000) break;
       }
-      setEvents(all);
+      setLedger({ total, count });
     })();
   }, [player.id, reload]);
 
@@ -126,19 +125,13 @@ function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBa
     setBusy(true);
     setMsg(null);
     // новая система: заявка с постоянным req, повтор после обрыва связи не создаёт второе начисление
-    const r = manual
-      ? await supabase.rpc('points_manual_award', { p: player.id, pts: Number(pts), note, req })
-      : await supabase.rpc('award_bonus', { p: player.id, pts: Number(pts), note });
+    const r = await supabase.rpc('points_manual_award', { p: player.id, pts: Number(pts), note, req });
     setBusy(false);
     if (r.error) return setMsg({ ok: false, text: coachError(r.error.message) });
     setReq(crypto.randomUUID());
     setNote('');
     setMsg({ ok: true, text: 'Баллы начислены.' });
     setReload(n => n + 1);
-  };
-  const askRevoke = async (e: Ev) => {
-    if (!(await ask({ title: 'Отменить начисление?', lines: [['Начисление', e.explanation], ['Баллы', `+${e.points}`], ['Дата', fmtDate(e.occurred_on)]], note: 'Баллы будут сняты у игрока.', confirmLabel: 'Отменить начисление', danger: true }))) return;
-    await revoke(e.id);
   };
   const cancelManual = async (id: string) => {
     setBusy(true);
@@ -151,26 +144,20 @@ function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBa
     setMsg({ ok: true, text: 'Начисление отменено.' });
     setReload(n => n + 1);
   };
-  const revoke = async (id: string) => {
-    setBusy(true);
-    setMsg(null);
-    const r = await supabase.rpc('revoke_bonus', { e: id });
-    setBusy(false);
-    if (r.error) setMsg({ ok: false, text: coachError(r.error.message) });
-    setReload(n => n + 1);
-  };
-
   if (error) return <Failure title="Не удалось загрузить игрока" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} />} />;
-  if (!events) return <Loading />;
+  if (!ledger) return <Loading />;
 
-  const total = events.reduce((s, e) => s + e.points, 0);
+  const total = ledger.total;
   return (
     <main className="page">
       <BackNav onBack={onBack} />
       <h1 style={{ overflowWrap: 'anywhere' }}>{player.full_name}</h1>
-      <p className="muted" style={{ marginBottom: 12 }}>Всего: {total} {plural(total)}</p>
+      <p className="muted" style={{ marginBottom: 12 }}>Всего: {total} {plural(total)}{ledger.count > 0 ? ` · начислений: ${ledger.count}` : ''}</p>
 
       <h2 className="ks-sub">Ручные баллы</h2>
+      {!manual ? (
+        <p className="muted">Ручные баллы доступны, когда действуют правила баллов.</p>
+      ) : (
       <div className="ks-card">
         <Segmented
           label="Сколько баллов"
@@ -191,6 +178,7 @@ function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBa
           Начислить
         </button>
       </div>
+      )}
 
       <h2 className="ks-sub">Родители</h2>
       {parents === null ? (
@@ -239,24 +227,7 @@ function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBa
       )}
 
       <h2 className="ks-sub">История баллов</h2>
-      {events.length === 0 ? (
-        <p className="muted">Начислений пока нет.</p>
-      ) : (
-        events.slice(0, 15).map(e => (
-          <div className="ks-card" key={e.id}>
-            <div className="ks-line">
-              <span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>{e.explanation}</span>
-              <Pill tone="primary">+{e.points}</Pill>
-            </div>
-            <div className="ks-muted" style={{ fontSize: 13 }}>{fmtDate(e.occurred_on)}</div>
-            {e.source_type === 'coach' &&
-              (
-                <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy} onClick={() => void askRevoke(e)}>Отменить</button>
-              )}
-          </div>
-        ))
-      )}
-      {confirmDialog}
+      {ledger.count === 0 ? <p className="muted">Начислений пока нет.</p> : <PointsLedger playerId={player.id} />}
     </main>
   );
 }

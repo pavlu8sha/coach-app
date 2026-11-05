@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { fmtDate, plural } from '../lib/coach';
 import { grandTotal, latestMonth, ledgerLabel, monthLabel, monthOf, monthTotal, shiftMonth, type LedgerRow } from '../lib/pointsLedger';
 import { supabase } from '../lib/supabase';
-import { Pill } from '../ui/components';
+import { EmptyState, Pill } from '../ui/components';
 
 interface SeriesInfo {
   current: number;
@@ -24,7 +24,7 @@ const today = () => new Date().toISOString().slice(0, 7);
 
 // Баллы по новым правилам (#18): итог за месяц, всего накоплено, история начислений с пояснениями и серия посещаемости.
 // Блок появляется, когда у игрока есть хотя бы одно начисление в новом журнале; до этого остаётся прежний показ баллов.
-export default function PointsLedger({ playerId }: { playerId: string }) {
+export default function PointsLedger({ playerId, showEmpty = false }: { playerId: string; showEmpty?: boolean }) {
   const [rows, setRows] = useState<LedgerRow[] | null>(null);
   const [series, setSeries] = useState<SeriesInfo | null>(null);
   const [month, setMonth] = useState<string | null>(null);
@@ -51,6 +51,7 @@ export default function PointsLedger({ playerId }: { playerId: string }) {
     void supabase.rpc('points_group_benchmark', { p: playerId, ym: `${month}-01` }).then(r => setBench(r.error ? null : (r.data as Bench | null)));
   }, [playerId, month]);
 
+  if (rows && rows.length === 0 && showEmpty) return <EmptyState icon="trophy" title="Баллов нет" text="Начислений пока нет." />;
   if (!rows || rows.length === 0 || !month) return null;
   const inMonth = rows.filter(r => monthOf(r.event_date) === month);
   const total = monthTotal(rows, month);
