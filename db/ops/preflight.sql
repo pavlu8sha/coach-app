@@ -127,6 +127,7 @@ select * from (values
   ('0122_points_for_matches', coalesce((to_regproc('points_reconcile_match') is not null and to_regclass('match_revisions') is not null and exists (select 1 from information_schema.columns where table_name = 'matches' and column_name = 'technical') and to_regproc('set_match_technical') is not null), false)),
   ('0123_points_manual', coalesce((to_regproc('points_manual_award') is not null and to_regproc('points_manual_cancel') is not null and to_regproc('points_manual_status') is not null), false)),
   ('0124_points_series', coalesce((to_regproc('points_reconcile_series') is not null and to_regproc('points_series_info') is not null and exists (select 1 from pg_trigger where tgname = 'points_series_attendance_sync' and not tgisinternal)), false)),
+  ('0125_equipment_order_edit_lines', coalesce((to_regprocedure('eq_edit_line(uuid,text,integer)') is not null and to_regprocedure('eq_add_line(uuid,text,text,integer)') is not null and to_regprocedure('eq_delete_line(uuid)') is not null and to_regprocedure('eq_set_order_date(uuid,date)') is not null), false)),
   ('0126_points_group_benchmark', coalesce((to_regproc('points_group_benchmark') is not null), false))
 ) as t(migration, applied)
 order by migration;
