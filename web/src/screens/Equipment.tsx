@@ -7,7 +7,7 @@ import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { settingNumberError, useClubSettings } from '../lib/clubSettings';
 import { bundleDiscount, priorAmount } from '../lib/equipmentDiscount';
-import { EQUIPMENT_REQUIRED_KEY, EQUIPMENT_REQUIRED_TEXT, issueStateLabel, lastStatusDate, nextStatus, orderStatusLabel, prevStatus, type StatusEvent } from '../lib/equipment';
+import { allKitsIssued, EQUIPMENT_REQUIRED_KEY, EQUIPMENT_REQUIRED_TEXT, issueStateLabel, lastStatusDate, nextStatus, orderStatusLabel, prevStatus, type StatusEvent } from '../lib/equipment';
 
 interface Line { id?: string; kit: string; size: string | null; quantity: number }
 interface Order {
@@ -23,7 +23,7 @@ const num = (s: string) => Number(s.replace(',', '.'));
 const errText = (m: string) =>
   m.includes('paid above total') ? 'Оплата больше суммы заказа.' : m.includes('paid below zero') ? 'Оплачено не может быть меньше нуля.' : m.includes('total below paid') ? 'Сумма заказа меньше уже оплаченного.' :
   m.includes('order has payments') ? 'У заказа есть оплата: сначала верните её записью с минусом.' : m.includes('order has issues') ? 'У заказа есть выданные вещи: сначала снимите выдачу.' : m.includes('item issued') ? 'Вещь уже выдана: сначала снимите выдачу (размер менять можно).' : m.includes('last line') ? 'Это последняя вещь в заказе: удалите весь заказ.' : m.includes('bad quantity') ? 'Количество от 1 до 10.' : m.includes('bad date') ? 'Дата не может быть в будущем.' : m.includes('kit not in catalog') ? 'Позиции нет в каталоге.' : m.includes('no items') ? 'Выберите хотя бы одну вещь.' : m.includes('bad amount') ? 'Сумма указана неверно.' :
-  m.includes('bad transition') ? 'Статус можно менять только на один шаг вперёд (назад — администратору).' : m.includes('bad status') ? 'Такого статуса нет.' :
+  m.includes('bad transition') ? 'Статус можно менять только на один шаг вперёд (назад — администратору).' : m.includes('bad status') ? 'Такого статуса нет.' : m.includes('not all issued') ? 'Статус «Выдан» можно поставить, только когда выданы все вещи заказа.' :
   m.includes('Could not find the function') || m.includes('equipment_issues') ? 'Модуль ещё не установлен в базе (миграция 0036).' : coachError(m);
 const issueState = (o: Order) => issueStateLabel(o.equipment_order_lines, o.equipment_issues);
 
@@ -469,8 +469,11 @@ function OrderView({ order, knownNumber, onBack }: { order: Order; knownNumber?:
       <h3>Статус заказа</h3>
       <div className="ks-card">
         <div className="ks-line"><b>{orderStatusLabel(o.status)}</b>{lastStatusDate(hist) && <span className="muted">с {fmtDate(lastStatusDate(hist) as string)}</span>}</div>
+        {nextStatus(o.status) === 'issued' && !allKitsIssued(o.equipment_order_lines, o.equipment_issues) && (
+          <p className="muted" style={{ marginTop: 8 }}>Статус «Выдан» станет доступен, когда будут выданы все вещи заказа.</p>
+        )}
         {nextStatus(o.status) && (
-          <button type="button" className="ks-btn" style={{ marginTop: 8 }} disabled={busy === 'status'} onClick={() => void run('status', () => supabase.rpc('eq_set_order_status', { o: o.id, st: nextStatus(o.status) }), 'Статус обновлён.')}>
+          <button type="button" className="ks-btn" style={{ marginTop: 8 }} disabled={busy === 'status' || (nextStatus(o.status) === 'issued' && !allKitsIssued(o.equipment_order_lines, o.equipment_issues))} onClick={() => void run('status', () => supabase.rpc('eq_set_order_status', { o: o.id, st: nextStatus(o.status) }), 'Статус обновлён.')}>
             Перевести: {orderStatusLabel(nextStatus(o.status))}
           </button>
         )}
