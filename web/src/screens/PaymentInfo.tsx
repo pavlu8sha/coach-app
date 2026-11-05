@@ -3,6 +3,7 @@ import { INSTALLMENT_CHAT } from '../lib/clubInfo';
 import { COPY_LABELS, updatedLabel, usePaymentInfo } from '../lib/paymentInfo';
 
 const MENTION = '@coach_siordia';
+const IBAN_RE = /^[A-Z]{2}\d{2}[A-Z0-9]{10,}$/;
 
 function RuleText({ text }: { text: string }) {
   const i = text.indexOf(MENTION);
@@ -46,8 +47,9 @@ export default function PaymentInfo() {
         {info.details.map(d => (
           <div key={d.label} style={{ marginTop: 12 }}>
             <div className="muted" style={{ fontSize: 13 }}>{d.label}</div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 2 }}>
-              <b style={{ overflowWrap: 'anywhere', minWidth: 0, ...(COPY_LABELS.has(d.label) && /^[A-Z]{2}\d{2}[A-Z0-9]{10,}$/.test(d.value) ? { whiteSpace: 'nowrap', fontSize: 'clamp(12px, 3.9vw, 16px)', letterSpacing: '0.02em' } : {}) }}>{d.value}</b>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 2 }}>
+              {/* IBAN целиком в одну строку; если вместе с кнопкой не помещается, кнопка уходит на следующую строку, а не наезжает на номер */}
+              <b style={IBAN_RE.test(d.value) ? { whiteSpace: 'nowrap' } : { overflowWrap: 'anywhere', minWidth: 0 }}>{d.value}</b>
               {COPY_LABELS.has(d.label) && <CopyButton value={d.value} label={d.label} />}
             </div>
           </div>
