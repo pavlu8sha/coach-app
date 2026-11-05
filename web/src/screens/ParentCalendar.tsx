@@ -100,14 +100,10 @@ export default function ParentCalendar() {
     let cancelled = false;
     setMinMonth(SEASON_MONTH);
     void (async () => {
-      const { data, error } = await supabase.from('attendance').select('sessions(starts_at)').eq('player_id', playerId).limit(1000);
-      if (cancelled || error) return;
-      let first: Date | null = null;
-      for (const row of (data ?? []) as unknown as { sessions: { starts_at: string } | null }[]) {
-        const d = row.sessions?.starts_at ? new Date(row.sessions.starts_at) : null;
-        if (d && !Number.isNaN(d.getTime()) && (!first || d < first)) first = d;
-      }
-      if (first) setMinMonth(new Date(first.getFullYear(), first.getMonth(), 1));
+      const { data, error } = await supabase.rpc('parent_first_attendance', { p_player: playerId });
+      if (cancelled || error || typeof data !== 'string') return;
+      const first = new Date(`${data.slice(0, 10)}T12:00:00`);
+      if (!Number.isNaN(first.getTime())) setMinMonth(new Date(first.getFullYear(), first.getMonth(), 1));
     })();
     return () => { cancelled = true; };
   }, [playerId]);
