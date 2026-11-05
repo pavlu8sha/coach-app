@@ -129,6 +129,7 @@ select * from (values
   ('0124_points_series', coalesce((to_regproc('points_reconcile_series') is not null and to_regproc('points_series_info') is not null and exists (select 1 from pg_trigger where tgname = 'points_series_attendance_sync' and not tgisinternal)), false)),
   ('0125_equipment_order_edit_lines', coalesce((to_regprocedure('eq_edit_line(uuid,text,integer)') is not null and to_regprocedure('eq_add_line(uuid,text,text,integer)') is not null and to_regprocedure('eq_delete_line(uuid)') is not null and to_regprocedure('eq_set_order_date(uuid,date)') is not null), false)),
   ('0126_points_group_benchmark', coalesce((to_regproc('points_group_benchmark') is not null), false)),
+  ('0127_points_consistency', coalesce((to_regproc('points_consistency') is not null), false)),
   ('0128_subscription_month_auto', coalesce((to_regproc('subscription_month_auto') is not null and to_regproc('subscription_month_missing') is not null), false))
 ) as t(migration, applied)
 order by migration;

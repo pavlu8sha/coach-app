@@ -17,6 +17,7 @@ import MenuSettings from './MenuSettings';
 import Money from './Money';
 import PaymentInfoEditor from './PaymentInfoEditor';
 import Players from './Players';
+import PointsCheck from './PointsCheck';
 import PointsStart from './PointsStart';
 import RecalcPoints from './RecalcPoints';
 import Schedule from './Schedule';
@@ -49,6 +50,7 @@ export default function AdminSection({ id, groups, onMenuChanged }: { id: Sectio
     case 'club': return <ClubSettings />;
     case 'pstart': return <PointsStart />;
     case 'recalc': return <RecalcPoints />;
+    case 'pcheck': return <PointsCheck />;
     case 'menu': return <MenuSettings onChanged={onMenuChanged} />;
   }
 }

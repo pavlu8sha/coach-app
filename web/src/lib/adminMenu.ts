@@ -3,7 +3,7 @@ import type { NavIcon } from '../ui/components';
 export type SectionId =
   | 'sessions' | 'players' | 'money' | 'cmatches' | 'requests' | 'ind' | 'extra' | 'schedule'
   | 'equip' | 'camps' | 'photos' | 'content' | 'leads' | 'stats' | 'tlog' | 'points' | 'coaches'
-  | 'prices' | 'payinfo' | 'club' | 'pstart' | 'recalc' | 'menu';
+  | 'prices' | 'payinfo' | 'club' | 'pstart' | 'recalc' | 'pcheck' | 'menu';
 
 export interface Section { id: SectionId; title: string; sub: string; icon: NavIcon; group: string }
 
@@ -31,6 +31,7 @@ export const SECTIONS: Section[] = [
   { id: 'club', title: 'Настройки клуба', sub: 'Порог посещаемости, день оплат, скидка на комплект', icon: 'more', group: 'Настройки' },
   { id: 'pstart', title: 'Старт подсчёта баллов', sub: 'С какой даты баллы видны родителям и тренерам', icon: 'calendar', group: 'Настройки' },
   { id: 'recalc', title: 'Пересчёт баллов за матчи', sub: 'Привести баллы к новой схеме', icon: 'trophy', group: 'Настройки' },
+  { id: 'pcheck', title: 'Сверка баллов', sub: 'Расхождения журнала с занятиями и матчами, исключения', icon: 'trophy', group: 'Настройки' },
   { id: 'menu', title: 'Меню', sub: 'Что на нижней панели, а что в «Ещё»', icon: 'more', group: 'Настройки' },
 ];
 
