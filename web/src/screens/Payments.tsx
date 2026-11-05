@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { EmptyState, SkeletonRows } from '../ui/components';
+import { EmptyState, Pill, SkeletonRows } from '../ui/components';
 import PaymentInfo from './PaymentInfo';
 
 interface Kid { id: string; name: string; months: { month: string; sum: number }[] }
@@ -111,7 +111,7 @@ export default function Payments() {
               {dues.filter(d => d.player_id === k.id && d.paid > 0).map((d, i) => (
                 <div className="ks-slot" key={d.kind + i}>
                   <span>{d.title}{d.on_date ? ` · ${fmt(d.on_date)}` : ''}</span>
-                  <span>{gel(d.paid)}</span>
+                  <Pill tone="success" dot>{gel(d.paid)}</Pill>
                 </div>
               ))}
             </div>
@@ -123,7 +123,7 @@ export default function Payments() {
               {k.months.map(m => (
                 <div className="ks-slot" key={m.month}>
                   <span>Абонемент · {monthName(m.month)}</span>
-                  <span>{gel(m.sum)}</span>
+                  <Pill tone="success" dot>{gel(m.sum)}</Pill>
                 </div>
               ))}
             </div>
