@@ -1,7 +1,7 @@
 -- pgTAP: календарь родителя показывает события своего ребёнка и не обходит согласие/RLS.
 begin;
 create extension if not exists pgtap;
-select plan(10);
+select plan(11);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -34,6 +34,11 @@ insert into attendance (session_id, player_id, status) values
 insert into training_log (club_id, external_id, held_on, weekday, coach, location, group_label, kind, starts_at, ends_at, hours, held)
 values ('00000000-0000-0000-0000-00000000c001', 'CAL-TRAINING-1',
   (now() at time zone 'Asia/Tbilisi')::date - 2, 'Mon', 'Тренер U9', 'Поле U9', 'U9-A', 'Групповая', '18:00', '19:00', 1, true);
+-- дубли журнала: строка на каждого тренера (день -3) и запись журнала в день, когда уже есть занятие в sessions (день -1, другое время)
+insert into training_log (club_id, external_id, held_on, weekday, coach, location, group_label, kind, starts_at, ends_at, hours, held) values
+  ('00000000-0000-0000-0000-00000000c001', 'CAL-DUP-1', (now() at time zone 'Asia/Tbilisi')::date - 3, 'Sun', 'Тренер 1', 'Поле U9', 'U9-A', 'Групповая', '17:45', '18:45', 1, true),
+  ('00000000-0000-0000-0000-00000000c001', 'CAL-DUP-2', (now() at time zone 'Asia/Tbilisi')::date - 3, 'Sun', 'Тренер 2', 'Поле U9', 'U9-A', 'Групповая', '17:45', '18:45', 1, true),
+  ('00000000-0000-0000-0000-00000000c001', 'CAL-DUP-3', (now() at time zone 'Asia/Tbilisi')::date - 1, 'Tue', 'Тренер 1', 'Поле U9', 'U9-A', 'Групповая', '18:45', '19:45', 1, true);
 insert into individual_sessions (id, club_id, external_id, starts_at, topic, goalkeepers)
 values ('00000000-0000-0000-0000-0000000000a3', '00000000-0000-0000-0000-00000000c001',
   'CAL-IND-1', (now() at time zone 'Asia/Tbilisi')::date + 1 + time '20:00', 'Техника', false);
@@ -88,6 +93,11 @@ select is((select attendance_status from parent_calendar(
   (now() at time zone 'Asia/Tbilisi')::date - 1,
   (now() at time zone 'Asia/Tbilisi')::date - 1
 ) where event_type = 'training'), 'present', 'возвращается посещаемость только своего ребёнка');
+select is((select count(*)::int from parent_calendar(
+  '00000000-0000-0000-0000-00000000d001',
+  (now() at time zone 'Asia/Tbilisi')::date - 3,
+  (now() at time zone 'Asia/Tbilisi')::date - 3
+) where event_type = 'training'), 1, 'журнал: строки разных тренеров на одну тренировку сводятся к одной');
 select throws_ok($$select count(*) from parent_calendar('00000000-0000-0000-0000-00000000d002', current_date, current_date)$$,
   '42501', 'forbidden', 'родитель не читает календарь чужого ребёнка');
 select as_user('00000000-0000-0000-0000-0000000000a1');

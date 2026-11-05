@@ -117,6 +117,7 @@ select * from (values
   ('0112_lead_not_for_child',      coalesce((pg_get_functiondef(to_regprocedure('lead_submit_app(text,text,integer,text,text,boolean)')) like '%child_links%'), false)),
   ('0113_club_articles_admin_only', coalesce((pg_get_functiondef(to_regproc('club_article_save')) not like '%is_any_coach%'), false)),
   ('0114_club_article_sections',   coalesce((exists (select 1 from information_schema.columns where table_name = 'club_articles' and column_name = 'section')), false)),
-  ('0115_parent_first_attendance', coalesce((to_regprocedure('parent_first_attendance(uuid)') is not null), false))
+  ('0115_parent_first_attendance', coalesce((to_regprocedure('parent_first_attendance(uuid)') is not null), false)),
+  ('0116_parent_calendar_no_dup_log', coalesce((pg_get_functiondef(to_regprocedure('parent_calendar(uuid,date,date)')) like '%distinct on (tl.held_on%'), false))
 ) as t(migration, applied)
 order by migration;
