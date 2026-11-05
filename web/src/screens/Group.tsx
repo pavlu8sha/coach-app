@@ -56,20 +56,32 @@ export default function Group({ groups, notify = false }: { groups: CoachGroup[]
       {players.length === 0 ? (
         <EmptyState icon="users" title="В группе нет игроков" />
       ) : (
-        (totals ? [...players].sort((a, b) => (totals[b.id] ?? 0) - (totals[a.id] ?? 0) || a.full_name.localeCompare(b.full_name, 'ru')) : players).map((p, i) => (
-          <ListRow
-            key={p.id}
-            avatar={p.full_name}
-            title={p.full_name}
-            sub={totals ? [`Место ${i + 1} по баллам`] : undefined}
-            end={totals && <Pill tone="primary">{totals[p.id] ?? 0}</Pill>}
-            onClick={() => setOpen(p)}
-          />
-        ))
+        (() => {
+          const list = totals ? [...players].sort((a, b) => (totals[b.id] ?? 0) - (totals[a.id] ?? 0) || a.full_name.localeCompare(b.full_name, 'ru')) : players;
+          const places = totals ? competitionPlaces(list.map(p => totals[p.id] ?? 0)) : [];
+          return list.map((p, i) => (
+            <ListRow
+              key={p.id}
+              avatar={p.full_name}
+              title={p.full_name}
+              sub={totals ? [`Место ${places[i]} по баллам`] : undefined}
+              end={totals && <Pill tone="primary">{totals[p.id] ?? 0}</Pill>}
+              onClick={() => setOpen(p)}
+            />
+          ));
+        })()
       )}
       {notify && <NotifyToggle hint="Бот пришлёт сообщение, когда вам назначат группу. Чтобы сообщения приходили, один раз нажмите «Старт» в чате с ботом клуба." />}
     </main>
   );
+}
+
+// Места при равных баллах: равные баллы делят место, следующее пропускается (1, 1, 1, 4).
+// Вход отсортирован по убыванию баллов.
+export function competitionPlaces(sortedDesc: number[]): number[] {
+  const out: number[] = [];
+  sortedDesc.forEach((v, i) => out.push(i > 0 && v === sortedDesc[i - 1] ? out[i - 1] : i + 1));
+  return out;
 }
 
 function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBack: () => void }) {

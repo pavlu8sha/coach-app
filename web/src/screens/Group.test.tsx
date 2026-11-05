@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
-import Group from './Group';
+import Group, { competitionPlaces } from './Group';
 
 const groups = [{ id: 'g1', name: 'U9' }];
 function seed() {
@@ -138,5 +138,15 @@ describe('рейтинг по группе', () => {
     const names = screen.getAllByText(/Сидоров Ян|Иванов Пётр/).map(n => n.textContent);
     expect(names).toEqual(['Сидоров Ян', 'Иванов Пётр']);
     expect(screen.getByText('10')).toBeInTheDocument();
+  });
+
+  it('при равных баллах место одинаковое, следующее пропускается (1, 1, 1, 4)', async () => {
+    expect(competitionPlaces([5, 5, 5, 4, 3, 3])).toEqual([1, 1, 1, 4, 5, 5]);
+    seed();
+    fake.db.players = ['A', 'B', 'C', 'D'].map((n, k) => ({ id: 'q' + k, full_name: n + ' Игрок', group_id: 'g1', status: 'active' }));
+    fake.db.points_ledger = [5, 5, 5, 4].map((pt, k) => ({ id: 'z' + k, player_id: 'q' + k, points: pt, event_date: '2026-11-04', source_type: 'manual', reason_code: 'manual', components: {}, status: 'active', created_at: '2026-11-04T10:00:00Z' }));
+    render(<Group groups={groups} />);
+    expect(await screen.findAllByText('Место 1 по баллам')).toHaveLength(3);
+    expect(screen.getByText('Место 4 по баллам')).toBeInTheDocument();
   });
 });
