@@ -104,25 +104,6 @@ export function MatchesTab({ playerId }: { playerId: string }) {
   );
 }
 
-interface Ev { id: string; points: number; explanation: string; occurred_on: string; source_type: string }
-
 export function PointsTab({ playerId }: { playerId: string }) {
-  const { rows, error } = useRows<Ev>(() => supabase.from('point_events').select('id, points, explanation, occurred_on, source_type').eq('player_id', playerId).order('occurred_on', { ascending: false }).limit(1000), [playerId]);
-  if (error) return <Err text={error} />;
-  if (!rows) return <Loading />;
-  if (rows.length === 0) return <><PointsLedger playerId={playerId} /><EmptyState icon="trophy" title="Баллов нет" text="Начислений за выбранный период подсчёта пока нет." /></>;
-  const total = rows.reduce((s, e) => s + e.points, 0);
-  return (
-    <>
-      <PointsLedger playerId={playerId} />
-      <p className="muted" style={{ marginBottom: 8 }}>Всего: {total} {plural(total)} · начислений: {rows.length}</p>
-      {rows.slice(0, 30).map(e => (
-        <div className="ks-card" key={e.id}>
-          <div className="ks-line"><span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>{e.explanation}</span><Pill tone={e.points < 0 ? 'danger' : 'primary'}>{e.points > 0 ? '+' : ''}{e.points}</Pill></div>
-          <div className="ks-muted" style={{ fontSize: 13 }}>{fmtDate(e.occurred_on)}</div>
-        </div>
-      ))}
-      {rows.length > 30 && <p className="muted">Показаны последние 30 начислений.</p>}
-    </>
-  );
+  return <PointsLedger playerId={playerId} showEmpty />;
 }

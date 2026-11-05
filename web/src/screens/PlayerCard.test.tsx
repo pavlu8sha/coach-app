@@ -18,9 +18,9 @@ function seed() {
     { match_id: 'm1', player_id: 'p1', played: true, goals: 2, matches: { played_on: '2026-10-05', team: 'U9-A', opponent: 'Динамо', goals_for: 3, goals_against: 1 } },
     { match_id: 'm2', player_id: 'p1', played: false, goals: 0, matches: { played_on: '2026-10-12', team: 'U9-A', opponent: 'Другие', goals_for: 0, goals_against: 0 } },
   ];
-  fake.db.point_events = [
-    { id: 'e1', player_id: 'p1', points: 2, explanation: 'Победа в матче', occurred_on: '2026-10-05', source_type: 'match' },
-    { id: 'e2', player_id: 'p1', points: 3, explanation: 'Гол: 2', occurred_on: '2026-10-05', source_type: 'match' },
+  fake.db.points_ledger = [
+    { id: 'l1', player_id: 'p1', points: 2, event_date: '2026-10-05', source_type: 'match', reason_code: 'match', components: { result: 'win', base: 2, goals: 0, best: 0 }, status: 'active' },
+    { id: 'l2', player_id: 'p1', points: 3, event_date: '2026-10-06', source_type: 'group_session', reason_code: 'attended', components: { class: 'regular', base: 3 }, status: 'active' },
   ];
 }
 const open = (name: string) => fireEvent.click(screen.getByRole('tab', { name }));
@@ -55,12 +55,11 @@ describe('карточка игрока: вкладки', () => {
     expect(screen.queryByText(/Другие/)).not.toBeInTheDocument(); // не играл и без голов
   });
 
-  it('«Баллы»: сумма и список начислений', async () => {
+  it('«Баллы»: только новый журнал, сумма накопленных баллов', async () => {
     seed();
     render(<PlayerCard player={player} onBack={() => {}} onEdit={() => {}} />);
     open('Баллы');
-    expect(await screen.findByText('Всего: 5 баллов · начислений: 2')).toBeInTheDocument();
-    expect(screen.getByText('Победа в матче')).toBeInTheDocument();
+    expect(await screen.findByText('Всего накоплено: 5 баллов')).toBeInTheDocument();
   });
 
   it('«К оплате» встроен в карточку: долг по абонементу и экипировке', async () => {
@@ -82,12 +81,12 @@ describe('карточка игрока: вкладки', () => {
     expect(field.parentElement?.querySelector('span:empty')).toBeNull();
   });
 
-  it('ошибка базы показывается понятным текстом', async () => {
+  it('«Баллы»: без начислений в новом журнале показывает «Баллов нет»', async () => {
     seed();
-    fake.errors.point_events = 'permission denied';
+    fake.db.points_ledger = [];
     render(<PlayerCard player={player} onBack={() => {}} onEdit={() => {}} />);
     open('Баллы');
-    expect(await screen.findByText('permission denied')).toBeInTheDocument();
+    expect(await screen.findByText('Баллов нет')).toBeInTheDocument();
   });
 });
 
