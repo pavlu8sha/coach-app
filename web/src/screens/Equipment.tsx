@@ -9,20 +9,20 @@ import { settingNumberError, useClubSettings } from '../lib/clubSettings';
 import { bundleDiscount, priorAmount } from '../lib/equipmentDiscount';
 import { EQUIPMENT_REQUIRED_KEY, EQUIPMENT_REQUIRED_TEXT, issueStateLabel, lastStatusDate, nextStatus, orderStatusLabel, prevStatus, type StatusEvent } from '../lib/equipment';
 
-interface Line { kit: string; size: string | null; quantity: number }
+interface Line { id?: string; kit: string; size: string | null; quantity: number }
 interface Order {
   id: string; player_id: string | null; ordered_on: string | null; total: number; paid: number; installment: boolean; number: string | null; inscription: string | null; location: string | null;
   status: string; equipment_order_status_history: StatusEvent[];
   players: { full_name: string; groups?: { name: string } | null } | null; equipment_order_lines: Line[]; equipment_issues: { kit: string; issued_on: string; issued_by: string | null }[];
 }
-const ORDER_COLS = 'id, player_id, ordered_on, total, paid, installment, number, inscription, location, status, equipment_order_status_history(status, changed_at, changed_by_name), equipment_order_lines(kit, size, quantity), equipment_issues(kit, issued_on, issued_by)';
+const ORDER_COLS = 'id, player_id, ordered_on, total, paid, installment, number, inscription, location, status, equipment_order_status_history(status, changed_at, changed_by_name), equipment_order_lines(id, kit, size, quantity), equipment_issues(kit, issued_on, issued_by)';
 interface Kit { kit: string; price: number }
 
 const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
 const num = (s: string) => Number(s.replace(',', '.'));
 const errText = (m: string) =>
   m.includes('paid above total') ? 'Оплата больше суммы заказа.' : m.includes('paid below zero') ? 'Оплачено не может быть меньше нуля.' : m.includes('total below paid') ? 'Сумма заказа меньше уже оплаченного.' :
-  m.includes('order has payments') ? 'У заказа есть оплата: сначала верните её записью с минусом.' : m.includes('order has issues') ? 'У заказа есть выданные вещи: сначала снимите выдачу.' : m.includes('kit not in catalog') ? 'Позиции нет в каталоге.' : m.includes('no items') ? 'Выберите хотя бы одну вещь.' : m.includes('bad amount') ? 'Сумма указана неверно.' :
+  m.includes('order has payments') ? 'У заказа есть оплата: сначала верните её записью с минусом.' : m.includes('order has issues') ? 'У заказа есть выданные вещи: сначала снимите выдачу.' : m.includes('item issued') ? 'Вещь уже выдана: сначала снимите выдачу (размер менять можно).' : m.includes('last line') ? 'Это последняя вещь в заказе: удалите весь заказ.' : m.includes('bad quantity') ? 'Количество от 1 до 10.' : m.includes('bad date') ? 'Дата не может быть в будущем.' : m.includes('kit not in catalog') ? 'Позиции нет в каталоге.' : m.includes('no items') ? 'Выберите хотя бы одну вещь.' : m.includes('bad amount') ? 'Сумма указана неверно.' :
   m.includes('bad transition') ? 'Статус можно менять только на один шаг вперёд (назад — администратору).' : m.includes('bad status') ? 'Такого статуса нет.' :
   m.includes('Could not find the function') || m.includes('equipment_issues') ? 'Модуль ещё не установлен в базе (миграция 0036).' : coachError(m);
 const issueState = (o: Order) => issueStateLabel(o.equipment_order_lines, o.equipment_issues);
@@ -383,6 +383,21 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
   );
 }
 
+// Строка заказа: размер и количество правятся отдельно по каждой вещи (0125).
+function LineEditor({ line, locked, last, busy, onSave, onRemove }: { line: Line; locked: boolean; last: boolean; busy: boolean; onSave: (size: string, qty: number) => void; onRemove: () => void }) {
+  const [size, setSize] = useState(line.size ?? '');
+  const [qty, setQty] = useState(line.quantity);
+  const dirty = size.trim() !== (line.size ?? '') || qty !== line.quantity;
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
+      <input aria-label={`Размер: ${line.kit}`} placeholder="Размер" value={size} maxLength={20} style={{ width: 90 }} onChange={e => setSize(e.target.value)} />
+      <input aria-label={`Количество: ${line.kit}`} type="number" min={1} max={10} value={qty} disabled={locked} style={{ width: 64 }} onChange={e => setQty(Math.max(1, Math.min(10, Number(e.target.value) || 1)))} />
+      <button type="button" className="ks-btn secondary" disabled={busy || !dirty} onClick={() => onSave(size, qty)}>Сохранить</button>
+      {!locked && !last && <button type="button" className="ks-btn secondary" disabled={busy} onClick={onRemove}>Убрать</button>}
+    </div>
+  );
+}
+
 function OrderView({ order, knownNumber, onBack }: { order: Order; knownNumber?: string; onBack: () => void }) {
   const [o, setO] = useState(order);
   const [amount, setAmount] = useState('');
@@ -398,6 +413,10 @@ function OrderView({ order, knownNumber, onBack }: { order: Order; knownNumber?:
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const { ask, dialog: confirmDialog } = useConfirm();
   const [gone, setGone] = useState(false);
+  const { kits: catalog } = useCatalog();
+  const [addKit, setAddKit] = useState('');
+  const [addSize, setAddSize] = useState('');
+  const [orderedOn, setOrderedOn] = useState(order.ordered_on ?? '');
   useEffect(() => { if (gone) onBack(); }, [gone]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const refresh = async () => {
@@ -428,6 +447,11 @@ function OrderView({ order, knownNumber, onBack }: { order: Order; knownNumber?:
     if (!prev) return;
     if (!(await ask({ title: 'Вернуть статус?', lines: [['Игрок', o.players?.full_name ?? 'Игрок'], ['Сейчас', orderStatusLabel(o.status)], ['Будет', orderStatusLabel(prev)]], note: 'Возврат попадёт в историю статусов.', confirmLabel: 'Вернуть' }))) return;
     await run('status', () => supabase.rpc('eq_set_order_status', { o: o.id, st: prev }), 'Статус возвращён.');
+  };
+  const removeLine = async (l: Line) => {
+    if (!l.id) return;
+    if (!(await ask({ title: 'Убрать вещь из заказа?', lines: [['Игрок', o.players?.full_name ?? 'Игрок'], ['Вещь', `${l.kit}${l.size ? ` (${l.size})` : ''} × ${l.quantity}`]], note: 'Сумма заказа уменьшится на стоимость вещи.', confirmLabel: 'Убрать', danger: true }))) return;
+    await run(`rm-${l.id}`, () => supabase.rpc('eq_delete_line', { l: l.id }), 'Вещь убрана.');
   };
   const deleteOrder = async () => {
     if (!(await ask({ title: 'Удалить заказ?', lines: [['Игрок', o.players?.full_name ?? 'Игрок'], ['Сумма', gel(o.total)]], note: 'Заказ будет удалён. Отменить нельзя.', confirmLabel: 'Удалить', danger: true }))) return;
@@ -470,11 +494,22 @@ function OrderView({ order, knownNumber, onBack }: { order: Order; knownNumber?:
         return (
           <div className="ks-card" key={k}>
             <div className="ks-line"><b>{k}</b><Pill tone={i ? 'success' : 'neutral'} dot>{i ? `Выдано ${fmtDate(i.issued_on)}` : 'Не выдано'}</Pill></div>
-            <div className="ks-muted" style={{ fontSize: 13 }}>{lines.map(l => `${l.size ?? 'размер не указан'} × ${l.quantity}`).join('; ')}{i?.issued_by ? ` · выдал: ${i.issued_by}` : ''}</div>
+            {i?.issued_by && <div className="ks-muted" style={{ fontSize: 13 }}>выдал: {i.issued_by}</div>}
+            {lines.map((l, n) => l.id
+              ? <LineEditor key={`${l.id}-${l.size}-${l.quantity}`} line={l} locked={!!i} last={o.equipment_order_lines.length <= 1} busy={busy === `ln-${l.id}` || busy === `rm-${l.id}`}
+                  onSave={(size, qty) => void run(`ln-${l.id}`, () => supabase.rpc('eq_edit_line', { l: l.id, sz: size, qty }), 'Сохранено.')} onRemove={() => void removeLine(l)} />
+              : <div key={n} className="ks-muted" style={{ fontSize: 13 }}>{l.size ?? 'размер не указан'} × {l.quantity}</div>)}
             <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy === k} onClick={() => void run(k, () => supabase.rpc('eq_set_issued', { o: o.id, k, on_: !i, who }))}>{i ? 'Снять выдачу' : 'Отметить выдачу'}</button>
           </div>
         );
       })}
+
+      <h3>Добавить вещь</h3>
+      <div className="ks-card">
+        <label className="field">Вещь<select value={addKit} onChange={e => setAddKit(e.target.value)}><option value="">Выберите вещь</option>{(catalog ?? []).filter(k => !issued.has(k.kit)).map(k => <option key={k.kit} value={k.kit}>{k.kit} — {gel(k.price)}</option>)}</select></label>
+        <label className="field">Размер новой вещи<input value={addSize} maxLength={20} onChange={e => setAddSize(e.target.value)} /></label>
+        <button type="button" className="ks-btn secondary" disabled={busy === 'add' || !addKit} onClick={() => void run('add', () => supabase.rpc('eq_add_line', { o: o.id, k: addKit, sz: addSize, qty: 1 }), 'Вещь добавлена.').then(ok => { if (ok) { setAddKit(''); setAddSize(''); } })}>Добавить в заказ</button>
+      </div>
 
       <h3>Оплата</h3>
       <label className="field">Способ оплаты<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option><option>Наличные</option><option>Перевод</option></select></label>
@@ -486,6 +521,8 @@ function OrderView({ order, knownNumber, onBack }: { order: Order; knownNumber?:
       <label className="field">Номер<input value={number} maxLength={10} onChange={e => setNumber(e.target.value)} /></label>
       {numberNote && <p className="ks-callout" role="status">{numberNote}</p>}
       {!number.trim() && knownNumber && <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} onClick={() => setNumber(knownNumber)}>Подставить номер {knownNumber} из другого заказа игрока</button>}
+      <label className="field">Дата заказа<input type="date" max={today()} value={orderedOn} onChange={e => setOrderedOn(e.target.value)} /></label>
+      <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy === 'date' || !orderedOn || orderedOn === (o.ordered_on ?? '')} onClick={() => void run('date', () => supabase.rpc('eq_set_order_date', { o: o.id, d: orderedOn }), 'Дата сохранена.')}>Сохранить дату</button>
       <label className="field">Локация<input value={loc} maxLength={40} onChange={e => setLoc(e.target.value)} /></label>
       <label className="field">Сумма заказа, ₾<input inputMode="decimal" value={total} onChange={e => setTotal(e.target.value)} /></label>
       <div style={{ marginTop: 12 }}><SwitchRow id="inst" label="Рассрочка" checked={inst} onChange={setInst} /></div>

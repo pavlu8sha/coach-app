@@ -1,7 +1,7 @@
 -- pgTAP: экипировка для администратора (0036).
 begin;
 create extension if not exists pgtap;
-select plan(17);
+select plan(26);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -29,6 +29,8 @@ begin
 end $$;
 create temp table oid_t (id uuid);
 grant all on oid_t to authenticated;
+create temp table oid2_t (id uuid);
+grant all on oid2_t to authenticated;
 
 select as_user('00000000-0000-0000-0000-0000000000c1');
 select throws_ok($$select eq_create_order('00000000-0000-0000-0000-00000000d001', '[{"kit":"Форма"}]'::jsonb, null, '7', false, null)$$, '42501', 'forbidden', 'тренер не создаёт заказы');
@@ -55,6 +57,19 @@ select eq_add_payment((select id from oid_t), -100, null, 'Наличные');
 select throws_ok($$select eq_delete_order((select id from oid_t))$$, '22023', 'order has issues', 'заказ с выдачей удалить нельзя');
 select eq_set_issued((select id from oid_t), 'Форма', false);
 select lives_ok($$select eq_delete_order((select id from oid_t))$$, 'без оплат и выдач заказ удаляется');
+
+-- 0125: правка строк заказа
+insert into oid2_t select eq_create_order('00000000-0000-0000-0000-00000000d001', '[{"kit":"Форма","size":"128"},{"kit":"Куртка","size":"128"}]'::jsonb, null, null, false, null);
+select lives_ok($$select eq_edit_line((select id from equipment_order_lines where order_id = (select id from oid2_t) and kit = 'Форма'), '134', 1)$$, 'размер строки меняется');
+select is((select size from equipment_order_lines where order_id = (select id from oid2_t) and kit = 'Форма'), '134', 'новый размер записан');
+select lives_ok($$select eq_edit_line((select id from equipment_order_lines where order_id = (select id from oid2_t) and kit = 'Форма'), '134', 2)$$, 'количество меняется, пока не выдано');
+select is((select total from equipment_orders where id = (select id from oid2_t)), 260::numeric, 'сумма сдвинулась на цену строки');
+select throws_ok($$select eq_edit_line((select id from equipment_order_lines where order_id = (select id from oid2_t) and kit = 'Форма'), '134', 11)$$, '22023', 'bad quantity', 'количество от 1 до 10');
+select lives_ok($$select eq_add_line((select id from oid2_t), 'Куртка', '140', 1)$$, 'вещь добавляется по цене каталога');
+select is((select total from equipment_orders where id = (select id from oid2_t)), 320::numeric, 'сумма выросла на 60');
+select eq_set_issued((select id from oid2_t), 'Форма', true, 'Павел');
+select throws_ok($$select eq_edit_line((select id from equipment_order_lines where order_id = (select id from oid2_t) and kit = 'Форма'), '134', 1)$$, '22023', 'item issued', 'у выданной вещи количество не меняется');
+select throws_ok($$select eq_set_order_date((select id from oid2_t), current_date + 1)$$, '22023', 'bad date', 'дата заказа не в будущем');
 
 select as_user('00000000-0000-0000-0000-0000000000b1');
 select throws_ok($$select eq_catalog_save('Шапка', 20)$$, '42501', 'forbidden', 'родитель не меняет каталог');
