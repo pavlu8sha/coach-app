@@ -131,6 +131,7 @@ select * from (values
   ('0126_points_group_benchmark', coalesce((to_regproc('points_group_benchmark') is not null), false)),
   ('0127_points_consistency', coalesce((to_regproc('points_consistency') is not null), false)),
   ('0128_subscription_month_auto', coalesce((to_regproc('subscription_month_auto') is not null and to_regproc('subscription_month_missing') is not null), false)),
-  ('0129_points_test_mode', coalesce((to_regproc('points_consistency_run') is not null), false))
+  ('0129_points_test_mode', coalesce((to_regproc('points_consistency_run') is not null), false)),
+  ('0130_notify_points_ledger', coalesce((to_regproc('notify_points_ledger') is not null), false))
 ) as t(migration, applied)
 order by migration;
