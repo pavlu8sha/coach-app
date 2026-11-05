@@ -30,6 +30,22 @@ import { coachBar } from './lib/coachMenu';
 import Stats from './screens/Stats';
 import TrainerLog from './screens/TrainerLog';
 
+const MODE_KEY = 'ks.parentMode';
+function readParentMode(): boolean {
+  try {
+    return localStorage.getItem(MODE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+function writeParentMode(on: boolean) {
+  try {
+    localStorage.setItem(MODE_KEY, on ? '1' : '0');
+  } catch {
+    /* хранилище недоступно — режим просто не запомнится */
+  }
+}
+
 type State = { kind: 'loading' } | { kind: 'ready' } | { kind: 'outside' } | { kind: 'config' } | { kind: 'error'; text: string };
 
 type Tab = 'about' | 'home' | 'schedule' | 'matches' | 'payments' | 'profile' | 'more' | 'group' | 'attendance' | 'ledger' | 'cash' | SectionId;
@@ -66,7 +82,8 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
   const [childPlayer, setChildPlayer] = useState<ChildPlayer | null>(null); // игрок, к которому привязан аккаунт ребёнка
   const [childLoaded, setChildLoaded] = useState(false);
   const [childKey, setChildKey] = useState(0);
-  const [tab, setTab] = useState<Tab>('home');
+  const [tabRaw, setTab] = useState<Tab>('home');
+  const [parentMode, setParentModeState] = useState<boolean>(() => readParentMode());
   // локальный администратор (#321): свои локации, только касса
   const [locations, setLocations] = useState<string[]>([]);
   // в предпросмотре администратор «становится» выбранной ролью без детей и без групп
@@ -148,9 +165,18 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
       setChildLoaded(true);
     })();
   }, [role, childKey]);
-  const coach = !admin && !preview && coachGroups.length > 0;
+  // Переключатель «Тренер / Родитель» нужен только тому, у кого есть и группы тренера, и привязанный ребёнок
+  const canSwitch = !admin && !preview && coachGroups.length > 0 && hasKids;
+  const asParent = canSwitch && parentMode;
+  const setMode = (parent: boolean) => {
+    setParentModeState(parent);
+    writeParentMode(parent);
+    setTab(parent ? 'home' : 'sessions');
+  };
+  const tab: Tab = asParent && !['home', 'schedule', 'matches', 'payments', 'profile'].includes(tabRaw) ? 'home' : tabRaw;
+  const coach = !admin && !preview && coachGroups.length > 0 && !asParent;
   // локальный админ (#321): касса своих локаций добавляется к разделам тренера или родителя
-  const locAdmin = !admin && !preview && locations.length > 0;
+  const locAdmin = !admin && !preview && locations.length > 0 && !asParent;
   const cashItem = { value: 'cash' as Tab, label: 'Касса', icon: 'wallet' as const };
   if (!loaded) return <Splash />;
   // Роль спрашиваем при первом входе. Администратора, тренера с группами и тех, у кого уже есть дети, не трогаем.
@@ -230,6 +256,14 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
     : <Home isAdmin={admin} onGuest={admin || coach || preview ? undefined : becomeGuest} />;
   return (
     <>
+      {canSwitch && (
+        <div role="status" style={{ position: 'sticky', top: 0, zIndex: 20, display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px', background: 'var(--ks-primary, #14213d)', color: 'var(--ks-on-primary, #fff)', fontSize: 14 }}>
+          <span>{asParent ? 'Режим: родитель' : 'Режим: тренер'}</span>
+          <button type="button" className="ks-btn sm" style={{ width: 'auto' }} onClick={() => setMode(!asParent)}>
+            {asParent ? 'Вернуться к тренеру' : 'Кабинет родителя'}
+          </button>
+        </div>
+      )}
       {screen}
       <BottomNav
         label="Разделы"
@@ -245,7 +279,7 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
                 { value: 'more', label: 'Ещё', icon: 'more' },
               ]
             : coach
-              ? [...coachBar(hasKids), ...(locAdmin ? [cashItem] : [])]
+              ? [...coachBar(false), ...(locAdmin ? [cashItem] : [])]
               : locAdmin
                 ? [cashItem, { value: 'profile' as Tab, label: 'Профиль', icon: 'user' as const }]
                 : [

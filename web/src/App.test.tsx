@@ -40,13 +40,57 @@ describe('нижняя панель по ролям', () => {
     expect(await current()).toEqual(['Учёт']);
   });
 
-  it('тренер-родитель: вместо «Посещаемости» вкладка «Ребёнок»', async () => {
+  it('тренер-родитель: панель тренера прежняя, «Посещаемость» на месте, есть переключатель', async () => {
+    try { localStorage.removeItem('ks.parentMode'); } catch { /* нет хранилища */ }
     fake.db.users = [{ id: 'u', is_admin: false, chosen_role: 'coach' }];
     fake.db.coach_groups = CG;
     fake.db.groups = GROUPS;
     fake.db.player_guardians = [{ user_id: 'u', player_id: 'p1', consent_revoked_at: null }];
     render(<App />);
-    expect(await labels()).toEqual(['Занятия', 'Матчи', 'Ребёнок', 'Учёт', 'Группа']);
+    expect(await labels()).toEqual(['Занятия', 'Матчи', 'Посещаемость', 'Учёт', 'Группа']);
+    expect(screen.getByText('Режим: тренер')).toBeInTheDocument();
+  });
+
+  it('тренер-родитель: переключение в кабинет родителя и обратно, выбор запоминается', async () => {
+    try { localStorage.removeItem('ks.parentMode'); } catch { /* нет хранилища */ }
+    fake.db.users = [{ id: 'u', is_admin: false, chosen_role: 'coach' }];
+    fake.db.coach_groups = CG;
+    fake.db.groups = GROUPS;
+    fake.db.player_guardians = [{ user_id: 'u', player_id: 'p1', consent_revoked_at: null }];
+    const { unmount } = render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Кабинет родителя' }));
+    expect(await labels()).toEqual(['Ребёнок', 'Расписание', 'Матчи', 'Оплата', 'Профиль']);
+    expect(screen.getByText('Режим: родитель')).toBeInTheDocument();
+    unmount();
+    render(<App />);
+    expect(await labels()).toEqual(['Ребёнок', 'Расписание', 'Матчи', 'Оплата', 'Профиль']);
+    fireEvent.click(await screen.findByRole('button', { name: 'Вернуться к тренеру' }));
+    expect(await labels()).toEqual(['Занятия', 'Матчи', 'Посещаемость', 'Учёт', 'Группа']);
+    expect(await current()).toEqual(['Занятия']);
+    try { localStorage.removeItem('ks.parentMode'); } catch { /* нет хранилища */ }
+  });
+
+  it('обычный тренер, обычный родитель и администратор переключателя не видят', async () => {
+    try { localStorage.setItem('ks.parentMode', '1'); } catch { /* нет хранилища */ }
+    fake.db.users = [{ id: 'u', is_admin: false, chosen_role: 'coach' }];
+    fake.db.coach_groups = CG;
+    fake.db.groups = GROUPS;
+    const a = render(<App />);
+    expect(await labels()).toEqual(['Занятия', 'Матчи', 'Посещаемость', 'Учёт', 'Группа']);
+    expect(screen.queryByText(/Режим:/)).not.toBeInTheDocument();
+    a.unmount();
+    fake.db.coach_groups = [];
+    fake.db.users = [{ id: 'u', is_admin: false, chosen_role: 'parent' }];
+    fake.db.player_guardians = [{ user_id: 'u', player_id: 'p1', consent_revoked_at: null }];
+    const b = render(<App />);
+    expect(await labels()).toEqual(['Ребёнок', 'Расписание', 'Матчи', 'Оплата', 'Профиль']);
+    expect(screen.queryByText(/Режим:/)).not.toBeInTheDocument();
+    b.unmount();
+    fake.db.users = [{ id: 'u', is_admin: true, chosen_role: null }];
+    render(<App />);
+    expect(await labels()).toContain('Ещё');
+    expect(screen.queryByText(/Режим:/)).not.toBeInTheDocument();
+    try { localStorage.removeItem('ks.parentMode'); } catch { /* нет хранилища */ }
   });
 
   it('тренер с локациями Гио: разделы тренера и «Касса» на нижней панели', async () => {
