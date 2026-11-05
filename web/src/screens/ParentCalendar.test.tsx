@@ -66,12 +66,12 @@ describe('календарь родителя', () => {
   }
 
   it('назад листается до месяца первой отметки ребёнка', async () => {
-    fake.db.attendance = [{ player_id: 'p1', sessions: { starts_at: '2026-08-20T14:00:00Z' } }, { player_id: 'p1', sessions: { starts_at: '2026-10-02T14:00:00Z' } }];
+    fake.rpc.parent_first_attendance = () => '2026-08-20';
     expect(await earliestMonth()).toContain('август');
   });
 
   it('без отметок календарь начинается с сентября', async () => {
-    fake.db.attendance = [];
+    fake.rpc.parent_first_attendance = () => null;
     expect(await earliestMonth()).toContain('сентябрь');
   });
 });
