@@ -12,6 +12,8 @@ interface GroupView { id: string; name: string; kids: string[]; slots: Slot[]; u
 const DAYS = ['', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 const hm = (t: string | null) => (t ? t.slice(0, 5) : '');
 const fmtDate = (iso: string) => iso.split('-').reverse().slice(0, 2).join('.');
+// матчи команды ведутся без суффикса группы: у U10-A матчи команды «U10»
+const teamsOf = (name: string) => [...new Set([name, name.replace(/-[ABC]$/, '')])];
 const today = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD по местному времени телефона
 
 // Расписание и матчи групп, в которых играют дети текущего пользователя.
@@ -52,7 +54,7 @@ export default function Schedule({ all = false, editable = all }: { all?: boolea
         if (sl.error) return setError(sl.error.message);
         g.slots = (sl.data ?? []) as Slot[];
         if (g.name) {
-          const m = await supabase.from('matches').select('id, played_on, opponent, goals_for, goals_against').eq('team', g.name).order('played_on', { ascending: false }).limit(40);
+          const m = await supabase.from('matches').select('id, played_on, opponent, goals_for, goals_against').in('team', teamsOf(g.name)).order('played_on', { ascending: false }).limit(40);
           if (m.error) return setError(m.error.message);
           const rows = (m.data ?? []) as Match[];
           const t = today();
