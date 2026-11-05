@@ -17,9 +17,9 @@ const seed = () => {
 describe('баллы по новым правилам', () => {
   it('ориентиры группы: свои баллы, среднее и максимум без имён', async () => {
     seed();
-    fake.rpc.points_group_benchmark = () => ({ groups: [{ group_id: 'g1', group_name: 'U9', personal: 6, status: 'ok', avg: 2.3, max: 10 }] });
+    fake.rpc.points_group_benchmark = () => ({ groups: [{ group_id: 'g1', group_name: 'U9', personal: 6, status: 'ok', avg: 2.3, max: 10, place: 4 }] });
     render(<PointsLedger playerId="p1" />);
-    expect(await screen.findByText(/у вас 6 · среднее по группе 2,3 · максимум в группе 10/)).toBeInTheDocument();
+    expect(await screen.findByText(/у вас 6 · среднее по группе 2,3 · максимум в группе 10 · место в группе 4/)).toBeInTheDocument();
     expect(fake.rpcCalls('points_group_benchmark')[0]).toEqual({ p: 'p1', ym: '2026-12-01' });
   });
 
