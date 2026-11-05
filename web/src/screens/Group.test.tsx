@@ -67,6 +67,68 @@ describe('карточка игрока', () => {
   });
 });
 
+describe('ручные баллы по новым правилам', () => {
+  const activate = () => {
+    fake.rpc.points_manual_status = () => ({ active: true, remaining: { '1': 3, '2': 2, '3': 1 }, month_total: 0, month_cap: 10 });
+    fake.db.points_ledger = [
+      { id: 'l1', player_id: 'p1', source_type: 'manual', points: 1, event_date: '2026-12-02', status: 'active', cancel_reason: null, created_at: '2026-12-02T10:00:00Z', components: { note: 'Старание' } },
+      { id: 'l2', player_id: 'p1', source_type: 'manual', points: 2, event_date: '2026-12-01', status: 'cancelled', cancel_reason: 'Ошибся', created_at: '2026-12-01T10:00:00Z', components: { note: 'Помощь' } },
+    ];
+  };
+
+  it('пока правила не действуют, работает прежнее начисление', async () => {
+    seed();
+    fake.rpc.points_manual_status = () => ({ active: false });
+    await open();
+    expect(screen.getByRole('tab', { name: '+5' })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/За что/), { target: { value: 'Тест' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Начислить' }));
+    await waitFor(() => expect(fake.rpcCalls('award_bonus')).toHaveLength(1));
+    expect(fake.rpcCalls('points_manual_award')).toHaveLength(0);
+  });
+
+  it('показывает +1/+2/+3 и остаток лимитов, начисляет с идентификатором заявки', async () => {
+    seed();
+    activate();
+    fake.rpc.points_manual_award = () => 'l9';
+    await open();
+    expect(await screen.findByText(/Осталось в этом месяце: \+1 — 3, \+2 — 2, \+3 — 1/)).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: '+5' })).toBeNull();
+    fireEvent.click(screen.getByRole('tab', { name: '+2' }));
+    fireEvent.change(screen.getByLabelText(/За что/), { target: { value: 'Лидер' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Начислить' }));
+    await waitFor(() => expect(fake.rpcCalls('points_manual_award')).toHaveLength(1));
+    const a = fake.rpcCalls('points_manual_award')[0];
+    expect(a).toMatchObject({ p: 'p1', pts: 2, note: 'Лидер' });
+    expect(typeof a.req).toBe('string');
+    expect(fake.rpcCalls('award_bonus')).toHaveLength(0);
+  });
+
+  it('отмена требует причину и уходит в базу; отменённое показано с причиной', async () => {
+    seed();
+    activate();
+    fake.rpc.points_manual_cancel = () => null;
+    await open();
+    expect(await screen.findByText(/отменено: Ошибся/)).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Отменить' })[0]);
+    const confirm = await screen.findByRole('button', { name: 'Подтвердить отмену' });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Причина отмены'), { target: { value: 'Не тот ребёнок' } });
+    fireEvent.click(confirm);
+    await waitFor(() => expect(fake.rpcCalls('points_manual_cancel')).toEqual([{ entry: 'l1', reason: 'Не тот ребёнок' }]));
+  });
+
+  it('ошибку лимита показывает по-русски', async () => {
+    seed();
+    activate();
+    fake.rpc.points_manual_award = () => ({ error: { message: 'monthly limit reached for this value' } });
+    await open();
+    fireEvent.change(await screen.findByLabelText(/За что/), { target: { value: 'x' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Начислить' }));
+    expect(await screen.findByText(/уже использовано максимальное число раз/)).toBeInTheDocument();
+  });
+});
+
 describe('рейтинг по группе', () => {
   it('игроки идут по убыванию баллов с местом и суммой', async () => {
     seed();
