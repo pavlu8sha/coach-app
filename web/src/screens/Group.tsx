@@ -10,6 +10,8 @@ import { useConfirm } from '../ui/ConfirmSheet';
 
 interface Player { id: string; full_name: string }
 interface Ev { id: string; points: number; explanation: string; occurred_on: string; source_type: string }
+interface ManualRow { id: string; points: number; event_date: string; status: string; cancel_reason: string | null; components: { note?: string } | null }
+interface ManualStatus { active: boolean; remaining?: Record<string, number>; month_total?: number; month_cap?: number }
 interface Parent { player_id: string; parent_name: string | null; telegram_id: number }
 
 // «Группа»: игроки группы; карточка игрока с ручными баллами и контактами родителей.
@@ -81,6 +83,23 @@ function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBa
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // новые правила (миграция 0123): пока они не действуют, работают прежние ручные баллы
+  const [manual, setManual] = useState<ManualStatus | null>(null);
+  const [manualRows, setManualRows] = useState<ManualRow[]>([]);
+  const [req, setReq] = useState(() => crypto.randomUUID());
+  const [cancelId, setCancelId] = useState<string | null>(null);
+  const [reason, setReason] = useState('');
+
+  useEffect(() => {
+    void (async () => {
+      const st = await supabase.rpc('points_manual_status', { p: player.id });
+      const info = st.error ? null : (st.data as ManualStatus | null);
+      setManual(info?.active ? info : null);
+      if (!info?.active) return setManualRows([]);
+      const rows = await supabase.from('points_ledger').select('id, points, event_date, status, cancel_reason, components').eq('player_id', player.id).eq('source_type', 'manual').order('event_date', { ascending: false }).order('created_at', { ascending: false }).limit(30);
+      setManualRows(rows.error ? [] : ((rows.data ?? []) as ManualRow[]));
+    })();
+  }, [player.id, reload]);
 
   useEffect(() => {
     void (async () => {
@@ -106,9 +125,13 @@ function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBa
   const award = async () => {
     setBusy(true);
     setMsg(null);
-    const r = await supabase.rpc('award_bonus', { p: player.id, pts: Number(pts), note });
+    // новая система: заявка с постоянным req, повтор после обрыва связи не создаёт второе начисление
+    const r = manual
+      ? await supabase.rpc('points_manual_award', { p: player.id, pts: Number(pts), note, req })
+      : await supabase.rpc('award_bonus', { p: player.id, pts: Number(pts), note });
     setBusy(false);
     if (r.error) return setMsg({ ok: false, text: coachError(r.error.message) });
+    setReq(crypto.randomUUID());
     setNote('');
     setMsg({ ok: true, text: 'Баллы начислены.' });
     setReload(n => n + 1);
@@ -116,6 +139,17 @@ function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBa
   const askRevoke = async (e: Ev) => {
     if (!(await ask({ title: 'Отменить начисление?', lines: [['Начисление', e.explanation], ['Баллы', `+${e.points}`], ['Дата', fmtDate(e.occurred_on)]], note: 'Баллы будут сняты у игрока.', confirmLabel: 'Отменить начисление', danger: true }))) return;
     await revoke(e.id);
+  };
+  const cancelManual = async (id: string) => {
+    setBusy(true);
+    setMsg(null);
+    const r = await supabase.rpc('points_manual_cancel', { entry: id, reason });
+    setBusy(false);
+    if (r.error) return setMsg({ ok: false, text: coachError(r.error.message) });
+    setCancelId(null);
+    setReason('');
+    setMsg({ ok: true, text: 'Начисление отменено.' });
+    setReload(n => n + 1);
   };
   const revoke = async (id: string) => {
     setBusy(true);
@@ -142,8 +176,13 @@ function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBa
           label="Сколько баллов"
           value={pts}
           onChange={setPts}
-          items={['1', '2', '3', '4', '5'].map(v => ({ value: v, label: '+' + v }))}
+          items={(manual?.remaining ? Object.keys(manual.remaining).sort() : ['1', '2', '3', '4', '5']).map(v => ({ value: v, label: '+' + v }))}
         />
+        {manual?.remaining && (
+          <p className="muted" style={{ fontSize: 13, marginTop: 6 }}>
+            Осталось в этом месяце: {Object.keys(manual.remaining).sort().map(k => `+${k} — ${manual.remaining?.[k] ?? 0}`).join(', ')}. Всего за месяц {manual.month_total ?? 0} из {manual.month_cap ?? 0}.
+          </p>
+        )}
         <label className="ks-label" htmlFor="b-note">За что (увидит родитель)</label>
         <input id="b-note" className="ks-input" value={note} maxLength={200} onChange={e => { setNote(e.target.value); setMsg(null); }} placeholder="Например: отлично играл в защите" />
         {msg && <p className={msg.ok ? 'ks-ok' : 'error'}>{msg.text}</p>}
@@ -169,6 +208,34 @@ function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBa
             <a className="ks-btn secondary" style={{ textDecoration: 'none' }} href={`tg://user?id=${p.telegram_id}`}>Написать в Telegram</a>
           </div>
         ))
+      )}
+
+      {manual && manualRows.length > 0 && (
+        <>
+          <h2 className="ks-sub">Ручные начисления</h2>
+          {manualRows.map(m => (
+            <div className="ks-card" key={m.id}>
+              <div className="ks-line">
+                <span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>{m.components?.note ?? 'Без комментария'}</span>
+                <Pill tone="primary">+{m.points}</Pill>
+              </div>
+              <div className="ks-muted" style={{ fontSize: 13 }}>{fmtDate(m.event_date)}{m.status === 'cancelled' ? ` · отменено: ${m.cancel_reason ?? ''}` : ''}</div>
+              {m.status === 'active' && cancelId !== m.id && (
+                <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy} onClick={() => { setCancelId(m.id); setReason(''); setMsg(null); }}>Отменить</button>
+              )}
+              {cancelId === m.id && (
+                <div style={{ marginTop: 8 }}>
+                  <label className="ks-label" htmlFor="b-reason">Причина отмены</label>
+                  <input id="b-reason" className="ks-input" value={reason} maxLength={200} onChange={e => setReason(e.target.value)} placeholder="Например: начислил не тому ребёнку" />
+                  <div className="ks-actions" style={{ marginTop: 8 }}>
+                    <button type="button" className="ks-btn secondary" onClick={() => setCancelId(null)}>Не отменять</button>
+                    <button type="button" className="ks-btn" disabled={busy || reason.trim() === ''} onClick={() => void cancelManual(m.id)}>Подтвердить отмену</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </>
       )}
 
       <h2 className="ks-sub">История баллов</h2>
