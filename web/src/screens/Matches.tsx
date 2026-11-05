@@ -3,7 +3,9 @@ import { groupInOrder } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { teamResults } from '../lib/teamResults';
 import { EmptyState, ListRow, Pill, Segmented, type Tone } from '../ui/components';
+import { type MyRsvp } from '../lib/matchRsvp';
 import Message, { Failure, Loading } from './Message';
+import RsvpSection from './MatchRsvp';
 
 interface Kid { id: string; name: string }
 interface Part { played: boolean; goals: number }
@@ -34,7 +36,7 @@ const outcome = (m: Match): { tone: Tone; text: string } => {
 
 // Матчи групп, в которых играют дети текущего пользователя: ближайшие и сыгранные.
 export default function Matches() {
-  const [matches, setMatches] = useState<Match[] | null>(null);
+  const [matches0, setMatches] = useState<Match[] | null>(null);
   const [multi, setMulti] = useState(false);
   const [noGroups, setNoGroups] = useState(false);
   const [kids, setKids] = useState<Kid[]>([]);
@@ -45,6 +47,7 @@ export default function Matches() {
   const [myTours, setMyTours] = useState<MyTour[]>([]); // турниры ребёнка, в том числе без матчей
   const [tour, setTour] = useState('');
   const [reload, setReload] = useState(0);
+  const [rsvp, setRsvp] = useState<MyRsvp[]>([]); // матчи с подтверждением участия (миграция 0134); без неё список пуст
 
   useEffect(() => {
     void (async () => {
@@ -65,6 +68,8 @@ export default function Matches() {
       const map = new Map<string, Part>();
       for (const r of (mp.data ?? []) as { match_id: string; player_id: string; played: boolean; goals: number }[]) map.set(`${r.match_id}|${r.player_id}`, { played: r.played, goals: r.goals });
       setParts(map);
+      const rs = await supabase.rpc('match_rsvp_my_matches');
+      setRsvp(rs.error ? [] : ((rs.data ?? []) as MyRsvp[]));
       const m = await supabase.from('matches').select('id, team, played_on, opponent, goals_for, goals_against').in('team', teamNames(names)).order('played_on', { ascending: false }).limit(100);
       if (m.error) return setError(m.error.message);
       const rows = (m.data ?? []) as Match[];
@@ -89,10 +94,16 @@ export default function Matches() {
   }, [reload]);
 
   if (error) return <Failure title="Не удалось загрузить матчи" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
-  if (!matches) return <Loading title="Матчи" card rows={3} />;
+  if (!matches0) return <Loading title="Матчи" card rows={3} />;
+  let matches = matches0;
   if (noGroups) return <main className="page"><h1>Матчи</h1><EmptyState icon="box" title="Пока пусто" text="Матчи появятся, когда администратор подтвердит связь с ребёнком." /></main>;
 
   const t = today();
+  // матчи с подтверждением показываются карточками ниже и в общем списке не дублируются
+  const rsvpIds = new Set(rsvp.map(r => r.match_id));
+  matches = matches.filter(m => !rsvpIds.has(m.id));
+  const hasRsvpUpcoming = rsvp.some(r => r.lifecycle_status === 'published' && new Date(r.starts_at).getTime() > Date.now());
+  const hasRsvpPast = rsvp.length > 0 && rsvp.some(r => !(r.lifecycle_status === 'published' && new Date(r.starts_at).getTime() > Date.now()));
   const upcoming = matches.filter(m => m.played_on >= t && m.goals_for === null).reverse();
   // сыгранные: со счётом, а также прошедшие без счёта (например, товарищеские без результата): их тоже показываем, но в итоги команды они не входят
   const finished = (m: Match) => isResult(m) || m.played_on < t;
@@ -158,16 +169,18 @@ export default function Matches() {
 
       {showUpcoming && (
         <>
+          <RsvpSection rows={rsvp} part="upcoming" onChanged={() => setReload(n => n + 1)} />
           {filter === 'all' && upcoming.length > 0 && <h2 className="ks-sub">Ближайшие</h2>}
           {upcoming.map(m => (
             <ListRow key={m.id} title={m.opponent ?? 'Соперник уточняется'} sub={[sub(m), ...lines(m)]} end={<Pill tone="primary">Предстоит</Pill>} />
           ))}
-          {filter === 'upcoming' && upcoming.length === 0 && <EmptyState icon="trophy" title="Нет ближайших матчей" text="Когда матч появится в расписании группы, он будет здесь." />}
+          {filter === 'upcoming' && upcoming.length === 0 && !hasRsvpUpcoming && <EmptyState icon="trophy" title="Нет ближайших матчей" text="Когда матч появится в расписании группы, он будет здесь." />}
         </>
       )}
 
       {showPast && (
         <>
+          <RsvpSection rows={rsvp} part="past" onChanged={() => setReload(n => n + 1)} />
           {filter === 'all' && played.length > 0 && <h2 className="ks-sub">Результаты</h2>}
           {groupInOrder(played, m => m.played_on.slice(0, 7)).map(([ym, items]) => (
             <details className="ks-group" key={ym}>
@@ -196,11 +209,11 @@ export default function Matches() {
               })}
             </details>
           ))}
-          {filter === 'past' && played.length === 0 && <EmptyState icon="trophy" title="Нет результатов" text="Сыгранных матчей пока нет." />}
+          {filter === 'past' && played.length === 0 && !hasRsvpPast && <EmptyState icon="trophy" title="Нет результатов" text="Сыгранных матчей пока нет." />}
         </>
       )}
 
-      {filter === 'all' && upcoming.length === 0 && played.length === 0 && eventCards.length === 0 && <EmptyState icon="trophy" title="Матчей пока нет" text="Ближайшие матчи и результаты появятся здесь." />}
+      {filter === 'all' && upcoming.length === 0 && played.length === 0 && eventCards.length === 0 && !rsvp.length && <EmptyState icon="trophy" title="Матчей пока нет" text="Ближайшие матчи и результаты появятся здесь." />}
     </main>
   );
 }
