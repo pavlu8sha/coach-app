@@ -17,8 +17,8 @@ insert into players (id, club_id, group_id, full_name, status) values
   ('00000000-0000-0000-0000-00000000d004', '00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-0000000000e1', 'Ушёл', 'inactive');
 insert into prices (club_id, group_id, kind, amount, valid_from) values ('00000000-0000-0000-0000-00000000c001', null, 'subscription', 165, '2026-09-01') on conflict do nothing;
 -- у Первого строка уже есть, и она не должна измениться
-insert into subscriptions (player_id, group_id, month, amount_due, discount) values
-  ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000000e1', date_trunc('month', current_date)::date, 100, true);
+insert into subscriptions (player_id, group_id, month, amount_due, discount, closed_kind, closed_reason) values
+  ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000000e1', date_trunc('month', current_date)::date, 100, true, 'discount', 'скидка по решению клуба');
 
 create or replace function as_user(uid uuid) returns void language plpgsql as $$
 begin

@@ -34,7 +34,7 @@ select is(
         'retry_link', 'revoke_bonus', 'revoke_consent', 'save_match', 'search_players_for_link', 'set_my_role', 'set_notifications',
         'unlink_child',
         -- функции администратора из следующих миграций (0032–0039): внутри каждой проверяется is_admin()
-        'create_subscription_month', 'ind_create_session', 'ind_add_player', 'ind_set_paid', 'ind_remove_player', 'ind_edit_session', 'ind_delete_session',
+        'create_subscription_month', 'subscription_month_missing', 'ind_create_session', 'ind_add_player', 'ind_set_paid', 'ind_remove_player', 'ind_edit_session', 'ind_delete_session',
         'ind_set_regular', 'ind_autocreate_now', 'ind_slot_member_set', 'ind_set_attended', 'extra_create_session', 'extra_edit_session', 'extra_delete_session', 'extra_add_player', 'extra_remove_player',
         'extra_set_paid', 'extra_set_attended', 'eq_create_order', 'eq_edit_order', 'eq_add_payment', 'eq_set_issued', 'eq_delete_order', 'eq_catalog_save', 'eq_set_order_status', 'eq_edit_line', 'eq_add_line', 'eq_delete_line', 'eq_set_order_date', 'equipment_requirement', 'payment_info_save', 'camp_register_guest', 'camp_update_guest',
         'camp_save', 'camp_tariff_save', 'camp_register', 'camp_update_participant', 'camp_pay', 'camp_cancel_payment', 'tl_add', 'tl_confirm',
