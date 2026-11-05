@@ -32,6 +32,16 @@ describe('«Матчи» родителя: итоги и турнир', () => {
     expect(within(card).getAllByRole('listitem').map(e => e.getAttribute('aria-label'))).toEqual(['Победа', 'Поражение', 'Победа']);
   });
 
+  it('прошедший матч без счёта виден родителю и не входит в итоги', async () => {
+    seed();
+    (fake.db.matches as any[]).push({ id: 'm9', team: 'U9', played_on: '2026-08-16', opponent: null, goals_for: null, goals_against: null });
+    (fake.rpc as any).match_tournaments = () => [{ match_id: 'm9', tournament_name: null, tournament_kind: null, match_kind: 'friendly' }];
+    render(<Matches />);
+    expect(await screen.findByText('Товарищеская игра')).toBeInTheDocument();
+    expect(screen.getByText('Без счёта')).toBeInTheDocument();
+    expect(within(screen.getByLabelText('Итоги команды')).getByText('Сыграно: 3')).toBeInTheDocument();
+  });
+
   it('фильтр по турниру сужает список и итоги', async () => {
     seed();
     render(<Matches />);

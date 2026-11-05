@@ -94,8 +94,11 @@ export default function Matches() {
 
   const t = today();
   const upcoming = matches.filter(m => m.played_on >= t && m.goals_for === null).reverse();
-  const tourNames = [...new Set(matches.filter(isResult).map(m => tours.get(m.id)).filter((n): n is string => Boolean(n)))].sort();
-  const past = matches.filter(isResult).filter(m => !tour || tours.get(m.id) === tour);
+  // сыгранные: со счётом, а также прошедшие без счёта (например, товарищеские без результата): их тоже показываем, но в итоги команды они не входят
+  const finished = (m: Match) => isResult(m) || m.played_on < t;
+  const tourNames = [...new Set(matches.filter(finished).map(m => tours.get(m.id)).filter((n): n is string => Boolean(n)))].sort();
+  const played = matches.filter(finished).filter(m => !tour || tours.get(m.id) === tour);
+  const past = played.filter(isResult);
   const res = teamResults(past.map(m => ({ played_on: m.played_on, opponent: m.opponent, goals_for: m.goals_for ?? 0, goals_against: m.goals_against ?? 0 })));
   const showUpcoming = filter !== 'past';
   const showPast = filter !== 'upcoming';
@@ -165,11 +168,15 @@ export default function Matches() {
 
       {showPast && (
         <>
-          {filter === 'all' && past.length > 0 && <h2 className="ks-sub">Результаты</h2>}
-          {groupInOrder(past, m => m.played_on.slice(0, 7)).map(([ym, items]) => (
+          {filter === 'all' && played.length > 0 && <h2 className="ks-sub">Результаты</h2>}
+          {groupInOrder(played, m => m.played_on.slice(0, 7)).map(([ym, items]) => (
             <details className="ks-group" key={ym}>
               <summary><div className="ks-line"><b>{ym.slice(5)}.{ym.slice(0, 4)}</b><span className="muted">{items.length} {matchWord(items.length)}</span></div></summary>
               {items.map(m => {
+                if (!isResult(m)) {
+                  const friendly = tours.get(m.id) === 'Товарищеские';
+                  return <ListRow key={m.id} title={m.opponent ?? (friendly ? 'Товарищеская игра' : 'Матч')} sub={[sub(m), ...lines(m)]} end={<Pill>Без счёта</Pill>} />;
+                }
                 const o = outcome(m);
                 return (
                   <ListRow
@@ -189,11 +196,11 @@ export default function Matches() {
               })}
             </details>
           ))}
-          {filter === 'past' && past.length === 0 && <EmptyState icon="trophy" title="Нет результатов" text="Сыгранных матчей пока нет." />}
+          {filter === 'past' && played.length === 0 && <EmptyState icon="trophy" title="Нет результатов" text="Сыгранных матчей пока нет." />}
         </>
       )}
 
-      {filter === 'all' && upcoming.length === 0 && past.length === 0 && eventCards.length === 0 && <EmptyState icon="trophy" title="Матчей пока нет" text="Ближайшие матчи и результаты появятся здесь." />}
+      {filter === 'all' && upcoming.length === 0 && played.length === 0 && eventCards.length === 0 && <EmptyState icon="trophy" title="Матчей пока нет" text="Ближайшие матчи и результаты появятся здесь." />}
     </main>
   );
 }
