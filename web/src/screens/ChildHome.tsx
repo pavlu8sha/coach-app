@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { EmptyState } from '../ui/components';
 import { Failure, Loading } from './Message';
+import PointsLedger from './PointsLedger';
 
 export interface ChildPlayer { id: string; name: string; group: string | null }
 
@@ -85,6 +86,7 @@ export default function ChildHome({ player }: { player: ChildPlayer }) {
           </div>
         </div>
         <p className="muted">Матчей сыграно: {t.played} · голов: {t.goals}</p>
+        <PointsLedger playerId={player.id} />
         {t.recent.length > 0 ? (
           <div>
             {t.recent.map((e, i) => (
