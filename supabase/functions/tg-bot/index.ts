@@ -4,6 +4,7 @@
 // Деплой с --no-verify-jwt: Telegram не присылает ключ Supabase. См. README.md.
 import { route, BEFORE_START } from './bot-logic.js';
 import { leadStep, withLeadButton } from './lead-logic.js';
+import { parseRsvp, rsvpCalls } from './rsvp-logic.js';
 
 const APP_URL = Deno.env.get('MINI_APP_URL') ?? 'https://coach-app-84b.pages.dev/';
 // Заявки «Хочу в KickStart» (lead-logic.js): включаются LEADS_ENABLED=1 и требуют миграцию 0039 и ключ службы Supabase
@@ -31,7 +32,20 @@ Deno.serve(async (req: Request) => {
   try {
     const update = await req.json();
     let calls = route(update, APP_URL);
-    if (LEADS && SB_URL && SB_KEY) {
+    // Нажатие «Будет» / «Не будет» в уведомлении о матче: ответ записывает база (rsvp_answer_by_telegram), включено при ключе службы
+    const rsvp = parseRsvp(update?.callback_query?.data);
+    const rsvpFrom = update?.callback_query?.from?.id;
+    if (rsvp && typeof rsvpFrom === 'number' && SB_URL && SB_KEY) {
+      let result: { ok: boolean; code?: string; player?: string } = { ok: false, code: 'error' };
+      try {
+        const r = await sb('rpc/rsvp_answer_by_telegram', { method: 'POST', body: JSON.stringify({ p_telegram_id: rsvpFrom, p_invitation: rsvp.invitation, p_response: rsvp.response }) });
+        if (r.ok) result = await r.json();
+        else console.error('rsvp_answer_by_telegram', r.status, (await r.text()).slice(0, 200));
+      } catch (e) {
+        console.error('rsvp_answer_by_telegram', e instanceof Error ? e.message : String(e));
+      }
+      calls = rsvpCalls(update.callback_query, rsvp, result);
+    } else if (LEADS && SB_URL && SB_KEY) {
       const from = update?.message?.from ?? update?.callback_query?.from;
       const tg = from?.id;
       if (typeof tg === 'number') {

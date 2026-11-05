@@ -23,7 +23,7 @@ Deno.serve(async (req: Request) => {
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
     const claimed = await admin.rpc('claim_notifications', { n: 20 });
     if (claimed.error) throw new Error(`claim: ${claimed.error.message}`);
-    const rows = (claimed.data ?? []) as { id: string; telegram_id: number; text: string }[];
+    const rows = (claimed.data ?? []) as { id: string; telegram_id: number; text: string; buttons?: { text: string; data: string }[][] | null }[];
     let sent = 0, failed = 0;
     for (const n of rows) {
       const call = buildCall(n, APP_URL);

@@ -19,7 +19,9 @@ export interface SupabaseState {
   usersSelectError: string | null;
   usersInsertError: string | null;
   claimError: string | null;
-  notifications: Array<{ id: string; telegram_id: number; text: string }>;
+  notifications: Array<{ id: string; telegram_id: number; text: string; buttons?: unknown }>;
+  rsvpResult: Json;
+  rsvpError: string | null;
   finish: Array<
     { id: string; ok: boolean; err: string | null; give_up: boolean }
   >;
@@ -40,6 +42,8 @@ function freshState(): SupabaseState {
     usersInsertError: null,
     claimError: null,
     notifications: [],
+    rsvpResult: { ok: true, player: "Иванов Пётр" },
+    rsvpError: null,
     finish: [],
     requests: [],
   };
@@ -92,6 +96,11 @@ export function createSupabaseFake() {
     if (url.pathname === "/rest/v1/rpc/claim_notifications") {
       if (state.claimError) return postgrestError(state.claimError);
       return json(state.notifications);
+    }
+
+    if (url.pathname === "/rest/v1/rpc/rsvp_answer_by_telegram") {
+      if (state.rsvpError) return postgrestError(state.rsvpError);
+      return json(state.rsvpResult);
     }
 
     if (url.pathname === "/rest/v1/rpc/finish_notification") {

@@ -150,3 +150,69 @@ Deno.test("tg-bot: HTTP → Telegram", async (t) => {
     await supa.close();
   }
 });
+
+Deno.test("tg-bot: кнопки «Будет» / «Не будет» в уведомлении о матче", async (t) => {
+  const supa = createSupabaseFake();
+  const telegram = createTelegramFake();
+  const fn = await startFunction("tg-bot", envFor(supa.url, telegram.url));
+  const send = (body: unknown) =>
+    postJson(fn.url, body, { "x-telegram-bot-api-secret-token": WEBHOOK_SECRET });
+  const INV = "11111111-2222-3333-4444-555555555555";
+  const press = (data: string) => ({
+    update_id: 5,
+    callback_query: {
+      id: "cb1",
+      from: { id: 77 },
+      data,
+      message: {
+        chat: { id: 77, type: "private" },
+        message_id: 9,
+        reply_markup: { inline_keyboard: [[{ text: "Пётр: Будет", callback_data: `r:${INV}:y` }, { text: "Пётр: Не будет", callback_data: `r:${INV}:n` }]] },
+      },
+    },
+  });
+
+  try {
+    await t.step("записывает ответ через базу под Telegram-аккаунтом нажавшего", async () => {
+      supa.reset();
+      telegram.reset();
+      const r = await send(press(`r:${INV}:y`));
+      assert.equal(r.res.status, 200);
+      const rpc = supa.state.requests.find((q) => q.path === "/rest/v1/rpc/rsvp_answer_by_telegram");
+      assert.deepEqual(rpc?.body, { p_telegram_id: 77, p_invitation: INV, p_response: "yes" });
+      assert.deepEqual(telegram.state.calls.map((c) => c.method), ["answerCallbackQuery", "editMessageReplyMarkup"]);
+      assert.equal(telegram.state.calls[0].body?.text, "Записано: Иванов Пётр — Будет");
+    });
+
+    await t.step("отказ базы показывается нажавшему", async () => {
+      supa.reset();
+      telegram.reset();
+      supa.state.rsvpResult = { ok: false, code: "closed" };
+      await send(press(`r:${INV}:n`));
+      assert.deepEqual(telegram.state.calls.map((c) => c.method), ["answerCallbackQuery"]);
+      assert.equal(telegram.state.calls[0].body?.show_alert, true);
+    });
+
+    await t.step("ошибка базы не ломает webhook", async () => {
+      supa.reset();
+      telegram.reset();
+      supa.state.rsvpError = "boom";
+      const r = await send(press(`r:${INV}:y`));
+      assert.equal(r.res.status, 200);
+      assert.equal(telegram.state.calls[0].method, "answerCallbackQuery");
+      assert.equal(telegram.state.calls[0].body?.show_alert, true);
+    });
+
+    await t.step("чужие кнопки по-прежнему только подтверждаются", async () => {
+      supa.reset();
+      telegram.reset();
+      await send(press("unknown"));
+      assert.equal(supa.state.requests.filter((q) => q.path.includes("rsvp_answer_by_telegram")).length, 0);
+      assert.deepEqual(telegram.state.calls.map((c) => c.method), ["answerCallbackQuery"]);
+    });
+  } finally {
+    await fn.close();
+    await telegram.close();
+    await supa.close();
+  }
+});
