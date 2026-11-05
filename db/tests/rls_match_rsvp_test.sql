@@ -1,7 +1,7 @@
 -- pgTAP: подтверждение участия в матчах (миграция 0134, Issue #274, PR 1): схема, жизненный цикл, RLS, права, серверные проверки.
 begin;
 create extension if not exists pgtap;
-select plan(167);
+select plan(169);
 
 -- ---------- данные ----------
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб А'), ('00000000-0000-0000-0000-00000000c002', 'Клуб Б');
@@ -61,6 +61,11 @@ create or replace function legacy_digest() returns text language sql stable as $
              coalesce((select string_agg(t::text, '|' order by t::text) from match_fees t), '') || '#' ||
              coalesce((select string_agg(t::text, '|' order by t::text) from point_events t), ''))
 $$;
+create or replace function fees_points_digest() returns text language sql stable as $$
+  select md5(coalesce((select string_agg(t::text, '|' order by t::text) from match_fees t), '') || '#' ||
+             coalesce((select string_agg(t::text, '|' order by t::text) from point_events t), ''))
+$$;
+grant execute on function legacy_digest(), fees_points_digest() to authenticated;
 create temp table digest0 as select legacy_digest() as d;
 
 -- ---------- legacy: старые матчи не получают RSVP ----------
@@ -247,7 +252,7 @@ select lives_ok($$select match_rsvp_answer(mid('m6'), '00000000-0000-0000-0000-0
 reset role;
 -- фактические отметки на матче 6 (существующая модель) — их RSVP менять не должен
 insert into match_players (match_id, player_id, played, goals) values (mid('m6'), '00000000-0000-0000-0000-00000000d001', true, 2);
-create temp table digest1 as select legacy_digest() as d;
+create temp table digest1 as select legacy_digest() as d, fees_points_digest() as fp;
 
 -- ---------- перенос основного матча ----------
 select as_user('00000000-0000-0000-0000-0000000000c1');
@@ -306,7 +311,10 @@ select as_user('00000000-0000-0000-0000-0000000000c1');
 select lives_ok($$select match_rsvp_reschedule(mid('m6'), now() + interval '3 days')$$, 'перенос возможен после начала матча');
 select ok((select (payload->>'fact_marks_present')::boolean and (payload->>'was_started')::boolean from match_activity where match_id = mid('m6') and action = 'rescheduled'), 'в журнале: матч уже начался, фактические отметки были');
 reset role;
-select is(legacy_digest(), (select d from digest1), 'фактические отметки, взносы и баллы после переноса не изменились');
+select is(fees_points_digest(), (select fp from digest1), 'взносы за матч и старые баллы после переноса не изменились');
+select is((select played::text || goals::text from match_players where match_id = mid('m6')), 'false0', 'отметки после переноса сброшены (строка осталась)');
+select is((select count(*)::int from match_mark_snapshots where match_id = mid('m6')), 1, 'снимок отметок сохранён (подробно: rls_match_rsvp_marks_test.sql)');
+create temp table digest2 as select legacy_digest() as d;
 
 -- ---------- отмена ----------
 select as_user('00000000-0000-0000-0000-0000000000c1');
@@ -322,7 +330,7 @@ select is((select count(*)::int from match_rsvp_my_matches() where match_id = mi
 reset role;
 select throws_ok($$update matches set lifecycle_status = 'published' where id = mid('m')$$, '55000', null, 'отменённый матч не восстановить');
 select is((select count(*)::int from match_invitations where match_id = mid('m')), 5, 'список приглашённых сохранён после отмены');
-select is(legacy_digest(), (select d from digest1), 'отмена не меняет существующие отметки, взносы и баллы');
+select is(legacy_digest(), (select d from digest2), 'отмена не меняет существующие отметки, взносы и баллы');
 
 -- ---------- RLS журнала и напоминаний ----------
 select as_user('00000000-0000-0000-0000-0000000000b1');

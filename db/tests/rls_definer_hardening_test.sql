@@ -94,7 +94,9 @@ select is(
         'is_coach_of_club', 'is_match_staff', 'rsvp_match_visible', 'rsvp_is_invited_guardian',
         'match_rsvp_create_draft', 'match_rsvp_update', 'match_rsvp_seed', 'match_rsvp_invite', 'match_rsvp_remove', 'match_rsvp_publish',
         'match_rsvp_delete_draft', 'match_rsvp_cancel', 'match_rsvp_reschedule', 'match_rsvp_coach_set', 'match_rsvp_remind_unanswered',
-        'match_rsvp_summary', 'match_rsvp_roster', 'match_rsvp_answer', 'match_rsvp_answer_many', 'match_rsvp_my_matches')),
+        'match_rsvp_summary', 'match_rsvp_roster', 'match_rsvp_answer', 'match_rsvp_answer_many', 'match_rsvp_my_matches',
+        -- 0135: возврат отметок из снимка после переноса; доступ проверяется внутри
+        'match_rsvp_restore_marks')),
   '', 'список функций, доступных вошедшим пользователям, не расширился без решения');
 
 select is(
