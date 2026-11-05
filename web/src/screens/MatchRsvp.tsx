@@ -1,0 +1,74 @@
+import { useState } from 'react';
+import { supabase } from '../lib/supabase';
+import { fmtWhen, responseText, rsvpError, type MyRsvp, type RsvpResponse } from '../lib/matchRsvp';
+import { Pill } from '../ui/components';
+
+const KIND: Record<string, string> = { game: 'Матч чемпионата', friendly: 'Товарищеский матч' };
+
+/**
+ * Подтверждение участия для родителя: матчи, на которые приглашены его дети. Только свои дети; других игроков, ответов
+ * других семей и статистики здесь нет (база их не отдаёт). Ответ один на ребёнка и общий для обоих родителей.
+ * «Предстоящие» — опубликованные и ещё не начавшиеся, «Прошедшие» — начавшиеся и отменённые.
+ */
+export default function RsvpSection({ rows, part, onChanged }: { rows: MyRsvp[]; part: 'upcoming' | 'past'; onChanged: () => void }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const now = Date.now();
+  const upcoming = (r: MyRsvp) => r.lifecycle_status === 'published' && new Date(r.starts_at).getTime() > now;
+  const mine = rows.filter(r => (part === 'upcoming' ? upcoming(r) : !upcoming(r)));
+  const matches = [...new Set(mine.map(r => r.match_id))];
+  if (!matches.length) return null;
+
+  const answer = async (r: MyRsvp, v: RsvpResponse) => {
+    setBusy(`${r.match_id}|${r.player_id}`);
+    setError(null);
+    const res = await supabase.rpc('match_rsvp_answer', { m: r.match_id, p_player: r.player_id, p_response: v });
+    setBusy(null);
+    if (res.error) setError(rsvpError(res.error.message));
+    onChanged();
+  };
+
+  const dir = part === 'upcoming' ? 1 : -1; // ближайшие сверху, прошедшие — свежие сверху
+  const sorted = matches.map(id => mine.filter(r => r.match_id === id)).sort((a, b) => dir * (a[0].starts_at < b[0].starts_at ? -1 : a[0].starts_at > b[0].starts_at ? 1 : 0));
+  return (
+    <section aria-label={part === 'upcoming' ? 'Подтверждение участия' : 'Прошедшие матчи с подтверждением'}>
+      <h2 className="ks-sub">{part === 'upcoming' ? 'Подтвердите участие' : 'Отменённые и начавшиеся'}</h2>
+      {error && <p role="alert" className="muted" style={{ color: 'var(--ks-danger-strong)' }}>{error}</p>}
+      {sorted.map(kids => {
+        const m = kids[0];
+        const cancelled = m.lifecycle_status === 'cancelled';
+        return (
+          <div className="ks-card" key={m.match_id} aria-label={`Матч ${m.opponent ?? ''}`.trim()}>
+            <div className="ks-line">
+              <b>{m.opponent ?? 'Соперник уточняется'}</b>
+              {cancelled ? <Pill tone="danger">Отменён</Pill> : m.rescheduled ? <Pill tone="warning">Перенесён</Pill> : <Pill tone="primary">{part === 'upcoming' ? 'Предстоит' : 'Идёт или прошёл'}</Pill>}
+            </div>
+            <p className="muted" style={{ margin: '4px 0' }}>{fmtWhen(m.starts_at)} · {m.team}{m.kind ? ` · ${KIND[m.kind] ?? ''}` : ''}</p>
+            {(m.venue || m.address) && <p className="muted" style={{ margin: '4px 0' }}>{[m.venue, m.address].filter(Boolean).join(', ')}</p>}
+            {m.notes && <p className="muted" style={{ margin: '4px 0' }}>{m.notes}</p>}
+            {kids.map(r => {
+              const key = `${r.match_id}|${r.player_id}`;
+              return (
+                <div key={key} role="group" aria-label={r.player_name} style={{ marginTop: 10 }}>
+                  <div className="ks-line"><b>{r.player_name}</b><span className="muted">{cancelled ? 'Матч отменён' : responseText(r.response)}</span></div>
+                  {r.responded_by_name && r.response && <p className="muted" style={{ margin: '2px 0' }}>Ответил(а): {r.responded_by_name}</p>}
+                  {!cancelled && r.can_answer && (
+                    <div className="ks-btns">
+                      {(['yes', 'no'] as const).map(v => (
+                        <button key={v} type="button" className={`ks-btn sm${r.response === v ? '' : ' secondary'}`} aria-pressed={r.response === v} disabled={busy === key}
+                          aria-label={`${r.player_name}: ${v === 'yes' ? 'Будет' : 'Не будет'}`} onClick={() => void answer(r, v)}>
+                          {v === 'yes' ? 'Будет' : 'Не будет'}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {!cancelled && !r.can_answer && <p className="muted" style={{ margin: '2px 0' }}>Приём ответов закрыт</p>}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </section>
+  );
+}

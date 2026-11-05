@@ -7,6 +7,7 @@ import { BackNav, useMainButton } from '../ui/nav';
 import EventFees from './EventFees';
 import { EventForm, EventScreen, eventCounts, eventTitle, isFinished, type EventRow } from './Events';
 import { Failure, Loading } from './Message';
+import CoachRsvp from './CoachRsvp';
 import { useConfirm } from '../ui/ConfirmSheet';
 
 interface Match { id: string; team: string; played_on: string; opponent: string | null; goals_for: number | null; goals_against: number | null; technical?: boolean }
@@ -28,6 +29,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   const [playedBy, setPlayedBy] = useState<Map<string, number>>(new Map());
   const [eventView, setEventView] = useState<{ event: EventRow | null } | null>(null);
   // «Добавить матч»: одно окно — события (чемпионаты, фестивали), где добавляется игра, и команды для товарищеского или кубкового матча
+  const [rsvpOpen, setRsvpOpen] = useState(false);
   const [addStep, setAddStep] = useState<'pick' | null>(null);
   const [addTeam, setAddTeam] = useState('');
 
@@ -57,6 +59,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   }, [groups, showAll, reload]);
 
   if (error) return <Failure title="Не удалось загрузить матчи" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
+  if (rsvpOpen) return <CoachRsvp groups={groups} onBack={() => setRsvpOpen(false)} />;
   if (eventView) {
     const back = () => { setEventView(null); setReload(n => n + 1); };
     if (eventView.event) return <EventScreen event={eventView.event} groups={groups} admin={admin} onBack={back} />;
@@ -107,6 +110,8 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
       <button type="button" className="ks-btn" onClick={() => setAddStep('pick')}>Добавить матч</button>
       <div style={{ height: 8 }} />
       <button type="button" className="ks-btn secondary" onClick={() => setEventView({ event: null })}>Новое событие</button>
+      <div style={{ height: 8 }} />
+      <button type="button" className="ks-btn secondary" onClick={() => setRsvpOpen(true)}>Матчи с подтверждением</button>
       {addStep === 'pick' && (
         <div className="ks-card" aria-label="Добавить матч">
           <p className="ks-label">Матч чемпионата или фестиваля</p>
