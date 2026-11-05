@@ -29,7 +29,7 @@ const cb = {
 };
 
 Deno.test("rsvp-logic: успешный ответ — подтверждение и отметка выбранной кнопки", () => {
-  const calls = rsvpCalls(cb, { invitation: INV, response: "yes" }, { ok: true, player: "Иванов Пётр" });
+  const calls: any[] = rsvpCalls(cb, { invitation: INV, response: "yes" }, { ok: true, player: "Иванов Пётр" });
   assert.equal(calls[0].method, "answerCallbackQuery");
   assert.equal(calls[0].body.text, "Записано: Иванов Пётр — Будет");
   assert.equal(calls[1].method, "editMessageReplyMarkup");
@@ -41,8 +41,9 @@ Deno.test("rsvp-logic: успешный ответ — подтверждени�
 });
 
 Deno.test("rsvp-logic: смена ответа переносит отметку", () => {
-  const first = rsvpCalls(cb, { invitation: INV, response: "yes" }, { ok: true, player: "П" })[1].body.reply_markup;
-  const again = rsvpCalls({ ...cb, message: { ...cb.message, reply_markup: first } }, { invitation: INV, response: "no" }, { ok: true, player: "П" });
+  const firstCalls: any[] = rsvpCalls(cb, { invitation: INV, response: "yes" }, { ok: true, player: "П" });
+  const first = firstCalls[1].body.reply_markup;
+  const again: any[] = rsvpCalls({ ...cb, message: { ...cb.message, reply_markup: first } }, { invitation: INV, response: "no" }, { ok: true, player: "П" });
   const kb = again[1].body.reply_markup.inline_keyboard;
   assert.equal(kb[0][0].text, "Пётр: Будет");
   assert.equal(kb[0][1].text, "✅ Пётр: Не будет");
@@ -50,7 +51,7 @@ Deno.test("rsvp-logic: смена ответа переносит отметку
 
 Deno.test("rsvp-logic: отказ базы — понятное сообщение без правки кнопок", () => {
   for (const code of ["closed", "forbidden", "unknown_user", "not_found", "bad_request", "error"]) {
-    const calls = rsvpCalls(cb, { invitation: INV, response: "yes" }, { ok: false, code });
+    const calls: any[] = rsvpCalls(cb, { invitation: INV, response: "yes" }, { ok: false, code });
     assert.equal(calls.length, 1);
     assert.equal(calls[0].method, "answerCallbackQuery");
     assert.equal(calls[0].body.show_alert, true);
@@ -64,14 +65,16 @@ Deno.test("tg-notify: кнопки ответа идут над «Открыть
     text: "t",
     buttons: [[{ text: "Пётр: Будет", data: `r:${INV}:y` }, { text: "Пётр: Не будет", data: `r:${INV}:n` }]],
   };
-  const body = buildCall(n, "https://mini.test/").body;
+  const body: any = buildCall(n, "https://mini.test/").body;
   assert.deepEqual(body.reply_markup.inline_keyboard, [
     [{ text: "Пётр: Будет", callback_data: `r:${INV}:y` }, { text: "Пётр: Не будет", callback_data: `r:${INV}:n` }],
     [{ text: "Открыть приложение", web_app: { url: "https://mini.test/" } }],
   ]);
   // без кнопок или с мусором — как раньше
-  for (const buttons of [null, undefined, [], [[]], "x", [[{ text: 1, data: "d" }]], [[{ text: "t", data: "x".repeat(65) }]]]) {
-    assert.deepEqual(buildCall({ telegram_id: 1, text: "t", buttons }, "https://mini.test/").body.reply_markup.inline_keyboard,
+  const junk: any[] = [null, undefined, [], [[]], "x", [[{ text: 1, data: "d" }]], [[{ text: "t", data: "x".repeat(65) }]]];
+  for (const buttons of junk) {
+    const out: any = buildCall({ telegram_id: 1, text: "t", buttons }, "https://mini.test/").body;
+    assert.deepEqual(out.reply_markup.inline_keyboard,
       [[{ text: "Открыть приложение", web_app: { url: "https://mini.test/" } }]]);
   }
 });
