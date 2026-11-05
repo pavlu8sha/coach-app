@@ -67,6 +67,22 @@ describe('«Матчи» тренера', () => {
     ]);
   });
 
+  it('технический результат: признак уходит отдельным запросом после сохранения, без изменений не вызывается', async () => {
+    seed();
+    fake.rpc.set_match_technical = () => null;
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText('Олимп'));
+    await screen.findByText('Иванов Пётр');
+    fireEvent.click(screen.getByText('Сохранить матч'));
+    await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
+    expect(fake.rpcCalls('set_match_technical')).toHaveLength(0);
+    fireEvent.click(screen.getByLabelText('Технический результат (матч не играли)'));
+    expect(screen.getByText(/баллы игрокам не начисляются/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Сохранить матч'));
+    await waitFor(() => expect(fake.rpcCalls('set_match_technical')).toHaveLength(1));
+    expect(fake.rpcCalls('set_match_technical')[0]).toEqual({ m: 'm1', tech: true });
+  });
+
   it('у тренера есть поиск игроков клуба, но нет удаления матча', async () => {
     seed();
     render(<CoachMatches groups={groups} />);

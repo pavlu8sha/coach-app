@@ -9,7 +9,7 @@ import { EventForm, EventScreen, eventCounts, eventTitle, isFinished, type Event
 import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
 
-interface Match { id: string; team: string; played_on: string; opponent: string | null; goals_for: number | null; goals_against: number | null }
+interface Match { id: string; team: string; played_on: string; opponent: string | null; goals_for: number | null; goals_against: number | null; technical?: boolean }
 interface Tour { match_id: string; tournament_id: string | null; tournament_name: string | null; tournament_kind: string | null; match_kind: string | null }
 interface Player { id: string; full_name: string }
 interface Line { played: boolean; goals: number }
@@ -39,7 +39,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
       // события (чемпионаты, фестивали, кубки) со счётчиками; без миграции 0051 список остаётся прежним
       const ev = await supabase.rpc('event_list');
       setEvents(ev.error ? [] : ((ev.data ?? []) as EventRow[]));
-      let q = supabase.from('matches').select('id, team, played_on, opponent, goals_for, goals_against');
+      let q = supabase.from('matches').select('id, team, played_on, opponent, goals_for, goals_against, technical');
       if (!showAll) q = q.in('team', groups.map(g => g.name));
       const r = await q.order('played_on', { ascending: false }).limit(showAll ? 150 : 60);
       if (r.error) return setError(r.error.message);
@@ -151,7 +151,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
                   key={m.id}
                   title={m.opponent ?? 'Соперник не указан'}
                   sub={[`${fmtDate(m.played_on)}${showAll || groups.length > 1 ? ' · ' + m.team : ''}${cupName ? ' · ' + cupName : ''}${playedBy.get(m.id) ? ' · играло ' + playedBy.get(m.id) : ''}`]}
-                  end={done ? <span className="ks-score">{m.goals_for}:{m.goals_against}</span> : <Pill tone="primary">{m.played_on > today() ? 'Предстоит' : 'Без счёта'}</Pill>}
+                  end={done ? <span className="ks-score">{m.goals_for}:{m.goals_against}{m.technical ? ' (тех.)' : ''}</span> : <Pill tone="primary">{m.played_on > today() ? 'Предстоит' : 'Без счёта'}</Pill>}
                   onClick={() => setForm({ match: m })}
                 />
               );
@@ -187,6 +187,9 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [savedId, setSavedId] = useState<string | null>(match?.id ?? null);
+  // технический результат (матч фактически не играли): баллов нет; признак ставится отдельной функцией после сохранения матча
+  const [technical, setTechnical] = useState(match?.technical ?? false);
+  const [savedTech, setSavedTech] = useState(match?.technical ?? false);
   const [q, setQ] = useState('');
   const [found, setFound] = useState<Player[]>([]);
   // после первого сохранения в составе остаются только сыгравшие; остальных можно показать кнопкой, чтобы добавить забытого
@@ -290,6 +293,11 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     setBusy(false);
     if (r.error) return setMsg({ ok: false, text: coachError(r.error.message) });
     setSavedId(r.data as string);
+    if (technical !== savedTech) {
+      const t = await supabase.rpc('set_match_technical', { m: r.data as string, tech: technical });
+      if (t.error) return setMsg({ ok: false, text: `Матч сохранён, но технический результат не записан: ${coachError(t.error.message)}` });
+      setSavedTech(technical);
+    }
     const playedNow = Object.entries(lines).filter(([, l]) => l.played).map(([id]) => id);
     setShownIds(playedNow.length ? playedNow : null);
     setShowAll(false);
@@ -352,6 +360,11 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
         <b>:</b>
         <input className="ks-input" style={{ width: 90 }} inputMode="numeric" aria-label="Забил соперник" value={ga} onChange={e => setGa(e.target.value.replace(/\D/g, '').slice(0, 2))} placeholder="—" />
       </div>
+      <label className="ks-check" style={{ marginTop: 8 }}>
+        <input type="checkbox" checked={technical} onChange={e => { setTechnical(e.target.checked); setMsg(null); }} />
+        <span>Технический результат (матч не играли)</span>
+      </label>
+      {technical && <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>За технический результат баллы игрокам не начисляются. Счёт остаётся в статистике команды.</p>}
       <h2 className="ks-sub">Состав{Object.values(lines).some(l => l.played) ? ` · играло ${Object.values(lines).filter(l => l.played).length}` : ''}</h2>
       <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>
         Баллы начисляются автоматически, когда внесён счёт: победа — 2 играющим, лучшему игроку — 3; поражение или ничья — 1 играющим; за каждый гол +1. Лучший игрок учитывается только при победе.
