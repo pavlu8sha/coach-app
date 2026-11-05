@@ -6,7 +6,7 @@ import Equipment from './Equipment';
 const order = (id: string, name: string, total: number, paid: number, issued: string[] = []) => ({
   id, ordered_on: '2026-09-10', total, paid, installment: false, number: '7', inscription: null, location: 'Зал',
   players: { full_name: name },
-  equipment_order_lines: [{ kit: 'Форма', size: '128', quantity: 1 }, { kit: 'Куртка', size: '128', quantity: 1 }],
+  equipment_order_lines: [{ id: `${id}-f`, kit: 'Форма', size: '128', quantity: 1 }, { id: `${id}-k`, kit: 'Куртка', size: '128', quantity: 1 }],
   equipment_issues: issued.map(kit => ({ kit, issued_on: '2026-09-20', issued_by: 'Павел' })),
 });
 function seed() {
@@ -36,9 +36,9 @@ describe('«Экипировка»', () => {
   it('фильтр «Неполные»: нет размера или номера, у гетр и носков номер не нужен', async () => {
     seed();
     const o = fake.db.equipment_orders as ReturnType<typeof order>[];
-    o[1].equipment_order_lines = [{ kit: 'Форма', size: '', quantity: 1 }];
+    o[1].equipment_order_lines = [{ id: 'o2-f', kit: 'Форма', size: '', quantity: 1 }];
     o[2].number = '';
-    o.push({ ...order('o4', 'Носков Олег', 35, 35), number: '', equipment_order_lines: [{ kit: 'Гетры', size: '30', quantity: 1 }] });
+    o.push({ ...order('o4', 'Носков Олег', 35, 35), number: '', equipment_order_lines: [{ id: 'o4-g', kit: 'Гетры', size: '30', quantity: 1 }] });
     render(<Equipment />);
     await screen.findByText('Иванов Пётр');
     fireEvent.click(screen.getByRole('tab', { name: 'Неполные' }));
@@ -162,6 +162,52 @@ describe('«Экипировка»', () => {
     expect(msg.textContent).not.toContain('Площадка Исани');
     fireEvent.click(screen.getByRole('button', { name: 'Создать заказ' }));
     await waitFor(() => expect(fake.rpcCalls('eq_create_order')).toHaveLength(1));
+  });
+
+  it('размер правится отдельно по каждой вещи (eq_edit_line)', async () => {
+    seed();
+    fake.rpc.eq_edit_line = () => null;
+    render(<Equipment />);
+    fireEvent.click(await screen.findByText('Сидоров Ян'));
+    fireEvent.change(await screen.findByLabelText('Размер: Куртка'), { target: { value: '140' } });
+    const card = screen.getByLabelText('Размер: Куртка').closest('.ks-card') as HTMLElement;
+    fireEvent.click(within(card).getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() => expect(fake.rpcCalls('eq_edit_line')).toEqual([{ l: 'o2-k', sz: '140', qty: 1 }]));
+  });
+
+  it('выданной вещи количество не меняется, размер можно', async () => {
+    seed();
+    render(<Equipment />);
+    fireEvent.click(await screen.findByText('Петров Иван'));
+    expect(await screen.findByLabelText('Количество: Форма')).toBeDisabled();
+    expect(screen.getByLabelText('Количество: Куртка')).not.toBeDisabled();
+    expect(screen.getByLabelText('Размер: Форма')).not.toBeDisabled();
+  });
+
+  it('добавить вещь и убрать вещь', async () => {
+    seed();
+    fake.rpc.eq_add_line = () => 'new';
+    fake.rpc.eq_delete_line = () => null;
+    render(<Equipment />);
+    fireEvent.click(await screen.findByText('Сидоров Ян'));
+    fireEvent.change(await screen.findByLabelText('Вещь'), { target: { value: 'Форма' } });
+    fireEvent.change(screen.getByLabelText('Размер новой вещи'), { target: { value: '134' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Добавить в заказ' }));
+    await waitFor(() => expect(fake.rpcCalls('eq_add_line')).toEqual([{ o: 'o2', k: 'Форма', sz: '134', qty: 1 }]));
+    const card = screen.getByLabelText('Размер: Куртка').closest('.ks-card') as HTMLElement;
+    fireEvent.click(within(card).getByRole('button', { name: 'Убрать' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Убрать' }));
+    await waitFor(() => expect(fake.rpcCalls('eq_delete_line')).toEqual([{ l: 'o2-k' }]));
+  });
+
+  it('дата заказа сохраняется (eq_set_order_date)', async () => {
+    seed();
+    fake.rpc.eq_set_order_date = () => null;
+    render(<Equipment />);
+    fireEvent.click(await screen.findByText('Сидоров Ян'));
+    fireEvent.change(await screen.findByLabelText('Дата заказа'), { target: { value: '2026-09-01' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить дату' }));
+    await waitFor(() => expect(fake.rpcCalls('eq_set_order_date')).toEqual([{ o: 'o2', d: '2026-09-01' }]));
   });
 
   it('заказ с оплатой: ошибка удаления объясняет, что делать', async () => {
