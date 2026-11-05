@@ -174,6 +174,23 @@ describe('«Приём оплат»', () => {
     expect(await screen.findByText(/Дата платежа не может быть в будущем/)).toBeInTheDocument();
     expect(fake.writes('payments', 'insert')).toHaveLength(0);
   });
+
+  it('экипировка: дата платежа выбирается, уходит в eq_add_payment, будущая дата отклоняется', async () => {
+    seed();
+    fake.rpc.eq_add_payment = () => 160;
+    await openPlayer();
+    await screen.findByText('Форма + Куртка');
+    const c = card('Форма + Куртка');
+    fireEvent.click(within(c).getByRole('button', { name: 'Принять оплату' }));
+    fireEvent.change(within(c).getByLabelText('Дата'), { target: { value: '2999-01-05' } });
+    fireEvent.click(within(c).getByRole('button', { name: 'Записать платёж' }));
+    expect(await screen.findByText(/Дата платежа не может быть в будущем/)).toBeInTheDocument();
+    expect(fake.rpcCalls('eq_add_payment')).toHaveLength(0);
+    fireEvent.change(within(c).getByLabelText('Дата'), { target: { value: '2026-10-13' } });
+    fireEvent.click(within(c).getByRole('button', { name: 'Записать платёж' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
+    await waitFor(() => expect(fake.rpcCalls('eq_add_payment')[0]).toMatchObject({ o: 'o1', d: '2026-10-13' }));
+  });
 });
 
 describe('«Приём оплат»: платежи дня', () => {
