@@ -41,10 +41,13 @@ describe('ввод кода ребёнком', () => {
     expect(await screen.findByText('К этому игроку уже привязан другой аккаунт.')).toBeInTheDocument();
   });
   it('ребёнок видит свои баллы', async () => {
-    fake.db.point_events = [{ player_id: 'p1', points: 3, explanation: 'Свой', occurred_on: '2026-10-20' }, { player_id: 'p2', points: 9, explanation: 'Чужой', occurred_on: '2026-10-20' }];
+    const row = (id: string, player_id: string, points: number) => ({ id, player_id, points, event_date: '2026-11-03', source_type: 'group_session', reason_code: 'attended', components: { class: 'regular', base: points }, status: 'active' });
+    fake.db.points_ledger = [row('l1', 'p1', 3), row('l2', 'p2', 9)];
+    fake.db.point_events = [{ player_id: 'p1', points: 40, explanation: 'Старое', occurred_on: '2026-10-01' }];
     fake.db.match_players = [];
     render(<ChildHome player={{ id: 'p1', name: 'Иван', group: 'U9' }} />);
-    expect(await screen.findByText('Свой')).toBeInTheDocument();
-    expect(screen.queryByText('Чужой')).toBeNull();
+    expect(await screen.findByText('Всего накоплено: 3 балла')).toBeInTheDocument();
+    expect(screen.queryByText('Старое')).toBeNull();
+    expect(screen.queryByText(/9 баллов/)).toBeNull();
   });
 });

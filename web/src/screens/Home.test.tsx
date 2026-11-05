@@ -4,33 +4,21 @@ import { fake } from '../test/fakeSupabase';
 import Home from './Home';
 
 const kid = (id: string, name: string, group: string | null) => ({ player_id: id, user_id: 'u', consent_revoked_at: null, players: { id, full_name: name, groups: group ? { name: group } : null } });
-const ev = (player_id: string, points: number, explanation: string, day: number) => ({ player_id, points, explanation, occurred_on: `2026-10-${String(day).padStart(2, '0')}` });
+const led = (player_id: string, points: number, day: number, status = 'active') => ({ id: `l${player_id}${day}${points}${status}`, player_id, points, event_date: `2026-11-${String(day).padStart(2, '0')}`, source_type: 'group_session', reason_code: 'attended', components: { class: 'regular', base: points }, status });
 
 describe('главная родителя', () => {
-  it('карточка ребёнка: баллы, история со знаками, свои матчи и голы; без рейтингов', async () => {
+  it('карточка ребёнка: баллы по новому журналу, история, свои матчи и голы; без рейтингов', async () => {
     fake.db.player_guardians = [kid('p1', 'Алексей Петров', 'U10-A')];
-    fake.db.point_events = [ev('p1', 2, 'Победа', 3), ev('p1', 1, 'Тренировка', 2), ev('p1', -1, 'Пропуск', 1)];
+    fake.db.points_ledger = [led('p1', 2, 3), led('p1', 1, 2), led('p1', 5, 1, 'cancelled')];
+    fake.db.point_events = [{ player_id: 'p1', points: 40, explanation: 'Старое', occurred_on: '2026-10-01' }];
     fake.db.match_players = [{ player_id: 'p1', played: true, goals: 2 }, { player_id: 'p1', played: true, goals: 1 }, { player_id: 'p1', played: false, goals: 0 }];
     render(<Home />);
     expect(await screen.findByText('Алексей Петров')).toBeInTheDocument();
     expect(screen.getByText('U10-A')).toBeInTheDocument();
-    expect(screen.getByLabelText('2 балла')).toBeInTheDocument();
-    expect(screen.getByText('История начислений')).toBeInTheDocument();
-    expect(screen.getByText('+2')).toBeInTheDocument();
-    expect(screen.getByText('−1')).toBeInTheDocument();
+    expect(screen.getByLabelText('3 балла')).toBeInTheDocument();
+    expect(await screen.findByText('Всего накоплено: 3 балла')).toBeInTheDocument();
+    expect(screen.queryByText('Старое')).toBeNull();
     expect(screen.getByText('Матчей сыграно: 2 · голов: 3')).toBeInTheDocument();
-  });
-
-  it('длинная история сворачивается и раскрывается', async () => {
-    fake.db.player_guardians = [kid('p1', 'Алексей Петров', null)];
-    fake.db.point_events = Array.from({ length: 8 }, (_, i) => ev('p1', 1, `Событие ${i + 1}`, i + 1));
-    render(<Home />);
-    await screen.findByText('Алексей Петров');
-    expect(screen.getAllByText(/^Событие/)).toHaveLength(5);
-    fireEvent.click(screen.getByRole('button', { name: 'Показать ещё (3)' }));
-    expect(screen.getAllByText(/^Событие/)).toHaveLength(8);
-    fireEvent.click(screen.getByRole('button', { name: 'Свернуть' }));
-    expect(screen.getAllByText(/^Событие/)).toHaveLength(5);
   });
 
   it('нет баллов: пустое состояние в карточке', async () => {
@@ -42,7 +30,7 @@ describe('главная родителя', () => {
 
   it('несколько детей: заголовок во множественном числе, у каждого свои баллы', async () => {
     fake.db.player_guardians = [kid('p1', 'Алексей Петров', null), kid('p2', 'Мария Петрова', null)];
-    fake.db.point_events = [ev('p1', 2, 'Победа', 3), ev('p2', 1, 'Тренировка', 2)];
+    fake.db.points_ledger = [led('p1', 2, 3), led('p2', 1, 2)];
     render(<Home />);
     expect(await screen.findByRole('heading', { name: 'Мои дети' })).toBeInTheDocument();
     expect(screen.getByLabelText('2 балла')).toBeInTheDocument();
