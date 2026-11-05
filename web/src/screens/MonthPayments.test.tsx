@@ -176,6 +176,13 @@ describe('«Оплаты за месяц»: когда предлагать сл
     await new Promise(r => setTimeout(r, 30));
     expect((screen.getByRole('combobox', { name: 'Месяц' }) as HTMLSelectElement).value).toBe('2026-10-01');
   });
+
+  it('неверное число показывает предупреждение и оставляет текущий месяц', async () => {
+    fake.db.club_settings = [{ club_id: 'c1', key: 'payments.nextMonthDay', scope: '', value: '40' }];
+    await opened();
+    expect(await screen.findByText(/недопустима: Не больше 31\./)).toBeInTheDocument();
+    expect((screen.getByRole('combobox', { name: 'Месяц' }) as HTMLSelectElement).value).toBe('2026-10-01');
+  });
 });
 
 describe('закрытие без оплаты показывает вид и причину', () => {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { addDays, coachError, today } from '../lib/coach';
 import { matchHighlights, seasonStart, type ScoredMatch } from '../lib/seasonStats';
-import { settingNumber, useClubSettings } from '../lib/clubSettings';
+import { settingNumber, settingNumberError, useClubSettings } from '../lib/clubSettings';
 import { supabase } from '../lib/supabase';
 import { EmptyState, Pill, Segmented } from '../ui/components';
 import { Failure, Loading } from './Message';
@@ -147,7 +147,9 @@ function SeasonTiles({ t, games }: { t: MRow; games: ScoredMatch[] }) {
 
 // Посещаемость по группам за период. Занятие считается проведённым, если кто-то отмечен «был».
 function Attendance({ own }: { own: boolean }) {
-  const lowPct = settingNumber(useClubSettings().values, 'stats.lowPct'); // порог низкой посещаемости, настройка клуба
+  const settings = useClubSettings().values;
+  const lowPct = settingNumber(settings, 'stats.lowPct');
+  const lowPctError = settingNumberError(settings, 'stats.lowPct');
   const [range, setRange] = useState<Range>('month');
   const [from, setFrom] = useState(monthStart(today()));
   const [to, setTo] = useState(today());
@@ -184,6 +186,7 @@ function Attendance({ own }: { own: boolean }) {
   return (
     <main className="page">
       <h1>Статистика</h1>
+      {lowPctError && <p className="error">Порог низкой посещаемости недопустим: {lowPctError} Подсветка отключена.</p>}
       <Segmented
         label="Период"
         value={range}
