@@ -38,25 +38,16 @@ export function groupExtraRoster(rows: ExtraRosterRow[]): IndSession[] {
 
 // Вкладка «Индивидуальные» — группы «Индивидуальные», «Вратари…», «Дополнительные» (как в старом приложении)
 const isIndGroup = (name: string) => /^(Индивидуальные|Вратар|Дополнительные)/.test(name);
-const STATE_KEY = 'ks.att';
 
 // «Отметки»: вкладки «Группы» и «Индивидуальные», выбор группы и даты, ниже сразу список детей — как в старом приложении.
 export default function Sessions({ groups }: { groups: CoachGroup[] }) {
-  const saved = (() => {
-    try {
-      const v = JSON.parse(localStorage.getItem(STATE_KEY) ?? 'null') as { on: string; d: string; g: string; all: boolean; t: 'grp' | 'ind' } | null;
-      return v && v.on === today() ? v : null;
-    } catch {
-      return null;
-    }
-  })();
   // Выбор вкладки, даты и группы живёт в записи списка (entry: 0): возвращается при «Назад» из индивидуальной отметки и при смене вкладок.
-  // Запоминание на день через STATE_KEY пока остаётся: оно уйдёт, когда состояние навигации начнёт восстанавливаться после перезагрузки.
+  // После перезагрузки возвращаются вкладка, группа и «Все группы»; дата — только в тот же день (kind: 'day')
   const nav = useNav();
-  const [tab, setTab] = useNavState<'grp' | 'ind'>('tab', saved?.t ?? 'grp', { entry: 0, persist: { kind: 'enum', values: ['grp', 'ind'] } });
-  const [date, setDate] = useNavState('date', saved?.d ?? today(), { entry: 0 });
-  const [gidPick, setGidPick] = useNavState('gid', saved?.g ?? '', { entry: 0, persist: { kind: 'uuid' } });
-  const [all, setAll] = useNavState('all', saved?.all ?? false, { entry: 0, persist: { kind: 'bool' } });
+  const [tab, setTab] = useNavState<'grp' | 'ind'>('tab', 'grp', { entry: 0, persist: { kind: 'enum', values: ['grp', 'ind'] } });
+  const [date, setDate] = useNavState('date', today(), { entry: 0, persist: { kind: 'day' } });
+  const [gidPick, setGidPick] = useNavState('gid', '', { entry: 0, persist: { kind: 'uuid' } });
+  const [all, setAll] = useNavState('all', false, { entry: 0, persist: { kind: 'bool' } });
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -70,12 +61,6 @@ export default function Sessions({ groups }: { groups: CoachGroup[] }) {
       setSlots((r.data ?? []) as Slot[]);
     })();
   }, [reload]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STATE_KEY, JSON.stringify({ on: today(), d: date, g: gidPick, all, t: tab }));
-    } catch { /* память браузера недоступна — не страшно */ }
-  }, [date, gidPick, all, tab]);
 
   // Индивидуальные, вратарские и дополнительные занятия выбранной даты. Тренер читает их через функции базы (без сумм и оплаты).
   useEffect(() => {
