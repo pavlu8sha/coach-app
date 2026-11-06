@@ -46,3 +46,24 @@ describe('afterLeftMonthTest: после месяца ухода платить 
     expect(afterLeftMonthTest('inactive', [], null)('2026-10-01')).toBe(false);
   });
 });
+
+import { wasActiveOn } from './playerStatus';
+describe('wasActiveOn: кто занимался в день тренировки', () => {
+  const back = [{ status: 'inactive', on_date: '2026-09-30' }, { status: 'active', on_date: '2026-11-06' }];
+  it('вернулся 06.11: за 04.11 не занимался, с 06.11 занимается', () => {
+    expect(wasActiveOn('active', back, '2026-11-04')).toBe(false);
+    expect(wasActiveOn('active', back, '2026-09-29')).toBe(true);
+    expect(wasActiveOn('active', back, '2026-11-06')).toBe(true);
+  });
+  it('в журнале только возврат: до него не занимался', () => {
+    expect(wasActiveOn('active', [{ status: 'active', on_date: '2026-11-06' }], '2026-11-04')).toBe(false);
+  });
+  it('журнал начинается с ухода/паузы: до него занимался', () => {
+    expect(wasActiveOn('paused', [{ status: 'paused', on_date: '2026-09-30' }], '2026-09-01')).toBe(true);
+    expect(wasActiveOn('paused', [{ status: 'paused', on_date: '2026-09-30' }], '2026-10-05')).toBe(false);
+  });
+  it('без журнала: по текущему статусу', () => {
+    expect(wasActiveOn('active', [], '2026-11-04')).toBe(true);
+    expect(wasActiveOn('inactive', [], '2026-11-04')).toBe(false);
+  });
+});
