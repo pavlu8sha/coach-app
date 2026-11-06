@@ -1,7 +1,7 @@
 -- pgTAP: модель дополнительных тренировок (0142, #274): вместимость на занятие, отмена, несколько в день, журнал.
 begin;
 create extension if not exists pgtap;
-select plan(23);
+select plan(24);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -59,7 +59,8 @@ select throws_ok($$select extra_cancel_session((select id from ids where k = 'x1
 select as_user('00000000-0000-0000-0000-0000000000a1');
 select extra_cancel_session((select id from ids where k = 'x1'), 'Нет зала');
 select is((select cancel_reason from extra_sessions where id = (select id from ids where k = 'x1')), 'Нет зала', 'причина отмены сохранена');
-select is((select count(*)::int from extra_bookings where session_id = (select id from ids where k = 'x1')), 2, 'записи после отмены сохранены');
+select is((select count(*)::int from extra_bookings where session_id = (select id from ids where k = 'x1')), 0, 'записи отменённого занятия убраны из состава');
+select is((select count(*)::int from booking_cancellations where session_id = (select id from ids where k = 'x1') and status = 'cancelled'), 2, 'и сохранены в истории отмен');
 select is((select count(*)::int from booking_board() where session_id = (select id from ids where k = 'x1')), 0, 'отменённая пропала с доски записи');
 select throws_ok($$select extra_add_player((select id from ids where k = 'x1'), '00000000-0000-0000-0000-00000000d003')$$, '55000', 'session cancelled', 'на отменённую записать нельзя');
 select throws_ok($$select extra_set_attended((select id from ids where k = 'x1'), '00000000-0000-0000-0000-00000000d001', true)$$, '55000', 'session cancelled', 'на отменённой посещение не отмечается');

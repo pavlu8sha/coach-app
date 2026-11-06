@@ -8,6 +8,7 @@ import { useNav, useNavState } from '../nav';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { Failure, Loading } from './Message';
 import IndRegulars from './IndRegulars';
+import BookingCancellations from './BookingCancellations';
 
 interface Booking { player_id: string; paid: boolean; attended: boolean | null; amount: number; players: { full_name: string } | null }
 interface Session { id: string; starts_at: string; topic: string | null; goalkeepers: boolean; individual_bookings: Booking[] }
@@ -20,7 +21,7 @@ const title = (s: { starts_at: string; goalkeepers: boolean }) => `${fmtDate(day
 const METHODS = ['Наличные', 'Перевод'];
 const nowLocal = () => `${today()}T${new Date().toTimeString().slice(0, 5)}`;
 
-type Tab = 'next' | 'past' | 'debt' | 'regular';
+type Tab = 'next' | 'past' | 'debt' | 'regular' | 'cancel';
 
 const PAGE = 60;
 
@@ -29,7 +30,7 @@ export default function Individual() {
   const { ask, dialog: confirmDialog } = useConfirm();
   // Новое занятие и занятие — записи стека; вкладка списка и «Показать ещё» возвращаются при «Назад»
   const nav = useNav();
-  const [tab, setTab] = useNavState<Tab>('ind.tab', 'next', { entry: 0, persist: { kind: 'enum', values: ['next', 'past', 'debt', 'regular'] } });
+  const [tab, setTab] = useNavState<Tab>('ind.tab', 'next', { entry: 0, persist: { kind: 'enum', values: ['next', 'past', 'debt', 'regular', 'cancel'] } });
   const [list, setList] = useState<Session[] | null>(null);
   const [debts, setDebts] = useState<DebtRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +54,7 @@ export default function Individual() {
   useEffect(() => {
     void (async () => {
       const now = nowLocal();
-      if (tab === 'regular') return;
+      if (tab === 'regular' || tab === 'cancel') return;
       if (tab === 'debt') {
         const r = await supabase.from('individual_bookings').select('session_id, player_id, amount, players(full_name), individual_sessions!inner(starts_at, goalkeepers, topic)').eq('paid', false).lt('individual_sessions.starts_at', now).limit(1000);
         if (r.error) return setError(coachError(r.error.message));
@@ -95,15 +96,16 @@ export default function Individual() {
   return (
     <main className="page">
       <h1>Индивидуальные</h1>
-      <Segmented wrap label="Раздел" value={tab} onChange={v => { setList(null); setDebts(null); setLimit(PAGE); setHasMore(false); setTab(v); }} items={[{ value: 'next', label: 'Предстоящие' }, { value: 'past', label: 'Прошедшие' }, { value: 'debt', label: 'Долги' }, { value: 'regular', label: 'Постоянные' }]} />
+      <Segmented wrap label="Раздел" value={tab} onChange={v => { setList(null); setDebts(null); setLimit(PAGE); setHasMore(false); setTab(v); }} items={[{ value: 'next', label: 'Предстоящие' }, { value: 'past', label: 'Прошедшие' }, { value: 'debt', label: 'Долги' }, { value: 'regular', label: 'Постоянные' }, { value: 'cancel', label: 'Отмены' }]} />
       <div style={{ height: 10 }} />
       {tab === 'regular' && <IndRegulars />}
+      {tab === 'cancel' && <BookingCancellations />}
       {tab === 'debt' && <div className="two"><label className="field">Способ оплаты<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label><label className="field">Дата платежа<input type="date" value={payDate} max={today()} onChange={e => e.target.value && setPayDate(e.target.value)} /></label></div>}
       {(tab === 'next' || tab === 'past') && debtTotal && debtTotal.n > 0 && (
         <ListRow title="Должники" sub={[`Игроков: ${debtTotal.n}`]} end={<Pill tone="danger" dot>{gel(debtTotal.sum)}</Pill>} onClick={() => { setList(null); setDebts(null); setLimit(PAGE); setHasMore(false); setTab('debt'); }} />
       )}
       {(tab === 'next' || tab === 'past') && <button type="button" className="ks-btn" onClick={() => nav.push('new')}>Новое занятие</button>}
-      {tab === 'regular' ? null : tab === 'debt' ? (
+      {tab === 'regular' || tab === 'cancel' ? null : tab === 'debt' ? (
         !debts ? <Loading /> : byPlayer.size === 0 ? (
           <EmptyState icon="users" title="Долгов нет" text="Все записанные на прошедшие занятия оплатили." />
         ) : (

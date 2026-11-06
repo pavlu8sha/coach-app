@@ -14,7 +14,6 @@ const err = (m: string) =>
   : m.includes('already booked') ? 'Ребёнок уже записан.'
   : m.includes('session in the past') ? 'Занятие уже прошло.'
   : m.includes('player not active') ? 'Запись недоступна: ребёнок сейчас не в статусе «Занимается». Напишите администратору.'
-  : m.includes('booking is paid') ? 'Запись оплачена: отменить её может администратор, напишите ему.'
   : m.includes('session already started') ? 'Занятие уже началось, отменить запись нельзя. Напишите администратору.'
   : m.includes('attendance marked') ? 'На занятии уже отмечена посещаемость. Отменить запись может администратор, напишите ему.'
   : m.includes('too late') ? 'Слишком поздно отменять через приложение. Напишите администратору.'
@@ -86,6 +85,7 @@ export default function Booking() {
                 <div key={k.id} style={{ marginTop: 8 }}>
                   <div className="ks-line"><span>{k.name}</span>{mine.paid ? <Pill tone="success">Оплачено</Pill> : <Pill tone="warning">Не оплачено {gel(mine.amount)}</Pill>}</div>
                   <button type="button" className="ks-btn secondary" style={{ marginTop: 6 }} disabled={busy !== null} onClick={() => void act('booking_cancel', r, k)}>Отменить запись: {k.name}</button>
+                  {mine.paid && <p className="ks-muted" style={{ fontSize: 13, margin: '4px 0 0' }}>Оплата сохранится: администратор решит, оставить её клубу, перенести на другое занятие или вернуть.</p>}
                 </div>
               ) : (
                 <button key={k.id} type="button" className="ks-btn" style={{ marginTop: 8 }} disabled={busy !== null || left === 0} onClick={() => void act('booking_signup', r, k)}>Записать: {k.name}</button>

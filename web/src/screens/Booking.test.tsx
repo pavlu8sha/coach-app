@@ -29,14 +29,15 @@ describe('Запись на занятия', () => {
     await waitFor(() => expect(fake.rpcCalls('booking_cancel')).toEqual([{ k: 'individual', s: 's1', p: 'p1' }]));
   });
 
-  it('оплаченную запись отменить нельзя — понятное сообщение', async () => {
+  it('оплаченную запись можно отменить: оплата сохранится, решит администратор', async () => {
     fake.db.player_guardians = [{ user_id: 'u', consent_revoked_at: null, players: { id: 'p1', full_name: 'Аня Первая' } }];
     fake.rpc.booking_board = () => board([{ player_id: 'p1', name: 'Аня Первая', paid: true, amount: 50 }], ['Аня Первая']);
-    fake.rpc.booking_cancel = () => ({ error: { message: 'booking is paid' } });
+    fake.rpc.booking_cancel = () => null;
     render(<Booking />);
     expect(await screen.findByText('Оплачено')).toBeInTheDocument();
+    expect(screen.getByText(/Оплата сохранится: администратор решит/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Отменить запись: Аня Первая' }));
-    expect(await screen.findByText(/Запись оплачена: отменить её может администратор/)).toBeInTheDocument();
+    await waitFor(() => expect(fake.rpcCalls('booking_cancel')).toEqual([{ k: 'individual', s: 's1', p: 'p1' }]));
   });
 
   it('начавшееся занятие и отмеченная запись: родитель видит понятный отказ', async () => {
