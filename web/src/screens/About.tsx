@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { useNav, useNavState, useSubEntry } from '../nav';
 import { ADMIN_CHAT, BRANCHES, CAMP, CAMP_MORE, CHAMPIONSHIPS, CLUB_CHANNEL, EQUIPMENT, GOALKEEPERS, INDIVIDUAL, INSTALLMENT_CHAT, PRODUCTS, SUIT_SIZES, type Product } from '../lib/clubInfo';
 import { Photo } from '../lib/photos';
 import { Gallery, ZoomPhoto } from '../ui/Lightbox';
@@ -170,7 +171,7 @@ type CampTab = 'about' | 'program' | 'hotel' | 'price';
 const photo = (n: string, alt: string) => <ZoomPhoto name={n} alt={alt} className="ks-photo" />;
 
 function Camp() {
-  const [tab, setTab] = useState<CampTab>('about');
+  const [tab, setTab] = useNavState<CampTab>('ab.camp', 'about', { persist: { kind: 'enum', values: ['about', 'program', 'hotel', 'price'] } });
   const M = CAMP_MORE;
   return (
     <>
@@ -281,12 +282,16 @@ const SCREENS: Record<Exclude<CoverId, 'channel'>, (p: { cabinet?: boolean }) =>
 // «О клубе» для гостя, ребёнка и тренера без назначенных групп: только открытая информация, без данных детей и результатов игроков.
 // Главный экран — плитки-разделы; каждый раздел открывается отдельным экраном.
 export default function About({ role, onChangeRole, onBack, cabinet }: { role: Role | null; onChangeRole: () => void; onBack?: () => void; cabinet?: boolean }) {
-  const [open, setOpen] = useState<Id | null>(null);
-  const [product, setProduct] = useState<Product['id'] | null>(null);
-  const [materials, setMaterials] = useState<ArticleSection | null>(null);
-  useEffect(() => { document.documentElement.scrollTop = 0; }, [open, product, materials]);
+  // раздел, товар и материалы — записи стека: «Назад» и системная кнопка идут по шагам, плитки остаются на прежнем месте
+  const nav = useNav();
+  const open = (useSubEntry('ab.open')?.params.id as Id | undefined) ?? null;
+  const product = (useSubEntry('ab.product')?.params.id as Product['id'] | undefined) ?? null;
+  const materials = (useSubEntry('ab.materials')?.params.s as ArticleSection | undefined) ?? null;
+  const setOpen = (id: Id) => nav.push('ab.open', { id });
+  const setProduct = (id: Product['id'] | null) => (id ? nav.push('ab.product', { id }) : nav.back());
+  const setMaterials = (s: ArticleSection) => nav.push('ab.materials', { s });
 
-  if (materials) return <ClubArticles role={role === 'parent' ? 'parent' : 'guest'} section={materials} onBack={() => setMaterials(null)} />;
+  if (materials) return <ClubArticles role={role === 'parent' ? 'parent' : 'guest'} section={materials} onBack={() => nav.back()} />;
 
   // «Экипировка» не для гостя (#234): плитки нет, а прямое открытие раздела закрыто. Родителю раздел остаётся.
   const tiles = role === 'guest' ? TILES.filter(t => t.id !== 'equipment') : TILES;
@@ -294,14 +299,14 @@ export default function About({ role, onChangeRole, onBack, cabinet }: { role: R
     const Screen = open === 'trial' ? null : SCREENS[open];
     return (
       <main className="page">
-        <BackNav onBack={() => (product ? setProduct(null) : setOpen(null))} />
+        <BackNav onBack={() => nav.back()} managed />
         {open === 'equipment' ? <Equipment product={product} setProduct={setProduct} /> : Screen ? <Screen cabinet={cabinet} /> : <TrialForm startOpen />}
       </main>
     );
   }
   return (
     <main className="page">
-      {onBack && <BackNav onBack={onBack} />}
+      {onBack && <BackNav onBack={onBack} managed />}
       <div className="ks-intro">
         <h1>FC KickStart Tbilisi</h1>
         <p className="muted">Футбольная школа в Тбилиси. {cabinet ? 'Выберите раздел.' : 'Запишитесь на пробную тренировку или выберите раздел.'}</p>

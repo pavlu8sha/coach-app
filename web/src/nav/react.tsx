@@ -107,6 +107,12 @@ function useEntryCtx(store: NavStore) {
   return e ?? { root: DETACHED_ROOT, index: store.entries(DETACHED_ROOT).length - 1 };
 }
 
+/** Запись стека раздела по имени экрана (для экранов, которые остаются «под» вложенными: родитель находит свою запись выше по стеку). */
+export function useSubEntry(screen: string) {
+  const nav = useNav();
+  return nav.entries.find(e => e.screen === screen) ?? null;
+}
+
 /** Стек текущего раздела и действия над ним. */
 export function useNav() {
   const store = useNavStore();

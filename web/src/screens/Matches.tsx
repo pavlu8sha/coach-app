@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { groupInOrder } from '../lib/coach';
+import { useNavState } from '../nav';
 import { supabase } from '../lib/supabase';
 import { teamResults } from '../lib/teamResults';
 import { EmptyState, ListRow, Pill, Segmented, type Tone } from '../ui/components';
@@ -42,10 +43,10 @@ export default function Matches() {
   const [kids, setKids] = useState<Kid[]>([]);
   const [parts, setParts] = useState<Map<string, Part>>(new Map()); // «матч|ребёнок» → участие
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<Filter>('all');
+  const [filter, setFilter] = useNavState<Filter>('pm.filter', 'all', { persist: { kind: 'enum', values: ['all', 'upcoming', 'past'] } });
   const [tours, setTours] = useState<Map<string, string>>(new Map()); // матч → подпись турнира
   const [myTours, setMyTours] = useState<MyTour[]>([]); // турниры ребёнка, в том числе без матчей
-  const [tour, setTour] = useState('');
+  const [tour, setTour] = useNavState('pm.tour', ''); // название турнира на диск не пишем
   const [reload, setReload] = useState(0);
   const [rsvp, setRsvp] = useState<MyRsvp[]>([]); // матчи с подтверждением участия (миграция 0134); без неё список пуст
 

@@ -7,7 +7,7 @@ export default function Privacy({ onBack }: { onBack: () => void }) {
   const c = CONSENT[preferredLang()];
   return (
     <section className="ks-card policy-doc">
-      <BackNav onBack={onBack} />
+      <BackNav onBack={onBack} managed />
       <h1>Политика конфиденциальности</h1>
       <p className="muted">FC Kickstart · {c.title}</p>
       {c.intro.map((t, i) => (

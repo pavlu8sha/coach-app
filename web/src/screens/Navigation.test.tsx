@@ -16,6 +16,10 @@ import Sessions from './Sessions';
 import More from './More';
 import Coaches from './Coaches';
 import Leads from './Leads';
+import About from './About';
+import TrialForm from './TrialForm';
+import ParentSchedule from './ParentSchedule';
+import ChildMatches from './ChildMatches';
 import AdminArticles from './AdminArticles';
 
 const month = today().slice(0, 7) + '-01';
@@ -327,5 +331,65 @@ describe('Разделы администратора: тренеры, заяв�
     expect(push).toHaveBeenCalledTimes(1);
     fireEvent.click(await screen.findByRole('button', { name: 'Назад' }));
     expect(await screen.findByRole('button', { name: 'Создать публикацию' })).toBeInTheDocument();
+  });
+});
+
+describe('Родитель, ребёнок, гость', () => {
+  const art = { id: 'a1', slug: null, title: 'Правила клуба', body: 'Текст', audience: 'both', status: 'published', sort_order: 1, author_id: 'u', author_name: 'Admin', editor_id: 'u', editor_name: 'Admin', link_url: null, link_label: null, created_at: '2026-11-01T10:00:00Z', updated_at: '2026-11-01T10:00:00Z', published_at: '2026-11-01T10:00:00Z', section: 'news' };
+
+  it('«О клубе»: материалы и статья открываются шагами, «Назад» идёт обратно по одному', async () => {
+    fake.db.club_articles = [art];
+    const push = vi.spyOn(window.history, 'pushState');
+    render(inApp('about', <About role="guest" onChangeRole={() => {}} />));
+    fireEvent.click(await screen.findByText('Новости клуба'));
+    fireEvent.click(await screen.findByText('Правила клуба'));
+    expect(await screen.findByRole('heading', { name: 'Правила клуба' })).toBeInTheDocument();
+    expect(push).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(await screen.findByText('Правила клуба')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(await screen.findByText('Материалы клуба')).toBeInTheDocument();
+  });
+
+  it('«Пробная»: введённое в форму остаётся после просмотра политики и «Назад»', async () => {
+    render(inApp('about', <TrialForm startOpen />));
+    fireEvent.change(screen.getByPlaceholderText('Ваше имя'), { target: { value: 'Мария' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Политике конфиденциальности' }));
+    expect(await screen.findByRole('heading', { name: 'Политика конфиденциальности' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(await screen.findByPlaceholderText('Ваше имя')).toHaveValue('Мария');
+  });
+
+  it('«Расписание» родителя: вкладка остаётся после ухода в другой раздел', async () => {
+    fake.db.player_guardians = [];
+    fake.db.groups = [];
+    fake.db.sessions = [];
+    render(
+      <NavProvider initial="money">
+        <TwoTabs>
+          <ParentSchedule />
+        </TwoTabs>
+      </NavProvider>,
+    );
+    fireEvent.click(await screen.findByRole('tab', { name: 'Группы' }));
+    fireEvent.click(screen.getByText('to-other'));
+    fireEvent.click(screen.getByText('to-money'));
+    expect(await screen.findByRole('tab', { name: 'Группы', selected: true })).toBeInTheDocument();
+  });
+
+  it('«Матчи» ребёнка: фильтр остаётся после ухода в другой раздел', async () => {
+    fake.db.match_players = [];
+    fake.db.matches = [];
+    render(
+      <NavProvider initial="money">
+        <TwoTabs>
+          <ChildMatches player={{ id: 'p1', full_name: 'Иванов', group: 'U9-A' } as never} />
+        </TwoTabs>
+      </NavProvider>,
+    );
+    fireEvent.click(await screen.findByRole('tab', { name: 'Результаты' }));
+    fireEvent.click(screen.getByText('to-other'));
+    fireEvent.click(screen.getByText('to-money'));
+    expect(await screen.findByRole('tab', { name: 'Результаты', selected: true })).toBeInTheDocument();
   });
 });

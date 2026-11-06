@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useNav, useSubEntry } from '../nav';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow } from '../ui/components';
 import { BackNav } from '../ui/nav';
@@ -15,7 +16,13 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
   const [kids, setKids] = useState<Kid[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const [statusOpen, setStatusOpen] = useState(false);
+  const nav = useNav();
+  const statusOpen = Boolean(useSubEntry('mk.status')); // статусы запросов — запись стека
+  const wasStatus = useRef(false);
+  useEffect(() => {
+    if (wasStatus.current && !statusOpen) setReload(n => n + 1);
+    wasStatus.current = statusOpen;
+  }, [statusOpen]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [codes, setCodes] = useState<Record<string, string>>({}); // выданные в этой сессии коды для ребёнка
@@ -75,13 +82,13 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
     setReload(n => n + 1);
   };
 
-  if (statusOpen) return <LinkStatus onBack={() => { setStatusOpen(false); setReload(n => n + 1); }} />;
-  if (error) return <Failure title="Не удалось загрузить детей" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} />} />;
+  if (statusOpen) return <LinkStatus onBack={() => nav.back()} />;
+  if (error) return <Failure title="Не удалось загрузить детей" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} managed />} />;
   if (!kids) return <Loading />;
 
   return (
     <main className="page">
-      <BackNav onBack={onBack} />
+      <BackNav onBack={onBack} managed />
       <h1>Мои дети</h1>
       {kids.length === 0 ? (
         <EmptyState icon="users" title="Нет привязанных детей" text="Найдите ребёнка ниже. Администратор клуба подтвердит запрос." />
@@ -105,7 +112,7 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
       )}
       {msg && <p className="error">{msg}</p>}
       <div style={{ height: 8 }} />
-      <Link onApproved={() => setReload(n => n + 1)} onOpenStatus={() => setStatusOpen(true)} />
+      <Link onApproved={() => setReload(n => n + 1)} onOpenStatus={() => nav.push('mk.status')} />
       {confirmDialog}
     </main>
   );

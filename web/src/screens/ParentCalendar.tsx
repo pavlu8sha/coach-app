@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavState } from '../nav';
 import { supabase } from '../lib/supabase';
 import { EmptyState } from '../ui/components';
 import { Failure, Loading } from './Message';
@@ -50,14 +51,14 @@ function statusLabel(event: CalendarEvent) {
 
 export default function ParentCalendar() {
   const [children, setChildren] = useState<Child[]>([]);
-  const [playerId, setPlayerId] = useState('');
-  const [month, setMonth] = useState(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
-  });
+  // выбор ребёнка, месяц и день живут в записи стека: уход на другую вкладку и возврат ничего не сбрасывают
+  const [playerId, setPlayerId] = useNavState('pc.child', '', { persist: { kind: 'uuid' } });
+  const [monthKey, setMonthKey] = useNavState('pc.month', keyOf(new Date(new Date().getFullYear(), new Date().getMonth(), 1)));
+  const month = useMemo(() => dateFromKey(monthKey), [monthKey]);
+  const setMonth = (d: Date) => setMonthKey(keyOf(d));
   const [minMonth, setMinMonth] = useState(SEASON_MONTH);
   const [matchLabels, setMatchLabels] = useState<Map<string, string>>(new Map());
-  const [selectedDate, setSelectedDate] = useState(() => keyOf(new Date()));
+  const [selectedDate, setSelectedDate] = useNavState('pc.day', keyOf(new Date()));
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [childrenLoading, setChildrenLoading] = useState(true);
   const [eventsLoading, setEventsLoading] = useState(false);

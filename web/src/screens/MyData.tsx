@@ -73,12 +73,12 @@ export default function MyData({ onBack }: { onBack: () => void }) {
     setReload(n => n + 1);
   };
 
-  if (error) return <Failure title="Не удалось загрузить" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} />} />;
+  if (error) return <Failure title="Не удалось загрузить" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} managed />} />;
   if (req === undefined) return <Loading />;
 
   return (
     <main className="page">
-      <BackNav onBack={onBack} />
+      <BackNav onBack={onBack} managed />
       <h1>Мои данные</h1>
 
       <h3>Скачать</h3>
