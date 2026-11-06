@@ -154,4 +154,18 @@ describe('«Учёт тренеров»', () => {
     render(<TrainerLog readOnly />);
     expect(await screen.findByText(/миграция 0079/)).toBeInTheDocument();
   });
+  it('месяцы для выбора начинаются с первого месяца с данными, а не с 14 назад', async () => {
+    const d = new Date();
+    const first = new Date(d.getFullYear(), d.getMonth() - 2, 10);
+    const iso = `${first.getFullYear()}-${String(first.getMonth() + 1).padStart(2, '0')}-10`;
+    seed([{ ...row('a', 'Павел'), held_on: iso }]);
+    render(<TrainerLog />);
+    fireEvent.click(await screen.findByRole('tab', { name: 'Месяц' }));
+    await waitFor(() => {
+      const select = screen.getByLabelText('Месяц') as HTMLSelectElement;
+      expect(select.options).toHaveLength(3);
+    });
+    const select = screen.getByLabelText('Месяц') as HTMLSelectElement;
+    expect(select.options[select.options.length - 1].value).toBe(iso.slice(0, 7));
+  });
 });

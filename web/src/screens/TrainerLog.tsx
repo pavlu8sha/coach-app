@@ -191,14 +191,37 @@ function Day({ readOnly }: { readOnly: boolean }) {
   );
 }
 
-function StaffMonth({ tab, readOnly }: { tab: 'games' | 'stats'; readOnly: boolean }) {
-  const [ym, setYm] = useNavState('tl.staffMonth', monthIso(today()));
-  const months = useMemo(() => {
+// Месяцы для выбора: от первого месяца с данными (журнал тренировок и матчи) до текущего.
+function useMonthOptions(): string[] {
+  const [first, setFirst] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const [t, m] = await Promise.all([
+        supabase.from('training_log').select('held_on').eq('held', true).order('held_on').limit(1),
+        supabase.from('matches').select('played_on').order('played_on').limit(1),
+      ]);
+      const dates = [t.data?.[0]?.held_on, m.data?.[0]?.played_on].filter((d): d is string => typeof d === 'string');
+      if (!cancelled && dates.length) setFirst(dates.sort()[0].slice(0, 7));
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  return useMemo(() => {
+    if (!first) return [monthIso(today())];
     const out: string[] = [];
     const now = new Date();
-    for (let i = 0; i < 14; i++) out.push(new Date(now.getFullYear(), now.getMonth() - i, 1).toLocaleDateString('en-CA').slice(0, 7));
+    for (let i = 0; i < 60; i++) {
+      const ym = new Date(now.getFullYear(), now.getMonth() - i, 1).toLocaleDateString('en-CA').slice(0, 7);
+      out.push(ym);
+      if (ym <= first) break;
+    }
     return out;
-  }, []);
+  }, [first]);
+}
+
+function StaffMonth({ tab, readOnly }: { tab: 'games' | 'stats'; readOnly: boolean }) {
+  const [ym, setYm] = useNavState('tl.staffMonth', monthIso(today()));
+  const months = useMonthOptions();
   return (
     <>
       <select className="ks-select" aria-label="Месяц" value={ym} onChange={e => setYm(e.target.value)}>
@@ -214,12 +237,7 @@ function Month({ readOnly }: { readOnly: boolean }) {
   const [rows, setRows] = useState<Log[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const months = useMemo(() => {
-    const out: string[] = [];
-    const now = new Date();
-    for (let i = 0; i < 14; i++) out.push(new Date(now.getFullYear(), now.getMonth() - i, 1).toLocaleDateString('en-CA').slice(0, 7));
-    return out;
-  }, []);
+  const months = useMonthOptions();
 
   useEffect(() => {
     void (async () => {
