@@ -142,6 +142,7 @@ select * from (values
   ('0137_match_rsvp_notifications', coalesce((to_regproc('rsvp_auto_reminders') is not null and to_regproc('rsvp_answer_by_telegram') is not null), false)),
   ('0138_extra_cap_validation', coalesce((pg_get_functiondef(to_regprocedure('extra_cap(uuid)')) like '%invalid setting extra.cap%'), false)),
   ('0139_match_rsvp_change_notices', coalesce((to_regproc('rsvp_notify_players') is not null), false)),
-  ('0140_match_rsvp_reminder_window', coalesce((select position('25 hours' in prosrc) > 0 from pg_proc where proname = 'rsvp_auto_reminders' limit 1), false))
+  ('0140_match_rsvp_reminder_window', coalesce((select position('25 hours' in prosrc) > 0 from pg_proc where proname = 'rsvp_auto_reminders' limit 1), false)),
+  ('0141_booking_integrity', coalesce((to_regproc('ind_regulars_overflow') is not null), false))
 ) as t(migration, applied)
 order by migration;

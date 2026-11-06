@@ -81,4 +81,13 @@ describe('Запись на занятия', () => {
     render(<Booking />);
     expect(await screen.findByText('Занятий для записи пока нет')).toBeInTheDocument();
   });
+
+  it('ребёнок не в статусе «Занимается»: понятное сообщение', async () => {
+    fake.db.player_guardians = [{ user_id: 'u', consent_revoked_at: null, players: { id: 'p1', full_name: 'Аня Первая' } }];
+    fake.rpc.booking_board = () => board([], []);
+    fake.rpc.booking_signup = () => ({ error: { message: 'player not active' } });
+    render(<Booking />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Записать: Аня Первая' }));
+    expect(await screen.findByText(/ребёнок сейчас не в статусе «Занимается»/)).toBeInTheDocument();
+  });
 });
