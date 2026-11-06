@@ -144,6 +144,7 @@ select * from (values
   ('0139_match_rsvp_change_notices', coalesce((to_regproc('rsvp_notify_players') is not null), false)),
   ('0140_match_rsvp_reminder_window', coalesce((select position('25 hours' in prosrc) > 0 from pg_proc where proname = 'rsvp_auto_reminders' limit 1), false)),
   ('0141_booking_integrity', coalesce((to_regproc('ind_regulars_overflow') is not null), false)),
-  ('0142_extra_sessions_model', coalesce((to_regproc('extra_cancel_session') is not null), false))
+  ('0142_extra_sessions_model', coalesce((to_regproc('extra_cancel_session') is not null), false)),
+  ('0143_regulars_overflow_active_only', coalesce((select position('p.status' in prosrc) > 0 from pg_proc where proname = 'ind_regulars_overflow' limit 1), false))
 ) as t(migration, applied)
 order by migration;
