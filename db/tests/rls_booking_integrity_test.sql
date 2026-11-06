@@ -1,7 +1,7 @@
 -- pgTAP: надёжность записи на тренировки (0141, #274): статус ребёнка, начало дополнительной тренировки, постоянные не больше мест.
 begin;
 create extension if not exists pgtap;
-select plan(8);
+select plan(9);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -53,6 +53,11 @@ select as_user('00000000-0000-0000-0000-0000000000a1');
 select ind_slot_member_set('00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-00000000d001', current_date, true);
 select ind_slot_member_set('00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-00000000d003', current_date, true);
 select is((select regulars || '/' || cap from ind_regulars_overflow(current_date)), '2/1', 'два постоянных на одно место попадают в предупреждение');
+-- игрок назначен постоянным, затем ушёл на паузу: строка остаётся, но место не занимает
+reset role;
+update club_settings set value = '2' where key = 'ind.capIndividual';
+insert into individual_slot_members (template_id, player_id, month) values ('00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-00000000d002', date_trunc('month', current_date)::date);
+select is((select count(*)::int from ind_regulars_overflow(current_date)), 0, 'постоянный на паузе не считается: 2 активных на 2 места, предупреждения нет');
 select as_user('00000000-0000-0000-0000-0000000000b1');
 select throws_ok($$select * from ind_regulars_overflow(current_date)$$, '42501', null, 'родитель предупреждения не видит');
 
