@@ -12,7 +12,11 @@ export type PersistSpec =
   | { kind: 'uuid' }
   | { kind: 'int'; min?: number; max?: number }
   /** Дата ГГГГ-ММ-ДД, которая восстанавливается только в тот же день, когда была сохранена. */
-  | { kind: 'day' };
+  | { kind: 'day' }
+  /** Короткая метка из букв, цифр и «_.-» (например, год рождения или «none»). */
+  | { kind: 'slug' }
+  /** Список значений одного вида (например, выбранные годы рождения). */
+  | { kind: 'list'; item: PersistSpec; max?: number };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SLUG = /^[a-z0-9_.-]{1,40}$/i;
@@ -23,6 +27,8 @@ export function validateValue(spec: PersistSpec, v: unknown): boolean {
     case 'bool': return typeof v === 'boolean';
     case 'uuid': return typeof v === 'string' && UUID.test(v);
     case 'day': return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v));
+    case 'slug': return typeof v === 'string' && SLUG.test(v);
+    case 'list': return Array.isArray(v) && v.length <= (spec.max ?? 50) && v.every(x => validateValue(spec.item, x));
     case 'int': return typeof v === 'number' && Number.isInteger(v) && v >= (spec.min ?? -1e9) && v <= (spec.max ?? 1e9);
   }
 }
@@ -35,7 +41,7 @@ export interface Snapshot {
   active: string | null;
   /** Локальная дата записи: значения kind 'day' из другого дня не восстанавливаются. */
   day: string;
-  stacks: Record<string, { screen: string; params: Record<string, string>; ui: Record<string, string | number | boolean>; daily?: string[]; scrollY: number }[]>;
+  stacks: Record<string, { screen: string; params: Record<string, string>; ui: Record<string, string | number | boolean | string[]>; daily?: string[]; scrollY: number }[]>;
 }
 
 export const localDay = (d = new Date()): string => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -50,12 +56,12 @@ export function buildSnapshot(state: { active: string | null; stacks: Record<str
       .map(e => {
         const params: Record<string, string> = {};
         for (const [k, val] of Object.entries(e.params)) if (SLUG.test(k) && (UUID.test(val) || SLUG.test(val))) params[k] = val;
-        const ui: Record<string, string | number | boolean> = {};
+        const ui: Record<string, string | number | boolean | string[]> = {};
         const daily: string[] = [];
         for (const [k, val] of Object.entries(e.ui)) {
           const spec = specs.get(specKey(root, e.screen, k));
           if (spec && validateValue(spec, val)) {
-            ui[k] = val as string | number | boolean;
+            ui[k] = val as string | number | boolean | string[];
             if (spec.kind === 'day') daily.push(k);
           }
         }

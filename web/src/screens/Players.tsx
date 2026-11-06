@@ -49,7 +49,7 @@ export default function Players() {
   const [gidPick, setGid] = useNavState('gid', '', { entry: 0, persist: { kind: 'uuid' } });
   const [status, setStatus] = useNavState<StatusFilter>('status', 'active', { entry: 0, persist: { kind: 'enum', values: ['active', 'paused', 'inactive', 'all'] } });
   const [onlyUnpaid, setOnlyUnpaid] = useNavState('onlyUnpaid', false, { entry: 0, persist: { kind: 'bool' } });
-  const [years, setYears] = useNavState<string[]>('years', [], { entry: 0 });
+  const [years, setYears] = useNavState<string[]>('years', [], { entry: 0, persist: { kind: 'list', item: { kind: 'slug' }, max: 40 } });
 
   useEffect(() => {
     void (async () => {

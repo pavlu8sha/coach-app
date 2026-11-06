@@ -2,7 +2,7 @@
 // (кнопка «Назад», системная «Назад», нативная кнопка Telegram, смена вкладки) сначала спрашивает подтверждение.
 // Закрытие вкладки и обновление: beforeunload в браузере и enableClosingConfirmation в Telegram (где платформа это позволяет).
 // Сами правки нигде не сохраняются: черновики на диск не пишем.
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { inTelegram, tgApp } from '../lib/telegram';
 
 type Asker = () => Promise<boolean>;
@@ -70,6 +70,23 @@ class DirtyGuard {
 }
 
 export const dirtyGuard = new DirtyGuard();
+
+/**
+ * Для форм, где «исходное» значение появляется после загрузки или меняется после сохранения на месте:
+ * правки считаются от первого готового состояния; markClean() после сохранения принимает текущее состояние за исходное.
+ */
+export function useDirtySignature(signature: string, ready = true): () => void {
+  const base = useRef<string | null>(null);
+  const latest = useRef(signature);
+  latest.current = signature;
+  const [, force] = useState(0);
+  if (ready && base.current === null) base.current = signature;
+  useDirtyGuard(ready && base.current !== null && signature !== base.current);
+  return useCallback(() => {
+    base.current = latest.current;
+    force(n => n + 1);
+  }, []);
+}
 
 /** Форма сообщает, что в ней есть несохранённые правки. При размонтировании (сохранение, уход) отметка снимается. */
 export function useDirtyGuard(dirty: boolean): void {

@@ -73,6 +73,17 @@ describe('снимок', () => {
     expect(validateValue({ kind: 'day' }, 'вчера')).toBe(false);
   });
 
+  it('список значений (годы рождения): проверяется по каждому элементу и по длине', () => {
+    const spec: PersistSpec = { kind: 'list', item: { kind: 'slug' }, max: 3 };
+    expect(validateValue(spec, ['2016', 'none'])).toBe(true);
+    expect(validateValue(spec, ['2016', 'Иванов Пётр'])).toBe(false);
+    expect(validateValue(spec, ['1', '2', '3', '4'])).toBe(false);
+    expect(validateValue(spec, '2016')).toBe(false);
+    const specs = new Map<string, PersistSpec>([[specKey('players', 'players', 'years'), spec]]);
+    const entry = { id: 1, screen: 'players', params: {}, ui: { years: ['2016', '2017'] }, scrollY: 0 };
+    expect(buildSnapshot({ active: 'players', stacks: { players: [entry] } }, specs).stacks.players[0].ui).toEqual({ years: ['2016', '2017'] });
+  });
+
   it('снимок без даты записи считается повреждённым и удаляется', () => {
     localStorage.setItem(storageKey('u1', 'real'), JSON.stringify({ v: STORAGE_VERSION, active: null, stacks: {} }));
     expect(loadSnapshot('u1', 'real')).toBeNull();
