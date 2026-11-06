@@ -121,7 +121,7 @@ export default function IndRegulars() {
       })}
 
       <h3>Добавить постоянного</h3>
-      <label className="field">Слот<select value={tplId} onChange={e => setTplId(e.target.value)}>{templates.map(t => <option key={t.id} value={t.id}>{slotTitle(t)}</option>)}</select></label>
+      <label className="field" style={{ marginBottom: 10 }}>Слот<select value={tplId} onChange={e => setTplId(e.target.value)}>{templates.map(t => <option key={t.id} value={t.id}>{slotTitle(t)}</option>)}</select></label>
       <SearchInput label="Найти игрока" placeholder="Фамилия или имя (от 2 букв)" value={q} onChange={setQ} suggestions={found.map(f => f.full_name)} />
       {found.map(p => (
         <ListRow key={p.id} avatar={p.full_name} title={p.full_name}
