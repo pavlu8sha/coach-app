@@ -29,6 +29,7 @@ import { BottomNav } from './ui/components';
 import { coachBar } from './lib/coachMenu';
 import Stats from './screens/Stats';
 import TrainerLog from './screens/TrainerLog';
+import { NavProvider, NavRoot, clearNavStorage, useActiveRoot, useNavScope, useResetNav } from './nav';
 
 const MODE_KEY = 'ks.parentMode';
 function readParentMode(): boolean {
@@ -56,7 +57,7 @@ const PREVIEW_LABEL: Record<Role, string> = { parent: 'Родитель', child:
 export function Shell() {
   const [preview, setPreview] = useState<Role | null>(null);
   return (
-    <>
+    <NavProvider initial="home">
       {preview && (
         <div role="status" style={{ position: 'sticky', top: 0, zIndex: 20, display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px', background: 'var(--ks-primary, #14213d)', color: 'var(--ks-on-primary, #fff)', fontSize: 14 }}>
           <span>Режим просмотра: {PREVIEW_LABEL[preview]}</span>
@@ -64,7 +65,7 @@ export function Shell() {
         </div>
       )}
       <ShellInner preview={preview} setPreview={setPreview} />
-    </>
+    </NavProvider>
   );
 }
 
@@ -72,7 +73,6 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
   const [adminReal, setAdmin] = useState(false);
   const [coachGroups, setCoachGroups] = useState<CoachGroup[]>([]);
   const [allGroups, setAllGroups] = useState<CoachGroup[]>([]); // все группы: администратору и тренеру (тренеры ведут все группы, миграция 0042)
-  const [moreKey, setMoreKey] = useState(0);
   const [bar, setBar] = useState<SectionId[]>(DEFAULT_BAR); // разделы администратора на нижней панели (настройка «Меню»)
   const [menuKey, setMenuKey] = useState(0);
   const [hasKidsReal, setHasKids] = useState(true); // пока не знаем — не прячем вкладку
@@ -82,7 +82,9 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
   const [childPlayer, setChildPlayer] = useState<ChildPlayer | null>(null); // игрок, к которому привязан аккаунт ребёнка
   const [childLoaded, setChildLoaded] = useState(false);
   const [childKey, setChildKey] = useState(0);
-  const [tabRaw, setTab] = useState<Tab>('home');
+  const [tabRaw, setTab] = useActiveRoot<Tab>('home'); // раздел и его стек живут в слое навигации (src/nav)
+  const [uid, setUid] = useState<string | null>(null);
+  const resetNav = useResetNav();
   const [parentMode, setParentModeState] = useState<boolean>(() => readParentMode());
   // локальный администратор (#321): свои локации, только касса
   const [locations, setLocations] = useState<string[]>([]);
@@ -110,6 +112,8 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
     void (async () => {
       const { data } = await supabase.auth.getUser();
       if (!data.user) return setLoaded(true);
+      setUid(data.user.id);
+      clearNavStorage(data.user.id); // состояние другого пользователя на этом устройстве удаляем
       // RLS: пользователь читает только свою строку; флаг и роль — только подсказка для меню, права проверяет база
       const r = await supabase.from('users').select('is_admin, chosen_role').eq('id', data.user.id).maybeSingle();
       setRole((r.data?.chosen_role as Role | null) ?? null);
@@ -143,6 +147,16 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
       setLoaded(true);
     })();
   }, []);
+  // Выход из аккаунта: состояние навигации очищается
+  useEffect(() => {
+    const sub = supabase.auth.onAuthStateChange?.(ev => {
+      if (ev === 'SIGNED_OUT') {
+        resetNav();
+        clearNavStorage();
+      }
+    });
+    return () => sub?.data?.subscription?.unsubscribe();
+  }, [resetNav]);
   useEffect(() => {
     if (!adminReal) return;
     void (async () => {
@@ -177,6 +191,8 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
   const coach = !admin && !preview && coachGroups.length > 0 && !asParent;
   // локальный админ (#321): касса своих локаций добавляется к разделам тренера или родителя
   const locAdmin = !admin && !preview && locations.length > 0 && !asParent;
+  // Состояния разных пользователей и режимов (предпросмотр, «Родитель») не смешиваются
+  useNavScope(uid ? `${uid}:${preview ?? (asParent ? 'parent' : 'real')}` : null);
   const cashItem = { value: 'cash' as Tab, label: 'Касса', icon: 'wallet' as const };
   if (!loaded) return <Splash />;
   // Роль спрашиваем при первом входе. Администратора, тренера с группами и тех, у кого уже есть дети, не трогаем.
@@ -200,6 +216,7 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
     const cur = !linked && ct === 'matches' ? 'home' : ct;
     return (
       <>
+        <NavRoot root={cur}>
         {cur === 'home' ? (
           childPlayer ? <ChildHome player={childPlayer} /> : <ChildCode onLinked={() => setChildKey(k => k + 1)} />
         ) : cur === 'matches' && childPlayer ? (
@@ -209,6 +226,7 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
         ) : (
           <About role={role} onChangeRole={() => (preview ? exitPreview() : setChangingRole(true))} />
         )}
+        </NavRoot>
         <BottomNav
           label="Разделы"
           value={cur}
@@ -227,7 +245,9 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
   if (!admin && !coach && !locAdmin && !hasKids && role !== 'parent') {
     return (
       <>
-        {tab === 'schedule' ? <Schedule all editable={false} /> : <About role={role} onChangeRole={() => (preview ? exitPreview() : setChangingRole(true))} />}
+        <NavRoot root={tab === 'schedule' ? 'schedule' : 'about'}>
+          {tab === 'schedule' ? <Schedule all editable={false} /> : <About role={role} onChangeRole={() => (preview ? exitPreview() : setChangingRole(true))} />}
+        </NavRoot>
         <BottomNav
           label="Разделы"
           value={tab === 'schedule' ? 'schedule' : 'about'}
@@ -242,7 +262,7 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
   }
   const screen =
     locAdmin && tab === 'cash' ? <LocationCash locations={locations} />
-    : admin && tab === 'more' ? <More key={moreKey} groups={allGroups} bar={bar} onMenuChanged={() => setMenuKey(k => k + 1)} onPreview={startPreview} />
+    : admin && tab === 'more' ? <More groups={allGroups} bar={bar} onMenuChanged={() => setMenuKey(k => k + 1)} onPreview={startPreview} />
     : admin && isSection(tab) ? <AdminSection key={tab} id={tab} groups={allGroups} onMenuChanged={() => setMenuKey(k => k + 1)} />
     : (admin || coach) && tab === 'sessions' ? <Sessions groups={allGroups.length ? allGroups : coachGroups} />
     : (admin || coach) && tab === 'cmatches' ? <CoachMatches groups={allGroups.length ? allGroups : coachGroups} admin={admin} allTeams={!admin} />
@@ -264,14 +284,11 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
           </button>
         </div>
       )}
-      {screen}
+      <NavRoot root={tab}>{screen}</NavRoot>
       <BottomNav
         label="Разделы"
         value={tab}
-        onChange={v => {
-          if (v === 'more' && tab === 'more') setMoreKey(k => k + 1); // повторное нажатие «Ещё» — назад к списку
-          setTab(v);
-        }}
+        onChange={setTab} // повторное нажатие активного пункта ничего не сбрасывает
         items={
           admin
             ? [

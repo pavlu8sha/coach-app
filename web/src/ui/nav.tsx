@@ -1,21 +1,16 @@
 // Нативные кнопки Telegram с запасным вариантом вне Telegram.
 import { useEffect, useRef } from 'react';
 import { inTelegram, tgApp } from '../lib/telegram';
+import { backStack } from '../nav/backStack';
 import { BackButton } from './components';
 
-/** «Назад»: в Telegram — нативная кнопка в шапке, в браузере — своя кнопка на экране. */
+/** «Назад»: оболочка над общим стеком (nav/backStack). Обработчик попадает в единый стек: его вызывают нативная кнопка Telegram,
+ *  системная «Назад» браузера/PWA и кнопка на экране. В Telegram своей кнопки на экране нет, в браузере она рисуется здесь. */
 export function BackNav({ onBack }: { onBack: () => void }) {
-  const native = inTelegram();
-  useEffect(() => {
-    const b = tgApp()?.BackButton;
-    if (!native || !b) return;
-    b.onClick(onBack);
-    b.show();
-    return () => {
-      b.offClick(onBack);
-      b.hide();
-    };
-  }, [native, onBack]);
+  const native = inTelegram() && Boolean(tgApp()?.BackButton);
+  const cb = useRef(onBack);
+  cb.current = onBack;
+  useEffect(() => backStack().register(() => cb.current()), []);
   return native ? null : <BackButton onClick={onBack} />;
 }
 

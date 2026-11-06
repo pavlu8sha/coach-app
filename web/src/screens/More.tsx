@@ -1,25 +1,28 @@
-import { useState } from 'react';
 import type { CoachGroup } from '../lib/coach';
-import { SECTIONS, type SectionId } from '../lib/adminMenu';
+import { SECTIONS, isSection, type SectionId } from '../lib/adminMenu';
+import { NavEntry, useNav } from '../nav';
 import { ListRow } from '../ui/components';
 import HomeScreenPrompt from '../ui/HomeScreenPrompt';
 import NotifyToggle from '../ui/NotifyToggle';
 import AdminSection from './AdminSection';
 
-// «Ещё» у администратора: разделы, которых нет на нижней панели. Вернуться в список можно кнопкой «Ещё» внизу или ссылкой наверху.
+// «Ещё» у администратора: разделы, которых нет на нижней панели. Открытый подраздел хранится в стеке раздела «Ещё» (src/nav):
+// «Назад» и системная кнопка возвращают в каталог на прежнее место, повторное нажатие «Ещё» ничего не сбрасывает.
 export default function More({ groups, bar, onMenuChanged, onPreview }: { groups: CoachGroup[]; bar: SectionId[]; onMenuChanged: () => void; onPreview?: (r: 'guest' | 'parent' | 'child') => void }) {
-  const [sub, setSub] = useState<SectionId | null>(null);
+  const nav = useNav();
+  const subId = nav.top.screen === 'section' ? nav.top.params.id : null;
+  const sub: SectionId | null = subId && isSection(subId) ? subId : null;
   if (sub) {
     return (
-      <>
+      <NavEntry index={nav.depth - 1}>
         <div style={{ maxWidth: 560, margin: '0 auto', padding: '8px 16px 0' }}>
-          <button type="button" className="ks-back" onClick={() => setSub(null)}>
+          <button type="button" className="ks-back" onClick={() => nav.back()}>
             <span className="ks-chev back" aria-hidden="true" />
             Ещё
           </button>
         </div>
         <AdminSection id={sub} groups={groups} onMenuChanged={onMenuChanged} />
-      </>
+      </NavEntry>
     );
   }
   const items = SECTIONS.filter(s => !bar.includes(s.id));
@@ -31,7 +34,7 @@ export default function More({ groups, bar, onMenuChanged, onPreview }: { groups
         <div key={g}>
           <p className="ks-label">{g}</p>
           {items.filter(s => s.group === g).map(s => (
-            <ListRow key={s.id} title={s.title} sub={[s.sub]} onClick={() => setSub(s.id)} />
+            <ListRow key={s.id} title={s.title} sub={[s.sub]} onClick={() => nav.push('section', { id: s.id })} />
           ))}
         </div>
       ))}

@@ -1,12 +1,19 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
+import { NavProvider, NavRoot } from '../nav';
 import More from './More';
 
 describe('Администратор: «Посмотреть как»', () => {
   it('пункты предпросмотра вызывают смену режима', async () => {
     const calls: string[] = [];
-    render(<More groups={[]} bar={[]} onMenuChanged={() => {}} onPreview={r => calls.push(r)} />);
+    render(
+      <NavProvider initial="more">
+        <NavRoot root="more">
+          <More groups={[]} bar={[]} onMenuChanged={() => {}} onPreview={r => calls.push(r)} />
+        </NavRoot>
+      </NavProvider>,
+    );
     fireEvent.click(screen.getByText('Гость'));
     fireEvent.click(screen.getByText('Родитель'));
     fireEvent.click(screen.getByText('Ребёнок'));
