@@ -202,7 +202,7 @@ function View({ session, onBack }: { session: Session; onBack: () => void }) {
     setMsg({ ok: over === 0, text: over > 0 ? `Вместимость сохранена, но записано на ${over} больше лимита. Записи не удалены: решите, кого убрать.` : 'Вместимость сохранена.' });
   };
   const cancelSession = async () => {
-    if (!(await ask({ title: 'Отменить тренировку?', lines: [['Тренировка', `${fmtDate(session.starts_on)}${timeSpan(session)}`]], note: 'Записи и оплаты сохранятся, новые записи и отметки закроются, баллы за посещение не начисляются. Отменить отмену нельзя.', confirmLabel: 'Отменить тренировку', danger: true }))) return;
+    if (!(await ask({ title: 'Отменить тренировку?', lines: [['Тренировка', `${fmtDate(session.starts_on)}${timeSpan(session)}`]], note: 'Записи перейдут в историю отмен (раздел «Индивидуальные», вкладка «Отмены»), оплаты не меняются, решение по ним принимаете вы. Новые записи и отметки закроются, баллы не начисляются. Отменить отмену нельзя.', confirmLabel: 'Отменить тренировку', danger: true }))) return;
     if (await run('cancel', () => supabase.rpc('extra_cancel_session', { s: session.id, p_reason: reason }))) setGone(true);
   };
   const togglePaid = async (b: Booking) => {
@@ -219,7 +219,7 @@ function View({ session, onBack }: { session: Session; onBack: () => void }) {
       <BackNav onBack={onBack} managed />
       <h1>{fmtDate(session.starts_on)}{timeSpan(session)} · {gel(Number(session.amount))}</h1>
       <p className="muted">{session.place ?? 'Место не указано'}</p>
-      {cancelled && <p className="error">Тренировка отменена{session.cancel_reason ? `: ${session.cancel_reason}` : ''}. Записи и оплаты сохранены.</p>}
+      {cancelled && <p className="error">Тренировка отменена{session.cancel_reason ? `: ${session.cancel_reason}` : ''}. Записи перенесены в историю отмен, оплаты не менялись.</p>}
       {msg && <p className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}
 
       <h3>Записанные</h3>
