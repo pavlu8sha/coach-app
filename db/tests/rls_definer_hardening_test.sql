@@ -19,7 +19,7 @@ select is(
 
 select is(
   (select coalesce(string_agg(p.proname, ', ' order by p.proname), '') from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname in ('apply_match_points', 'claim_notifications', 'enqueue_notification', 'enqueue_to_admins', 'enqueue_to_guardians', 'notify_coach_group', 'notify_payment', 'notify_bonus', 'lead_submit', 'ind_book', 'ind_assert_admin', 'ind_price', 'ind_cap', 'extra_cap', 'eq_assert_admin', 'eq_number_taken', 'eq_price', 'camp_assert_admin', 'tl_assert_admin', 'finish_notification', 'notify_link_request', 'notify_data_request', 'rate_limit_hit', 'rule_for', 'tariff_for', 'rsvp_assert_staff', 'rsvp_lock_match', 'rsvp_log', 'rsvp_claim_reminder', 'rsvp_notify_parent', 'rsvp_notify_match', 'rsvp_matches_notify', 'rsvp_invitation_notify', 'rsvp_auto_reminders', 'rsvp_answer_by_telegram', 'rsvp_notify_players', 'rsvp_invitations_stage', 'rsvp_notice_flush', 'rsvp_matches_details_notify', 'extra_log', 'extra_session_cap')
+    where n.nspname = 'public' and p.proname in ('apply_match_points', 'claim_notifications', 'enqueue_notification', 'enqueue_to_admins', 'enqueue_to_guardians', 'notify_coach_group', 'notify_payment', 'notify_bonus', 'lead_submit', 'ind_book', 'ind_assert_admin', 'ind_price', 'ind_cap', 'extra_cap', 'eq_assert_admin', 'eq_number_taken', 'eq_price', 'camp_assert_admin', 'tl_assert_admin', 'finish_notification', 'notify_link_request', 'notify_data_request', 'rate_limit_hit', 'rule_for', 'tariff_for', 'rsvp_assert_staff', 'rsvp_lock_match', 'rsvp_log', 'rsvp_claim_reminder', 'rsvp_notify_parent', 'rsvp_notify_match', 'rsvp_matches_notify', 'rsvp_invitation_notify', 'rsvp_auto_reminders', 'rsvp_answer_by_telegram', 'rsvp_notify_players', 'rsvp_invitations_stage', 'rsvp_notice_flush', 'rsvp_matches_details_notify', 'extra_log', 'extra_session_cap', 'notify_pref_default', 'notify_direction_enabled', 'enqueue_direction_notification')
       and has_function_privilege('authenticated', p.oid, 'execute')),
   '', 'служебные функции недоступны из приложения');
 
@@ -31,7 +31,7 @@ select is(
         'erase_parent', 'export_my_data', 'group_parents', 'group_rating', 'is_admin', 'is_coach_of_group', 'is_coach_of_player',
         'is_coach_of_subscription', 'is_guardian_in_group', 'is_guardian_of', 'is_self_player', 'mark_attendance', 'open_session',
         'parent_calendar', 'parent_first_attendance', 'parent_debts', 'recalc_match_points', 'redeem_child_code', 'reject_data_request', 'request_data_deletion', 'request_link',
-        'retry_link', 'revoke_bonus', 'revoke_consent', 'save_match', 'search_players_for_link', 'set_my_role', 'set_notifications',
+        'retry_link', 'revoke_bonus', 'revoke_consent', 'save_match', 'search_players_for_link', 'set_my_role', 'set_notifications', 'notify_prefs_get', 'notify_pref_set',
         'unlink_child',
         -- функции администратора из следующих миграций (0032–0039): внутри каждой проверяется is_admin()
         'create_subscription_month', 'subscription_month_missing', 'ind_create_session', 'ind_add_player', 'ind_set_paid', 'ind_remove_player', 'ind_edit_session', 'ind_delete_session',
