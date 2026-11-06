@@ -1,7 +1,7 @@
 -- pgTAP: баллы за тренировки в новом журнале (0121). Фикстуры вымышленные.
 begin;
 create extension if not exists pgtap;
-select plan(28);
+select plan(31);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -114,6 +114,14 @@ update extra_bookings set attended = true;
 select is((select points from points_ledger where source_type = 'extra' and status = 'active'), 2, 'дополнительная +2');
 delete from extra_bookings;
 select is((select count(*)::int from points_ledger where source_type = 'extra' and status = 'active'), 0, 'удаление записи снимает баллы');
+-- отмена занятия клубом: баллы за посещение снимаются, повторно не начисляются
+insert into extra_bookings (session_id, player_id, attended) values ('00000000-0000-0000-0000-0000000007a1', '00000000-0000-0000-0000-00000000d001', true);
+select is((select count(*)::int from points_ledger where source_type = 'extra' and status = 'active'), 1, 'до отмены баллы начислены');
+update extra_sessions set cancelled_at = now() where id = '00000000-0000-0000-0000-0000000007a1';
+select is((select count(*)::int from points_ledger where source_type = 'extra' and status = 'active'), 0, 'отмена занятия снимает баллы');
+update extra_bookings set attended = true;
+select is((select count(*)::int from points_ledger where source_type = 'extra' and status = 'active'), 0, 'на отменённом занятии баллы не начисляются');
+delete from extra_bookings;
 
 -- родитель видит свои баллы и не видит чужие (ребёнок не привязан)
 select as_user('00000000-0000-0000-0000-0000000000b1');

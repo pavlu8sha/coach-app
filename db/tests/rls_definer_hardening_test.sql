@@ -19,7 +19,7 @@ select is(
 
 select is(
   (select coalesce(string_agg(p.proname, ', ' order by p.proname), '') from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname in ('apply_match_points', 'claim_notifications', 'enqueue_notification', 'enqueue_to_admins', 'enqueue_to_guardians', 'notify_coach_group', 'notify_payment', 'notify_bonus', 'lead_submit', 'ind_book', 'ind_assert_admin', 'ind_price', 'ind_cap', 'extra_cap', 'eq_assert_admin', 'eq_number_taken', 'eq_price', 'camp_assert_admin', 'tl_assert_admin', 'finish_notification', 'notify_link_request', 'notify_data_request', 'rate_limit_hit', 'rule_for', 'tariff_for', 'rsvp_assert_staff', 'rsvp_lock_match', 'rsvp_log', 'rsvp_claim_reminder', 'rsvp_notify_parent', 'rsvp_notify_match', 'rsvp_matches_notify', 'rsvp_invitation_notify', 'rsvp_auto_reminders', 'rsvp_answer_by_telegram', 'rsvp_notify_players', 'rsvp_invitations_stage', 'rsvp_notice_flush', 'rsvp_matches_details_notify')
+    where n.nspname = 'public' and p.proname in ('apply_match_points', 'claim_notifications', 'enqueue_notification', 'enqueue_to_admins', 'enqueue_to_guardians', 'notify_coach_group', 'notify_payment', 'notify_bonus', 'lead_submit', 'ind_book', 'ind_assert_admin', 'ind_price', 'ind_cap', 'extra_cap', 'eq_assert_admin', 'eq_number_taken', 'eq_price', 'camp_assert_admin', 'tl_assert_admin', 'finish_notification', 'notify_link_request', 'notify_data_request', 'rate_limit_hit', 'rule_for', 'tariff_for', 'rsvp_assert_staff', 'rsvp_lock_match', 'rsvp_log', 'rsvp_claim_reminder', 'rsvp_notify_parent', 'rsvp_notify_match', 'rsvp_matches_notify', 'rsvp_invitation_notify', 'rsvp_auto_reminders', 'rsvp_answer_by_telegram', 'rsvp_notify_players', 'rsvp_invitations_stage', 'rsvp_notice_flush', 'rsvp_matches_details_notify', 'extra_log', 'extra_session_cap')
       and has_function_privilege('authenticated', p.oid, 'execute')),
   '', 'служебные функции недоступны из приложения');
 
@@ -36,7 +36,7 @@ select is(
         -- функции администратора из следующих миграций (0032–0039): внутри каждой проверяется is_admin()
         'create_subscription_month', 'subscription_month_missing', 'ind_create_session', 'ind_add_player', 'ind_set_paid', 'ind_remove_player', 'ind_edit_session', 'ind_delete_session',
         'ind_set_regular', 'ind_autocreate_now', 'ind_slot_member_set', 'ind_regulars_overflow', 'ind_set_attended', 'extra_create_session', 'extra_edit_session', 'extra_delete_session', 'extra_add_player', 'extra_remove_player',
-        'extra_set_paid', 'extra_set_attended', 'eq_create_order', 'eq_edit_order', 'eq_add_payment', 'eq_set_issued', 'eq_delete_order', 'eq_catalog_save', 'eq_set_order_status', 'eq_edit_line', 'eq_add_line', 'eq_delete_line', 'eq_set_order_date', 'equipment_requirement', 'payment_info_save', 'camp_register_guest', 'camp_update_guest',
+        'extra_set_paid', 'extra_set_attended', 'extra_set_capacity', 'extra_cancel_session', 'eq_create_order', 'eq_edit_order', 'eq_add_payment', 'eq_set_issued', 'eq_delete_order', 'eq_catalog_save', 'eq_set_order_status', 'eq_edit_line', 'eq_add_line', 'eq_delete_line', 'eq_set_order_date', 'equipment_requirement', 'payment_info_save', 'camp_register_guest', 'camp_update_guest',
         'camp_save', 'camp_tariff_save', 'camp_register', 'camp_update_participant', 'camp_pay', 'camp_cancel_payment', 'tl_add', 'tl_confirm',
         'tl_set_held', 'tl_replace_coach', 'tl_edit_session', 'lead_set_status', 'ind_roster_list', 'extra_roster_list',
         -- 0058: родителю долги и оплаты по всем видам
