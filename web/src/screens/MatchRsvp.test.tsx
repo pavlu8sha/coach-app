@@ -58,7 +58,7 @@ describe('Карточка матча родителя: оформление', (
 describe('Тренер: матчи с подтверждением', () => {
   const groups = [{ id: 'g1', name: 'U9' }] as any;
   it('создаёт черновик с временем по Тбилиси', async () => {
-    fake.db.matches = [];
+    fake.db.matches = [matchRow({ id: 'new1', lifecycle_status: 'draft' })];
     fake.db.clubs = [{ id: 'c1' }];
     fake.rpc.event_list = () => [];
     fake.rpc.match_rsvp_create_draft = () => 'new1';
@@ -71,10 +71,37 @@ describe('Тренер: матчи с подтверждением', () => {
     expect(fake.rpcCalls('match_rsvp_create_draft')[0]).toMatchObject({ p_club: 'c1', p_kind: 'friendly', p_team: 'U9', p_opponent: 'Динамо', p_starts_at: '2026-11-20T11:00:00+04:00', p_tournament: null });
     // состав добавляется сразу: у команды одна группа, берём её
     await waitFor(() => expect(fake.rpcCalls('match_rsvp_seed')).toEqual([{ m: 'new1', p_group: 'g1' }]));
+    expect(await screen.findByText(/Черновик создан, но в выбранных группах нет активных игроков/)).toBeInTheDocument();
+  });
+
+  it('если состав не добавился, тренер видит понятную ошибку на экране матча', async () => {
+    fake.db.matches = [matchRow({ id: 'new4', lifecycle_status: 'draft' })];
+    fake.db.clubs = [{ id: 'c1' }];
+    fake.rpc.event_list = () => [];
+    fake.rpc.match_rsvp_create_draft = () => 'new4';
+    fake.rpc.match_rsvp_seed = () => ({ data: null, error: { message: 'forbidden' } });
+    render(<CoachRsvp groups={groups} onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Новый матч' }));
+    fireEvent.change(await screen.findByLabelText('Дата и время (Тбилиси)'), { target: { value: '2026-11-20T11:00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Создать черновик' }));
+    expect(await screen.findByText(/Черновик создан, но состав не добавлен: Нет доступа/)).toBeInTheDocument();
+  });
+
+  it('после автозаполнения показывается число добавленных игроков', async () => {
+    fake.db.matches = [matchRow({ id: 'new5', lifecycle_status: 'draft' })];
+    fake.db.clubs = [{ id: 'c1' }];
+    fake.rpc.event_list = () => [];
+    fake.rpc.match_rsvp_create_draft = () => 'new5';
+    fake.rpc.match_rsvp_seed = () => 12;
+    render(<CoachRsvp groups={groups} onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Новый матч' }));
+    fireEvent.change(await screen.findByLabelText('Дата и время (Тбилиси)'), { target: { value: '2026-11-20T11:00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Создать черновик' }));
+    expect(await screen.findByText('Черновик создан, в состав добавлено игроков: 12')).toBeInTheDocument();
   });
 
   it('товарищеский матч: можно выбрать основную группу, состав берётся только из неё', async () => {
-    fake.db.matches = [];
+    fake.db.matches = [matchRow({ id: 'new2', lifecycle_status: 'draft' })];
     fake.db.clubs = [{ id: 'c1' }];
     fake.rpc.event_list = () => [];
     fake.rpc.match_rsvp_create_draft = () => 'new2';
@@ -89,7 +116,7 @@ describe('Тренер: матчи с подтверждением', () => {
   });
 
   it('матч чемпионата с выбранным событием: состав берётся из списка события', async () => {
-    fake.db.matches = [];
+    fake.db.matches = [matchRow({ id: 'new3', lifecycle_status: 'draft' })];
     fake.db.clubs = [{ id: 'c1' }];
     fake.rpc.event_list = () => [{ id: 'e1', team: 'U9', title: 'Кубок', kind: 'tournament', status: 'active' }];
     fake.rpc.match_rsvp_create_draft = () => 'new3';
