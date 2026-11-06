@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { coachError, fmtDate, plural, type CoachGroup } from '../lib/coach';
 import { supabase } from '../lib/supabase';
+import { useNav, useNavState } from '../nav';
 import { EmptyState, ListRow, Pill, Segmented } from '../ui/components';
 import { GroupPicker } from '../ui/coach';
 import NotifyToggle from '../ui/NotifyToggle';
@@ -15,11 +16,12 @@ interface Parent { player_id: string; parent_name: string | null; telegram_id: n
 
 // «Группа»: игроки группы; карточка игрока с ручными баллами и контактами родителей.
 export default function Group({ groups, notify = false }: { groups: CoachGroup[]; notify?: boolean }) {
-  const [gid, setGid] = useState(groups[0]?.id ?? '');
+  // Выбранная группа возвращается при «Назад» из карточки игрока; карточка — запись стека раздела
+  const nav = useNav();
+  const [gid, setGid] = useNavState('gid', groups[0]?.id ?? '', { entry: 0, persist: { kind: 'uuid' } });
   const [players, setPlayers] = useState<Player[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const [open, setOpen] = useState<Player | null>(null);
   const [totals, setTotals] = useState<Record<string, number> | null>(null);
 
   useEffect(() => {
@@ -43,10 +45,11 @@ export default function Group({ groups, notify = false }: { groups: CoachGroup[]
       }
       setTotals(sums);
     })();
-  }, [gid, reload, open]);
+  }, [gid, reload, nav.top.screen]);
 
   if (error) return <Failure title="Не удалось загрузить группу" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
-  if (open) return <PlayerCard gid={gid} player={open} onBack={() => setOpen(null)} />;
+  const open = nav.top.screen === 'player' ? (players ?? []).find(p => p.id === nav.top.params.id) : undefined;
+  if (open) return <PlayerCard gid={gid} player={open} onBack={() => nav.back()} />;
   if (!players) return <Loading />;
 
   return (
@@ -66,7 +69,7 @@ export default function Group({ groups, notify = false }: { groups: CoachGroup[]
               title={p.full_name}
               sub={totals ? [`Место ${places[i]} по баллам`] : undefined}
               end={totals && <Pill tone="primary">{totals[p.id] ?? 0}</Pill>}
-              onClick={() => setOpen(p)}
+              onClick={() => nav.push('player', { id: p.id })}
             />
           ));
         })()
@@ -156,13 +159,13 @@ function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBa
     setMsg({ ok: true, text: 'Начисление отменено.' });
     setReload(n => n + 1);
   };
-  if (error) return <Failure title="Не удалось загрузить игрока" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} />} />;
+  if (error) return <Failure title="Не удалось загрузить игрока" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} managed />} />;
   if (!ledger) return <Loading />;
 
   const total = ledger.total;
   return (
     <main className="page">
-      <BackNav onBack={onBack} />
+      <BackNav onBack={onBack} managed />
       <h1 style={{ overflowWrap: 'anywhere' }}>{player.full_name}</h1>
       <p className="muted" style={{ marginBottom: 12 }}>Всего: {total} {plural(total)}{ledger.count > 0 ? ` · начислений: ${ledger.count}` : ''}</p>
 

@@ -4,6 +4,9 @@ import { fake } from '../test/fakeSupabase';
 import { today } from '../lib/coach';
 import { NavProvider, NavRoot, useActiveRoot } from '../nav';
 import CashDesk from './CashDesk';
+import CoachMatches from './CoachMatches';
+import Group from './Group';
+import Stats from './Stats';
 import Money from './Money';
 import Players from './Players';
 import Sessions from './Sessions';
@@ -149,5 +152,55 @@ describe('«Приём оплат»: выбранный игрок', () => {
     fireEvent.click(screen.getByText('to-money'));
     fireEvent.click(await screen.findByRole('button', { name: 'Сменить' }));
     expect(await screen.findByLabelText(/^Игрок/)).toBeInTheDocument();
+  });
+});
+
+describe('Матчи, группа, статистика, учёт', () => {
+  it('«Матчи»: фильтр команды остаётся после «Назад» из матча', async () => {
+    fake.db.matches = [
+      { id: 'm1', team: 'U9', played_on: '2026-10-10', opponent: 'Олимп', goals_for: 3, goals_against: 1 },
+      { id: 'm2', team: 'U11', played_on: '2026-10-09', opponent: 'Динамо', goals_for: 1, goals_against: 1 },
+    ];
+    fake.db.players = [{ id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'active' }];
+    fake.db.match_players = [];
+    const groups = [{ id: 'g1', name: 'U9' }, { id: 'g2', name: 'U11' }];
+    const push = vi.spyOn(window.history, 'pushState');
+    render(inApp('cmatches', <CoachMatches groups={groups} admin />));
+    fireEvent.change(await screen.findByLabelText('Команда'), { target: { value: 'U11' } });
+    fireEvent.click(await screen.findByText('Динамо'));
+    await screen.findByDisplayValue('Динамо');
+    fireEvent.click(await screen.findByRole('button', { name: 'Назад' }));
+    expect(await screen.findByLabelText('Команда')).toHaveValue('U11');
+    expect(push).toHaveBeenCalledTimes(1); // матч = одна запись истории
+  });
+
+  it('«Группа»: «Назад» из карточки игрока возвращает к списку', async () => {
+    fake.db.players = [{ id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'active' }];
+    fake.db.points_ledger = [];
+    fake.rpc.group_parents = () => [];
+    fake.rpc.points_manual_status = () => ({ active: true, remaining: { '1': 3 }, month_total: 0, month_cap: 10 });
+    render(inApp('points', <Group groups={[{ id: 'g1', name: 'U9' }]} />));
+    fireEvent.click(await screen.findByText('Иванов Пётр'));
+    await screen.findByText('Ручные баллы');
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(await screen.findByRole('heading', { name: 'Группа' })).toBeInTheDocument();
+  });
+
+  it('«Статистика»: вкладка и период остаются после ухода в другой раздел', async () => {
+    fake.rpc.attendance_stats = () => [];
+    fake.rpc.match_stats = () => [];
+    render(
+      <NavProvider initial="money">
+        <TwoTabs>
+          <Stats />
+        </TwoTabs>
+      </NavProvider>,
+    );
+    fireEvent.click(await screen.findByRole('tab', { name: 'Матчи' }));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Прошлый' }));
+    fireEvent.click(screen.getByText('to-other'));
+    fireEvent.click(screen.getByText('to-money'));
+    expect(await screen.findByRole('tab', { name: 'Матчи', selected: true })).toBeInTheDocument();
+    expect(screen.getAllByRole('tab', { name: 'Прошлый', selected: true }).length).toBeGreaterThan(0);
   });
 });

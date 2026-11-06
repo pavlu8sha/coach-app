@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { EmptyState, Pill, Segmented } from '../ui/components';
 import { Failure, Loading } from './Message';
 import { monthPeriod, StaffGames, StaffStats } from './TrainerStaff';
+import { useNavState } from '../nav';
 
 interface Slot { weekday: number; starts_at: string; ends_at: string | null; location: string | null; coaches: string | null; kind: string; source_key: string }
 interface Log { id: string; held_on: string; coach: string; location: string | null; group_label: string; kind: string; starts_at: string | null; ends_at: string | null; hours: number | null; held: boolean }
@@ -26,7 +27,7 @@ type Tab = 'day' | 'month' | 'games' | 'stats';
 
 // Учёт проведённых тренировок и часов тренеров (миграция 0038). Администратор правит; тренер (readOnly) только смотрит (миграция 0079).
 export default function TrainerLog({ readOnly = false }: { readOnly?: boolean }) {
-  const [tab, setTab] = useState<Tab>('day');
+  const [tab, setTab] = useNavState<Tab>('tl.tab', 'day', { persist: { kind: 'enum', values: ['day', 'month', 'games', 'stats'] } });
   return (
     <main className="page">
       <h1>{readOnly ? 'Учёт' : 'Учёт тренеров'}</h1>
@@ -37,7 +38,7 @@ export default function TrainerLog({ readOnly = false }: { readOnly?: boolean })
 }
 
 function Day({ readOnly }: { readOnly: boolean }) {
-  const [date, setDate] = useState(today());
+  const [date, setDate] = useNavState('tl.date', today());
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [logs, setLogs] = useState<Log[] | null>(null);
   const [known, setKnown] = useState<string[]>([]);
@@ -191,7 +192,7 @@ function Day({ readOnly }: { readOnly: boolean }) {
 }
 
 function StaffMonth({ tab, readOnly }: { tab: 'games' | 'stats'; readOnly: boolean }) {
-  const [ym, setYm] = useState(monthIso(today()));
+  const [ym, setYm] = useNavState('tl.staffMonth', monthIso(today()));
   const months = useMemo(() => {
     const out: string[] = [];
     const now = new Date();
@@ -209,7 +210,7 @@ function StaffMonth({ tab, readOnly }: { tab: 'games' | 'stats'; readOnly: boole
 }
 
 function Month({ readOnly }: { readOnly: boolean }) {
-  const [ym, setYm] = useState(monthIso(today()));
+  const [ym, setYm] = useNavState('tl.month', monthIso(today()));
   const [rows, setRows] = useState<Log[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);

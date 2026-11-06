@@ -5,6 +5,7 @@ import { settingNumber, settingNumberError, useClubSettings } from '../lib/clubS
 import { supabase } from '../lib/supabase';
 import { EmptyState, Pill, Segmented } from '../ui/components';
 import { Failure, Loading } from './Message';
+import { useNavState } from '../nav';
 
 interface Row { group_id: string; group_name: string; player_id: string; full_name: string; attended: number; total: number }
 
@@ -24,7 +25,7 @@ type Kind = 'att' | 'matches';
 // Статистика для администратора и тренера: посещаемость групп и матчи за период.
 // own — экран тренера: база отдаёт только его группы и их команды (0080), пустой результат объясняем отдельно.
 export default function Stats({ own = false }: { own?: boolean }) {
-  const [kind, setKind] = useState<Kind>('att');
+  const [kind, setKind] = useNavState<Kind>('st.kind', 'att', { persist: { kind: 'enum', values: ['att', 'matches'] } });
   return (
     <>
       <header style={{ maxWidth: 560, margin: '0 auto', padding: '8px 16px 0' }}>
@@ -35,10 +36,11 @@ export default function Stats({ own = false }: { own?: boolean }) {
   );
 }
 
-function usePeriod() {
-  const [range, setRange] = useState<Range>('month');
-  const [from, setFrom] = useState(monthStart(today()));
-  const [to, setTo] = useState(today());
+function usePeriod(scope: string) {
+  // период каждой вкладки статистики хранится отдельно и возвращается после ухода в другой раздел
+  const [range, setRange] = useNavState<Range>(`st.${scope}.range`, 'month', { persist: { kind: 'enum', values: ['month', 'prev', 'season', 'custom'] } });
+  const [from, setFrom] = useNavState(`st.${scope}.from`, monthStart(today()));
+  const [to, setTo] = useNavState(`st.${scope}.to`, today());
   const period = useMemo(() => {
     if (range === 'month') return { f: monthStart(today()), t: today() };
     if (range === 'prev') return { f: prevMonthStart(today()), t: addDays(monthStart(today()), -1) };
@@ -62,7 +64,7 @@ function usePeriod() {
 interface MRow { kind: 'team' | 'player'; team: string; name: string | null; games: number | null; wins: number | null; draws: number | null; losses: number | null; goals_for: number | null; goals_against: number | null; played: number | null; goals: number | null }
 
 function Matches({ own }: { own: boolean }) {
-  const { period, picker } = usePeriod();
+  const { period, picker } = usePeriod('matches');
   const [rows, setRows] = useState<MRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -150,9 +152,9 @@ function Attendance({ own }: { own: boolean }) {
   const settings = useClubSettings().values;
   const lowPct = settingNumber(settings, 'stats.lowPct');
   const lowPctError = settingNumberError(settings, 'stats.lowPct');
-  const [range, setRange] = useState<Range>('month');
-  const [from, setFrom] = useState(monthStart(today()));
-  const [to, setTo] = useState(today());
+  const [range, setRange] = useNavState<Range>('st.att.range', 'month', { persist: { kind: 'enum', values: ['month', 'prev', 'season', 'custom'] } });
+  const [from, setFrom] = useNavState('st.att.from', monthStart(today()));
+  const [to, setTo] = useNavState('st.att.to', today());
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);

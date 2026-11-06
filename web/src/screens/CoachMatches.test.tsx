@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { describe, expect, it, vi } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import CoachMatches from './CoachMatches';
+import { resetDetachedNav } from '../nav';
 
 const groups = [{ id: 'g1', name: 'U9' }];
 const allGroups = [{ id: 'g1', name: 'U9' }, { id: 'g2', name: 'U11' }];
@@ -313,6 +314,7 @@ describe('«Новое событие»', () => {
     await waitFor(() => expect(fake.rpcCalls('event_set_status')).toEqual([{ t: 'e1', s: 'finished' }]));
     expect(await screen.findByRole('button', { name: 'Вернуть в работу' })).toBeInTheDocument();
     first.unmount();
+    resetDetachedNav(); // второй экран — как новый вход
     render(<CoachMatches groups={groups} />);
     fireEvent.click(await screen.findByText('Состав и игры события'));
     await screen.findByText('Добавить игру', { selector: 'h2' });

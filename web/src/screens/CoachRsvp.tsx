@@ -3,6 +3,7 @@ import { compareGroups, matchTeam, playsMatches, type CoachGroup } from '../lib/
 import { FILTER_LABEL, LIFECYCLE_LABEL, activityLine, fmtWhen, matchesFilter, fromTbilisiLocal, responseText, rsvpError, toTbilisiLocal, type Lifecycle, type RsvpResponse, type SummaryFilter } from '../lib/matchRsvp';
 import { supabase } from '../lib/supabase';
 import { Pill, ListRow } from '../ui/components';
+import { useNav } from '../nav';
 import { BackNav } from '../ui/nav';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { eventTitle, type EventRow } from './Events';
@@ -26,7 +27,9 @@ export default function CoachRsvp({ groups, onBack }: { groups: CoachGroup[]; on
   const [list, setList] = useState<RsvpMatch[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const [view, setView] = useState<{ id: string | null; note?: Note } | null>(null);
+  // «Новый матч» и карточка матча — записи стека; сообщение после создания держим локально (не сохраняется)
+  const nav = useNav();
+  const [createdNote, setCreatedNote] = useState<Note | undefined>(undefined);
   useEffect(() => {
     void (async () => {
       const r = await supabase.from('matches').select(COLS).neq('lifecycle_status', 'legacy').order('starts_at', { ascending: false });
@@ -34,19 +37,21 @@ export default function CoachRsvp({ groups, onBack }: { groups: CoachGroup[]; on
       setList((r.data ?? []) as RsvpMatch[]);
     })();
   }, [reload]);
-  const back = () => { setView(null); setReload(n => n + 1); };
-  if (view) return view.id ? <RsvpDetail id={view.id} groups={groups} onBack={back} note={view.note} /> : <RsvpCreate groups={groups} onBack={back} onCreated={(id, note) => setView({ id, note })} />;
-  if (error) return <Failure title="Не удалось загрузить матчи" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} />} />;
+  const back = () => { nav.back(); setCreatedNote(undefined); setReload(n => n + 1); };
+  const topId = nav.top.params.id;
+  if (nav.top.screen === 'rsvp.detail' && topId) return <RsvpDetail id={topId} groups={groups} onBack={back} note={createdNote} />;
+  if (nav.top.screen === 'rsvp.create') return <RsvpCreate groups={groups} onBack={back} onCreated={(id, note) => { nav.back(); setCreatedNote(note); nav.push('rsvp.detail', { id }); }} />;
+  if (error) return <Failure title="Не удалось загрузить матчи" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} managed />} />;
   if (!list) return <Loading />;
   return (
     <main className="page">
-      <BackNav onBack={onBack} />
+      <BackNav onBack={onBack} managed />
       <h1>Матчи с подтверждением</h1>
-      <button type="button" className="ks-btn" onClick={() => setView({ id: null })}>Новый матч</button>
+      <button type="button" className="ks-btn" onClick={() => nav.push('rsvp.create')}>Новый матч</button>
       <div style={{ height: 12 }} />
       {list.length === 0 && <p className="muted">Пока нет матчей с подтверждением участия.</p>}
       {list.map(m => (
-        <ListRow key={m.id} title={title(m)} sub={[m.starts_at ? fmtWhen(m.starts_at) : '']} end={<Pill tone={TONE[m.lifecycle_status]}>{LIFECYCLE_LABEL[m.lifecycle_status]}</Pill>} onClick={() => setView({ id: m.id })} />
+        <ListRow key={m.id} title={title(m)} sub={[m.starts_at ? fmtWhen(m.starts_at) : '']} end={<Pill tone={TONE[m.lifecycle_status]}>{LIFECYCLE_LABEL[m.lifecycle_status]}</Pill>} onClick={() => { setCreatedNote(undefined); nav.push('rsvp.detail', { id: m.id }); }} />
       ))}
     </main>
   );
@@ -106,7 +111,7 @@ function RsvpCreate({ groups, onBack, onCreated }: { groups: CoachGroup[]; onBac
   };
   return (
     <main className="page">
-      <BackNav onBack={onBack} />
+      <BackNav onBack={onBack} managed />
       <h1>Новый матч</h1>
       <label className="ks-label" htmlFor="rs-team">Команда</label>
       <select id="rs-team" className="ks-select" value={team} onChange={e => { setTeam(e.target.value); setTour(''); setGrp(''); }}>
@@ -211,7 +216,7 @@ function RsvpDetail({ id, groups, onBack, note }: { id: string; groups: CoachGro
     setReload(n => n + 1);
   };
 
-  if (error) return <Failure title="Не удалось загрузить матч" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} />} />;
+  if (error) return <Failure title="Не удалось загрузить матч" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} managed />} />;
   if (!m) return <Loading />;
   const st = m.lifecycle_status;
   const invited = roster.filter(p => p.status === 'invited'); // исключённые остаются в базе, в списке их нет
@@ -300,7 +305,7 @@ function RsvpDetail({ id, groups, onBack, note }: { id: string; groups: CoachGro
 
   return (
     <main className="page">
-      <BackNav onBack={onBack} />
+      <BackNav onBack={onBack} managed />
       {dialog}
       <h1>{title(m)}</h1>
       <p><Pill tone={TONE[st]}>{LIFECYCLE_LABEL[st]}</Pill> {m.starts_at ? fmtWhen(m.starts_at) : ''}</p>
