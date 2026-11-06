@@ -6,6 +6,7 @@ import { Loading } from './Message';
 import { useNavState } from '../nav';
 
 interface Template { id: string; isodow: number; start_time: string; goalkeepers: boolean; active: boolean }
+interface Overflow { template_id: string; regulars: number; cap: number }
 interface Member { template_id: string; player_id: string; players: { full_name: string } | null }
 
 const DAYS = ['', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
@@ -18,6 +19,7 @@ export default function IndRegulars() {
   const [month, setMonth] = useNavState('ir.month', thisMonth());
   const [templates, setTemplates] = useState<Template[] | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
+  const [overflow, setOverflow] = useState<Overflow[]>([]);
   const [tplId, setTplId] = useNavState('ir.tpl', '');
   const [q, setQ] = useState('');
   const [found, setFound] = useState<{ id: string; full_name: string }[]>([]);
@@ -41,6 +43,12 @@ export default function IndRegulars() {
     });
   }, [month, reload]);
 
+  // Предупреждение: постоянных на слот больше мест (ничего не блокирует; функция из миграции 0141, без неё предупреждений нет)
+  useEffect(() => {
+    if (!/^\d{4}-\d{2}$/.test(month)) return;
+    void supabase.rpc('ind_regulars_overflow', { mth: `${month}-01` }).then(r => setOverflow(r.error ? [] : ((r.data ?? []) as Overflow[])));
+  }, [month, reload]);
+
   useEffect(() => {
     if (q.trim().length < 2) return setFound([]);
     const t = setTimeout(() => {
@@ -58,7 +66,7 @@ export default function IndRegulars() {
     setBusy(null);
     if (r.error) {
       const m = r.error.message;
-      setMsg({ ok: false, text: m.includes('player not in club') ? 'Игрок из другого клуба.' : coachError(m) });
+      setMsg({ ok: false, text: m.includes('player not in club') ? 'Игрок из другого клуба.' : m.includes('player not active') ? 'Постоянным можно назначить только игрока в статусе «Занимается».' : coachError(m) });
       return false;
     }
     setMsg({ ok: true, text: ok(r.data) });
@@ -82,6 +90,9 @@ export default function IndRegulars() {
         return (
           <section key={t.id}>
             <h3>{slotTitle(t)}</h3>
+            {overflow.filter(o => o.template_id === t.id).map(o => (
+              <p key={o.template_id} className="error" role="alert">Постоянных ({o.regulars}) больше мест ({o.cap}): часть не попадёт на занятие.</p>
+            ))}
             {list.length === 0 ? <p className="muted">Постоянных на этот месяц нет.</p> : list.map(m => (
               <ListRow key={m.player_id} avatar={m.players?.full_name ?? ''} title={m.players?.full_name ?? 'Игрок'}
                 end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} aria-label={`Убрать: ${m.players?.full_name ?? ''}, ${slotTitle(t)}`} disabled={busy === 'd' + t.id + m.player_id} onClick={() => void setMember(t.id, m.player_id, false)}>Убрать</button>} />
