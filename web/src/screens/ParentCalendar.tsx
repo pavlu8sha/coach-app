@@ -36,6 +36,7 @@ const MATCH_KIND_LABEL: Record<string, string> = { championship: 'Матч че�
 const SEASON_MONTH = new Date(2026, 8, 1);
 const formatMonth = (date: Date) => date.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
 const formatTime = (time: string | null) => time ? time.slice(0, 5) : null;
+const clockTbilisi = (iso: string) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tbilisi', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso));
 
 function statusLabel(event: CalendarEvent) {
   if (event.event_type === 'match' && event.event_status === 'completed') return 'Завершён';
@@ -152,6 +153,26 @@ export default function ParentCalendar() {
     return () => { cancelled = true; };
   }, [playerId, month, retry]);
 
+  // время начала матча: RPC календаря его не отдаёт, берём из самого матча (родитель видит матчи своей команды)
+  const [matchTimes, setMatchTimes] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    const ids = events.filter(event => event.event_type === 'match' && !event.event_time).map(event => event.event_id.replace(/^match:/, ''));
+    if (ids.length === 0) { setMatchTimes(new Map()); return; }
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await supabase.from('matches').select('id, starts_at').in('id', ids);
+      if (cancelled || error) return;
+      const times = new Map<string, string>();
+      for (const row of (data ?? []) as { id: string; starts_at: string | null }[]) {
+        if (row.starts_at) times.set(row.id, clockTbilisi(row.starts_at));
+      }
+      setMatchTimes(times);
+    })();
+    return () => { cancelled = true; };
+  }, [events]);
+
+  const eventTime = (event: CalendarEvent) => formatTime(event.event_time) ?? matchTimes.get(event.event_id.replace(/^match:/, '')) ?? null;
+
   const matchLabel = (eventId: string) => matchLabels.get(eventId.replace(/^match:/, '')) ?? 'Матч';
 
   const eventDays = useMemo(() => {
@@ -251,7 +272,7 @@ export default function ParentCalendar() {
                   <div>
                     <div style={{ fontWeight: 650 }}>{event.title}</div>
                     <div style={{ color: 'var(--ks-text-muted, #5a6584)', fontSize: 13, marginTop: 4 }}>
-                      {[formatTime(event.event_time), event.location].filter(Boolean).join(' · ') || (event.event_type === 'match' ? matchLabel(event.event_id) : 'Тренировка')}
+                      {[eventTime(event), event.location].filter(Boolean).join(' · ') || (event.event_type === 'match' ? matchLabel(event.event_id) : 'Тренировка')}
                     </div>
                   </div>
                   <span style={{ flexShrink: 0, fontSize: 12, borderRadius: 999, padding: '4px 8px', background: 'var(--ks-primary-subtle, #dde4f6)', color: 'var(--ks-primary, #25335a)' }}>{statusLabel(event)}</span>

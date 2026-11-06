@@ -99,7 +99,8 @@ export default function Booking() {
         const left = r.capacity === null ? null : Math.max(0, r.capacity - r.booked.length);
         return (
           <section className="ks-card" key={r.kind + r.session_id}>
-            <div className="ks-line"><b>{KIND_LABEL[r.kind]}: {when(r.starts_at, r.kind, r.ends_at)}</b>{left !== null && <Pill tone={left > 0 ? 'success' : 'neutral'}>{left > 0 ? `Мест: ${left}` : 'Мест нет'}</Pill>}</div>
+            <b>{KIND_LABEL[r.kind]}: {when(r.starts_at, r.kind, r.ends_at)}</b>
+            {left !== null && <div style={{ margin: '6px 0 0' }}><Pill tone={left > 0 ? 'success' : 'neutral'}>{left > 0 ? `Мест: ${left}` : 'Мест нет'}</Pill></div>}
             <div className="ks-muted" style={{ fontSize: 13 }}>{[r.title, r.place, r.amount !== null && Number(r.amount) > 0 ? gel(r.amount) : null].filter(Boolean).join(' · ')}</div>
             {r.booked.length ? (
               <div style={{ margin: '8px 0' }}>
