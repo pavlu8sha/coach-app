@@ -12,13 +12,13 @@ import IndRegulars from './IndRegulars';
 import BookingCancellations from './BookingCancellations';
 
 interface Booking { player_id: string; paid: boolean; attended: boolean | null; amount: number; players: { full_name: string } | null }
-interface Session { id: string; starts_at: string; topic: string | null; goalkeepers: boolean; individual_bookings: Booking[] }
+interface Session { id: string; starts_at: string; ends_at?: string | null; topic: string | null; goalkeepers: boolean; individual_bookings: Booking[] }
 interface DebtRow { session_id: string; player_id: string; amount: number; players: { full_name: string } | null; individual_sessions: { starts_at: string; goalkeepers: boolean; topic: string | null } }
 
 const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
 const dayOf = (ts: string) => ts.slice(0, 10);
 const timeOf = (ts: string) => hm(ts.slice(11, 16));
-const title = (s: { starts_at: string; goalkeepers: boolean }) => `${fmtDate(dayOf(s.starts_at))} ${timeOf(s.starts_at)} · ${s.goalkeepers ? 'Вратари' : 'Индивидуальные'}`;
+const title = (s: { starts_at: string; ends_at?: string | null; goalkeepers: boolean }) => `${fmtDate(dayOf(s.starts_at))} ${timeOf(s.starts_at)}${s.ends_at ? `–${timeOf(s.ends_at)}` : ''} · ${s.goalkeepers ? 'Вратари' : 'Индивидуальные'}`;
 const METHODS = ['Наличные', 'Перевод'];
 const nowLocal = () => `${today()}T${new Date().toTimeString().slice(0, 5)}`;
 
@@ -61,7 +61,7 @@ export default function Individual() {
         if (r.error) return setError(coachError(r.error.message));
         return setDebts((r.data ?? []) as unknown as DebtRow[]);
       }
-      const q = supabase.from('individual_sessions').select('id, starts_at, topic, goalkeepers, individual_bookings(player_id, paid, attended, amount, players(full_name))');
+      const q = supabase.from('individual_sessions').select('id, starts_at, ends_at, topic, goalkeepers, individual_bookings(player_id, paid, attended, amount, players(full_name))');
       const r = tab === 'next' ? await q.gte('starts_at', now).order('starts_at').limit(limit + 1) : await q.lt('starts_at', now).order('starts_at', { ascending: false }).limit(limit + 1);
       if (r.error) return setError(r.error.message.includes('goalkeepers') ? 'Модуль ещё не установлен в базе (миграция 0034).' : coachError(r.error.message));
       const rows = (r.data ?? []) as unknown as Session[];
@@ -148,17 +148,18 @@ export default function Individual() {
 function SessionForm({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
   const [date, setDate] = useState(today());
   const [time, setTime] = useState('12:00');
+  const [end, setEnd] = useState('');
   const [gk, setGk] = useState(false);
   const [theme, setTheme] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  useDirtyGuard(date !== today() || time !== '12:00' || gk || theme.trim() !== '');
+  useDirtyGuard(date !== today() || time !== '12:00' || end !== '' || gk || theme.trim() !== '');
   const save = async () => {
     setBusy(true);
     setErr(null);
-    const r = await supabase.rpc('ind_create_session', { d: date, t: time, gk, theme });
+    const r = await supabase.rpc('ind_create_session', { d: date, t: time, gk, theme, t_end: end || null });
     setBusy(false);
-    if (r.error) return setErr(r.error.message.includes('session exists') ? 'Такое занятие уже есть.' : coachError(r.error.message));
+    if (r.error) return setErr(r.error.message.includes('session exists') ? 'Такое занятие уже есть.' : r.error.message.includes('end before start') ? 'Окончание должно быть позже начала.' : coachError(r.error.message));
     onDone();
   };
   return (
@@ -167,7 +168,8 @@ function SessionForm({ onBack, onDone }: { onBack: () => void; onDone: () => voi
       <h1>Новое занятие</h1>
       <Segmented label="Тип" value={gk ? 'gk' : 'ind'} onChange={v => setGk(v === 'gk')} items={[{ value: 'ind', label: 'Индивидуальные' }, { value: 'gk', label: 'Вратари' }]} />
       <label className="field">Дата<input type="date" value={date} onChange={e => setDate(e.target.value)} /></label>
-      <label className="field">Время<input type="time" value={time} onChange={e => setTime(e.target.value)} /></label>
+      <label className="field">Начало<input type="time" value={time} onChange={e => setTime(e.target.value)} /></label>
+      <label className="field">Окончание (необязательно)<input type="time" value={end} onChange={e => setEnd(e.target.value)} /></label>
       <label className="field">Тема (необязательно)<input value={theme} maxLength={80} onChange={e => setTheme(e.target.value)} /></label>
       <p className="muted">Занятие создаётся пустым: игроков записывайте на каждое занятие отдельно.</p>
       {err && <p className="error">{err}</p>}
@@ -184,6 +186,7 @@ function SessionView({ session, onBack }: { session: Session; onBack: () => void
   const [found, setFound] = useState<{ id: string; full_name: string }[]>([]);
   const [date, setDate] = useState(dayOf(session.starts_at));
   const [time, setTime] = useState(timeOf(session.starts_at));
+  const [end, setEnd] = useState(session.ends_at ? timeOf(session.ends_at) : '');
   const [theme, setTheme] = useState(session.topic ?? '');
   const [gk, setGk] = useState(session.goalkeepers); // тип занятия: выбранный в форме
   const [saved, setSaved] = useState({ starts_at: session.starts_at, goalkeepers: session.goalkeepers, topic: session.topic });
@@ -285,9 +288,10 @@ function SessionView({ session, onBack }: { session: Session; onBack: () => void
       <h3>Занятие</h3>
       <Segmented label="Тип занятия" value={gk ? 'gk' : 'ind'} onChange={v => setGk(v === 'gk')} items={[{ value: 'ind', label: 'Индивидуальное' }, { value: 'gk', label: 'Вратари' }]} />
       <label className="field">Дата<input type="date" value={date} disabled={anyPaid} onChange={e => setDate(e.target.value)} /></label>
-      <label className="field">Время<input type="time" value={time} disabled={anyPaid} onChange={e => setTime(e.target.value)} /></label>
+      <label className="field">Начало<input type="time" value={time} disabled={anyPaid} onChange={e => setTime(e.target.value)} /></label>
+      <label className="field">Окончание (необязательно)<input type="time" value={end} onChange={e => setEnd(e.target.value)} /></label>
       <label className="field">Тема<input value={theme} maxLength={80} onChange={e => setTheme(e.target.value)} /></label>
-      <button type="button" className="ks-btn" disabled={busy === 'edit' || !date || !time} onClick={() => void run('edit', () => supabase.rpc('ind_edit_session', { s: session.id, d: date, t: time, theme, gk }), 'Сохранено.').then(ok => { if (ok) setSaved({ starts_at: `${date}T${time}:00`, goalkeepers: gk, topic: theme.trim() || null }); })}>Сохранить</button>
+      <button type="button" className="ks-btn" disabled={busy === 'edit' || !date || !time} onClick={() => void run('edit', () => supabase.rpc('ind_edit_session', { s: session.id, d: date, t: time, theme, gk, t_end: end || null }), 'Сохранено.').then(ok => { if (ok) setSaved({ starts_at: `${date}T${time}:00`, goalkeepers: gk, topic: theme.trim() || null }); })}>Сохранить</button>
       <div style={{ height: 8 }} />
       <button type="button" className="ks-btn secondary" disabled={anyPaid || busy === 'del'} onClick={() => void deleteSession()}>{anyPaid ? 'Удалить нельзя: есть оплаты' : 'Удалить занятие'}</button>
       {confirmDialog}

@@ -138,4 +138,18 @@ describe('Запись на занятия', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Записать: Аня Первая' }));
     expect(await screen.findByText(/не для группы ребёнка/)).toBeInTheDocument();
   });
+
+  it('пересечение: предупреждение перед записью, запись по подтверждению', async () => {
+    fake.db.player_guardians = [{ user_id: 'u', consent_revoked_at: null, players: { id: 'p1', full_name: 'Аня Первая' } }];
+    fake.rpc.booking_board = () => board();
+    fake.rpc.waitlist_board = () => [];
+    fake.rpc.booking_conflicts = () => [{ kind: 'training', label: 'Тренировка группы', starts_at: '2099-01-01T18:30:00', ends_at: null }];
+    fake.rpc.booking_signup = () => null;
+    render(<Booking />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Записать: Аня Первая' }));
+    expect(await screen.findByText(/уже есть: Тренировка группы \(18:30\)/)).toBeInTheDocument();
+    expect(fake.rpcCalls('booking_signup')).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Всё равно записать: Аня Первая' }));
+    await waitFor(() => expect(fake.rpcCalls('booking_signup')).toHaveLength(1));
+  });
 });
