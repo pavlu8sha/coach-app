@@ -27,7 +27,7 @@ select is(
   (select coalesce(string_agg(p.proname, ', ' order by p.proname), '') from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.prosecdef and has_function_privilege('authenticated', p.oid, 'execute')
       and p.proname not in (
-        'award_bonus', 'waitlist_board', 'waitlist_claim', 'waitlist_join', 'waitlist_leave', 'waitlist_session', 'can_see_team', 'cancel_link', 'child_linked', 'create_child_code', 'debtors', 'decide_link', 'delete_match',
+        'award_bonus', 'booking_conflicts', 'waitlist_board', 'waitlist_claim', 'waitlist_join', 'waitlist_leave', 'waitlist_session', 'can_see_team', 'cancel_link', 'child_linked', 'create_child_code', 'debtors', 'decide_link', 'delete_match',
         'erase_parent', 'export_my_data', 'group_parents', 'group_rating', 'is_admin', 'is_coach_of_group', 'is_coach_of_player',
         'is_coach_of_subscription', 'is_guardian_in_group', 'is_guardian_of', 'is_self_player', 'mark_attendance', 'open_session',
         'parent_calendar', 'parent_first_attendance', 'parent_debts', 'recalc_match_points', 'redeem_child_code', 'reject_data_request', 'request_data_deletion', 'request_link',

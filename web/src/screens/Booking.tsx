@@ -8,6 +8,7 @@ type Kind = 'individual' | 'goalkeeper' | 'extra';
 interface Mine { player_id: string; name: string; paid: boolean; amount: number | string }
 interface Row { kind: Kind; session_id: string; starts_at: string; ends_at?: string | null; title: string; place: string | null; capacity: number | null; amount: number | string | null; booked: string[]; mine: Mine[]; eligible?: string[] | null }
 interface Kid { id: string; name: string }
+interface Clash { kind: string; label: string; starts_at: string; ends_at: string | null }
 interface Wait { kind: Kind; session_id: string; player_id: string; pos: number; total: number; offer: boolean }
 
 const err = (m: string) =>
@@ -24,6 +25,7 @@ const err = (m: string) =>
   : m.includes('Could not find the function') ? 'Запись пока недоступна (миграция 0045).'
   : coachError(m);
 const KIND_LABEL: Record<Kind, string> = { individual: 'Индивидуальная', goalkeeper: 'Вратарская', extra: 'Дополнительная' };
+const clockOf = (iso: string) => iso.slice(11, 16);
 const gel = (n: number | string | null) => (n === null ? '' : `${Number(n)} ₾`);
 const when = (iso: string, kind: Kind, endIso?: string | null) => {
   const d = new Date(iso);
@@ -43,6 +45,7 @@ export default function Booking() {
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [waits, setWaits] = useState<Wait[]>([]);
+  const [clash, setClash] = useState<{ key: string; list: Clash[] } | null>(null);
 
   const load = useCallback(async () => {
     const me = (await supabase.auth.getUser()).data.user?.id;
@@ -56,12 +59,22 @@ export default function Booking() {
   }, []);
   useEffect(() => { void load(); }, [load]);
 
+  // Перед записью проверяем пересечения ребёнка с другими занятиями: только предупреждение, запись не блокируется
+  const trySignup = async (r: Row, kid: Kid) => {
+    setMsg(null);
+    const c = await supabase.rpc('booking_conflicts', { k: r.kind, s: r.session_id, p: kid.id });
+    const list = c.error ? [] : ((c.data ?? []) as Clash[]);
+    if (list.length === 0) return act('booking_signup', r, kid);
+    setClash({ key: r.session_id + kid.id, list });
+  };
+
   const act = async (fn: 'booking_signup' | 'booking_cancel' | 'waitlist_join' | 'waitlist_leave' | 'waitlist_claim', r: Row, kid: Kid) => {
     setBusy(r.session_id + kid.id);
     setMsg(null);
     const res = await supabase.rpc(fn, { k: r.kind, s: r.session_id, p: kid.id });
     setBusy(null);
     if (res.error) return setMsg(err(res.error.message));
+    setClash(null);
     await load();
   };
 
@@ -108,7 +121,14 @@ export default function Booking() {
                 }
                 return left === 0
                   ? <button key={k.id} type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy !== null} onClick={() => void act('waitlist_join', r, k)}>Встать в очередь: {k.name}</button>
-                  : <button key={k.id} type="button" className="ks-btn" style={{ marginTop: 8 }} disabled={busy !== null} onClick={() => void act('booking_signup', r, k)}>Записать: {k.name}</button>;
+                  : clash?.key === r.session_id + k.id ? (
+                    <div key={k.id} style={{ marginTop: 8 }} role="alert">
+                      <p className="error" style={{ margin: '0 0 6px' }}>В это время у {k.name} уже есть: {clash.list.map(c => `${c.label} (${clockOf(c.starts_at)}${c.ends_at ? `–${clockOf(c.ends_at)}` : ''})`).join(', ')}.</p>
+                      <button type="button" className="ks-btn" disabled={busy !== null} onClick={() => void act('booking_signup', r, k)}>Всё равно записать: {k.name}</button>
+                      <button type="button" className="ks-btn secondary" style={{ marginTop: 6 }} onClick={() => setClash(null)}>Не записывать</button>
+                    </div>
+                  )
+                  : <button key={k.id} type="button" className="ks-btn" style={{ marginTop: 8 }} disabled={busy !== null} onClick={() => void trySignup(r, k)}>Записать: {k.name}</button>;
               })();
             })}
           </section>

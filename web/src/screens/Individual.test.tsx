@@ -64,10 +64,11 @@ describe('«Индивидуальные»', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Новое занятие' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Вратари' }));
     fireEvent.change(screen.getByLabelText('Дата'), { target: { value: '2099-02-01' } });
-    fireEvent.change(screen.getByLabelText('Время'), { target: { value: '10:30' } });
+    fireEvent.change(screen.getByLabelText('Начало'), { target: { value: '10:30' } });
+    fireEvent.change(screen.getByLabelText('Окончание (необязательно)'), { target: { value: '11:30' } });
     fireEvent.click(screen.getByRole('button', { name: 'Создать' }));
     expect(await screen.findByText('Такое занятие уже есть.')).toBeInTheDocument();
-    expect(fake.rpcCalls('ind_create_session')[0]).toMatchObject({ d: '2099-02-01', t: '10:30', gk: true });
+    expect(fake.rpcCalls('ind_create_session')[0]).toMatchObject({ d: '2099-02-01', t: '10:30', t_end: '11:30', gk: true });
   });
 
   it('карточка занятия: оплата, посещение и сообщение, когда база отказывает убрать оплаченного', async () => {
