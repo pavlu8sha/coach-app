@@ -91,4 +91,15 @@ describe('календарь родителя', () => {
     fake.rpc.parent_first_attendance = () => null;
     expect(await earliestMonth()).toContain('сентябрь');
   });
+  it('у матча показывает время начала из самого матча (Тбилиси)', async () => {
+    const today = new Date();
+    const eventDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    fake.db.matches = [{ id: 'm1', starts_at: `${eventDate}T14:30:00+04:00` }];
+    fake.rpc.parent_calendar = () => [{
+      event_id: 'match:m1', event_date: eventDate, event_time: null, event_type: 'match',
+      title: 'Матч с Динамо', location: null, event_status: 'upcoming', attendance_status: null,
+    }];
+    render(<ParentCalendar />);
+    expect(await screen.findByText('14:30')).toBeInTheDocument();
+  });
 });
