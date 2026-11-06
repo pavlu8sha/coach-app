@@ -10,7 +10,7 @@ type Sub = 'cash' | 'month' | 'debtors' | 'report';
 // Вкладка «Оплаты» администратора, как в старом приложении: «Приём оплат» (платежи дня, отмена), «По месяцам и группам», «Должники»
 export default function Money() {
   // подраздел возвращается при переключении вкладок и «Назад»
-  const [sub, setSub] = useNavState<Sub>('sub', 'cash', { persist: { kind: 'enum', values: ['cash', 'month', 'debtors', 'report'] } });
+  const [sub, setSub] = useNavState<Sub>('sub', 'cash', { entry: 0, persist: { kind: 'enum', values: ['cash', 'month', 'debtors', 'report'] } });
   return (
     <>
       <header style={{ maxWidth: 560, margin: '0 auto', padding: '12px 16px 0' }}>

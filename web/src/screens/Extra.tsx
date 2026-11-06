@@ -3,6 +3,7 @@ import { coachError, fmtDate, groupInOrder, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput, Segmented } from '../ui/components';
 import { BackNav } from '../ui/nav';
+import { useNav, useNavState } from '../nav';
 import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
 
@@ -23,13 +24,13 @@ type Tab = 'next' | 'past' | 'debt';
 // Дополнительные тренировки для администратора (миграция 0035): запись, оплата, долги.
 export default function Extra() {
   const { ask, dialog: confirmDialog } = useConfirm();
-  const [tab, setTab] = useState<Tab>('next');
+  // Новая тренировка и тренировка — записи стека; вкладка списка возвращается при «Назад»
+  const nav = useNav();
+  const [tab, setTab] = useNavState<Tab>('ex.tab', 'next', { entry: 0, persist: { kind: 'enum', values: ['next', 'past', 'debt'] } });
   const [list, setList] = useState<Session[] | null>(null);
   const [debts, setDebts] = useState<DebtRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const [openId, setOpenId] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
   const [paying, setPaying] = useState<string | null>(null);
 
   useEffect(() => {
@@ -46,11 +47,11 @@ export default function Extra() {
     })();
   }, [tab, reload]);
 
-  const done = () => { setCreating(false); setList(null); setDebts(null); setReload(n => n + 1); };
+  const done = () => { setList(null); setDebts(null); setReload(n => n + 1); };
   if (error) return <Failure title="Не удалось загрузить тренировки" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
-  if (creating) return <Form onBack={() => setCreating(false)} onDone={done} />;
-  const open = list?.find(s => s.id === openId);
-  if (open) return <View session={open} onBack={() => { setOpenId(null); done(); }} />;
+  if (nav.top.screen === 'new') return <Form onBack={() => nav.back()} onDone={() => { nav.back(); done(); }} />;
+  const open = nav.top.screen === 'session' ? list?.find(s => s.id === nav.top.params.id) : undefined;
+  if (open) return <View session={open} onBack={() => { nav.back(); done(); }} />;
 
   const byPlayer = new Map<string, { name: string; sum: number; n: number; rows: DebtRow[] }>();
   (debts ?? []).forEach(d => {
@@ -73,7 +74,7 @@ export default function Extra() {
       <h1>Дополнительные</h1>
       <Segmented label="Раздел" value={tab} onChange={v => { setList(null); setDebts(null); setTab(v); }} items={[{ value: 'next', label: 'Предстоящие' }, { value: 'past', label: 'Прошедшие' }, { value: 'debt', label: 'Долги' }]} />
       <div style={{ height: 10 }} />
-      {tab !== 'debt' && <button type="button" className="ks-btn" onClick={() => setCreating(true)}>Новая тренировка</button>}
+      {tab !== 'debt' && <button type="button" className="ks-btn" onClick={() => nav.push('new')}>Новая тренировка</button>}
       {tab === 'debt' ? (
         !debts ? <Loading /> : byPlayer.size === 0 ? (
           <EmptyState icon="users" title="Долгов нет" text="Все записанные на прошедшие тренировки оплатили." />
@@ -103,7 +104,7 @@ export default function Extra() {
           <details className="ks-group" key={day}>
             <summary><div className="ks-line"><b>{fmtDate(day)}</b><span className="muted">{items.length} тр.</span></div></summary>
             {items.map(s => (
-              <ListRow key={s.id} avatar="Д" title={`${fmtDate(s.starts_on)}${timeSpan(s)} · ${gel(Number(s.amount))}`} sub={[s.place ?? 'место не указано', `Записано: ${s.extra_bookings.length}, оплатили: ${s.extra_bookings.filter(b => b.paid).length}`]} onClick={() => setOpenId(s.id)} />
+              <ListRow key={s.id} avatar="Д" title={`${fmtDate(s.starts_on)}${timeSpan(s)} · ${gel(Number(s.amount))}`} sub={[s.place ?? 'место не указано', `Записано: ${s.extra_bookings.length}, оплатили: ${s.extra_bookings.filter(b => b.paid).length}`]} onClick={() => nav.push('session', { id: s.id })} />
             ))}
           </details>
         ))
@@ -129,7 +130,7 @@ function Form({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
   };
   return (
     <main className="page">
-      <BackNav onBack={onBack} />
+      <BackNav onBack={onBack} managed />
       <h1>Новая тренировка</h1>
       <label className="field">Дата<input type="date" value={date} onChange={e => setDate(e.target.value)} /></label>
       <label className="field">Сумма с игрока, ₾<input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /></label>
@@ -196,7 +197,7 @@ function View({ session, onBack }: { session: Session; onBack: () => void }) {
   const sorted = [...bookings].sort((a, b) => (a.players?.full_name ?? '').localeCompare(b.players?.full_name ?? '', 'ru'));
   return (
     <main className="page">
-      <BackNav onBack={onBack} />
+      <BackNav onBack={onBack} managed />
       <h1>{fmtDate(session.starts_on)}{timeSpan(session)} · {gel(Number(session.amount))}</h1>
       <p className="muted">{session.place ?? 'Место не указано'}</p>
       {msg && <p className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}

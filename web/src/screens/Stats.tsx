@@ -25,7 +25,7 @@ type Kind = 'att' | 'matches';
 // Статистика для администратора и тренера: посещаемость групп и матчи за период.
 // own — экран тренера: база отдаёт только его группы и их команды (0080), пустой результат объясняем отдельно.
 export default function Stats({ own = false }: { own?: boolean }) {
-  const [kind, setKind] = useNavState<Kind>('st.kind', 'att', { persist: { kind: 'enum', values: ['att', 'matches'] } });
+  const [kind, setKind] = useNavState<Kind>('st.kind', 'att', { entry: 0, persist: { kind: 'enum', values: ['att', 'matches'] } });
   return (
     <>
       <header style={{ maxWidth: 560, margin: '0 auto', padding: '8px 16px 0' }}>

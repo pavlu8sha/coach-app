@@ -3,6 +3,7 @@ import { coachError, compareGroups, fmtDate, groupByGroupName, today } from '../
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput, Segmented, SwitchRow } from '../ui/components';
 import { BackNav } from '../ui/nav';
+import { useNav, useNavState } from '../nav';
 import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { settingNumberError, useClubSettings } from '../lib/clubSettings';
@@ -78,17 +79,17 @@ type Tab = 'all' | 'unpaid' | 'noissue' | 'incomplete' | 'catalog' | 'text';
 
 // Экипировка для администратора (миграция 0036): заказы, оплата, выдача, каталог.
 export default function Equipment() {
-  const [tab, setTab] = useState<Tab>('all');
+  // Каталог, требование к форме, новый заказ и заказ — записи стека; фильтры списка живут в записи списка (entry: 0)
+  const nav = useNav();
+  const [tab, setTab] = useNavState<Tab>('eq.tab', 'all', { entry: 0, persist: { kind: 'enum', values: ['all', 'unpaid', 'noissue', 'incomplete'] } });
   const [orders, setOrders] = useState<Order[] | null>(null);
-  const [q, setQ] = useState('');
-  const [fGroup, setFGroup] = useState('');
-  const [fKit, setFKit] = useState('');
-  const [fLoc, setFLoc] = useState('');
-  const [fIssue, setFIssue] = useState('');
+  const [q, setQ] = useNavState('eq.q', '', { entry: 0 }); // поиск на диск не пишем: в нём имена детей
+  const [fGroup, setFGroup] = useNavState('eq.group', '', { entry: 0 });
+  const [fKit, setFKit] = useNavState('eq.kit', '', { entry: 0 });
+  const [fLoc, setFLoc] = useNavState('eq.loc', '', { entry: 0 });
+  const [fIssue, setFIssue] = useNavState<'' | 'yes' | 'no'>('eq.issue', '', { entry: 0, persist: { kind: 'enum', values: ['', 'yes', 'no'] } });
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const [openId, setOpenId] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -125,20 +126,21 @@ export default function Equipment() {
     return { players: new Set(shown.map(o => o.players?.full_name ?? o.id)).size, total, paid, debt: total - paid };
   }, [shown]);
 
-  const done = () => { setCreating(false); setOrders(null); setReload(n => n + 1); };
+  const done = () => { nav.backToRoot(); setOrders(null); setReload(n => n + 1); };
   if (error) return <Failure title="Не удалось загрузить заказы" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
-  if (creating) return <NewOrder onBack={() => setCreating(false)} onDone={done} />;
-  if (tab === 'catalog') return <Catalog onTab={setTab} />;
-  if (tab === 'text') return <RequirementEditor onBack={() => setTab('all')} />;
-  const open = orders?.find(o => o.id === openId);
-  if (open) return <OrderView order={open} knownNumber={open.player_id ? numbers.get(open.player_id) : undefined} onBack={() => { setOpenId(null); done(); }} />;
+  const screen = nav.top.screen;
+  if (screen === 'new') return <NewOrder onBack={() => nav.back()} onDone={done} />;
+  if (screen === 'catalog') return <Catalog onBack={() => nav.back()} />;
+  if (screen === 'text') return <RequirementEditor onBack={() => nav.back()} />;
+  const open = screen === 'order' ? orders?.find(o => o.id === nav.top.params.id) : undefined;
+  if (open) return <OrderView order={open} knownNumber={open.player_id ? numbers.get(open.player_id) : undefined} onBack={done} />;
 
   return (
     <main className="page">
       <h1>Экипировка</h1>
-      <Segmented label="Раздел" value={tab} onChange={setTab} items={[{ value: 'all', label: 'Все' }, { value: 'unpaid', label: 'Не оплачены' }, { value: 'noissue', label: 'Не выданы' }, { value: 'incomplete', label: 'Неполные' }, { value: 'catalog', label: 'Каталог' }, { value: 'text', label: 'Текст' }]} />
+      <Segmented label="Раздел" value={tab} onChange={v => (v === 'catalog' || v === 'text' ? nav.push(v) : setTab(v))} items={[{ value: 'all', label: 'Все' }, { value: 'unpaid', label: 'Не оплачены' }, { value: 'noissue', label: 'Не выданы' }, { value: 'incomplete', label: 'Неполные' }, { value: 'catalog', label: 'Каталог' }, { value: 'text', label: 'Текст' }]} />
       <div style={{ height: 10 }} />
-      <button type="button" className="ks-btn" onClick={() => setCreating(true)}>Новый заказ</button>
+      <button type="button" className="ks-btn" onClick={() => nav.push('new')}>Новый заказ</button>
       <div style={{ height: 10 }} />
       <SearchInput label="Найти игрока" placeholder="Фамилия или имя" value={q} onChange={setQ} suggestions={q.trim().length >= 2 ? shown.slice(0, 8).map(o => o.players?.full_name ?? "") .filter(Boolean) : []} />
       <div className="ks-pair">
@@ -147,7 +149,7 @@ export default function Equipment() {
       </div>
       <div className="ks-pair">
         <select className="ks-select" aria-label="Локация" value={fLoc} onChange={e => setFLoc(e.target.value)}><option value="">Все локации</option>{options.locs.map(l => <option key={l}>{l}</option>)}</select>
-        <select className="ks-select" aria-label="Выдача" value={fIssue} onChange={e => setFIssue(e.target.value)}><option value="">Выдача: любая</option><option value="yes">Выдано</option><option value="no">Не выдано</option></select>
+        <select className="ks-select" aria-label="Выдача" value={fIssue} onChange={e => setFIssue(e.target.value as '' | 'yes' | 'no')}><option value="">Выдача: любая</option><option value="yes">Выдано</option><option value="no">Не выдано</option></select>
       </div>
       {orders && (
         <div className="ks-tiles" style={{ marginBottom: 12, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
@@ -170,7 +172,7 @@ export default function Equipment() {
                 title={o.players?.full_name ?? 'Игрок'}
                 sub={[[...new Set(o.equipment_order_lines.map(l => l.kit))].join(' + ') || 'без позиций', `${o.ordered_on ? fmtDate(o.ordered_on) : 'без даты'} · ${orderStatusLabel(o.status)} · выдано: ${issueState(o)}${missingOf(o).length ? ` · не заполнено: ${missingOf(o).join(', ')}${missingOf(o).includes('номер') && o.player_id && numbers.has(o.player_id) ? ` (номер ${numbers.get(o.player_id)} есть в другом заказе)` : ''}` : ''}`]}
                 end={<Pill tone={o.paid >= o.total ? 'success' : 'danger'} dot>{o.paid >= o.total ? 'Оплачен' : `${o.paid} из ${gel(o.total)}`}</Pill>}
-                onClick={() => setOpenId(o.id)}
+                onClick={() => nav.push('order', { id: o.id })}
               />
             ))}
           </details>
@@ -193,7 +195,7 @@ function useCatalog() {
   return { kits, refresh: () => setReload(n => n + 1) };
 }
 
-function Catalog({ onTab }: { onTab: (t: Tab) => void }) {
+function Catalog({ onBack }: { onBack: () => void }) {
   const { kits, refresh } = useCatalog();
   const [kit, setKit] = useState('');
   const [price, setPrice] = useState('');
@@ -211,7 +213,7 @@ function Catalog({ onTab }: { onTab: (t: Tab) => void }) {
   };
   return (
     <main className="page">
-      <BackNav onBack={() => onTab('all')} />
+      <BackNav onBack={onBack} managed />
       <h1>Каталог</h1>
       {!kits ? <Loading /> : kits.map(k => <ListRow key={k.kit} title={k.kit} end={<b>{gel(k.price)}</b>} onClick={() => { setKit(k.kit); setPrice(String(k.price)); }} />)}
       <h3>Позиция и цена</h3>
@@ -254,7 +256,7 @@ function RequirementEditor({ onBack }: { onBack: () => void }) {
   if (error) return <Failure title="Не удалось загрузить текст" text={error} onRetry={() => { setError(null); onBack(); }} />;
   return (
     <main className="page">
-      <BackNav onBack={onBack} />
+      <BackNav onBack={onBack} managed />
       <h1>Требование к форме</h1>
       <p className="muted">Этот текст видят родители в экипировке. Пишите только утверждённые условия: сроки, состав и цены без согласования не добавляйте.</p>
       {text === null ? <Loading /> : (
@@ -334,7 +336,7 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
   };
   return (
     <main className="page">
-      <BackNav onBack={onBack} />
+      <BackNav onBack={onBack} managed />
       <h1>Новый заказ</h1>
       {player ? (
         <ListRow avatar={player.full_name} title={player.full_name} end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} onClick={() => setPlayer(null)}>Сменить</button>} />
@@ -461,7 +463,7 @@ function OrderView({ order, knownNumber, onBack }: { order: Order; knownNumber?:
   };
   return (
     <main className="page">
-      <BackNav onBack={onBack} />
+      <BackNav onBack={onBack} managed />
       <h1 style={{ overflowWrap: 'anywhere' }}>{o.players?.full_name ?? 'Заказ'}</h1>
       <p className="muted">{o.ordered_on ? fmtDate(o.ordered_on) : 'Дата не указана'} · оплачено {gel(o.paid)} из {gel(o.total)}{o.installment ? ' · рассрочка' : ''}</p>
       {msg && <p className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}

@@ -3,6 +3,7 @@ import { coachError, compareGroups, fmtDate, groupByGroupName } from '../lib/coa
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput, Segmented } from '../ui/components';
 import { BackNav } from '../ui/nav';
+import { useNav, useNavState } from '../nav';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { Failure, Loading } from './Message';
 
@@ -25,10 +26,11 @@ export default function LocationEquipment() {
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const [q, setQ] = useState('');
-  const [fGroup, setFGroup] = useState('');
-  const [only, setOnly] = useState<'no' | 'all'>('no');
-  const [openId, setOpenId] = useState<string | null>(null);
+  // Заказ — запись стека; поиск и фильтры списка возвращаются при «Назад»
+  const nav = useNav();
+  const [q, setQ] = useNavState('le.q', '', { entry: 0 });
+  const [fGroup, setFGroup] = useNavState('le.group', '', { entry: 0 });
+  const [only, setOnly] = useNavState<'no' | 'all'>('le.only', 'no', { entry: 0, persist: { kind: 'enum', values: ['no', 'all'] } });
 
   useEffect(() => {
     void (async () => {
@@ -47,8 +49,8 @@ export default function LocationEquipment() {
   }, [orders, q, fGroup, only]);
 
   if (error) return <Failure title="Не удалось загрузить заказы" text={error} onRetry={() => { setError(null); setOrders(null); setReload(n => n + 1); }} />;
-  const open = orders?.find(o => o.id === openId);
-  if (open) return <OrderIssue order={open} onBack={() => { setOpenId(null); setOrders(null); setReload(n => n + 1); }} />;
+  const open = nav.top.screen === 'order' ? orders?.find(o => o.id === nav.top.params.id) : undefined;
+  if (open) return <OrderIssue order={open} onBack={() => { nav.back(); setOrders(null); setReload(n => n + 1); }} />;
 
   return (
     <main className="page">
@@ -70,7 +72,7 @@ export default function LocationEquipment() {
                 title={o.players?.full_name ?? 'Игрок'}
                 sub={[kitsOf(o).join(' + ') || 'без позиций', o.ordered_on ? fmtDate(o.ordered_on) : 'без даты']}
                 end={<Pill tone={pending(o).length === 0 ? 'success' : 'neutral'} dot>{pending(o).length === 0 ? 'Выдано' : `Осталось: ${pending(o).length}`}</Pill>}
-                onClick={() => setOpenId(o.id)}
+                onClick={() => nav.push('order', { id: o.id })}
               />
             ))}
           </details>
@@ -107,7 +109,7 @@ function OrderIssue({ order, onBack }: { order: Order; onBack: () => void }) {
 
   return (
     <main className="page">
-      <BackNav onBack={onBack} />
+      <BackNav onBack={onBack} managed />
       <h1 style={{ overflowWrap: 'anywhere' }}>{o.players?.full_name ?? 'Заказ'}</h1>
       <p className="muted">{[o.players?.groups?.name, o.location, o.ordered_on ? fmtDate(o.ordered_on) : null].filter(Boolean).join(' · ')}</p>
       {msg && <p className={msg.ok ? 'muted' : 'error'} role={msg.ok ? 'status' : 'alert'}>{msg.text}</p>}
