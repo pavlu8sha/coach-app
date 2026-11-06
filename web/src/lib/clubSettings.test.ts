@@ -29,6 +29,7 @@ describe('Настройки клуба: значения и проверка', 
     expect(settingError(settingDef('ind.capIndividual')!, '0')).toBe('Не меньше 1.');
     expect(settingError(settingDef('ind.capIndividual')!, '6,5')).toBe('Нужно целое число.');
     expect(settingNumber({ 'ind.capIndividual': '6,5' }, 'ind.capIndividual')).toBeNaN();
+    expect(settingError(settingDef('extra.cap')!, '6,5')).toBe('Нужно целое число.');
     expect(settingError(settingDef('equip.discPct')!, '12,5')).toBeNull();
     expect(settingError(settingDef('equip.discRound')!, '0')).toBe('Не меньше 1.');
     expect(settingError(settingDef('equip.discRound')!, '5,5')).toBe('Нужно целое число.');

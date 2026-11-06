@@ -1,7 +1,7 @@
--- pgTAP: лимит мест на дополнительной тренировке из настройки extra.cap (0102).
+-- pgTAP: лимит мест на дополнительной тренировке из настройки extra.cap (0102, 0138).
 begin;
 create extension if not exists pgtap;
-select plan(9);
+select plan(16);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values ('00000000-0000-0000-0000-0000000000a1', 8601, 'Админ', true);
@@ -42,6 +42,23 @@ reset role;
 update club_settings set value = '18' where key = 'extra.cap';
 select as_user('00000000-0000-0000-0000-0000000000a1');
 select is((select capacity from booking_board() where session_id = (select id from sid)), 18, 'на доске видно лимит из настройки');
+
+-- Недопустимое значение — явная ошибка, не «без ограничения» и не другой лимит
+reset role;
+update club_settings set value = 'abc' where key = 'extra.cap';
+select throws_ok($$select extra_cap('00000000-0000-0000-0000-00000000c001')$$, '22023', 'invalid setting extra.cap: abc', 'нечисло: ошибка');
+update club_settings set value = '2.5' where key = 'extra.cap';
+select throws_ok($$select extra_cap('00000000-0000-0000-0000-00000000c001')$$, '22023', 'invalid setting extra.cap: 2.5', 'дробное: ошибка');
+update club_settings set value = '-3' where key = 'extra.cap';
+select throws_ok($$select extra_cap('00000000-0000-0000-0000-00000000c001')$$, '22023', 'invalid setting extra.cap: -3', 'отрицательное: ошибка');
+update club_settings set value = '101' where key = 'extra.cap';
+select throws_ok($$select extra_cap('00000000-0000-0000-0000-00000000c001')$$, '22023', 'invalid setting extra.cap: 101', 'больше 100: ошибка');
+update club_settings set value = '18 мест' where key = 'extra.cap';
+select throws_ok($$select extra_cap('00000000-0000-0000-0000-00000000c001')$$, '22023', 'invalid setting extra.cap: 18 мест', 'текст вокруг числа: ошибка');
+update club_settings set value = '0,0' where key = 'extra.cap';
+select is(extra_cap('00000000-0000-0000-0000-00000000c001'), null::int, '0,0 — без ограничения');
+update club_settings set value = ' 18 ' where key = 'extra.cap';
+select is(extra_cap('00000000-0000-0000-0000-00000000c001'), 18, 'пробелы вокруг целого допустимы');
 
 reset role;
 delete from club_settings where key = 'extra.cap';

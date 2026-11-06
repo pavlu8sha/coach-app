@@ -16,7 +16,7 @@ for f in db/migrations/*.sql; do
 done
 
 fail=0
-for t in db/tests/rls*_test.sql; do
+for t in db/tests/*_test.sql; do
   echo "== $t"
   out=$($PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f "$t" 2>&1) || { echo "$out"; fail=1; continue; }
   echo "$out" | grep -E '^ *(ok|not ok) ' || true
