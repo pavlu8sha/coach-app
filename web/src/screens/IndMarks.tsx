@@ -13,7 +13,7 @@ export const indTitle = (s: IndSession) =>
   s.kind === 'extra' ? `${DAYS[isoDow(indDay(s))]}, ${fmtShort(indDay(s))} · Дополнительная` : `${DAYS[isoDow(indDay(s))]}, ${fmtShort(indDay(s))} · ${hm(s.starts_at.slice(11, 16))} · ${s.goalkeepers ? 'Вратари' : 'Индивидуальные'}`;
 
 // Отметка посещения индивидуального или вратарского занятия: только записавшиеся на это занятие (не вся «группа»).
-export default function IndMarks({ session, onBack }: { session: IndSession; onBack: () => void }) {
+export default function IndMarks({ session, onBack, managed }: { session: IndSession; onBack: () => void; managed?: boolean }) {
   const players = [...session.individual_bookings].sort((a, b) => (a.players?.full_name ?? '').localeCompare(b.players?.full_name ?? '', 'ru'));
   const [marks, setMarks] = useState<Record<string, Mark>>(() => Object.fromEntries(players.map(p => [p.player_id, toMark(p.attended)])));
   const [dirty, setDirty] = useState(false);
@@ -41,7 +41,7 @@ export default function IndMarks({ session, onBack }: { session: IndSession; onB
   const native = useMainButton({ text: 'Сохранить отметки', visible: true, enabled: canSave, loading: busy, onClick: () => void save() });
   return (
     <main className="page has-bar">
-      <BackNav onBack={onBack} />
+      <BackNav onBack={onBack} managed={managed} />
       <h1>{indTitle(session)}</h1>
       {session.topic && <p className="muted">{session.topic}</p>}
       {players.length === 0 ? (

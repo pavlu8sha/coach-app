@@ -6,11 +6,12 @@ import { BackButton } from './components';
 
 /** «Назад»: оболочка над общим стеком (nav/backStack). Обработчик попадает в единый стек: его вызывают нативная кнопка Telegram,
  *  системная «Назад» браузера/PWA и кнопка на экране. В Telegram своей кнопки на экране нет, в браузере она рисуется здесь. */
-export function BackNav({ onBack }: { onBack: () => void }) {
+export function BackNav({ onBack, managed }: { onBack: () => void; managed?: boolean }) {
   const native = inTelegram() && Boolean(tgApp()?.BackButton);
   const cb = useRef(onBack);
   cb.current = onBack;
-  useEffect(() => backStack().register(() => cb.current()), []);
+  // managed: экран открыт через стек навигации, его «Назад» уже зарегистрирован слоем (NavRoot): второй обработчик не нужен
+  useEffect(() => (managed ? undefined : backStack().register(() => cb.current())), [managed]);
   return native ? null : <BackButton onClick={onBack} />;
 }
 

@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Segmented } from '../ui/components';
 import { GroupPicker } from '../ui/coach';
 import { useMainButton } from '../ui/nav';
+import { useNav, useNavState } from '../nav';
 import IndMarks, { indDay, indTitle, type IndSession } from './IndMarks';
 import { Failure, Loading } from './Message';
 
@@ -49,16 +50,18 @@ export default function Sessions({ groups }: { groups: CoachGroup[] }) {
       return null;
     }
   })();
-  const [tab, setTab] = useState<'grp' | 'ind'>(saved?.t ?? 'grp');
-  const [date, setDate] = useState(saved?.d ?? today());
-  const [gidPick, setGidPick] = useState(saved?.g ?? '');
-  const [all, setAll] = useState(saved?.all ?? false);
+  // Выбор вкладки, даты и группы живёт в записи списка (entry: 0): возвращается при «Назад» из индивидуальной отметки и при смене вкладок.
+  // Запоминание на день через STATE_KEY пока остаётся: оно уйдёт, когда состояние навигации начнёт восстанавливаться после перезагрузки.
+  const nav = useNav();
+  const [tab, setTab] = useNavState<'grp' | 'ind'>('tab', saved?.t ?? 'grp', { entry: 0, persist: { kind: 'enum', values: ['grp', 'ind'] } });
+  const [date, setDate] = useNavState('date', saved?.d ?? today(), { entry: 0 });
+  const [gidPick, setGidPick] = useNavState('gid', saved?.g ?? '', { entry: 0, persist: { kind: 'uuid' } });
+  const [all, setAll] = useNavState('all', saved?.all ?? false, { entry: 0, persist: { kind: 'bool' } });
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [indList, setIndList] = useState<IndSession[] | null>(null);
   const [indError, setIndError] = useState<string | null>(null);
-  const [indOpen, setIndOpen] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -91,8 +94,8 @@ export default function Sessions({ groups }: { groups: CoachGroup[] }) {
   }, [tab, date, reload]);
 
   if (error) return <Failure title="Не удалось загрузить расписание" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
-  const openInd = indList?.find(x => x.id === indOpen);
-  if (openInd) return <IndMarks session={openInd} onBack={() => { setIndOpen(null); setReload(n => n + 1); }} />;
+  const openInd = nav.top.screen === 'ind' ? indList?.find(x => x.id === nav.top.params.id) : undefined;
+  if (openInd) return <IndMarks managed session={openInd} onBack={() => { nav.back(); setReload(n => n + 1); }} />;
   if (!slots) return <main className="page"><h1>Отметки</h1><Loading /></main>;
 
   const dow = isoDow(date);
@@ -125,7 +128,7 @@ export default function Sessions({ groups }: { groups: CoachGroup[] }) {
         indError ? <Failure title="Не удалось загрузить занятия" text={indError} onRetry={() => setReload(n => n + 1)} /> : !indList ? <Loading /> : indList.length === 0 ? (
           <EmptyState icon="users" title="Индивидуальных занятий нет" text="На выбранную дату нет индивидуальных, вратарских или дополнительных занятий." />
         ) : indList.map(x => (
-          <ListRow key={x.id} title={indTitle(x)} sub={[x.topic ?? 'без темы', `Записано: ${x.individual_bookings.length}`]} onClick={() => setIndOpen(x.id)} />
+          <ListRow key={x.id} title={indTitle(x)} sub={[x.topic ?? 'без темы', `Записано: ${x.individual_bookings.length}`]} onClick={() => nav.push('ind', { id: x.id })} />
         ))
       )}
     </main>

@@ -20,10 +20,20 @@ export function NavProvider({ initial, children }: { initial: string; children: 
   return <NavCtx.Provider value={ctx}>{children}</NavCtx.Provider>;
 }
 
+// Вне NavProvider (изолированные тесты экранов, предпросмотр компонентов) экраны работают на общем «отдельном» хранилище.
+// В приложении App всегда оборачивает экраны в NavProvider и NavRoot, поэтому здесь оно не используется.
+const DETACHED_ROOT = 'detached';
+const detached: Ctx = { store: new NavStore(), specs: new Map() };
+detached.store.selectRoot(DETACHED_ROOT);
+/** Сбросить отдельное хранилище (между тестами). */
+export function resetDetachedNav() {
+  detached.store.reset();
+  detached.store.selectRoot(DETACHED_ROOT);
+  detached.specs.clear();
+}
+
 function useCtx(): Ctx {
-  const c = useContext(NavCtx);
-  if (!c) throw new Error('Навигация: нет NavProvider');
-  return c;
+  return useContext(NavCtx) ?? detached;
 }
 export const useNavStore = (): NavStore => useCtx().store;
 
@@ -92,21 +102,21 @@ export function NavEntry({ index, children }: { index: number; children: ReactNo
   return <EntryCtx.Provider value={{ root: cur.root, index }}>{children}</EntryCtx.Provider>;
 }
 
-function useEntryCtx() {
+function useEntryCtx(store: NavStore) {
   const e = useContext(EntryCtx);
-  if (!e) throw new Error('Навигация: экран вне NavRoot');
-  return e;
+  return e ?? { root: DETACHED_ROOT, index: store.entries(DETACHED_ROOT).length - 1 };
 }
 
 /** Стек текущего раздела и действия над ним. */
 export function useNav() {
   const store = useNavStore();
-  const { root } = useEntryCtx();
+  const { root } = useEntryCtx(store);
   useVersion(store);
   const entries: NavEntry[] = store.entries(root);
+  const backToRoot = useCallback(() => store.backToRoot(root), [store, root]);
   const push = useCallback((screen: string, params?: Record<string, string>) => store.push(root, { screen, params }), [store, root]);
   const back = useCallback(() => store.back(root), [store, root]);
-  return { root, entries, top: entries[entries.length - 1], depth: entries.length, push, back };
+  return { root, entries, top: entries[entries.length - 1], depth: entries.length, push, back, backToRoot };
 }
 
 /**
@@ -114,9 +124,12 @@ export function useNav() {
  * На диск попадает только поле с объявленным persist (белый список); без него значение хранится лишь в памяти.
  * Для строки поиска persist не задаём: в ней могут быть имена детей.
  */
-export function useNavState<T>(key: string, initial: T, opts?: { persist?: PersistSpec }): [T, (v: T | ((prev: T) => T)) => void] {
+export function useNavState<T>(key: string, initial: T, opts?: { persist?: PersistSpec; entry?: number }): [T, (v: T | ((prev: T) => T)) => void] {
   const { store, specs } = useCtx();
-  const { root, index } = useEntryCtx();
+  const cur = useEntryCtx(store);
+  const root = cur.root;
+  // entry: 0 — состояние списка, когда сам экран остаётся смонтированным при открытии вложенного (карточка поверх списка)
+  const index = opts?.entry ?? cur.index;
   useVersion(store);
   const stored = store.getUi<T>(root, index, key);
   const value = stored === undefined ? initial : stored;
@@ -143,7 +156,7 @@ export const useNavSpecs = (): ReadonlyMap<string, PersistSpec> => useCtx().spec
  */
 export function useRestoreScroll(ready = true) {
   const store = useNavStore();
-  const { root, index } = useEntryCtx();
+  const { root, index } = useEntryCtx(store);
   const id = store.entries(root)[index]?.id;
   useLayoutEffect(() => {
     if (!ready) return;
