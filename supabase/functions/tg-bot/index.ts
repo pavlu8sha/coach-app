@@ -5,6 +5,7 @@
 import { route, BEFORE_START } from './bot-logic.js';
 import { leadStep, withLeadButton } from './lead-logic.js';
 import { parseRsvp, rsvpCalls } from './rsvp-logic.js';
+import { parseWaitlist, waitlistCalls } from './waitlist-logic.js';
 
 const APP_URL = Deno.env.get('MINI_APP_URL') ?? 'https://coach-app-84b.pages.dev/';
 // Заявки «Хочу в KickStart» (lead-logic.js): включаются LEADS_ENABLED=1 и требуют миграцию 0039 и ключ службы Supabase
@@ -45,6 +46,18 @@ Deno.serve(async (req: Request) => {
         console.error('rsvp_answer_by_telegram', e instanceof Error ? e.message : String(e));
       }
       calls = rsvpCalls(update.callback_query, rsvp, result);
+    } else if (parseWaitlist(update?.callback_query?.data) && typeof update?.callback_query?.from?.id === 'number' && SB_URL && SB_KEY) {
+      // «Занять место» в сообщении об освободившемся месте: место занимает база (waitlist_claim_by_telegram), первому нажавшему
+      const wl = parseWaitlist(update.callback_query.data)!;
+      let result: { ok: boolean; code?: string; player?: string } = { ok: false, code: 'error' };
+      try {
+        const r = await sb('rpc/waitlist_claim_by_telegram', { method: 'POST', body: JSON.stringify({ p_telegram_id: update.callback_query.from.id, p_waitlist: wl.waitlist }) });
+        if (r.ok) result = await r.json();
+        else console.error('waitlist_claim_by_telegram', r.status, (await r.text()).slice(0, 200));
+      } catch (e) {
+        console.error('waitlist_claim_by_telegram', e instanceof Error ? e.message : String(e));
+      }
+      calls = waitlistCalls(update.callback_query, wl, result);
     } else if (LEADS && SB_URL && SB_KEY) {
       const from = update?.message?.from ?? update?.callback_query?.from;
       const tg = from?.id;
