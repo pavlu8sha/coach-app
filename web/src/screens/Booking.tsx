@@ -45,6 +45,7 @@ export default function Booking() {
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [waits, setWaits] = useState<Wait[]>([]);
+  const [info, setInfo] = useState(false); // однократное информационное сообщение (миграция 0151)
   const [clash, setClash] = useState<{ key: string; list: Clash[] } | null>(null);
 
   const load = useCallback(async () => {
@@ -54,6 +55,8 @@ export default function Booking() {
     const r = await supabase.rpc('booking_board');
     if (r.error) return setError(err(r.error.message));
     setRows((r.data ?? []) as Row[]);
+    const ip = await supabase.rpc('booking_info_pending');
+    setInfo(!ip.error && ip.data === true);
     const w = await supabase.rpc('waitlist_board'); // до миграции 0149 функции нет: очередь просто не показываем
     setWaits(w.error ? [] : ((w.data ?? []) as Wait[]));
   }, []);
@@ -83,6 +86,13 @@ export default function Booking() {
   if (rows.length === 0) return <EmptyState icon="box" title="Занятий для записи пока нет" text="Когда клуб объявит индивидуальные, вратарские или дополнительные тренировки, они появятся здесь." />;
   return (
     <>
+      {info && (
+        <section className="ks-card" role="note">
+          <b>Запись на тренировки теперь здесь</b>
+          <p style={{ margin: '6px 0' }}>Индивидуальные, вратарские и дополнительные тренировки: записывайте ребёнка на свободные места. Уведомления о новых тренировках включаются и выключаются в профиле.</p>
+          <button type="button" className="ks-btn secondary" onClick={() => { setInfo(false); void supabase.rpc('booking_info_seen').then(() => undefined); }}>Понятно</button>
+        </section>
+      )}
       <p className="muted">Запишите ребёнка на свободное место. Оплату вносит администратор клуба, статус виден здесь.</p>
       {msg && <p className="error" role="alert">{msg}</p>}
       {rows.map(r => {

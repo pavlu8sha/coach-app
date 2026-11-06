@@ -152,4 +152,16 @@ describe('Запись на занятия', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Всё равно записать: Аня Первая' }));
     await waitFor(() => expect(fake.rpcCalls('booking_signup')).toHaveLength(1));
   });
+
+  it('информационный баннер при первом входе: «Понятно» отмечает показанным', async () => {
+    fake.db.player_guardians = [{ user_id: 'u', consent_revoked_at: null, players: { id: 'p1', full_name: 'Аня Первая' } }];
+    fake.rpc.booking_board = () => board();
+    fake.rpc.booking_info_pending = () => true;
+    fake.rpc.booking_info_seen = () => null;
+    render(<Booking />);
+    expect(await screen.findByText('Запись на тренировки теперь здесь')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Понятно' }));
+    await waitFor(() => expect(fake.rpcCalls('booking_info_seen')).toHaveLength(1));
+    expect(screen.queryByText('Запись на тренировки теперь здесь')).toBeNull();
+  });
 });

@@ -6,6 +6,7 @@ import { EmptyState, ListRow, Pill, SearchInput, Segmented } from '../ui/compone
 import { BackNav } from '../ui/nav';
 import { useNav, useNavState } from '../nav';
 import { useConfirm } from '../ui/ConfirmSheet';
+import FirstWave from './FirstWave';
 import WaitlistList from './WaitlistList';
 import { Failure, Loading } from './Message';
 import IndRegulars from './IndRegulars';
@@ -22,7 +23,7 @@ const title = (s: { starts_at: string; ends_at?: string | null; goalkeepers: boo
 const METHODS = ['Наличные', 'Перевод'];
 const nowLocal = () => `${today()}T${new Date().toTimeString().slice(0, 5)}`;
 
-type Tab = 'next' | 'past' | 'debt' | 'regular' | 'cancel';
+type Tab = 'next' | 'past' | 'debt' | 'regular' | 'cancel' | 'wave';
 
 const PAGE = 60;
 
@@ -31,7 +32,7 @@ export default function Individual() {
   const { ask, dialog: confirmDialog } = useConfirm();
   // Новое занятие и занятие — записи стека; вкладка списка и «Показать ещё» возвращаются при «Назад»
   const nav = useNav();
-  const [tab, setTab] = useNavState<Tab>('ind.tab', 'next', { entry: 0, persist: { kind: 'enum', values: ['next', 'past', 'debt', 'regular', 'cancel'] } });
+  const [tab, setTab] = useNavState<Tab>('ind.tab', 'next', { entry: 0, persist: { kind: 'enum', values: ['next', 'past', 'debt', 'regular', 'cancel', 'wave'] } });
   const [list, setList] = useState<Session[] | null>(null);
   const [debts, setDebts] = useState<DebtRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +56,7 @@ export default function Individual() {
   useEffect(() => {
     void (async () => {
       const now = nowLocal();
-      if (tab === 'regular' || tab === 'cancel') return;
+      if (tab === 'regular' || tab === 'cancel' || tab === 'wave') return;
       if (tab === 'debt') {
         const r = await supabase.from('individual_bookings').select('session_id, player_id, amount, players(full_name), individual_sessions!inner(starts_at, goalkeepers, topic)').eq('paid', false).lt('individual_sessions.starts_at', now).limit(1000);
         if (r.error) return setError(coachError(r.error.message));
@@ -97,16 +98,17 @@ export default function Individual() {
   return (
     <main className="page">
       <h1>Индивидуальные</h1>
-      <Segmented wrap label="Раздел" value={tab} onChange={v => { setList(null); setDebts(null); setLimit(PAGE); setHasMore(false); setTab(v); }} items={[{ value: 'next', label: 'Предстоящие' }, { value: 'past', label: 'Прошедшие' }, { value: 'debt', label: 'Долги' }, { value: 'regular', label: 'Постоянные' }, { value: 'cancel', label: 'Отмены' }]} />
+      <Segmented wrap label="Раздел" value={tab} onChange={v => { setList(null); setDebts(null); setLimit(PAGE); setHasMore(false); setTab(v); }} items={[{ value: 'next', label: 'Предстоящие' }, { value: 'past', label: 'Прошедшие' }, { value: 'debt', label: 'Долги' }, { value: 'regular', label: 'Постоянные' }, { value: 'cancel', label: 'Отмены' }, { value: 'wave', label: 'Первая волна' }]} />
       <div style={{ height: 10 }} />
       {tab === 'regular' && <IndRegulars />}
       {tab === 'cancel' && <BookingCancellations />}
+      {tab === 'wave' && <FirstWave />}
       {tab === 'debt' && <div className="two"><label className="field">Способ оплаты<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label><label className="field">Дата платежа<input type="date" value={payDate} max={today()} onChange={e => e.target.value && setPayDate(e.target.value)} /></label></div>}
       {(tab === 'next' || tab === 'past') && debtTotal && debtTotal.n > 0 && (
         <ListRow title="Должники" sub={[`Игроков: ${debtTotal.n}`]} end={<Pill tone="danger" dot>{gel(debtTotal.sum)}</Pill>} onClick={() => { setList(null); setDebts(null); setLimit(PAGE); setHasMore(false); setTab('debt'); }} />
       )}
       {(tab === 'next' || tab === 'past') && <button type="button" className="ks-btn" onClick={() => nav.push('new')}>Новое занятие</button>}
-      {tab === 'regular' || tab === 'cancel' ? null : tab === 'debt' ? (
+      {tab === 'regular' || tab === 'cancel' || tab === 'wave' ? null : tab === 'debt' ? (
         !debts ? <Loading /> : byPlayer.size === 0 ? (
           <EmptyState icon="users" title="Долгов нет" text="Все записанные на прошедшие занятия оплатили." />
         ) : (
