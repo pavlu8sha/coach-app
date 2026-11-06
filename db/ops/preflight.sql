@@ -139,6 +139,7 @@ select * from (values
   ('0134_match_rsvp_base', coalesce((to_regclass('match_invitations') is not null and to_regproc('match_rsvp_publish') is not null), false)),
   ('0135_points_benchmark_place', coalesce((select position('''place''' in prosrc) > 0 from pg_proc where proname = 'points_group_benchmark' limit 1), false)),
   ('0136_match_rsvp_reschedule_marks', coalesce((to_regclass('match_mark_snapshots') is not null), false)),
-  ('0137_match_rsvp_notifications', coalesce((to_regproc('rsvp_auto_reminders') is not null and to_regproc('rsvp_answer_by_telegram') is not null), false))
+  ('0137_match_rsvp_notifications', coalesce((to_regproc('rsvp_auto_reminders') is not null and to_regproc('rsvp_answer_by_telegram') is not null), false)),
+  ('0138_extra_cap_validation', coalesce((pg_get_functiondef(to_regprocedure('extra_cap(uuid)')) like '%invalid setting extra.cap%'), false))
 ) as t(migration, applied)
 order by migration;
