@@ -111,6 +111,14 @@ export class NavStore {
     this.bump();
     return true;
   }
+  /** Закрыть все вложенные экраны раздела разом (например, после сохранения формы, открытой из карточки). */
+  backToRoot(root: string): boolean {
+    const s = this.entries(root);
+    if (s.length <= 1) return false;
+    this.stacks.set(root, s.slice(0, 1));
+    this.bump();
+    return true;
+  }
   getUi<T>(root: string, index: number, key: string): T | undefined {
     return this.entries(root)[index]?.ui[key] as T | undefined;
   }

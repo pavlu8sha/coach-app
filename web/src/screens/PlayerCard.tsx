@@ -4,6 +4,7 @@ import { afterLeftMonthTest, pausedMonthTest, type PlayerStatus, type StatusLogP
 import { supabase } from '../lib/supabase';
 import { Avatar, Segmented } from '../ui/components';
 import { BackNav } from '../ui/nav';
+import { useNavState } from '../nav';
 import { PlayerDues } from './CashDesk';
 import PlayerStatusPanel from './PlayerStatusPanel';
 import { Failure, Loading } from './Message';
@@ -34,7 +35,8 @@ export function lastMonth(subMonths: string[], pays: { month: string }[], fallba
 export interface CardPlayer extends PlayerForm { id: string; external_id: string | null; group_name: string | null }
 
 // Карточка игрока для администратора: данные и абонемент по месяцам сезона с быстрым платежом.
-export default function PlayerCard({ player, onBack, onEdit, onStatus }: { player: CardPlayer; onBack: () => void; onEdit: () => void; onStatus?: (s: PlayerStatus) => void }) {
+// managed: карточка открыта через стек навигации (Players), её «Назад» зарегистрирован слоем навигации
+export default function PlayerCard({ player, onBack, onEdit, onStatus, managed }: { player: CardPlayer; onBack: () => void; onEdit: () => void; onStatus?: (s: PlayerStatus) => void; managed?: boolean }) {
   const [status, setStatus] = useState<PlayerStatus>(player.status);
   const months = useMemo(() => {
     const out: string[] = [];
@@ -52,8 +54,8 @@ export default function PlayerCard({ player, onBack, onEdit, onStatus }: { playe
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [statusLog, setStatusLog] = useState<StatusLogPoint[]>([]); // журнал статусов: месяцы паузы без платежей не рисуем
-  const [openMonth, setOpenMonth] = useState<string | null>(null);
-  const [tab, setTab] = useState<'sub' | 'dues' | 'sessions' | 'equip' | 'matches' | 'points'>('sub');
+  const [openMonth, setOpenMonth] = useNavState<string | null>('openMonth', null); // раскрытый месяц возвращается при «Назад» из правки
+  const [tab, setTab] = useNavState<'sub' | 'dues' | 'sessions' | 'equip' | 'matches' | 'points'>('tab', 'sub', { persist: { kind: 'enum', values: ['sub', 'dues', 'sessions', 'equip', 'matches', 'points'] } });
 
   useEffect(() => {
     void (async () => {
@@ -79,7 +81,7 @@ export default function PlayerCard({ player, onBack, onEdit, onStatus }: { playe
     });
   }, [player.id, status, reload]);
 
-  if (error) return <Failure title="Не удалось загрузить игрока" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} />} />;
+  if (error) return <Failure title="Не удалось загрузить игрока" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} managed={managed} />} />;
   const payMonths = (pays ?? []).map(x => ({ amount: x.amount, month: x.pay_month ?? x.paid_on.slice(0, 7) + '-01' }));
   const isPausedMonth = pausedMonthTest(statusLog);
   const afterLeft = afterLeftMonthTest(status, statusLog, endsOn);
@@ -87,7 +89,7 @@ export default function PlayerCard({ player, onBack, onEdit, onStatus }: { playe
 
   return (
     <main className="page">
-      <BackNav onBack={onBack} />
+      <BackNav onBack={onBack} managed={managed} />
       <div className="ks-line" style={{ margin: "8px 0 4px", justifyContent: "flex-start", flexWrap: "nowrap" }}>
         <Avatar name={player.full_name} large />
         <div style={{ minWidth: 0, flex: 1 }}>

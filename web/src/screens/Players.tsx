@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { fmtDate, groupByGroupName, sortGroups, today } from '../lib/coach';
 import { statusLabel, statusTone, type PlayerStatus } from '../lib/playerStatus';
 import { supabase } from '../lib/supabase';
+import { useNav, useNavState } from '../nav';
 import { EmptyState, ListRow, Pill, SearchInput, SwitchRow, type Tone } from '../ui/components';
 import { Failure, Splash } from './Message';
 import { tariffFor } from './MonthPayments';
@@ -41,14 +42,14 @@ export default function Players() {
   const [subs, setSubs] = useState<Map<string, Sub>>(new Map());
   const [prices, setPrices] = useState<Price[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [edit, setEdit] = useState<PlayerForm | null>(null);
-  const [card, setCard] = useState<CardPlayer | null>(null);
   const [reload, setReload] = useState(0);
-  const [q, setQ] = useState('');
-  const [gid, setGid] = useState('');
-  const [status, setStatus] = useState<StatusFilter>('active');
-  const [onlyUnpaid, setOnlyUnpaid] = useState(false);
-  const [years, setYears] = useState<string[]>([]);
+  // Фильтры живут в записи списка (entry: 0) и возвращаются при «Назад» из карточки. Поиск на диск не пишем: в нём могут быть имена детей.
+  const nav = useNav();
+  const [q, setQ] = useNavState('q', '', { entry: 0 });
+  const [gid, setGid] = useNavState('gid', '', { entry: 0, persist: { kind: 'uuid' } });
+  const [status, setStatus] = useNavState<StatusFilter>('status', 'active', { entry: 0, persist: { kind: 'enum', values: ['active', 'paused', 'inactive', 'all'] } });
+  const [onlyUnpaid, setOnlyUnpaid] = useNavState('onlyUnpaid', false, { entry: 0, persist: { kind: 'bool' } });
+  const [years, setYears] = useNavState<string[]>('years', [], { entry: 0 });
 
   useEffect(() => {
     void (async () => {
@@ -93,12 +94,22 @@ export default function Players() {
   if (error) return <Failure title="Не удалось загрузить игроков" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   if (!players) return <Splash />;
   const done = () => {
-    setEdit(null);
-    setCard(null);
+    nav.backToRoot();
     setReload(n => n + 1);
   };
-  if (edit) return <main className="page"><PlayerEdit initial={edit} groups={groups} clubId={groups[0]?.club_id ?? null} onDone={done} onCancel={() => setEdit(null)} /></main>;
-  if (card) return <PlayerCard player={card} onBack={() => setCard(null)} onStatus={st => { setCard({ ...card, status: st }); setReload(n => n + 1); }} onEdit={() => setEdit({ id: card.id, full_name: card.full_name, birth_date: card.birth_date, group_id: card.group_id, status: card.status })} />;
+  // Карточка и правка — вложенные экраны стека; игрока берём из уже загруженного списка по id
+  const topId = nav.top.params.id;
+  const found = topId ? players.find(p => p.id === topId) : undefined;
+  const asCard = (p: Row): CardPlayer => ({ id: p.id, full_name: p.full_name, birth_date: p.birth_date, group_id: p.group_id, status: p.status, external_id: p.external_id, group_name: groupName.get(p.group_id ?? '') ?? null });
+  const openCard = (p: Row) => nav.push('card', { id: p.id });
+  if (nav.top.screen === 'edit') {
+    if (topId && !found) return <Splash />; // игрока уже нет в списке: вернёмся к списку
+    const initial: PlayerForm = found ? { id: found.id, full_name: found.full_name, birth_date: found.birth_date, group_id: found.group_id, status: found.status } : { full_name: '', birth_date: null, group_id: null, status: 'active' };
+    return <main className="page"><PlayerEdit initial={initial} groups={groups} clubId={groups[0]?.club_id ?? null} onDone={done} onCancel={() => nav.back()} /></main>;
+  }
+  if (nav.top.screen === 'card' && found) {
+    return <PlayerCard managed player={asCard(found)} onBack={() => nav.back()} onStatus={() => setReload(n => n + 1)} onEdit={() => nav.push('edit', { id: found.id })} />;
+  }
   const toggleYear = (y: string) => setYears(cur => (cur.includes(y) ? cur.filter(x => x !== y) : [...cur, y]));
 
   return (
@@ -119,7 +130,7 @@ export default function Players() {
       </div>
       <div className="two" style={{ marginTop: 8, alignItems: 'stretch' }}>
         <SwitchRow id="unpaid" label="Только не оплатившие" checked={onlyUnpaid} onChange={setOnlyUnpaid} />
-        <button type="button" className="ks-btn" onClick={() => setEdit({ full_name: '', birth_date: null, group_id: null, status: 'active' })}>+ Добавить</button>
+        <button type="button" className="ks-btn" onClick={() => nav.push('edit')}>+ Добавить</button>
       </div>
       {(allYears.length > 0 || hasNoDate) && (
         <>
@@ -148,7 +159,7 @@ export default function Players() {
                   title={p.full_name}
                   sub={[groupName.get(p.group_id ?? '') ?? 'без группы', [p.external_id, p.birth_date ? `р. ${fmtDate(p.birth_date)}` : null].filter(Boolean).join(' · ')].filter(Boolean)}
                   end={p.status !== 'active' ? <Pill tone={statusTone(p.status)}>{statusLabel(p.status, p.external_id)}</Pill> : <Pill tone={s.tone} dot>{s.label}</Pill>}
-                  onClick={() => setCard({ id: p.id, full_name: p.full_name, birth_date: p.birth_date, group_id: p.group_id, status: p.status, external_id: p.external_id, group_name: groupName.get(p.group_id ?? '') ?? null })}
+                  onClick={() => openCard(p)}
                 />
               );
             })}
