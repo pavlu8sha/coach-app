@@ -168,4 +168,18 @@ describe('Тренер: матчи с подтверждением', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Заполнить состав из события' }));
     await waitFor(() => expect(fake.rpcCalls('match_rsvp_seed')).toEqual([{ m: 'm1' }]));
   });
+
+  it('начавшийся опубликованный матч можно отменить и перенести, но не править состав и не напоминать', async () => {
+    const started = new Date(Date.now() - 3600_000).toISOString();
+    fake.db.matches = [matchRow({ starts_at: started })];
+    fake.rpc.match_rsvp_summary = () => [{ invited: 1, yes: 0, no: 0, unanswered: 1, reminders: 0, last_reminder_at: null }];
+    fake.rpc.match_rsvp_roster = () => rosterRows;
+    render(<CoachRsvp groups={groups} onBack={() => {}} />);
+    fireEvent.click(await screen.findByText('U9 · Олимп'));
+    expect(await screen.findByRole('button', { name: 'Отменить матч' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Перенести матч' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Напомнить не ответившим' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Изменить данные матча' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Убрать из состава/ })).toBeNull();
+  });
 });

@@ -10,7 +10,9 @@ import { Failure, Loading } from './Message';
 import CoachRsvp from './CoachRsvp';
 import { useConfirm } from '../ui/ConfirmSheet';
 
-interface Match { id: string; team: string; played_on: string; opponent: string | null; goals_for: number | null; goals_against: number | null; technical?: boolean }
+interface Match { id: string; team: string; played_on: string; opponent: string | null; goals_for: number | null; goals_against: number | null; technical?: boolean; lifecycle_status?: string; starts_at?: string | null }
+// Матч с подтверждением участия (PR 2–4 по #274): до начала им управляют «Матчи с подтверждением», здесь он появляется после начала — для отметок игроков и счёта
+const isRsvp = (m: Pick<Match, 'lifecycle_status'>) => Boolean(m.lifecycle_status) && m.lifecycle_status !== 'legacy';
 interface Tour { match_id: string; tournament_id: string | null; tournament_name: string | null; tournament_kind: string | null; match_kind: string | null }
 interface Player { id: string; full_name: string }
 interface Line { played: boolean; goals: number }
@@ -41,11 +43,12 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
       // события (чемпионаты, фестивали, кубки) со счётчиками; без миграции 0051 список остаётся прежним
       const ev = await supabase.rpc('event_list');
       setEvents(ev.error ? [] : ((ev.data ?? []) as EventRow[]));
-      let q = supabase.from('matches').select('id, team, played_on, opponent, goals_for, goals_against, technical');
+      let q = supabase.from('matches').select('id, team, played_on, opponent, goals_for, goals_against, technical, lifecycle_status, starts_at');
       if (!showAll) q = q.in('team', groups.map(g => g.name));
       const r = await q.order('played_on', { ascending: false }).limit(showAll ? 150 : 60);
       if (r.error) return setError(r.error.message);
-      const list = (r.data ?? []) as Match[];
+      const now = Date.now();
+      const list = ((r.data ?? []) as Match[]).filter(m => !isRsvp(m) || (m.lifecycle_status === 'published' && m.starts_at != null && new Date(m.starts_at).getTime() <= now));
       setMatches(list);
       // сколько сыграло в каждом матче; порциями, чтобы не упереться в лимит строк; без доступа список остаётся прежним
       const ids = list.map(m => m.id);
@@ -180,6 +183,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
   const presetMissing = !match && Boolean(presetTeam) && !presetGid;
   const initialGid = match ? matched ?? (admin ? '' : groups[0]?.id ?? '') : presetTeam ? presetGid ?? '' : matchGroups[0]?.id ?? '';
   const [gid, setGid] = useState(initialGid);
+  const rsvpLocked = Boolean(match && isRsvp(match)); // дату и соперника держит экран «Матчи с подтверждением»: иначе played_on разойдётся с временем начала
   const [date, setDate] = useState(match?.played_on ?? today());
   const [opp, setOpp] = useState(match?.opponent ?? '');
   const [gf, setGf] = useState(match?.goals_for != null ? String(match.goals_for) : '');
@@ -356,9 +360,10 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
       {canPickGroup && !presetMissing && <GroupPicker groups={matchGroups} value={gid} onChange={setGid} />}
       {match && admin && <p className="muted" style={{ marginBottom: 8 }}>Команда: {match.team}</p>}
       <label className="ks-label" htmlFor="m-date">Дата</label>
-      <input id="m-date" className="ks-input" type="date" value={date} onChange={e => { setDate(e.target.value); setMsg(null); }} />
+      <input id="m-date" className="ks-input" type="date" value={date} disabled={rsvpLocked} onChange={e => { setDate(e.target.value); setMsg(null); }} />
       <label className="ks-label" htmlFor="m-opp">Соперник</label>
-      <input id="m-opp" className="ks-input" value={opp} onChange={e => setOpp(e.target.value)} placeholder="Название команды" maxLength={80} />
+      <input id="m-opp" className="ks-input" value={opp} disabled={rsvpLocked} onChange={e => setOpp(e.target.value)} placeholder="Название команды" maxLength={80} />
+      {rsvpLocked && <p className="muted" style={{ fontSize: 13 }}>Дата и соперник этого матча меняются в разделе «Матчи с подтверждением», здесь только отметки игроков и счёт.</p>}
       <p className="ks-label">Счёт (наша команда : соперник)</p>
       <div className="ks-line">
         <input className="ks-input" style={{ width: 90 }} inputMode="numeric" aria-label="Забила наша команда" value={gf} onChange={e => setGf(e.target.value.replace(/\D/g, '').slice(0, 2))} placeholder="—" />

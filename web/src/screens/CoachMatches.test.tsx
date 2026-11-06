@@ -552,3 +552,36 @@ describe('Состав сохранённого матча', () => {
     expect(await screen.findByRole('checkbox', { name: 'Сидоров Ян' })).toBeInTheDocument();
   });
 });
+
+describe('«Матчи» тренера и матчи с подтверждением участия', () => {
+  const past = new Date(Date.now() - 3600_000).toISOString();
+  const future = new Date(Date.now() + 5 * 86400_000).toISOString();
+  const rsvp = (id: string, opponent: string, lifecycle_status: string, starts_at: string) => ({ id, team: 'U9', played_on: '2026-11-07', opponent, goals_for: null, goals_against: null, lifecycle_status, starts_at });
+
+  it('черновик, будущий и отменённый матчи в старом списке не видны, начавшийся виден для отметок', async () => {
+    fake.db.matches = [
+      rsvp('d1', 'Черновик-соперник', 'draft', future),
+      rsvp('f1', 'Будущий-соперник', 'published', future),
+      rsvp('c1', 'Отменённый-соперник', 'cancelled', past),
+      rsvp('s1', 'Начавшийся-соперник', 'published', past),
+      { id: 'l1', team: 'U9', played_on: '2026-10-10', opponent: 'Старый-соперник', goals_for: 1, goals_against: 0 },
+    ];
+    fake.db.players = [];
+    fake.db.match_players = [];
+    render(<CoachMatches groups={groups} />);
+    expect(await screen.findByText(/Начавшийся-соперник/)).toBeInTheDocument();
+    expect(screen.getByText(/Старый-соперник/)).toBeInTheDocument();
+    for (const hidden of ['Черновик-соперник', 'Будущий-соперник', 'Отменённый-соперник']) expect(screen.queryByText(new RegExp(hidden))).toBeNull();
+  });
+
+  it('у начавшегося матча с подтверждением дата и соперник закрыты для правки', async () => {
+    fake.db.matches = [rsvp('s1', 'Начавшийся-соперник', 'published', past)];
+    fake.db.players = [];
+    fake.db.match_players = [];
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Начавшийся-соперник/));
+    expect(await screen.findByLabelText('Дата')).toBeDisabled();
+    expect(screen.getByPlaceholderText('Название команды')).toBeDisabled();
+    expect(screen.getByText(/меняются в разделе «Матчи с подтверждением»/)).toBeInTheDocument();
+  });
+});
