@@ -6,6 +6,7 @@ import { BackNav } from '../ui/nav';
 import { useDirtyGuard, useNav, useNavState } from '../nav';
 import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
+import { clashConfirmed } from './bookingClash';
 import WaitlistList from './WaitlistList';
 import ExtraTargets, { TargetPicker, useGroups, type Pl } from './ExtraTargets';
 
@@ -262,7 +263,7 @@ function View({ session, onBack }: { session: Session; onBack: () => void }) {
       <h3>Записать игрока</h3>
       <SearchInput label="Найти игрока" placeholder="Фамилия или имя (от 2 букв)" value={q} onChange={setQ} suggestions={found.map(f => f.full_name)} />
       {found.map(p => (
-        <ListRow key={p.id} avatar={p.full_name} title={p.full_name} end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} disabled={busy === 'a' + p.id} onClick={() => void run('a' + p.id, () => supabase.rpc('extra_add_player', { s: session.id, p: p.id }), 'Записан.').then(ok => { if (ok) setQ(''); })}>Записать</button>} />
+        <ListRow key={p.id} avatar={p.full_name} title={p.full_name} end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} disabled={busy === 'a' + p.id} onClick={() => void clashConfirmed(ask, 'extra', session.id, p.id, p.full_name).then(go => go ? run('a' + p.id, () => supabase.rpc('extra_add_player', { s: session.id, p: p.id }), 'Записан.').then(ok => { if (ok) setQ(''); }) : undefined)}>Записать</button>} />
       ))}
 
       <h3>Тренировка</h3>

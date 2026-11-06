@@ -5,12 +5,12 @@ import { EmptyState, ListRow, SearchInput } from '../ui/components';
 import { Loading } from './Message';
 import { useNavState } from '../nav';
 
-interface Template { id: string; isodow: number; start_time: string; goalkeepers: boolean; active: boolean }
+interface Template { id: string; isodow: number; start_time: string; end_time?: string | null; goalkeepers: boolean; active: boolean }
 interface Overflow { template_id: string; regulars: number; cap: number }
 interface Member { template_id: string; player_id: string; players: { full_name: string } | null }
 
 const DAYS = ['', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
-const slotTitle = (t: Template) => `${DAYS[t.isodow]} ${hm(t.start_time.slice(0, 5))} · ${t.goalkeepers ? 'Вратари' : 'Индивидуальные'}`;
+const slotTitle = (t: Template) => `${DAYS[t.isodow]} ${hm(t.start_time.slice(0, 5))}${t.end_time ? `–${hm(t.end_time.slice(0, 5))}` : ''} · ${t.goalkeepers ? 'Вратари' : 'Индивидуальные'}`;
 const thisMonth = () => new Date().toISOString().slice(0, 7);
 
 // Постоянные игроки по месяцам (миграция 0090): на какие слоты расписания игрок записывается в выбранном месяце.
@@ -26,12 +26,14 @@ export default function IndRegulars() {
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [reload, setReload] = useState(0);
+  const [ends, setEnds] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    void supabase.from('individual_templates').select('id, isodow, start_time, goalkeepers, active').eq('active', true).order('isodow').order('start_time').then(r => {
+    void supabase.from('individual_templates').select('id, isodow, start_time, end_time, goalkeepers, active').eq('active', true).order('isodow').order('start_time').then(r => {
       if (r.error) return setMsg({ ok: false, text: r.error.message.includes('individual_templates') ? 'Расписание ещё не установлено в базе (миграция 0090).' : coachError(r.error.message) });
       const rows = (r.data ?? []) as Template[];
       setTemplates(rows);
+      setEnds(Object.fromEntries(rows.map(t => [t.id, t.end_time ? t.end_time.slice(0, 5) : ''])));
       setTplId(cur => cur || rows[0]?.id || '');
     });
   }, []);
@@ -75,6 +77,19 @@ export default function IndRegulars() {
   };
   const setMember = (tpl: string, p: string, on: boolean) => run((on ? 'a' : 'd') + tpl + p, () => supabase.rpc('ind_slot_member_set', { tpl, p, mth: `${month}-01`, on_: on }), () => (on ? 'Игрок добавлен в постоянные месяца.' : 'Убран из постоянных. Оплаченные записи остались.'));
 
+  // Окончание шаблона (миграция 0150): попадает на занятия, которые создаются автоматически дальше; уже созданные правятся в карточке занятия
+  const saveEnd = async (t: Template) => {
+    const v = ends[t.id] ?? '';
+    if (v && v <= t.start_time.slice(0, 5)) return setMsg({ ok: false, text: 'Окончание должно быть позже начала.' });
+    setBusy('e' + t.id);
+    setMsg(null);
+    const r = await supabase.from('individual_templates').update({ end_time: v || null }).eq('id', t.id);
+    setBusy(null);
+    if (r.error) return setMsg({ ok: false, text: coachError(r.error.message) });
+    setTemplates(cur => (cur ?? []).map(x => (x.id === t.id ? { ...x, end_time: v ? `${v}:00` : null } : x)));
+    setMsg({ ok: true, text: 'Окончание слота сохранено: оно будет у новых занятий.' });
+  };
+
   if (!templates) return msg ? <p className="error">{msg.text}</p> : <Loading />;
   if (templates.length === 0) return <EmptyState icon="users" title="Расписание не задано" text="Шаблоны занятий появятся после установки миграции 0090." />;
 
@@ -90,6 +105,10 @@ export default function IndRegulars() {
         return (
           <section key={t.id}>
             <h3>{slotTitle(t)}</h3>
+            <div className="ks-line" style={{ gap: 8, alignItems: 'end' }}>
+              <label className="field" style={{ flex: 1 }}>Окончание слота<input type="time" value={ends[t.id] ?? ''} onChange={e => setEnds(cur => ({ ...cur, [t.id]: e.target.value }))} /></label>
+              <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 44 }} aria-label={`Сохранить окончание: ${slotTitle(t)}`} disabled={busy === 'e' + t.id} onClick={() => void saveEnd(t)}>Сохранить</button>
+            </div>
             {overflow.filter(o => o.template_id === t.id).map(o => (
               <p key={o.template_id} className="error" role="alert">Постоянных ({o.regulars}) больше мест ({o.cap}): часть не попадёт на занятие.</p>
             ))}
