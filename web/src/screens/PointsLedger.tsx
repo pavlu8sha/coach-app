@@ -21,6 +21,16 @@ interface Bench {
 }
 
 const fmtAvg = (n: number) => String(n).replace('.', ',');
+
+// Строка «подпись — значение»: подпись переносится, значение не сжимается; на 320 px не выходит за карточку.
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="ks-slot" style={{ padding: '6px 0' }}>
+      <span className="ks-slot-main">{label}</span>
+      <b style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{value}</b>
+    </div>
+  );
+}
 const today = () => new Date().toISOString().slice(0, 7);
 
 // Баллы по новым правилам (#18): итог за месяц, всего накоплено, история начислений с пояснениями и серия посещаемости.
@@ -103,14 +113,21 @@ export default function PointsLedger({ playerId, showEmpty = false }: { playerId
             <p className="muted">Нет данных</p>
           ) : (
             bench.groups.filter(g => g.status !== 'off').map((g, i) => (
-              <p key={i} className="muted" style={{ margin: '2px 0' }}>
-                {g.group_name ? `${g.group_name}: ` : ''}
-                {g.status === 'ok' && g.avg != null && g.max != null
-                  ? `у вас ${g.personal} · среднее по группе ${fmtAvg(g.avg)} · максимум в группе ${g.max}${g.place ? ` · место в группе ${g.place}` : ''}`
-                  : g.status === 'insufficient'
-                    ? 'Недостаточно данных для анонимного сравнения'
-                    : 'Нет данных'}
-              </p>
+              <div key={i}>
+                {g.group_name && <p style={{ margin: '8px 0 0', fontWeight: 700 }}>{g.group_name}</p>}
+                {g.status === 'ok' && g.avg != null && g.max != null ? (
+                  <>
+                    <Row label="У вас" value={String(g.personal)} />
+                    <Row label="Среднее по группе" value={fmtAvg(g.avg)} />
+                    <Row label="Максимум в группе" value={String(g.max)} />
+                    {g.place ? <Row label="Место в группе" value={String(g.place)} /> : null}
+                  </>
+                ) : (
+                  <p className="muted" style={{ margin: '4px 0' }}>
+                    {g.status === 'insufficient' ? 'Недостаточно данных для анонимного сравнения' : 'Нет данных'}
+                  </p>
+                )}
+              </div>
             ))
           )}
         </div>
@@ -120,11 +137,16 @@ export default function PointsLedger({ playerId, showEmpty = false }: { playerId
         <>
           <h3 style={{ marginTop: 14 }}>Серия посещений</h3>
           {series.current > 0 ? (
-            <p>Посещено подряд: <b>{series.current}</b>{series.remaining != null && series.next_threshold ? `. До бонуса за ${series.next_threshold} тренировок (+${series.next_bonus}) осталось ${series.remaining}.` : '.'}</p>
+            <>
+              <Row label="Посещено подряд" value={String(series.current)} />
+              {series.remaining != null && series.next_threshold && (
+                <Row label={`До бонуса за ${series.next_threshold} тренировок (+${series.next_bonus})`} value={`осталось ${series.remaining}`} />
+              )}
+            </>
           ) : (
             <p className="muted">{series.last_break ? `Серия прервана после пропуска тренировки ${fmtDate(series.last_break)}. Новая серия начнётся с ближайшего занятия.` : 'Новая серия начнётся с ближайшего занятия.'}</p>
           )}
-          {series.record > 0 && <p className="muted">Личный рекорд: {series.record} подряд</p>}
+          {series.record > 0 && <Row label="Личный рекорд" value={`${series.record} подряд`} />}
           {series.finished_runs.length > 0 && (
             <div>
               <p className="ks-label">Завершённые серии</p>
