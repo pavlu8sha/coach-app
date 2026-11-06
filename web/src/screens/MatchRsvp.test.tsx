@@ -99,4 +99,73 @@ describe('Тренер: матчи с подтверждением', () => {
     await waitFor(() => expect(fake.rpcCalls('match_rsvp_remind_unanswered')).toHaveLength(1));
     expect(await screen.findByText(/Поставлено в очередь: 1/)).toBeInTheDocument();
   });
+
+  const matchRow = (o: Record<string, unknown> = {}) => ({ id: 'm1', team: 'U9', opponent: 'Олимп', starts_at: future, lifecycle_status: 'published', kind: 'friendly', venue: 'Стадион', address: null, notes: null, tournament_id: null, ...o });
+  const rosterRows = [
+    { player_id: 'p1', full_name: 'Иванов Пётр', group_name: 'U9', status: 'invited', response: null, responded_by_name: null, responded_by_coach: false, responded_at: null, answer_until: future },
+    { player_id: 'p9', full_name: 'Убранный Игрок', group_name: 'U9', status: 'removed', response: null, responded_by_name: null, responded_by_coach: false, responded_at: null, answer_until: future },
+  ];
+  const openMatch = async () => {
+    render(<CoachRsvp groups={groups} onBack={() => {}} />);
+    fireEvent.click(await screen.findByText('U9 · Олимп'));
+  };
+
+  it('правка данных матча отправляет только изменённые поля', async () => {
+    fake.db.matches = [matchRow()];
+    fake.rpc.match_rsvp_summary = () => [{ invited: 1, yes: 0, no: 0, unanswered: 1, reminders: 0, last_reminder_at: null }];
+    fake.rpc.match_rsvp_roster = () => rosterRows;
+    await openMatch();
+    fireEvent.click(await screen.findByRole('button', { name: 'Изменить данные матча' }));
+    fireEvent.change(await screen.findByLabelText('Соперник'), { target: { value: 'Динамо' } });
+    fireEvent.change(screen.getByLabelText('Адрес или ссылка на карту'), { target: { value: 'https://maps.app.goo.gl/x' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() => expect(fake.rpcCalls('match_rsvp_update')).toEqual([{ m: 'm1', p: { opponent: 'Динамо', address: 'https://maps.app.goo.gl/x' } }]));
+  });
+
+  it('исключённые игроки в составе не показываются, активного можно убрать', async () => {
+    fake.db.matches = [matchRow()];
+    fake.rpc.match_rsvp_summary = () => [{ invited: 1, yes: 0, no: 0, unanswered: 1, reminders: 0, last_reminder_at: null }];
+    fake.rpc.match_rsvp_roster = () => rosterRows;
+    await openMatch();
+    expect(await screen.findByText('Иванов Пётр')).toBeInTheDocument();
+    expect(screen.queryByText('Убранный Игрок')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Убрать из состава: Иванов Пётр' }));
+    expect(fake.rpcCalls('match_rsvp_remove')).toHaveLength(0);
+    fireEvent.click(await screen.findByRole('button', { name: 'Убрать' }));
+    await waitFor(() => expect(fake.rpcCalls('match_rsvp_remove')).toEqual([{ m: 'm1', p_players: ['p1'] }]));
+  });
+
+  it('игрока можно найти по фамилии и добавить в состав', async () => {
+    fake.db.matches = [matchRow()];
+    fake.db.players = [{ id: 'p5', full_name: 'Сидоров Иван' }, { id: 'p1', full_name: 'Иванов Пётр' }];
+    fake.rpc.match_rsvp_summary = () => [{ invited: 1, yes: 0, no: 0, unanswered: 1, reminders: 0, last_reminder_at: null }];
+    fake.rpc.match_rsvp_roster = () => rosterRows;
+    await openMatch();
+    fireEvent.change(await screen.findByLabelText('Добавить игрока в состав'), { target: { value: 'ван' } });
+    // Иванов уже в составе: предлагается только Сидоров
+    const card = await screen.findByLabelText('Добавить игрока');
+    fireEvent.click(await within(card).findByRole('button', { name: 'Добавить' }));
+    await waitFor(() => expect(fake.rpcCalls('match_rsvp_invite')).toEqual([{ m: 'm1', p_players: ['p5'] }]));
+  });
+
+  it('состав черновика товарищеского матча берётся из групп команды', async () => {
+    fake.db.matches = [matchRow({ lifecycle_status: 'draft' })];
+    fake.rpc.match_rsvp_summary = () => [{ invited: 0, yes: 0, no: 0, unanswered: 0, reminders: 0, last_reminder_at: null }];
+    fake.rpc.match_rsvp_roster = () => [];
+    fake.rpc.match_rsvp_seed = () => 7;
+    await openMatch();
+    fireEvent.click(await screen.findByRole('button', { name: 'Заполнить состав команды' }));
+    await waitFor(() => expect(fake.rpcCalls('match_rsvp_seed')).toEqual([{ m: 'm1', p_group: 'g1' }]));
+    expect(await screen.findByText('Добавлено игроков: 7')).toBeInTheDocument();
+  });
+
+  it('состав матча чемпионата берётся из списка события', async () => {
+    fake.db.matches = [matchRow({ lifecycle_status: 'draft', kind: 'game', tournament_id: 't1' })];
+    fake.rpc.match_rsvp_summary = () => [{ invited: 0, yes: 0, no: 0, unanswered: 0, reminders: 0, last_reminder_at: null }];
+    fake.rpc.match_rsvp_roster = () => [];
+    fake.rpc.match_rsvp_seed = () => 5;
+    await openMatch();
+    fireEvent.click(await screen.findByRole('button', { name: 'Заполнить состав из события' }));
+    await waitFor(() => expect(fake.rpcCalls('match_rsvp_seed')).toEqual([{ m: 'm1' }]));
+  });
 });
