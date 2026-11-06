@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fmtWhen, fromTbilisiLocal, responseText, rsvpError, toTbilisiLocal } from './matchRsvp';
+import { linkLabel, splitLinks, fmtWhen, fromTbilisiLocal, responseText, rsvpError, toTbilisiLocal } from './matchRsvp';
 
 describe('RSVP: время и тексты', () => {
   it('показывает время по Тбилиси', () => {
@@ -15,5 +15,16 @@ describe('RSVP: время и тексты', () => {
   });
   it('неизвестная ошибка базы показывается как есть', () => {
     expect(rsvpError('что-то странное')).toBe('что-то странное');
+  });
+
+  it('ссылки в тексте находятся без знаков препинания в конце', () => {
+    expect(splitLinks('Isani, https://maps.app.goo.gl/gYs3zv3sy2W5SLPY8?g_st=ic.')).toEqual([
+      { text: 'Isani, ' }, { text: 'https://maps.app.goo.gl/gYs3zv3sy2W5SLPY8?g_st=ic', href: 'https://maps.app.goo.gl/gYs3zv3sy2W5SLPY8?g_st=ic' }, { text: '.' },
+    ]);
+    expect(splitLinks('без ссылки')).toEqual([{ text: 'без ссылки' }]);
+  });
+  it('подпись ссылки: карта или сайт', () => {
+    expect(linkLabel('https://maps.app.goo.gl/abc')).toBe('Открыть на карте');
+    expect(linkLabel('https://www.example.com/x')).toBe('example.com');
   });
 });

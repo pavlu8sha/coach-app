@@ -43,6 +43,18 @@ describe('«Матчи» родителя: подтверждение участ
   });
 });
 
+describe('Карточка матча родителя: оформление', () => {
+  it('ссылка в адресе кликабельна, заметка и место подписаны', async () => {
+    seedParent([row({ venue: 'Isani', address: 'https://maps.app.goo.gl/abc', notes: 'Форма синяя' })]);
+    render(<Matches />);
+    const link = await screen.findByRole('link', { name: 'Открыть на карте' });
+    expect(link).toHaveAttribute('href', 'https://maps.app.goo.gl/abc');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(screen.getByText('Где играем')).toBeInTheDocument();
+    expect(screen.getByText('От тренера')).toBeInTheDocument();
+  });
+});
+
 describe('Тренер: матчи с подтверждением', () => {
   const groups = [{ id: 'g1', name: 'U9' }] as any;
   it('создаёт черновик с временем по Тбилиси', async () => {

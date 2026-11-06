@@ -58,3 +58,31 @@ export function rsvpError(message: string): string {
   const hit = ERRORS.find(([k]) => message.includes(k));
   return hit ? hit[1] : message;
 }
+
+export interface TextPart { text: string; href?: string }
+
+/** Разбивает текст на обычные куски и ссылки (http/https). Знаки препинания в конце ссылки в неё не входят. */
+export function splitLinks(text: string): TextPart[] {
+  const out: TextPart[] = [];
+  let last = 0;
+  for (const m of text.matchAll(/https?:\/\/[^\s<>"]+/g)) {
+    const raw = m[0].replace(/[.,;:!?)»]+$/, '');
+    const at = m.index ?? 0;
+    if (at > last) out.push({ text: text.slice(last, at) });
+    out.push({ text: raw, href: raw });
+    last = at + raw.length;
+  }
+  if (last < text.length) out.push({ text: text.slice(last) });
+  return out;
+}
+
+/** Подпись ссылки: карты — «Открыть на карте», остальное — адрес сайта без https:// */
+export function linkLabel(href: string): string {
+  try {
+    const u = new URL(href);
+    if (/(^|\.)(maps\.app\.goo\.gl|goo\.gl|google\.[a-z.]+|yandex\.[a-z.]+|2gis\.[a-z.]+|apple\.com|waze\.com)$/.test(u.hostname) && /map|goo\.gl|2gis|waze/.test(href)) return 'Открыть на карте';
+    return u.hostname.replace(/^www\./, '');
+  } catch {
+    return href;
+  }
+}
