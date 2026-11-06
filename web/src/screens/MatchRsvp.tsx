@@ -1,7 +1,19 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { fmtWhen, responseText, rsvpError, type MyRsvp, type RsvpResponse } from '../lib/matchRsvp';
+import { fmtWhen, linkLabel, responseText, rsvpError, splitLinks, type MyRsvp, type RsvpResponse } from '../lib/matchRsvp';
 import { Pill } from '../ui/components';
+
+/** Текст с кликабельными ссылками (откроются в браузере телефона) */
+function LinkText({ text }: { text: string }) {
+  return (
+    <>
+      {splitLinks(text).map((p, i) => (p.href
+        ? <a key={i} href={p.href} target="_blank" rel="noreferrer noopener" style={{ fontWeight: 600 }}>{linkLabel(p.href)}</a>
+        : <span key={i}>{p.text}</span>))}
+    </>
+  );
+}
+const LABEL = { fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' as const, margin: '10px 0 2px' };
 
 const KIND: Record<string, string> = { game: 'Матч чемпионата', friendly: 'Товарищеский матч' };
 
@@ -43,13 +55,24 @@ export default function RsvpSection({ rows, part, onChanged }: { rows: MyRsvp[];
               <b>{m.opponent ?? 'Соперник уточняется'}</b>
               {cancelled ? <Pill tone="danger">Отменён</Pill> : m.rescheduled ? <Pill tone="warning">Перенесён</Pill> : <Pill tone="primary">{part === 'upcoming' ? 'Предстоит' : 'Идёт или прошёл'}</Pill>}
             </div>
-            <p className="muted" style={{ margin: '4px 0' }}>{fmtWhen(m.starts_at)} · {m.team}{m.kind ? ` · ${KIND[m.kind] ?? ''}` : ''}</p>
-            {(m.venue || m.address) && <p className="muted" style={{ margin: '4px 0' }}>{[m.venue, m.address].filter(Boolean).join(', ')}</p>}
-            {m.notes && <p className="muted" style={{ margin: '4px 0' }}>{m.notes}</p>}
+            <p style={{ margin: '6px 0 0', fontSize: '1.05rem', fontWeight: 700 }}>{fmtWhen(m.starts_at)}</p>
+            <p className="muted" style={{ margin: '2px 0 0' }}>{m.team}{m.kind ? ` · ${KIND[m.kind] ?? ''}` : ''}</p>
+            {(m.venue || m.address) && (
+              <>
+                <p className="muted" style={LABEL}>Где играем</p>
+                <p style={{ margin: 0 }}>{m.venue && <b>{m.venue}</b>}{m.venue && m.address ? ' · ' : ''}{m.address && <LinkText text={m.address} />}</p>
+              </>
+            )}
+            {m.notes && (
+              <>
+                <p className="muted" style={LABEL}>От тренера</p>
+                <p style={{ margin: 0 }}><LinkText text={m.notes} /></p>
+              </>
+            )}
             {kids.map(r => {
               const key = `${r.match_id}|${r.player_id}`;
               return (
-                <div key={key} role="group" aria-label={r.player_name} style={{ marginTop: 10 }}>
+                <div key={key} role="group" aria-label={r.player_name} style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--ks-border)' }}>
                   <div className="ks-line"><b>{r.player_name}</b><span className="muted">{cancelled ? 'Матч отменён' : responseText(r.response)}</span></div>
                   {r.responded_by_name && r.response && <p className="muted" style={{ margin: '2px 0' }}>Ответил(а): {r.responded_by_name}</p>}
                   {!cancelled && r.can_answer && (
