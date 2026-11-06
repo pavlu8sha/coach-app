@@ -219,7 +219,7 @@ function RsvpDetail({ id, groups, onBack }: { id: string; groups: CoachGroup[]; 
     setBusy(false);
     if (r.error) return setMsg({ ok: false, text: rsvpError(r.error.message) });
     setEdit(null);
-    setMsg({ ok: true, text: st === 'published' ? 'Сохранено. Родители увидят новые данные в приложении' : 'Сохранено' });
+    setMsg({ ok: true, text: st === 'published' ? 'Сохранено. Родителям отправлено сообщение об изменении' : 'Сохранено' });
     setReload(n => n + 1);
   };
   // Состав: у события — список события, иначе игроки групп команды матча
@@ -276,8 +276,10 @@ function RsvpDetail({ id, groups, onBack }: { id: string; groups: CoachGroup[]; 
         </>
       )}
       {live && (
+        <button type="button" className="ks-btn" disabled={busy || (sum?.unanswered ?? 0) === 0} onClick={() => void remind()}>Напомнить не ответившим</button>
+      )}
+      {st === 'published' && (
         <>
-          <button type="button" className="ks-btn" disabled={busy || (sum?.unanswered ?? 0) === 0} onClick={() => void remind()}>Напомнить не ответившим</button>
           <label className="ks-label" htmlFor="rs-new">Новая дата и время (Тбилиси)</label>
           <input id="rs-new" className="ks-input" type="datetime-local" value={newWhen} onChange={e => setNewWhen(e.target.value)} placeholder={m.starts_at ? toTbilisiLocal(m.starts_at) : ''} />
           <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => void reschedule()}>Перенести матч</button>
