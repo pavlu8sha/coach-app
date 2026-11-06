@@ -6,6 +6,7 @@ import { BackNav } from '../ui/nav';
 import { useDirtyGuard, useNav, useNavState } from '../nav';
 import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
+import ExtraTargets, { TargetPicker, useGroups, type Pl } from './ExtraTargets';
 
 interface Booking { player_id: string; paid: boolean; attended: boolean | null; paid_amount: number | null; method: string | null; players: { full_name: string } | null }
 interface Session { id: string; starts_on: string; starts_time: string | null; ends_time: string | null; amount: number; place: string | null; capacity?: number | null; cancelled_at?: string | null; cancel_reason?: string | null; extra_bookings: Booking[] }
@@ -120,11 +121,14 @@ function Form({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
   const [place, setPlace] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  useDirtyGuard(date !== today() || amount.trim() !== '' || place.trim() !== '');
+  const groups = useGroups();
+  const [sel, setSel] = useState<string[]>([]);
+  const [invited, setInvited] = useState<Pl[]>([]);
+  useDirtyGuard(date !== today() || amount.trim() !== '' || place.trim() !== '' || sel.length > 0 || invited.length > 0);
   const save = async () => {
     setBusy(true);
     setErr(null);
-    const r = await supabase.rpc('extra_create_session', { d: date, amt: Number(amount.replace(',', '.')), plc: place });
+    const r = await supabase.rpc('extra_create_session', { d: date, amt: Number(amount.replace(',', '.')), plc: place, grps: sel, pls: invited.map(i => i.id) });
     setBusy(false);
     if (r.error) return setErr(errText(r.error.message));
     onDone();
@@ -136,8 +140,11 @@ function Form({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
       <label className="field">Дата<input type="date" value={date} onChange={e => setDate(e.target.value)} /></label>
       <label className="field">Сумма с игрока, ₾<input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /></label>
       <label className="field">Место (необязательно)<input value={place} maxLength={80} onChange={e => setPlace(e.target.value)} /></label>
+      <TargetPicker groups={groups} selected={sel} onToggle={id => setSel(x => x.includes(id) ? x.filter(i => i !== id) : [...x, id])} invited={invited}
+        onInvite={p => setInvited(x => x.some(i => i.id === p.id) ? x : [...x, p])} onUninvite={id => setInvited(x => x.filter(i => i.id !== id))} />
+      {sel.length + invited.length === 0 && <p className="ks-muted" style={{ fontSize: 13 }}>Выберите хотя бы одну группу или пригласите игрока.</p>}
       {err && <p className="error">{err}</p>}
-      <button type="button" className="ks-btn" disabled={busy || !date || amount.trim() === '' || Number.isNaN(Number(amount.replace(',', '.')))} onClick={() => void save()}>Создать</button>
+      <button type="button" className="ks-btn" disabled={busy || !date || amount.trim() === '' || Number.isNaN(Number(amount.replace(',', '.'))) || sel.length + invited.length === 0} onClick={() => void save()}>Создать</button>
     </main>
   );
 }
@@ -157,6 +164,7 @@ function View({ session, onBack }: { session: Session; onBack: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [gone, setGone] = useState(false);
+  const [ineligible, setIneligible] = useState<string[]>([]);
   const { ask, dialog: confirmDialog } = useConfirm();
 
   const refresh = async () => {
@@ -228,6 +236,7 @@ function View({ session, onBack }: { session: Session; onBack: () => void }) {
         <div className="ks-card" key={b.player_id}>
           <div className="ks-line">
             <b style={{ overflowWrap: 'anywhere' }}>{b.players?.full_name ?? 'Игрок'}</b>
+            {ineligible.includes(b.player_id) && <Pill tone="warning">Не из целевой группы</Pill>}
             <Pill tone={b.paid ? 'success' : 'danger'} dot>{b.paid ? `${gel(Number(b.paid_amount ?? session.amount))}${b.method ? ` · ${b.method}` : ''}` : 'Не оплачено'}</Pill>
           </div>
           {!cancelled && <div style={{ marginTop: 8 }}>
@@ -245,6 +254,8 @@ function View({ session, onBack }: { session: Session; onBack: () => void }) {
       ))}
 
       {cancelled ? null : <>
+      <ExtraTargets sessionId={session.id} onIneligible={setIneligible} />
+
       <h3>Записать игрока</h3>
       <SearchInput label="Найти игрока" placeholder="Фамилия или имя (от 2 букв)" value={q} onChange={setQ} suggestions={found.map(f => f.full_name)} />
       {found.map(p => (
