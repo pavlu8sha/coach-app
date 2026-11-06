@@ -7,6 +7,7 @@ import { useMainButton } from '../ui/nav';
 import { useNav, useNavState } from '../nav';
 import IndMarks, { indDay, indTitle, type IndSession } from './IndMarks';
 import { Failure, Loading } from './Message';
+import { wasActiveOn, type StatusLogPoint } from '../lib/playerStatus';
 
 type Status = 'present' | 'absent' | 'excused';
 interface Slot { group_id: string; weekday: number; kind: string }
@@ -131,8 +132,13 @@ function Roster({ gid, date }: { gid: string; date: string }) {
 
   useEffect(() => {
     void (async () => {
-      const p = await supabase.from('players').select('id, full_name').eq('group_id', gid).eq('status', 'active').order('full_name');
+      const p = await supabase.from('players').select('id, full_name, status').eq('group_id', gid).order('full_name');
       if (p.error) return setError(p.error.message);
+      const all = (p.data ?? []) as (Player & { status: string })[];
+      const lg = await supabase.from('player_status_log').select('player_id, status, on_date, created_at').in('player_id', all.map(x => x.id)).limit(5000);
+      if (lg.error) return setError(lg.error.message);
+      const logBy = new Map<string, StatusLogPoint[]>();
+      for (const r of (lg.data ?? []) as (StatusLogPoint & { player_id: string })[]) logBy.set(r.player_id, [...(logBy.get(r.player_id) ?? []), r]);
       const s = await supabase.from('sessions').select('id').eq('group_id', gid).eq('source_key', 'ATT|' + date).maybeSingle();
       if (s.error) return setError(s.error.message);
       const existing: Record<string, Status> = {};
@@ -142,7 +148,8 @@ function Roster({ gid, date }: { gid: string; date: string }) {
         for (const r of (a.data ?? []) as { player_id: string; status: Status }[]) existing[r.player_id] = r.status;
       }
       setMarks(existing);
-      setPlayers((p.data ?? []) as Player[]);
+      // в списке: кто занимался в этот день (ушедшие и вернувшиеся позже не попадают), плюс те, у кого отметка уже есть
+      setPlayers(all.filter(x => existing[x.id] || wasActiveOn(x.status, logBy.get(x.id) ?? [], date)).map(x => ({ id: x.id, full_name: x.full_name })));
     })();
   }, [gid, date, reload]);
 

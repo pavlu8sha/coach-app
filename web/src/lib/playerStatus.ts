@@ -44,3 +44,18 @@ export function afterLeftMonthTest(status: string | undefined, log: StatusLogPoi
   const leftMonth = `${left.slice(0, 7)}-01`;
   return (month: string) => month > leftMonth;
 }
+
+/**
+ * Был ли игрок «Занимается» в указанный день (для списка отметок за прошедшую тренировку).
+ * Берём последнюю запись журнала с on_date не позже дня. Если такой записи нет:
+ * первая запись журнала «Занимается» значит, что до неё игрок не занимался (вернулся позже этого дня);
+ * первая запись «Пауза»/«Ушёл» значит, что до неё он занимался; игрок без журнала: по текущему статусу.
+ */
+export function wasActiveOn(currentStatus: string | undefined, log: StatusLogPoint[], day: string): boolean {
+  const rows = [...log].sort((a, b) => a.on_date.localeCompare(b.on_date) || (a.created_at ?? '').localeCompare(b.created_at ?? ''));
+  if (rows.length === 0) return (currentStatus ?? 'active') === 'active';
+  let at: StatusLogPoint | undefined;
+  for (const r of rows) if (r.on_date <= day) at = r;
+  if (at) return at.status === 'active';
+  return rows[0].status !== 'active';
+}

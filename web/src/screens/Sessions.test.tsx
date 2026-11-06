@@ -44,6 +44,18 @@ describe('«Занятия»', () => {
     expect(fake.rpcCalls('open_session')).toHaveLength(0); // просмотр занятие не создаёт
   });
 
+  it('вернувшийся позже этой даты в список отметок не попадает', async () => {
+    seed();
+    fake.db.player_status_log = [
+      { player_id: 'p2', status: 'inactive', on_date: '2020-01-01' },
+      { player_id: 'p2', status: 'active', on_date: '2999-01-01' },
+    ];
+    render(<Sessions groups={groups} />);
+    await screen.findByText('Иванов Пётр');
+    expect(screen.queryByText('Сидоров Ян')).not.toBeInTheDocument();
+    fake.db.player_status_log = [];
+  });
+
   it('если нет занятий в расписании, показывает пустое состояние', async () => {
     fake.db.weekly_schedule = [];
     fake.db.players = [{ id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'active' }];
