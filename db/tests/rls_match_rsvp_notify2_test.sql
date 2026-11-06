@@ -36,7 +36,7 @@ grant execute on function as_user(uuid), mid(text), inv_of(uuid, uuid) to authen
 
 -- ---------- черновик: приглашения пачкой молчат; публикация ----------
 select as_user('00000000-0000-0000-0000-0000000000c1');
-insert into ids select 'm1', match_rsvp_create_draft('00000000-0000-0000-0000-00000000c001', 'friendly', 'U9', 'Олимп', now() + interval '5 days', 'Стадион', 'ул. Мира 1', null);
+insert into ids select 'm1', match_rsvp_create_draft('00000000-0000-0000-0000-00000000c001', 'friendly', 'U9', 'Олимп', (date_trunc('day', now() at time zone 'Asia/Tbilisi') + interval '5 days 12 hours') at time zone 'Asia/Tbilisi', 'Стадион', 'ул. Мира 1', null);
 select match_rsvp_invite(mid('m1'), array['00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-00000000d005', '00000000-0000-0000-0000-00000000d002']::uuid[]);
 set constraints all immediate; set constraints all deferred; -- конец транзакции приглашения черновика (в тесте одна общая транзакция)
 select match_rsvp_publish(mid('m1'));
