@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavState } from '../nav';
 import { fmtDate, plural } from '../lib/coach';
 import { grandTotal, latestMonth, ledgerLabel, monthLabel, monthOf, monthTotal, shiftMonth, type LedgerRow } from '../lib/pointsLedger';
 import { supabase } from '../lib/supabase';
@@ -27,7 +28,8 @@ const today = () => new Date().toISOString().slice(0, 7);
 export default function PointsLedger({ playerId, showEmpty = false }: { playerId: string; showEmpty?: boolean }) {
   const [rows, setRows] = useState<LedgerRow[] | null>(null);
   const [series, setSeries] = useState<SeriesInfo | null>(null);
-  const [month, setMonth] = useState<string | null>(null);
+  const [picked, setMonth] = useNavState<string | null>(`pl.month.${playerId}`, null); // выбранный вручную; пока не выбран — последний месяц с начислениями
+  const month = picked ?? (rows ? latestMonth(rows, today()) : null);
   const [bench, setBench] = useState<Bench | null>(null);
 
   useEffect(() => {
@@ -36,7 +38,6 @@ export default function PointsLedger({ playerId, showEmpty = false }: { playerId
       const r = await supabase.from('points_ledger').select('id, event_date, points, source_type, reason_code, components, status').eq('player_id', playerId).eq('status', 'active').order('event_date', { ascending: false }).limit(1000);
       const list = r.error ? [] : ((r.data ?? []) as LedgerRow[]);
       setRows(list);
-      setMonth(m => m ?? latestMonth(list, today()));
       if (list.length > 0) {
         const s = await supabase.rpc('points_series_info', { p: playerId });
         setSeries(s.error ? null : (s.data as SeriesInfo | null));

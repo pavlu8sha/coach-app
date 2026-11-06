@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { sortGroups } from '../lib/coach';
+import { useNav, useNavState } from '../nav';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput } from '../ui/components';
 import { BackNav } from '../ui/nav';
@@ -18,8 +19,11 @@ export default function Coaches() {
   const [links, setLinks] = useState<Set<string>>(new Set()); // "userId|groupId"
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const [q, setQ] = useState('');
-  const [open, setOpen] = useState<User | null>(null);
+  const nav = useNav();
+  const [q, setQ] = useNavState('co.q', '', { entry: 0 }); // поиск на диск не пишем: в нём имена
+  // открытый тренер — запись стека: «Назад» и системная кнопка возвращают к списку с тем же поиском и прокруткой
+  const openId = nav.top.screen === 'coach' ? nav.top.params.id : null;
+  const open = openId && users ? users.find(u => u.id === openId) ?? null : null;
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -56,13 +60,13 @@ export default function Coaches() {
     });
   };
 
-  if (error) return <Failure title="Не удалось загрузить тренеров" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={open ? <BackNav onBack={() => setOpen(null)} /> : undefined} />;
+  if (error) return <Failure title="Не удалось загрузить тренеров" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={openId ? <BackNav onBack={() => nav.back()} managed /> : undefined} />;
   if (!users) return <Loading />;
 
   if (open) {
     return (
       <main className="page">
-        <BackNav onBack={() => setOpen(null)} />
+        <BackNav onBack={() => nav.back()} managed />
         <h1 style={{ overflowWrap: 'anywhere' }}>{label(open)}</h1>
         <p className="muted" style={{ marginBottom: 12 }}>Отметьте группы, в которых человек тренер. Тренер сможет отмечать занятия, вносить матчи и начислять баллы только в этих группах. Платежи ему не видны.</p>
         {groups.map(g => {
@@ -87,7 +91,7 @@ export default function Coaches() {
   const applicants = found.filter(u => !coachIds.has(u.id) && u.chosen_role === 'coach');
   const others = needle ? found.filter(u => !coachIds.has(u.id) && u.chosen_role !== 'coach') : [];
   const row = (u: User) => (
-    <ListRow key={u.id} avatar={label(u)} title={label(u)} sub={[`Telegram ID ${u.telegram_id}`]} end={coachIds.has(u.id) ? <Pill tone="primary">Тренер</Pill> : undefined} onClick={() => setOpen(u)} />
+    <ListRow key={u.id} avatar={label(u)} title={label(u)} sub={[`Telegram ID ${u.telegram_id}`]} end={coachIds.has(u.id) ? <Pill tone="primary">Тренер</Pill> : undefined} onClick={() => nav.push('coach', { id: u.id })} />
   );
 
   return (

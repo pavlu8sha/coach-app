@@ -13,6 +13,10 @@ import Stats from './Stats';
 import Money from './Money';
 import Players from './Players';
 import Sessions from './Sessions';
+import More from './More';
+import Coaches from './Coaches';
+import Leads from './Leads';
+import AdminArticles from './AdminArticles';
 
 const month = today().slice(0, 7) + '-01';
 const inApp = (root: string, ui: React.ReactNode) => (
@@ -257,5 +261,71 @@ describe('Экипировка, сборы, дополнительные', () =>
     expect(await screen.findByRole('heading', { name: 'Новая тренировка' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
     expect(await screen.findByRole('tab', { name: 'Прошедшие', selected: true })).toBeInTheDocument();
+  });
+});
+
+describe('Разделы внутри «Ещё»', () => {
+  it('вложенный экран раздела не подменяется каталогом «Ещё»; «Назад» идёт по шагам', async () => {
+    fake.db.equipment_orders = [];
+    fake.db.equipment_catalog = [{ kit: 'Форма', price: 100, valid_from: '2026-08-01' }];
+    fake.db.players = [];
+    render(inApp('more', <More groups={[]} bar={[]} onMenuChanged={() => {}} />));
+    fireEvent.click(await screen.findByText('Экипировка'));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Каталог' }));
+    expect(screen.queryByRole('heading', { name: 'Ещё' })).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Назад' }));
+    expect(await screen.findByRole('tab', { name: 'Все' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Ещё' }));
+    expect(await screen.findByRole('heading', { name: 'Ещё' })).toBeInTheDocument();
+  });
+});
+
+describe('Разделы администратора: тренеры, заявки, статьи', () => {
+  it('«Тренеры»: поиск остаётся после «Назад» из карточки тренера', async () => {
+    fake.db.users = [
+      { id: 'u1', telegram_id: 1, display_name: 'Анна Тренер', chosen_role: null, is_admin: false },
+      { id: 'u2', telegram_id: 2, display_name: 'Борис Другой', chosen_role: null, is_admin: false },
+    ];
+    fake.db.groups = [{ id: 'g1', name: 'U9-A' }];
+    fake.db.coach_groups = [];
+    const push = vi.spyOn(window.history, 'pushState');
+    render(inApp('coaches', <Coaches />));
+    fireEvent.change(await screen.findByLabelText('Найти пользователя'), { target: { value: 'анна' } });
+    fireEvent.click(await screen.findByText('Анна Тренер'));
+    expect(await screen.findByRole('heading', { name: 'Анна Тренер' })).toBeInTheDocument();
+    expect(push).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(await screen.findByLabelText('Найти пользователя')).toHaveValue('анна');
+    expect(screen.queryByText('Борис Другой')).not.toBeInTheDocument();
+  });
+
+  it('«Заявки»: фильтр остаётся после ухода в другой раздел', async () => {
+    fake.db.trials = [{ id: 't1', full_name: 'Старая Заявка', phone: null, parent_name: null, username: null, birth_year: 2016, status: 'joined', note: null, created_at: '2026-10-01T10:00:00Z', source: null }];
+    render(
+      <NavProvider initial="money">
+        <TwoTabs>
+          <Leads />
+        </TwoTabs>
+      </NavProvider>,
+    );
+    expect(screen.queryByText(/Старая Заявка/)).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('tab', { name: 'Все' }));
+    expect(await screen.findByText(/Старая Заявка/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText('to-other'));
+    fireEvent.click(screen.getByText('to-money'));
+    expect(await screen.findByRole('tab', { name: 'Все', selected: true })).toBeInTheDocument();
+    expect(await screen.findByText(/Старая Заявка/)).toBeInTheDocument();
+  });
+
+  it('«Статьи клуба»: «Назад» из редактора возвращает в тот же раздел списка', async () => {
+    fake.db.users = [{ id: 'u', is_admin: true }];
+    fake.db.club_articles = [];
+    const push = vi.spyOn(window.history, 'pushState');
+    render(inApp('content', <AdminArticles />));
+    fireEvent.click(await screen.findByRole('tab', { name: /Новости|Публикации/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать публикацию' }));
+    expect(push).toHaveBeenCalledTimes(1);
+    fireEvent.click(await screen.findByRole('button', { name: 'Назад' }));
+    expect(await screen.findByRole('button', { name: 'Создать публикацию' })).toBeInTheDocument();
   });
 });
