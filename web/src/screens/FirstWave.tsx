@@ -3,6 +3,7 @@ import { coachError } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { ListRow, Pill, SearchInput, Segmented } from '../ui/components';
 import { Loading } from './Message';
+import { matchPlayers, parseLines, type ImportResult } from '../lib/firstWaveImport';
 
 type Dir = 'ind_sat' | 'ind_sun' | 'goalkeeper';
 interface Row { player_id: string; name: string; direction: Dir; parents: number; enabled: number }
@@ -20,6 +21,8 @@ export default function FirstWave() {
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [preview, setPreview] = useState<Preview[] | null>(null);
+  const [text, setText] = useState('');
+  const [imp, setImp] = useState<ImportResult | null>(null);
 
   const load = useCallback(async () => {
     const r = await supabase.rpc('first_wave_list');
@@ -67,6 +70,34 @@ export default function FirstWave() {
     setPreview((r.data ?? []) as Preview[]);
   };
 
+  // Импорт списком: имена из текста или файла (CSV, TXT) сопоставляются с активными игроками; в базу уходит только то, что нашлось однозначно
+  const readFile = async (f: File | undefined) => { if (f) setText(await f.text()); setImp(null); };
+  const checkList = async () => {
+    setBusy('check');
+    setMsg(null);
+    const r = await supabase.from('players').select('id, full_name').eq('status', 'active').limit(5000);
+    setBusy(null);
+    if (r.error) return setMsg({ ok: false, text: coachError(r.error.message) });
+    setImp(matchPlayers(parseLines(text), (r.data ?? []) as { id: string; full_name: string }[]));
+  };
+  const addFound = async () => {
+    if (!imp) return;
+    setBusy('import');
+    setMsg(null);
+    const byDir = new Map<Dir, string[]>();
+    for (const x of imp.ok) byDir.set(x.line.dir ?? dir, [...(byDir.get(x.line.dir ?? dir) ?? []), x.player.id]);
+    for (const [d, pls] of byDir) {
+      const r = await supabase.rpc('first_wave_add', { dirs: [d], pls });
+      if (r.error) { setBusy(null); return setMsg({ ok: false, text: coachError(r.error.message) }); }
+    }
+    setBusy(null);
+    setMsg({ ok: true, text: `Добавлено детей: ${imp.ok.length}. Родителям включены уведомления направления.` });
+    setImp(null);
+    setText('');
+    setPreview(null);
+    await load();
+  };
+
   if (!rows) return msg ? <p className="error">{msg.text}</p> : <Loading />;
   const mine = rows.filter(r => r.direction === dir);
   return (
@@ -86,6 +117,19 @@ export default function FirstWave() {
         <ListRow key={p.id} avatar={p.full_name} title={p.full_name}
           end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} aria-label={`Добавить: ${p.full_name}`} disabled={busy === 'a' + p.id || mine.some(m => m.player_id === p.id)} onClick={() => void add(p.id)}>Добавить</button>} />
       ))}
+      <h3>Загрузить список</h3>
+      <p className="muted">Вставьте фамилии по одной в строке или выберите файл CSV/TXT. Во второй колонке можно указать направление (суббота, воскресенье, вратарская), иначе берётся выбранное выше.</p>
+      <label className="field">Список<textarea rows={5} value={text} onChange={e => { setText(e.target.value); setImp(null); }} /></label>
+      <label className="field">Файл<input type="file" accept=".csv,.txt,text/csv,text/plain" onChange={e => void readFile(e.target.files?.[0])} /></label>
+      <button type="button" className="ks-btn secondary" disabled={busy === 'check' || !text.trim()} onClick={() => void checkList()}>Проверить список</button>
+      {imp && (
+        <div role="status">
+          <p>Найдено: {imp.ok.length}, неоднозначно: {imp.ambiguous.length}, не найдено: {imp.missing.length}.</p>
+          {imp.ambiguous.length > 0 && <p className="error">Неоднозначные (несколько игроков с таким именем) не добавляются: {imp.ambiguous.map(a => a.line.name).join(', ')}.</p>}
+          {imp.missing.length > 0 && <p className="error">Не найдены среди активных игроков: {imp.missing.map(m => m.name).join(', ')}.</p>}
+          <button type="button" className="ks-btn" disabled={busy === 'import' || imp.ok.length === 0} onClick={() => void addFound()}>Добавить найденных ({imp.ok.length})</button>
+        </div>
+      )}
       <h3>Пятничная рассылка</h3>
       <p className="muted">Разовое сообщение «запись теперь в приложении». Исключаются дети, уже записанные по направлению, родители с выключенным направлением и те, кто уже получил сообщение. Реальный запуск делает владелец отдельно, здесь только предпросмотр.</p>
       <button type="button" className="ks-btn secondary" disabled={busy === 'preview'} onClick={() => void check()}>Посмотреть, кому уйдёт</button>

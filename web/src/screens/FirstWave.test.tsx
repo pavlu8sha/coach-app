@@ -39,4 +39,17 @@ describe('Первая волна', () => {
     expect(await screen.findByText('Суббота: родителей 3')).toBeInTheDocument();
     expect(fake.rpcCalls('first_wave_friday')).toEqual([{ dry: true }]);
   });
+
+  it('импорт списком: найденные уходят в first_wave_add по направлениям, остальные только показаны', async () => {
+    fake.db.players = [{ id: 'p1', full_name: 'Иванов Пётр', status: 'active' }, { id: 'p2', full_name: 'Сидоров Ян', status: 'active' }];
+    fake.rpc.first_wave_list = () => [];
+    fake.rpc.first_wave_add = () => 1;
+    render(<FirstWave />);
+    fireEvent.change(await screen.findByLabelText('Список'), { target: { value: 'Иванов Пётр\nСидоров Ян;вратарская\nНеизвестный Игрок' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Проверить список' }));
+    expect(await screen.findByText('Найдено: 2, неоднозначно: 0, не найдено: 1.')).toBeInTheDocument();
+    expect(screen.getByText(/Не найдены среди активных игроков: Неизвестный Игрок/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Добавить найденных (2)' }));
+    await waitFor(() => expect(fake.rpcCalls('first_wave_add')).toEqual([{ dirs: ['ind_sat'], pls: ['p1'] }, { dirs: ['goalkeeper'], pls: ['p2'] }]));
+  });
 });
