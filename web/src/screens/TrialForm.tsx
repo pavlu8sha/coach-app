@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { coachError } from '../lib/coach';
 import { ADMIN_CHAT, BRANCHES } from '../lib/clubInfo';
 import { supabase } from '../lib/supabase';
+import { useNav, useSubEntry } from '../nav';
 import Privacy from './Privacy';
 
 const YEAR = new Date().getFullYear();
@@ -25,13 +26,14 @@ export default function TrialForm({ startOpen = false }: { startOpen?: boolean }
   const [phone, setPhone] = useState('');
   const [branch, setBranch] = useState('');
   const [agreed, setAgreed] = useState(false);
-  const [policy, setPolicy] = useState(false);
+  const nav = useNav();
+  const policy = Boolean(useSubEntry('policy')); // политика — запись стека: форма остаётся смонтированной, введённое не теряется
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
   const H = startOpen ? 'h1' : 'h2'; // отдельным экраном (startOpen) это заголовок страницы
-  if (policy) return <Privacy onBack={() => setPolicy(false)} />;
+  if (policy) return <Privacy onBack={() => nav.back()} />;
   if (sent) {
     return (
       <section className="ks-card">
@@ -74,7 +76,7 @@ export default function TrialForm({ startOpen = false }: { startOpen?: boolean }
         </select>
         <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 12 }}>
           <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} style={{ marginTop: 4 }} />
-          <span className="muted note">Я согласен(на) на обработку моих данных и данных ребёнка для записи в клуб, как описано в <button type="button" className="link-btn" onClick={() => setPolicy(true)}>Политике конфиденциальности</button>.</span>
+          <span className="muted note">Я согласен(на) на обработку моих данных и данных ребёнка для записи в клуб, как описано в <button type="button" className="link-btn" onClick={() => nav.push('policy')}>Политике конфиденциальности</button>.</span>
         </label>
         {error && <p className="error" role="alert">{error}</p>}
         <button className="ks-btn" style={{ marginTop: 12 }} disabled={!valid || busy}>Отправить заявку</button>

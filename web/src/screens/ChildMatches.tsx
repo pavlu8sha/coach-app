@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavState } from '../nav';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, Segmented, type Tone } from '../ui/components';
 import { Failure, Loading } from './Message';
@@ -20,7 +21,7 @@ export default function ChildMatches({ player }: { player: ChildPlayer }) {
   const [matches, setMatches] = useState<Match[] | null>(null);
   const [parts, setParts] = useState<Map<string, Part>>(new Map());
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<Filter>('upcoming');
+  const [filter, setFilter] = useNavState<Filter>('cm.filter', 'upcoming', { persist: { kind: 'enum', values: ['upcoming', 'past'] } });
   const [reload, setReload] = useState(0);
 
   useEffect(() => {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CONSENT, CONSENT_VERSION } from '../lib/consent';
+import { useNav, useSubEntry } from '../nav';
 import Privacy from './Privacy';
 import { supabase } from '../lib/supabase';
 import { preferredLang } from '../lib/telegram';
@@ -33,7 +34,8 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [agreed, setAgreed] = useState(false);
-  const [policy, setPolicy] = useState(false);
+  const nav = useNav();
+  const policy = Boolean(useSubEntry('policy')); // политика — запись стека: список и согласие остаются
   const [selected, setSelected] = useState<string | null>(null);
   const notified = useRef(false); // «подтверждено» сообщаем родителю экрана один раз, иначе обновление зацикливается
   const c = CONSENT[preferredLang()];
@@ -85,7 +87,7 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
   // В Telegram запрос отправляет главная кнопка Telegram для выбранного ребёнка; в браузере — кнопка под списком
   const native = useMainButton({ text: 'Отправить запрос', visible: Boolean(chosen), enabled: agreed && !busy, loading: busy, onClick: () => selected && void request(selected) });
 
-  if (policy) return <Privacy onBack={() => setPolicy(false)} />;
+  if (policy) return <Privacy onBack={() => nav.back()} />;
 
   return (
     <section className="ks-card">
@@ -140,7 +142,7 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
             <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} />
             <span>
               {c.agree[0]}
-              <button type="button" className="link-btn" onClick={() => setPolicy(true)}>
+              <button type="button" className="link-btn" onClick={() => nav.push('policy')}>
                 {c.agree[1]}
               </button>
               {c.agree[2]}

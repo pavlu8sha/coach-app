@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNav, useSubEntry } from '../nav';
 import { supabase } from '../lib/supabase';
 import { fetchLedgerTotals } from '../lib/pointsLedger';
 import { Avatar, EmptyState, ListRow, Pill } from '../ui/components';
@@ -50,16 +51,19 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
   const [reload, setReload] = useState(0);
   const [showLink, setShowLink] = useState(false);
   const [addMore, setAddMore] = useState(false);
-  const [statusOpen, setStatusOpen] = useState(false);
+  const nav = useNav();
+  const statusOpen = Boolean(useSubEntry('hm.status')); // статусы запросов — запись стека
+  const wasStatus = useRef(false);
   const retry = () => {
     setError(null);
     setReload(n => n + 1);
   };
-  const openStatus = () => setStatusOpen(true);
-  const closeStatus = () => {
-    setStatusOpen(false);
-    setReload(n => n + 1); // после просмотра статусов подтянуть новых детей
-  };
+  const openStatus = () => nav.push('hm.status');
+  // после просмотра статусов (и «Назад», и системной) подтянуть новых детей
+  useEffect(() => {
+    if (wasStatus.current && !statusOpen) setReload(n => n + 1);
+    wasStatus.current = statusOpen;
+  }, [statusOpen]);
   const refresh = useCallback(() => setReload(n => n + 1), []);
 
   useEffect(() => {
@@ -101,7 +105,7 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
 
   if (error) return <Failure title="Не удалось загрузить данные" text={error} onRetry={retry} />;
   if (!children) return <Loading />;
-  if (statusOpen) return <LinkStatus onBack={closeStatus} />;
+  if (statusOpen) return <LinkStatus onBack={() => nav.back()} />;
 
   const waiting = reqs.filter(r => r.status === 'pending').length;
   const rejected = reqs.filter(r => r.status === 'rejected').length;

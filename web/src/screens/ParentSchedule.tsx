@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useNavState } from '../nav';
 import { Segmented } from '../ui/components';
 import Booking from './Booking';
 import ParentCalendar from './ParentCalendar';
@@ -6,7 +6,7 @@ import Schedule from './Schedule';
 
 // «Расписание» родителя: календарь ребёнка, расписание групп и запись на занятия.
 export default function ParentSchedule() {
-  const [tab, setTab] = useState<'calendar' | 'groups' | 'booking'>('calendar');
+  const [tab, setTab] = useNavState<'calendar' | 'groups' | 'booking'>('ps.tab', 'calendar', { persist: { kind: 'enum', values: ['calendar', 'groups', 'booking'] } });
   const items = [
     { value: 'calendar' as const, label: 'Календарь' },
     { value: 'groups' as const, label: 'Группы' },

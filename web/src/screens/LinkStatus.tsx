@@ -63,12 +63,12 @@ export default function LinkStatus({ onBack }: { onBack: () => void }) {
     setReload(n => n + 1);
   };
 
-  if (error) return <Failure title="Не удалось загрузить запросы" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} />} />;
+  if (error) return <Failure title="Не удалось загрузить запросы" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} managed />} />;
   if (!reqs) return <Loading />;
 
   return (
     <main className="page">
-      <BackNav onBack={onBack} />
+      <BackNav onBack={onBack} managed />
       <h1>Статус привязки</h1>
       {reqs.length === 0 ? (
         <EmptyState icon="users" title="Запросов пока нет" text="Найдите ребёнка и отправьте запрос на привязку." />

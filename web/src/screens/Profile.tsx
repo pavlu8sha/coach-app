@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNav, useSubEntry } from '../nav';
 import { closeApp, telegramName } from '../lib/telegram';
 import { supabase } from '../lib/supabase';
 import { getThemePref, saveThemePref, type ThemePref } from '../lib/theme';
@@ -16,7 +17,11 @@ import { useConfirm } from '../ui/ConfirmSheet';
 // Профиль родителя. Имя берётся из Telegram и видно только владельцу. Уведомления в Telegram — миграция 0026, docs/NOTIFICATIONS.md.
 export default function Profile() {
   const { ask, dialog: confirmDialog } = useConfirm();
-  const [view, setView] = useState<'main' | 'kids' | 'data' | 'articles' | 'news' | 'tournaments' | 'about'>('main');
+  type View = 'main' | 'kids' | 'data' | 'articles' | 'news' | 'tournaments' | 'about';
+  const nav = useNav();
+  // подэкран профиля — запись стека: «Назад» и системная кнопка возвращают в профиль на прежнее место
+  const view = ((useSubEntry('p.view')?.params.v as View | undefined) ?? 'main') as View;
+  const setView = (v: View) => (v === 'main' ? nav.back() : nav.push('p.view', { v }));
   const [pref, setPref] = useState<ThemePref>(getThemePref());
   const [busy, setBusy] = useState(false);
   const name = telegramName();
