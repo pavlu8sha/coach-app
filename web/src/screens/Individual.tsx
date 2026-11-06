@@ -6,6 +6,7 @@ import { EmptyState, ListRow, Pill, SearchInput, Segmented } from '../ui/compone
 import { BackNav } from '../ui/nav';
 import { useNav, useNavState } from '../nav';
 import { useConfirm } from '../ui/ConfirmSheet';
+import { clashConfirmed } from './bookingClash';
 import FirstWave from './FirstWave';
 import WaitlistList from './WaitlistList';
 import { Failure, Loading } from './Message';
@@ -284,7 +285,7 @@ function SessionView({ session, onBack }: { session: Session; onBack: () => void
       <h3>Записать игрока</h3>
       <SearchInput label="Найти игрока" placeholder="Фамилия или имя (от 2 букв)" value={q} onChange={setQ} suggestions={found.map(f => f.full_name)} />
       {found.map(p => (
-        <ListRow key={p.id} avatar={p.full_name} title={p.full_name} end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} disabled={busy === 'a' + p.id} onClick={() => void run('a' + p.id, () => supabase.rpc('ind_add_player', { s: session.id, p: p.id }), 'Записан.').then(ok => { if (ok) setQ(''); })}>Записать</button>} />
+        <ListRow key={p.id} avatar={p.full_name} title={p.full_name} end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} disabled={busy === 'a' + p.id} onClick={() => void clashConfirmed(ask, gk ? 'goalkeeper' : 'individual', session.id, p.id, p.full_name).then(go => go ? run('a' + p.id, () => supabase.rpc('ind_add_player', { s: session.id, p: p.id }), 'Записан.').then(ok => { if (ok) setQ(''); }) : undefined)}>Записать</button>} />
       ))}
 
       <h3>Занятие</h3>

@@ -174,4 +174,19 @@ describe('«Индивидуальные»: постоянные по месяц
     fireEvent.click(await screen.findByRole('button', { name: 'Создать занятия на выходные сейчас' }));
     expect(await screen.findByText('Создано занятий: 3.')).toBeInTheDocument();
   });
+
+  it('запись админом: при пересечении просит подтверждение, без пересечения записывает сразу', async () => {
+    seed();
+    fake.db.players = [{ id: 'p9', full_name: 'Кузнецов Лев', status: 'active' }];
+    fake.rpc.ind_add_player = () => null;
+    fake.rpc.booking_conflicts = () => [{ kind: 'training', label: 'Тренировка группы', starts_at: '2099-01-10T12:15:00', ends_at: null }];
+    render(<Individual />);
+    fireEvent.click(await screen.findByText('10.01.2099 12:00 · Индивидуальные'));
+    fireEvent.change(await screen.findByLabelText('Найти игрока'), { target: { value: 'Кузн' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Записать' }));
+    expect(await screen.findByText('Есть пересечение')).toBeInTheDocument();
+    expect(fake.rpcCalls('ind_add_player')).toHaveLength(0);
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
+    await waitFor(() => expect(fake.rpcCalls('ind_add_player')).toHaveLength(1));
+  });
 });
