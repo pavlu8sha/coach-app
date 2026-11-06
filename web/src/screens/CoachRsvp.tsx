@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { compareGroups, matchTeam, playsMatches, type CoachGroup } from '../lib/coach';
-import { LIFECYCLE_LABEL, fmtWhen, fromTbilisiLocal, responseText, rsvpError, toTbilisiLocal, type Lifecycle, type RsvpResponse } from '../lib/matchRsvp';
+import { FILTER_LABEL, LIFECYCLE_LABEL, activityLine, fmtWhen, matchesFilter, fromTbilisiLocal, responseText, rsvpError, toTbilisiLocal, type Lifecycle, type RsvpResponse, type SummaryFilter } from '../lib/matchRsvp';
 import { supabase } from '../lib/supabase';
 import { Pill, ListRow } from '../ui/components';
 import { BackNav } from '../ui/nav';
@@ -136,6 +136,10 @@ function RsvpDetail({ id, groups, onBack }: { id: string; groups: CoachGroup[]; 
   const [newWhen, setNewWhen] = useState('');
   const [reason, setReason] = useState('');
   const [edit, setEdit] = useState<{ opponent: string; venue: string; address: string; notes: string; when: string } | null>(null);
+  const [filter, setFilter] = useState<SummaryFilter>('all');
+  const [history, setHistory] = useState<{ id: number; action: string; created_at: string }[] | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [snapshot, setSnapshot] = useState<string | null>(null);
   const [q, setQ] = useState('');
   const [found, setFound] = useState<{ id: string; full_name: string }[]>([]);
   useEffect(() => {
@@ -156,8 +160,18 @@ function RsvpDetail({ id, groups, onBack }: { id: string; groups: CoachGroup[]; 
       setSum(s.error ? null : (((s.data ?? []) as Summary[])[0] ?? null));
       const ro = await supabase.rpc('match_rsvp_roster', { m: id });
       setRoster(ro.error ? [] : ((ro.data ?? []) as RosterRow[]));
+      // Последний неиспользованный снимок отметок (после переноса): даёт кнопку «Вернуть отметки»
+      const sn = await supabase.from('match_mark_snapshots').select('id').eq('match_id', id).is('restored_at', null).order('taken_at', { ascending: false }).limit(1);
+      setSnapshot(sn.error ? null : ((((sn.data ?? []) as { id: string }[])[0])?.id ?? null));
     })();
   }, [id, reload]);
+
+  useEffect(() => {
+    if (!showHistory) return;
+    void supabase.from('match_activity').select('id, action, created_at').eq('match_id', id).order('id', { ascending: false }).limit(50).then(r => {
+      setHistory(r.error ? [] : ((r.data ?? []) as { id: number; action: string; created_at: string }[]));
+    });
+  }, [showHistory, id, reload]);
 
   // Один вызов базы: показываем ошибку по-русски или обновляем экран
   const run = async (name: string, args: Record<string, unknown>, ok: (data: unknown) => string) => {
@@ -174,6 +188,7 @@ function RsvpDetail({ id, groups, onBack }: { id: string; groups: CoachGroup[]; 
   if (!m) return <Loading />;
   const st = m.lifecycle_status;
   const invited = roster.filter(p => p.status === 'invited'); // исключённые остаются в базе, в списке их нет
+  const shown = invited.filter(p => matchesFilter(p.response, filter));
   const started = m.starts_at ? new Date(m.starts_at).getTime() <= Date.now() : false;
   const live = st === 'published' && !started;
 
@@ -188,6 +203,11 @@ function RsvpDetail({ id, groups, onBack }: { id: string; groups: CoachGroup[]; 
   const cancel = async () => {
     if (!(await confirm({ title: 'Отменить матч?', note: 'Матч останется в списке со статусом «Отменён», удалить его потом нельзя.', confirmLabel: 'Отменить матч', danger: true }))) return;
     await run('match_rsvp_cancel', { m: id, p_reason: reason }, () => 'Матч отменён');
+  };
+  const restore = async () => {
+    if (!snapshot) return;
+    if (!(await confirm({ title: 'Вернуть отметки?', note: 'Вернём отметки игроков и счёт, которые были до переноса. Работает, только пока на матче нет новых отметок.', confirmLabel: 'Вернуть' }))) return;
+    await run('match_rsvp_restore_marks', { p_snapshot: snapshot }, () => 'Отметки и счёт возвращены');
   };
   const del = async () => {
     if (!(await confirm({ title: 'Удалить черновик?', note: 'Черновик ещё не виден родителям.', confirmLabel: 'Удалить', danger: true }))) return;
@@ -314,9 +334,22 @@ function RsvpDetail({ id, groups, onBack }: { id: string; groups: CoachGroup[]; 
         )
       )}
 
+      {snapshot && st === 'published' && (
+        <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => void restore()}>Вернуть отметки до переноса</button>
+      )}
+
       <h2>Приглашённые</h2>
       {invited.length === 0 && <p className="muted">Состав пока пуст.</p>}
-      {invited.map(p => (
+      {invited.length > 0 && (
+        <div role="group" aria-label="Фильтр по ответам" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+          {(Object.keys(FILTER_LABEL) as SummaryFilter[]).map(f => (
+            <button key={f} type="button" className={`ks-btn ${filter === f ? '' : 'secondary'}`} style={{ width: 'auto', minHeight: 36 }} aria-pressed={filter === f}
+              onClick={() => setFilter(f)}>{FILTER_LABEL[f]} ({invited.filter(p => matchesFilter(p.response, f)).length})</button>
+          ))}
+        </div>
+      )}
+      {invited.length > 0 && shown.length === 0 && <p className="muted">В этой группе никого нет.</p>}
+      {shown.map(p => (
         <div key={p.player_id} className="ks-card">
           <ListRow title={p.full_name} avatar={p.full_name} sub={[p.group_name ?? '', responseText(p.response) + (p.responded_by_coach ? ' (отметил тренер)' : p.responded_by_name ? ` (${p.responded_by_name})` : '')]} />
           {(st === 'draft' || live) && (
@@ -340,6 +373,12 @@ function RsvpDetail({ id, groups, onBack }: { id: string; groups: CoachGroup[]; 
           ))}
         </div>
       )}
+
+      <h2>История</h2>
+      {!showHistory && <button type="button" className="ks-btn secondary" onClick={() => setShowHistory(true)}>Показать историю действий</button>}
+      {showHistory && history === null && <p className="muted">Загрузка…</p>}
+      {showHistory && history?.length === 0 && <p className="muted">Записей пока нет.</p>}
+      {history?.map(a => <p key={a.id} className="muted">{activityLine(a)}</p>)}
     </main>
   );
 }
