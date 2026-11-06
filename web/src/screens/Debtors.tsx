@@ -5,6 +5,7 @@ import { EmptyState, ListRow, Pill } from '../ui/components';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { closureFlags, useClosure, type ClosureKind } from '../ui/ClosureSheet';
 import { Failure, Loading } from './Message';
+import { useNavState } from '../nav';
 
 interface Row { group_name: string; player_id: string; full_name: string; tariff: number; paid: number; debt: number }
 interface Disc { id: string; player_id: string; players: { full_name: string } | null }
@@ -30,7 +31,7 @@ const monthsList = () => {
 // Для администратора: должники по абонементу за месяц, скидки и включение показа долга родителям (docs/DEBT_RULES.md).
 export default function Debtors() {
   const months = useMemo(monthsList, []);
-  const [month, setMonth] = useState(months[0] ?? SEASON_START);
+  const [month, setMonth] = useNavState('db.month', months[0] ?? SEASON_START);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [discs, setDiscs] = useState<Disc[]>([]);
   const [offs, setOffs] = useState<Disc[]>([]);
@@ -43,7 +44,7 @@ export default function Debtors() {
   const { ask, dialog } = useConfirm();
   const { askClosure, closureDialog } = useClosure();
   const [msg, setMsg] = useState<string | null>(null);
-  const [gname, setGname] = useState(''); // фильтр по группе
+  const [gname, setGname] = useNavState('db.group', ''); // фильтр по группе (название, на диск не пишем)
   const [payKey, setPayKey] = useState<string | null>(null); // строка с открытой формой оплаты
   const [tpl, setTpl] = useState(() => { try { return localStorage.getItem('debtTpl') || DEFAULT_TPL; } catch { return DEFAULT_TPL; } });
 

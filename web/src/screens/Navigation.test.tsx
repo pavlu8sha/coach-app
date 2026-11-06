@@ -2,7 +2,9 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import { today } from '../lib/coach';
-import { NavProvider, NavRoot } from '../nav';
+import { NavProvider, NavRoot, useActiveRoot } from '../nav';
+import CashDesk from './CashDesk';
+import Money from './Money';
 import Players from './Players';
 import Sessions from './Sessions';
 
@@ -87,5 +89,65 @@ describe('«Занятия»: возврат из индивидуальной �
     fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
     expect(await screen.findByText('Записано: 1')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Индивидуальные' })).toHaveAttribute('aria-selected', 'true');
+  });
+});
+
+// Раздел → другой раздел → обратно: экран монтируется заново, состояние берётся из стека раздела
+function TwoTabs({ children }: { children: React.ReactNode }) {
+  const [tab, select] = useActiveRoot<'money' | 'other'>('money');
+  return (
+    <>
+      <button onClick={() => select('other')}>to-other</button>
+      <button onClick={() => select('money')}>to-money</button>
+      <NavRoot root={tab}>{tab === 'money' ? children : <p>other</p>}</NavRoot>
+    </>
+  );
+}
+
+describe('«Оплаты»: возврат на вкладку', () => {
+  it('подраздел, месяц, поиск и фильтр «Только должники» сохраняются после ухода в другой раздел', async () => {
+    seedPlayers();
+    fake.db.club_settings = [];
+    render(
+      <NavProvider initial="money">
+        <TwoTabs>
+          <Money />
+        </TwoTabs>
+      </NavProvider>,
+    );
+    fireEvent.click(await screen.findByRole('tab', { name: 'По месяцам' }));
+    fireEvent.change(await screen.findByLabelText('Поиск по ФИ'), { target: { value: 'andr' } });
+    fireEvent.click(screen.getByLabelText('Только должники'));
+    fireEvent.change(screen.getByLabelText('Месяц'), { target: { value: screen.getByLabelText('Месяц').querySelectorAll('option')[1].getAttribute('value') } });
+    const month = (screen.getByLabelText('Месяц') as HTMLSelectElement).value;
+    fireEvent.click(screen.getByText('to-other'));
+    expect(screen.getByText('other')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('to-money'));
+    expect(await screen.findByRole('tab', { name: 'По месяцам' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByLabelText('Поиск по ФИ')).toHaveValue('andr');
+    expect(screen.getByLabelText('Только должники')).toBeChecked();
+    expect((screen.getByLabelText('Месяц') as HTMLSelectElement).value).toBe(month);
+  });
+});
+
+describe('«Приём оплат»: выбранный игрок', () => {
+  it('остаётся выбранным после ухода в другой раздел; «Сменить» сбрасывает выбор', async () => {
+    fake.db.players = [{ id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', groups: { name: 'U9-A' } }];
+    fake.db.prices = [{ group_id: null, kind: 'subscription', amount: 165, valid_from: '2026-09-01', valid_to: null }];
+    for (const t of ['payments', 'subscriptions', 'equipment_orders', 'individual_bookings', 'extra_bookings', 'camp_participants', 'camp_payments']) fake.db[t] = [];
+    render(
+      <NavProvider initial="money">
+        <TwoTabs>
+          <CashDesk />
+        </TwoTabs>
+      </NavProvider>,
+    );
+    fireEvent.change(screen.getByLabelText(/^Игрок/), { target: { value: 'Иванов' } });
+    fireEvent.click(await screen.findByRole('button', { name: /Иванов Пётр/ }));
+    await screen.findByRole('button', { name: 'Сменить' });
+    fireEvent.click(screen.getByText('to-other'));
+    fireEvent.click(screen.getByText('to-money'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Сменить' }));
+    expect(await screen.findByLabelText(/^Игрок/)).toBeInTheDocument();
   });
 });

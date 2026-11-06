@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useNavState } from '../nav';
 import { Segmented } from '../ui/components';
 import CashDesk from './CashDesk';
 import CashReport from './CashReport';
@@ -9,7 +9,8 @@ type Sub = 'cash' | 'month' | 'debtors' | 'report';
 
 // Вкладка «Оплаты» администратора, как в старом приложении: «Приём оплат» (платежи дня, отмена), «По месяцам и группам», «Должники»
 export default function Money() {
-  const [sub, setSub] = useState<Sub>('cash');
+  // подраздел возвращается при переключении вкладок и «Назад»
+  const [sub, setSub] = useNavState<Sub>('sub', 'cash', { persist: { kind: 'enum', values: ['cash', 'month', 'debtors', 'report'] } });
   return (
     <>
       <header style={{ maxWidth: 560, margin: '0 auto', padding: '12px 16px 0' }}>

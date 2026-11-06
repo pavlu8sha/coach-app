@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, Segmented } from '../ui/components';
 import { Loading } from './Message';
 import { gel } from './MonthPayments';
+import { useNavState } from '../nav';
 
 interface StaffSum { staff_id: string | null; name: string; sum: number }
 interface MethodSum { method: string; sum: number }
@@ -16,11 +17,11 @@ const METHOD_FILTERS = [{ value: '', label: 'Все' }, { value: 'Наличны
 // Кассовый отчёт (#264): поступления за день, месяц или период. Суммы считает сервер (0078): по сотрудникам и способам они сходятся с итогом.
 // Отмена — строка с минусом. Способ вне «Наличные»/«Перевод» показан как «не указан».
 export default function CashReport() {
-  const [preset, setPreset] = useState<Preset>('today');
-  const [from, setFrom] = useState(today());
-  const [to, setTo] = useState(today());
-  const [location, setLocation] = useState('');
-  const [method, setMethod] = useState('');
+  const [preset, setPreset] = useNavState<Preset>('cr.preset', 'today');
+  const [from, setFrom] = useNavState('cr.from', today());
+  const [to, setTo] = useNavState('cr.to', today());
+  const [location, setLocation] = useNavState('cr.location', '');
+  const [method, setMethod] = useNavState('cr.method', '');
   const [report, setReport] = useState<Report | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
