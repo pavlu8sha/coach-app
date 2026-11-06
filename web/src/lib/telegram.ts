@@ -7,6 +7,9 @@ interface TgWebApp {
   expand(): void;
   themeParams: Record<string, string | undefined>;
   close?(): void;
+  // Bot API 6.2+: стандартное подтверждение при закрытии приложения; на старых клиентах методов нет
+  enableClosingConfirmation?(): void;
+  disableClosingConfirmation?(): void;
   BackButton?: TgButton;
   MainButton?: TgMainButton;
   // Bot API 8.0+: ярлык на экран «Домой»; на старых клиентах методов нет

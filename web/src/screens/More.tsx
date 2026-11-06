@@ -1,6 +1,6 @@
 import type { CoachGroup } from '../lib/coach';
 import { SECTIONS, isSection, type SectionId } from '../lib/adminMenu';
-import { NavEntry, useNav } from '../nav';
+import { NavEntry, dirtyGuard, useNav } from '../nav';
 import { ListRow } from '../ui/components';
 import HomeScreenPrompt from '../ui/HomeScreenPrompt';
 import NotifyToggle from '../ui/NotifyToggle';
@@ -19,7 +19,7 @@ export default function More({ groups, bar, onMenuChanged, onPreview }: { groups
       <NavEntry index={nav.depth - 1}>
         {nav.depth === 2 && (
           <div style={{ maxWidth: 560, margin: '0 auto', padding: '8px 16px 0' }}>
-            <button type="button" className="ks-back" onClick={() => nav.back()}>
+            <button type="button" className="ks-back" onClick={() => dirtyGuard.leave(() => nav.back())}>
               <span className="ks-chev back" aria-hidden="true" />
               Ещё
             </button>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useDirtyGuard } from '../nav';
 import { sortGroups } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { Pill } from '../ui/components';
@@ -48,6 +49,7 @@ export default function AdminPrices() {
     })();
   }, [reload]);
 
+  useDirtyGuard(amount.trim() !== '');
   const gname = (id: string | null) => (id ? groups.find(g => g.id === id)?.name ?? 'группа' : 'все группы');
   const add = async () => {
     const num = Number(amount.replace(',', '.'));

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { backStack } from './backStack';
+import { dirtyGuard } from './dirtyGuard';
 import { specKey, type PersistSpec } from './storage';
 import { NavStore, type NavEntry } from './store';
 
@@ -91,7 +92,7 @@ function AutoScroll() {
 // Один вложенный экран = один обработчик «Назад» (и одна запись истории браузера).
 function EntryBack({ root }: { root: string }) {
   const store = useNavStore();
-  useEffect(() => backStack().register(() => void store.back(root)), [store, root]);
+  useEffect(() => backStack().register(() => dirtyGuard.leave(() => void store.back(root))), [store, root]);
   return null;
 }
 

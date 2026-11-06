@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import { today } from '../lib/coach';
-import { NavProvider, NavRoot, useActiveRoot } from '../nav';
+import { DirtyGuardHost, NavProvider, NavRoot, useActiveRoot } from '../nav';
 import CashDesk from './CashDesk';
 import Camps from './Camps';
 import Equipment from './Equipment';
@@ -26,6 +26,7 @@ const month = today().slice(0, 7) + '-01';
 const inApp = (root: string, ui: React.ReactNode) => (
   <NavProvider initial={root}>
     <NavRoot root={root}>{ui}</NavRoot>
+    <DirtyGuardHost />
   </NavProvider>
 );
 function seedPlayers() {
@@ -391,5 +392,43 @@ describe('Родитель, ребёнок, гость', () => {
     fireEvent.click(screen.getByText('to-other'));
     fireEvent.click(screen.getByText('to-money'));
     expect(await screen.findByRole('tab', { name: 'Результаты', selected: true })).toBeInTheDocument();
+  });
+});
+
+describe('Предупреждение о несохранённом в формах', () => {
+  it('«Пробная»: политика открывается без вопроса, а «Назад» из формы с введённым спрашивает', async () => {
+    const push = vi.spyOn(window.history, 'pushState');
+    render(inApp('about', <About role="guest" onChangeRole={() => {}} />));
+    fireEvent.click(await screen.findByRole('button', { name: 'Записаться на пробную' }));
+    fireEvent.change(await screen.findByLabelText('Ваше имя'), { target: { value: 'Мария' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Политике конфиденциальности' }));
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Назад' })).at(-1)!); // кнопка политики
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(await screen.findByLabelText('Ваше имя')).toHaveValue('Мария');
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(await screen.findByRole('dialog', { name: 'Уйти без сохранения?' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByLabelText('Ваше имя')).toHaveValue('Мария');
+    expect(push).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Уйти' }));
+    expect(await screen.findByText('Новости клуба')).toBeInTheDocument();
+  });
+
+  it('«Статьи клуба»: незаполненный редактор закрывается сразу, с правками — после подтверждения', async () => {
+    fake.db.users = [{ id: 'u', is_admin: true }];
+    fake.db.club_articles = [];
+    render(inApp('content', <AdminArticles />));
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать статью' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Назад' }));
+    expect(await screen.findByRole('button', { name: 'Создать статью' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Создать статью' }));
+    fireEvent.change(await screen.findByLabelText('Заголовок'), { target: { value: 'Черновик' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(await screen.findByRole('dialog', { name: 'Уйти без сохранения?' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Уйти' }));
+    expect(await screen.findByRole('button', { name: 'Создать статью' })).toBeInTheDocument();
   });
 });
