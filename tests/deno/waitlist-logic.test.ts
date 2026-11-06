@@ -49,6 +49,6 @@ Deno.test("waitlist-logic: отказы — понятный текст, кла�
 
 Deno.test("tg-notify: кнопки очереди попадают в сообщение, данные не длиннее 64 байт", () => {
   const call = buildCall({ telegram_id: 1, text: "t", buttons: [[{ text: "Занять место: Пётр", data: `w:${W1}` }]] }, "https://mini.test/");
-  assert.equal(call.body.reply_markup.inline_keyboard[0][0].callback_data, `w:${W1}`);
+  assert.equal((call.body.reply_markup.inline_keyboard[0][0] as { callback_data?: string }).callback_data, `w:${W1}`);
   assert.ok(`w:${W1}`.length <= 64);
 });
