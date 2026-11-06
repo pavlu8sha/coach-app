@@ -61,6 +61,7 @@ function RsvpCreate({ groups, onBack, onCreated }: { groups: CoachGroup[]; onBac
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
   const [tour, setTour] = useState('');
+  const [grp, setGrp] = useState(''); // основная группа для товарищеского: '' — все группы команды
   const [events, setEvents] = useState<EventRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +72,7 @@ function RsvpCreate({ groups, onBack, onCreated }: { groups: CoachGroup[]; onBac
     })();
   }, []);
   const tours = events.filter(e => e.team === team);
+  const teamGroups = groups.filter(g => playsMatches(g.name) && matchTeam(g.name) === team);
   const save = async () => {
     if (!team || !when) return setError('Выберите команду и укажите дату и время.');
     setBusy(true);
@@ -82,16 +84,22 @@ function RsvpCreate({ groups, onBack, onCreated }: { groups: CoachGroup[]; onBac
       p_club: club, p_kind: kind, p_team: team, p_opponent: opp, p_starts_at: fromTbilisiLocal(when),
       p_venue: venue, p_address: address, p_notes: notes, p_tournament: kind === 'game' && tour ? tour : null,
     });
+    if (r.error) { setBusy(false); return setError(rsvpError(r.error.message)); }
+    // Состав добавляется сразу (ТЗ §1): у чемпионата — список события, иначе основная группа или все группы команды.
+    // Если не вышло, черновик всё равно создан, состав можно заполнить кнопкой на экране матча.
+    const id = String(r.data);
+    const seeds: Record<string, unknown>[] = kind === 'game' && tour ? [{ m: id }]
+      : (grp ? teamGroups.filter(g => g.id === grp) : teamGroups).map(g => ({ m: id, p_group: g.id }));
+    for (const a of seeds) await supabase.rpc('match_rsvp_seed', a);
     setBusy(false);
-    if (r.error) return setError(rsvpError(r.error.message));
-    onCreated(String(r.data));
+    onCreated(id);
   };
   return (
     <main className="page">
       <BackNav onBack={onBack} />
       <h1>Новый матч</h1>
       <label className="ks-label" htmlFor="rs-team">Команда</label>
-      <select id="rs-team" className="ks-select" value={team} onChange={e => { setTeam(e.target.value); setTour(''); }}>
+      <select id="rs-team" className="ks-select" value={team} onChange={e => { setTeam(e.target.value); setTour(''); setGrp(''); }}>
         {teams.map(t => <option key={t} value={t}>{t}</option>)}
       </select>
       <label className="ks-label" htmlFor="rs-kind">Тип</label>
@@ -99,6 +107,15 @@ function RsvpCreate({ groups, onBack, onCreated }: { groups: CoachGroup[]; onBac
         <option value="friendly">Товарищеский матч</option>
         <option value="game">Матч чемпионата</option>
       </select>
+      {kind === 'friendly' && teamGroups.length > 1 && (
+        <>
+          <label className="ks-label" htmlFor="rs-grp">Основная группа</label>
+          <select id="rs-grp" className="ks-select" value={grp} onChange={e => setGrp(e.target.value)}>
+            <option value="">Все группы команды</option>
+            {teamGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </select>
+        </>
+      )}
       {kind === 'game' && (
         <>
           <label className="ks-label" htmlFor="rs-tour">Чемпионат или фестиваль</label>
