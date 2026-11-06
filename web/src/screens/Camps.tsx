@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput, Segmented, SwitchRow } from '../ui/components';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { BackNav } from '../ui/nav';
+import { useNav, useNavState } from '../nav';
 import { Failure, Loading } from './Message';
 
 interface Camp { id: string; name: string; location: string | null; starts_on: string; ends_on: string; booking_fee: number; booking_deadline: string | null; full_payment_deadline: string | null; active: boolean }
@@ -31,8 +32,8 @@ export default function Camps() {
   const [camps, setCamps] = useState<Camp[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const [openId, setOpenId] = useState<string | null>(null);
-  const [editing, setEditing] = useState<Camp | 'new' | null>(null);
+  // Сбор, форма сбора, запись участника и участник — записи стека раздела; список остаётся под ними
+  const nav = useNav();
 
   useEffect(() => {
     void supabase.from('camps').select('id, name, location, starts_on, ends_on, booking_fee, booking_deadline, full_payment_deadline, active').order('starts_on', { ascending: false }).limit(60).then(r => {
@@ -41,17 +42,21 @@ export default function Camps() {
     });
   }, [reload]);
 
-  const done = () => { setEditing(null); setCamps(null); setReload(n => n + 1); };
+  const done = () => { setCamps(null); setReload(n => n + 1); };
   if (error) return <Failure title="Не удалось загрузить сборы" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
-  if (editing) return <CampForm camp={editing === 'new' ? null : editing} onBack={() => setEditing(null)} onDone={done} />;
-  const open = camps?.find(c => c.id === openId);
-  if (open) return <CampView camp={open} onBack={() => { setOpenId(null); done(); }} onEdit={() => setEditing(open)} />;
+  if (nav.top.screen === 'camp.form') {
+    const editing = camps?.find(c => c.id === nav.top.params.id);
+    if (!nav.top.params.id || editing) return <CampForm camp={editing ?? null} onBack={() => nav.back()} onDone={() => { nav.back(); done(); }} />;
+  }
+  const campIndex = nav.entries.findIndex(e => e.screen === 'camp');
+  const open = campIndex >= 0 ? camps?.find(c => c.id === nav.entries[campIndex].params.id) : undefined;
+  if (open) return <CampView camp={open} campIndex={campIndex} onBack={() => { nav.back(); done(); }} onEdit={() => nav.push('camp.form', { id: open.id })} />;
   return (
     <main className="page">
       <h1>Сборы</h1>
-      <button type="button" className="ks-btn" onClick={() => setEditing('new')}>Новый сбор</button>
+      <button type="button" className="ks-btn" onClick={() => nav.push('camp.form')}>Новый сбор</button>
       {!camps ? <Loading /> : camps.length === 0 ? <EmptyState icon="users" title="Сборов нет" text="Создайте сбор кнопкой выше." /> : camps.map(c => (
-        <ListRow key={c.id} avatar="С" title={c.name} sub={[`${fmtDate(c.starts_on)} — ${fmtDate(c.ends_on)}`, c.location ?? 'место не указано']} end={c.active ? undefined : <Pill>Архив</Pill>} onClick={() => setOpenId(c.id)} />
+        <ListRow key={c.id} avatar="С" title={c.name} sub={[`${fmtDate(c.starts_on)} — ${fmtDate(c.ends_on)}`, c.location ?? 'место не указано']} end={c.active ? undefined : <Pill>Архив</Pill>} onClick={() => nav.push('camp', { id: c.id })} />
       ))}
     </main>
   );
@@ -71,7 +76,7 @@ function CampForm({ camp, onBack, onDone }: { camp: Camp | null; onBack: () => v
   };
   return (
     <main className="page">
-      <BackNav onBack={onBack} />
+      <BackNav onBack={onBack} managed />
       <h1>{camp ? 'Данные сбора' : 'Новый сбор'}</h1>
       <label className="field">Название<input value={f.name} maxLength={80} onChange={e => setF({ ...f, name: e.target.value })} /></label>
       <label className="field">Место<input value={f.loc} maxLength={80} onChange={e => setF({ ...f, loc: e.target.value })} /></label>
@@ -93,14 +98,13 @@ function CampForm({ camp, onBack, onDone }: { camp: Camp | null; onBack: () => v
 
 type Tab = 'people' | 'tariffs' | 'list';
 
-function CampView({ camp, onBack, onEdit }: { camp: Camp; onBack: () => void; onEdit: () => void }) {
-  const [tab, setTab] = useState<Tab>('people');
+function CampView({ camp, campIndex, onBack, onEdit }: { camp: Camp; campIndex: number; onBack: () => void; onEdit: () => void }) {
+  const nav = useNav();
+  const [tab, setTab] = useNavState<Tab>('camp.tab', 'people', { entry: campIndex, persist: { kind: 'enum', values: ['people', 'tariffs', 'list'] } });
   const [parts, setParts] = useState<Part[] | null>(null);
   const [tariffs, setTariffs] = useState<Tariff[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const [openId, setOpenId] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -115,16 +119,16 @@ function CampView({ camp, onBack, onEdit }: { camp: Camp; onBack: () => void; on
 
   const refresh = () => { setParts(null); setReload(n => n + 1); };
   if (error) return <Failure title="Не удалось загрузить сбор" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
-  if (adding) return <AddPart camp={camp} tariffs={tariffs.filter(t => t.active)} taken={new Set((parts ?? []).filter(p => p.status === 'registered' && p.player_id).map(p => p.player_id as string))} onBack={() => setAdding(false)} onDone={() => { setAdding(false); refresh(); }} />;
-  const open = parts?.find(p => p.id === openId);
-  if (open) return <PartView part={open} camp={camp} tariffs={tariffs} onBack={() => { setOpenId(null); refresh(); }} />;
+  if (nav.top.screen === 'camp.add') return <AddPart camp={camp} tariffs={tariffs.filter(t => t.active)} taken={new Set((parts ?? []).filter(p => p.status === 'registered' && p.player_id).map(p => p.player_id as string))} onBack={() => nav.back()} onDone={() => { nav.back(); refresh(); }} />;
+  const open = nav.top.screen === 'camp.part' ? parts?.find(p => p.id === nav.top.params.id) : undefined;
+  if (open) return <PartView part={open} camp={camp} tariffs={tariffs} onBack={() => { nav.back(); refresh(); }} />;
 
   const reg = (parts ?? []).filter(p => p.status === 'registered');
   const owed = reg.reduce((s, p) => s + p.amount, 0);
   const paid = reg.reduce((s, p) => s + paidOf(p), 0);
   return (
     <main className="page">
-      <BackNav onBack={onBack} />
+      <BackNav onBack={onBack} managed />
       <h1>{camp.name}</h1>
       <p className="muted">{fmtDate(camp.starts_on)} — {fmtDate(camp.ends_on)}{camp.location ? ` · ${camp.location}` : ''}{camp.booking_fee ? ` · бронь ${gel(camp.booking_fee)}` : ''}</p>
       <button type="button" className="ks-btn secondary" onClick={onEdit}>Данные сбора</button>
@@ -133,13 +137,13 @@ function CampView({ camp, onBack, onEdit }: { camp: Camp; onBack: () => void; on
       {tab === 'tariffs' ? <Tariffs camp={camp} tariffs={tariffs} onChanged={refresh} /> : !parts ? <Loading /> : tab === 'list' ? <ListText parts={reg} /> : (
         <>
           <p className="muted" style={{ margin: '10px 0' }}>Записано: {reg.length} · оплачено {gel(paid)} из {gel(owed)}</p>
-          <button type="button" className="ks-btn" onClick={() => setAdding(true)} disabled={tariffs.filter(t => t.active).length === 0}>{tariffs.some(t => t.active) ? 'Записать игрока' : 'Сначала добавьте тариф'}</button>
+          <button type="button" className="ks-btn" onClick={() => nav.push('camp.add')} disabled={tariffs.filter(t => t.active).length === 0}>{tariffs.some(t => t.active) ? 'Записать игрока' : 'Сначала добавьте тариф'}</button>
           {parts.length === 0 ? <EmptyState icon="users" title="Пока никого" /> : groupByGroupName(parts, groupOf).map(([group, items]) => (
             <details className="ks-group" key={group}>
               <summary><div className="ks-line"><b>{group}</b><span className="muted">{items.length} уч.</span></div></summary>
               {items.map(p => (
                 <ListRow key={p.id} avatar={nameOf(p)} title={nameOf(p)} sub={[p.camp_tariffs?.name ?? 'без тарифа', p.status === 'declined' ? 'отказ' : p.player_id ? p.players?.groups?.name ?? 'без группы' : 'гость']}
-                  end={p.status === 'declined' ? <Pill>Отказ</Pill> : <Pill tone={paidOf(p) >= p.amount ? 'success' : 'danger'} dot>{paidOf(p) >= p.amount ? 'Оплачен' : `${gel(paidOf(p))} из ${gel(p.amount)}`}</Pill>} onClick={() => setOpenId(p.id)} />
+                  end={p.status === 'declined' ? <Pill>Отказ</Pill> : <Pill tone={paidOf(p) >= p.amount ? 'success' : 'danger'} dot>{paidOf(p) >= p.amount ? 'Оплачен' : `${gel(paidOf(p))} из ${gel(p.amount)}`}</Pill>} onClick={() => nav.push('camp.part', { id: p.id })} />
               ))}
             </details>
           ))}
@@ -228,7 +232,7 @@ function AddPart({ camp, tariffs, taken, onBack, onDone }: { camp: Camp; tariffs
   };
   return (
     <main className="page">
-      <BackNav onBack={onBack} />
+      <BackNav onBack={onBack} managed />
       <h1>Записать на сбор</h1>
       <Segmented label="Кого записать" value={who} onChange={setWho} items={[{ value: 'player', label: 'Игрок клуба' }, { value: 'guest', label: 'Гость' }]} />
       {who === 'guest' ? (
@@ -311,7 +315,7 @@ function PartView({ part, camp, tariffs, onBack }: { part: Part; camp: Camp; tar
   const cancelled = new Set(p.camp_payments.map(x => x.legacy_ref).filter((r): r is string => !!r && r.startsWith('cancel:')).map(r => r.slice(7)));
   return (
     <main className="page">
-      <BackNav onBack={onBack} />
+      <BackNav onBack={onBack} managed />
       <h1 style={{ overflowWrap: 'anywhere' }}>{nameOf(p)}</h1>
       <p className="muted">{camp.name}{p.player_id ? '' : ' · гость'}{p.guest_contact ? ` · ${p.guest_contact}` : ''} · оплачено {gel(paidOf(p))} из {gel(p.amount)}{p.status === 'declined' ? ' · отказ' : ''}</p>
       {msg && <p className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}

@@ -3,6 +3,7 @@ import { coachError, hm } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, SearchInput } from '../ui/components';
 import { Loading } from './Message';
+import { useNavState } from '../nav';
 
 interface Template { id: string; isodow: number; start_time: string; goalkeepers: boolean; active: boolean }
 interface Member { template_id: string; player_id: string; players: { full_name: string } | null }
@@ -14,10 +15,10 @@ const thisMonth = () => new Date().toISOString().slice(0, 7);
 // Постоянные игроки по месяцам (миграция 0090): на какие слоты расписания игрок записывается в выбранном месяце.
 // Занятия на выходные создаются автоматически по вторникам и сразу записывают постоянных этого месяца.
 export default function IndRegulars() {
-  const [month, setMonth] = useState(thisMonth());
+  const [month, setMonth] = useNavState('ir.month', thisMonth());
   const [templates, setTemplates] = useState<Template[] | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
-  const [tplId, setTplId] = useState('');
+  const [tplId, setTplId] = useNavState('ir.tpl', '');
   const [q, setQ] = useState('');
   const [found, setFound] = useState<{ id: string; full_name: string }[]>([]);
   const [busy, setBusy] = useState<string | null>(null);

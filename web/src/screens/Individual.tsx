@@ -3,6 +3,7 @@ import { coachError, fmtDate, groupInOrder, hm, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput, Segmented } from '../ui/components';
 import { BackNav } from '../ui/nav';
+import { useNav, useNavState } from '../nav';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { Failure, Loading } from './Message';
 import IndRegulars from './IndRegulars';
@@ -25,16 +26,16 @@ const PAGE = 60;
 // Индивидуальные и вратарские занятия для администратора (миграция 0034): запись на каждое занятие отдельно, оплата, посещение.
 export default function Individual() {
   const { ask, dialog: confirmDialog } = useConfirm();
-  const [tab, setTab] = useState<Tab>('next');
+  // Новое занятие и занятие — записи стека; вкладка списка и «Показать ещё» возвращаются при «Назад»
+  const nav = useNav();
+  const [tab, setTab] = useNavState<Tab>('ind.tab', 'next', { entry: 0, persist: { kind: 'enum', values: ['next', 'past', 'debt', 'regular'] } });
   const [list, setList] = useState<Session[] | null>(null);
   const [debts, setDebts] = useState<DebtRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const [openId, setOpenId] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
   const [paying, setPaying] = useState<string | null>(null);
   const [debtTotal, setDebtTotal] = useState<{ n: number; sum: number } | null>(null);
-  const [limit, setLimit] = useState(PAGE);
+  const [limit, setLimit] = useNavState('ind.limit', PAGE, { entry: 0 });
   const [hasMore, setHasMore] = useState(false);
   const [method, setMethod] = useState('');
   const [payDate, setPayDate] = useState(today());
@@ -66,11 +67,11 @@ export default function Individual() {
     })();
   }, [tab, reload, limit]);
 
-  const done = () => { setCreating(false); setList(null); setDebts(null); setReload(n => n + 1); };
+  const done = () => { setList(null); setDebts(null); setReload(n => n + 1); };
   if (error) return <Failure title="Не удалось загрузить занятия" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
-  if (creating) return <SessionForm onBack={() => setCreating(false)} onDone={done} />;
-  const open = list?.find(s => s.id === openId);
-  if (open) return <SessionView session={open} onBack={() => { setOpenId(null); done(); }} />;
+  if (nav.top.screen === 'new') return <SessionForm onBack={() => nav.back()} onDone={() => { nav.back(); done(); }} />;
+  const open = nav.top.screen === 'session' ? list?.find(s => s.id === nav.top.params.id) : undefined;
+  if (open) return <SessionView session={open} onBack={() => { nav.back(); done(); }} />;
 
   const byPlayer = new Map<string, { name: string; sum: number; n: number; rows: DebtRow[] }>();
   (debts ?? []).forEach(d => {
@@ -100,7 +101,7 @@ export default function Individual() {
       {(tab === 'next' || tab === 'past') && debtTotal && debtTotal.n > 0 && (
         <ListRow title="Должники" sub={[`Игроков: ${debtTotal.n}`]} end={<Pill tone="danger" dot>{gel(debtTotal.sum)}</Pill>} onClick={() => { setList(null); setDebts(null); setLimit(PAGE); setHasMore(false); setTab('debt'); }} />
       )}
-      {(tab === 'next' || tab === 'past') && <button type="button" className="ks-btn" onClick={() => setCreating(true)}>Новое занятие</button>}
+      {(tab === 'next' || tab === 'past') && <button type="button" className="ks-btn" onClick={() => nav.push('new')}>Новое занятие</button>}
       {tab === 'regular' ? null : tab === 'debt' ? (
         !debts ? <Loading /> : byPlayer.size === 0 ? (
           <EmptyState icon="users" title="Долгов нет" text="Все записанные на прошедшие занятия оплатили." />
@@ -128,7 +129,7 @@ export default function Individual() {
               <summary><div className="ks-line"><b>{fmtDate(day)}</b><span className="muted">{items.length} зан.</span></div></summary>
               {items.map(s => {
                 const paid = s.individual_bookings.filter(b => b.paid).length;
-                return <ListRow key={s.id} avatar={s.goalkeepers ? 'В' : 'И'} title={title(s)} sub={[s.topic ?? 'без темы', `Записано: ${s.individual_bookings.length}, оплатили: ${paid}`]} end={paid > 0 ? <Pill tone="success">{gel(s.individual_bookings.filter(b => b.paid).reduce((a, b) => a + Number(b.amount), 0))}</Pill> : undefined} onClick={() => setOpenId(s.id)} />;
+                return <ListRow key={s.id} avatar={s.goalkeepers ? 'В' : 'И'} title={title(s)} sub={[s.topic ?? 'без темы', `Записано: ${s.individual_bookings.length}, оплатили: ${paid}`]} end={paid > 0 ? <Pill tone="success">{gel(s.individual_bookings.filter(b => b.paid).reduce((a, b) => a + Number(b.amount), 0))}</Pill> : undefined} onClick={() => nav.push('session', { id: s.id })} />;
               })}
             </details>
           ))}
@@ -157,7 +158,7 @@ function SessionForm({ onBack, onDone }: { onBack: () => void; onDone: () => voi
   };
   return (
     <main className="page">
-      <BackNav onBack={onBack} />
+      <BackNav onBack={onBack} managed />
       <h1>Новое занятие</h1>
       <Segmented label="Тип" value={gk ? 'gk' : 'ind'} onChange={v => setGk(v === 'gk')} items={[{ value: 'ind', label: 'Индивидуальные' }, { value: 'gk', label: 'Вратари' }]} />
       <label className="field">Дата<input type="date" value={date} onChange={e => setDate(e.target.value)} /></label>
@@ -233,7 +234,7 @@ function SessionView({ session, onBack }: { session: Session; onBack: () => void
   const sorted = [...bookings].sort((a, b) => (a.players?.full_name ?? '').localeCompare(b.players?.full_name ?? '', 'ru'));
   return (
     <main className="page">
-      <BackNav onBack={onBack} />
+      <BackNav onBack={onBack} managed />
       <h1>{title(saved)}</h1>
       <p className="muted">{saved.topic ?? 'Тема не указана'}</p>
       {msg && <p className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}
