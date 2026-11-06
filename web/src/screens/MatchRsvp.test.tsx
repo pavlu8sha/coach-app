@@ -182,4 +182,42 @@ describe('Тренер: матчи с подтверждением', () => {
     expect(screen.queryByRole('button', { name: 'Изменить данные матча' })).toBeNull();
     expect(screen.queryByRole('button', { name: /Убрать из состава/ })).toBeNull();
   });
+
+  it('фильтр сводки показывает только выбранную группу', async () => {
+    fake.db.matches = [matchRow()];
+    fake.rpc.match_rsvp_summary = () => [{ invited: 2, yes: 1, no: 0, unanswered: 1, reminders: 0, last_reminder_at: null }];
+    fake.rpc.match_rsvp_roster = () => [
+      { ...rosterRows[0], response: 'yes' },
+      { ...rosterRows[0], player_id: 'p2', full_name: 'Сидоров Иван', response: null },
+    ];
+    await openMatch();
+    expect(await screen.findByText('Иванов Пётр')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Не ответили \(1\)/ }));
+    expect(screen.queryByText('Иванов Пётр')).toBeNull();
+    expect(screen.getByText('Сидоров Иван')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Не будут \(0\)/ }));
+    expect(screen.getByText('В этой группе никого нет.')).toBeInTheDocument();
+  });
+
+  it('история действий показывается по кнопке', async () => {
+    fake.db.matches = [matchRow()];
+    fake.db.match_activity = [{ id: 1, match_id: 'm1', action: 'published', created_at: future }];
+    fake.rpc.match_rsvp_summary = () => [{ invited: 1, yes: 0, no: 0, unanswered: 1, reminders: 0, last_reminder_at: null }];
+    fake.rpc.match_rsvp_roster = () => rosterRows;
+    await openMatch();
+    fireEvent.click(await screen.findByRole('button', { name: 'Показать историю действий' }));
+    expect(await screen.findByText(/Матч опубликован/)).toBeInTheDocument();
+  });
+
+  it('после переноса с отметками можно вернуть отметки из снимка', async () => {
+    fake.db.matches = [matchRow()];
+    fake.db.match_mark_snapshots = [{ id: 's1', match_id: 'm1', restored_at: null, taken_at: future }];
+    fake.rpc.match_rsvp_summary = () => [{ invited: 1, yes: 0, no: 0, unanswered: 1, reminders: 0, last_reminder_at: null }];
+    fake.rpc.match_rsvp_roster = () => rosterRows;
+    fake.rpc.match_rsvp_restore_marks = () => null;
+    await openMatch();
+    fireEvent.click(await screen.findByRole('button', { name: 'Вернуть отметки до переноса' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Вернуть' }));
+    await waitFor(() => expect(fake.rpcCalls('match_rsvp_restore_marks')).toEqual([{ p_snapshot: 's1' }]));
+  });
 });

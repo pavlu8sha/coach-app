@@ -1,7 +1,7 @@
 -- pgTAP: уведомления о матчах с кнопками «Будет» / «Не будет», автонапоминания и ответ по Telegram (миграция 0137, Issue #274, PR 2b).
 begin;
 create extension if not exists pgtap;
-select plan(39);
+select plan(42);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб А');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -92,9 +92,9 @@ select match_rsvp_publish(mid('m2'));
 reset role; set constraints all immediate; set constraints all deferred;
 delete from notifications;
 select set_config('role', 'service_role', true);
-select is(rsvp_auto_reminders(), 0, 'приглашение отправлено меньше 12 часов назад: автонапоминания нет');
+select is(rsvp_auto_reminders(), 0, 'приглашение отправлено меньше 3 часов назад: автонапоминания нет');
 reset role; set constraints all immediate; set constraints all deferred;
-update matches set published_at = now() - interval '13 hours' where id = mid('m2');
+update matches set published_at = now() - interval '4 hours' where id = mid('m2');
 select set_config('role', 'service_role', true);
 select is(rsvp_auto_reminders(), 3, 'за 40 часов: напоминания трём родителям, не ответившим за детей (b1, b2 по Иванову, b3)');
 reset role; set constraints all immediate; set constraints all deferred;
@@ -104,6 +104,18 @@ select set_config('role', 'service_role', true);
 select is(rsvp_auto_reminders(), 0, 'повторный запуск cron дублей не создаёт');
 reset role; set constraints all immediate; set constraints all deferred;
 select is((select count(*)::int from match_reminder_log where recipient_id = '00000000-0000-0000-0000-0000000000b1'), 1, 'родитель получил одно напоминание за сутки');
+
+-- окно «за 24 часа»: за 24 ч 40 мин до матча (раньше окно было 15 минут) уходит auto_24h
+reset role;
+delete from match_reminder_log;
+update matches set starts_at = now() + interval '24 hours 40 minutes' where id = mid('m2');
+update match_invitations set answer_until = now() + interval '40 minutes' where match_id = mid('m2') and status = 'invited';
+delete from notifications;
+select set_config('role', 'service_role', true);
+select is(rsvp_auto_reminders(), 3, 'за 24 ч 40 мин до матча напоминания уходят');
+reset role; set constraints all immediate; set constraints all deferred;
+select is((select count(distinct kind)::int from match_reminder_log where match_id = mid('m2') and kind = 'auto_24h'), 1, 'вид auto_24h в широком окне');
+select is((select count(*)::int from match_reminder_log where match_id = mid('m2') and kind = 'auto_48h'), 0, 'auto_48h в это окно не попадает');
 
 -- ---------- перенос и отмена ----------
 delete from notifications;

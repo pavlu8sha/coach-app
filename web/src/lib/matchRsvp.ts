@@ -52,6 +52,7 @@ const ERRORS: [string, string][] = [
   ['only draft can be deleted', 'Удалить можно только черновик'],
   ['only draft can be published', 'Опубликовать можно только черновик'],
   ['match already has marks', 'На матче уже есть новые отметки'],
+  ['snapshot already restored', 'Отметки уже возвращены'],
   ['forbidden', 'Нет доступа'],
 ];
 export function rsvpError(message: string): string {
@@ -85,4 +86,19 @@ export function linkLabel(href: string): string {
   } catch {
     return href;
   }
+}
+
+export type SummaryFilter = 'all' | 'yes' | 'no' | 'none';
+export const FILTER_LABEL: Record<SummaryFilter, string> = { all: 'Все', yes: 'Будут', no: 'Не будут', none: 'Не ответили' };
+/** Фильтр списка приглашённых: none — ещё нет ответа. */
+export const matchesFilter = (response: RsvpResponse | null, f: SummaryFilter) => f === 'all' || (f === 'none' ? response === null : response === f);
+
+const ACTION_LABEL: Record<string, string> = {
+  created: 'Черновик создан', published: 'Матч опубликован', details_changed: 'Изменены данные матча', rescheduled: 'Матч перенесён',
+  cancelled: 'Матч отменён', players_invited: 'Игроки приглашены', players_removed: 'Игроки убраны из состава',
+  coach_response: 'Тренер отметил ответ', manual_reminder: 'Напоминание родителям', marks_restored: 'Отметки возвращены из снимка',
+};
+/** Строка журнала действий по матчу: «06.11.2026 12:00 · Матч перенесён · Иван Т.». */
+export function activityLine(a: { action: string; created_at: string; actor_name?: string | null }): string {
+  return [fmtWhen(a.created_at), ACTION_LABEL[a.action] ?? a.action, a.actor_name ?? ''].filter(Boolean).join(' · ');
 }

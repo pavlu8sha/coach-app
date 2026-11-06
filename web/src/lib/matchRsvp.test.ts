@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { linkLabel, splitLinks, fmtWhen, fromTbilisiLocal, responseText, rsvpError, toTbilisiLocal } from './matchRsvp';
+import { activityLine, matchesFilter, linkLabel, splitLinks, fmtWhen, fromTbilisiLocal, responseText, rsvpError, toTbilisiLocal } from './matchRsvp';
 
 describe('RSVP: время и тексты', () => {
   it('показывает время по Тбилиси', () => {
@@ -26,5 +26,19 @@ describe('RSVP: время и тексты', () => {
   it('подпись ссылки: карта или сайт', () => {
     expect(linkLabel('https://maps.app.goo.gl/abc')).toBe('Открыть на карте');
     expect(linkLabel('https://www.example.com/x')).toBe('example.com');
+  });
+});
+
+describe('фильтр сводки и журнал', () => {
+  it('matchesFilter: «не ответили» — только без ответа', () => {
+    expect(matchesFilter(null, 'none')).toBe(true);
+    expect(matchesFilter('yes', 'none')).toBe(false);
+    expect(matchesFilter('no', 'no')).toBe(true);
+    expect(matchesFilter('no', 'yes')).toBe(false);
+    expect(matchesFilter(null, 'all')).toBe(true);
+  });
+  it('activityLine: подпись действия, неизвестное действие показывается как есть', () => {
+    expect(activityLine({ action: 'rescheduled', created_at: '2026-11-06T08:00:00Z' })).toBe('06.11.2026 12:00 · Матч перенесён');
+    expect(activityLine({ action: 'x_new', created_at: '2026-11-06T08:00:00Z', actor_name: 'Иван' })).toBe('06.11.2026 12:00 · x_new · Иван');
   });
 });
