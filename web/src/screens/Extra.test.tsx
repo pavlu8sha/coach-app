@@ -41,16 +41,39 @@ describe('«Дополнительные»', () => {
     expect(fake.rpcCalls('extra_set_paid')[0]).toMatchObject({ p: 'p1', is_paid: true, mth: 'Перевод' });
   });
 
-  it('создание: сумма с запятой превращается в число; дубль даты — сообщение', async () => {
+  it('создание: сумма с запятой превращается в число; без цели создать нельзя, с группой и приглашённым — уходят в функцию', async () => {
     seed();
-    fake.rpc.extra_create_session = () => ({ error: { message: 'session exists' } });
+    fake.db.groups = [{ id: 'g1', name: 'U9' }, { id: 'g2', name: 'U11' }];
+    fake.db.players = [{ id: 'p9', full_name: 'Кузнецов Лев', status: 'active' }];
+    fake.rpc.extra_create_session = () => 'new-id';
     render(<Extra />);
     fireEvent.click(await screen.findByRole('button', { name: 'Новая тренировка' }));
     fireEvent.change(screen.getByLabelText('Дата'), { target: { value: '2099-02-01' } });
     fireEvent.change(screen.getByLabelText('Сумма с игрока, ₾'), { target: { value: '12,5' } });
+    expect(screen.getByRole('button', { name: 'Создать' })).toBeDisabled();
+    expect(screen.getByText(/Выберите хотя бы одну группу/)).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('switch', { name: 'U9' }));
+    fireEvent.change(screen.getByLabelText('Пригласить игрока'), { target: { value: 'Кузн' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Пригласить' }));
     fireEvent.click(screen.getByRole('button', { name: 'Создать' }));
-    expect(await screen.findByText('Тренировка на эту дату уже есть.')).toBeInTheDocument();
-    expect(fake.rpcCalls('extra_create_session')[0]).toMatchObject({ d: '2099-02-01', amt: 12.5 });
+    await waitFor(() => expect(fake.rpcCalls('extra_create_session')[0]).toMatchObject({ d: '2099-02-01', amt: 12.5, grps: ['g1'], pls: ['p9'] }));
+  });
+
+  it('цели существующей тренировки: добавление группы, убирание требует подтверждения и предупреждает о записанных', async () => {
+    seed();
+    fake.db.groups = [{ id: 'g1', name: 'U9' }, { id: 'g2', name: 'U11' }];
+    fake.db.extra_session_groups = [{ session_id: 'e1', group_id: 'g1' }];
+    fake.db.extra_session_players = [];
+    fake.rpc.extra_ineligible = () => [{ player_id: 'p1' }];
+    fake.rpc.extra_target_group = () => 1;
+    render(<Extra />);
+    fireEvent.click(await screen.findByText('10.01.2099 · 20 ₾'));
+    expect(await screen.findByText('Не из целевой группы')).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('switch', { name: 'U9' }));
+    const btns = await screen.findAllByRole('button', { name: 'Убрать' });
+    fireEvent.click(btns[btns.length - 1]);
+    await waitFor(() => expect(fake.rpcCalls('extra_target_group')).toEqual([{ s: 'e1', g: 'g1', on_: false }]));
+    expect(await screen.findByText(/Записанных без допуска: 1/)).toBeInTheDocument();
   });
 
   it('оплата со способом, посещение; у тренировки с оплатой удаление закрыто', async () => {

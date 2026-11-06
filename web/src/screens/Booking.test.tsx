@@ -91,4 +91,24 @@ describe('Запись на занятия', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Записать: Аня Первая' }));
     expect(await screen.findByText(/ребёнок сейчас не в статусе «Занимается»/)).toBeInTheDocument();
   });
+
+  it('дополнительная для целевых групп: кнопка записи только у допущенных детей', async () => {
+    fake.db.player_guardians = [
+      { user_id: 'u', consent_revoked_at: null, players: { id: 'p1', full_name: 'Аня Первая' } },
+      { user_id: 'u', consent_revoked_at: null, players: { id: 'p2', full_name: 'Боря Второй' } },
+    ];
+    fake.rpc.booking_board = () => [{ kind: 'extra', session_id: 'e1', starts_at: start, title: 'Дополнительная тренировка', place: 'Зал', capacity: 5, amount: 20, booked: [], mine: [], eligible: ['p1'] }];
+    render(<Booking />);
+    expect(await screen.findByRole('button', { name: 'Записать: Аня Первая' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Записать: Боря Второй' })).toBeNull();
+  });
+
+  it('«not eligible» объясняется понятным текстом', async () => {
+    fake.db.player_guardians = [{ user_id: 'u', consent_revoked_at: null, players: { id: 'p1', full_name: 'Аня Первая' } }];
+    fake.rpc.booking_board = () => board([], []);
+    fake.rpc.booking_signup = () => ({ error: { message: 'not eligible' } });
+    render(<Booking />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Записать: Аня Первая' }));
+    expect(await screen.findByText(/не для группы ребёнка/)).toBeInTheDocument();
+  });
 });

@@ -6,13 +6,14 @@ import { Failure, Loading } from './Message';
 
 type Kind = 'individual' | 'goalkeeper' | 'extra';
 interface Mine { player_id: string; name: string; paid: boolean; amount: number | string }
-interface Row { kind: Kind; session_id: string; starts_at: string; ends_at?: string | null; title: string; place: string | null; capacity: number | null; amount: number | string | null; booked: string[]; mine: Mine[] }
+interface Row { kind: Kind; session_id: string; starts_at: string; ends_at?: string | null; title: string; place: string | null; capacity: number | null; amount: number | string | null; booked: string[]; mine: Mine[]; eligible?: string[] | null }
 interface Kid { id: string; name: string }
 
 const err = (m: string) =>
   m.includes('session full') ? 'Мест уже нет.'
   : m.includes('already booked') ? 'Ребёнок уже записан.'
   : m.includes('session in the past') ? 'Занятие уже прошло.'
+  : m.includes('not eligible') ? 'Эта тренировка не для группы ребёнка. Если нужно записаться, напишите администратору.'
   : m.includes('player not active') ? 'Запись недоступна: ребёнок сейчас не в статусе «Занимается». Напишите администратору.'
   : m.includes('session already started') ? 'Занятие уже началось, отменить запись нельзя. Напишите администратору.'
   : m.includes('attendance marked') ? 'На занятии уже отмечена посещаемость. Отменить запись может администратор, напишите ему.'
@@ -87,7 +88,7 @@ export default function Booking() {
                   <button type="button" className="ks-btn secondary" style={{ marginTop: 6 }} disabled={busy !== null} onClick={() => void act('booking_cancel', r, k)}>Отменить запись: {k.name}</button>
                   {mine.paid && <p className="ks-muted" style={{ fontSize: 13, margin: '4px 0 0' }}>Оплата сохранится: администратор решит, оставить её клубу, перенести на другое занятие или вернуть.</p>}
                 </div>
-              ) : (
+              ) : r.eligible && !r.eligible.includes(k.id) ? null : (
                 <button key={k.id} type="button" className="ks-btn" style={{ marginTop: 8 }} disabled={busy !== null || left === 0} onClick={() => void act('booking_signup', r, k)}>Записать: {k.name}</button>
               );
             })}
