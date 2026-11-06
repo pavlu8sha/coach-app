@@ -10,17 +10,21 @@ import AdminSection from './AdminSection';
 // «Назад» и системная кнопка возвращают в каталог на прежнее место, повторное нажатие «Ещё» ничего не сбрасывает.
 export default function More({ groups, bar, onMenuChanged, onPreview }: { groups: CoachGroup[]; bar: SectionId[]; onMenuChanged: () => void; onPreview?: (r: 'guest' | 'parent' | 'child') => void }) {
   const nav = useNav();
-  const subId = nav.top.screen === 'section' ? nav.top.params.id : null;
+  // раздел — вторая запись стека; вложенные экраны раздела (карточка, форма) лежат выше и каталогом не подменяются
+  const base = nav.entries[1];
+  const subId = base?.screen === 'section' ? base.params.id : null;
   const sub: SectionId | null = subId && isSection(subId) ? subId : null;
   if (sub) {
     return (
       <NavEntry index={nav.depth - 1}>
-        <div style={{ maxWidth: 560, margin: '0 auto', padding: '8px 16px 0' }}>
-          <button type="button" className="ks-back" onClick={() => nav.back()}>
-            <span className="ks-chev back" aria-hidden="true" />
-            Ещё
-          </button>
-        </div>
+        {nav.depth === 2 && (
+          <div style={{ maxWidth: 560, margin: '0 auto', padding: '8px 16px 0' }}>
+            <button type="button" className="ks-back" onClick={() => nav.back()}>
+              <span className="ks-chev back" aria-hidden="true" />
+              Ещё
+            </button>
+          </div>
+        )}
         <AdminSection id={sub} groups={groups} onMenuChanged={onMenuChanged} />
       </NavEntry>
     );

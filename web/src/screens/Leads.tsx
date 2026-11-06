@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavState } from '../nav';
 import { coachError } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, Pill, Segmented } from '../ui/components';
@@ -13,7 +14,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString('ru', { day: '2-di
 
 // Заявки новых родителей из бота «Хочу в KickStart» (миграция 0039). Видит только администратор.
 export default function Leads() {
-  const [filter, setFilter] = useState<'open' | 'all'>('open');
+  const [filter, setFilter] = useNavState<'open' | 'all'>('ld.filter', 'open', { persist: { kind: 'enum', values: ['open', 'all'] } });
   const [rows, setRows] = useState<Lead[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);

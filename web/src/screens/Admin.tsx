@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavState } from '../nav';
 import { supabase } from '../lib/supabase';
 import { EmptyState, Segmented } from '../ui/components';
 import { useConfirm } from '../ui/ConfirmSheet';
@@ -20,7 +21,7 @@ export default function Admin() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [dels, setDels] = useState<Del[]>([]);
-  const [tab, setTab] = useState<'requests' | 'parents'>('requests');
+  const [tab, setTab] = useNavState<'requests' | 'parents'>('ad.tab', 'requests', { persist: { kind: 'enum', values: ['requests', 'parents'] } });
 
   const load = useCallback(async () => {
     const r = await supabase

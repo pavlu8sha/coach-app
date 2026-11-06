@@ -3,6 +3,7 @@ import { articleDate, AUDIENCE_LABEL, safeHttpUrl, SECTION_LABEL, STATUS_LABEL, 
 import { supabase } from '../lib/supabase';
 import ArticleEditor, { type ArticleDraft } from '../ui/ArticleEditor';
 import { EmptyState, ListRow, Pill, Segmented } from '../ui/components';
+import { useNav, useNavState } from '../nav';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 
@@ -30,13 +31,16 @@ export default function AdminArticles() {
   const [rows, setRows] = useState<ClubArticle[] | null>(null);
   const [isAdmin, setAdmin] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [editing, setEditing] = useState<ClubArticle | 'new' | null>(null);
+  const nav = useNav();
+  // редактор — запись стека: «Назад» и системная кнопка закрывают его, список остаётся на прежнем месте
+  const editId = nav.top.screen === 'edit' ? nav.top.params.id : null;
+  const editing: ClubArticle | 'new' | null = editId === 'new' ? 'new' : (editId ? (rows?.find(a => a.id === editId) ?? null) : null);
   const [newTitle, setNewTitle] = useState('');
   const [busy, setBusy] = useState(false);
   const [editorError, setEditorError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const [section, setSection] = useState<ArticleSection>('article');
+  const [section, setSection] = useNavState<ArticleSection>('aa.section', 'article', { entry: 0, persist: { kind: 'enum', values: ['article', 'news', 'tournaments'] } });
 
   useEffect(() => {
     let alive = true;
@@ -62,18 +66,18 @@ export default function AdminArticles() {
   const startNew = (title = '') => {
     if (!isAdmin) return;
     setNewTitle(title);
-    setEditing('new');
+    nav.push('edit', { id: 'new' });
     setEditorError(null);
     setMsg(null);
   };
   const startEdit = (article: ClubArticle) => {
     if (!isAdmin) return;
-    setEditing(article);
+    nav.push('edit', { id: article.id });
     setEditorError(null);
     setMsg(null);
   };
   const cancel = () => {
-    setEditing(null);
+    nav.back();
     setNewTitle('');
     setEditorError(null);
   };
@@ -101,17 +105,18 @@ export default function AdminArticles() {
       setEditorError(errText(r.error.message));
       return;
     }
-    setEditing(null);
+    nav.back();
     setNewTitle('');
     setMsg('Сохранено.');
     setReload(n => n + 1);
   };
 
+  if (editId && !editing) return <Loading title="Материалы клуба" rows={4} avatar={false} card />;
   if (editing) {
     const initial = editing === 'new' ? { title: newTitle, status: 'draft' as const } : editing;
     return (
       <main className="page">
-        <BackNav onBack={cancel} />
+        <BackNav onBack={cancel} managed />
         <h1>{editing === 'new' ? 'Новый материал' : 'Редактирование материала'}</h1>
         <ArticleEditor initial={initial} busy={busy} error={editorError} onSave={d => void save(d)} onCancel={cancel} />
       </main>
