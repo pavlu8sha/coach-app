@@ -44,7 +44,7 @@ export function EventForm({ teams, events, admin, onBack, onCreated }: { teams: 
   const sameTeam = events.filter(e => e.team === team);
   return (
     <main className="page">
-      <BackNav onBack={onBack} />
+      <BackNav onBack={onBack} managed />
       <h1>Новое событие</h1>
       <Segmented label="Тип события" value={kind} onChange={setKind} items={[{ value: 'championship', label: 'Чемпионат' }, { value: 'festival', label: 'Фестиваль' }, { value: 'cup', label: 'Кубок' }]} />
       <label className="ks-label" htmlFor="e-team">Команда</label>
@@ -145,11 +145,11 @@ export function EventScreen({ event, groups, admin = false, onBack }: { event: E
     setFinished(!finished);
   };
 
-  if (error) return <Failure title="Не удалось загрузить состав" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} />} />;
+  if (error) return <Failure title="Не удалось загрузить состав" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} managed />} />;
   if (!roster) return <Loading />;
   return (
     <main className="page">
-      <BackNav onBack={onBack} />
+      <BackNav onBack={onBack} managed />
       <h1>{eventTitle(event)}</h1>
       <p className="muted">{KIND_TITLE[event.kind]} · {event.team}{event.starts_on ? ` · ${fmtDate(event.starts_on)}` : ''} · {finished ? 'завершено' : 'идёт'}</p>
       {admin && (

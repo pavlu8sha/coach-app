@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import { addDays, today } from '../lib/coach';
 import Stats from './Stats';
+import { resetDetachedNav } from '../nav';
 
 describe('«Статистика»', () => {
   it('посещаемость: группы, игроки по возрастанию, красным ниже порога; период — текущий месяц', async () => {
@@ -90,6 +91,7 @@ describe('«Статистика»', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Матчи' }));
     expect(await screen.findByText('Нет матчей ваших команд')).toBeInTheDocument();
     unmount();
+    resetDetachedNav(); // второй экран — как новый вход: состояние вкладок прежнего не наследует
     render(<Stats />);
     expect(await screen.findByText('Нет проведённых занятий')).toBeInTheDocument();
   });

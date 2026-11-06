@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { coachError, compareGroups, fmtDate, matchTeam, playsMatches, today, type CoachGroup } from '../lib/coach';
 import { supabase } from '../lib/supabase';
+import { useNav, useNavState } from '../nav';
 import { EmptyState, ListRow, Pill, NameDatalist, searchFocusProps } from '../ui/components';
 import { GroupPicker, Stepper } from '../ui/coach';
 import { BackNav, useMainButton } from '../ui/nav';
@@ -24,16 +25,15 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   const [matches, setMatches] = useState<Match[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const [form, setForm] = useState<{ match: Match | null } | null>(null);
-  const [team, setTeam] = useState('');
+  // Вложенные экраны (матч, событие, матчи с подтверждением) — записи стека раздела; список остаётся под ними
+  const nav = useNav();
+  const [team, setTeam] = useNavState('cm.team', '', { entry: 0 });
   const [tours, setTours] = useState<Map<string, Tour>>(new Map());
   const [events, setEvents] = useState<EventRow[]>([]);
   const [playedBy, setPlayedBy] = useState<Map<string, number>>(new Map());
-  const [eventView, setEventView] = useState<{ event: EventRow | null } | null>(null);
   // «Добавить матч»: одно окно — события (чемпионаты, фестивали), где добавляется игра, и команды для товарищеского или кубкового матча
-  const [rsvpOpen, setRsvpOpen] = useState(false);
   const [addStep, setAddStep] = useState<'pick' | null>(null);
-  const [addTeam, setAddTeam] = useState('');
+  const [addTeam, setAddTeam] = useNavState('cm.addTeam', '', { entry: 0 });
 
   useEffect(() => {
     void (async () => {
@@ -62,21 +62,26 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   }, [groups, showAll, reload]);
 
   if (error) return <Failure title="Не удалось загрузить матчи" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
-  if (rsvpOpen) return <CoachRsvp groups={groups} onBack={() => setRsvpOpen(false)} />;
-  if (eventView) {
-    const back = () => { setEventView(null); setReload(n => n + 1); };
-    if (eventView.event) return <EventScreen event={eventView.event} groups={groups} admin={admin} onBack={back} />;
+  const screen = nav.top.screen;
+  const topId = nav.top.params.id;
+  const back = () => { nav.back(); setReload(n => n + 1); };
+  if (screen.startsWith('rsvp')) return <CoachRsvp groups={groups} onBack={() => nav.back()} />;
+  const openEvent = events.find(e => e.id === topId);
+  if (screen === 'event' && (openEvent || !topId)) {
+    if (openEvent) return <EventScreen event={openEvent} groups={groups} admin={admin} onBack={back} />;
     const openCreated = async (id: string) => {
       const ev = await supabase.rpc('event_list');
       const list = ev.error ? [] : ((ev.data ?? []) as EventRow[]);
       setEvents(list);
-      setEventView({ event: list.find(e => e.id === id) ?? null });
-      if (!list.some(e => e.id === id)) setReload(n => n + 1);
+      nav.back(); // форма создания заменяется экраном созданного события
+      if (list.some(e => e.id === id)) nav.push('event', { id });
+      else setReload(n => n + 1);
     };
     const allTeams2 = [...new Set([...groups.map(g => g.name), ...(matches ?? []).map(m => m.team), ...events.map(e => e.team)].filter(playsMatches).map(matchTeam))].sort(compareGroups);
     return <EventForm teams={allTeams2} events={events} admin={admin} onBack={back} onCreated={id => void openCreated(id)} />;
   }
-  if (form) return <MatchForm groups={groups} match={form.match} admin={admin} rosterOf={form.match && !(!tours.get(form.match.id)?.tournament_id || tours.get(form.match.id)?.match_kind === 'friendly' || tours.get(form.match.id)?.tournament_kind === 'cup') ? tours.get(form.match.id)?.tournament_id ?? null : null} feeMode={!form.match || !tours.get(form.match.id)?.tournament_id || tours.get(form.match.id)?.match_kind === 'friendly' || tours.get(form.match.id)?.tournament_kind === 'cup'} presetTeam={addTeam} onBack={() => { setForm(null); setReload(n => n + 1); }} />;
+  const formMatch = screen === 'form' ? (matches ?? []).find(m => m.id === topId) ?? null : null;
+  if (screen === 'form' && (formMatch || !topId)) return <MatchForm groups={groups} match={formMatch} admin={admin} rosterOf={formMatch && !(!tours.get(formMatch.id)?.tournament_id || tours.get(formMatch.id)?.match_kind === 'friendly' || tours.get(formMatch.id)?.tournament_kind === 'cup') ? tours.get(formMatch.id)?.tournament_id ?? null : null} feeMode={!formMatch || !tours.get(formMatch.id)?.tournament_id || tours.get(formMatch.id)?.match_kind === 'friendly' || tours.get(formMatch.id)?.tournament_kind === 'cup'} presetTeam={addTeam} onBack={back} />;
   if (!matches) return <Loading />;
 
   const teams = [...new Set(matches.map(m => m.team))].sort(compareGroups);
@@ -112,9 +117,9 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
       <h1>Матчи</h1>
       <button type="button" className="ks-btn" onClick={() => setAddStep('pick')}>Добавить матч</button>
       <div style={{ height: 8 }} />
-      <button type="button" className="ks-btn secondary" onClick={() => setEventView({ event: null })}>Новое событие</button>
+      <button type="button" className="ks-btn secondary" onClick={() => nav.push('event')}>Новое событие</button>
       <div style={{ height: 8 }} />
-      <button type="button" className="ks-btn secondary" onClick={() => setRsvpOpen(true)}>Матчи с подтверждением</button>
+      <button type="button" className="ks-btn secondary" onClick={() => nav.push('rsvp')}>Матчи с подтверждением</button>
       {addStep === 'pick' && (
         <div className="ks-card" aria-label="Добавить матч">
           <p className="ks-label">Матч чемпионата или фестиваля</p>
@@ -122,13 +127,13 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
             <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>Событий пока нет. Создайте чемпионат или фестиваль кнопкой «Новое событие».</p>
           ) : (
             champEvents.map(e => (
-              <ListRow key={e.id} title={eventTitle(e)} sub={[e.team, eventCounts(e)]} onClick={() => { setAddStep(null); setEventView({ event: e }); }} />
+              <ListRow key={e.id} title={eventTitle(e)} sub={[e.team, eventCounts(e)]} onClick={() => { setAddStep(null); nav.push('event', { id: e.id }); }} />
             ))
           )}
           <p className="ks-label">Товарищеский или кубковый матч</p>
           {addTeams.length === 0 && <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>Нет команд, для которых можно добавить матч.</p>}
           {addTeams.map(t => (
-            <ListRow key={t} title={t} onClick={() => { setAddTeam(t); setAddStep(null); setForm({ match: null }); }} />
+            <ListRow key={t} title={t} onClick={() => { setAddTeam(t); setAddStep(null); nav.push('form'); }} />
           ))}
           <div style={{ height: 8 }} />
           <button type="button" className="ks-btn secondary" onClick={() => setAddStep(null)}>Отмена</button>
@@ -149,7 +154,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
         sections.map(sec => (
           <section key={sec.key}>
             <p className="ks-label">{sec.title}</p>
-            {sec.event && <ListRow title="Состав и игры события" sub={[eventCounts(sec.event), ...(isFinished(sec.event) ? ['завершено'] : [])]} onClick={() => setEventView({ event: sec.event ?? null })} />}
+            {sec.event && <ListRow title="Состав и игры события" sub={[eventCounts(sec.event), ...(isFinished(sec.event) ? ['завершено'] : [])]} onClick={() => nav.push('event', sec.event ? { id: sec.event.id } : undefined)} />}
             {sec.items.map(m => {
               const done = m.goals_for !== null && m.goals_against !== null;
               const cup = sec.key === 'other' ? tours.get(m.id) : undefined;
@@ -160,7 +165,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
                   title={m.opponent ?? 'Соперник не указан'}
                   sub={[`${fmtDate(m.played_on)}${showAll || groups.length > 1 ? ' · ' + m.team : ''}${cupName ? ' · ' + cupName : ''}${playedBy.get(m.id) ? ' · играло ' + playedBy.get(m.id) : ''}`]}
                   end={done ? <span className="ks-score">{m.goals_for}:{m.goals_against}{m.technical ? ' (тех.)' : ''}</span> : <Pill tone="primary">{m.played_on > today() ? 'Предстоит' : 'Без счёта'}</Pill>}
-                  onClick={() => setForm({ match: m })}
+                  onClick={() => nav.push('form', { id: m.id })}
                 />
               );
             })}
@@ -347,13 +352,13 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
   };
   const native = useMainButton({ text: 'Сохранить матч', visible: true, enabled: !busy && Boolean(players), loading: busy, onClick: () => void save() });
 
-  if (error) return <Failure title="Не удалось загрузить состав" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} />} />;
+  if (error) return <Failure title="Не удалось загрузить состав" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} managed />} />;
   if (!players) return <Loading />;
 
   const canPickGroup = !match && !savedId;
   return (
     <main className="page">
-      <BackNav onBack={onBack} />
+      <BackNav onBack={onBack} managed />
       <h1>{match ? 'Матч' : 'Новый матч'}</h1>
       {canPickGroup && presetMissing && !admin && <p className="error" style={{ marginBottom: 8 }}>В клубе нет группы «{presetTeam}», поэтому матч для неё не сохранить. Вернитесь и выберите другую команду.</p>}
       {canPickGroup && presetMissing && admin && <p className="muted" style={{ marginBottom: 8 }}>Команда «{presetTeam}» без группы: состав собирайте поиском по игрокам клуба.</p>}
