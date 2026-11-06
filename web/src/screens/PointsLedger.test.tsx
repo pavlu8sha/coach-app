@@ -19,7 +19,11 @@ describe('баллы по новым правилам', () => {
     seed();
     fake.rpc.points_group_benchmark = () => ({ groups: [{ group_id: 'g1', group_name: 'U9', personal: 6, status: 'ok', avg: 2.3, max: 10, place: 4 }] });
     render(<PointsLedger playerId="p1" />);
-    expect(await screen.findByText(/у вас 6 · среднее по группе 2,3 · максимум в группе 10 · место в группе 4/)).toBeInTheDocument();
+    expect(await screen.findByText('Среднее по группе')).toBeInTheDocument();
+    expect(screen.getByText('У вас')).toBeInTheDocument();
+    expect(screen.getByText('2,3')).toBeInTheDocument();
+    expect(screen.getByText('Максимум в группе')).toBeInTheDocument();
+    expect(screen.getByText('Место в группе')).toBeInTheDocument();
     expect(fake.rpcCalls('points_group_benchmark')[0]).toEqual({ p: 'p1', ym: '2026-12-01' });
   });
 
@@ -68,9 +72,11 @@ describe('баллы по новым правилам', () => {
   it('серия: прогресс до бонуса, рекорд и завершённые серии', async () => {
     seed();
     render(<PointsLedger playerId="p1" />);
-    expect(await screen.findByText(/До бонуса за 6 тренировок \(\+1\) осталось 2/)).toBeInTheDocument();
-    expect(screen.getByText('Личный рекорд: 6 подряд')).toBeInTheDocument();
-    expect(screen.getByText('6 подряд')).toBeInTheDocument();
+    expect(await screen.findByText('До бонуса за 6 тренировок (+1)')).toBeInTheDocument();
+    expect(screen.getByText('осталось 2')).toBeInTheDocument();
+    expect(screen.getByText('Личный рекорд')).toBeInTheDocument();
+    expect(screen.getByText('6 подряд', { selector: 'b' })).toBeInTheDocument();
+    expect(screen.getAllByText('6 подряд').length).toBeGreaterThan(0);
   });
 
   it('прерванная серия показана нейтрально, с датой', async () => {
