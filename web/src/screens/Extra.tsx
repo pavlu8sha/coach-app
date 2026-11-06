@@ -3,7 +3,7 @@ import { coachError, fmtDate, groupInOrder, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput, Segmented } from '../ui/components';
 import { BackNav } from '../ui/nav';
-import { useNav, useNavState } from '../nav';
+import { useDirtyGuard, useNav, useNavState } from '../nav';
 import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
 
@@ -120,6 +120,7 @@ function Form({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
   const [place, setPlace] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  useDirtyGuard(date !== today() || amount.trim() !== '' || place.trim() !== '');
   const save = async () => {
     setBusy(true);
     setErr(null);

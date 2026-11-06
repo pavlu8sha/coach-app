@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useDirtyGuard, useDirtySignature } from '../nav';
 import { coachError, fmtDate, groupByGroupName, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput, Segmented, SwitchRow } from '../ui/components';
@@ -66,6 +67,7 @@ function CampForm({ camp, onBack, onDone }: { camp: Camp | null; onBack: () => v
   const [f, setF] = useState({ name: camp?.name ?? '', loc: camp?.location ?? '', d1: camp?.starts_on ?? today(), d2: camp?.ends_on ?? today(), fee: String(camp?.booking_fee ?? 0), feeBy: camp?.booking_deadline ?? '', payBy: camp?.full_payment_deadline ?? '', act: camp?.active ?? true });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  useDirtySignature(JSON.stringify(f)); // правки считаются от открытого значения
   const save = async () => {
     setBusy(true);
     setErr(null);
@@ -209,6 +211,7 @@ function AddPart({ camp, tariffs, taken, onBack, onDone }: { camp: Camp; tariffs
   const [cmt, setCmt] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  useDirtyGuard(player !== null || guestName.trim() !== '' || guestContact.trim() !== '' || amount.trim() !== '' || size.trim() !== '' || cmt.trim() !== '');
   useEffect(() => {
     if (q.trim().length < 2) return setFound([]);
     const t = setTimeout(() => {

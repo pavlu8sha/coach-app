@@ -432,3 +432,31 @@ describe('Предупреждение о несохранённом в форм
     expect(await screen.findByRole('button', { name: 'Создать статью' })).toBeInTheDocument();
   });
 });
+
+describe('Предупреждение о несохранённом: сборы и дополнительные', () => {
+  it('«Сборы»: форма нового сбора спрашивает при «Назад», если что-то введено', async () => {
+    fake.db.camps = [];
+    fake.db.camp_tariffs = [];
+    render(inApp('camps', <Camps />));
+    fireEvent.click(await screen.findByRole('button', { name: /Новый сбор|Добавить сбор|Создать сбор/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Назад' }));
+    expect(await screen.findByRole('heading', { name: 'Сборы' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Новый сбор|Добавить сбор|Создать сбор/ }));
+    fireEvent.change(await screen.findByLabelText('Название'), { target: { value: 'Лагерь' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(await screen.findByRole('dialog', { name: 'Уйти без сохранения?' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Уйти' }));
+    expect(await screen.findByRole('heading', { name: 'Сборы' })).toBeInTheDocument();
+  });
+
+  it('«Дополнительные»: форма новой тренировки спрашивает при «Назад», если введена сумма', async () => {
+    fake.db.extra_sessions = [];
+    fake.db.extra_bookings = [];
+    render(inApp('extra', <Extra />));
+    fireEvent.click(await screen.findByRole('button', { name: 'Новая тренировка' }));
+    fireEvent.change(await screen.findByLabelText(/Сумма|Стоимость|Цена/), { target: { value: '30' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(await screen.findByRole('dialog', { name: 'Уйти без сохранения?' })).toBeInTheDocument();
+  });
+});

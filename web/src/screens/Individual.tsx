@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useDirtyGuard } from '../nav';
 import { coachError, fmtDate, groupInOrder, hm, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput, Segmented } from '../ui/components';
@@ -148,6 +149,7 @@ function SessionForm({ onBack, onDone }: { onBack: () => void; onDone: () => voi
   const [theme, setTheme] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  useDirtyGuard(date !== today() || time !== '12:00' || gk || theme.trim() !== '');
   const save = async () => {
     setBusy(true);
     setErr(null);

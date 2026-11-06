@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { coachError, compareGroups, fmtDate, matchTeam, playsMatches, today, type CoachGroup } from '../lib/coach';
 import { supabase } from '../lib/supabase';
-import { useNav, useNavState } from '../nav';
+import { useDirtySignature, useNav, useNavState } from '../nav';
 import { EmptyState, ListRow, Pill, NameDatalist, searchFocusProps } from '../ui/components';
 import { GroupPicker, Stepper } from '../ui/coach';
 import { BackNav, useMainButton } from '../ui/nav';
@@ -209,6 +209,8 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
   // после первого сохранения в составе остаются только сыгравшие; остальных можно показать кнопкой, чтобы добавить забытого
   const [shownIds, setShownIds] = useState<string[] | null>(null);
   const [showAll, setShowAll] = useState(false);
+  // правки считаются от загруженного состояния; после сохранения на месте принимаются за исходные
+  const markClean = useDirtySignature(JSON.stringify([gid, date, opp, gf, ga, lines, bestId, technical]), players !== null);
   const [editLineup, setEditLineup] = useState(false); // кнопки «Убрать из матча» показываем только в режиме правки состава
 
   useEffect(() => {
@@ -316,6 +318,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     setShownIds(playedNow.length ? playedNow : null);
     setShowAll(false);
     setMsg({ ok: true, text: 'Матч сохранён. Баллы за матч начислены автоматически.' });
+    markClean();
   };
   const remove = async () => {
     if (!savedId || !(await ask({ title: 'Удалить матч?', note: 'Матч удалится вместе с составом и начисленными за него баллами. Отменить нельзя.', confirmLabel: 'Удалить', danger: true }))) return;
