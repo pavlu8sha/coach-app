@@ -31,6 +31,29 @@ describe('«Профиль»', () => {
     expect(sw).toHaveAttribute('aria-checked', 'false');
   });
 
+  it('настройки по направлениям: показываются при включённых сообщениях, сохраняются, при ошибке откатываются', async () => {
+    fake.db.users = [{ id: 'u', notifications_enabled: true }];
+    fake.rpc.notify_prefs_get = () => [
+      { direction: 'ind_sat', enabled: false }, { direction: 'ind_sun', enabled: false },
+      { direction: 'goalkeeper', enabled: false }, { direction: 'extra', enabled: true },
+    ];
+    fake.rpc.notify_pref_set = () => null;
+    render(<Profile />);
+    const sat = await screen.findByRole('switch', { name: 'Индивидуальные тренировки: суббота' });
+    expect(sat).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByRole('switch', { name: 'Дополнительные тренировки' })).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(sat);
+    await waitFor(() => expect(fake.rpcCalls('notify_pref_set')).toEqual([{ d: 'ind_sat', on_: true }]));
+    expect(sat).toHaveAttribute('aria-checked', 'true');
+    fake.rpc.notify_pref_set = () => ({ error: { message: 'oops' } });
+    fireEvent.click(sat);
+    expect(await screen.findByText('Не удалось сохранить настройку.')).toBeInTheDocument();
+    expect(sat).toHaveAttribute('aria-checked', 'true');
+    // общий выключатель выключен — настройки направлений скрыты
+    fireEvent.click(screen.getByRole('switch', { name: 'Сообщения от бота в Telegram' }));
+    await waitFor(() => expect(screen.queryByRole('switch', { name: 'Дополнительные тренировки' })).toBeNull());
+  });
+
   it('родителю открываются материалы клуба и возвращаются в профиль', async () => {
     fake.db.users = [{ id: 'u' }];
     fake.db.club_articles = [];
