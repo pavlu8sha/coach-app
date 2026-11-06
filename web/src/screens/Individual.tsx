@@ -6,6 +6,7 @@ import { EmptyState, ListRow, Pill, SearchInput, Segmented } from '../ui/compone
 import { BackNav } from '../ui/nav';
 import { useNav, useNavState } from '../nav';
 import { useConfirm } from '../ui/ConfirmSheet';
+import WaitlistList from './WaitlistList';
 import { Failure, Loading } from './Message';
 import IndRegulars from './IndRegulars';
 import BookingCancellations from './BookingCancellations';
@@ -272,6 +273,8 @@ function SessionView({ session, onBack }: { session: Session; onBack: () => void
           </div>
         </div>
       ))}
+
+      <WaitlistList sessionId={session.id} />
 
       <h3>Записать игрока</h3>
       <SearchInput label="Найти игрока" placeholder="Фамилия или имя (от 2 букв)" value={q} onChange={setQ} suggestions={found.map(f => f.full_name)} />

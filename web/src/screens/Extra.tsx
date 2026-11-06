@@ -6,6 +6,7 @@ import { BackNav } from '../ui/nav';
 import { useDirtyGuard, useNav, useNavState } from '../nav';
 import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
+import WaitlistList from './WaitlistList';
 import ExtraTargets, { TargetPicker, useGroups, type Pl } from './ExtraTargets';
 
 interface Booking { player_id: string; paid: boolean; attended: boolean | null; paid_amount: number | null; method: string | null; players: { full_name: string } | null }
@@ -255,6 +256,8 @@ function View({ session, onBack }: { session: Session; onBack: () => void }) {
 
       {cancelled ? null : <>
       <ExtraTargets sessionId={session.id} onIneligible={setIneligible} />
+
+      <WaitlistList sessionId={session.id} />
 
       <h3>Записать игрока</h3>
       <SearchInput label="Найти игрока" placeholder="Фамилия или имя (от 2 букв)" value={q} onChange={setQ} suggestions={found.map(f => f.full_name)} />

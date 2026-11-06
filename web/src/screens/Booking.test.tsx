@@ -68,12 +68,39 @@ describe('Запись на занятия', () => {
     expect(await screen.findByText(/Дополнительная: .*19:00–20:30/)).toBeInTheDocument();
   });
 
-  it('мест нет: кнопка записи недоступна', async () => {
+  it('мест нет: вместо записи кнопка очереди, вставание в очередь уходит в функцию', async () => {
     fake.db.player_guardians = [{ user_id: 'u', consent_revoked_at: null, players: { id: 'p1', full_name: 'Аня Первая' } }];
     fake.rpc.booking_board = () => [{ ...board([], ['А', 'Б', 'В'])[0] }];
+    fake.rpc.waitlist_board = () => [];
+    fake.rpc.waitlist_join = () => null;
     render(<Booking />);
     const card = (await screen.findByText('Мест нет')).closest('section') as HTMLElement;
-    expect(within(card).getByRole('button', { name: 'Записать: Аня Первая' })).toBeDisabled();
+    expect(within(card).queryByRole('button', { name: 'Записать: Аня Первая' })).toBeNull();
+    fireEvent.click(within(card).getByRole('button', { name: 'Встать в очередь: Аня Первая' }));
+    await waitFor(() => expect(fake.rpcCalls('waitlist_join')).toEqual([{ k: 'individual', s: 's1', p: 'p1' }]));
+  });
+
+  it('в очереди: позиция; при свободном месте можно занять, выйти можно всегда', async () => {
+    fake.db.player_guardians = [{ user_id: 'u', consent_revoked_at: null, players: { id: 'p1', full_name: 'Аня Первая' } }];
+    fake.rpc.booking_board = () => [{ ...board([], ['А', 'Б', 'В'])[0] }];
+    fake.rpc.waitlist_board = () => [{ kind: 'individual', session_id: 's1', player_id: 'p1', pos: 2, total: 3, offer: false }];
+    fake.rpc.waitlist_leave = () => null;
+    render(<Booking />);
+    expect(await screen.findByText('В очереди: 2 из 3')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Занять место: Аня Первая' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Выйти из очереди: Аня Первая' }));
+    await waitFor(() => expect(fake.rpcCalls('waitlist_leave')).toHaveLength(1));
+  });
+
+  it('есть предложение: кнопка «Занять место»; проигравшему гонку понятный текст', async () => {
+    fake.db.player_guardians = [{ user_id: 'u', consent_revoked_at: null, players: { id: 'p1', full_name: 'Аня Первая' } }];
+    fake.rpc.booking_board = () => board([], ['А', 'Б']);
+    fake.rpc.waitlist_board = () => [{ kind: 'individual', session_id: 's1', player_id: 'p1', pos: 1, total: 1, offer: true }];
+    fake.rpc.waitlist_claim = () => ({ error: { message: 'session full' } });
+    render(<Booking />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Занять место: Аня Первая' }));
+    expect(await screen.findByText(/место успел занять другой родитель/)).toBeInTheDocument();
+    expect(fake.rpcCalls('waitlist_claim')).toEqual([{ k: 'individual', s: 's1', p: 'p1' }]);
   });
 
   it('пустая доска: понятное пустое состояние', async () => {

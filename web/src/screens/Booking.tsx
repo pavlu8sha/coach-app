@@ -8,9 +8,12 @@ type Kind = 'individual' | 'goalkeeper' | 'extra';
 interface Mine { player_id: string; name: string; paid: boolean; amount: number | string }
 interface Row { kind: Kind; session_id: string; starts_at: string; ends_at?: string | null; title: string; place: string | null; capacity: number | null; amount: number | string | null; booked: string[]; mine: Mine[]; eligible?: string[] | null }
 interface Kid { id: string; name: string }
+interface Wait { kind: Kind; session_id: string; player_id: string; pos: number; total: number; offer: boolean }
 
 const err = (m: string) =>
-  m.includes('session full') ? 'Мест уже нет.'
+  m.includes('session full') ? 'Мест уже нет: место успел занять другой родитель. Вы остаётесь в очереди.'
+  : m.includes('seat available') ? 'Появилось свободное место, обновите список и запишитесь.'
+  : m.includes('not in waitlist') ? 'Ребёнка уже нет в очереди.'
   : m.includes('already booked') ? 'Ребёнок уже записан.'
   : m.includes('session in the past') ? 'Занятие уже прошло.'
   : m.includes('not eligible') ? 'Эта тренировка не для группы ребёнка. Если нужно записаться, напишите администратору.'
@@ -39,6 +42,7 @@ export default function Booking() {
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [waits, setWaits] = useState<Wait[]>([]);
 
   const load = useCallback(async () => {
     const me = (await supabase.auth.getUser()).data.user?.id;
@@ -47,10 +51,12 @@ export default function Booking() {
     const r = await supabase.rpc('booking_board');
     if (r.error) return setError(err(r.error.message));
     setRows((r.data ?? []) as Row[]);
+    const w = await supabase.rpc('waitlist_board'); // до миграции 0149 функции нет: очередь просто не показываем
+    setWaits(w.error ? [] : ((w.data ?? []) as Wait[]));
   }, []);
   useEffect(() => { void load(); }, [load]);
 
-  const act = async (fn: 'booking_signup' | 'booking_cancel', r: Row, kid: Kid) => {
+  const act = async (fn: 'booking_signup' | 'booking_cancel' | 'waitlist_join' | 'waitlist_leave' | 'waitlist_claim', r: Row, kid: Kid) => {
     setBusy(r.session_id + kid.id);
     setMsg(null);
     const res = await supabase.rpc(fn, { k: r.kind, s: r.session_id, p: kid.id });
@@ -88,9 +94,22 @@ export default function Booking() {
                   <button type="button" className="ks-btn secondary" style={{ marginTop: 6 }} disabled={busy !== null} onClick={() => void act('booking_cancel', r, k)}>Отменить запись: {k.name}</button>
                   {mine.paid && <p className="ks-muted" style={{ fontSize: 13, margin: '4px 0 0' }}>Оплата сохранится: администратор решит, оставить её клубу, перенести на другое занятие или вернуть.</p>}
                 </div>
-              ) : r.eligible && !r.eligible.includes(k.id) ? null : (
-                <button key={k.id} type="button" className="ks-btn" style={{ marginTop: 8 }} disabled={busy !== null || left === 0} onClick={() => void act('booking_signup', r, k)}>Записать: {k.name}</button>
-              );
+              ) : r.eligible && !r.eligible.includes(k.id) ? null : (() => {
+                const w = waits.find(x => x.session_id === r.session_id && x.player_id === k.id);
+                if (w) {
+                  return (
+                    <div key={k.id} style={{ marginTop: 8 }}>
+                      <div className="ks-line"><span>{k.name}</span><Pill tone={w.offer ? 'success' : 'neutral'}>{w.offer ? 'Есть место' : `В очереди: ${w.pos} из ${w.total}`}</Pill></div>
+                      {w.offer && <button type="button" className="ks-btn" style={{ marginTop: 6 }} disabled={busy !== null} onClick={() => void act('waitlist_claim', r, k)}>Занять место: {k.name}</button>}
+                      <button type="button" className="ks-btn secondary" style={{ marginTop: 6 }} disabled={busy !== null} onClick={() => void act('waitlist_leave', r, k)}>Выйти из очереди: {k.name}</button>
+                      {!w.offer && <p className="ks-muted" style={{ fontSize: 13, margin: '4px 0 0' }}>Когда место освободится, уведомление получат все из очереди. Место достанется тому, кто подтвердит первым, до начала занятия.</p>}
+                    </div>
+                  );
+                }
+                return left === 0
+                  ? <button key={k.id} type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy !== null} onClick={() => void act('waitlist_join', r, k)}>Встать в очередь: {k.name}</button>
+                  : <button key={k.id} type="button" className="ks-btn" style={{ marginTop: 8 }} disabled={busy !== null} onClick={() => void act('booking_signup', r, k)}>Записать: {k.name}</button>;
+              })();
             })}
           </section>
         );

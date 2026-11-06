@@ -151,4 +151,13 @@ describe('«Дополнительные»', () => {
     expect(screen.queryByText('Записать игрока')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Отметить оплату' })).toBeNull();
   });
+
+  it('очередь ожидания видна администратору в карточке тренировки', async () => {
+    seed();
+    fake.rpc.waitlist_session = () => [{ pos: 1, player_id: 'p9', name: 'Кузнецов Лев' }];
+    render(<Extra />);
+    fireEvent.click(await screen.findByText('10.01.2099 · 20 ₾'));
+    expect(await screen.findByText('Очередь ожидания')).toBeInTheDocument();
+    expect(screen.getByText('Кузнецов Лев')).toBeInTheDocument();
+  });
 });

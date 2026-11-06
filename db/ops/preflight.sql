@@ -150,6 +150,7 @@ select * from (values
   ('0145_booking_cancellations', coalesce((to_regproc('booking_cancel_refund') is not null), false)),
   ('0146_extra_targets', coalesce((to_regproc('extra_target_group') is not null), false)),
   ('0148_booking_notifications', coalesce((to_regproc('booking_family_notice') is not null), false)),
+  ('0149_booking_waitlist', coalesce((to_regproc('waitlist_claim') is not null), false)),
   ('0147_status_log_read_any_coach', coalesce((exists (select 1 from pg_policies where tablename = 'player_status_log' and policyname = 'player_status_log_read' and qual like '%is_any_coach%')), false))
 ) as t(migration, applied)
 order by migration;
