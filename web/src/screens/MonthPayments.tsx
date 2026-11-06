@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { EmptyState, Pill, SearchInput, SwitchRow } from '../ui/components';
 import { CLOSURE_LABELS, closureFlags, useClosure, type ClosureKind } from '../ui/ClosureSheet';
 import { Failure, Loading } from './Message';
+import { useNavState } from '../nav';
 
 interface Group { id: string; name: string }
 export interface Player { id: string; full_name: string }
@@ -54,14 +55,16 @@ export default function MonthPayments() {
     for (let d = new Date(now.getFullYear(), now.getMonth() + 1, 1); monthIso(d) >= SEASON_START; d.setMonth(d.getMonth() - 1)) out.push(monthIso(d));
     return out;
   }, []);
-  const [month, setMonth] = useState(monthIso(new Date()));
-  // С заданного числа (по умолчанию с 22-го) экран открывается на следующем месяце, пока администратор сам не выбрал другой.
+  // Месяц, выбранный администратором, хранится в навигации (возвращается при «Назад» и смене вкладок).
+  // Пока он не выбран, с заданного числа (по умолчанию с 22-го) экран открывается на следующем месяце.
+  const [pickedMonth, setPickedMonth] = useNavState<string | null>('mp.month', null);
   const settings = useClubSettings();
-  const picked = useRef(false);
+  const [autoMonth, setAutoMonth] = useState(monthIso(new Date()));
   useEffect(() => {
-    if (!settings.loaded || picked.current) return;
-    if (new Date().getDate() >= settingNumber(settings.values, 'payments.nextMonthDay')) setMonth(nextMonth(monthIso(new Date())));
+    if (!settings.loaded) return;
+    if (new Date().getDate() >= settingNumber(settings.values, 'payments.nextMonthDay')) setAutoMonth(nextMonth(monthIso(new Date())));
   }, [settings.loaded, settings.values]);
+  const month = pickedMonth ?? autoMonth;
   const nextDayError = settingNumberError(settings.values, 'payments.nextMonthDay');
   const [groups, setGroups] = useState<Group[]>([]);
   const [prices, setPrices] = useState<Price[]>([]);
@@ -70,9 +73,9 @@ export default function MonthPayments() {
   const [subs, setSubs] = useState<Map<string, Sub>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const [openId, setOpenId] = useState<string | null>(null);
-  const [q, setQ] = useState('');
-  const [onlyDebt, setOnlyDebt] = useState(false);
+  const [openId, setOpenId] = useNavState<string | null>('mp.open', null);
+  const [q, setQ] = useNavState('mp.q', ''); // поиск на диск не пишем: в нём могут быть имена детей
+  const [onlyDebt, setOnlyDebt] = useNavState('mp.debt', false, { persist: { kind: 'bool' } });
 
   useEffect(() => {
     void (async () => {
@@ -140,7 +143,7 @@ export default function MonthPayments() {
       <h1>Оплаты за месяц</h1>
       {nextDayError && <p className="error">Настройка «С какого числа предлагать следующий месяц» недопустима: {nextDayError} Пока открыт текущий месяц.</p>}
       <div className="ks-pair">
-        <select className="ks-select" aria-label="Месяц" value={month} onChange={e => { picked.current = true; setPlayers(null); setOpenId(null); setMonth(e.target.value); }}>
+        <select className="ks-select" aria-label="Месяц" value={month} onChange={e => { setPlayers(null); setOpenId(null); setPickedMonth(e.target.value); }}>
           {months.map(m => <option key={m} value={m}>{monthName(m)}</option>)}
         </select>
         <SwitchRow id="md" label="Только должники" checked={onlyDebt} onChange={setOnlyDebt} />

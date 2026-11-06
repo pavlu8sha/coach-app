@@ -7,6 +7,7 @@ import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 import { afterLeftMonthTest, pausedMonthTest, type StatusLogPoint } from '../lib/playerStatus';
 import { gel, monthIso, monthName, nextMonth, SEASON_START, tariffFor } from './MonthPayments';
+import { useNavState } from '../nav';
 
 interface Pl { id: string; full_name: string; group_id: string | null; groups: { name: string } | null; external_id?: string | null; birth_date?: string | null; status?: string }
 interface Due { key: string; kind: 'sub' | 'eq' | 'ind' | 'extra' | 'camp'; section: string; title: string; sub?: string; due: number; paid: number; month?: string; advance?: boolean; pay: (amount: number, method: string, date: string) => PromiseLike<{ error: { message: string } | null }>; discount?: () => PromiseLike<{ error: { message: string } | null }> }
@@ -113,11 +114,12 @@ function payLine(x: TodayRow, group: string | undefined, detail: string | undefi
 
 // «Приём оплат»: найти игрока, увидеть всё, что к оплате, и принять платёж одним шагом (миграции 0023, 0034–0037).
 export default function CashDesk() {
-  const [q, setQ] = useState('');
+  // Выбранный игрок, поиск, день и способ оплаты возвращаются при смене вкладок. Введённые суммы (черновики) не сохраняются.
+  const [q, setQ] = useNavState('cd.q', '');
   const [found, setFound] = useState<Pl[]>([]);
-  const [player, setPlayer] = useState<Pl | null>(null);
-  const [day, setDay] = useState(today());
-  const [payMethod, setPayMethod] = useState('');
+  const [player, setPlayer] = useNavState<Pl | null>('cd.player', null);
+  const [day, setDay] = useNavState('cd.day', today());
+  const [payMethod, setPayMethod] = useNavState('cd.method', '');
   const [todayRows, setTodayRows] = useState<TodayRow[] | null>(null);
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [cancelErr, setCancelErr] = useState<string | null>(null);
