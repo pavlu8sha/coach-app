@@ -82,4 +82,50 @@ describe('«Дополнительные»', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить время' }));
     expect(await screen.findByText('Окончание должно быть позже начала.')).toBeInTheDocument();
   });
+
+  it('вместимость: сохраняется, перебор показывается предупреждением', async () => {
+    seed();
+    fake.rpc.extra_set_capacity = () => 2;
+    render(<Extra />);
+    fireEvent.click(await screen.findByText('10.01.2099 · 20 ₾'));
+    fireEvent.change(await screen.findByLabelText(/Мест \(пусто/), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить вместимость' }));
+    await waitFor(() => expect(fake.rpcCalls('extra_set_capacity')).toEqual([{ s: 'e1', cap: 1 }]));
+    expect(await screen.findByText(/записано на 2 больше лимита/)).toBeInTheDocument();
+  });
+
+  it('вместимость вне 1–100 не отправляется', async () => {
+    seed();
+    fake.rpc.extra_set_capacity = () => 0;
+    render(<Extra />);
+    fireEvent.click(await screen.findByText('10.01.2099 · 20 ₾'));
+    fireEvent.change(await screen.findByLabelText(/Мест \(пусто/), { target: { value: '500' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить вместимость' }));
+    expect(await screen.findByText('Вместимость: число от 1 до 100.')).toBeInTheDocument();
+    expect(fake.rpcCalls('extra_set_capacity')).toEqual([]);
+  });
+
+  it('отмена: подтверждение, затем extra_cancel_session с причиной; дата с оплатами редактируема', async () => {
+    seed();
+    fake.rpc.extra_cancel_session = () => null;
+    render(<Extra />);
+    fireEvent.click(await screen.findByText('10.01.2099 · 20 ₾'));
+    expect(await screen.findByLabelText('Дата')).not.toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/Причина/), { target: { value: 'Дождь' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Отменить тренировку' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Отменить тренировку', hidden: false, description: undefined }).catch(() => screen.getAllByRole('button', { name: 'Отменить тренировку' }).slice(-1)[0]));
+    await waitFor(() => expect(fake.rpcCalls('extra_cancel_session')).toEqual([{ s: 'e1', p_reason: 'Дождь' }]));
+  });
+
+  it('отменённая тренировка: пометка в списке, в карточке нет управления записями', async () => {
+    seed();
+    fake.db.extra_sessions[0].cancelled_at = '2099-01-01T00:00:00Z';
+    fake.db.extra_sessions[0].cancel_reason = 'Дождь';
+    render(<Extra />);
+    expect(await screen.findByText(/Отменена/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText('10.01.2099 · 20 ₾'));
+    expect(await screen.findByText(/Тренировка отменена: Дождь/)).toBeInTheDocument();
+    expect(screen.queryByText('Записать игрока')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Отметить оплату' })).toBeNull();
+  });
 });
