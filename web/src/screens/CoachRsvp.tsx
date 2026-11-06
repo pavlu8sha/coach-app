@@ -34,7 +34,7 @@ export default function CoachRsvp({ groups, onBack }: { groups: CoachGroup[]; on
     })();
   }, [reload]);
   const back = () => { setView(null); setReload(n => n + 1); };
-  if (view) return view.id ? <RsvpDetail id={view.id} onBack={back} /> : <RsvpCreate groups={groups} onBack={back} onCreated={id => setView({ id })} />;
+  if (view) return view.id ? <RsvpDetail id={view.id} groups={groups} onBack={back} /> : <RsvpCreate groups={groups} onBack={back} onCreated={id => setView({ id })} />;
   if (error) return <Failure title="Не удалось загрузить матчи" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} />} />;
   if (!list) return <Loading />;
   return (
@@ -124,7 +124,7 @@ function RsvpCreate({ groups, onBack, onCreated }: { groups: CoachGroup[]; onBac
   );
 }
 
-function RsvpDetail({ id, onBack }: { id: string; onBack: () => void }) {
+function RsvpDetail({ id, groups, onBack }: { id: string; groups: CoachGroup[]; onBack: () => void }) {
   const { ask: confirm, dialog } = useConfirm();
   const [m, setM] = useState<RsvpMatch | null>(null);
   const [sum, setSum] = useState<Summary | null>(null);
@@ -135,6 +135,18 @@ function RsvpDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const [reload, setReload] = useState(0);
   const [newWhen, setNewWhen] = useState('');
   const [reason, setReason] = useState('');
+  const [edit, setEdit] = useState<{ opponent: string; venue: string; address: string; notes: string; when: string } | null>(null);
+  const [q, setQ] = useState('');
+  const [found, setFound] = useState<{ id: string; full_name: string }[]>([]);
+  useEffect(() => {
+    if (q.trim().length < 2) return setFound([]);
+    const t = setTimeout(() => {
+      void supabase.from('players').select('id, full_name').ilike('full_name', `%${q.trim()}%`).order('full_name').limit(8).then(r => {
+        if (!r.error) setFound((r.data ?? []) as { id: string; full_name: string }[]);
+      });
+    }, 250);
+    return () => clearTimeout(t);
+  }, [q]);
   useEffect(() => {
     void (async () => {
       const r = await supabase.from('matches').select(COLS).eq('id', id).maybeSingle();
@@ -161,6 +173,7 @@ function RsvpDetail({ id, onBack }: { id: string; onBack: () => void }) {
   if (error) return <Failure title="Не удалось загрузить матч" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} />} />;
   if (!m) return <Loading />;
   const st = m.lifecycle_status;
+  const invited = roster.filter(p => p.status === 'invited'); // исключённые остаются в базе, в списке их нет
   const started = m.starts_at ? new Date(m.starts_at).getTime() <= Date.now() : false;
   const live = st === 'published' && !started;
 
@@ -189,6 +202,53 @@ function RsvpDetail({ id, onBack }: { id: string; onBack: () => void }) {
     if (!(await confirm({ title: 'Перенести матч?', note: 'Ответы родителей сбросятся, родители ответят заново. Если по матчу уже были отметки или счёт, они сохранятся в снимке.', confirmLabel: 'Перенести' }))) return;
     await run('match_rsvp_reschedule', { m: id, p_starts_at: fromTbilisiLocal(newWhen), p_venue: m.venue, p_address: m.address }, () => 'Матч перенесён');
   };
+  const openEdit = () => setEdit({ opponent: m.opponent ?? '', venue: m.venue ?? '', address: m.address ?? '', notes: m.notes ?? '', when: m.starts_at ? toTbilisiLocal(m.starts_at) : '' });
+  // Отправляем только изменённые поля: база пишет в журнал, что именно поменялось
+  const saveEdit = async () => {
+    if (!edit) return;
+    const p: Record<string, string> = {};
+    if (edit.opponent.trim() !== (m.opponent ?? '')) p.opponent = edit.opponent;
+    if (edit.venue.trim() !== (m.venue ?? '')) p.venue = edit.venue;
+    if (edit.address.trim() !== (m.address ?? '')) p.address = edit.address;
+    if (edit.notes.trim() !== (m.notes ?? '')) p.notes = edit.notes;
+    if (edit.when && edit.when !== (m.starts_at ? toTbilisiLocal(m.starts_at) : '')) p.starts_at = fromTbilisiLocal(edit.when);
+    if (!Object.keys(p).length) return setEdit(null);
+    setBusy(true);
+    setMsg(null);
+    const r = await supabase.rpc('match_rsvp_update', { m: id, p });
+    setBusy(false);
+    if (r.error) return setMsg({ ok: false, text: rsvpError(r.error.message) });
+    setEdit(null);
+    setMsg({ ok: true, text: st === 'published' ? 'Сохранено. Родители увидят новые данные в приложении' : 'Сохранено' });
+    setReload(n => n + 1);
+  };
+  // Состав: у события — список события, иначе игроки групп команды матча
+  const fillRoster = async () => {
+    setBusy(true);
+    setMsg(null);
+    let added = 0;
+    let err: string | null = null;
+    const targets = m.tournament_id ? [null] : groups.filter(g => matchTeam(g.name) === m.team).map(g => g.id);
+    if (!targets.length) { setBusy(false); return setMsg({ ok: false, text: 'Группы этой команды не найдены. Добавьте игроков поиском ниже.' }); }
+    for (const g of targets) {
+      const r = await supabase.rpc('match_rsvp_seed', g ? { m: id, p_group: g } : { m: id });
+      if (r.error) { err = rsvpError(r.error.message); break; }
+      added += Number(r.data ?? 0);
+    }
+    setBusy(false);
+    if (err) return setMsg({ ok: false, text: err });
+    setMsg({ ok: true, text: `Добавлено игроков: ${added}` });
+    setReload(n => n + 1);
+  };
+  const addPlayer = async (pl: { id: string; full_name: string }) => {
+    setQ('');
+    setFound([]);
+    await run('match_rsvp_invite', { m: id, p_players: [pl.id] }, () => (st === 'published' ? `${pl.full_name} приглашён, родителям отправлено сообщение` : `${pl.full_name} добавлен в состав`));
+  };
+  const removePlayer = async (p: RosterRow) => {
+    if (!(await confirm({ title: 'Убрать из состава?', lines: [['Игрок', p.full_name]], note: st === 'published' ? 'Ответ родителя сохранится в журнале.' : undefined, confirmLabel: 'Убрать', danger: true }))) return;
+    await run('match_rsvp_remove', { m: id, p_players: [p.player_id] }, () => `${p.full_name} убран из состава`);
+  };
   const setFor = (p: RosterRow, v: RsvpResponse) => run('match_rsvp_coach_set', { m: id, p_player: p.player_id, p_response: v }, () => `${p.full_name}: ${responseText(v)}`);
 
   return (
@@ -208,9 +268,9 @@ function RsvpDetail({ id, onBack }: { id: string; onBack: () => void }) {
 
       {st === 'draft' && (
         <>
-          <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => void run('match_rsvp_seed', { m: id }, () => 'Состав заполнен активными игроками')}>Заполнить состав</button>
+          <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => void fillRoster()}>{m.tournament_id ? 'Заполнить состав из события' : 'Заполнить состав команды'}</button>
           <div style={{ height: 8 }} />
-          <button type="button" className="ks-btn" disabled={busy || roster.length === 0} onClick={() => void run('match_rsvp_publish', { m: id }, () => 'Матч опубликован, родители видят приглашение')}>Опубликовать</button>
+          <button type="button" className="ks-btn" disabled={busy || invited.length === 0} onClick={() => void run('match_rsvp_publish', { m: id }, () => 'Матч опубликован, родители видят приглашение')}>Опубликовать</button>
           <div style={{ height: 8 }} />
           <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => void del()}>Удалить черновик</button>
         </>
@@ -227,11 +287,39 @@ function RsvpDetail({ id, onBack }: { id: string; onBack: () => void }) {
         </>
       )}
 
+      {(st === 'draft' || live) && (
+        edit ? (
+          <div className="ks-card" aria-label="Изменить матч">
+            <label className="ks-label" htmlFor="ed-opp">Соперник</label>
+            <input id="ed-opp" className="ks-input" value={edit.opponent} onChange={e => setEdit({ ...edit, opponent: e.target.value })} />
+            <label className="ks-label" htmlFor="ed-when">Дата и время (Тбилиси){st === 'published' ? ': только время того же дня, дату меняет перенос' : ''}</label>
+            <input id="ed-when" className="ks-input" type="datetime-local" value={edit.when} onChange={e => setEdit({ ...edit, when: e.target.value })} />
+            <label className="ks-label" htmlFor="ed-venue">Место</label>
+            <input id="ed-venue" className="ks-input" value={edit.venue} onChange={e => setEdit({ ...edit, venue: e.target.value })} />
+            <label className="ks-label" htmlFor="ed-addr">Адрес или ссылка на карту</label>
+            <input id="ed-addr" className="ks-input" value={edit.address} onChange={e => setEdit({ ...edit, address: e.target.value })} />
+            <label className="ks-label" htmlFor="ed-notes">Заметка для родителей</label>
+            <input id="ed-notes" className="ks-input" value={edit.notes} onChange={e => setEdit({ ...edit, notes: e.target.value })} />
+            <button type="button" className="ks-btn" disabled={busy} onClick={() => void saveEdit()}>Сохранить</button>
+            <div style={{ height: 8 }} />
+            <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => setEdit(null)}>Отмена</button>
+          </div>
+        ) : (
+          <>
+            <div style={{ height: 8 }} />
+            <button type="button" className="ks-btn secondary" disabled={busy} onClick={openEdit}>Изменить данные матча</button>
+          </>
+        )
+      )}
+
       <h2>Приглашённые</h2>
-      {roster.length === 0 && <p className="muted">Состав пока пуст.</p>}
-      {roster.map(p => (
+      {invited.length === 0 && <p className="muted">Состав пока пуст.</p>}
+      {invited.map(p => (
         <div key={p.player_id} className="ks-card">
           <ListRow title={p.full_name} avatar={p.full_name} sub={[p.group_name ?? '', responseText(p.response) + (p.responded_by_coach ? ' (отметил тренер)' : p.responded_by_name ? ` (${p.responded_by_name})` : '')]} />
+          {(st === 'draft' || live) && (
+            <button type="button" className="ks-btn secondary" style={{ minHeight: 36, marginBottom: 8 }} disabled={busy} aria-label={`Убрать из состава: ${p.full_name}`} onClick={() => void removePlayer(p)}>Убрать из состава</button>
+          )}
           {live && (
             <div style={{ display: 'flex', gap: 8 }}>
               {(['yes', 'no'] as RsvpResponse[]).map(v => (
@@ -241,6 +329,15 @@ function RsvpDetail({ id, onBack }: { id: string; onBack: () => void }) {
           )}
         </div>
       ))}
+      {(st === 'draft' || live) && (
+        <div className="ks-card" aria-label="Добавить игрока">
+          <label className="ks-label" htmlFor="add-q">Добавить игрока в состав</label>
+          <input id="add-q" className="ks-input" placeholder="Фамилия или имя" value={q} onChange={e => setQ(e.target.value)} />
+          {found.filter(f => !invited.some(r => r.player_id === f.id)).map(f => (
+            <ListRow key={f.id} avatar={f.full_name} title={f.full_name} end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} disabled={busy} onClick={() => void addPlayer(f)}>Добавить</button>} />
+          ))}
+        </div>
+      )}
     </main>
   );
 }
