@@ -285,6 +285,26 @@ describe('Разделы внутри «Ещё»', () => {
   });
 });
 
+describe('«Ещё»: прокрутка каталога', () => {
+  it('после «Ещё» → раздел → «Ещё» каталог на прежней позиции', async () => {
+    fake.db.equipment_orders = [];
+    fake.db.equipment_catalog = [];
+    fake.db.players = [];
+    const scrollTo = vi.fn();
+    vi.stubGlobal('scrollTo', scrollTo);
+    Object.defineProperty(window, 'scrollY', { value: 640, configurable: true });
+    render(inApp('more', <More groups={[]} bar={[]} onMenuChanged={() => {}} />));
+    fireEvent.click(await screen.findByText('Экипировка'));
+    await screen.findByRole('tab', { name: 'Все' });
+    Object.defineProperty(window, 'scrollY', { value: 0, configurable: true });
+    scrollTo.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: 'Ещё' }));
+    await screen.findByRole('heading', { name: 'Ещё' });
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledWith(0, 640));
+    Object.defineProperty(window, 'scrollY', { value: 0, configurable: true });
+  });
+});
+
 describe('Разделы администратора: тренеры, заявки, статьи', () => {
   it('«Тренеры»: поиск остаётся после «Назад» из карточки тренера', async () => {
     fake.db.users = [

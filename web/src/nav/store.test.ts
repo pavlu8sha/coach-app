@@ -93,6 +93,25 @@ describe('NavStore: разделы и стеки', () => {
     expect(s.getActive()).toBe('players');
   });
 
+  it('возврат из предпросмотра возвращает стеки и прокрутку «Ещё»; предпросмотр каждый раз чистый; выход всё забывает', () => {
+    const { s, y } = mk();
+    s.setScope('u1:real');
+    s.selectRoot('more');
+    y.v = 700;
+    s.push('more', { screen: 'section', params: { id: 'preview' } });
+    s.setScope('u1:guest');
+    s.push('more', { screen: 'section', params: { id: 'x' } });
+    s.setScope('u1:real');
+    expect(s.depth('more')).toBe(2);
+    expect(s.getScroll('more', 0)).toBe(700);
+    s.setScope('u1:guest');
+    expect(s.depth('more')).toBe(1);
+    s.setScope('u1:real');
+    s.reset();
+    s.setScope('u1:real');
+    expect(s.depth('more')).toBe(1);
+  });
+
   it('та же область ничего не очищает', () => {
     const { s } = mk();
     s.setScope('u1:real');

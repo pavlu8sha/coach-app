@@ -38,6 +38,8 @@ export class NavStore {
     this.listeners.add(cb);
     return () => this.listeners.delete(cb);
   };
+  /** Отложенные стеки областей, из которых ушли в предпросмотр или другой режим (только в памяти, чужому пользователю не отдаются: reset при выходе). */
+  private saved = new Map<string, Map<string, NavEntry[]>>();
   getVersion = (): number => this.version;
   private bump(): void {
     this.version += 1;
@@ -81,8 +83,15 @@ export class NavStore {
    */
   setScope(scope: string): void {
     if (scope === this.scope) return;
+    // Уходим в предпросмотр («Посмотреть как») или в режим «Родитель» — стеки реального режима откладываем,
+    // чтобы при возврате «Ещё» осталось на прежнем месте. Предпросмотр заново открывается с чистого листа.
+    if (this.scope !== '' && /:(real|parent)$/.test(this.scope)) {
+      this.captureScroll();
+      this.saved.set(this.scope, this.stacks);
+    }
     this.scope = scope;
-    this.stacks = new Map();
+    this.stacks = this.saved.get(scope) ?? new Map();
+    this.saved.delete(scope);
     this.bump();
   }
   /** Полный сброс (выход из аккаунта). */
@@ -90,6 +99,7 @@ export class NavStore {
     this.restored = false;
     this.scope = '';
     this.stacks = new Map();
+    this.saved = new Map();
     this.active = null;
     this.bump();
   }
