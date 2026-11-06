@@ -10,6 +10,8 @@ export interface NavEntry {
   /** Состояние интерфейса экрана (вкладка, фильтр, раскрытые блоки). На диск попадает только объявленное через persist. */
   ui: Record<string, unknown>;
   scrollY: number;
+  /** Ключи ui, поднятые с диска и ещё не выбранные пользователем: useNavState проверяет их по правилу persist. */
+  fromDisk?: string[];
 }
 
 export interface NavStoreOptions {
@@ -25,6 +27,7 @@ export class NavStore {
   private version = 0;
   private listeners = new Set<() => void>();
   private readScroll: () => number;
+  private restored = false;
 
   constructor(opts: NavStoreOptions = {}) {
     this.readScroll = opts.readScroll ?? (() => (typeof window === 'undefined' ? 0 : window.scrollY));
@@ -84,9 +87,40 @@ export class NavStore {
   }
   /** Полный сброс (выход из аккаунта). */
   reset(): void {
+    this.restored = false;
     this.scope = '';
     this.stacks = new Map();
     this.active = null;
+    this.bump();
+  }
+  /** Восстановление уже выполнялось с момента запуска (или входа): повторно, при смене режима, состояние не поднимаем. */
+  hasRestored(): boolean {
+    return this.restored;
+  }
+  /**
+   * Поднять сохранённое состояние. Раздел, которого у роли нет, пропускается; вложенные экраны берутся
+   * по списку restorable и обрываются на первом неподходящем; значения «только сегодня» из прошлых дней отбрасываются.
+   */
+  hydrate(
+    snap: { active: string | null; day: string; stacks: Record<string, { screen: string; params: Record<string, string>; ui: Record<string, unknown>; daily?: string[]; scrollY: number }[]> } | null,
+    o: { allowRoot: (root: string) => boolean; restorable: (screen: string, params: Record<string, string>) => boolean; today: string },
+  ): void {
+    this.restored = true;
+    if (snap) {
+      for (const [root, list] of Object.entries(snap.stacks)) {
+        if (!o.allowRoot(root) || list.length === 0 || list[0].screen !== root) continue;
+        const entries: NavEntry[] = [];
+        for (let i = 0; i < list.length; i++) {
+          const e = list[i];
+          if (i > 0 && !o.restorable(e.screen, e.params)) break;
+          const ui = { ...e.ui };
+          if (snap.day !== o.today) for (const k of e.daily ?? []) delete ui[k];
+          entries.push({ id: this.nextId++, screen: e.screen, params: { ...e.params }, ui, scrollY: e.scrollY, fromDisk: Object.keys(ui) });
+        }
+        this.stacks.set(root, entries);
+      }
+      if (snap.active && o.allowRoot(snap.active)) this.active = snap.active;
+    }
     this.bump();
   }
   /** Переключить раздел. Повторный выбор активного раздела ничего не меняет: ни стек, ни позицию. */
@@ -127,9 +161,13 @@ export class NavStore {
     const e = s[index];
     if (!e || Object.is(e.ui[key], value)) return;
     const next = s.slice();
-    next[index] = { ...e, ui: { ...e.ui, [key]: value } };
+    next[index] = { ...e, ui: { ...e.ui, [key]: value }, ...(e.fromDisk ? { fromDisk: e.fromDisk.filter(k => k !== key) } : {}) };
     this.stacks.set(root, next);
     this.bump();
+  }
+  /** Значение ещё с диска (не менялось пользователем) и потому требует проверки. */
+  isFromDisk(root: string, index: number, key: string): boolean {
+    return this.entries(root)[index]?.fromDisk?.includes(key) ?? false;
   }
   getScroll(root: string, index: number): number {
     return this.entries(root)[index]?.scrollY ?? 0;

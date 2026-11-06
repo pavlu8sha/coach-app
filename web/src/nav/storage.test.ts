@@ -51,7 +51,7 @@ describe('белый список хранилища', () => {
   });
 
   it('чужая версия формата и повреждённые данные сбрасываются', () => {
-    localStorage.setItem(storageKey('u1', 'real'), JSON.stringify({ v: STORAGE_VERSION + 1, active: null, stacks: {} }));
+    localStorage.setItem(storageKey('u1', 'real'), JSON.stringify({ v: STORAGE_VERSION + 1, active: null, day: '2026-11-06', stacks: {} }));
     expect(loadSnapshot('u1', 'real')).toBeNull();
     expect(localStorage.getItem(storageKey('u1', 'real'))).toBeNull();
     localStorage.setItem(storageKey('u1', 'real'), '{не json');
@@ -60,8 +60,8 @@ describe('белый список хранилища', () => {
   });
 
   it('выход из аккаунта удаляет всё состояние навигации и не трогает остальное', () => {
-    saveSnapshot('u1', 'real', { v: 1, active: null, stacks: {} });
-    saveSnapshot('u2', 'parent', { v: 1, active: null, stacks: {} });
+    saveSnapshot('u1', 'real', { v: 1, active: null, day: '2026-11-06', stacks: {} });
+    saveSnapshot('u2', 'parent', { v: 1, active: null, day: '2026-11-06', stacks: {} });
     localStorage.setItem('ks.parentMode', '1');
     clearNavStorage();
     expect(localStorage.getItem(storageKey('u1', 'real'))).toBeNull();
@@ -70,8 +70,8 @@ describe('белый список хранилища', () => {
   });
 
   it('смена пользователя удаляет состояние чужих пользователей', () => {
-    saveSnapshot('u1', 'real', { v: 1, active: null, stacks: {} });
-    saveSnapshot('u2', 'real', { v: 1, active: null, stacks: {} });
+    saveSnapshot('u1', 'real', { v: 1, active: null, day: '2026-11-06', stacks: {} });
+    saveSnapshot('u2', 'real', { v: 1, active: null, day: '2026-11-06', stacks: {} });
     clearNavStorage('u2');
     expect(localStorage.getItem(storageKey('u1', 'real'))).toBeNull();
     expect(localStorage.getItem(storageKey('u2', 'real'))).not.toBeNull();
@@ -80,7 +80,7 @@ describe('белый список хранилища', () => {
   it('недоступное хранилище не ломает приложение', () => {
     const orig = Storage.prototype.setItem;
     Storage.prototype.setItem = () => { throw new Error('quota'); };
-    expect(() => saveSnapshot('u1', 'real', { v: 1, active: null, stacks: {} })).not.toThrow();
+    expect(() => saveSnapshot('u1', 'real', { v: 1, active: null, day: '2026-11-06', stacks: {} })).not.toThrow();
     Storage.prototype.setItem = orig;
   });
 });

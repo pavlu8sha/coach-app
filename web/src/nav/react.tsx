@@ -1,7 +1,8 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { backStack } from './backStack';
 import { dirtyGuard } from './dirtyGuard';
-import { specKey, type PersistSpec } from './storage';
+import { restorableEntry } from './restore';
+import { buildSnapshot, loadSnapshot, localDay, saveSnapshot, specKey, validateValue, type PersistSpec } from './storage';
 import { NavStore, type NavEntry } from './store';
 
 interface Ctx {
@@ -18,7 +19,40 @@ export function NavProvider({ initial, children }: { initial: string; children: 
     store.selectRoot(initial);
     return { store, specs: new Map() };
   });
+  useNavPersistence(ctx);
   return <NavCtx.Provider value={ctx}>{children}</NavCtx.Provider>;
+}
+
+/** Запись состояния на диск: после изменений (с задержкой) и при уходе страницы в фон. Пока область не задана, не пишем. */
+function useNavPersistence({ store, specs }: Ctx) {
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const write = () => {
+      timer = null;
+      const scope = store.getScope();
+      const i = scope.indexOf(':');
+      if (i <= 0) return;
+      saveSnapshot(scope.slice(0, i), scope.slice(i + 1), buildSnapshot(store.exportState(), specs));
+    };
+    const unsub = store.subscribe(() => {
+      if (timer === null) timer = setTimeout(write, 300);
+    });
+    const flush = () => {
+      if (timer !== null) clearTimeout(timer);
+      write();
+    };
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', flush);
+    return () => {
+      unsub();
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', flush);
+      if (timer !== null) clearTimeout(timer);
+    };
+  }, [store, specs]);
 }
 
 // Вне NavProvider (изолированные тесты экранов, предпросмотр компонентов) экраны работают на общем «отдельном» хранилище.
@@ -51,11 +85,23 @@ export function useActiveRoot<T extends string>(fallback: T): [T, (r: T) => void
 }
 
 /** Область состояния (пользователь + режим). При смене стеки очищаются. */
-export function useNavScope(scope: string | null) {
+export function useNavScope(scope: string | null, opts?: { allowRoot: (root: string) => boolean }): boolean {
   const store = useNavStore();
+  const allow = useRef(opts?.allowRoot);
+  allow.current = opts?.allowRoot;
+  useVersion(store);
   useEffect(() => {
-    if (scope !== null) store.setScope(scope);
+    if (scope === null) return;
+    store.setScope(scope);
+    // Восстановление после перезагрузки — один раз за запуск и до первого показа экранов (см. ready)
+    if (!store.hasRestored()) {
+      const i = scope.indexOf(':');
+      const snap = i > 0 ? loadSnapshot(scope.slice(0, i), scope.slice(i + 1)) : null;
+      store.hydrate(snap, { allowRoot: allow.current ?? (() => true), restorable: restorableEntry, today: localDay() });
+    }
   }, [store, scope]);
+  // true: область применена и состояние поднято; до этого оболочка показывает заставку, чтобы экраны не открылись с пустыми фильтрами
+  return scope === null || (store.getScope() === scope && store.hasRestored());
 }
 
 /** Выход из аккаунта: сбросить состояние навигации. */
@@ -138,7 +184,9 @@ export function useNavState<T>(key: string, initial: T, opts?: { persist?: Persi
   // entry: 0 — состояние списка, когда сам экран остаётся смонтированным при открытии вложенного (карточка поверх списка)
   const index = opts?.entry ?? cur.index;
   useVersion(store);
-  const stored = store.getUi<T>(root, index, key);
+  const raw = store.getUi<T>(root, index, key);
+  // значение из хранилища проверяется ещё раз по объявленному правилу: испорченное или устаревшее заменяется начальным
+  const stored = raw !== undefined && opts?.persist && store.isFromDisk(root, index, key) && !validateValue(opts.persist, raw) ? undefined : raw;
   const value = stored === undefined ? initial : stored;
   const screen = store.entries(root)[index]?.screen;
   if (opts?.persist && screen) specs.set(specKey(root, screen, key), opts.persist);

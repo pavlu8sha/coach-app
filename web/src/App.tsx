@@ -193,9 +193,18 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
   // локальный админ (#321): касса своих локаций добавляется к разделам тренера или родителя
   const locAdmin = !admin && !preview && locations.length > 0 && !asParent;
   // Состояния разных пользователей и режимов (предпросмотр, «Родитель») не смешиваются
-  useNavScope(uid ? `${uid}:${preview ?? (asParent ? 'parent' : 'real')}` : null);
+  // Разделы, доступные роли сейчас: после перезагрузки сохранённый раздел поднимается, только если он в этом списке (права проверяются заново)
+  const guestOnly = !admin && !coach && !locAdmin && !hasKids;
+  const allowedRoots: string[] =
+    guestOnly && role === 'child' ? ['home', 'matches', 'schedule', 'about']
+    : guestOnly && role !== 'parent' ? ['about', 'schedule']
+    : admin ? [...bar, 'more']
+    : coach ? [...coachBar(false).map(i => i.value as string), ...(locAdmin ? ['cash'] : [])]
+    : locAdmin ? ['cash', 'profile']
+    : ['home', 'schedule', 'matches', 'payments', 'profile'];
+  const navReady = useNavScope(uid && loaded ? `${uid}:${preview ?? (asParent ? 'parent' : 'real')}` : null, { allowRoot: r => allowedRoots.includes(r) });
   const cashItem = { value: 'cash' as Tab, label: 'Касса', icon: 'wallet' as const };
-  if (!loaded) return <Splash />;
+  if (!loaded || !navReady) return <Splash />;
   // Роль спрашиваем при первом входе. Администратора, тренера с группами и тех, у кого уже есть дети, не трогаем.
   if (!admin && !coach && !locAdmin && !hasKids && (role === null || changingRole)) {
     return (

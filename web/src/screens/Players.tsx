@@ -46,7 +46,7 @@ export default function Players() {
   // Фильтры живут в записи списка (entry: 0) и возвращаются при «Назад» из карточки. Поиск на диск не пишем: в нём могут быть имена детей.
   const nav = useNav();
   const [q, setQ] = useNavState('q', '', { entry: 0 });
-  const [gid, setGid] = useNavState('gid', '', { entry: 0, persist: { kind: 'uuid' } });
+  const [gidPick, setGid] = useNavState('gid', '', { entry: 0, persist: { kind: 'uuid' } });
   const [status, setStatus] = useNavState<StatusFilter>('status', 'active', { entry: 0, persist: { kind: 'enum', values: ['active', 'paused', 'inactive', 'all'] } });
   const [onlyUnpaid, setOnlyUnpaid] = useNavState('onlyUnpaid', false, { entry: 0, persist: { kind: 'bool' } });
   const [years, setYears] = useNavState<string[]>('years', [], { entry: 0 });
@@ -71,6 +71,7 @@ export default function Players() {
     })();
   }, [reload]);
 
+  const gid = groups.some(g => g.id === gidPick) ? gidPick : ''; // после перезагрузки группы может уже не быть
   const groupName = useMemo(() => new Map(groups.map(g => [g.id, g.name])), [groups]);
   const allYears = useMemo(() => [...new Set((players ?? []).map(p => p.birth_date?.slice(0, 4)).filter((y): y is string => Boolean(y)))].sort().reverse(), [players]);
   const hasNoDate = (players ?? []).some(p => !p.birth_date);

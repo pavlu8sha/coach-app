@@ -3,4 +3,5 @@ export { NavStore, type NavEntry as NavEntryData } from './store';
 export { dirtyGuard, useDirtyGuard } from './dirtyGuard';
 export { default as DirtyGuardHost } from './DirtyGuardHost';
 export { BackStack, backStack } from './backStack';
-export { clearNavStorage, buildSnapshot, type PersistSpec } from './storage';
+export { clearNavStorage, buildSnapshot, localDay, type PersistSpec } from './storage';
+export { restorableEntry } from './restore';

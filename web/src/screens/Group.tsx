@@ -18,7 +18,8 @@ interface Parent { player_id: string; parent_name: string | null; telegram_id: n
 export default function Group({ groups, notify = false }: { groups: CoachGroup[]; notify?: boolean }) {
   // Выбранная группа возвращается при «Назад» из карточки игрока; карточка — запись стека раздела
   const nav = useNav();
-  const [gid, setGid] = useNavState('gid', groups[0]?.id ?? '', { entry: 0, persist: { kind: 'uuid' } });
+  const [gidPick, setGid] = useNavState('gid', groups[0]?.id ?? '', { entry: 0, persist: { kind: 'uuid' } });
+  const gid = groups.some(g => g.id === gidPick) ? gidPick : groups[0]?.id ?? ''; // сохранённой группы может уже не быть
   const [players, setPlayers] = useState<Player[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
