@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useDirtyGuard } from '../nav';
 import { FALLBACK_PAYMENT_INFO, updatedLabel, usePaymentInfo, type PaymentInfoData } from '../lib/paymentInfo';
 import { supabase } from '../lib/supabase';
 import { Loading } from './Message';
@@ -17,6 +18,7 @@ function Form({ initial }: { initial: PaymentInfoData }) {
   const [values, setValues] = useState(initial.details.map(d => d.value));
   const [titles, setTitles] = useState(initial.rules.map(r => r.title));
   const [texts, setTexts] = useState(initial.rules.map(r => toLines(r.items)));
+  const [saved, setSaved] = useState(() => JSON.stringify([initial.details.map(d => d.value), initial.rules.map(r => r.title), initial.rules.map(r => toLines(r.items))]));
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -27,6 +29,7 @@ function Form({ initial }: { initial: PaymentInfoData }) {
     setMsg({ ok: true, text: 'Подставлены утверждённые значения. Нажмите «Сохранить», чтобы применить.' });
   };
   const rules = titles.map((title, i) => ({ title: title.trim(), items: fromLines(texts[i]) }));
+  useDirtyGuard(JSON.stringify([values, titles, texts]) !== saved);
   const invalid = values.some(v => !v.trim()) || rules.some(r => !r.title || r.items.length === 0);
 
   const save = async () => {
@@ -34,6 +37,7 @@ function Form({ initial }: { initial: PaymentInfoData }) {
     setMsg(null);
     const r = await supabase.rpc('payment_info_save', { d: initial.details.map((d, i) => ({ label: d.label, value: values[i].trim() })), r: rules });
     setBusy(false);
+    if (!r.error) setSaved(JSON.stringify([values, titles, texts]));
     setMsg(r.error ? { ok: false, text: errText(r.error.message) } : { ok: true, text: 'Сохранено. Родители увидят новые значения сразу.' });
   };
 

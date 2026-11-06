@@ -1,6 +1,7 @@
 // UI-kit Mini App: React-компоненты по образцу приложения тренеров. Пока не используются экранами —
 // подключение по шагам из docs/MINIAPP_UI_PLAN.md. Стили — ui/tokens.css и ui/kit.css.
 import { useId, type FocusEvent, type ReactNode } from 'react';
+import { dirtyGuard } from '../nav/dirtyGuard';
 
 export type Tone = 'success' | 'danger' | 'warning' | 'primary' | 'neutral';
 
@@ -269,7 +270,7 @@ export function BottomNav<T extends string>(props: { value: T; items: { value: T
     <nav className="ks-bottomnav" aria-label={props.label}>
       <div>
         {props.items.map(it => (
-          <button key={it.value} type="button" aria-current={it.value === props.value ? 'page' : undefined} onClick={() => props.onChange(it.value)}>
+          <button key={it.value} type="button" aria-current={it.value === props.value ? 'page' : undefined} onClick={() => (it.value === props.value ? props.onChange(it.value) : dirtyGuard.leave(() => props.onChange(it.value)))}>
             <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               {NAV_ICONS[it.icon]}
             </svg>

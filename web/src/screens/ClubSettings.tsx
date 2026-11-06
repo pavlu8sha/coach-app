@@ -1,3 +1,4 @@
+import { useDirtyGuard } from '../nav';
 import { useEffect, useRef, useState } from 'react';
 import { setGroupOrder } from '../lib/coach';
 import { CHAMP_FEE_KEY, SETTINGS, settingError, settingText, useClubSettings, type SettingDef, type SettingValues } from '../lib/clubSettings';
@@ -24,6 +25,7 @@ function Row({ def, scope = '', title, saved, clubId, resetLabel = 'По умо�
     prev.current = effective;
     setValue(effective);
   }, [effective]);
+  useDirtyGuard(value.trim() !== effective);
   const inputId = `setting-${def.key}-${scope}`;
   const defText = def.def === '' ? (def.emptyLabel ?? 'не задано') : def.def;
   const savedError = custom ? settingError(def, saved!.trim()) : null;
@@ -83,6 +85,7 @@ function TeamFees({ clubId, teams, onSaved }: { clubId: string; teams: Record<st
   const [fee, setFee] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  useDirtyGuard(team.trim() !== '' || fee.trim() !== '');
   const def = SETTINGS.find(s => s.key === CHAMP_FEE_KEY)!;
   const add = async () => {
     const t = team.trim();

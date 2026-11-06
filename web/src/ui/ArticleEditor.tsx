@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useDirtyGuard } from '../nav';
 import { articleDate, safeHttpUrl, type ArticleAudience, type ArticleStatus } from '../lib/articles';
 import { Segmented } from './components';
 
@@ -43,6 +44,10 @@ export default function ArticleEditor(props: {
   const [linkUrl, setLinkUrl] = useState(initial?.link_url ?? '');
   const [linkLabel, setLinkLabel] = useState(initial?.link_label ?? '');
 
+  useDirtyGuard(
+    title !== (initial?.title ?? '') || body !== (initial?.body ?? '') || audience !== (initial?.audience ?? 'both') || status !== (initial?.status ?? 'draft') ||
+    order !== String(initial?.sort_order ?? 100) || linkUrl !== (initial?.link_url ?? '') || linkLabel !== (initial?.link_label ?? ''),
+  );
   const orderNumber = Number(order);
   const safeLink = safeHttpUrl(linkUrl);
   const linkInvalid = linkUrl.trim() !== '' && !safeLink;

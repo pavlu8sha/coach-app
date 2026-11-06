@@ -29,7 +29,7 @@ import { BottomNav } from './ui/components';
 import { coachBar } from './lib/coachMenu';
 import Stats from './screens/Stats';
 import TrainerLog from './screens/TrainerLog';
-import { NavProvider, NavRoot, clearNavStorage, useActiveRoot, useNavScope, useResetNav } from './nav';
+import { DirtyGuardHost, NavProvider, NavRoot, clearNavStorage, useActiveRoot, useNavScope, useResetNav } from './nav';
 
 const MODE_KEY = 'ks.parentMode';
 function readParentMode(): boolean {
@@ -65,6 +65,7 @@ export function Shell() {
         </div>
       )}
       <ShellInner preview={preview} setPreview={setPreview} />
+      <DirtyGuardHost />
     </NavProvider>
   );
 }

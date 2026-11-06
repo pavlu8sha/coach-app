@@ -3,7 +3,7 @@ import { coachError, compareGroups, fmtDate, groupByGroupName, today } from '../
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput, Segmented, SwitchRow } from '../ui/components';
 import { BackNav } from '../ui/nav';
-import { useNav, useNavState } from '../nav';
+import { useDirtyGuard, useNav, useNavState } from '../nav';
 import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { settingNumberError, useClubSettings } from '../lib/clubSettings';
@@ -286,6 +286,7 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const settings = useClubSettings();
+  useDirtyGuard(player !== null || Object.keys(pick).length > 0 || insc.trim() !== '' || number.trim() !== '' || custom.trim() !== '');
   const numberNote = useNumberNote(player?.id, number);
   const [past, setPast] = useState<{ total: number; lines: { kit: string; quantity: number; unit_price: number | null }[] }[]>([]);
 

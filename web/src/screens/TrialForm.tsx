@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { coachError } from '../lib/coach';
 import { ADMIN_CHAT, BRANCHES } from '../lib/clubInfo';
 import { supabase } from '../lib/supabase';
-import { useNav, useSubEntry } from '../nav';
+import { useDirtyGuard, useNav, useSubEntry } from '../nav';
 import Privacy from './Privacy';
 
 const YEAR = new Date().getFullYear();
@@ -32,6 +32,8 @@ export default function TrialForm({ startOpen = false }: { startOpen?: boolean }
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
+  // пока открыта политика, форма остаётся в памяти (введённое не теряется), поэтому предупреждать об уходе незачем
+  useDirtyGuard(!policy && !sent && [parent, child, year, phone, branch].some(v => v.trim() !== ''));
   const H = startOpen ? 'h1' : 'h2'; // отдельным экраном (startOpen) это заголовок страницы
   if (policy) return <Privacy onBack={() => nav.back()} />;
   if (sent) {

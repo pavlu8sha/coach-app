@@ -2,6 +2,7 @@
 import { useEffect, useRef } from 'react';
 import { inTelegram, tgApp } from '../lib/telegram';
 import { backStack } from '../nav/backStack';
+import { dirtyGuard } from '../nav/dirtyGuard';
 import { BackButton } from './components';
 
 /** «Назад»: оболочка над общим стеком (nav/backStack). Обработчик попадает в единый стек: его вызывают нативная кнопка Telegram,
@@ -11,8 +12,8 @@ export function BackNav({ onBack, managed }: { onBack: () => void; managed?: boo
   const cb = useRef(onBack);
   cb.current = onBack;
   // managed: экран открыт через стек навигации, его «Назад» уже зарегистрирован слоем (NavRoot): второй обработчик не нужен
-  useEffect(() => (managed ? undefined : backStack().register(() => cb.current())), [managed]);
-  return native ? null : <BackButton onClick={onBack} />;
+  useEffect(() => (managed ? undefined : backStack().register(() => dirtyGuard.leave(() => cb.current()))), [managed]);
+  return native ? null : <BackButton onClick={() => dirtyGuard.leave(onBack)} />;
 }
 
 /** Главная кнопка Telegram для единственного главного действия экрана. Возвращает true, если кнопка Telegram доступна;

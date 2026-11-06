@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useDirtyGuard } from '../nav';
 import { supabase } from '../lib/supabase';
 import { today } from '../lib/coach';
 import type { PlayerStatus } from '../lib/playerStatus';
@@ -13,6 +14,7 @@ export default function PlayerEdit({ initial, groups, clubId, onDone, onCancel }
   const [error, setError] = useState<string | null>(null);
   const [dup, setDup] = useState<string | null>(null); // найден игрок с таким же именем: нужно подтверждение
   const isNew = !initial.id;
+  useDirtyGuard(JSON.stringify(f) !== JSON.stringify(initial));
 
   const save = async () => {
     const name = f.full_name.trim();
