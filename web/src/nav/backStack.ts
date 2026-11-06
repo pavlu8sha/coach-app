@@ -31,6 +31,11 @@ export class BackStack {
 
   constructor(private h: HistoryAdapter) {
     h.onPop(this.onPop);
+    // Браузер сам возвращает прокрутку при шаге по истории и делает это уже после нашего восстановления:
+    // каталог «Ещё» после возврата из раздела оказывался вверху. Позицию возвращает только слой nav.
+    try {
+      if (typeof window !== 'undefined' && 'scrollRestoration' in window.history) window.history.scrollRestoration = 'manual';
+    } catch { /* не критично */ }
   }
 
   subscribe = (cb: () => void): (() => void) => {

@@ -77,3 +77,11 @@ describe('BackStack: единая «Назад»', () => {
     expect(stack.invoke()).toBe(false);
   });
 });
+
+describe('прокрутка при шагах истории', () => {
+  it('браузерное восстановление прокрутки отключено, позицию возвращает только слой nav', () => {
+    window.history.scrollRestoration = 'auto';
+    new BackStack({ push() {}, go() {}, onPop: () => () => {} });
+    expect(window.history.scrollRestoration).toBe('manual');
+  });
+});
