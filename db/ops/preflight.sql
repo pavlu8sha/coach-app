@@ -153,6 +153,7 @@ select * from (values
   ('0149_booking_waitlist', coalesce((to_regproc('waitlist_claim') is not null), false)),
   ('0150_individual_times', coalesce((to_regproc('booking_conflicts') is not null), false)),
   ('0151_first_wave', coalesce((to_regproc('first_wave_friday') is not null), false)),
+  ('0152_waitlist_bot_button', coalesce((to_regproc('waitlist_claim_by_telegram') is not null), false)),
   ('0147_status_log_read_any_coach', coalesce((exists (select 1 from pg_policies where tablename = 'player_status_log' and policyname = 'player_status_log_read' and qual like '%is_any_coach%')), false))
 ) as t(migration, applied)
 order by migration;

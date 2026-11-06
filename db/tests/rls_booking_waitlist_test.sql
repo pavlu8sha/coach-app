@@ -1,7 +1,7 @@
 -- pgTAP: очередь ожидания (0149, #274, PR 6). Даты в 2099 году.
 begin;
 create extension if not exists pgtap;
-select plan(18);
+select plan(22);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -114,6 +114,24 @@ select as_user('00000000-0000-0000-0000-0000000000a1');
 select extra_cancel_session((select id from ids where k = 'x1'), 'Дождь');
 reset role;
 select is((select count(*)::int from booking_waitlist), 0, 'отмена тренировки закрывает очередь');
+
+-- кнопка в боте: сообщение с кнопками, нажатие обрабатывает та же атомарная проверка
+reset role;
+delete from notifications;
+select as_user('00000000-0000-0000-0000-0000000000a1');
+insert into ids select 'i4', ind_create_session('2099-11-09', '19:00', false, 'Для бота');
+select ind_add_player((select id from ids where k = 'i4'), '00000000-0000-0000-0000-00000000d001');
+select as_user('00000000-0000-0000-0000-0000000000b2');
+select waitlist_join('individual', (select id from ids where k = 'i4'), '00000000-0000-0000-0000-00000000d002');
+select as_user('00000000-0000-0000-0000-0000000000b1');
+select waitlist_join('individual', (select id from ids where k = 'i4'), '00000000-0000-0000-0000-00000000d004');
+select booking_cancel('individual', (select id from ids where k = 'i4'), '00000000-0000-0000-0000-00000000d001');
+reset role;
+select is((select buttons->0->0->>'data' from notifications where kind = 'waitlist_offer' and user_id = '00000000-0000-0000-0000-0000000000b2'),
+          'w:' || (select id from booking_waitlist where player_id = '00000000-0000-0000-0000-00000000d002'), 'в сообщении об освободившемся месте есть кнопка с позицией очереди');
+select is((select waitlist_claim_by_telegram(9804, (select id from booking_waitlist where player_id = '00000000-0000-0000-0000-00000000d004'))->>'code'), 'forbidden', 'чужую позицию кнопкой занять нельзя');
+select is((select waitlist_claim_by_telegram(9803, (select id from booking_waitlist where player_id = '00000000-0000-0000-0000-00000000d002'))->>'ok'), 'true', 'первый нажавший кнопку получает место');
+select is((select waitlist_claim_by_telegram(9802, (select id from booking_waitlist where player_id = '00000000-0000-0000-0000-00000000d004'))->>'code'), 'full', 'опоздавший получает «мест нет»');
 
 select * from finish();
 rollback;
