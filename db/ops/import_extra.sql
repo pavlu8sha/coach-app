@@ -1,5 +1,5 @@
 -- Перенос дополнительных тренировок из старого приложения (файл EXTRA_ID, листы 18.01 … 17.10 2026).
--- Нужна миграция 0035. Идемпотентно: существующие тренировки и записи не меняются. Игроки ищутся по ФИ (без учёта регистра и лишних пробелов).
+-- Нужна миграция 0035. После 0142 уникальности (club_id, starts_on) нет, поэтому повтор защищён проверкой «нет такой тренировки». Идемпотентно: существующие тренировки и записи не меняются. Игроки ищутся по ФИ (без учёта регистра и лишних пробелов).
 -- Суммы известны только для 03.10, 11.10 и 17.10 (лист «ДОПОЛНИТЕЛЬНЫЕ ТРЕНИРОВКИ»); у остальных 0, способ оплаты — из журнала, где он есть.
 -- В конце — список имён, которых не нашлось среди игроков: пришлите его, добавлю соответствия.
 begin;
@@ -388,7 +388,7 @@ create temp table x_m on commit drop as
 insert into extra_sessions (club_id, starts_on, amount, place)
   select c.club_id, s.starts_on, s.amount, s.place
   from x_s s cross join (select club_id from x_m where club_id is not null limit 1) c
-  on conflict (club_id, starts_on) do nothing;
+  where not exists (select 1 from extra_sessions e where e.club_id = c.club_id and e.starts_on = s.starts_on);
 
 insert into extra_bookings (session_id, player_id, paid, paid_amount, method)
   select es.id, m.player_id, m.paid, case when m.paid then coalesce(m.paid_amount, nullif(es.amount, 0)) end, m.method
