@@ -155,6 +155,7 @@ select * from (values
   ('0151_first_wave', coalesce((to_regproc('first_wave_friday') is not null), false)),
   ('0152_waitlist_bot_button', coalesce((to_regproc('waitlist_claim_by_telegram') is not null), false)),
   ('0153_champ_guest_match_fee', coalesce((to_regproc('guest_match_fee') is not null), false)),
+  ('0155_champ_guest_covered_elsewhere', coalesce((to_regproc('champ_guest_ids') is not null), false)),
   ('0147_status_log_read_any_coach', coalesce((exists (select 1 from pg_policies where tablename = 'player_status_log' and policyname = 'player_status_log_read' and qual like '%is_any_coach%')), false))
 ) as t(migration, applied)
 order by migration;
