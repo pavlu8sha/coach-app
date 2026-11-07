@@ -5,6 +5,7 @@ import { supabase } from './supabase';
 // Если записи нет, доступа нет (тренер, родитель) или база не ответила, действует значение по умолчанию из этого файла.
 
 export const CHAMP_FEE_KEY = 'matches.champFee';
+export const GUEST_FEE_KEY = 'matches.guestFee';
 
 export interface SettingDef {
   key: string;
@@ -37,6 +38,7 @@ export const SETTINGS: SettingDef[] = [
   { key: 'equip.discPct', title: 'Скидка на комплект, % (0 — без скидки)', group: 'Экипировка', kind: 'number', def: '15', min: 0, max: 90 },
   { key: 'equip.discRound', title: 'Сумма со скидкой округляется до, ₾', group: 'Экипировка', kind: 'number', def: '5', min: 1, max: 100, integer: true, hint: 'До ближайшего значения, минимум 1 — как в старом приложении.' },
   { key: CHAMP_FEE_KEY, title: 'Взнос за чемпионат, ₾ — общий', group: 'Матчи', kind: 'number', def: '', emptyLabel: 'не задан', min: 0, max: 100000, hint: 'Подставляется в новый чемпионат, если у команды нет своего значения (ниже). Пусто — взнос вводится вручную.' },
+  { key: GUEST_FEE_KEY, title: 'Разовый взнос гостя за матч чемпионата, ₾', group: 'Матчи', kind: 'number', def: '25', min: 0, max: 100000, hint: 'Игроку, отмеченному в матче чемпионата или фестиваля, но не входящему в заявку события, при сохранении матча назначается этот взнос. По умолчанию 25.' },
 ];
 
 export const settingDef = (key: string) => SETTINGS.find(s => s.key === key);

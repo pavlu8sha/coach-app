@@ -520,6 +520,20 @@ describe('Взносы за матч (администратор)', () => {
     await waitFor(() => expect(fake.rpcCalls('match_pay')).toHaveLength(1));
   });
 
+  it('у матча чемпионата администратор видит взнос гостя (играл, но не в заявке события)', async () => {
+    seed();
+    fake.rpc.match_tournaments = () => [{ match_id: 'm1', tournament_id: 't1', tournament_name: 'Ч1', tournament_kind: 'championship', match_kind: 'game' }];
+    fake.rpc.event_roster = () => [{ player_id: 'p1', full_name: 'Иванов Пётр', group_name: 'U9' }];
+    fake.rpc.match_fees_list = () => [{ player_id: 'p9', full_name: 'Гость Игорь', group_name: 'U11', due: 25, paid: 0 }];
+    fake.rpc.match_payments_list = () => [];
+    fake.rpc.fee_discounts = () => [];
+    render(<CoachMatches groups={groups} admin />);
+    fireEvent.click(await screen.findByText('Олимп'));
+    await screen.findByText('Взносы');
+    expect(screen.getByText(/Не в заявке события, разовый взнос за матч: Гость Игорь/)).toBeInTheDocument();
+    expect(screen.getByText('Долг 25 ₾')).toBeInTheDocument();
+  });
+
   it('у матча чемпионата тренеру взносов нет: только посещаемость и состав', async () => {
     seed();
     fake.rpc.match_tournaments = () => [{ match_id: 'm1', tournament_id: 't1', tournament_name: 'Ч1', tournament_kind: 'championship', match_kind: 'game' }];
