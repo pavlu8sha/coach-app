@@ -4,6 +4,9 @@ import { isoDow, today } from '../lib/coach';
 import { fake } from '../test/fakeSupabase';
 import TrainerLog from './TrainerLog';
 
+// Заголовок карточки: время внутри неразрывного span, поэтому ищем по полному тексту <b>
+const title = (t: string) => (_: string, el: Element | null) => el?.tagName === 'B' && el.textContent === t;
+
 function seed(logs: Record<string, unknown>[] = []) {
   fake.db.weekly_schedule = [
     { weekday: isoDow(today()), starts_at: '17:00:00', ends_at: '18:30:00', location: 'Зал', coaches: 'Павел, Соприк', kind: 'Групповая', source_key: `${isoDow(today())}|17:00|U9` },
@@ -18,8 +21,8 @@ describe('«Учёт тренеров»', () => {
     seed();
     fake.rpc.tl_confirm = () => 2;
     render(<TrainerLog />);
-    expect(await screen.findByText('U9 · 17:00–18:30')).toBeInTheDocument();
-    expect(screen.getAllByText(/U9 · 17:00/)).toHaveLength(1);
+    expect(await screen.findByText(title('U9 · 17:00–18:30'))).toBeInTheDocument();
+    expect(screen.getAllByText(title('U9 · 17:00–18:30'))).toHaveLength(1);
     expect(screen.getByText(/по плану: Павел, Соприк/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Проведена' }));
     await waitFor(() => expect(fake.rpcCalls('tl_confirm')).toHaveLength(1));
@@ -35,7 +38,7 @@ describe('«Учёт тренеров»', () => {
     fake.db.training_log = [];
     fake.rpc.tl_confirm = () => 2;
     render(<TrainerLog />);
-    expect(await screen.findByText('U10-A/B · 16:45–18:00')).toBeInTheDocument();
+    expect(await screen.findByText(title('U10-A/B · 16:45–18:00'))).toBeInTheDocument();
     expect(screen.getAllByText(/U10-A\/B ·/)).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: 'Проведена' }));
     await waitFor(() => expect(fake.rpcCalls('tl_confirm')[0]).toMatchObject({ label: 'U10-A/B', st: '16:45', coaches: ['Павел', 'Соприк'] }));
@@ -48,7 +51,7 @@ describe('«Учёт тренеров»', () => {
     ];
     fake.db.training_log = ['Паша', 'Цотне'].map((c, i) => ({ ...row('x' + i, c), group_label: 'U10-A/B', starts_at: '17:00:00' }));
     render(<TrainerLog />);
-    expect(await screen.findByText('U10-A/B · 17:00–18:30')).toBeInTheDocument();
+    expect(await screen.findByText(title('U10-A/B · 17:00–18:30'))).toBeInTheDocument();
     expect(screen.getAllByText(/U10-A\/B ·/)).toHaveLength(1);
     expect(screen.queryByText('Не отмечена')).not.toBeInTheDocument();
     expect(screen.getByText(/Паша · 1.5 ч/)).toBeInTheDocument();
@@ -59,7 +62,7 @@ describe('«Учёт тренеров»', () => {
     fake.rpc.tl_replace_coach = () => null;
     fake.rpc.tl_add = () => 'x';
     render(<TrainerLog />);
-    const card = (await screen.findByText('U9 · 17:00–18:30')).closest('.ks-card') as HTMLElement;
+    const card = (await screen.findByText(title('U9 · 17:00–18:30'))).closest('.ks-card') as HTMLElement;
     expect(within(card).getByText('Проведена')).toBeInTheDocument();
     expect(within(card).getByText('Павел · 1.5 ч')).toBeInTheDocument();
     fireEvent.change(within(card).getByLabelText('Заменить тренера Павел'), { target: { value: 'Соприк' } });
@@ -79,7 +82,7 @@ describe('«Учёт тренеров»', () => {
     fireEvent.change(screen.getByLabelText('Место'), { target: { value: 'Стадион' } });
     fireEvent.click(screen.getByRole('button', { name: 'Соприк' })); // снять Соприка из плана
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
-    expect(await screen.findByText('U9 · 18:00–19:30')).toBeInTheDocument();
+    expect(await screen.findByText(title('U9 · 18:00–19:30'))).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Проведена' }));
     await waitFor(() => expect(fake.rpcCalls('tl_confirm')).toHaveLength(1));
     expect(fake.rpcCalls('tl_confirm')[0]).toMatchObject({ st: '18:00', en: '19:30', loc: 'Стадион', coaches: ['Павел'] });
@@ -120,7 +123,7 @@ describe('«Учёт тренеров»', () => {
     fake.rpc.match_staff_list = () => [{ match_id: 'm1', played_on: today(), team: 'U9', opponent: 'Динамо', goals_for: 2, goals_against: 1, staff: [{ coach: 'Павел', role: 'Тренер', reg: true }] }];
     fake.rpc.trainer_stats = () => [{ coach: 'Павел', trainings: 3, hours: 4.5, as_coach: 1, as_operator: 0, parts: 1, reg_pct: 100 }];
     render(<TrainerLog readOnly />);
-    const card = (await screen.findByText('U9 · 17:00–18:30')).closest('.ks-card') as HTMLElement;
+    const card = (await screen.findByText(title('U9 · 17:00–18:30'))).closest('.ks-card') as HTMLElement;
     expect(within(card).getByText('Проведена')).toBeInTheDocument();
     expect(within(card).getByText('Павел · 1.5 ч')).toBeInTheDocument();
     expect(within(card).getByText('Соприк · 1.5 ч')).toBeInTheDocument();
