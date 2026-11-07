@@ -81,7 +81,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
     return <EventForm teams={allTeams2} events={events} admin={admin} onBack={back} onCreated={id => void openCreated(id)} />;
   }
   const formMatch = screen === 'form' ? (matches ?? []).find(m => m.id === topId) ?? null : null;
-  if (screen === 'form' && (formMatch || !topId)) return <MatchForm groups={groups} match={formMatch} admin={admin} rosterOf={formMatch && !(!tours.get(formMatch.id)?.tournament_id || tours.get(formMatch.id)?.match_kind === 'friendly' || tours.get(formMatch.id)?.tournament_kind === 'cup') ? tours.get(formMatch.id)?.tournament_id ?? null : null} feeMode={!formMatch || !tours.get(formMatch.id)?.tournament_id || tours.get(formMatch.id)?.match_kind === 'friendly' || tours.get(formMatch.id)?.tournament_kind === 'cup'} presetTeam={addTeam} onBack={back} />;
+  if (screen === 'form' && (formMatch || !topId)) return <MatchForm groups={groups} match={formMatch} admin={admin} rosterOf={formMatch && !(!tours.get(formMatch.id)?.tournament_id || tours.get(formMatch.id)?.match_kind === 'friendly' || tours.get(formMatch.id)?.tournament_kind === 'cup') ? tours.get(formMatch.id)?.tournament_id ?? null : null} feeMode={!formMatch || !tours.get(formMatch.id)?.tournament_id || tours.get(formMatch.id)?.match_kind === 'friendly' || tours.get(formMatch.id)?.tournament_kind === 'cup'} presetTeam={addTeam} onBack={back} onSaved={() => setReload(n => n + 1)} />;
   if (!matches) return <Loading />;
 
   const teams = [...new Set(matches.map(m => m.team))].sort(compareGroups);
@@ -177,7 +177,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
 }
 
 // feeMode: у товарищеских и кубковых матчей взнос свой (на матч); у чемпионатов и фестивалей он на событие
-function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack }: { groups: CoachGroup[]; match: Match | null; admin: boolean; feeMode: boolean; rosterOf: string | null; presetTeam?: string; onBack: () => void }) {
+function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack, onSaved }: { groups: CoachGroup[]; match: Match | null; admin: boolean; feeMode: boolean; rosterOf: string | null; presetTeam?: string; onBack: () => void; onSaved?: () => void }) {
   const { ask, dialog: confirmDialog } = useConfirm();
   const matchGroups = groups.filter(g => playsMatches(g.name));
   const matched = match ? (groups.find(g => g.name === match.team) ?? groups.find(g => matchTeam(g.name) === match.team))?.id : undefined;
@@ -319,6 +319,8 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     setShowAll(false);
     setMsg({ ok: true, text: 'Матч сохранён. Баллы за матч начислены автоматически.' });
     markClean();
+    // список матчей перечитывается сразу, чтобы счёт был виден без выхода из матча
+    onSaved?.();
   };
   const remove = async () => {
     if (!savedId || !(await ask({ title: 'Удалить матч?', note: 'Матч удалится вместе с составом и начисленными за него баллами. Отменить нельзя.', confirmLabel: 'Удалить', danger: true }))) return;
