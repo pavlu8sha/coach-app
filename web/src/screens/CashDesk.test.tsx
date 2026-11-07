@@ -212,6 +212,15 @@ describe('«Приём оплат»: платежи дня', () => {
     expect(screen.queryByRole('button', { name: 'Отменить оплату: Иванов Пётр' })).not.toBeInTheDocument();
   });
 
+  it('взнос матча попадает в «Внесено» с датой и соперником', async () => {
+    seed();
+    fake.db.payments = [];
+    fake.rpc.cash_day_service = () => [{ id: 'm1', amount: 25, method: 'Наличные', what: 'Взнос матча', player_id: 'p1', full_name: 'Иванов Пётр', detail: '07.11 FC Morkinali' }];
+    render(<CashDesk />);
+    await screen.findByRole('heading', { name: /Внесено сегодня.*25 ₾/ });
+    expect(screen.getByText(/Взнос матча.*07\.11 FC Morkinali/)).toBeInTheDocument();
+  });
+
   it('оплаты занятий показывают время записи (Тбилиси) и идут вперемешку с остальными, новые сверху', async () => {
     seed();
     fake.db.payments = [];
