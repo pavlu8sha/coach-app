@@ -26,9 +26,13 @@ select m.id as match_id,
  where mp.played
    and t.kind in ('championship', 'festival')
    and m.kind is distinct from 'friendly'
+   -- заявленный в этом чемпионате за любую команду (то же название и вид) взнос за игру не платит (миграция 0155)
    and not exists (
-     select 1 from tournament_fees f
-      where f.tournament_id = m.tournament_id and f.player_id = mp.player_id
+     select 1
+       from tournaments e
+       join tournaments x on x.club_id = e.club_id and x.kind = e.kind and x.name is not distinct from e.name
+       join tournament_fees f on f.tournament_id = x.id
+      where e.id = m.tournament_id and f.player_id = mp.player_id
    )
  order by m.played_on desc, p.full_name;
 

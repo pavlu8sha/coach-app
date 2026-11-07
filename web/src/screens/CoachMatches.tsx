@@ -194,7 +194,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
   const [gf, setGf] = useState(match?.goals_for != null ? String(match.goals_for) : '');
   const [ga, setGa] = useState(match?.goals_against != null ? String(match.goals_against) : '');
   const [players, setPlayers] = useState<Player[] | null>(null);
-  const [rosterIds, setRosterIds] = useState<Set<string> | null>(null); // заявка события для матча чемпионата или фестиваля
+  const [guestIds, setGuestIds] = useState<string[]>([]); // игроки с разовым взносом: играли, но не заявлены в этом чемпионате ни за одну команду
   const [lines, setLines] = useState<Record<string, Line>>({});
   const [bestId, setBestId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -224,7 +224,6 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
         const r = await supabase.rpc('event_roster', { t: rosterOf });
         if (r.error) return setError(r.error.message);
         list = ((r.data ?? []) as { player_id: string; full_name: string }[]).map(x => ({ id: x.player_id, full_name: x.full_name }));
-        setRosterIds(new Set(list.map(x => x.id)));
         // ушедшие и игроки на паузе не попадают в новые матчи события (заявка на событие статус не проверяет); без ответа базы список остаётся прежним
         const st = list.length ? await supabase.from('players').select('id, status').in('id', list.map(p => p.id)) : null;
         if (st && !st.error) for (const s of (st.data ?? []) as { id: string; status: string }[]) if (s.status !== 'active') notActive.add(s.id);
@@ -282,6 +281,15 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
   }, [q]);
 
   const line = (id: string): Line => lines[id] ?? { played: false, goals: 0 };
+  // гости чемпионата определяет база (заявки всех команд этого чемпионата); после каждого сохранения список читается заново
+  useEffect(() => {
+    if (feeMode || !admin || !savedId || !rosterOf) return setGuestIds([]);
+    let off = false;
+    void supabase.rpc('champ_guest_ids', { m: savedId }).then(r => {
+      if (!off) setGuestIds(r.error ? [] : ((r.data ?? []) as { player_id: string }[]).map(x => x.player_id));
+    });
+    return () => { off = true; };
+  }, [feeMode, admin, savedId, rosterOf, reload]);
   const setLine = (id: string, l: Line) => {
     setLines(s => ({ ...s, [id]: l }));
     if (!l.played && bestId === id) setBestId(null);
@@ -361,7 +369,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
 
   if (error) return <Failure title="Не удалось загрузить состав" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} managed />} />;
   if (!players) return <Loading />;
-  const guests = rosterIds ? players.filter(p => line(p.id).played && !rosterIds.has(p.id)) : [];
+  const guests = players.filter(p => guestIds.includes(p.id));
 
   const canPickGroup = !match && !savedId;
   return (
@@ -442,9 +450,9 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
         <EventFees mode="match" coach={!admin} eventId={savedId} reloadKey={reload} onChanged={() => undefined} addable={players.filter(p => line(p.id).played).map(p => ({ id: p.id, name: p.full_name }))} />
       )}
       {/* гости чемпионата или фестиваля (играли, но не в заявке события): при сохранении матча им автоматически назначается разовый взнос за матч */}
-      {!feeMode && admin && savedId && rosterIds && guests.length > 0 && (
+      {!feeMode && admin && savedId && guests.length > 0 && (
         <>
-          <p className="muted">Не в заявке события, разовый взнос за матч: {guests.map(g => g.full_name).join(', ')}.</p>
+          <p className="muted">Не заявлены в этом чемпионате, разовый взнос за матч: {guests.map(g => g.full_name).join(', ')}.</p>
           <EventFees mode="match" coach={false} eventId={savedId} reloadKey={reload} onChanged={() => undefined} addable={guests.map(p => ({ id: p.id, name: p.full_name }))} />
         </>
       )}
