@@ -1,7 +1,7 @@
 -- pgTAP: «Внесено за день» в кассе (0086): оплаты экипировки и доп. занятий, индивидуальные — только глобальному админу.
 begin;
 create extension if not exists pgtap;
-select plan(5);
+select plan(7);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -16,6 +16,14 @@ insert into players (id, club_id, group_id, full_name, status) values
   ('00000000-0000-0000-0000-00000000d003', '00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-0000000000e3', 'Вика', 'active');
 insert into location_admins (user_id, location) values ('00000000-0000-0000-0000-0000000000b1', 'Исани');
 insert into equipment_catalog (club_id, kit, price, valid_from) values ('00000000-0000-0000-0000-00000000c001', 'Форма', 300, '2026-09-01');
+
+-- взносы матча и события, оплаченные 30.10
+insert into matches (id, club_id, played_on, team, opponent, kind) values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-00000000c001', '2026-10-30', 'U9', 'Звезда', 'friendly');
+insert into match_fees (match_id, player_id, amount) values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-00000000d001', 25);
+insert into match_payments (match_id, player_id, amount, paid_on, method) values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-00000000d001', 25, '2026-10-30', 'Наличные');
+insert into tournaments (id, club_id, team, kind, name, fee) values ('00000000-0000-0000-0000-0000000000aa', '00000000-0000-0000-0000-00000000c001', 'U9', 'championship', 'Ч1', 200);
+insert into tournament_fees (tournament_id, player_id, amount) values ('00000000-0000-0000-0000-0000000000aa', '00000000-0000-0000-0000-00000000d001', 200);
+insert into tournament_payments (tournament_id, player_id, amount, paid_on, method) values ('00000000-0000-0000-0000-0000000000aa', '00000000-0000-0000-0000-00000000d001', 100, '2026-10-30', 'Перевод');
 
 create or replace function as_user(uid uuid) returns void language plpgsql as $$
 begin
@@ -41,13 +49,15 @@ insert into ids select 'ind', ind_create_session('2026-10-30', '12:00', false, '
 select ind_add_player((select id from ids where k = 'ind'), '00000000-0000-0000-0000-00000000d001');
 select ind_set_paid((select id from ids where k = 'ind'), '00000000-0000-0000-0000-00000000d001', true, 'Перевод', '2026-10-30');
 
-select is(jsonb_array_length(cash_day_service('2026-10-30')), 5, 'глобальный админ видит все оплаты дня: экипировка, доп. занятия, индивидуальное');
+select is(jsonb_array_length(cash_day_service('2026-10-30')), 7, 'глобальный админ видит все оплаты дня: экипировка, доп. занятия, индивидуальное, взнос матча и события');
+select is((select x->>'detail' from jsonb_array_elements(cash_day_service('2026-10-30')) x where x->>'what' = 'Взнос матча'), '30.10 Звезда', 'взнос матча в ленте с датой и соперником');
 
 -- локальный админ Гио: только Исани — экипировка и доп. занятие; Квартал и индивидуальное скрыты
 select as_user('00000000-0000-0000-0000-0000000000b1');
 select is(jsonb_array_length(cash_day_service('2026-10-30')), 2, 'Гио видит оплаты своей локации');
 select is((select sum((x->>'amount')::numeric) from jsonb_array_elements(cash_day_service('2026-10-30')) x), 65::numeric, 'сумма оплат Гио: 40 + 25');
 select is((select count(*)::int from jsonb_array_elements(cash_day_service('2026-10-30')) x where x->>'what' = 'Индивидуальное'), 0, 'индивидуальные занятия Гио не видит');
+select is((select count(*)::int from jsonb_array_elements(cash_day_service('2026-10-30')) x where x->>'what' like 'Взнос%'), 0, 'взносы матчей и событий без локации локальный админ не видит');
 
 -- тренер без локации: отказ
 select as_user('00000000-0000-0000-0000-0000000000c2');

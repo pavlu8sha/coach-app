@@ -108,7 +108,7 @@ function payLine(x: TodayRow, group: string | undefined, detail: string | undefi
   const kind = neg ? 'Исправление' : x.what === 'Сбор' ? CAMP_KIND[x.kind ?? ''] ?? 'Оплата' : 'Оплата';
   const method = x.method && x.method !== 'Исправление' ? x.method : null;
   if (x.what === 'Экипировка') return [detail ? `Экипировка: ${detail}` : 'Экипировка', neg ? kind : null, method].filter(Boolean).join(', ');
-  const head = x.what === 'Абонемент' ? (detail ? `Абонемент ${detail}` : 'Абонемент') : x.what === 'Сбор' && detail ? `Сбор: ${detail}` : x.what;
+  const head = x.what === 'Абонемент' ? (detail ? `Абонемент ${detail}` : 'Абонемент') : x.what === 'Сбор' && detail ? `Сбор: ${detail}` : (x.what === 'Взнос матча' || x.what === 'Взнос события') && detail ? `${x.what}: ${detail}` : x.what;
   return [head, group, kind, method].filter(Boolean).join(', ');
 }
 
@@ -157,7 +157,7 @@ export default function CashDesk() {
       }
       const camp = c.error ? [] : ((c.data ?? []) as unknown as { id: string; amount: number; method: string | null; kind: string; player_id?: string; players: { full_name: string } | null; camps?: { name: string } | null; camp_participants?: { guest_name: string | null } | null }[]).map(x => ({ ...x, players: x.players ?? (x.camp_participants?.guest_name ? { full_name: `${x.camp_participants.guest_name} (гость)` } : null), what: 'Сбор', detail: x.camps?.name }));
       const svc = await supabase.rpc('cash_day_service', { p_day: day });
-      const service = svc.error ? [] : ((svc.data ?? []) as unknown as { id: string; amount: number; method: string | null; what: string; player_id: string; full_name: string; recorded_at?: string | null }[]).map(x => ({ id: x.id, amount: x.amount, method: x.method, what: x.what, recorded_at: x.recorded_at ?? null, player_id: x.player_id, players: { full_name: x.full_name } }));
+      const service = svc.error ? [] : ((svc.data ?? []) as unknown as { id: string; amount: number; method: string | null; what: string; player_id: string; full_name: string; recorded_at?: string | null; detail?: string | null }[]).map(x => ({ id: x.id, amount: x.amount, method: x.method, what: x.what, recorded_at: x.recorded_at ?? null, player_id: x.player_id, players: { full_name: x.full_name }, ...(x.detail ? { detail: x.detail } : {}) }));
       // все виды платежей одним списком: новые сверху по времени записи; платежи без времени (импорт) в конце
       const byTime = (x: TodayRow, y: TodayRow) => (y.recorded_at ?? '').localeCompare(x.recorded_at ?? '') || String(x.id ?? '').localeCompare(String(y.id ?? ''));
       const all: TodayRow[] = ([...rows, ...camp, ...service] as TodayRow[]).sort(byTime);

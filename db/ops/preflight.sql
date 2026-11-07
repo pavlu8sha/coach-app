@@ -157,6 +157,7 @@ select * from (values
   ('0153_champ_guest_match_fee', coalesce((to_regproc('guest_match_fee') is not null), false)),
   ('0155_champ_guest_covered_elsewhere', coalesce((to_regproc('champ_guest_ids') is not null), false)),
   ('0154_cash_find_players', coalesce((to_regproc('cash_find_players') is not null), false)),
+  ('0156_cash_day_match_event_payments', coalesce((select position('match_payments' in prosrc) > 0 from pg_proc where proname = 'cash_day_service' limit 1), false)),
   ('0147_status_log_read_any_coach', coalesce((exists (select 1 from pg_policies where tablename = 'player_status_log' and policyname = 'player_status_log_read' and qual like '%is_any_coach%')), false))
 ) as t(migration, applied)
 order by migration;
