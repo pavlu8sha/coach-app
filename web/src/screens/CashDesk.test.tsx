@@ -383,3 +383,25 @@ describe('«Приём оплат»: платежи дня', () => {
     expect(screen.queryByText(/\(вперёд\)/)).toBeNull();
   });
 });
+
+describe('Поиск игрока в кассе (0154)', () => {
+  it('ищет через cash_find_players, а не прямым запросом в players', async () => {
+    fake.reset();
+    seed();
+    fake.rpc.cash_find_players = () => [{ id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', external_id: 'KS-1', birth_date: null, status: 'active', group_name: 'Isani' }];
+    render(<CashDesk />);
+    fireEvent.change(screen.getByLabelText(/^Игрок/), { target: { value: 'Иванов' } });
+    await screen.findByRole('button', { name: /Иванов Пётр/ });
+    expect(fake.rpcCalls('cash_find_players')[0]).toEqual({ q: 'Иванов' });
+  });
+
+  it('если база отказала, список остаётся пустым', async () => {
+    fake.reset();
+    seed();
+    fake.rpc.cash_find_players = () => ({ error: { message: 'forbidden' } });
+    render(<CashDesk />);
+    fireEvent.change(screen.getByLabelText(/^Игрок/), { target: { value: 'Иванов' } });
+    await waitFor(() => expect(fake.rpcCalls('cash_find_players')).toHaveLength(1));
+    expect(screen.queryByRole('button', { name: /Иванов Пётр/ })).not.toBeInTheDocument();
+  });
+});

@@ -101,7 +101,11 @@ export const supabase: any = {
   rpc: (name: string, args?: any) => ({
     then: (res: any, rej: any) => {
       fake.calls.push({ kind: 'rpc', name, args });
-      const h = fake.rpc[name];
+      // поиск игрока в кассе (0154): по умолчанию ищет по данным fake.db.players, как админ; тест может подставить свой ответ
+      const h = fake.rpc[name] ?? (name === 'cash_find_players'
+        ? (a: { q: string }) => (fake.db.players ?? []).filter(p => String(p.full_name).toLowerCase().includes(String(a.q).toLowerCase()))
+            .map(p => ({ id: p.id, full_name: p.full_name, group_id: p.group_id ?? null, external_id: p.external_id ?? null, birth_date: p.birth_date ?? null, status: p.status ?? 'active', group_name: p.groups?.name ?? null }))
+        : undefined);
       const out = h ? h(args) : null;
       const shaped = out && typeof out === 'object' && ('error' in out || 'data' in out) ? { data: out.data ?? null, error: out.error ?? null } : { data: out, error: null };
       return Promise.resolve(shaped).then(res, rej);
