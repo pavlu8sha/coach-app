@@ -129,8 +129,11 @@ export default function CashDesk() {
   useEffect(() => {
     if (q.trim().length < 2) return setFound([]);
     const t = setTimeout(() => {
-      void supabase.from('players').select('id, full_name, group_id, external_id, birth_date, status, groups(name)').ilike('full_name', `%${q.trim()}%`).order('full_name').limit(10).then(r => {
-        if (!r.error) setFound((r.data ?? []) as unknown as Pl[]);
+      // поиск через cash_find_players (0154): только игроки, у которых пользователь может принимать оплаты
+      void supabase.rpc('cash_find_players', { q: q.trim() }).then(r => {
+        if (r.error) return;
+        const rows = (r.data ?? []) as { id: string; full_name: string; group_id: string | null; external_id: string | null; birth_date: string | null; status: string; group_name: string | null }[];
+        setFound(rows.map(x => ({ id: x.id, full_name: x.full_name, group_id: x.group_id, external_id: x.external_id, birth_date: x.birth_date, status: x.status, groups: x.group_name ? { name: x.group_name } : null })));
       });
     }, 250);
     return () => clearTimeout(t);
