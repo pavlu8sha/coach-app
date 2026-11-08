@@ -10,13 +10,13 @@ import { settingNumberError, useClubSettings } from '../lib/clubSettings';
 import { bundleDiscount, priorAmount } from '../lib/equipmentDiscount';
 import { allKitsIssued, EQUIPMENT_REQUIRED_KEY, EQUIPMENT_REQUIRED_TEXT, issueStateLabel, lastStatusDate, nextStatus, orderStatusLabel, prevStatus, type StatusEvent } from '../lib/equipment';
 
-interface Line { id?: string; kit: string; size: string | null; quantity: number }
+interface Line { id?: string; kit: string; size: string | null; quantity: number; unit_price?: number | string | null }
 interface Order {
   id: string; player_id: string | null; ordered_on: string | null; total: number; paid: number; installment: boolean; number: string | null; inscription: string | null; location: string | null;
   status: string; equipment_order_status_history: StatusEvent[];
   players: { full_name: string; groups?: { name: string } | null } | null; equipment_order_lines: Line[]; equipment_issues: { kit: string; issued_on: string; issued_by: string | null }[];
 }
-const ORDER_COLS = 'id, player_id, ordered_on, total, paid, installment, number, inscription, location, status, equipment_order_status_history(status, changed_at, changed_by_name), equipment_order_lines(id, kit, size, quantity), equipment_issues(kit, issued_on, issued_by)';
+const ORDER_COLS = 'id, player_id, ordered_on, total, paid, installment, number, inscription, location, status, equipment_order_status_history(status, changed_at, changed_by_name), equipment_order_lines(id, kit, size, quantity, unit_price), equipment_issues(kit, issued_on, issued_by)';
 interface Kit { kit: string; price: number }
 
 const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
@@ -418,6 +418,7 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const { ask, dialog: confirmDialog } = useConfirm();
   const msgRef = useRef<HTMLParagraphElement>(null);
+  const lastFresh = useRef<Order | null>(null);
   const [gone, setGone] = useState(false);
   const { kits: catalog } = useCatalog();
   const [addKit, setAddKit] = useState('');
@@ -427,14 +428,34 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
   useEffect(() => { msg && msgRef.current?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }); }, [msg]);
   useEffect(() => { if (gone) onBack(); }, [gone]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const refresh = async () => {
+  const settings = useClubSettings();
+  const refresh = async (): Promise<Order | null> => {
     const r = await supabase.from('equipment_orders').select(`${ORDER_COLS}, players(full_name)`).eq('id', order.id).maybeSingle();
     if (!r.error && r.data) {
       const d = r.data as unknown as Order;
       const fresh = { ...d, total: Number(d.total), paid: Number(d.paid) };
       setO(fresh);
       onChanged(fresh); // «Назад» через стек навигации список не перезагружает: без этого заказ открывается по старой копии
+      return fresh;
     }
+    return null;
+  };
+  // После добавления вещи сумма сдвигается на цену по каталогу без скидки. Если теперь набор полный, предлагаем пересчитать
+  // сумму по скидке на комплект (как в «Новом заказе»). Не меняем молча: сумма могла быть вписана вручную.
+  const offerBundle = async (fresh: Order) => {
+    if (fresh.installment || !fresh.player_id) return;
+    const r = await supabase.from('equipment_orders').select('id, total, equipment_order_lines(kit, quantity, unit_price)').eq('player_id', fresh.player_id);
+    if (r.error) return;
+    const past = ((r.data ?? []) as unknown as { id: string; total: number | string | null; equipment_order_lines: { kit: string }[] | null }[])
+      .filter(x => x.id !== fresh.id).map(x => ({ total: Number(x.total ?? 0), lines: x.equipment_order_lines ?? [] }));
+    const disc = bundleDiscount({
+      lines: fresh.equipment_order_lines.map(l => ({ kit: l.kit, amount: Number(l.unit_price ?? 0) * l.quantity })),
+      pastKits: past.flatMap(x => x.lines.map(l => l.kit)), pastAmount: priorAmount(past, settings.values), installment: false, settings: settings.values,
+    });
+    if (!disc.applies || Math.abs(disc.total - fresh.total) < 0.005 || disc.total < fresh.paid) return;
+    const yes = await ask({ title: 'Пересчитать сумму по скидке на комплект?', lines: [['Игрок', fresh.players?.full_name ?? 'Игрок'], ['Сейчас', gel(fresh.total)], ['Со скидкой', gel(disc.total)]], note: `Скидка ${disc.pct}% на набор. Сумма заказа изменится.`, confirmLabel: 'Применить' });
+    if (!yes) return;
+    if (await run('edit', () => supabase.rpc('eq_edit_order', { o: fresh.id, insc: fresh.inscription ?? '', num: fresh.number ?? '', inst: fresh.installment, loc: fresh.location ?? '', new_total: disc.total }), 'Сумма пересчитана.')) setTotal(String(disc.total));
   };
   const run = async (key: string, f: () => PromiseLike<{ error: { message: string } | null }>, ok?: string) => {
     setBusy(key);
@@ -443,7 +464,7 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
     setBusy(null);
     if (r.error) { setMsg({ ok: false, text: errText(r.error.message) }); return false; }
     if (ok) setMsg({ ok: true, text: ok });
-    await refresh();
+    lastFresh.current = await refresh();
     return true;
   };
   if (gone) return null;
@@ -521,7 +542,7 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
       <div className="ks-card">
         <label className="field">Вещь<select value={addKit} onChange={e => setAddKit(e.target.value)}><option value="">Выберите вещь</option>{(catalog ?? []).filter(k => !issued.has(k.kit)).map(k => <option key={k.kit} value={k.kit}>{k.kit} — {gel(k.price)}</option>)}</select></label>
         <label className="field">Размер новой вещи<input value={addSize} maxLength={40} onChange={e => setAddSize(e.target.value)} /></label>
-        <button type="button" className="ks-btn secondary" disabled={busy === 'add' || !addKit} onClick={() => void run('add', () => supabase.rpc('eq_add_line', { o: o.id, k: addKit, sz: addSize, qty: 1 }), 'Вещь добавлена.').then(ok => { if (ok) { setAddKit(''); setAddSize(''); } })}>Добавить в заказ</button>
+        <button type="button" className="ks-btn secondary" disabled={busy === 'add' || !addKit} onClick={() => void run('add', () => supabase.rpc('eq_add_line', { o: o.id, k: addKit, sz: addSize, qty: 1 }), 'Вещь добавлена.').then(ok => { if (ok) { setAddKit(''); setAddSize(''); if (lastFresh.current) void offerBundle(lastFresh.current); } })}>Добавить в заказ</button>
       </div>
 
       <h3>Оплата</h3>

@@ -222,6 +222,34 @@ describe('«Экипировка»', () => {
     expect(await screen.findByLabelText('Размер: Дождевик')).toBeInTheDocument();
   });
 
+  it('после добавления вещи предлагает пересчитать сумму по скидке на комплект (полный набор: 525 ₾)', async () => {
+    seed();
+    fake.db.equipment_catalog = [
+      { kit: 'Игровая форма', price: 200, valid_from: '2026-01-01' }, { kit: 'Тренировочная форма', price: 160, valid_from: '2026-01-01' },
+      { kit: 'Спортивный костюм', price: 150, valid_from: '2026-01-01' }, { kit: 'Дождевик', price: 110, valid_from: '2026-01-01' },
+    ];
+    fake.db.clubs = [{ id: 'c1' }];
+    fake.db.club_settings = [];
+    const ln = (id: string, kit: string, price: number) => ({ id, kit, size: '152', quantity: 1, unit_price: price });
+    fake.db.equipment_orders = [{ id: 'k1', player_id: 'p7', ordered_on: '2026-10-01', total: 435, paid: 300, installment: false, number: '7', inscription: null, location: null, status: 'accepted', equipment_order_status_history: [], players: { full_name: 'Котов Родион' },
+      equipment_order_lines: [ln('k1-a', 'Игровая форма', 200), ln('k1-b', 'Тренировочная форма', 160), ln('k1-c', 'Спортивный костюм', 150)], equipment_issues: [] }];
+    fake.rpc.eq_add_line = (a: { o: string; k: string; sz: string; qty: number }) => {
+      const o = (fake.db.equipment_orders as { id: string; total: number; equipment_order_lines: object[] }[]).find(x => x.id === a.o)!;
+      o.equipment_order_lines = [...o.equipment_order_lines, ln('k1-d', a.k, 110)];
+      o.total += 110; // как eq_add_line: цена по каталогу, без скидки
+      return 'k1-d';
+    };
+    fake.rpc.eq_edit_order = () => null;
+    render(<Equipment />);
+    fireEvent.click(await screen.findByText('Котов Родион'));
+    fireEvent.change(await screen.findByLabelText('Вещь'), { target: { value: 'Дождевик' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Добавить в заказ' }));
+    const dlg = await screen.findByRole('dialog');
+    expect(within(dlg).getByText('525 ₾')).toBeInTheDocument();
+    fireEvent.click(within(dlg).getByRole('button', { name: 'Применить' }));
+    await waitFor(() => expect(fake.rpcCalls('eq_edit_order')).toEqual([{ o: 'k1', insc: '', num: '7', inst: false, loc: '', new_total: 525 }]));
+  });
+
   it('дата заказа сохраняется (eq_set_order_date)', async () => {
     seed();
     fake.rpc.eq_set_order_date = () => null;
