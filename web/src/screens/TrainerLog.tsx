@@ -134,7 +134,7 @@ function Day({ readOnly }: { readOnly: boolean }) {
         };
         return (
           <div className="ks-card" key={k}>
-            <div className="ks-line ks-log-head"><b>{it.label} · <span style={{ whiteSpace: 'nowrap' }}>{it.start}{it.end ? `–${it.end}` : ''}</span></b><span><Pill tone={held.length ? 'success' : 'neutral'} dot>{held.length ? 'Проведена' : 'Не отмечена'}</Pill></span></div>
+            <div className="ks-line ks-head-badge"><b>{it.label} · <span style={{ whiteSpace: 'nowrap' }}>{it.start}{it.end ? `–${it.end}` : ''}</span></b><span><Pill tone={held.length ? 'success' : 'neutral'} dot>{held.length ? 'Проведена' : 'Не отмечена'}</Pill></span></div>
             <div className="ks-muted" style={{ fontSize: 13 }}>{it.kind}{it.loc ? ` · ${it.loc}` : ''}{!held.length && it.plan.length ? ` · по плану: ${it.plan.join(', ')}` : ''}</div>
             {!readOnly && <button type="button" className="ks-btn secondary sm" style={{ marginTop: 8 }} onClick={() => (editKey === k ? setEditKey(null) : startEdit())}>{editKey === k ? 'Свернуть' : 'Изменить время, место' + (held.length ? '' : ', тренеров')}</button>}
             {!readOnly && editKey === k && (

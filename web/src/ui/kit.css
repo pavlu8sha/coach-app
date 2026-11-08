@@ -116,12 +116,11 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 .ks-check input:checked::after { transform: translateY(-1px) rotate(45deg) scale(1); }
 .ks-check input:focus-visible { outline: 3px solid var(--ks-primary); outline-offset: 2px; }
 .ks-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-/* Карточка занятия в «Учёте»: бейдж статуса всегда справа от заголовка (заголовок переносится внутри себя),
-   на самой узкой ширине (до 360 px) у всех карточек — отдельной строкой под заголовком */
-.ks-log-head { flex-wrap: nowrap; align-items: flex-start; }
-.ks-log-head > b { flex: 1 1 0; min-width: 0; overflow-wrap: break-word; }
-.ks-log-head > span { flex: none; }
-@media (max-width: 359px) { .ks-log-head { flex-direction: column; align-items: flex-start; gap: 6px; } .ks-log-head > b { flex: none; } }
+/* Заголовок карточки с бейджем справа (счёт матча, статус занятия): заголовок переносится внутри себя, бейдж справа; до 359 px бейдж отдельной строкой у всех карточек */
+.ks-head-badge { flex-wrap: nowrap; align-items: flex-start; }
+.ks-head-badge > b { flex: 1 1 0; min-width: 0; overflow-wrap: break-word; }
+.ks-head-badge > span { flex: none; }
+@media (max-width: 359px) { .ks-head-badge { flex-direction: column; align-items: flex-start; gap: 6px; } .ks-head-badge > b { flex: none; } }
 .ks-ok { color: var(--ks-success); font-weight: 700; margin: 8px 0; }
 
 /* Экран первой загрузки */

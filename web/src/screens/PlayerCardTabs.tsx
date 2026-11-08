@@ -95,7 +95,7 @@ export function MatchesTab({ playerId }: { playerId: string }) {
         const score = m.goals_for !== null && m.goals_against !== null ? `${m.goals_for}:${m.goals_against}` : '—';
         return (
           <div className="ks-card" key={i}>
-            <div className="ks-line"><b>{fmtDate(m.played_on)} · {m.team}{m.opponent ? ` — ${m.opponent}` : ''}</b><Pill tone="primary">{score}</Pill></div>
+            <div className="ks-line ks-head-badge"><b>{fmtDate(m.played_on)} · {m.team}{m.opponent ? ` — ${m.opponent}` : ''}</b><span><Pill tone="primary">{score}</Pill></span></div>
             <div className="ks-muted" style={{ fontSize: 13 }}>{r.played ? 'играл' : 'не играл'}{r.goals > 0 ? ` · голов: ${r.goals}` : ''}</div>
           </div>
         );
