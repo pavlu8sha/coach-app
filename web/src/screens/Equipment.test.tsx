@@ -250,6 +250,27 @@ describe('«Экипировка»', () => {
     await waitFor(() => expect(fake.rpcCalls('eq_edit_order')).toEqual([{ o: 'k1', insc: '', num: '7', inst: false, loc: '', new_total: 525 }]));
   });
 
+  it('кнопка «Пересчитать по скидке на комплект»: строка без цены берёт цену каталога, сумма 525 ₾', async () => {
+    seed();
+    fake.db.equipment_catalog = [
+      { kit: 'Игровая форма', price: 200, valid_from: '2026-01-01' }, { kit: 'Тренировочная форма', price: 160, valid_from: '2026-01-01' },
+      { kit: 'Спортивный костюм', price: 150, valid_from: '2026-01-01' }, { kit: 'Дождевик', price: 110, valid_from: '2026-01-01' },
+    ];
+    fake.db.clubs = [{ id: 'c1' }];
+    fake.db.club_settings = [];
+    const ln = (id: string, kit: string, price: number) => ({ id, kit, size: '152', quantity: 1, unit_price: price });
+    fake.db.equipment_orders = [{ id: 'k1', player_id: 'p7', ordered_on: '2026-10-01', total: 470, paid: 300, installment: false, number: '7', inscription: null, location: null, status: 'accepted', equipment_order_status_history: [], players: { full_name: 'Котов Родион' },
+      equipment_order_lines: [ln('k1-a', 'Игровая форма', 200), ln('k1-b', 'Тренировочная форма', 160), ln('k1-c', 'Спортивный костюм', 150), ln('k1-d', 'Дождевик', 0)], equipment_issues: [] }];
+    fake.rpc.eq_edit_order = () => null;
+    render(<Equipment />);
+    fireEvent.click(await screen.findByText('Котов Родион'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Пересчитать по скидке на комплект' }));
+    const dlg = await screen.findByRole('dialog');
+    expect(within(dlg).getByText('525 ₾')).toBeInTheDocument();
+    fireEvent.click(within(dlg).getByRole('button', { name: 'Применить' }));
+    await waitFor(() => expect(fake.rpcCalls('eq_edit_order')).toEqual([{ o: 'k1', insc: '', num: '7', inst: false, loc: '', new_total: 525 }]));
+  });
+
   it('дата заказа сохраняется (eq_set_order_date)', async () => {
     seed();
     fake.rpc.eq_set_order_date = () => null;

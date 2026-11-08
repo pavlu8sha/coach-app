@@ -442,17 +442,21 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
   };
   // После добавления вещи сумма сдвигается на цену по каталогу без скидки. Если теперь набор полный, предлагаем пересчитать
   // сумму по скидке на комплект (как в «Новом заказе»). Не меняем молча: сумма могла быть вписана вручную.
-  const offerBundle = async (fresh: Order) => {
-    if (fresh.installment || !fresh.player_id) return;
+  const offerBundle = async (fresh: Order, manual = false) => {
+    const skip = (text: string) => { if (manual) setMsg({ ok: true, text }); };
+    if (fresh.installment) return skip('Заказ в рассрочку: скидки на комплект нет.');
+    if (!fresh.player_id) return skip('Скидку посчитать нельзя: у заказа нет игрока.');
     const r = await supabase.from('equipment_orders').select('id, total, equipment_order_lines(kit, quantity, unit_price)').eq('player_id', fresh.player_id);
-    if (r.error) return;
+    if (r.error) return skip('Не удалось загрузить заказы игрока.');
     const past = ((r.data ?? []) as unknown as { id: string; total: number | string | null; equipment_order_lines: { kit: string }[] | null }[])
       .filter(x => x.id !== fresh.id).map(x => ({ total: Number(x.total ?? 0), lines: x.equipment_order_lines ?? [] }));
     const disc = bundleDiscount({
-      lines: fresh.equipment_order_lines.map(l => ({ kit: l.kit, amount: Number(l.unit_price ?? 0) * l.quantity })),
+      lines: fresh.equipment_order_lines.map(l => ({ kit: l.kit, amount: (Number(l.unit_price) || (catalog ?? []).find(k => k.kit === l.kit)?.price || 0) * l.quantity })), // нет цены строки: берём цену каталога
       pastKits: past.flatMap(x => x.lines.map(l => l.kit)), pastAmount: priorAmount(past, settings.values), installment: false, settings: settings.values,
     });
-    if (!disc.applies || Math.abs(disc.total - fresh.total) < 0.005 || disc.total < fresh.paid) return;
+    if (!disc.applies) return skip('Скидка на комплект к этому заказу не применяется (нужен полный набор).');
+    if (Math.abs(disc.total - fresh.total) < 0.005) return skip(`Сумма уже верная: ${gel(fresh.total)}.`);
+    if (disc.total < fresh.paid) return skip(`По скидке вышло бы ${gel(disc.total)}, это меньше уже оплаченного.`);
     const yes = await ask({ title: 'Пересчитать сумму по скидке на комплект?', lines: [['Игрок', fresh.players?.full_name ?? 'Игрок'], ['Сейчас', gel(fresh.total)], ['Со скидкой', gel(disc.total)]], note: `Скидка ${disc.pct}% на набор. Сумма заказа изменится.`, confirmLabel: 'Применить' });
     if (!yes) return;
     if (await run('edit', () => supabase.rpc('eq_edit_order', { o: fresh.id, insc: fresh.inscription ?? '', num: fresh.number ?? '', inst: fresh.installment, loc: fresh.location ?? '', new_total: disc.total }), 'Сумма пересчитана.')) setTotal(String(disc.total));
@@ -558,6 +562,7 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
       <label className="field">Дата заказа<input type="date" max={today()} value={orderedOn} onChange={e => setOrderedOn(e.target.value)} /></label>
       <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy === 'date' || !orderedOn || orderedOn === (o.ordered_on ?? '')} onClick={() => void run('date', () => supabase.rpc('eq_set_order_date', { o: o.id, d: orderedOn }), 'Дата сохранена.')}>Сохранить дату</button>
       <label className="field">Локация<input value={loc} maxLength={40} onChange={e => setLoc(e.target.value)} /></label>
+      <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy === 'edit'} onClick={() => void offerBundle(o, true)}>Пересчитать по скидке на комплект</button>
       <label className="field">Сумма заказа, ₾<input inputMode="decimal" value={total} onChange={e => setTotal(e.target.value)} /></label>
       <div style={{ marginTop: 12 }}><SwitchRow id="inst" label="Рассрочка" checked={inst} onChange={setInst} /></div>
       <button type="button" className="ks-btn" style={{ marginTop: 16 }} disabled={busy === 'edit' || Number.isNaN(num(total))} onClick={() => void run('edit', () => supabase.rpc('eq_edit_order', { o: o.id, insc, num: number, inst, loc, new_total: num(total) }), 'Сохранено.')}>Сохранить</button>
