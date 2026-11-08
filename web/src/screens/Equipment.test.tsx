@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import Equipment from './Equipment';
+import { useNav } from '../nav';
 
 const order = (id: string, name: string, total: number, paid: number, issued: string[] = []) => ({
   id, ordered_on: '2026-09-10', total, paid, installment: false, number: '7', inscription: null, location: 'Зал',
@@ -198,6 +199,27 @@ describe('«Экипировка»', () => {
     fireEvent.click(within(card).getByRole('button', { name: 'Убрать' }));
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Убрать' }));
     await waitFor(() => expect(fake.rpcCalls('eq_delete_line')).toEqual([{ l: 'o2-k' }]));
+  });
+
+
+  it('вещь, добавленная в заказ, остаётся после выхода через «Назад» стека навигации и повторного входа', async () => {
+    seed();
+    fake.db.equipment_catalog = [...(fake.db.equipment_catalog as object[]), { kit: 'Дождевик', price: 150, valid_from: '2026-08-01' }];
+    fake.rpc.eq_add_line = (a: { o: string; k: string; sz: string; qty: number }) => {
+      const o = (fake.db.equipment_orders as ReturnType<typeof order>[]).find(x => x.id === a.o)!;
+      o.equipment_order_lines = [...o.equipment_order_lines, { id: 'new-1', kit: a.k, size: a.sz === '' ? (null as unknown as string) : a.sz, quantity: a.qty }];
+      return 'new-1';
+    };
+    let back: () => void = () => {};
+    const Probe = () => { back = useNav().back; return null; };
+    render(<><Probe /><Equipment /></>);
+    fireEvent.click(await screen.findByText('Сидоров Ян'));
+    fireEvent.change(await screen.findByLabelText('Вещь'), { target: { value: 'Дождевик' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Добавить в заказ' }));
+    expect(await screen.findByLabelText('Размер: Дождевик')).toBeInTheDocument();
+    act(() => back());
+    fireEvent.click(await screen.findByText('Сидоров Ян'));
+    expect(await screen.findByLabelText('Размер: Дождевик')).toBeInTheDocument();
   });
 
   it('дата заказа сохраняется (eq_set_order_date)', async () => {

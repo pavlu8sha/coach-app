@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { coachError, compareGroups, fmtDate, groupByGroupName, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput, Segmented, SwitchRow } from '../ui/components';
@@ -133,7 +133,7 @@ export default function Equipment() {
   if (screen === 'catalog') return <Catalog onBack={() => nav.back()} />;
   if (screen === 'text') return <RequirementEditor onBack={() => nav.back()} />;
   const open = screen === 'order' ? orders?.find(o => o.id === nav.top.params.id) : undefined;
-  if (open) return <OrderView order={open} knownNumber={open.player_id ? numbers.get(open.player_id) : undefined} onBack={done} />;
+  if (open) return <OrderView order={open} knownNumber={open.player_id ? numbers.get(open.player_id) : undefined} onBack={done} onChanged={d => setOrders(prev => prev && prev.map(x => x.id === d.id ? { ...x, ...d, players: { ...(x.players ?? {}), ...(d.players ?? {}) } as Order['players'] } : x))} />;
 
   return (
     <main className="page">
@@ -403,7 +403,7 @@ function LineEditor({ line, locked, last, busy, onSave, onRemove }: { line: Line
   );
 }
 
-function OrderView({ order, knownNumber, onBack }: { order: Order; knownNumber?: string; onBack: () => void }) {
+function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; knownNumber?: string; onBack: () => void; onChanged: (o: Order) => void }) {
   const [o, setO] = useState(order);
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('');
@@ -417,18 +417,23 @@ function OrderView({ order, knownNumber, onBack }: { order: Order; knownNumber?:
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const { ask, dialog: confirmDialog } = useConfirm();
+  const msgRef = useRef<HTMLParagraphElement>(null);
   const [gone, setGone] = useState(false);
   const { kits: catalog } = useCatalog();
   const [addKit, setAddKit] = useState('');
   const [addSize, setAddSize] = useState('');
   const [orderedOn, setOrderedOn] = useState(order.ordered_on ?? '');
+  // Кнопки внизу экрана, сообщение вверху: показываем его, чтобы ошибка сохранения не оставалась за кадром.
+  useEffect(() => { msg && msgRef.current?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }); }, [msg]);
   useEffect(() => { if (gone) onBack(); }, [gone]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const refresh = async () => {
     const r = await supabase.from('equipment_orders').select(`${ORDER_COLS}, players(full_name)`).eq('id', order.id).maybeSingle();
     if (!r.error && r.data) {
       const d = r.data as unknown as Order;
-      setO({ ...d, total: Number(d.total), paid: Number(d.paid) });
+      const fresh = { ...d, total: Number(d.total), paid: Number(d.paid) };
+      setO(fresh);
+      onChanged(fresh); // «Назад» через стек навигации список не перезагружает: без этого заказ открывается по старой копии
     }
   };
   const run = async (key: string, f: () => PromiseLike<{ error: { message: string } | null }>, ok?: string) => {
@@ -467,7 +472,7 @@ function OrderView({ order, knownNumber, onBack }: { order: Order; knownNumber?:
       <BackNav onBack={onBack} managed />
       <h1 style={{ overflowWrap: 'anywhere' }}>{o.players?.full_name ?? 'Заказ'}</h1>
       <p className="muted">{o.ordered_on ? fmtDate(o.ordered_on) : 'Дата не указана'} · оплачено {gel(o.paid)} из {gel(o.total)}{o.installment ? ' · рассрочка' : ''}</p>
-      {msg && <p className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}
+      {msg && <p ref={msgRef} role={msg.ok ? 'status' : 'alert'} className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}
 
       <h3>Статус заказа</h3>
       <div className="ks-card">
