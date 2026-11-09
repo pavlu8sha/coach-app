@@ -16,16 +16,23 @@ function LinkText({ text }: { text: string }) {
 const LABEL = { fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' as const, margin: '10px 0 2px' };
 
 const KIND: Record<string, string> = { game: 'Матч чемпионата', friendly: 'Товарищеский матч' };
+/** Сколько после начала матч считаем «идущим», если счёта ещё нет (допущение: матч длится не дольше 3 часов) */
+const LIVE_WINDOW_MS = 3 * 3600_000;
 
 /**
  * Подтверждение участия для родителя: матчи, на которые приглашены его дети. Только свои дети; других игроков, ответов
  * других семей и статистики здесь нет (база их не отдаёт). Ответ один на ребёнка и общий для обоих родителей.
  * «Предстоящие» — опубликованные и ещё не начавшиеся, «Прошедшие» — начавшиеся и отменённые.
  */
-export default function RsvpSection({ rows, part, onChanged }: { rows: MyRsvp[]; part: 'upcoming' | 'past'; onChanged: () => void }) {
+export default function RsvpSection({ rows, part, onChanged, withResult = new Set() }: { rows: MyRsvp[]; part: 'upcoming' | 'past'; onChanged: () => void; withResult?: Set<string> }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const now = Date.now();
+  /** Статус прошедшего матча: со счётом — «Прошёл»; без счёта и начался недавно — «Идёт»; иначе — «не внесён» */
+  const pastStatus = (m: MyRsvp) => {
+    if (withResult.has(m.match_id)) return 'Прошёл';
+    return now - new Date(m.starts_at).getTime() < LIVE_WINDOW_MS ? 'Идёт' : 'Прошёл, результат не внесён';
+  };
   const upcoming = (r: MyRsvp) => r.lifecycle_status === 'published' && new Date(r.starts_at).getTime() > now;
   const mine = rows.filter(r => (part === 'upcoming' ? upcoming(r) : !upcoming(r)));
   const matches = [...new Set(mine.map(r => r.match_id))];
@@ -53,7 +60,7 @@ export default function RsvpSection({ rows, part, onChanged }: { rows: MyRsvp[];
           <div className="ks-card" key={m.match_id} aria-label={`Матч ${m.opponent ?? ''}`.trim()}>
             <div className="ks-line">
               <b>{m.opponent ?? 'Соперник уточняется'}</b>
-              {cancelled ? <Pill tone="danger">Отменён</Pill> : m.rescheduled ? <Pill tone="warning">Перенесён</Pill> : <Pill tone="primary">{part === 'upcoming' ? 'Предстоит' : 'Идёт или прошёл'}</Pill>}
+              {cancelled ? <Pill tone="danger">Отменён</Pill> : m.rescheduled ? <Pill tone="warning">Перенесён</Pill> : <Pill tone="primary">{part === 'upcoming' ? 'Предстоит' : pastStatus(m)}</Pill>}
             </div>
             <p style={{ margin: '6px 0 0', fontSize: '1.05rem', fontWeight: 700 }}>{fmtWhen(m.starts_at)}</p>
             <p className="muted" style={{ margin: '2px 0 0' }}>{m.team}{m.kind ? ` · ${KIND[m.kind] ?? ''}` : ''}</p>
