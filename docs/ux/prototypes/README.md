@@ -24,12 +24,15 @@
 | A9 | Only one valid result in the session | [SVG](test-result-single-valid.svg) |
 | A10 | Corrected published result — parent/child view | [SVG](test-result-corrected.svg) |
 | A11 | Incomparable tests / no trend | [SVG](test-result-incomparable.svg) |
-| A12 | Bulk skip — selection and confirmation | [coach-testing-bulk-skip-v1.svg](coach-testing-bulk-skip-v1.svg) |\n| A13 | Testing review and publication checklist | [coach-testing-review-publish-v2.svg](coach-testing-review-publish-v2.svg) |
+| A12 | Bulk skip — selection and confirmation | [coach-testing-bulk-skip-v1.svg](coach-testing-bulk-skip-v1.svg) |
+| A13 | Testing review and publication checklist | [coach-testing-review-publish-v2.svg](coach-testing-review-publish-v2.svg) |
+| A14 | Player goals — coach list and parent/child detail | [player-goals-coach-parent-v1.svg](player-goals-coach-parent-v1.svg) |
+| A15 | Create/edit individual goal — coach | [player-goal-create-edit-coach-v1.svg](player-goal-create-edit-coach-v1.svg) |
 
 ## Important interpretation
 
 - A1–A5 are **reconstructed** from the earlier chat specifications and the current Issue #266 record. They are not claimed to be byte-for-byte copies of unavailable Figma/chat artifacts.
-- A6–A13 are new visual wireframes to make the test-result flow and edge states reviewable directly in GitHub.
+- A6–A15 are new visual wireframes to make the test-result flow and edge states reviewable directly in GitHub.
 - Sample names, dates and values are illustrative only.
 - Product decisions already recorded in Issue #266 remain authoritative. These drawings do not approve new business rules.
 - The parent/child correction view intentionally shows only that the result was corrected and the current value. Detailed audit data (old/new values, author, time, reason) belongs to the authorized staff view.
