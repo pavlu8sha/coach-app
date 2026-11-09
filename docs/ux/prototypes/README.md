@@ -89,3 +89,19 @@
 - It records data-source dependencies for match participation and personal group-training history.
 - It keeps achievements and photo/consent decisions open for product confirmation.
 - A22 was cleaned up to remove realistic-looking sample identity and points values.
+
+
+## FC Kickstart collection card
+
+| ID | Screen / document | Preview |
+|---|---|---|
+| A26 | Collection card — front with/without photo, reverse side and mobile export preview | [SVG](kickstart-player-collection-card-front-back-v1.svg) |
+| A26 spec | Card fields, consent gating, QR, export behavior, states and acceptance criteria | [Specification](kickstart-player-card-ux-spec-v1.md) |
+
+### Notes for A26
+
+- The front uses the agreed club-card concept; the no-photo state is a complete branded composition.
+- The reverse side reserves space for season statistics and QR, but does not invent metrics or generate a fake working QR.
+- Assists, rarity tiers, levels and invented achievements are excluded.
+- Public export and photo use remain gated by the separately approved consent model; QR destination and public fields are open product decisions.
+- All names and values are placeholders. The SVG is a new UX proposal, not the original Kickstart presentation file.
