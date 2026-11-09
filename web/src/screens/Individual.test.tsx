@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { fake } from '../test/fakeSupabase';
+import { coachError } from '../lib/coach';
 import Individual from './Individual';
 
 const future = '2099-01-10T12:00:00';
@@ -55,6 +56,42 @@ describe('«Индивидуальные»', () => {
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Принять оплату' }));
     await waitFor(() => expect(fake.rpcCalls('ind_set_paid')).toHaveLength(1));
     expect(fake.rpcCalls('ind_set_paid')[0]).toMatchObject({ p: 'p1', is_paid: true, mth: 'Перевод' });
+  });
+
+  it('«Оплачено» без способа оплаты: ошибка рядом с полем на том же экране, список и раскрытие сохраняются', async () => {
+    seed();
+    fake.rpc.ind_set_paid = () => null;
+    render(<Individual />);
+    fireEvent.click(await screen.findByRole('tab', { name: 'Долги' }));
+    const btn = (await screen.findAllByRole('button', { name: /Принять оплату: Иванов Пётр/ }))[0];
+    const row = btn.closest('details') as HTMLDetailsElement;
+    row.open = true; // группа раскрыта пользователем до нажатия
+    fireEvent.click(btn);
+    expect(await screen.findByText('Выберите способ оплаты.')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Не удалось загрузить занятия' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Не удалось загрузить занятия')).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/^Способ оплаты/)).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByText('Иванов Пётр')).toBeInTheDocument(); // список на месте
+    expect(row.open).toBe(true); // раскрытая группа не закрылась
+    expect(fake.rpcCalls('ind_set_paid')).toHaveLength(0);
+    // после выбора способа ошибка уходит, оплата проходит
+    fireEvent.change(screen.getByLabelText(/^Способ оплаты/), { target: { value: 'Наличные' } });
+    expect(screen.queryByText('Выберите способ оплаты.')).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/^Способ оплаты/)).toHaveAttribute('aria-invalid', 'false');
+  });
+
+  it('ошибка базы при оплате из «Долгов» показывается на экране долгов, а не на экране загрузки', async () => {
+    seed();
+    fake.rpc.ind_set_paid = () => ({ error: { message: 'booking is paid' } });
+    render(<Individual />);
+    fireEvent.click(await screen.findByRole('tab', { name: 'Долги' }));
+    fireEvent.change(screen.getByLabelText(/^Способ оплаты/), { target: { value: 'Перевод' } });
+    fireEvent.click((await screen.findAllByRole('button', { name: /Принять оплату: Иванов Пётр/ }))[0]);
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Принять оплату' }));
+    await waitFor(() => expect(fake.rpcCalls('ind_set_paid')).toHaveLength(1));
+    expect(screen.queryByText('Не удалось загрузить занятия')).not.toBeInTheDocument();
+    expect(screen.getByText('Иванов Пётр')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(coachError('booking is paid'));
   });
 
   it('создание занятия: параметры уходят в ind_create_session, дубль даёт понятное сообщение', async () => {

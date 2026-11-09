@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDirtyGuard } from '../nav';
 import { coachError, fmtDate, groupInOrder, hm, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
@@ -44,6 +44,9 @@ export default function Individual() {
   const [hasMore, setHasMore] = useState(false);
   const [method, setMethod] = useState('');
   const [payDate, setPayDate] = useState(today());
+  // Ошибки оплаты из «Долгов» живут отдельно от ошибки загрузки: экран загрузки их не подменяет
+  const [payErr, setPayErr] = useState<string | null>(null);
+  const methodRef = useRef<HTMLSelectElement>(null);
 
   // сводка «Должники» над списком занятий, как в прежнем приложении
   useEffect(() => {
@@ -85,13 +88,18 @@ export default function Individual() {
   });
   // Оплата занятия прямо из списка долгов
   const payDebt = async (d: DebtRow) => {
-    if (!method) return setError('Выберите способ оплаты.');
+    setPayErr(null);
+    if (!method) {
+      setPayErr('Выберите способ оплаты.');
+      methodRef.current?.focus();
+      return;
+    }
+    if (payDate > today()) return setPayErr('Дата платежа не может быть в будущем.');
     if (!(await ask({ title: 'Принять оплату?', lines: [['Игрок', d.players?.full_name ?? 'Игрок'], ['Сумма', gel(Number(d.amount))], ['Занятие', title(d.individual_sessions)], ['Дата платежа', fmtDate(payDate)], ['Способ', method]], confirmLabel: 'Принять оплату' }))) return;
     setPaying(d.session_id + d.player_id);
-    if (payDate > today()) return setError('Дата платежа не может быть в будущем.');
     const r = await supabase.rpc('ind_set_paid', { s: d.session_id, p: d.player_id, is_paid: true, mth: method, d: payDate });
     setPaying(null);
-    if (r.error) return setError(coachError(r.error.message));
+    if (r.error) return setPayErr(coachError(r.error.message));
     setDebts(null);
     setReload(n => n + 1);
   };
@@ -99,12 +107,20 @@ export default function Individual() {
   return (
     <main className="page">
       <h1>Индивидуальные</h1>
-      <Segmented wrap label="Раздел" value={tab} onChange={v => { setList(null); setDebts(null); setLimit(PAGE); setHasMore(false); setTab(v); }} items={[{ value: 'next', label: 'Предстоящие' }, { value: 'past', label: 'Прошедшие' }, { value: 'debt', label: 'Долги' }, { value: 'regular', label: 'Постоянные' }, { value: 'cancel', label: 'Отмены' }, { value: 'wave', label: 'Первая волна' }]} />
+      <Segmented wrap label="Раздел" value={tab} onChange={v => { setList(null); setDebts(null); setPayErr(null); setLimit(PAGE); setHasMore(false); setTab(v); }} items={[{ value: 'next', label: 'Предстоящие' }, { value: 'past', label: 'Прошедшие' }, { value: 'debt', label: 'Долги' }, { value: 'regular', label: 'Постоянные' }, { value: 'cancel', label: 'Отмены' }, { value: 'wave', label: 'Первая волна' }]} />
       <div style={{ height: 10 }} />
       {tab === 'regular' && <IndRegulars />}
       {tab === 'cancel' && <BookingCancellations />}
       {tab === 'wave' && <FirstWave />}
-      {tab === 'debt' && <div className="two"><label className="field">Способ оплаты<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label><label className="field">Дата платежа<input type="date" value={payDate} max={today()} onChange={e => e.target.value && setPayDate(e.target.value)} /></label></div>}
+      {tab === 'debt' && (
+        <>
+          <div className="two">
+            <label className="field">Способ оплаты<select ref={methodRef} value={method} aria-invalid={payErr !== null && !method} aria-describedby={payErr && !method ? 'pay-method-err' : undefined} onChange={e => { setMethod(e.target.value); if (e.target.value) setPayErr(null); }}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>
+            <label className="field">Дата платежа<input type="date" value={payDate} max={today()} onChange={e => e.target.value && setPayDate(e.target.value)} /></label>
+          </div>
+          {payErr && <p id="pay-method-err" className="error" role="alert">{payErr}</p>}
+        </>
+      )}
       {(tab === 'next' || tab === 'past') && debtTotal && debtTotal.n > 0 && (
         <ListRow title="Должники" sub={[`Игроков: ${debtTotal.n}`]} end={<Pill tone="danger" dot>{gel(debtTotal.sum)}</Pill>} onClick={() => { setList(null); setDebts(null); setLimit(PAGE); setHasMore(false); setTab('debt'); }} />
       )}
