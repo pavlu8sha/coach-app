@@ -105,3 +105,20 @@
 - Assists, rarity tiers, levels and invented achievements are excluded.
 - Public export and photo use remain gated by the separately approved consent model; QR destination and public fields are open product decisions.
 - All names and values are placeholders. The SVG is a new UX proposal, not the original Kickstart presentation file.
+
+
+## Parent mobile collection-card flow
+
+| ID | Screen / document | Preview |
+|---|---|---|
+| A27 | Parent mobile journey — profile entry, front/back preview, save/share and consent boundary | [SVG](parent-player-card-mobile-flow-v1.svg) |
+| A27 spec | Mobile flow, states, privacy boundaries, responsive behavior and acceptance criteria | [Specification](parent-player-card-mobile-flow-v1.md) |
+
+### Notes for A27
+
+- Entry is inside the selected child's existing profile; the bottom navigation is unchanged.
+- The preview switches between front and reverse without editing player data.
+- Save and share are separate explicit user actions; sharing uses the system share sheet when supported.
+- A personal copy is distinct from publication by the club. Public photo use remains gated by the separately approved consent.
+- Missing statistics are not rendered as zero. QR remains inactive until its destination and public fields are approved.
+- The flow is a UX proposal, not implementation approval.
