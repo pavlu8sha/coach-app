@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1180" viewBox="0 0 1600 1180">
+<defs>
+ <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0b1730"/><stop offset="1" stop-color="#142b4b"/></linearGradient>
+ <linearGradient id="card" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#102746"/><stop offset="1" stop-color="#1b4164"/></linearGradient>
+ <style>
+ .h{font:700 30px Arial;fill:#17243a}.sub{font:16px Arial;fill:#65738a}.label{font:700 13px Arial;letter-spacing:1px;fill:#718096}.txt{font:16px Arial;fill:#1d2b40}.small{font:13px Arial;fill:#66758a}.white{fill:#fff}.muted{fill:#c8d4e4}.btn{font:700 15px Arial;fill:#fff}.tag{font:700 12px Arial;fill:#25634b}
+ </style>
+</defs>
+<rect width="1600" height="1180" fill="#eef2f7"/>
+<text x="64" y="58" class="h">A28 · Публичная карточка игрока</text>
+<text x="64" y="88" class="sub">Настройка полей → безопасный предпросмотр → публикация → управление ссылкой · UX proposal</text>
+<g transform="translate(55 125)">
+ <rect width="350" height="990" rx="28" fill="#fff" stroke="#d7dee8"/>
+ <text x="26" y="42" class="label">01 · НАСТРОЙКА</text><text x="26" y="82" class="h" font-size="24">Публичная карточка</text>
+ <text x="26" y="112" class="sub">Выберите, что будет видно по ссылке</text>
+ <rect x="24" y="140" width="302" height="72" rx="14" fill="#f2f6fa"/>
+ <circle cx="53" cy="176" r="15" fill="#dce8f5"/><path d="M47 176h12M53 170v12" stroke="#45617e" stroke-width="2"/>
+ <text x="78" y="169" class="txt" font-weight="700">Публичная страница</text><text x="78" y="191" class="small">Отдельно от внутреннего профиля</text>
+ <text x="26" y="250" class="label">ОСНОВНЫЕ ПОЛЯ</text>
+ <g class="txt">
+  <text x="28" y="290">Имя и фамилия</text><text x="28" y="344">Группа</text><text x="28" y="398">Позиция</text><text x="28" y="452">Игровой номер</text><text x="28" y="506">Год рождения</text>
+ </g>
+ <g fill="#1477d4"><rect x="278" y="270" width="38" height="22" rx="11"/><circle cx="304" cy="281" r="8" fill="#fff"/><rect x="278" y="324" width="38" height="22" rx="11"/><circle cx="304" cy="335" r="8" fill="#fff"/><rect x="278" y="378" width="38" height="22" rx="11"/><circle cx="304" cy="389" r="8" fill="#fff"/><rect x="278" y="432" width="38" height="22" rx="11"/><circle cx="304" cy="443" r="8" fill="#fff"/><rect x="278" y="486" width="38" height="22" rx="11"/><circle cx="304" cy="497" r="8" fill="#fff"/></g>
+ <path d="M24 535H326" stroke="#e4e9f0"/>
+ <text x="26" y="575" class="label">ФОТО</text>
+ <text x="26" y="612" class="txt">Фото игрока</text><text x="26" y="635" class="small">Загружено родителем</text>
+ <rect x="278" y="592" width="38" height="22" rx="11" fill="#1477d4"/><circle cx="304" cy="603" r="8" fill="#fff"/>
+ <rect x="24" y="670" width="302" height="82" rx="12" fill="#fff8e8" stroke="#f2dfb3"/>
+ <text x="40" y="700" class="txt" font-weight="700" fill="#76551c">Важно о приватности</text><text x="40" y="725" class="small">Матчи, платежи, посещаемость, тесты</text><text x="40" y="744" class="small">и цели не попадут на публичную страницу.</text>
+ <rect x="24" y="790" width="302" height="54" rx="12" fill="#1477d4"/><text x="175" y="824" text-anchor="middle" class="btn">Перейти к предпросмотру</text>
+ <text x="175" y="884" text-anchor="middle" class="small">Ссылка ещё не создана</text>
+ <text x="175" y="930" text-anchor="middle" class="small">Управление публикацией — у родителя</text>
+</g>
+<g transform="translate(435 125)">
+ <rect width="350" height="990" rx="28" fill="#fff" stroke="#d7dee8"/>
+ <text x="26" y="42" class="label">02 · ПРЕДПРОСМОТР</text><text x="26" y="82" class="h" font-size="24">Так увидят карточку</text>
+ <text x="26" y="112" class="sub">Проверьте состав до публикации</text>
+ <rect x="55" y="145" width="240" height="370" rx="20" fill="url(#card)"/>
+ <circle cx="175" cy="250" r="58" fill="#294f70" stroke="#6e91ae" stroke-width="2"/>
+ <circle cx="175" cy="232" r="22" fill="#d7e2ed"/><path d="M135 286q40-60 80 0" fill="#d7e2ed"/>
+ <text x="175" y="340" text-anchor="middle" class="white" font-family="Arial" font-size="24" font-weight="700">ИМЯ И ФАМИЛИЯ</text>
+ <text x="175" y="371" text-anchor="middle" class="muted" font-family="Arial" font-size="14">U13-A · Полузащитник</text>
+ <text x="175" y="430" text-anchor="middle" class="white" font-family="Arial" font-size="38" font-weight="700">№ 10</text>
+ <text x="175" y="478" text-anchor="middle" class="muted" font-family="Arial" font-size="13">FC KICKSTART</text>
+ <text x="26" y="560" class="label">БУДЕТ ОПУБЛИКОВАНО</text>
+ <g class="txt"><text x="28" y="600">✓ Имя и фамилия</text><text x="28" y="635">✓ Группа</text><text x="28" y="670">✓ Позиция</text><text x="28" y="705">✓ Игровой номер</text><text x="28" y="740">✓ Год рождения</text><text x="28" y="775">✓ Фото</text></g>
+ <rect x="24" y="810" width="302" height="70" rx="12" fill="#eff7ff" stroke="#c9e0f8"/>
+ <text x="40" y="840" class="txt" font-weight="700">Публичный доступ</text><text x="40" y="862" class="small">Откроется без входа в Coach App</text>
+ <rect x="24" y="900" width="302" height="54" rx="12" fill="#1477d4"/><text x="175" y="934" text-anchor="middle" class="btn">Подтвердить публикацию</text>
+</g>
+<g transform="translate(815 125)">
+ <rect width="350" height="990" rx="28" fill="#fff" stroke="#d7dee8"/>
+ <text x="26" y="42" class="label">03 · ПОДТВЕРЖДЕНИЕ</text><text x="26" y="82" class="h" font-size="24">Опубликовать карточку?</text>
+ <rect x="24" y="125" width="302" height="170" rx="16" fill="#f3f7fb"/>
+ <circle cx="75" cy="190" r="30" fill="#d8e5f1"/><path d="M56 204q19-30 38 0" fill="#a8bfd4"/>
+ <text x="120" y="177" class="txt" font-weight="700">Карточка игрока</text><text x="120" y="202" class="small">5 полей · фото включено</text><text x="120" y="230" class="small">Публичная страница</text>
+ <text x="26" y="345" class="label">ПЕРЕД ПУБЛИКАЦИЕЙ</text>
+ <circle cx="42" cy="390" r="10" fill="#d8f0e2"/><path d="M37 390l4 4 7-9" stroke="#26734f" stroke-width="2" fill="none"/>
+ <text x="64" y="386" class="txt">Я проверил(а) поля и фото</text><text x="64" y="408" class="small">Именно эта версия станет доступна</text>
+ <circle cx="42" cy="455" r="10" fill="#d8f0e2"/><path d="M37 455l4 4 7-9" stroke="#26734f" stroke-width="2" fill="none"/>
+ <text x="64" y="451" class="txt">Понимаю, что ссылка публичная</text><text x="64" y="473" class="small">Её сможет открыть любой, у кого она есть</text>
+ <rect x="24" y="535" width="302" height="105" rx="12" fill="#fff8e8" stroke="#f0dfb5"/>
+ <text x="40" y="570" class="txt" font-weight="700">Фото — отдельное разрешение</text><text x="40" y="596" class="small">Загрузка фото не равна согласию</text><text x="40" y="616" class="small">на публичное размещение.</text>
+ <rect x="24" y="690" width="302" height="54" rx="12" fill="#1477d4"/><text x="175" y="724" text-anchor="middle" class="btn">Создать публичную ссылку</text>
+ <text x="175" y="790" text-anchor="middle" class="small">После создания можно отключить доступ</text>
+ <text x="175" y="820" text-anchor="middle" class="small">в любой момент из настроек родителя</text>
+ <rect x="24" y="875" width="302" height="54" rx="12" fill="#f2f5f8"/><text x="175" y="909" text-anchor="middle" class="txt">Назад к настройке</text>
+</g>
+<g transform="translate(1195 125)">
+ <rect width="350" height="990" rx="28" fill="#fff" stroke="#d7dee8"/>
+ <text x="26" y="42" class="label">04 · УПРАВЛЕНИЕ</text><text x="26" y="82" class="h" font-size="24">Карточка опубликована</text>
+ <rect x="24" y="125" width="302" height="84" rx="14" fill="#eaf7ef"/>
+ <circle cx="52" cy="167" r="13" fill="#2c9864"/><path d="M46 167l4 4 8-9" stroke="#fff" stroke-width="2" fill="none"/>
+ <text x="78" y="160" class="txt" font-weight="700">Публичная ссылка активна</text><text x="78" y="184" class="small">Доступна без авторизации</text>
+ <text x="26" y="255" class="label">ССЫЛКА</text>
+ <rect x="24" y="275" width="302" height="54" rx="10" fill="#f2f5f8"/>
+ <text x="40" y="308" class="small">coach.app/p/••••••••</text>
+ <text x="26" y="375" class="label">ДЕЙСТВИЯ</text>
+ <rect x="24" y="398" width="302" height="48" rx="10" fill="#1477d4"/><text x="175" y="428" text-anchor="middle" class="btn">Скопировать ссылку</text>
+ <rect x="24" y="460" width="302" height="48" rx="10" fill="#edf4fb"/><text x="175" y="490" text-anchor="middle" class="txt">Открыть публичную страницу</text>
+ <rect x="24" y="522" width="302" height="48" rx="10" fill="#edf4fb"/><text x="175" y="552" text-anchor="middle" class="txt">Изменить поля и фото</text>
+ <path d="M24 610H326" stroke="#e4e9f0"/>
+ <text x="26" y="655" class="txt" font-weight="700">Отключить публичный доступ</text>
+ <text x="26" y="682" class="small">Ссылка перестанет открывать карточку.</text>
+ <text x="26" y="704" class="small">Внутренний профиль останется доступен.</text>
+ <rect x="24" y="750" width="302" height="54" rx="10" fill="#fff0f0" stroke="#f2caca"/>
+ <text x="175" y="784" text-anchor="middle" font-family="Arial" font-size="15" font-weight="700" fill="#a33b3b">Отключить ссылку</text>
+ <text x="175" y="860" text-anchor="middle" class="small">При повторной публикации — новый</text><text x="175" y="882" text-anchor="middle" class="small">явный предпросмотр и подтверждение</text>
+</g>
+</svg>
