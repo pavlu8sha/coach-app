@@ -17,7 +17,7 @@ create table consent_doc_versions (
   text_ref text,
   effective_from timestamptz not null default now(),
   accepting boolean not null default true,
-  created_at timestamptz not null default now(),
+  created_at timestamptz not null default clock_timestamp(),
   unique (consent_type, version),
   unique (id, consent_type)
 );
@@ -51,7 +51,7 @@ create policy parental_consent_events_read on parental_consent_events for select
   using (is_admin() or parent_user_id = current_user_id());
 
 create or replace function parental_consent_events_immutable() returns trigger
-language plpgsql set search_path = public as $$
+language plpgsql set search_path = public, pg_temp as $$
 begin
   raise exception 'consent history is append-only' using errcode = '42501';
 end $$;
@@ -87,28 +87,82 @@ grant select, insert, update on parental_consents to service_role;
 create policy parental_consents_read on parental_consents for select
   using (is_admin() or parent_user_id = current_user_id());
 
--- 3а. Согласие нельзя создать без связи: состояние и событие принимаются только для пары «этот родитель и этот ребёнок»,
---     у которой есть связь (player_guardians, в том числе со старым отзывом, чтобы родитель мог принять заново без повторной
---     привязки) либо действующий запрос на связь (pending или approved). Защита на уровне данных, она действует для любой роли.
-create or replace function parental_consent_link_guard() returns trigger
-language plpgsql security definer set search_path = public as $$
+-- 3а. Защита данных на уровне триггеров (действует для любой роли, в том числе service_role).
+--  а) Согласие создаётся только по существующей связи ЭТОГО родителя с этим ребёнком (player_guardians, в том числе
+--     со старым отзывом: родитель может принять заново без новой привязки). Запрос на связь (link_requests) связью не считается;
+--     для новой привязки согласие принимается после одобрения связи. Строка связи блокируется на время транзакции,
+--     чтобы её нельзя было удалить параллельно.
+--  б) Подтверждение (granted) принимается только для версии своего типа, которую можно принимать сейчас.
+--  в) Строка состояния принадлежит своей паре родитель + ребёнок + тип навсегда и ссылается на последнее собственное событие
+--     истории с тем же статусом и той же версией.
+--  г) У версии нельзя менять тип, название, дату вступления; текст-ссылку можно задать один раз.
+create or replace function parental_consent_link_check(parent uuid, player uuid) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
 begin
-  if not (
-    exists (select 1 from player_guardians where user_id = new.parent_user_id and player_id = new.player_id)
-    or exists (select 1 from link_requests where user_id = new.parent_user_id and player_id = new.player_id and status in ('pending', 'approved'))
-  ) then
-    raise exception 'no guardian link for this parent and child' using errcode = '23503';
+  perform 1 from player_guardians where user_id = parent and player_id = player for key share;
+  if not found then raise exception 'no guardian link for this parent and child' using errcode = '23503'; end if;
+end $$;
+
+create or replace function parental_consent_event_guard() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare v consent_doc_versions;
+begin
+  select * into v from consent_doc_versions where id = new.version_id;
+  if found and v.consent_type <> new.consent_type then
+    raise exception 'version belongs to another consent type' using errcode = '23503';
+  end if;
+  perform parental_consent_link_check(new.parent_user_id, new.player_id);
+  if found and new.event = 'granted' and not (v.accepting and v.effective_from <= now()) then
+    raise exception 'consent version is not accepted now' using errcode = '23514';
   end if;
   return new;
 end $$;
-create trigger parental_consents_link_guard before insert on parental_consents
-  for each row execute function parental_consent_link_guard();
-create trigger parental_consent_events_link_guard before insert on parental_consent_events
-  for each row execute function parental_consent_link_guard();
+create trigger parental_consent_events_guard before insert on parental_consent_events
+  for each row execute function parental_consent_event_guard();
+
+create or replace function parental_consent_state_guard() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare e parental_consent_events;
+begin
+  if tg_op = 'UPDATE' then
+    if (new.parent_user_id, new.player_id, new.consent_type) is distinct from (old.parent_user_id, old.player_id, old.consent_type) then
+      raise exception 'consent state identity is immutable' using errcode = '42501';
+    end if;
+  else
+    perform parental_consent_link_check(new.parent_user_id, new.player_id);
+  end if;
+  if new.last_event_id is not null then
+    select * into e from parental_consent_events where id = new.last_event_id;
+    if not found
+       or (e.parent_user_id, e.player_id, e.consent_type) is distinct from (new.parent_user_id, new.player_id, new.consent_type)
+       or e.event is distinct from new.status
+       or e.version_id is distinct from new.version_id
+       or exists (select 1 from parental_consent_events x
+                   where x.parent_user_id = e.parent_user_id and x.player_id = e.player_id and x.consent_type = e.consent_type and x.id > e.id) then
+      raise exception 'state must follow the latest own history event' using errcode = '23514';
+    end if;
+  end if;
+  return new;
+end $$;
+create trigger parental_consents_guard before insert or update on parental_consents
+  for each row execute function parental_consent_state_guard();
+
+create or replace function consent_doc_versions_guard() returns trigger
+language plpgsql set search_path = public, pg_temp as $$
+begin
+  if (new.id, new.consent_type, new.version, new.effective_from, new.created_at)
+       is distinct from (old.id, old.consent_type, old.version, old.effective_from, old.created_at)
+     or (old.text_ref is not null and new.text_ref is distinct from old.text_ref) then
+    raise exception 'consent version is immutable (only accepting and a first text_ref can change)' using errcode = '42501';
+  end if;
+  return new;
+end $$;
+create trigger consent_doc_versions_no_rewrite before update on consent_doc_versions
+  for each row execute function consent_doc_versions_guard();
 
 -- 4. Текущая версия типа: принимаемая версия с самой поздней датой вступления (уже наступившей).
 create or replace function consent_current_version(t text) returns uuid
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, pg_temp as $$
   select id from consent_doc_versions
    where consent_type = t and accepting and effective_from <= now()
    order by effective_from desc, created_at desc, id desc
@@ -119,21 +173,22 @@ $$;
 --    Нет текущей версии, нет строки, статус не granted или версия устарела — согласия нет.
 --    Снаружи не вызывается; используют серверные функции следующих этапов.
 create or replace function has_consent(parent uuid, player uuid, t text) returns boolean
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, pg_temp as $$
   select coalesce((
     select pc.status = 'granted' and pc.version_id = consent_current_version(t)
       from parental_consents pc
      where pc.parent_user_id = parent and pc.player_id = player and pc.consent_type = t
   ), false)
+  and exists (select 1 from player_guardians g where g.user_id = parent and g.player_id = player)
 $$;
 
 -- 6. Предикат для политик и функций: у текущего пользователя действует обязательное согласие по ребёнку.
 create or replace function my_data_consent_ok(p uuid) returns boolean
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, pg_temp as $$
   select current_user_id() is not null and has_consent(current_user_id(), p, 'data_processing')
 $$;
 
-revoke execute on function consent_current_version(text), has_consent(uuid, uuid, text), my_data_consent_ok(uuid), parental_consent_events_immutable(), parental_consent_link_guard() from public, anon, authenticated;
+revoke execute on function consent_current_version(text), has_consent(uuid, uuid, text), my_data_consent_ok(uuid), parental_consent_events_immutable(), parental_consent_link_check(uuid, uuid), parental_consent_event_guard(), parental_consent_state_guard(), consent_doc_versions_guard() from public, anon, authenticated;
 -- Для политик и представления: чужие данные они не раскрывают (текущая версия — общая для всех, предикат смотрит только на текущего пользователя).
 grant execute on function my_data_consent_ok(uuid), consent_current_version(text) to authenticated;
 

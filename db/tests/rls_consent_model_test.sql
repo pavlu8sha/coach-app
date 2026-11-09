@@ -3,7 +3,7 @@
 -- «ожидание» без записей и то, что старые данные и старое поведение не тронуты.
 begin;
 create extension if not exists pgtap;
-select plan(49);
+select plan(62);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -130,14 +130,14 @@ select is(
   0, 'гость (anon) новые функции не вызывает');
 select is(has_function_privilege('authenticated', 'has_consent(uuid, uuid, text)', 'execute'), false, 'внутренний предикат из приложения не вызывается');
 
--- Согласие только по существующей связи этого родителя
+-- Согласие только по существующей связи этого родителя (запрос на связь, даже действующий, связью не считается)
 insert into link_requests (user_id, player_id, status) values
   ('00000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-00000000d001', 'rejected');
 select throws_ok($$insert into parental_consents (parent_user_id, player_id, consent_type, version_id, status, granted_at, last_event_id) values ('00000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-00000000d001', 'media_publication', '00000000-0000-0000-0000-0000000f0002', 'granted', now(), 1)$$, '23503', 'no guardian link for this parent and child', 'состояние за чужого ребёнка не создаётся');
 select throws_ok($$insert into parental_consent_events (id, parent_user_id, player_id, consent_type, version_id, event, source) overriding system value values (98, '00000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-00000000d001', 'media_publication', '00000000-0000-0000-0000-0000000f0002', 'granted', 'app')$$, '23503', 'no guardian link for this parent and child', 'событие за чужого ребёнка не записывается (отклонённый запрос связью не считается)');
 insert into link_requests (user_id, player_id, status) values
   ('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d002', 'pending');
-select lives_ok($$insert into parental_consent_events (id, parent_user_id, player_id, consent_type, version_id, event, source) overriding system value values (97, '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d002', 'media_publication', '00000000-0000-0000-0000-0000000f0002', 'granted', 'app')$$, 'действующий запрос на связь допускает согласие при новой привязке');
+select throws_ok($$insert into parental_consent_events (id, parent_user_id, player_id, consent_type, version_id, event, source) overriding system value values (97, '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d002', 'media_publication', '00000000-0000-0000-0000-0000000f0002', 'granted', 'app')$$, '23503', 'no guardian link for this parent and child', 'ожидающий запрос на связь связью не считается: согласие по нему не принимается');
 
 -- Повторное принятие после старого отзыва: связь родителя В есть, новый режим даёт согласие без новой привязки и без правки старых строк
 select as_user('00000000-0000-0000-0000-0000000000b3');
@@ -160,6 +160,44 @@ select is((select consent_version from player_guardians where player_id = '00000
 select as_user('00000000-0000-0000-0000-0000000000b3');
 select is(my_data_consent_ok('00000000-0000-0000-0000-00000000d003'), true, 'обязательное согласие не зависит от публикационного (публикационного нет вовсе)');
 reset role;
+
+-- Состояние привязано к своей паре и своей истории
+select throws_ok($$update parental_consents set parent_user_id = '00000000-0000-0000-0000-0000000000b2' where parent_user_id = '00000000-0000-0000-0000-0000000000b1' and consent_type = 'data_processing'$$, '42501', 'consent state identity is immutable', 'состояние нельзя перенести на другого родителя');
+select throws_ok($$insert into parental_consents (parent_user_id, player_id, consent_type, version_id, status, granted_at, last_event_id) values ('00000000-0000-0000-0000-0000000000b3', '00000000-0000-0000-0000-00000000d003', 'media_publication', '00000000-0000-0000-0000-0000000f0002', 'granted', now(), 1)$$, '23514', 'state must follow the latest own history event', 'состояние не ссылается на событие другого родителя и другого типа');
+select throws_ok($$insert into parental_consents (parent_user_id, player_id, consent_type, version_id, status, granted_at, last_event_id) values ('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'media_publication', '00000000-0000-0000-0000-0000000f0002', 'granted', now(), 3)$$, '23514', 'state must follow the latest own history event', 'granted не ссылается на событие отзыва');
+select throws_ok($$update parental_consents set status = 'granted', granted_at = now(), last_event_id = 2 where parent_user_id = '00000000-0000-0000-0000-0000000000b1' and consent_type = 'media_publication'$$, '23514', 'state must follow the latest own history event', 'состояние ссылается только на последнее событие');
+
+-- Версии: принимаются только действующие, подпись нельзя переписать
+select throws_ok($$insert into parental_consent_events (id, parent_user_id, player_id, consent_type, version_id, event, source) overriding system value values (95, '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'data_processing', '00000000-0000-0000-0000-0000000f0001', 'granted', 'app')$$, '23514', 'consent version is not accepted now', 'подтверждение закрытой версии не записывается');
+select throws_ok($$insert into parental_consent_events (id, parent_user_id, player_id, consent_type, version_id, event, source) overriding system value values (94, '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'data_processing', '00000000-0000-0000-0000-0000000f0004', 'granted', 'app')$$, '23514', 'consent version is not accepted now', 'подтверждение ещё не вступившей версии не записывается');
+select throws_ok($$update consent_doc_versions set version = 'переписано' where id = '00000000-0000-0000-0000-0000000f0002'$$, '42501', null, 'название принятой версии менять нельзя');
+select lives_ok($$update consent_doc_versions set text_ref = 'syn-ref-1' where id = '00000000-0000-0000-0000-0000000f0002'$$, 'ссылку на текст можно задать один раз');
+select throws_ok($$update consent_doc_versions set text_ref = 'syn-ref-2' where id = '00000000-0000-0000-0000-0000000f0002'$$, '42501', null, 'заданную ссылку на текст менять нельзя');
+
+-- Связь удалена (например, erase_parent): согласие недействительно, пока связи нет
+delete from player_guardians where user_id = '00000000-0000-0000-0000-0000000000b3';
+select as_user('00000000-0000-0000-0000-0000000000b3');
+select is(my_data_consent_ok('00000000-0000-0000-0000-00000000d003'), false, 'без связи согласие не действует');
+reset role;
+
+-- Равные даты вступления: текущая — добавленная позже
+insert into consent_doc_versions (id, consent_type, version, effective_from) values
+  ('00000000-0000-0000-0000-0000000f0011', 'media_publication', 'syn-media-tie-a', now() - interval '1 second'),
+  ('00000000-0000-0000-0000-0000000f0010', 'media_publication', 'syn-media-tie-b', now() - interval '1 second');
+select is(consent_current_version('media_publication'), '00000000-0000-0000-0000-0000000f0010'::uuid, 'при равных датах текущая — добавленная позже, а не по случайному идентификатору');
+
+-- Подмена таблицы временной не даёт согласия
+select as_user('00000000-0000-0000-0000-0000000000b3');
+create temp table parental_consents (parent_user_id uuid, player_id uuid, consent_type text, status text, version_id uuid);
+insert into pg_temp.parental_consents values ('00000000-0000-0000-0000-0000000000b3', '00000000-0000-0000-0000-00000000d002', 'data_processing', 'granted', (select consent_current_version('data_processing')));
+select is(my_data_consent_ok('00000000-0000-0000-0000-00000000d002'), false, 'временная таблица с тем же именем не подменяет проверку');
+drop table pg_temp.parental_consents;
+reset role;
+
+-- Права service_role на внутренние функции
+select is(
+  (select count(*)::int from pg_proc p where p.proname in ('my_data_consent_ok', 'consent_current_version', 'has_consent', 'parental_consent_link_check', 'parental_consent_event_guard', 'parental_consent_state_guard', 'consent_doc_versions_guard') and has_function_privilege('service_role', p.oid, 'execute')),
+  0, 'service_role новые функции напрямую не вызывает');
 
 select * from finish();
 rollback;
