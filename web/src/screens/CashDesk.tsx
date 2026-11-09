@@ -10,7 +10,7 @@ import { gel, monthIso, monthName, nextMonth, SEASON_START, tariffFor } from './
 import { useNavState } from '../nav';
 
 interface Pl { id: string; full_name: string; group_id: string | null; groups: { name: string } | null; external_id?: string | null; birth_date?: string | null; status?: string }
-interface Due { key: string; kind: 'sub' | 'eq' | 'ind' | 'extra' | 'camp'; section: string; title: string; sub?: string; due: number; paid: number; month?: string; advance?: boolean; pay: (amount: number, method: string, date: string) => PromiseLike<{ error: { message: string } | null }>; discount?: () => PromiseLike<{ error: { message: string } | null }> }
+interface Due { key: string; kind: 'sub' | 'eq' | 'ind' | 'extra' | 'camp' | 'match' | 'event'; section: string; title: string; sub?: string; due: number; paid: number; month?: string; advance?: boolean; pay: (amount: number, method: string, date: string) => PromiseLike<{ error: { message: string } | null }>; discount?: () => PromiseLike<{ error: { message: string } | null }> }
 
 const METHODS = ['Наличные', 'Перевод'];
 const PAY_METHODS = ['Наличные', 'Перевод'];
@@ -19,10 +19,11 @@ const JUMPS = [
   { label: 'Индивидуальные', section: 'Индивидуальные и вратари' }, { label: 'Дополнительные', section: 'Дополнительные тренировки' },
 ];
 const r2 = (n: number) => Math.round(n * 100) / 100;
-const SECTIONS = ['Абонемент', 'Экипировка', 'Индивидуальные и вратари', 'Дополнительные тренировки', 'Сборы'];
+const SECTIONS = ['Абонемент', 'Экипировка', 'Индивидуальные и вратари', 'Дополнительные тренировки', 'Сборы', 'Взносы матчей', 'Взносы событий'];
+const EVENT_KIND: Record<string, string> = { championship: 'Чемпионат', festival: 'Фестиваль', cup: 'Кубок' };
 const errText = (m: string) => (m.includes('paid above total') ? 'Оплата больше суммы заказа.' : m.includes('bad amount') ? 'Сумма указана неверно.' : coachError(m));
 
-/** Всё, что игрок должен: абонемент по месяцам, заказы экипировки, занятия и сборы. Платёж по строке идёт в нужный раздел. */
+/** Всё, что игрок должен: абонемент по месяцам, заказы экипировки, занятия, сборы, взносы матчей и событий. Платёж по строке идёт в нужный раздел. */
 async function loadDues(p: Pl): Promise<Due[]> {
   const out: Due[] = [];
   const noSub = (p.groups?.name ?? '').trim().toLowerCase() === 'индивидуальные / вратарские';
@@ -91,6 +92,36 @@ async function loadDues(p: Pl): Promise<Due[]> {
     if (got >= Number(c.amount)) return;
     out.push({ key: 'camp' + c.id, kind: 'camp', section: SECTIONS[4], title: c.camps?.name ?? 'Сбор', due: Number(c.amount), paid: got, pay: (amount, method, date) => supabase.rpc('camp_pay', { pid: c.id, amt: r2(amount), k: 'payment', d: date, mth: method, cmt: null }) });
   });
+  // взносы матчей и событий (match_fees, tournament_fees): остаток = взнос минус платежи; флаг paid без платежей — оплата из импорта (как в match_pay и event_pay).
+  // Сбой чтения не ломает остальные разделы: такие строки просто не показываются.
+  const [mFees, mPays, tFees, tPays] = await Promise.all([
+    supabase.from('match_fees').select('match_id, amount, paid, matches(played_on, team, opponent, kind)').eq('player_id', p.id),
+    supabase.from('match_payments').select('match_id, amount').eq('player_id', p.id),
+    supabase.from('tournament_fees').select('tournament_id, amount, paid, tournaments(name, kind, team)').eq('player_id', p.id),
+    supabase.from('tournament_payments').select('tournament_id, amount').eq('player_id', p.id),
+  ]);
+  const sumBy = (rows: unknown, key: string) => { const m = new Map<string, { sum: number; n: number }>(); ((rows ?? []) as Record<string, unknown>[]).forEach(x => { const k = String(x[key]); const c = m.get(k) ?? { sum: 0, n: 0 }; m.set(k, { sum: c.sum + Number(x.amount), n: c.n + 1 }); }); return m; };
+  const paidOf = (pays: Map<string, { sum: number; n: number }>, id: string, fee: number, flag: boolean) => { const c = pays.get(id); return !c && flag ? fee : r2(c?.sum ?? 0); };
+  if (!mFees.error && !mPays.error) {
+    const pays = sumBy(mPays.data, 'match_id');
+    ((mFees.data ?? []) as unknown as { match_id: string; amount: number; paid: boolean; matches: { played_on: string; team: string; opponent: string | null; kind: string | null } | null }[]).forEach(f => {
+      const fee = Number(f.amount);
+      const got = paidOf(pays, f.match_id, fee, f.paid);
+      if (fee <= 0 || got >= fee) return;
+      const m = f.matches;
+      out.push({ key: 'mf' + f.match_id, kind: 'match', section: SECTIONS[5], title: m ? `${fmtDate(m.played_on)} · ${m.team}${m.opponent ? ` — ${m.opponent}` : ''}` : 'Матч', sub: m?.kind === 'friendly' ? 'товарищеская игра' : undefined, due: fee, paid: got, pay: (amount, method, date) => supabase.rpc('match_pay', { m: f.match_id, ids: [p.id], amt: r2(amount), d: date, mth: method, cmt: null }) });
+    });
+  }
+  if (!tFees.error && !tPays.error) {
+    const pays = sumBy(tPays.data, 'tournament_id');
+    ((tFees.data ?? []) as unknown as { tournament_id: string; amount: number; paid: boolean; tournaments: { name: string | null; kind: string; team: string } | null }[]).forEach(f => {
+      const fee = Number(f.amount);
+      const got = paidOf(pays, f.tournament_id, fee, f.paid);
+      if (fee <= 0 || got >= fee) return;
+      const t = f.tournaments;
+      out.push({ key: 'tf' + f.tournament_id, kind: 'event', section: SECTIONS[6], title: t ? (t.name?.trim() || `${EVENT_KIND[t.kind] ?? 'Событие'} ${t.team}`) : 'Событие', sub: t?.name && t.kind ? `${EVENT_KIND[t.kind] ?? ''} ${t.team}`.trim() : undefined, due: fee, paid: got, pay: (amount, method, date) => supabase.rpc('event_pay', { t: f.tournament_id, ids: [p.id], amt: r2(amount), d: date, mth: method, cmt: null }) });
+    });
+  }
   return out;
 }
 
@@ -307,7 +338,7 @@ export function PlayerDues({ player, onBack, embedded = false, sharedMethod }: {
       {msg && <p className="ks-ok">{msg}</p>}
       {dues && dues.length > 0 && !dues.some(d => !d.advance) && <p className="muted">Долгов нет. Ниже можно принять оплату вперёд.</p>}
       {!dues ? <Loading /> : dues.length === 0 ? (
-        <EmptyState icon="users" title="Долгов нет" text="По абонементу, экипировке, занятиям и сборам всё оплачено." />
+        <EmptyState icon="users" title="Долгов нет" text="По абонементу, экипировке, занятиям, сборам и взносам матчей и событий всё оплачено." />
       ) : (
         SECTIONS.filter(s => dues.some(d => d.section === s)).map(s => (
           <section key={s} data-sec={s}>
@@ -383,7 +414,7 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false 
         <div style={{ marginTop: 8 }}>
           {!fixedAmount && <label className="field">Сумма, ₾ (меньше остатка — частичный платёж, останется долг)<input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /></label>}
           {(() => {
-            const dateField = due.kind === 'sub' || due.kind === 'eq' || due.kind === 'camp' || due.kind === 'ind' || due.kind === 'extra' ? <label className="field">Дата<input type="date" value={date} max={today()} onChange={e => setDate(e.target.value)} /></label> : null;
+            const dateField = due.kind === 'sub' || due.kind === 'eq' || due.kind === 'camp' || due.kind === 'ind' || due.kind === 'extra' || due.kind === 'match' || due.kind === 'event' ? <label className="field">Дата<input type="date" value={date} max={today()} onChange={e => setDate(e.target.value)} /></label> : null;
             const methodField = sharedMethod !== undefined ? null : <label className="field">Способ<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>;
             return dateField && methodField ? <div className="two pay-fields">{dateField}{methodField}</div> : dateField ?? methodField;
           })()}
