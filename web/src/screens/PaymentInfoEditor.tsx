@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useDirtyGuard } from '../nav';
 import { FALLBACK_PAYMENT_INFO, updatedLabel, usePaymentInfo, type PaymentInfoData } from '../lib/paymentInfo';
+import { ExpandableTextarea } from '../ui/ExpandableTextarea';
 import { supabase } from '../lib/supabase';
 import { Loading } from './Message';
 
@@ -54,7 +55,7 @@ function Form({ initial }: { initial: PaymentInfoData }) {
       {titles.map((t, i) => (
         <div className="ks-card" key={i}>
           <label className="field">Заголовок раздела {i + 1}<input value={t} maxLength={200} onChange={e => setTitles(v => v.map((x, j) => (j === i ? e.target.value : x)))} /></label>
-          <label className="field">Пункты раздела {i + 1} (каждый с новой строки)<textarea rows={6} value={texts[i]} onChange={e => setTexts(v => v.map((x, j) => (j === i ? e.target.value : x)))} /></label>
+          <ExpandableTextarea label={`Пункты раздела ${i + 1} (каждый с новой строки)`} rows={6} value={texts[i]} onChange={val => setTexts(v => v.map((x, j) => (j === i ? val : x)))} />
         </div>
       ))}
       {msg && <p className={msg.ok ? 'ks-ok' : 'error'}>{msg.text}</p>}
