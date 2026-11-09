@@ -2,7 +2,7 @@
 -- гостевые заявки: подача, чтение, модерация администратором, доступ гостя после подтверждения.
 begin;
 create extension if not exists pgtap;
-select plan(60);
+select plan(83);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -10,20 +10,25 @@ insert into users (id, telegram_id, display_name, is_admin) values
   ('00000000-0000-0000-0000-0000000000b1', 9802, 'Заявитель 1', false),
   ('00000000-0000-0000-0000-0000000000b2', 9803, 'Заявитель 2', false),
   ('00000000-0000-0000-0000-0000000000c1', 9804, 'Тренер', false),
-  ('00000000-0000-0000-0000-0000000000d1', 9805, 'Локальный админ', false);
+  ('00000000-0000-0000-0000-0000000000d1', 9805, 'Локальный админ', false),
+  ('00000000-0000-0000-0000-0000000000b3', 9806, 'Заявитель 3', false);
 insert into location_admins (user_id, location) values ('00000000-0000-0000-0000-0000000000d1', 'Исани');
 insert into camps (id, club_id, name, location, starts_on, ends_on, active) values
   ('00000000-0000-0000-0000-0000000000ca', '00000000-0000-0000-0000-00000000c001', 'Зимний сбор', 'Исани', '2099-01-03', '2099-01-10', true),
   ('00000000-0000-0000-0000-0000000000cb', '00000000-0000-0000-0000-00000000c001', 'Другой сбор', 'Исани', '2099-02-03', '2099-02-10', true),
   ('00000000-0000-0000-0000-0000000000cc', '00000000-0000-0000-0000-00000000c001', 'Старый сбор', 'Исани', '2020-01-03', '2020-01-10', true),
-  ('00000000-0000-0000-0000-0000000000cd', '00000000-0000-0000-0000-00000000c001', 'Неактивный сбор', 'Исани', '2099-03-03', '2099-03-10', false);
+  ('00000000-0000-0000-0000-0000000000cd', '00000000-0000-0000-0000-00000000c001', 'Неактивный сбор', 'Исани', '2099-03-03', '2099-03-10', false),
+  ('00000000-0000-0000-0000-0000000000ce', '00000000-0000-0000-0000-00000000c001', 'Сбор для замечаний проверки', 'Исани', '2099-04-03', '2099-04-10', true),
+  ('00000000-0000-0000-0000-0000000000cf', '00000000-0000-0000-0000-00000000c001', 'Четвёртый сбор', 'Исани', '2099-05-03', '2099-05-10', true);
 insert into camp_tariffs (id, camp_id, name, price, active) values
   ('00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-0000000000ca', 'Футболист', 1000, true),
   ('00000000-0000-0000-0000-0000000000e2', '00000000-0000-0000-0000-0000000000ca', 'Снятый', 500, false),
   ('00000000-0000-0000-0000-0000000000e3', '00000000-0000-0000-0000-0000000000cb', 'Тариф другого сбора', 900, true),
   ('00000000-0000-0000-0000-0000000000e4', '00000000-0000-0000-0000-0000000000cc', 'Старый', 500, true),
   ('00000000-0000-0000-0000-0000000000e5', '00000000-0000-0000-0000-0000000000cd', 'Неактивного', 500, true),
-  ('00000000-0000-0000-0000-0000000000e6', '00000000-0000-0000-0000-0000000000ca', 'Временный', 700, true);
+  ('00000000-0000-0000-0000-0000000000e6', '00000000-0000-0000-0000-0000000000ca', 'Временный', 700, true),
+  ('00000000-0000-0000-0000-0000000000e7', '00000000-0000-0000-0000-0000000000ce', 'Тариф замечаний', 800, true),
+  ('00000000-0000-0000-0000-0000000000e8', '00000000-0000-0000-0000-0000000000cf', 'Тариф четвёртого', 800, true);
 
 create or replace function as_user(uid uuid) returns void language plpgsql as $$
 begin
@@ -144,6 +149,73 @@ select is((select count(*)::int from camp_participants), 1, 'заявитель 
 select is((select coalesce(sum(amount), 0) from camp_payments), 0::numeric, 'чужих платежей заявитель 2 не видит');
 select as_user('00000000-0000-0000-0000-0000000000c1');
 select is((select count(*)::int from camp_participants) + (select count(*)::int from camp_payments), 0, 'тренер гостей и их платежей не видит');
+
+
+-- ===== Замечания независимой проверки (чужая запись по имени, тёзки, повторная заявка, юникод, владелец, суточный лимит) =====
+\set ce '\'00000000-0000-0000-0000-0000000000ce\''
+\set e7 '\'00000000-0000-0000-0000-0000000000e7\''
+select as_user('00000000-0000-0000-0000-0000000000b1');
+select camp_apply(:ce, 'Иван Петров', '2015-01-01', 'Мама А', '555 11 11 11', :e7, null);
+select as_user('00000000-0000-0000-0000-0000000000a1');
+insert into ids select 'x1', camp_application_decide((select id from camp_applications where camp_id = :ce and child_name = 'Иван Петров'), true, null);
+select camp_pay((select id from ids where k = 'x1'), 300, 'payment', current_date, 'Наличные', null);
+select camp_update_participant((select id from ids where k = 'x1'), null, 800, null, null, 'declined');
+select as_user('00000000-0000-0000-0000-0000000000b2');
+select camp_apply(:ce, 'иван петров', '2016-06-06', 'Мама Б', '555 22 22 22', :e7, null);
+select as_user('00000000-0000-0000-0000-0000000000a1');
+insert into ids select 'x2', camp_application_decide((select id from camp_applications where camp_id = :ce and child_birth = '2016-06-06'), true, null);
+select isnt((select id from ids where k = 'x2'), (select id from ids where k = 'x1'), 'тёзка с другой датой рождения получает новую запись, чужая отказанная запись не забирается');
+select is((select guest_name from camp_participants where id = (select id from ids where k = 'x2')), 'иван петров (06.06.2016)', 'имя тёзки получает дату рождения');
+select as_user('00000000-0000-0000-0000-0000000000b2');
+select is((select coalesce(sum(amount), 0) from camp_payments where participant_id = (select id from ids where k = 'x1')), 0::numeric, 'новый гость не видит платежей прежней записи с тем же именем');
+select is((select count(*)::int from camp_participant_events where participant_id = (select id from ids where k = 'x1')), 0, 'новый гость не видит журнал прежней записи с тем же именем');
+select as_user('00000000-0000-0000-0000-0000000000b1');
+select is((select coalesce(sum(amount), 0) from camp_payments where participant_id = (select id from ids where k = 'x1')), 300::numeric, 'прежний владелец по-прежнему видит свои платежи');
+select is((select count(*)::int from camp_participants where camp_id = :ce), 1, 'прежний владелец видит только свою запись');
+select as_user('00000000-0000-0000-0000-0000000000a1');
+select throws_ok($$select camp_register_guest('00000000-0000-0000-0000-0000000000ce', 'Иван Петров', null, '00000000-0000-0000-0000-0000000000e7', null, null, null)$$, '23505', 'guest has owner', 'админ не поднимает чужую запись с владельцем через ручную запись гостя');
+-- тёзки
+select as_user('00000000-0000-0000-0000-0000000000b1');
+select camp_apply(:ce, 'Анна Ли', '2015-01-01', 'Мама А', '555 11 11 11', :e7, null);
+select as_user('00000000-0000-0000-0000-0000000000b2');
+select camp_apply(:ce, 'Анна Ли', '2017-02-02', 'Мама Б', '555 22 22 22', :e7, null);
+select as_user('00000000-0000-0000-0000-0000000000a1');
+insert into ids select 'y1', camp_application_decide((select id from camp_applications where camp_id = :ce and child_name = 'Анна Ли' and child_birth = '2015-01-01'), true, null);
+select lives_ok($$select camp_application_decide((select id from camp_applications where camp_id = '00000000-0000-0000-0000-0000000000ce' and child_name = 'Анна Ли' and child_birth = '2017-02-02'), true, null)$$, 'подтверждение тёзки с другой датой рождения проходит');
+select is((select count(*)::int from camp_participants where camp_id = :ce and status = 'registered' and guest_name like 'Анна Ли%'), 2, 'оба тёзки стали участниками');
+-- повторная заявка после отказа участника
+select camp_update_participant((select id from ids where k = 'y1'), null, 800, null, null, 'declined');
+select as_user('00000000-0000-0000-0000-0000000000b1');
+select lives_ok($$select camp_apply('00000000-0000-0000-0000-0000000000ce', 'Анна Ли', '2015-01-01', 'Мама А', '555 11 11 11', '00000000-0000-0000-0000-0000000000e7', null)$$, 'после отказа участника повторная заявка принимается');
+select as_user('00000000-0000-0000-0000-0000000000a1');
+insert into ids select 'y3', camp_application_decide((select id from camp_applications where camp_id = :ce and child_name = 'Анна Ли' and status = 'new'), true, null);
+select isnt((select id from ids where k = 'y3'), (select id from ids where k = 'y1'), 'повторное подтверждение создаёт новую запись');
+select is((select status from camp_participants where id = (select id from ids where k = 'y1')), 'declined', 'прежняя запись остаётся отказанной');
+-- юникод и пустышки
+select as_user('00000000-0000-0000-0000-0000000000b1');
+select camp_apply(:ce, 'Мария Иванова', '2015-03-03', 'Мама А', '555 11 11 11', :e7, null);
+select camp_apply(:ce, 'Юрий Ли', '2015-04-04', 'Мама А', '555 11 11 11', :e7, null);
+select as_user('00000000-0000-0000-0000-0000000000b2');
+select throws_ok($$select camp_apply('00000000-0000-0000-0000-0000000000ce', U&'Мария\00A0Иванова', '2015-03-03', 'Мама Б', '555 22 22 22', '00000000-0000-0000-0000-0000000000e7', null)$$, '23505', 'already applied', 'дубль с неразрывным пробелом отклоняется');
+select throws_ok($$select camp_apply('00000000-0000-0000-0000-0000000000ce', 'Мария' || chr(8203) || ' Иванова', '2015-03-03', 'Мама Б', '555 22 22 22', '00000000-0000-0000-0000-0000000000e7', null)$$, '23505', 'already applied', 'дубль с невидимым символом отклоняется');
+select throws_ok($$select camp_apply('00000000-0000-0000-0000-0000000000ce', normalize('Юрий Ли', NFD), '2015-04-04', 'Мама Б', '555 22 22 22', '00000000-0000-0000-0000-0000000000e7', null)$$, '23505', 'already applied', 'дубль в другой форме юникода отклоняется');
+select throws_ok($$select camp_apply('00000000-0000-0000-0000-0000000000ce', repeat(chr(8203), 3), '2015-05-05', 'Мама Б', '555 22 22 22', '00000000-0000-0000-0000-0000000000e7', null)$$, '22023', 'bad application', 'имя ребёнка из невидимых символов отклоняется');
+select throws_ok($$select camp_apply('00000000-0000-0000-0000-0000000000ce', 'Пустышка', '2015-05-05', repeat(chr(8203), 3), '555 22 22 22', '00000000-0000-0000-0000-0000000000e7', null)$$, '22023', 'bad application', 'имя родителя из невидимых символов отклоняется');
+select throws_ok($$select camp_apply('00000000-0000-0000-0000-0000000000ce', 'Пустышка', '2015-05-05', 'Мама Б', '-----', '00000000-0000-0000-0000-0000000000e7', null)$$, '22023', 'bad application', 'телефон без цифр отклоняется');
+select throws_ok($$select camp_apply('00000000-0000-0000-0000-0000000000ce', 'Пустышка', '2015-05-05', 'Мама Б', '+-1 2', '00000000-0000-0000-0000-0000000000e7', null)$$, '22023', 'bad application', 'телефон менее 5 цифр отклоняется');
+-- владелец записи неизменяем
+select as_user('00000000-0000-0000-0000-0000000000a1');
+select throws_ok($$update camp_participants set owner_user_id = '00000000-0000-0000-0000-0000000000b2' where id = (select id from ids where k = 'x1')$$, 'P0001', 'immutable', 'владельца гостевой записи нельзя сменить');
+select throws_ok($$update camp_participants set owner_user_id = null where id = (select id from ids where k = 'x1')$$, 'P0001', 'immutable', 'владельца гостевой записи нельзя сбросить');
+-- суточный лимит заявок одного пользователя
+select as_user('00000000-0000-0000-0000-0000000000b3');
+select camp_apply(c, 'Лимит ' || n, '2015-01-01', 'Мама В', '555 33 33 33', t, null)
+  from (values ('00000000-0000-0000-0000-0000000000ca'::uuid, '00000000-0000-0000-0000-0000000000e1'::uuid), ('00000000-0000-0000-0000-0000000000cb', '00000000-0000-0000-0000-0000000000e3'),
+               ('00000000-0000-0000-0000-0000000000ce', '00000000-0000-0000-0000-0000000000e7'), ('00000000-0000-0000-0000-0000000000cf', '00000000-0000-0000-0000-0000000000e8')) camps(c, t),
+       generate_series(1, 3) n
+  where not (c = '00000000-0000-0000-0000-0000000000cf' and n > 1);
+select is((select count(*)::int from camp_applications where owner_user_id = '00000000-0000-0000-0000-0000000000b3'), 10, 'до суточного лимита принято 10 заявок');
+select throws_ok($$select camp_apply('00000000-0000-0000-0000-0000000000cf', 'Лимит 99', '2015-01-01', 'Мама В', '555 33 33 33', '00000000-0000-0000-0000-0000000000e8', null)$$, '22023', 'too many applications', 'одиннадцатая заявка за сутки отклоняется');
 
 -- ===== Права на таблицу =====
 select ok(not has_table_privilege('authenticated', 'camp_applications', 'insert') and not has_table_privilege('authenticated', 'camp_applications', 'update') and not has_table_privilege('authenticated', 'camp_applications', 'delete')
