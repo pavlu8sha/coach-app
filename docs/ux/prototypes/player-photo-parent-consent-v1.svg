@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="980" viewBox="0 0 1100 980">
+<defs><style>.bg{fill:#f4f6fa}.panel{fill:#fff;stroke:#dce2eb;stroke-width:1.3}.ink{fill:#182334;font-family:Inter,Arial,sans-serif}.muted{fill:#6c7889;font-family:Inter,Arial,sans-serif}.h1{font-size:25px;font-weight:700}.h2{font-size:18px;font-weight:700}.body{font-size:14px}.small{font-size:12px}.label{font-size:11px;font-weight:700;letter-spacing:.5px}.line{stroke:#e6eaf0;stroke-width:1}.blue{fill:#2458d3}.bt{fill:#2458d3;font-family:Arial,sans-serif}.amber{fill:#fff4df}.at{fill:#95600c;font-family:Arial,sans-serif}.green{fill:#e7f5ed}.gt{fill:#23744b;font-family:Arial,sans-serif}</style></defs>
+<rect width="1100" height="980" class="bg"/><text x="40" y="42" class="muted label">COACH APP · UX PROPOSAL · ISSUE #266</text><text x="40" y="82" class="ink h1">Фото игрока и согласия родителя</text><text x="40" y="108" class="muted body">Фото необязательно · управление доступно родителю · публичное использование — отдельное согласие</text>
+<!-- no photo -->
+<rect x="40" y="140" width="490" height="780" rx="14" class="panel"/>
+<text x="72" y="184" class="ink h2">Состояние 1 · Фото не добавлено</text>
+<rect x="72" y="212" width="426" height="260" rx="10" fill="#101d38"/>
+<circle cx="285" cy="310" r="58" fill="#25375a"/><path d="M190 435 Q205 360 285 360 Q365 360 380 435Z" fill="#25375a"/>
+<text x="285" y="452" text-anchor="middle" fill="#fff" font-family="Arial" font-size="14" font-weight="700">KICKSTART</text>
+<text x="72" y="510" class="ink h2">Георгий Метревели</text><text x="72" y="536" class="muted small">Карточка игрока доступна и без фотографии</text>
+<rect x="72" y="566" width="426" height="48" rx="8" class="blue"/><text x="285" y="596" text-anchor="middle" fill="#fff" font-family="Arial" font-size="14" font-weight="700">Добавить фотографию</text>
+<text x="72" y="650" class="ink body">Фото можно добавить в любое время.</text><text x="72" y="674" class="ink body">Без фото профиль, тестирование и прогресс</text><text x="72" y="698" class="ink body">остаются доступными.</text>
+<rect x="72" y="736" width="426" height="112" rx="8" class="amber"/><text x="94" y="766" class="at small" font-weight="700">ВАЖНО</text><text x="94" y="792" class="ink small">Команда и администраторы не загружают</text><text x="94" y="814" class="ink small">фото вместо родителя.</text>
+<!-- photo uploaded -->
+<rect x="570" y="140" width="490" height="780" rx="14" class="panel"/>
+<text x="602" y="184" class="ink h2">Состояние 2 · Фото добавлено</text>
+<rect x="602" y="212" width="426" height="260" rx="10" fill="#101d38"/>
+<circle cx="815" cy="310" r="58" fill="#d2a27e"/><path d="M756 300 Q760 240 815 246 Q870 245 874 300 Q855 275 815 276 Q775 275 756 300Z" fill="#34251f"/><path d="M720 435 Q735 360 815 360 Q895 360 910 435Z" fill="#e7eaf0"/>
+<text x="815" y="452" text-anchor="middle" fill="#fff" font-family="Arial" font-size="14" font-weight="700">KICKSTART</text>
+<text x="602" y="510" class="ink h2">Георгий Метревели</text><text x="602" y="536" class="muted small">Фото добавлено родителем</text>
+<rect x="602" y="566" width="202" height="46" rx="8" fill="#fff" stroke="#cfd7e2"/><text x="703" y="595" text-anchor="middle" class="ink body" font-weight="700">Заменить фото</text>
+<rect x="816" y="566" width="212" height="46" rx="8" fill="#fff" stroke="#cfd7e2"/><text x="922" y="595" text-anchor="middle" class="ink body" font-weight="700">Удалить фото</text>
+<text x="602" y="652" class="ink h2">Публичное использование</text>
+<rect x="602" y="672" width="426" height="102" rx="8" fill="#f7f9fc"/>
+<text x="624" y="704" class="muted label">СОГЛАСИЕ</text><text x="624" y="735" class="ink body" font-weight="700">Статус согласия отображается отдельно</text><text x="624" y="757" class="muted small">Состояние по умолчанию требует продуктового подтверждения.</text>
+<rect x="602" y="796" width="426" height="74" rx="8" class="amber"/><text x="624" y="824" class="at small" font-weight="700">НЕ СМЕШИВАТЬ</text><text x="624" y="848" class="ink small">Фото в профиле ≠ согласие на публикацию.</text>
+<text x="40" y="954" class="muted small">Демонстрационный визуал. Вопросы о начальном статусе согласий и действиях при отзыве остаются открытыми.</text>
+</svg>
