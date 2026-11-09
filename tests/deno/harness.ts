@@ -38,6 +38,8 @@ export interface SupabaseState {
   docFinishError: { code: string; message: string } | null;
   storageUploadStatus: number;
   storageSignStatus: number;
+  docStatus: string | null;
+  docStatusError: string | null;
 }
 
 function freshState(): SupabaseState {
@@ -65,6 +67,8 @@ function freshState(): SupabaseState {
     docFinishError: null,
     storageUploadStatus: 200,
     storageSignStatus: 200,
+    docStatus: null,
+    docStatusError: null,
   };
 }
 
@@ -125,6 +129,10 @@ export function createSupabaseFake() {
     }
     if (url.pathname === "/rest/v1/rpc/camp_document_finish") {
       return state.docFinishError ? pgError(state.docFinishError) : new Response(null, { status: 204 });
+    }
+    if (url.pathname === "/rest/v1/camp_documents" && req.method === "GET") {
+      if (state.docStatusError) return postgrestError(state.docStatusError);
+      return json(state.docStatus ? [{ status: state.docStatus }] : []);
     }
     if (url.pathname.startsWith("/storage/v1/object/sign/camp-docs/") && req.method === "POST") {
       if (state.storageSignStatus !== 200) return json({ message: "sign failed" }, state.storageSignStatus);

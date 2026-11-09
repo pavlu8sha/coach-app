@@ -2,7 +2,7 @@
 -- документы сбора: версии, замена, доступ только подтверждённым участникам, уведомление о публикации.
 begin;
 create extension if not exists pgtap;
-select plan(67);
+select plan(76);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -243,6 +243,33 @@ select is((select count(*)::int from camp_documents_list('00000000-0000-0000-000
 select as_user('00000000-0000-0000-0000-0000000000a1');
 do $$ begin for i in 1..20 loop perform camp_document_begin('00000000-0000-0000-0000-0000000000cb', 'Документ ' || i, 1000, null); end loop; end $$;
 select throws_ok($$select camp_document_begin('00000000-0000-0000-0000-0000000000cb', 'Лишний', 1000, null)$$, '22023', 'too many documents', 'двадцать первый документ сбора отклоняется');
+
+-- ===== Находки независимой проверки =====
+-- 1. сбор с документами не удаляется, строки остаются
+select as_user('00000000-0000-0000-0000-0000000000a1');
+select throws_ok($$delete from camps where id = '00000000-0000-0000-0000-0000000000cb'$$, '23503', null, 'администратор не удаляет сбор с документами');
+reset role;
+select throws_ok($$delete from camps where id = '00000000-0000-0000-0000-0000000000cb'$$, '23503', null, 'сбор с документами не удаляется и владельцем базы');
+select is((select count(*)::int from camp_documents where camp_id = '00000000-0000-0000-0000-0000000000cb'), 20, 'строки документов сбора на месте');
+-- 2. брошенная загрузка не публикуется и без новой загрузки
+update club_settings set value = 'on' where key = 'camps.notify';
+update camp_documents set created_at = now() - interval '2 hours' where title = 'Документ 1';
+select as_service();
+select throws_ok($$select camp_document_finish((select id from camp_documents where title = 'Документ 1'), true)$$, '22023', 'not pending', 'загрузка старше часа не публикуется, даже если новых загрузок не было');
+-- 3. две замены одной версии: побеждает последняя начатая, первая не публикуется и не уведомляет
+select as_user('00000000-0000-0000-0000-0000000000a1');
+insert into ids select 'r1', (camp_document_begin('00000000-0000-0000-0000-0000000000ca', 'Замена А', 1000, (select id from ids where k = 'f1'))->>'id')::uuid;
+insert into ids select 'r2', (camp_document_begin('00000000-0000-0000-0000-0000000000ca', 'Замена Б', 1000, (select id from ids where k = 'f1'))->>'id')::uuid;
+select as_service();
+select camp_document_finish((select id from ids where k = 'r2'), true);
+select throws_ok($$select camp_document_finish((select id from ids where k = 'r1'), true)$$, '22023', 'not pending', 'ранее начатая замена после новой не публикуется');
+select ok(not nhas('00000000-0000-0000-0000-0000000000b1', '%Замена А%'), 'о неопубликованной замене сообщения нет');
+select as_user('00000000-0000-0000-0000-0000000000b1');
+select ok(exists (select 1 from camp_documents_list('00000000-0000-0000-0000-0000000000ca') where title = 'Замена Б'), 'участник видит последнюю замену');
+-- 6. не больше пяти сообщений о документах одному человеку за сутки (у родителя их уже пять)
+select is(nq('00000000-0000-0000-0000-0000000000b1'), 5, 'шестое сообщение о документах за сутки не ставится');
+reset role;
+select is(nq('00000000-0000-0000-0000-0000000000b6'), 0, 'родитель с отозванным согласием сообщений о документах не получил');
 
 select * from finish();
 rollback;

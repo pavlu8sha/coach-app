@@ -32,7 +32,7 @@ Deno.serve(async (req: Request) => {
 });
 
 // Тело читаем с ограничением: больше 10 МБ в память не берём, даже если заголовок длины занижен или отсутствует
-async function readLimited(req: Request): Promise<Uint8Array | null> {
+async function readLimited(req: Request, max = MAX_BYTES): Promise<Uint8Array | null> {
   if (!req.body) return new Uint8Array();
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -41,7 +41,7 @@ async function readLimited(req: Request): Promise<Uint8Array | null> {
     const { done, value } = await reader.read();
     if (done) break;
     total += value.length;
-    if (total > MAX_BYTES) { await reader.cancel(); return null; }
+    if (total > max) { await reader.cancel(); return null; }
     chunks.push(value);
   }
   const out = new Uint8Array(total);
@@ -55,11 +55,12 @@ async function handle(req: Request): Promise<Response> {
   const auth = req.headers.get('authorization') ?? '';
   if (!/^Bearer\s+\S+/i.test(auth)) return json({ error: 'unauthorized' }, 401);
 
-  const base = Deno.env.get('SUPABASE_URL')!;
-  const service = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const base = Deno.env.get('SUPABASE_URL') ?? '';
+  const service = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
   const anon = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
   // Сервисный ключ вместо пользовательского не принимаем: права должен проверять пользовательский запрос
-  if (!anon || auth.replace(/^Bearer\s+/i, '') === service) return json({ error: 'unauthorized' }, 401);
+  if (!anon || !base || !service) { console.error('camp-docs: не заданы переменные Supabase'); return json({ error: 'config' }, 500); }
+  if (auth.replace(/^Bearer\s+/i, '') === service) return json({ error: 'unauthorized' }, 401);
   const user = createClient(base, anon, { auth: { persistSession: false }, global: { headers: { Authorization: auth } } });
   const admin = createClient(base, service, { auth: { persistSession: false } });
 
@@ -87,8 +88,12 @@ async function handle(req: Request): Promise<Response> {
     }
     const fin = await admin.rpc('camp_document_finish', { did: id, ok: true });
     if (fin.error) {
-      // Версия не опубликована (например, загрузка длилась дольше часа): файл убираем, чтобы в хранилище не осталось лишнего
+      // Ответ базы мог потеряться уже после публикации, поэтому сначала перечитываем статус версии.
+      // Файл убираем, только если версия точно не опубликована; если статус узнать не удалось, файл не трогаем.
       console.error('camp-docs finish', fin.error.message);
+      const st = await admin.from('camp_documents').select('status').eq('id', id).maybeSingle();
+      if (st.error) { console.error('camp-docs status', st.error.message); return json({ error: 'unknown_state', id }, 502); }
+      if (st.data?.status === 'ready') return json({ id });
       const rm = await admin.storage.from(BUCKET).remove([path]);
       if (rm.error) console.error('camp-docs remove', rm.error.message);
       return json({ error: 'not_published' }, 409);
@@ -97,7 +102,9 @@ async function handle(req: Request): Promise<Response> {
   }
 
   let body: { action?: unknown; id?: unknown } = {};
-  try { body = await req.json(); } catch { return json({ error: 'bad_request' }, 400); }
+  const rawBody = await readLimited(req, 4096);
+  if (rawBody === null) return json({ error: 'too_large' }, 413);
+  try { body = JSON.parse(new TextDecoder().decode(rawBody)); } catch { return json({ error: 'bad_request' }, 400); }
   if (body?.action !== 'link' || !isUuid(body.id)) return json({ error: 'bad_request' }, 400);
   const got = await user.rpc('camp_document_path', { did: body.id });
   if (got.error) { const f = rpcFailure(got.error); return json({ error: f.error }, f.status); }

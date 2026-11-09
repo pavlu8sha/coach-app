@@ -140,7 +140,52 @@ Deno.test("camp-docs: загрузка и выдача документов сб
       const last = supa.state.requests.at(-1)!;
       assert.equal(`${last.method} ${last.path}`, "DELETE /storage/v1/object/camp-docs");
       assert.deepEqual(last.body, { prefixes: [PATH] });
+      assert.equal(supa.state.requests.at(-2)?.auth, SERVICE);
     });
+
+    await t.step("загрузка: ответ о публикации потерян, но версия опубликована: файл не удаляется", async () => {
+      supa.reset();
+      supa.state.docBegin = { id: DOC, path: PATH };
+      supa.state.docFinishError = { code: "XX000", message: "timeout" };
+      supa.state.docStatus = "ready";
+      const r = await upload(PDF);
+      assert.equal(r.res.status, 200);
+      assert.deepEqual(r.data, { id: DOC });
+      assert.equal(supa.state.requests.filter((q) => q.method === "DELETE").length, 0);
+    });
+
+    await t.step("загрузка: статус версии узнать не удалось: файл не удаляется", async () => {
+      supa.reset();
+      supa.state.docBegin = { id: DOC, path: PATH };
+      supa.state.docFinishError = { code: "XX000", message: "timeout" };
+      supa.state.docStatusError = "down";
+      const r = await upload(PDF);
+      assert.equal(r.res.status, 502);
+      assert.equal(supa.state.requests.filter((q) => q.method === "DELETE").length, 0);
+    });
+
+    await t.step("ссылка: большое тело запроса отклоняется без обращения к базе", async () => {
+      supa.reset();
+      const r = await call("", JSON.stringify({ action: "link", id: DOC, pad: "x".repeat(100000) }));
+      assert.equal(r.res.status, 413);
+      assert.equal(supa.state.requests.length, 0);
+    });
+  } finally {
+    await fn.close();
+    await supa.close();
+    await telegram.close();
+  }
+});
+
+Deno.test("camp-docs: без ключа проекта функция сообщает об ошибке настройки", async () => {
+  const supa = createSupabaseFake();
+  const telegram = createTelegramFake();
+  const fn = await startFunction("camp-docs", { ...envFor(supa.url, telegram.url), SUPABASE_ANON_KEY: "" });
+  try {
+    const res = await fetch(fn.url, { method: "POST", headers: { Authorization: USER }, body: JSON.stringify({ action: "link", id: DOC }) });
+    assert.equal(res.status, 500);
+    assert.deepEqual(await res.json(), { error: "config" });
+    assert.equal(supa.state.requests.length, 0);
   } finally {
     await fn.close();
     await supa.close();

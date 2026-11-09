@@ -7,11 +7,11 @@
 -- Документ: цепочка версий (doc_id). Участник видит только последнюю загруженную версию неснятого документа.
 -- Доступ: родитель (с действующим согласием) игрока со статусом registered, владелец гостевой записи со статусом registered,
 -- администратор, локальный администратор места сбора. Заявка без решения, отменённая и отказанная запись доступа не дают.
--- Строки документов не удаляются: снятие и замена остаются в истории.
+-- Строки документов не удаляются: снятие и замена остаются в истории. Сбор с документами удалить нельзя.
 
 create table if not exists camp_documents (
   id uuid primary key default gen_random_uuid(),
-  camp_id uuid not null references camps(id) on delete cascade,
+  camp_id uuid not null references camps(id) on delete restrict,
   doc_id uuid not null,
   version int not null check (version >= 1),
   title text not null check (length(title) between 1 and 120),
@@ -84,6 +84,8 @@ begin
     select * into r from camp_documents where id = replaces;
     if not found or r.camp_id <> cid or r.removed_at is not null then raise exception 'bad document' using errcode = '22023'; end if;
     g := r.doc_id;
+    -- Побеждает последняя начатая замена: прежние незавершённые загрузки этого документа считаются сорвавшимися
+    update camp_documents set status = 'failed' where doc_id = g and status = 'pending';
     select max(version) + 1 into v from camp_documents where doc_id = g;
   else
     g := gen_random_uuid();
@@ -114,6 +116,8 @@ begin
     update camp_documents set status = 'failed' where id = did;
     return;
   end if;
+  -- Брошенная загрузка (старше часа) не публикуется; строку пометит сорвавшейся следующая загрузка
+  if d.created_at < now() - interval '1 hour' then raise exception 'not pending' using errcode = '22023'; end if;
   update camp_documents set status = 'ready', ready_at = now() where id = did;
   if d.removed_at is not null then return; end if;
   -- Ошибка уведомления публикацию не отменяет. На один документ не больше трёх сообщений за сутки.
@@ -131,6 +135,8 @@ begin
         select g.user_id from camp_participants cp join player_guardians g on g.player_id = cp.player_id
          where cp.camp_id = d.camp_id and cp.status = 'registered' and g.consent_revoked_at is null) x
     loop
+      -- не больше пяти сообщений о документах одному человеку за сутки
+      continue when (select count(*) from notifications n where n.user_id = u and n.kind = 'camp_document' and n.created_at > now() - interval '1 day') >= 5;
       perform enqueue_notification(u, 'camp_document', msg);
     end loop;
   exception when others then
@@ -187,11 +193,10 @@ begin
   update camp_documents set removed_at = now(), removed_by = current_user_id() where doc_id = d.doc_id and removed_at is null;
 end $$;
 
--- Строки документов не удаляются и не очищаются (кроме каскада при удалении сбора без участников)
+-- Строки документов не удаляются и не очищаются
 create or replace function camp_documents_guard() returns trigger
 language plpgsql set search_path = public as $$
 begin
-  if tg_op = 'DELETE' and not exists (select 1 from camps where id = old.camp_id) then return old; end if;
   raise exception 'immutable' using errcode = 'P0001';
 end $$;
 drop trigger if exists camp_documents_no_delete on camp_documents;
@@ -202,7 +207,7 @@ create trigger camp_documents_no_truncate before truncate on camp_documents for 
 revoke execute on function camp_is_confirmed(uuid, uuid), camp_documents_can_read(uuid), camp_document_is_current(camp_documents),
   camp_document_begin(uuid, text, bigint, uuid), camp_document_finish(uuid, boolean), camp_documents_list(uuid),
   camp_document_admin_list(uuid), camp_document_path(uuid), camp_document_remove(uuid), camp_documents_guard()
-  from public, anon, authenticated;
+  from public, anon, authenticated, service_role;
 grant execute on function camp_document_begin(uuid, text, bigint, uuid), camp_documents_list(uuid), camp_document_admin_list(uuid),
   camp_document_path(uuid), camp_document_remove(uuid) to authenticated;
 grant execute on function camp_document_finish(uuid, boolean) to service_role;
