@@ -18,17 +18,17 @@
 <text x="60" y="397" class="blue s">Открыть матч ›</text>
 <text x="44" y="452" class="ink h2">История матчей</text>
 <rect x="44" y="466" width="350" height="132" rx="10" fill="#fff" stroke="#e2e7ef"/>
-<text x="60" y="490" class="muted xs">ПРОШЕДШИЙ МАТЧ · 02 НОЯБРЯ</text>
+<text x="60" y="490" class="muted xs">ПРОШЕДШИЙ МАТЧ · ДАТА</text>
 <text x="60" y="520" class="ink bold">Kickstart — Соперник</text>
-<text x="60" y="544" class="ink b">2 : 1</text><text x="112" y="544" class="muted s">Командный счёт</text>
+<text x="60" y="544" class="ink b">Счёт —</text><text x="112" y="544" class="muted s">Командный счёт (если доступен)</text>
 <line x1="60" y1="558" x2="378" y2="558" class="line"/>
 <text x="60" y="581" class="muted s">Участие игрока: подтверждено</text>
 <rect x="44" y="612" width="350" height="132" rx="10" fill="#fff" stroke="#e2e7ef"/>
-<text x="60" y="636" class="muted xs">ПРОШЕДШИЙ МАТЧ · 26 ОКТЯБРЯ</text>
-<text x="60" y="666" class="ink bold">Kickstart — Другой соперник</text>
-<text x="60" y="690" class="ink b">0 : 0</text><text x="112" y="690" class="muted s">Командный счёт</text>
+<text x="60" y="636" class="muted xs">ПРОШЕДШИЙ МАТЧ · ДАТА</text>
+<text x="60" y="666" class="ink bold">Kickstart — Соперник</text>
+<text x="60" y="690" class="ink b">Счёт —</text><text x="112" y="690" class="muted s">Командный счёт</text>
 <line x1="60" y1="704" x2="378" y2="704" class="line"/>
-<text x="60" y="727" class="muted s">Нет персональной записи участия</text>
+<text x="60" y="727" class="muted s">Персональная запись отсутствует</text>
 <rect x="44" y="762" width="350" height="142" rx="10" fill="#fff8e8" stroke="#f0dfb7"/>
 <text x="60" y="790" class="ink bold">Важно о статистике</text>
 <text x="60" y="816" class="ink s">Командный счёт не означает, что игрок</text><text x="60" y="834" class="ink s">участвовал в матче. Если персональная</text><text x="60" y="852" class="ink s">запись отсутствует, мы не показываем</text><text x="60" y="870" class="ink s">голы и участие как подтверждённые.</text>
