@@ -499,6 +499,19 @@ describe('«К оплате»: взносы матчей и событий', () 
     expect(await within(c).findByText('Сумма указана неверно.')).toBeInTheDocument();
   });
 
+  it('«Перейти к оплате»: есть кнопки Сборы, Матчи и События, они прокручивают к своим разделам', async () => {
+    seedFees();
+    fake.db.camp_participants = [{ id: 'cp1', player_id: 'p1', amount: 300, status: 'registered', camps: { name: 'Зимний лагерь' }, camp_payments: [{ amount: 100 }] }];
+    const scrolled: string[] = [];
+    Element.prototype.scrollIntoView = function (this: Element) { scrolled.push(this.getAttribute('data-sec') ?? ''); };
+    await openPlayer();
+    await screen.findByRole('heading', { name: 'Сборы' });
+    for (const [label, sec] of [['Сборы', 'Сборы'], ['Матчи', 'Взносы матчей'], ['События', 'Взносы событий']]) {
+      fireEvent.click(screen.getByRole('button', { name: label }));
+      expect(scrolled.pop()).toBe(sec);
+    }
+  });
+
   it('сбой чтения взносов не ломает остальные разделы', async () => {
     seedFees();
     fake.db.equipment_orders = [{ id: 'o1', player_id: 'p1', ordered_on: '2026-09-10', total: 160, paid: 60, equipment_order_lines: [{ kit: 'Форма' }] }];
