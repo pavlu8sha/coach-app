@@ -3,7 +3,7 @@
 -- «ожидание» без записей и то, что старые данные и старое поведение не тронуты.
 begin;
 create extension if not exists pgtap;
-select plan(69);
+select plan(72);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -94,12 +94,13 @@ select is((select is_current from parental_consent_status where parent_user_id =
 -- Версия ещё не вступила в силу или не принимается: текущей остаётся прежняя
 insert into consent_doc_versions (id, consent_type, version, effective_from) values
   ('00000000-0000-0000-0000-0000000f0004', 'data_processing', 'syn-dp-3-future', now() + interval '5 days');
-update consent_doc_versions set accepting = false where id = '00000000-0000-0000-0000-0000000f0003';
-select is(consent_current_version('data_processing'), '00000000-0000-0000-0000-0000000f0003'::uuid, 'закрытая новейшая версия остаётся текущей (прежняя в силу не возвращается), будущая текущей не считается');
+select throws_ok($$update consent_doc_versions set accepting = false where id = '00000000-0000-0000-0000-0000000f0003'$$, '23514', 'the current consent version must stay open for confirmations', 'текущую версию закрыть нельзя: согласия исчезли бы у всех');
+select throws_ok($$insert into consent_doc_versions (consent_type, version, effective_from, accepting) values ('data_processing', 'syn-dp-closed-newest', now(), false)$$, '23514', 'the current consent version must stay open for confirmations', 'закрытая версия, которая тут же стала бы текущей, не добавляется');
+select is(consent_current_version('data_processing'), '00000000-0000-0000-0000-0000000f0003'::uuid, 'прежняя версия не возвращается и после попыток: текущая остаётся новейшая, будущая текущей не считается');
 select is(has_consent('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'data_processing'), false, 'после закрытия новейшей версии подтверждение прежней согласия не даёт');
-update consent_doc_versions set accepting = false where consent_type = 'data_processing';
-select is(consent_current_version('data_processing'), '00000000-0000-0000-0000-0000000f0003'::uuid, 'закрытие всех версий текущую не меняет: новейшая наступившая');
-select is(has_consent('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'data_processing'), false, 'текущая версия закрыта для подтверждений — согласия нет ни у кого');
+update consent_doc_versions set accepting = false where id = '00000000-0000-0000-0000-0000000f0001';
+select is(consent_current_version('data_processing'), '00000000-0000-0000-0000-0000000f0003'::uuid, 'закрытие прежней версии текущую не меняет');
+select is(has_consent('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'data_processing'), false, 'подтверждение закрытой прежней версии согласия не даёт');
 
 -- Целостность
 select throws_ok($$insert into parental_consent_events (id, parent_user_id, player_id, consent_type, version_id, event, source) overriding system value values (99, '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'media_publication', '00000000-0000-0000-0000-0000000f0001', 'granted', 'app')$$, '23503', null, 'версия другого типа в событии не принимается');
@@ -172,8 +173,9 @@ select throws_ok($$update parental_consents set status = 'granted', granted_at =
 select throws_ok($$insert into parental_consent_events (id, parent_user_id, player_id, consent_type, version_id, event, source) overriding system value values (95, '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'data_processing', '00000000-0000-0000-0000-0000000f0001', 'granted', 'app')$$, '23514', 'consent version is not accepted now', 'подтверждение закрытой версии не записывается');
 select throws_ok($$insert into parental_consent_events (id, parent_user_id, player_id, consent_type, version_id, event, source) overriding system value values (94, '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'data_processing', '00000000-0000-0000-0000-0000000f0004', 'granted', 'app')$$, '23514', 'consent version is not accepted now', 'подтверждение ещё не вступившей версии не записывается');
 select throws_ok($$update consent_doc_versions set version = 'переписано' where id = '00000000-0000-0000-0000-0000000f0002'$$, '42501', null, 'название принятой версии менять нельзя');
-select lives_ok($$update consent_doc_versions set text_ref = 'syn-ref-1' where id = '00000000-0000-0000-0000-0000000f0002'$$, 'ссылку на текст можно задать один раз');
-select throws_ok($$update consent_doc_versions set text_ref = 'syn-ref-2' where id = '00000000-0000-0000-0000-0000000f0002'$$, '42501', null, 'заданную ссылку на текст менять нельзя');
+select throws_ok($$update consent_doc_versions set text_ref = 'syn-ref-0' where id = '00000000-0000-0000-0000-0000000f0002'$$, '42501', null, 'ссылку на текст нельзя задать после первого подтверждения');
+select lives_ok($$update consent_doc_versions set text_ref = 'syn-ref-1' where id = '00000000-0000-0000-0000-0000000f0004'$$, 'ссылку на текст версии без подтверждений можно задать один раз');
+select throws_ok($$update consent_doc_versions set text_ref = 'syn-ref-2' where id = '00000000-0000-0000-0000-0000000f0004'$$, '42501', null, 'заданную ссылку на текст менять нельзя');
 
 -- Связь удалена (например, erase_parent): согласие недействительно, пока связи нет
 delete from player_guardians where user_id = '00000000-0000-0000-0000-0000000000b3';

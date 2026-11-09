@@ -177,13 +177,15 @@ begin
     raise exception 'consent version type and identity are immutable' using errcode = '42501';
   end if;
   -- пока версию никто не подтвердил, название и дату вступления можно исправить;
-  -- после первого события истории они неизменны, ссылку на текст можно задать один раз
+  -- после первого события истории они неизменны
   if (new.version, new.effective_from) is distinct from (old.version, old.effective_from)
      and exists (select 1 from parental_consent_events where version_id = old.id) then
-    raise exception 'consent version is immutable (only accepting and a first text_ref can change)' using errcode = '42501';
+    raise exception 'consent version is immutable (only accepting can change after the first confirmation)' using errcode = '42501';
   end if;
-  if old.text_ref is not null and new.text_ref is distinct from old.text_ref then
-    raise exception 'consent version is immutable (only accepting and a first text_ref can change)' using errcode = '42501';
+  -- ссылку на текст можно задать один раз и только пока версию никто не подтвердил
+  if new.text_ref is distinct from old.text_ref
+     and (old.text_ref is not null or exists (select 1 from parental_consent_events where version_id = old.id)) then
+    raise exception 'consent version is immutable (text_ref is set once, before the first confirmation)' using errcode = '42501';
   end if;
   return new;
 end $$;
@@ -199,6 +201,20 @@ language sql stable security definer set search_path = public, pg_temp as $$
    order by effective_from desc, created_at desc, id desc
    limit 1
 $$;
+
+-- 4а. Текущая версия типа всегда открыта для подтверждений: закрыть её (или добавить закрытую версию, которая тут же станет
+--     текущей) нельзя, иначе согласия исчезли бы у всех родителей. Сначала добавляется новая версия, потом закрывается прежняя.
+create or replace function consent_doc_versions_keep_open() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare cur uuid := consent_current_version(new.consent_type);
+begin
+  if cur is not null and not (select accepting from consent_doc_versions where id = cur) then
+    raise exception 'the current consent version must stay open for confirmations' using errcode = '23514';
+  end if;
+  return null;
+end $$;
+create trigger consent_doc_versions_keep_open after insert or update on consent_doc_versions
+  for each row execute function consent_doc_versions_keep_open();
 
 -- 5. Внутренний предикат: у родителя по ребёнку действует подтверждение именно текущей версии типа.
 --    Нет текущей версии, нет строки, статус не granted или версия устарела — согласия нет.
@@ -219,7 +235,7 @@ language sql stable security definer set search_path = public, pg_temp as $$
   select current_user_id() is not null and has_consent(current_user_id(), p, 'data_processing')
 $$;
 
-revoke execute on function consent_current_version(text), has_consent(uuid, uuid, text), my_data_consent_ok(uuid), parental_consent_events_immutable(), parental_consent_link_check(uuid, uuid), parental_consent_event_guard(), parental_consent_state_guard(), consent_doc_versions_guard() from public, anon, authenticated;
+revoke execute on function consent_current_version(text), has_consent(uuid, uuid, text), my_data_consent_ok(uuid), parental_consent_events_immutable(), parental_consent_link_check(uuid, uuid), parental_consent_event_guard(), parental_consent_state_guard(), consent_doc_versions_guard(), consent_doc_versions_keep_open() from public, anon, authenticated;
 -- Для политик и представления: чужие данные они не раскрывают (текущая версия — общая для всех, предикат смотрит только на текущего пользователя).
 grant execute on function my_data_consent_ok(uuid), consent_current_version(text) to authenticated;
 
