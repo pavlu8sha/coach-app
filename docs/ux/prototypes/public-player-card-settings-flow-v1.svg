@@ -18,18 +18,18 @@
  <text x="78" y="169" class="txt" font-weight="700">Публичная страница</text><text x="78" y="191" class="small">Отдельно от внутреннего профиля</text>
  <text x="26" y="250" class="label">ОСНОВНЫЕ ПОЛЯ</text>
  <g class="txt">
-  <text x="28" y="290">Имя и фамилия</text><text x="28" y="344">Группа</text><text x="28" y="398">Позиция</text><text x="28" y="452">Игровой номер</text><text x="28" y="506">Год рождения</text>
+  <text x="28" y="290">Имя</text><text x="28" y="330">Фамилия</text><text x="28" y="370">Группа</text><text x="28" y="410">Позиция</text><text x="28" y="450">Игровой номер</text><text x="28" y="490">Год рождения</text>
  </g>
- <g fill="#1477d4"><rect x="278" y="270" width="38" height="22" rx="11"/><circle cx="304" cy="281" r="8" fill="#fff"/><rect x="278" y="324" width="38" height="22" rx="11"/><circle cx="304" cy="335" r="8" fill="#fff"/><rect x="278" y="378" width="38" height="22" rx="11"/><circle cx="304" cy="389" r="8" fill="#fff"/><rect x="278" y="432" width="38" height="22" rx="11"/><circle cx="304" cy="443" r="8" fill="#fff"/><rect x="278" y="486" width="38" height="22" rx="11"/><circle cx="304" cy="497" r="8" fill="#fff"/></g>
- <path d="M24 535H326" stroke="#e4e9f0"/>
- <text x="26" y="575" class="label">ФОТО</text>
- <text x="26" y="612" class="txt">Фото игрока</text><text x="26" y="635" class="small">Загружено родителем</text>
- <rect x="278" y="592" width="38" height="22" rx="11" fill="#1477d4"/><circle cx="304" cy="603" r="8" fill="#fff"/>
- <rect x="24" y="670" width="302" height="82" rx="12" fill="#fff8e8" stroke="#f2dfb3"/>
- <text x="40" y="700" class="txt" font-weight="700" fill="#76551c">Важно о приватности</text><text x="40" y="725" class="small">Матчи, платежи, посещаемость, тесты</text><text x="40" y="744" class="small">и цели не попадут на публичную страницу.</text>
- <rect x="24" y="790" width="302" height="54" rx="12" fill="#1477d4"/><text x="175" y="824" text-anchor="middle" class="btn">Перейти к предпросмотру</text>
- <text x="175" y="884" text-anchor="middle" class="small">Ссылка ещё не создана</text>
- <text x="175" y="930" text-anchor="middle" class="small">Управление публикацией — у родителя</text>
+ <g fill="#1477d4"><rect x="278" y="270" width="38" height="22" rx="11"/><circle cx="304" cy="281" r="8" fill="#fff"/><rect x="278" y="310" width="38" height="22" rx="11"/><circle cx="304" cy="321" r="8" fill="#fff"/><rect x="278" y="350" width="38" height="22" rx="11"/><circle cx="304" cy="361" r="8" fill="#fff"/><rect x="278" y="390" width="38" height="22" rx="11"/><circle cx="304" cy="401" r="8" fill="#fff"/><rect x="278" y="430" width="38" height="22" rx="11"/><circle cx="304" cy="441" r="8" fill="#fff"/><rect x="278" y="470" width="38" height="22" rx="11"/><circle cx="304" cy="481" r="8" fill="#fff"/></g>
+ <path d="M24 515H326" stroke="#e4e9f0"/>
+ <text x="26" y="550" class="label">ФОТО</text>
+ <text x="26" y="587" class="txt">Фото игрока</text><text x="26" y="610" class="small">Загружено родителем</text>
+ <rect x="278" y="570" width="38" height="22" rx="11" fill="#1477d4"/><circle cx="304" cy="581" r="8" fill="#fff"/>
+ <rect x="24" y="640" width="302" height="82" rx="12" fill="#fff8e8" stroke="#f2dfb3"/>
+ <text x="40" y="670" class="txt" font-weight="700" fill="#76551c">Важно о приватности</text><text x="40" y="695" class="small">Матчи, платежи, посещаемость, тесты</text><text x="40" y="714" class="small">и цели не попадут на публичную страницу.</text>
+ <rect x="24" y="750" width="302" height="54" rx="12" fill="#1477d4"/><text x="175" y="784" text-anchor="middle" class="btn">Перейти к предпросмотру</text>
+ <text x="175" y="850" text-anchor="middle" class="small">Ссылка ещё не создана</text>
+ <text x="175" y="895" text-anchor="middle" class="small">Управление публикацией — у родителя</text>
 </g>
 <g transform="translate(435 125)">
  <rect width="350" height="990" rx="28" fill="#fff" stroke="#d7dee8"/>
@@ -43,9 +43,9 @@
  <text x="175" y="430" text-anchor="middle" class="white" font-family="Arial" font-size="38" font-weight="700">№ 10</text>
  <text x="175" y="478" text-anchor="middle" class="muted" font-family="Arial" font-size="13">FC KICKSTART</text>
  <text x="26" y="560" class="label">БУДЕТ ОПУБЛИКОВАНО</text>
- <g class="txt"><text x="28" y="600">✓ Имя и фамилия</text><text x="28" y="635">✓ Группа</text><text x="28" y="670">✓ Позиция</text><text x="28" y="705">✓ Игровой номер</text><text x="28" y="740">✓ Год рождения</text><text x="28" y="775">✓ Фото</text></g>
- <rect x="24" y="810" width="302" height="70" rx="12" fill="#eff7ff" stroke="#c9e0f8"/>
- <text x="40" y="840" class="txt" font-weight="700">Публичный доступ</text><text x="40" y="862" class="small">Откроется без входа в Coach App</text>
+ <g class="txt"><text x="28" y="600">✓ Имя</text><text x="28" y="628">✓ Фамилия</text><text x="28" y="656">✓ Группа</text><text x="28" y="684">✓ Позиция</text><text x="28" y="712">✓ Игровой номер</text><text x="28" y="740">✓ Год рождения</text><text x="28" y="768">✓ Фото</text></g>
+ <rect x="24" y="800" width="302" height="70" rx="12" fill="#eff7ff" stroke="#c9e0f8"/>
+ <text x="40" y="830" class="txt" font-weight="700">Публичный доступ</text><text x="40" y="852" class="small">Откроется без входа в Coach App</text>
  <rect x="24" y="900" width="302" height="54" rx="12" fill="#1477d4"/><text x="175" y="934" text-anchor="middle" class="btn">Подтвердить публикацию</text>
 </g>
 <g transform="translate(815 125)">
@@ -53,7 +53,7 @@
  <text x="26" y="42" class="label">03 · ПОДТВЕРЖДЕНИЕ</text><text x="26" y="82" class="h" font-size="24">Опубликовать карточку?</text>
  <rect x="24" y="125" width="302" height="170" rx="16" fill="#f3f7fb"/>
  <circle cx="75" cy="190" r="30" fill="#d8e5f1"/><path d="M56 204q19-30 38 0" fill="#a8bfd4"/>
- <text x="120" y="177" class="txt" font-weight="700">Карточка игрока</text><text x="120" y="202" class="small">5 полей · фото включено</text><text x="120" y="230" class="small">Публичная страница</text>
+ <text x="120" y="177" class="txt" font-weight="700">Карточка игрока</text><text x="120" y="202" class="small">6 полей · фото включено</text><text x="120" y="230" class="small">Публичная страница</text>
  <text x="26" y="345" class="label">ПЕРЕД ПУБЛИКАЦИЕЙ</text>
  <circle cx="42" cy="390" r="10" fill="#d8f0e2"/><path d="M37 390l4 4 7-9" stroke="#26734f" stroke-width="2" fill="none"/>
  <text x="64" y="386" class="txt">Я проверил(а) поля и фото</text><text x="64" y="408" class="small">Именно эта версия станет доступна</text>
