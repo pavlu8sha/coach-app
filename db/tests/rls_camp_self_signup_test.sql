@@ -2,7 +2,7 @@
 -- вместимость во всех путях записи, родительская запись, публичные данные, условия отмены, журнал статусов.
 begin;
 create extension if not exists pgtap;
-select plan(54);
+select plan(74);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб'), ('00000000-0000-0000-0000-00000000c002', 'Чужой клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -58,6 +58,7 @@ select throws_ok($$select camp_register('00000000-0000-0000-0000-0000000000ca', 
 
 select as_user('00000000-0000-0000-0000-0000000000a1');
 select throws_ok($$select camp_set_public('00000000-0000-0000-0000-0000000000ca', 'Bad Slug!', 2)$$, '22023', 'bad slug', 'ссылка только из латиницы, цифр и дефиса');
+select throws_ok($$select camp_set_public('00000000-0000-0000-0000-0000000000ca', 'a--', 2)$$, '22023', 'bad slug', 'ссылка без двойных дефисов и дефиса в конце');
 select throws_ok($$select camp_set_public('00000000-0000-0000-0000-0000000000ca', 'winter', 0)$$, '22023', 'bad capacity', 'лимит не меньше 1');
 select lives_ok($$select camp_set_public('00000000-0000-0000-0000-0000000000ca', 'Winter-2099', 2)$$, 'админ задаёт ссылку и лимит 2');
 select is((select slug from camps where id = '00000000-0000-0000-0000-0000000000ca'), 'winter-2099', 'ссылка хранится в нижнем регистре');
@@ -116,7 +117,7 @@ select throws_ok($$select camp_parent_register('00000000-0000-0000-0000-00000000
 select lives_ok($$select camp_parent_register('00000000-0000-0000-0000-0000000000ca', '00000000-0000-0000-0000-00000000d002', '00000000-0000-0000-0000-0000000000e1', null)$$, 'после отмены родитель записывает ребёнка снова');
 select is((select count(*)::int from camp_participants where player_id = '00000000-0000-0000-0000-00000000d002' and camp_id = '00000000-0000-0000-0000-0000000000ca'), 1, 'используется та же строка участника');
 select is((select sum(amount) from camp_payments where participant_id = (select id from ids where k = 'b')), 500::numeric, 'платежи прежней записи сохранены');
-select is((select count(*)::int from camp_participant_events where participant_id = (select id from ids where k = 'b')), 3, 'журнал статусов родителю виден: запись, отказ админа, повторная запись');
+select is((select count(*)::int from camp_participant_events where participant_id = (select id from ids where k = 'b')), 4, 'журнал статусов родителю виден: запись, отказ админа, отмена, повторная запись');
 select throws_ok($$update camp_participant_events set note = 'x'$$, '42501', null, 'родитель журнал не правит (нет прав)');
 reset role;
 select throws_ok($$update camp_participant_events set note = 'x'$$, 'P0001', null, 'журнал неизменяем даже для владельца базы');
@@ -142,6 +143,54 @@ select is(camp_public('net-takoj'), null, 'неизвестная ссылка: 
 select throws_ok($$select * from camp_participants$$, '42501', null, 'аноним строки участников не читает');
 select throws_ok($$select * from camps$$, '42501', null, 'аноним таблицу сборов не читает');
 select throws_ok($$select camp_parent_register('00000000-0000-0000-0000-0000000000ca', '00000000-0000-0000-0000-00000000d002', '00000000-0000-0000-0000-0000000000e1', null)$$, '42501', null, 'аноним не вызывает родительскую запись');
+
+-- ===== Закрытие находок независимой проверки =====
+select as_user('00000000-0000-0000-0000-0000000000a1');
+-- повторная запись администратором после отказа не опускает сумму ниже оплаченного
+insert into ids select 'h', camp_register('00000000-0000-0000-0000-0000000000cb', '00000000-0000-0000-0000-00000000d003', '00000000-0000-0000-0000-0000000000e3', null, null, null);
+select camp_pay((select id from ids where k = 'h'), 500, 'payment', current_date, 'Наличные', null);
+select camp_update_participant((select id from ids where k = 'h'), null, 900, null, null, 'declined');
+select throws_ok($$select camp_register('00000000-0000-0000-0000-0000000000cb', '00000000-0000-0000-0000-00000000d003', '00000000-0000-0000-0000-0000000000e3', 100, null, null)$$, '22023', 'amount below paid', 'camp_register после отказа: сумма ниже оплаченного отклоняется');
+insert into ids select 'hg', camp_register_guest('00000000-0000-0000-0000-0000000000cb', 'Гость Х', null, '00000000-0000-0000-0000-0000000000e3', null, null, null);
+select camp_pay((select id from ids where k = 'hg'), 500, 'payment', current_date, 'Наличные', null);
+select camp_update_participant((select id from ids where k = 'hg'), null, 900, null, null, 'declined');
+select throws_ok($$select camp_register_guest('00000000-0000-0000-0000-0000000000cb', 'Гость Х', null, '00000000-0000-0000-0000-0000000000e3', 10, null, null)$$, '22023', 'amount below paid', 'camp_register_guest после отказа: сумма ниже оплаченного отклоняется');
+
+-- прямая запись в таблицу не обходит лимит и журнал (лимит 1)
+select camp_set_public('00000000-0000-0000-0000-0000000000cb', 'other-2099', 1);
+insert into ids select 'd1', camp_register('00000000-0000-0000-0000-0000000000cb', '00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000000e3', null, null, null);
+select throws_ok($$insert into camp_participants (camp_id, player_id, tariff_id, amount, status) values ('00000000-0000-0000-0000-0000000000cb', '00000000-0000-0000-0000-00000000d006', '00000000-0000-0000-0000-0000000000e3', 900, 'registered')$$, '22023', 'camp full', 'прямая вставка в таблицу не превышает лимит');
+select throws_ok($$update camp_participants set status = 'registered' where id = (select id from ids where k = 'h')$$, '22023', 'camp full', 'прямой переход declined в registered не превышает лимит');
+select lives_ok($$update camp_participants set status = 'cancelled' where id = (select id from ids where k = 'd1')$$, 'прямой перевод в cancelled разрешён администратору');
+select is((select count(*)::int from camp_participant_events where participant_id = (select id from ids where k = 'd1') and to_status = 'cancelled' and note = 'direct'), 1, 'прямая смена статуса попала в журнал с пометкой direct');
+select is((select note from camp_participant_events where participant_id = (select id from ids where k = 'd1') and to_status = 'registered'), 'admin', 'запись через функцию помечена admin');
+
+-- администратор правит сумму и комментарий отменённой записи, статус остаётся
+select lives_ok($$select camp_update_participant((select id from ids where k = 'd1'), null, 950, null, 'после отмены', 'cancelled')$$, 'правка суммы отменённой записи без смены статуса');
+select throws_ok($$select camp_update_participant((select id from ids where k = 'a'), null, 950, null, null, 'cancelled')$$, '22023', 'bad status', 'администратор не выставляет cancelled другим записям');
+
+-- служебная роль не пишет в журнал и условия напрямую
+select ok(not has_table_privilege('service_role', 'camp_participant_events', 'insert') and not has_table_privilege('service_role', 'camp_cancel_terms', 'insert'), 'служебная роль журнал и условия только читает');
+
+-- условия: лишние ключи отбрасываются, форма проверяется
+select is(camp_terms_save('00000000-0000-0000-0000-0000000000cb', '[{"from":null,"to":"2099-01-01","text":" Возврат ","secret":"x"}]'::jsonb), 1, 'версия условий сохранена');
+select is((select periods::text from camp_cancel_terms where camp_id = '00000000-0000-0000-0000-0000000000cb' and version = 1), '[{"to": "2099-01-01", "from": null, "text": "Возврат"}]', 'лишние ключи отброшены, текст без пробелов по краям');
+select throws_ok($$select camp_terms_save('00000000-0000-0000-0000-0000000000cb', '[]'::jsonb)$$, '22023', 'bad terms', 'пустой список периодов отклоняется');
+select throws_ok($$select camp_terms_save('00000000-0000-0000-0000-0000000000cb', '[{"from":20981201,"to":null,"text":"x"}]'::jsonb)$$, '22023', 'bad terms', 'дата числом отклоняется');
+select throws_ok($$select camp_terms_save('00000000-0000-0000-0000-0000000000cb', '[{"from":"2099-01-05","to":"2099-01-01","text":"x"}]'::jsonb)$$, '22023', 'bad terms', 'конец периода раньше начала отклоняется');
+select throws_ok($$select camp_terms_save('00000000-0000-0000-0000-0000000000cb', (select jsonb_agg(jsonb_build_object('text', repeat('я', 480))) from generate_series(1, 10)))$$, '22023', 'bad terms', 'слишком большой объём условий отклоняется');
+
+-- ссылку и лимит можно менять раздельно
+select camp_set_public('00000000-0000-0000-0000-0000000000cb', null, 4);
+select is((select slug || '/' || capacity from camps where id = '00000000-0000-0000-0000-0000000000cb'), 'other-2099/4', 'sl = null оставляет ссылку, меняет лимит');
+select camp_set_public('00000000-0000-0000-0000-0000000000cb', '', 4);
+select is((select slug from camps where id = '00000000-0000-0000-0000-0000000000cb'), null, 'пустая строка убирает ссылку');
+
+-- публичные данные: закончившийся сбор не отдаётся
+select camp_set_public('00000000-0000-0000-0000-0000000000cc', 'old-2020', null);
+select as_anon();
+select is(camp_public('old-2020'), null, 'закончившийся сбор аноним не видит');
+
 
 select * from finish();
 rollback;

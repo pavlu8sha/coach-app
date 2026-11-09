@@ -13,7 +13,7 @@ alter table camps add column if not exists slug text;
 alter table camps drop constraint if exists camps_capacity_check;
 alter table camps add constraint camps_capacity_check check (capacity is null or capacity >= 1);
 alter table camps drop constraint if exists camps_slug_check;
-alter table camps add constraint camps_slug_check check (slug is null or slug ~ '^[a-z0-9][a-z0-9-]{2,59}$');
+alter table camps add constraint camps_slug_check check (slug is null or (length(slug) between 3 and 60 and slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'));
 create unique index if not exists camps_slug_unique on camps (slug) where slug is not null;
 
 alter table camp_participants drop constraint if exists camp_participants_status_check;
@@ -50,6 +50,7 @@ create trigger camp_participant_events_no_truncate before truncate on camp_parti
 alter table camp_participant_events enable row level security;
 revoke all on camp_participant_events from public, anon, authenticated;
 grant select on camp_participant_events to authenticated;
+revoke all on camp_participant_events from service_role;
 grant select on camp_participant_events to service_role;
 create policy camp_participant_events_read on camp_participant_events for select
   using (is_admin() or is_guardian_of(player_id));
@@ -72,22 +73,26 @@ create trigger camp_cancel_terms_no_truncate before truncate on camp_cancel_term
 alter table camp_cancel_terms enable row level security;
 revoke all on camp_cancel_terms from public, anon, authenticated;
 grant select on camp_cancel_terms to authenticated;
+revoke all on camp_cancel_terms from service_role;
 grant select on camp_cancel_terms to service_role;
 create policy camp_cancel_terms_read on camp_cancel_terms for select using (auth.uid() is not null);
 
 -- ===== Служебные функции =====
--- Запись в журнал статусов. Вызывается из функций ниже, пользователям недоступна.
-create or replace function camp_log_event(pid uuid, from_st text, to_st text, nt text) returns void
+-- Журнал статусов и лимит мест ведутся триггерами на самой таблице: прямая запись в таблицу (администратор, служебная роль)
+-- не обходит ни журнал, ни лимит. Причина записи (parent/admin) передаётся настройкой camp.note, по умолчанию 'direct'.
+create or replace function camp_participants_log() returns trigger
 language plpgsql security definer set search_path = public as $$
-declare cp camp_participants;
 begin
-  select * into cp from camp_participants where id = pid;
-  if not found then return; end if;
+  if tg_op = 'UPDATE' and old.status = new.status then return null; end if;
   insert into camp_participant_events (participant_id, camp_id, player_id, from_status, to_status, actor_id, tariff_id, amount, paid, terms_version, note)
-  values (pid, cp.camp_id, cp.player_id, from_st, to_st, current_user_id(), cp.tariff_id, cp.amount,
-          (select coalesce(sum(amount), 0) from camp_payments where participant_id = pid),
-          (select max(version) from camp_cancel_terms where camp_id = cp.camp_id), nt);
+  values (new.id, new.camp_id, new.player_id, case when tg_op = 'UPDATE' then old.status end, new.status, current_user_id(), new.tariff_id, new.amount,
+          (select coalesce(sum(amount), 0) from camp_payments where participant_id = new.id),
+          (select max(version) from camp_cancel_terms where camp_id = new.camp_id),
+          coalesce(nullif(current_setting('camp.note', true), ''), 'direct'));
+  return null;
 end $$;
+create trigger camp_participants_log after insert or update of status on camp_participants
+  for each row execute function camp_participants_log();
 
 -- Лимит мест. Строка сбора уже заблокирована вызывающей функцией (for update): проверки идут по одной.
 create or replace function camp_assert_seat(cid uuid) returns void
@@ -100,7 +105,20 @@ begin
   end if;
 end $$;
 
-revoke execute on function camp_log_event(uuid, text, text, text), camp_assert_seat(uuid), camp_events_immutable() from public, anon, authenticated;
+-- Лимит и для прямой записи в таблицу: любая вставка или переход в «registered» берёт блокировку сбора и проверяет место.
+create or replace function camp_participants_seat_guard() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.status = 'registered' and (tg_op = 'INSERT' or old.status <> 'registered') then
+    perform 1 from camps where id = new.camp_id for update;
+    perform camp_assert_seat(new.camp_id);
+  end if;
+  return new;
+end $$;
+create trigger camp_participants_seat_guard before insert or update of status on camp_participants
+  for each row execute function camp_participants_seat_guard();
+
+revoke execute on function camp_participants_log(), camp_participants_seat_guard(), camp_assert_seat(uuid), camp_events_immutable() from public, anon, authenticated;
 
 -- ===== Администратор: лимит, ссылка, условия отмены =====
 create or replace function camp_set_public(cid uuid, sl text, cap int) returns void
@@ -108,36 +126,44 @@ language plpgsql security definer set search_path = public as $$
 declare s text := nullif(lower(btrim(sl)), '');
 begin
   perform camp_assert_admin();
-  if s is not null and s !~ '^[a-z0-9][a-z0-9-]{2,59}$' then raise exception 'bad slug' using errcode = '22023'; end if;
+  if s is not null and (length(s) not between 3 and 60 or s !~ '^[a-z0-9]+(-[a-z0-9]+)*$') then raise exception 'bad slug' using errcode = '22023'; end if;
   if cap is not null and cap < 1 then raise exception 'bad capacity' using errcode = '22023'; end if;
-  update camps set slug = s, capacity = cap where id = cid;
+  -- sl = null: ссылку не менять; sl = '' (пусто): убрать ссылку; лимит: null = без лимита
+  update camps set slug = case when sl is null then slug else s end, capacity = cap where id = cid;
   if not found then raise exception 'camp not found' using errcode = 'P0002'; end if;
 end $$;
 
--- Новая версия условий: массив периодов [{from, to, text}], даты необязательны. Прежние версии остаются.
+-- Новая версия условий: массив периодов [{from, to, text}], даты необязательны (строка YYYY-MM-DD или null). Лишние ключи отбрасываются.
+-- Прежние версии остаются.
 create or replace function camp_terms_save(cid uuid, periods jsonb) returns int
 language plpgsql security definer set search_path = public as $$
-declare p jsonb; f date; t date; v int;
+declare p jsonb; f date; t date; v int; clean jsonb := '[]'::jsonb; fs text; ts text;
 begin
   perform camp_assert_admin();
   perform 1 from camps where id = cid for update;
   if not found then raise exception 'camp not found' using errcode = 'P0002'; end if;
-  if periods is null or jsonb_typeof(periods) <> 'array' or jsonb_array_length(periods) > 10 then raise exception 'bad terms' using errcode = '22023'; end if;
+  if periods is null or jsonb_typeof(periods) <> 'array' or jsonb_array_length(periods) not between 1 and 10 or octet_length(periods::text) > 8000 then
+    raise exception 'bad terms' using errcode = '22023';
+  end if;
   for p in select * from jsonb_array_elements(periods) loop
     if jsonb_typeof(p) <> 'object' or jsonb_typeof(p -> 'text') is distinct from 'string'
-       or nullif(btrim(p ->> 'text'), '') is null or length(p ->> 'text') > 500 then
+       or nullif(btrim(p ->> 'text'), '') is null or length(p ->> 'text') > 500
+       or jsonb_typeof(coalesce(p -> 'from', 'null'::jsonb)) not in ('string', 'null')
+       or jsonb_typeof(coalesce(p -> 'to', 'null'::jsonb)) not in ('string', 'null') then
       raise exception 'bad terms' using errcode = '22023';
     end if;
+    fs := nullif(p ->> 'from', ''); ts := nullif(p ->> 'to', '');
+    if (fs is not null and fs !~ '^\d{4}-\d{2}-\d{2}$') or (ts is not null and ts !~ '^\d{4}-\d{2}-\d{2}$') then raise exception 'bad terms' using errcode = '22023'; end if;
     begin
-      f := nullif(p ->> 'from', '')::date;
-      t := nullif(p ->> 'to', '')::date;
+      f := fs::date; t := ts::date;
     exception when others then
       raise exception 'bad terms' using errcode = '22023';
     end;
     if f is not null and t is not null and t < f then raise exception 'bad terms' using errcode = '22023'; end if;
+    clean := clean || jsonb_build_array(jsonb_build_object('from', fs, 'to', ts, 'text', btrim(p ->> 'text')));
   end loop;
   select coalesce(max(version), 0) + 1 into v from camp_cancel_terms where camp_id = cid;
-  insert into camp_cancel_terms (camp_id, version, periods, created_by) values (cid, v, periods, current_user_id());
+  insert into camp_cancel_terms (camp_id, version, periods, created_by) values (cid, v, clean, current_user_id());
   return v;
 end $$;
 
@@ -154,7 +180,7 @@ create or replace function camp_public(sl text) returns jsonb
 language plpgsql stable security definer set search_path = public as $$
 declare c camps;
 begin
-  select * into c from camps where slug = lower(btrim(sl)) and active;
+  select * into c from camps where slug = lower(btrim(sl)) and active and ends_on >= (now() at time zone 'Asia/Tbilisi')::date;
   if not found then return null; end if;
   return jsonb_build_object(
     'camp', jsonb_build_object('name', c.name, 'location', c.location, 'starts_on', c.starts_on, 'ends_on', c.ends_on,
@@ -187,13 +213,14 @@ begin
     if tp < paid then raise exception 'amount below paid' using errcode = '22023'; end if;
   end if;
   perform camp_assert_seat(cid);
+  perform set_config('camp.note', 'parent', true);
   if r is null then
     insert into camp_participants (camp_id, player_id, tariff_id, amount, comment, status, registered_on)
     values (cid, p, tid, tp, cm, 'registered', (now() at time zone 'Asia/Tbilisi')::date) returning id into r;
   else
-    update camp_participants set tariff_id = tid, amount = tp, comment = cm, status = 'registered' where id = r;
+    update camp_participants set tariff_id = tid, amount = tp, comment = coalesce(cm, comment), status = 'registered' where id = r;
   end if;
-  perform camp_log_event(r, st, 'registered', 'parent');
+  perform set_config('camp.note', '', true);
   return r;
 end $$;
 
@@ -212,14 +239,16 @@ begin
   if amt is not null and amt < 0 then raise exception 'bad amount' using errcode = '22023'; end if;
   select id, status into r, st from camp_participants where camp_id = cid and player_id = p;
   if r is not null and st = 'registered' then raise exception 'already registered' using errcode = '23505'; end if;
+  if r is not null and coalesce(amt, tp) < (select coalesce(sum(amount), 0) from camp_payments where participant_id = r) then raise exception 'amount below paid' using errcode = '22023'; end if;
   perform camp_assert_seat(cid);
+  perform set_config('camp.note', 'admin', true);
   if r is null then
     insert into camp_participants (camp_id, player_id, tariff_id, amount, tshirt_size, comment, status, registered_on)
     values (cid, p, tid, coalesce(amt, tp), nullif(trim(tshirt), ''), nullif(trim(cmt), ''), 'registered', current_date) returning id into r;
   else
     update camp_participants set tariff_id = tid, amount = coalesce(amt, tp), tshirt_size = nullif(trim(tshirt), ''), comment = nullif(trim(cmt), ''), status = 'registered' where id = r;
   end if;
-  perform camp_log_event(r, st, 'registered', 'admin');
+  perform set_config('camp.note', '', true);
   return r;
 end $$;
 
@@ -236,7 +265,9 @@ begin
   if amt is not null and amt < 0 then raise exception 'bad amount' using errcode = '22023'; end if;
   select id, status into r, st from camp_participants where camp_id = cid and player_id is null and lower(btrim(guest_name)) = lower(btrim(nm));
   if r is not null and st = 'registered' then raise exception 'already registered' using errcode = '23505'; end if;
+  if r is not null and coalesce(amt, tp) < (select coalesce(sum(amount), 0) from camp_payments where participant_id = r) then raise exception 'amount below paid' using errcode = '22023'; end if;
   perform camp_assert_seat(cid);
+  perform set_config('camp.note', 'admin', true);
   if r is null then
     insert into camp_participants (camp_id, player_id, guest_name, guest_contact, tariff_id, amount, tshirt_size, comment, status, registered_on)
     values (cid, null, btrim(nm), nullif(btrim(contact), ''), tid, coalesce(amt, tp), nullif(btrim(tshirt), ''), nullif(btrim(cmt), ''), 'registered', current_date) returning id into r;
@@ -244,7 +275,7 @@ begin
     update camp_participants set guest_contact = nullif(btrim(contact), ''), tariff_id = tid, amount = coalesce(amt, tp),
       tshirt_size = nullif(btrim(tshirt), ''), comment = nullif(btrim(cmt), ''), status = 'registered' where id = r;
   end if;
-  perform camp_log_event(r, st, 'registered', 'admin');
+  perform set_config('camp.note', '', true);
   return r;
 end $$;
 
@@ -257,13 +288,15 @@ begin
   if cid is null then raise exception 'participant not found' using errcode = 'P0002'; end if;
   perform 1 from camps where id = cid for update;
   select status into old from camp_participants where id = pid;
-  if st not in ('registered', 'declined') then raise exception 'bad status' using errcode = '22023'; end if;
+  -- «cancelled» (отмена родителем) админ не выставляет, но может править сумму и комментарий отменённой записи, оставляя статус
+  if st not in ('registered', 'declined') and not (st = 'cancelled' and old = 'cancelled') then raise exception 'bad status' using errcode = '22023'; end if;
   if amt is null or amt < 0 then raise exception 'bad amount' using errcode = '22023'; end if;
   if amt < (select coalesce(sum(amount), 0) from camp_payments where participant_id = pid) then raise exception 'amount below paid' using errcode = '22023'; end if;
   if tid is not null and not exists (select 1 from camp_tariffs where id = tid and camp_id = cid) then raise exception 'tariff not found' using errcode = 'P0002'; end if;
   if st = 'registered' and old <> 'registered' then perform camp_assert_seat(cid); end if;
+  perform set_config('camp.note', 'admin', true);
   update camp_participants set tariff_id = coalesce(tid, tariff_id), amount = amt, tshirt_size = nullif(trim(tshirt), ''), comment = nullif(trim(cmt), ''), status = st where id = pid;
-  if st is distinct from old then perform camp_log_event(pid, old, st, 'admin'); end if;
+  perform set_config('camp.note', '', true);
 end $$;
 
 revoke execute on function camp_set_public(uuid, text, int), camp_terms_save(uuid, jsonb), camp_seats(uuid), camp_parent_register(uuid, uuid, uuid, text),

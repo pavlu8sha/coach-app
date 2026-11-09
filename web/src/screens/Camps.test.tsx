@@ -106,4 +106,17 @@ describe('«Сборы»', () => {
     await waitFor(() => expect(fake.rpcCalls('camp_register')).toHaveLength(1));
     expect(fake.rpcCalls('camp_register')[0]).toMatchObject({ cid: 'c1', p: 'p9', tid: 't1', amt: null });
   });
+  it('отменённая родителем запись: пометка, итоги её не считают, кнопки статуса нет, правка суммы остаётся', async () => {
+    seed();
+    (fake.db.camp_participants as Array<Record<string, unknown>>)[1].status = 'cancelled';
+    fake.rpc.camp_update_participant = () => null;
+    render(<Camps />);
+    fireEvent.click(await screen.findByText('Зимний лагерь'));
+    expect(await screen.findByText('Записано: 1 · оплачено 100 ₾ из 850 ₾')).toBeInTheDocument();
+    expect(screen.getByText('Отмена', { selector: 'span' })).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Сидоров Ян'));
+    expect(await screen.findByText(/отменил родитель/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Отметить отказ' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Вернуть в список' })).toBeNull();
+  });
 });
