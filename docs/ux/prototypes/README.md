@@ -40,3 +40,19 @@
 - Product decisions already recorded in Issue #266 remain authoritative. These drawings do not approve new business rules.
 - The parent/child correction view intentionally shows only that the result was corrected and the current value. Detailed audit data (old/new values, author, time, reason) belongs to the authorized staff view.
 - Responsive sizes, UI-kit tokens, real data labels and exact component behavior must be validated before handoff.
+
+## Integrated player profile — information architecture and role views
+
+| ID | Screen / document | Preview |
+|---|---|---|
+| A19 | Integrated parent/child player profile — mobile | [SVG](parent-player-profile-integrated-v2.svg) |
+| A20 | Staff player profile — desktop | [SVG](staff-player-profile-desktop-v1.svg) |
+| A21 | Unified information architecture, data boundaries and acceptance criteria | [Specification](player-profile-information-architecture-v1.md) |
+
+### Notes for A19–A21
+
+- The parent/child profile is entered from the existing child card; the existing bottom navigation is not replaced.
+- The service view preserves the existing staff-card tabs. The new «Развитие» area is a proposal and is not an approved change to the current application.
+- The proposed «Тренировки» section must not show a fabricated personal group-training history: the current implementation does not yet provide a confirmed complete source for it.
+- «Достижения» remain a placeholder until the product defines their source and rules. Points, test ranking and achievements are separate concepts.
+- Names and values in the drawings are illustrative; no sample values should be treated as live player data.
