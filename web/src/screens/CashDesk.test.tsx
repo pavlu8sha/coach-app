@@ -414,3 +414,97 @@ describe('Поиск игрока в кассе (0154)', () => {
     expect(screen.queryByRole('button', { name: /Иванов Пётр/ })).not.toBeInTheDocument();
   });
 });
+
+// Условия: notes/acceptance-card-match-event-dues-2026-11-09.md
+describe('«К оплате»: взносы матчей и событий', () => {
+  function seedFees() {
+    seed();
+    fake.db.payments = [];
+    fake.db.equipment_orders = [];
+    fake.db.individual_bookings = [];
+    fake.db.extra_bookings = [];
+    fake.db.camp_participants = [];
+    fake.db.subscriptions = [{ player_id: 'p1', month: M, group_id: null, discount: true, written_off: false }]; // абонемент закрыт, остаются только взносы
+    fake.db.match_fees = [
+      { match_id: 'm1', player_id: 'p1', amount: 25, paid: false, matches: { played_on: '2026-10-10', team: 'U9-A', opponent: 'Динамо', kind: 'game' } },
+      { match_id: 'm2', player_id: 'p1', amount: 20, paid: false, matches: { played_on: '2026-10-03', team: 'U9-A', opponent: 'Локо', kind: 'friendly' } }, // частично
+      { match_id: 'm3', player_id: 'p1', amount: 20, paid: true, matches: { played_on: '2026-09-20', team: 'U9-A', opponent: 'Торпедо', kind: 'friendly' } }, // оплачен при импорте, платежей нет
+      { match_id: 'm4', player_id: 'p1', amount: 15, paid: true, matches: { played_on: '2026-09-10', team: 'U9-A', opponent: 'Рубин', kind: 'friendly' } }, // оплачен платежом
+      { match_id: 'm5', player_id: 'p1', amount: 0, paid: false, matches: { played_on: '2026-09-01', team: 'U9-A', opponent: 'Нулевой', kind: 'friendly' } }, // сумма 0
+      { match_id: 'm6', player_id: 'p2', amount: 25, paid: false, matches: { played_on: '2026-10-11', team: 'U9-A', opponent: 'Чужой', kind: 'game' } }, // другой игрок
+    ];
+    fake.db.match_payments = [
+      { match_id: 'm2', player_id: 'p1', amount: 5 },
+      { match_id: 'm4', player_id: 'p1', amount: 15 },
+      { match_id: 'm6', player_id: 'p2', amount: 1 },
+    ];
+    fake.db.tournament_fees = [
+      { tournament_id: 't1', player_id: 'p1', amount: 80, paid: false, tournaments: { name: 'Championship 2', kind: 'championship', team: 'U9' } },
+      { tournament_id: 't2', player_id: 'p1', amount: 50, paid: false, tournaments: { name: null, kind: 'festival', team: 'U9' } },
+      { tournament_id: 't3', player_id: 'p1', amount: 60, paid: false, tournaments: { name: 'Оплаченный', kind: 'cup', team: 'U9' } },
+    ];
+    fake.db.tournament_payments = [
+      { tournament_id: 't1', player_id: 'p1', amount: 30 },
+      { tournament_id: 't3', player_id: 'p1', amount: 70 }, // больше взноса, не долг
+    ];
+  }
+  const payVia = async (c: HTMLElement) => {
+    fireEvent.click(within(c).getByRole('button', { name: 'Принять оплату' }));
+    fireEvent.click(within(c).getByRole('button', { name: 'Записать платёж' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
+  };
+
+  it('показывает неоплаченные и частичные взносы матчей и событий; оплаченные, нулевые и чужие скрыты', async () => {
+    seedFees();
+    await openPlayer();
+    expect(await screen.findByRole('heading', { name: 'Взносы матчей' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Взносы событий' })).toBeInTheDocument();
+    expect(screen.getByText(/10.10.2026/)).toBeInTheDocument();
+    expect(screen.getByText(/К оплате 25 ₾/)).toBeInTheDocument();
+    expect(screen.getByText(/Внесено 5 ₾ из 20 ₾/)).toBeInTheDocument();
+    expect(screen.getByText(/Внесено 30 ₾ из 80 ₾/)).toBeInTheDocument();
+    expect(screen.getByText(/Festival|Фестиваль/)).toBeInTheDocument();
+    for (const gone of ['Торпедо', 'Рубин', 'Нулевой', 'Чужой', 'Оплаченный']) expect(screen.queryByText(new RegExp(gone))).not.toBeInTheDocument();
+    expect(screen.getByText(/к оплате: 140 ₾/)).toBeInTheDocument(); // 25 + 15 + 50 + 50
+  });
+
+  it('оплата матча идёт через match_pay с одним игроком, суммой, датой и способом', async () => {
+    seedFees();
+    fake.rpc.match_pay = () => 1;
+    await openPlayer();
+    await payVia(card(/К оплате 25 ₾/));
+    await waitFor(() => expect(fake.rpcCalls('match_pay')).toHaveLength(1));
+    expect(fake.rpcCalls('match_pay')[0]).toMatchObject({ m: 'm1', ids: ['p1'], amt: 25, d: today(), mth: 'Наличные', cmt: null });
+  });
+
+  it('частичная оплата события идёт через event_pay', async () => {
+    seedFees();
+    fake.rpc.event_pay = () => 1;
+    await openPlayer();
+    const c = card(/Внесено 30 ₾ из 80 ₾/);
+    fireEvent.click(within(c).getByRole('button', { name: 'Принять оплату' }));
+    fireEvent.change(within(c).getByLabelText(/Сумма/), { target: { value: '20' } });
+    fireEvent.click(within(c).getByRole('button', { name: 'Записать платёж' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
+    await waitFor(() => expect(fake.rpcCalls('event_pay')).toHaveLength(1));
+    expect(fake.rpcCalls('event_pay')[0]).toMatchObject({ t: 't1', ids: ['p1'], amt: 20, mth: 'Наличные', cmt: null });
+  });
+
+  it('ошибка match_pay показывается в строке, платёж не засчитан', async () => {
+    seedFees();
+    fake.rpc.match_pay = () => ({ data: null, error: { message: 'bad amount' } });
+    await openPlayer();
+    const c = card(/К оплате 25 ₾/);
+    await payVia(c);
+    expect(await within(c).findByText('Сумма указана неверно.')).toBeInTheDocument();
+  });
+
+  it('сбой чтения взносов не ломает остальные разделы', async () => {
+    seedFees();
+    fake.db.equipment_orders = [{ id: 'o1', player_id: 'p1', ordered_on: '2026-09-10', total: 160, paid: 60, equipment_order_lines: [{ kit: 'Форма' }] }];
+    fake.errors.match_fees = 'boom';
+    await openPlayer();
+    expect(await screen.findByRole('heading', { name: 'Экипировка' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Взносы матчей' })).not.toBeInTheDocument();
+  });
+});
