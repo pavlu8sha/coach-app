@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { ExpandableTextarea } from '../ui/ExpandableTextarea';
 import { coachError, compareGroups, fmtDate, groupByGroupName, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput, Segmented, SwitchRow } from '../ui/components';
@@ -261,7 +262,7 @@ function RequirementEditor({ onBack }: { onBack: () => void }) {
       <p className="muted">Этот текст видят родители в экипировке. Пишите только утверждённые условия: сроки, состав и цены без согласования не добавляйте.</p>
       {text === null ? <Loading /> : (
         <>
-          <label className="field">Требование к форме<textarea rows={6} maxLength={1000} value={text} onChange={e => setText(e.target.value)} /></label>
+          <ExpandableTextarea label="Требование к форме" rows={6} maxLength={1000} value={text} onChange={setText} />
           {msg && <p className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}
           <button type="button" className="ks-btn" disabled={busy || !text.trim()} onClick={() => void save()}>Сохранить</button>
           <div style={{ height: 8 }} />
