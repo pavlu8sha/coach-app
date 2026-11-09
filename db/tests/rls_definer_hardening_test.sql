@@ -14,12 +14,14 @@ select is(
 select is(
   (select coalesce(string_agg(p.proname, ', ' order by p.proname), '') from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.prosecdef and has_function_privilege('anon', p.oid, 'execute')
-      and p.proname not in ('group_rating', 'is_admin', 'is_coach_of_group', 'is_coach_of_player', 'is_coach_of_subscription', 'is_guardian_in_group', 'is_guardian_of')),
+      and p.proname not in ('group_rating', 'is_admin', 'is_coach_of_group', 'is_coach_of_player', 'is_coach_of_subscription', 'is_guardian_in_group', 'is_guardian_of',
+      -- 0160: публичные данные сбора без входа (без участников и персональных данных)
+      'camp_public')),
   '', 'гостю (anon) доступны только проверочные функции без данных');
 
 select is(
   (select coalesce(string_agg(p.proname, ', ' order by p.proname), '') from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname in ('apply_match_points', 'claim_notifications', 'enqueue_notification', 'enqueue_to_admins', 'enqueue_to_guardians', 'notify_coach_group', 'notify_payment', 'notify_bonus', 'lead_submit', 'has_consent', 'ind_book', 'ind_assert_admin', 'ind_price', 'ind_cap', 'extra_cap', 'eq_assert_admin', 'eq_number_taken', 'eq_price', 'camp_assert_admin', 'tl_assert_admin', 'finish_notification', 'notify_link_request', 'notify_data_request', 'rate_limit_hit', 'rule_for', 'tariff_for', 'rsvp_assert_staff', 'rsvp_lock_match', 'rsvp_log', 'rsvp_claim_reminder', 'rsvp_notify_parent', 'rsvp_notify_match', 'rsvp_matches_notify', 'rsvp_invitation_notify', 'rsvp_auto_reminders', 'rsvp_answer_by_telegram', 'rsvp_notify_players', 'rsvp_invitations_stage', 'rsvp_notice_flush', 'rsvp_matches_details_notify', 'extra_log', 'extra_session_cap', 'notify_pref_default', 'notify_direction_enabled', 'enqueue_direction_notification', 'booking_cancellation_assert', 'extra_eligible', 'extra_recipients', 'booking_notify_enabled', 'booking_when', 'booking_session_label', 'booking_notice_once', 'booking_family_notice', 'waitlist_state', 'waitlist_notify', 'waitlist_trg_freed', 'waitlist_trg_booked', 'waitlist_trg_ind_session', 'waitlist_trg_extra_session', 'first_wave_has_booking', 'waitlist_claim_by_telegram')
+    where n.nspname = 'public' and p.proname in ('apply_match_points', 'claim_notifications', 'enqueue_notification', 'enqueue_to_admins', 'enqueue_to_guardians', 'notify_coach_group', 'notify_payment', 'notify_bonus', 'lead_submit', 'has_consent', 'ind_book', 'ind_assert_admin', 'ind_price', 'ind_cap', 'extra_cap', 'eq_assert_admin', 'eq_number_taken', 'eq_price', 'camp_assert_admin', 'camp_participants_log', 'camp_participants_seat_guard', 'camp_assert_seat', 'camps_capacity_guard', 'tl_assert_admin', 'finish_notification', 'notify_link_request', 'notify_data_request', 'rate_limit_hit', 'rule_for', 'tariff_for', 'rsvp_assert_staff', 'rsvp_lock_match', 'rsvp_log', 'rsvp_claim_reminder', 'rsvp_notify_parent', 'rsvp_notify_match', 'rsvp_matches_notify', 'rsvp_invitation_notify', 'rsvp_auto_reminders', 'rsvp_answer_by_telegram', 'rsvp_notify_players', 'rsvp_invitations_stage', 'rsvp_notice_flush', 'rsvp_matches_details_notify', 'extra_log', 'extra_session_cap', 'notify_pref_default', 'notify_direction_enabled', 'enqueue_direction_notification', 'booking_cancellation_assert', 'extra_eligible', 'extra_recipients', 'booking_notify_enabled', 'booking_when', 'booking_session_label', 'booking_notice_once', 'booking_family_notice', 'waitlist_state', 'waitlist_notify', 'waitlist_trg_freed', 'waitlist_trg_booked', 'waitlist_trg_ind_session', 'waitlist_trg_extra_session', 'first_wave_has_booking', 'waitlist_claim_by_telegram')
       and has_function_privilege('authenticated', p.oid, 'execute')),
   '', 'служебные функции недоступны из приложения');
 
@@ -100,7 +102,9 @@ select is(
         -- 0159 (#238): предикат обязательного согласия и текущая версия согласия; данных других людей не раскрывают
         'my_data_consent_ok', 'consent_current_version',
         -- 0136: возврат отметок из снимка после переноса; доступ проверяется внутри
-        'match_rsvp_restore_marks')),
+        'match_rsvp_restore_marks',
+        -- 0160: самозапись на сборы. camp_parent_register: опекун ребёнка (проверка внутри); остальные: администратор или справочные данные
+        'camp_set_public', 'camp_terms_save', 'camp_parent_register', 'camp_seats', 'camp_public', 'camp_visible_to_parent', 'camp_has_my_child')),
   '', 'список функций, доступных вошедшим пользователям, не расширился без решения');
 
 select is(
