@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1180" viewBox="0 0 1600 1180">
+<defs>
+ <linearGradient id="navy" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#14294e"/><stop offset="1" stop-color="#07152e"/></linearGradient>
+ <linearGradient id="shine" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#d5b66e"/><stop offset="1" stop-color="#8d713d"/></linearGradient>
+ <pattern id="pitch" width="300" height="300" patternUnits="userSpaceOnUse"><path d="M0 150H300 M150 0V300" stroke="#fff" stroke-opacity=".06" stroke-width="2" fill="none"/><circle cx="150" cy="150" r="72" stroke="#fff" stroke-opacity=".06" fill="none" stroke-width="2"/></pattern>
+ <style>
+ .bg{fill:#eef1f6}.ink{fill:#14213a;font-family:Arial,sans-serif}.muted{fill:#748198;font-family:Arial,sans-serif}.white{fill:#fff;font-family:Arial,sans-serif}.gold{fill:#d5b66e;font-family:Arial,sans-serif}
+ .h1{font:700 30px Arial}.h2{font:700 20px Arial}.body{font:15px Arial}.small{font:12px Arial}.tiny{font:10px Arial}.caps{font:700 11px Arial;letter-spacing:2px}
+ </style>
+</defs>
+<rect width="1600" height="1180" class="bg"/>
+<text x="48" y="55" class="ink h1">A26 · Коллекционная карточка FC Kickstart</text>
+<text x="48" y="84" class="muted body">Лицевая сторона · оборот · мобильный экспорт · PROPOSAL / данные-заглушки</text>
+<!-- front photo -->
+<g transform="translate(70 135)">
+ <rect width="390" height="700" rx="26" fill="url(#navy)"/>
+ <rect width="390" height="700" rx="26" fill="url(#pitch)"/>
+ <path d="M18 18H372V682H18Z" fill="none" stroke="url(#shine)" stroke-width="2" opacity=".8"/>
+ <text x="30" y="48" class="gold caps">FC KICKSTART</text>
+ <text x="360" y="48" text-anchor="end" class="white tiny">PLAYER CARD</text>
+ <rect x="30" y="78" width="330" height="360" rx="14" fill="#1e355c" stroke="#53688a"/>
+ <circle cx="195" cy="205" r="68" fill="#30486d"/>
+ <path d="M95 420Q112 292 195 292Q278 292 295 420Z" fill="#30486d"/>
+ <path d="M154 337L195 372L236 337" fill="none" stroke="#d5b66e" stroke-width="5"/>
+ <text x="195" y="414" text-anchor="middle" class="white small">ФОТО ИГРОКА</text>
+ <text x="30" y="486" class="gold tiny">ИМЯ И ФАМИЛИЯ</text>
+ <text x="30" y="526" class="white" font-size="29" font-weight="700">Имя Фамилия</text>
+ <text x="30" y="560" class="white body">Позиция · Группа</text>
+ <text x="30" y="596" class="muted small">Год рождения: —</text>
+ <text x="348" y="634" text-anchor="end" class="gold" font-size="54" font-weight="700">—</text>
+ <text x="30" y="666" class="gold tiny">KICKSTART · PLAYER PROFILE</text>
+</g>
+<!-- no photo front -->
+<g transform="translate(500 135)">
+ <rect width="390" height="700" rx="26" fill="url(#navy)"/>
+ <rect width="390" height="700" rx="26" fill="url(#pitch)"/>
+ <path d="M18 18H372V682H18Z" fill="none" stroke="url(#shine)" stroke-width="2" opacity=".8"/>
+ <text x="30" y="48" class="gold caps">FC KICKSTART</text>
+ <text x="360" y="48" text-anchor="end" class="white tiny">PLAYER CARD</text>
+ <rect x="30" y="78" width="330" height="360" rx="14" fill="#172b4d" stroke="#53688a"/>
+ <path d="M70 330Q95 240 195 240Q295 240 320 330V410H70Z" fill="#243c63"/>
+ <circle cx="195" cy="184" r="76" fill="#243c63" stroke="#d5b66e" stroke-opacity=".65" stroke-width="2"/>
+ <path d="M148 184L177 215L245 144" fill="none" stroke="#d5b66e" stroke-width="5" opacity=".85"/>
+ <text x="195" y="414" text-anchor="middle" class="white small">ФИРМЕННАЯ ГРАФИКА</text>
+ <text x="30" y="486" class="gold tiny">ИМЯ И ФАМИЛИЯ</text>
+ <text x="30" y="526" class="white" font-size="29" font-weight="700">Имя Фамилия</text>
+ <text x="30" y="560" class="white body">Позиция · Группа</text>
+ <text x="30" y="596" class="muted small">Год рождения: —</text>
+ <text x="348" y="634" text-anchor="end" class="gold" font-size="54" font-weight="700">—</text>
+ <text x="30" y="666" class="gold tiny">KICKSTART · PLAYER PROFILE</text>
+</g>
+<!-- reverse -->
+<g transform="translate(930 135)">
+ <rect width="390" height="700" rx="26" fill="url(#navy)"/>
+ <rect width="390" height="700" rx="26" fill="url(#pitch)"/>
+ <path d="M18 18H372V682H18Z" fill="none" stroke="url(#shine)" stroke-width="2" opacity=".8"/>
+ <text x="30" y="48" class="gold caps">FC KICKSTART</text>
+ <text x="30" y="95" class="white h2">Сезон игрока</text>
+ <text x="30" y="122" class="muted small">Показатели только из подтверждённых источников</text>
+ <rect x="30" y="150" width="330" height="190" rx="12" fill="#1a3156" stroke="#415879"/>
+ <text x="52" y="184" class="gold tiny">МАТЧИ</text>
+ <text x="52" y="222" class="white body">Матчи</text><text x="338" y="222" text-anchor="end" class="white h2">—</text>
+ <path d="M52 238H338" stroke="#60718d" opacity=".5"/>
+ <text x="52" y="270" class="white body">Голы</text><text x="338" y="270" text-anchor="end" class="white h2">—</text>
+ <path d="M52 286H338" stroke="#60718d" opacity=".5"/>
+ <text x="52" y="318" class="white body">Ассисты</text><text x="338" y="318" text-anchor="end" class="white h2">—</text>
+ <rect x="30" y="362" width="330" height="104" rx="12" fill="#1a3156" stroke="#415879"/>
+ <text x="52" y="396" class="gold tiny">РАЗВИТИЕ</text>
+ <text x="52" y="428" class="white body">Тесты / достижения</text>
+ <text x="338" y="428" text-anchor="end" class="white h2">—</text>
+ <rect x="30" y="488" width="118" height="118" rx="8" fill="#fff" stroke="#d5b66e" stroke-width="2"/>
+ <path d="M44 502H78V536H44Z M100 502H134V536H100Z M44 558H78V592H44Z" fill="none" stroke="#14213a" stroke-width="5"/>
+ <path d="M87 502V536 M87 550V592 M100 550H134 M58 550H72 M100 574H116" stroke="#14213a" stroke-width="5"/>
+ <text x="165" y="528" class="white body">QR профиля</text>
+ <text x="165" y="551" class="muted tiny">место для реального QR</text>
+ <text x="165" y="570" class="muted tiny">после утверждения</text>
+ <text x="165" y="589" class="muted tiny">публичного доступа</text>
+ <text x="30" y="654" class="gold tiny">SEASON CARD · ДАННЫЕ МОГУТ ОБНОВЛЯТЬСЯ</text>
+</g>
+<!-- export panel -->
+<g transform="translate(1360 135)">
+ <rect width="190" height="700" rx="24" fill="#fff" stroke="#d9e0e9" stroke-width="2"/>
+ <text x="18" y="38" class="ink h2">Экспорт</text>
+ <text x="18" y="64" class="muted tiny">MOBILE</text>
+ <rect x="18" y="88" width="154" height="240" rx="12" fill="url(#navy)"/>
+ <rect x="30" y="101" width="130" height="214" rx="8" fill="url(#pitch)"/>
+ <rect x="42" y="118" width="106" height="105" rx="6" fill="#30486d"/>
+ <circle cx="95" cy="158" r="22" fill="#526989"/>
+ <path d="M61 214Q68 180 95 180Q122 180 129 214Z" fill="#526989"/>
+ <text x="42" y="246" class="white tiny">Имя Фамилия</text>
+ <text x="42" y="265" class="gold tiny">FC KICKSTART</text>
+ <rect x="18" y="350" width="154" height="42" rx="9" fill="#2458d3"/>
+ <text x="95" y="376" text-anchor="middle" class="white small">Сохранить</text>
+ <rect x="18" y="404" width="154" height="42" rx="9" fill="#edf2fa"/>
+ <text x="95" y="430" text-anchor="middle" class="ink small">Поделиться</text>
+ <text x="18" y="482" class="ink small">Стороны</text>
+ <text x="18" y="506" class="muted tiny">Лицевая / оборот</text>
+ <text x="18" y="548" class="ink small">Доступ</text>
+ <text x="18" y="572" class="muted tiny">Публичный экспорт</text>
+ <text x="18" y="590" class="muted tiny">только при наличии</text>
+ <text x="18" y="608" class="muted tiny">отдельного согласия</text>
+ <text x="18" y="666" class="muted tiny">Preview only</text>
+</g>
+<!-- notes -->
+<rect x="70" y="880" width="1480" height="230" rx="18" fill="#fff" stroke="#d9e0e9" stroke-width="2"/>
+<text x="104" y="926" class="ink h2">Принципы карточки</text>
+<text x="104" y="966" class="ink body">• Фото необязательно: вариант без фото выглядит завершённым и фирменным.</text>
+<text x="104" y="998" class="ink body">• Никаких уровней редкости, рейтинговых рамок или автоматически созданных наград.</text>
+<text x="104" y="1030" class="ink body">• Пустые/неподтверждённые показатели не показываются как нули; в концепте обозначены тире.</text>
+<text x="820" y="966" class="ink body">• QR — только место под реальный маршрут после согласования публичного доступа.</text>
+<text x="820" y="998" class="ink body">• Публичный экспорт/фото требуют отдельного добровольного согласия.</text>
+<text x="820" y="1030" class="ink body">• Имя, год рождения, группа и позиция — поля карточки; их публичность требует проверки согласий.</text>
+<text x="104" y="1076" class="muted small">Все имена и значения в макете — placeholders. Статистика и QR не являются рабочими данными.</text>
+</svg>
