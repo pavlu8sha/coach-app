@@ -166,11 +166,11 @@ select throws_ok($$select camp_register_guest('00000000-0000-0000-0000-000000000
 -- прямая запись в таблицу не обходит лимит и журнал (лимит 1)
 select camp_set_public('00000000-0000-0000-0000-0000000000cb', 'other-2099', 1);
 insert into ids select 'd1', camp_register('00000000-0000-0000-0000-0000000000cb', '00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000000e3', null, null, null);
--- прямые записи возможны только у service_role (0165 закрыла их вошедшим): ограничения вместимости и журнал действуют и для неё
-select as_service();
+-- прямые записи возможны только владельцу базы (0165 закрыла их прикладным ролям): ограничения вместимости и журнал действуют и для него
+reset role;
 select throws_ok($$insert into camp_participants (camp_id, player_id, tariff_id, amount, status) values ('00000000-0000-0000-0000-0000000000cb', '00000000-0000-0000-0000-00000000d006', '00000000-0000-0000-0000-0000000000e3', 900, 'registered')$$, '22023', 'camp full', 'прямая вставка в таблицу не превышает лимит');
 select throws_ok($$update camp_participants set status = 'registered' where id = (select id from ids where k = 'h')$$, '22023', 'camp full', 'прямой переход declined в registered не превышает лимит');
-select lives_ok($$update camp_participants set status = 'cancelled' where id = (select id from ids where k = 'd1')$$, 'прямой перевод в cancelled разрешён администратору');
+select lives_ok($$update camp_participants set status = 'cancelled' where id = (select id from ids where k = 'd1')$$, 'прямой перевод в cancelled разрешён владельцу базы');
 select is((select count(*)::int from camp_participant_events where participant_id = (select id from ids where k = 'd1') and to_status = 'cancelled' and note = 'direct'), 1, 'прямая смена статуса попала в журнал с пометкой direct');
 select is((select note from camp_participant_events where participant_id = (select id from ids where k = 'd1') and to_status = 'registered'), 'admin', 'запись через функцию помечена admin');
 
@@ -181,9 +181,9 @@ select throws_ok($$select camp_update_participant((select id from ids where k = 
 
 -- смена сбора прямым update не обходит лимит; запись с журналом не удаляется; статус null и «пустой» текст
 select camp_register('00000000-0000-0000-0000-0000000000cb', '00000000-0000-0000-0000-00000000d006', '00000000-0000-0000-0000-0000000000e3', null, null, null);
-select as_service();
+reset role;
 select throws_ok($$update camp_participants set camp_id = '00000000-0000-0000-0000-0000000000cb' where id = (select id from ids where k = 'a')$$, '22023', 'camp full', 'перенос записи на полный сбор прямым update не обходит лимит');
-select throws_ok($$delete from camp_participants where id = (select id from ids where k = 'a')$$, '42501', null, 'участник не удаляется прямым запросом (0165)');
+select throws_ok($$delete from camp_participants where id = (select id from ids where k = 'a')$$, 'P0001', 'immutable', 'участник не удаляется даже владельцу базы (0165)');
 select as_user('00000000-0000-0000-0000-0000000000a1');
 select throws_ok($$select camp_update_participant((select id from ids where k = 'a'), null, 950, null, null, null)$$, '22023', 'bad status', 'статус null отклоняется');
 select throws_ok($$select camp_terms_save('00000000-0000-0000-0000-0000000000cb', jsonb_build_array(jsonb_build_object('text', E'\u00a0\u200b')))$$, '22023', 'bad terms', 'текст из невидимых символов отклоняется');
