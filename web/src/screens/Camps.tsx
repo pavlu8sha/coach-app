@@ -12,7 +12,7 @@ interface Camp { id: string; name: string; location: string | null; starts_on: s
 interface Tariff { id: string; name: string; price: number; active: boolean }
 interface Pay { id: string; amount: number; paid_on: string; kind: 'booking' | 'payment' | 'refund'; method: string | null; comment: string | null; legacy_ref?: string | null }
 interface Part {
-  id: string; player_id: string | null; guest_name: string | null; guest_contact: string | null; tariff_id: string | null; amount: number; tshirt_size: string | null; comment: string | null; status: 'registered' | 'declined';
+  id: string; player_id: string | null; guest_name: string | null; guest_contact: string | null; tariff_id: string | null; amount: number; tshirt_size: string | null; comment: string | null; status: 'registered' | 'declined' | 'cancelled';
   players: { full_name: string; groups: { name: string } | null } | null; camp_tariffs: { name: string } | null; camp_payments: Pay[];
 }
 
@@ -21,7 +21,7 @@ const num = (s: string) => Number(s.replace(',', '.'));
 const METHODS = ['Наличные', 'Перевод'];
 const KIND: Record<Pay['kind'], string> = { booking: 'Бронь', payment: 'Оплата', refund: 'Возврат' };
 const errText = (m: string) =>
-  m.includes('already registered') ? 'Уже записан на этот сбор.' : m.includes('not a guest') ? 'Имя и контакт правятся только у гостя.' : m.includes('already cancelled') ? 'Этот платёж уже отменён.' : m.includes('not cancellable') ? 'Этот платёж отменить нельзя.' : m.includes('paid below zero') ? 'Отмена увела бы оплату ниже нуля.' :
+  m.includes('camp full') ? 'На сборе нет свободных мест.' : m.includes('capacity below registered') ? 'Лимит не может быть меньше числа подтверждённых участников.' : m.includes('already registered') ? 'Уже записан на этот сбор.' : m.includes('not a guest') ? 'Имя и контакт правятся только у гостя.' : m.includes('already cancelled') ? 'Этот платёж уже отменён.' : m.includes('not cancellable') ? 'Этот платёж отменить нельзя.' : m.includes('paid below zero') ? 'Отмена увела бы оплату ниже нуля.' :
   m.includes('bad dates') ? 'Дата конца раньше даты начала.' : m.includes('bad amount') ? 'Сумма указана неверно.' : m.includes('amount below paid') ? 'Сумма участника не может быть меньше уже оплаченного.' : m.includes('name required') ? 'Введите название.' : m.includes('tariff not found') ? 'Выберите действующий тариф.' :
   m.includes('Could not find the function') || m.includes('camp_') ? 'Модуль ещё не установлен в базе (миграция 0037).' : coachError(m);
 const nameOf = (p: Pick<Part, 'players' | 'guest_name'>) => p.players?.full_name ?? p.guest_name ?? 'Участник';
@@ -144,8 +144,8 @@ function CampView({ camp, campIndex, onBack, onEdit }: { camp: Camp; campIndex: 
             <details className="ks-group" key={group}>
               <summary><div className="ks-line"><b>{group}</b><span className="muted">{items.length} уч.</span></div></summary>
               {items.map(p => (
-                <ListRow key={p.id} avatar={nameOf(p)} title={nameOf(p)} sub={[p.camp_tariffs?.name ?? 'без тарифа', p.status === 'declined' ? 'отказ' : p.player_id ? p.players?.groups?.name ?? 'без группы' : 'гость']}
-                  end={p.status === 'declined' ? <Pill>Отказ</Pill> : <Pill tone={paidOf(p) >= p.amount ? 'success' : 'danger'} dot>{paidOf(p) >= p.amount ? 'Оплачен' : `${gel(paidOf(p))} из ${gel(p.amount)}`}</Pill>} onClick={() => nav.push('camp.part', { id: p.id })} />
+                <ListRow key={p.id} avatar={nameOf(p)} title={nameOf(p)} sub={[p.camp_tariffs?.name ?? 'без тарифа', p.status === 'declined' ? 'отказ' : p.status === 'cancelled' ? 'отменил родитель' : p.player_id ? p.players?.groups?.name ?? 'без группы' : 'гость']}
+                  end={p.status === 'declined' ? <Pill>Отказ</Pill> : p.status === 'cancelled' ? <Pill>Отмена</Pill> : <Pill tone={paidOf(p) >= p.amount ? 'success' : 'danger'} dot>{paidOf(p) >= p.amount ? 'Оплачен' : `${gel(paidOf(p))} из ${gel(p.amount)}`}</Pill>} onClick={() => nav.push('camp.part', { id: p.id })} />
               ))}
             </details>
           ))}
@@ -320,7 +320,7 @@ function PartView({ part, camp, tariffs, onBack }: { part: Part; camp: Camp; tar
     <main className="page">
       <BackNav onBack={onBack} managed />
       <h1 style={{ overflowWrap: 'anywhere' }}>{nameOf(p)}</h1>
-      <p className="muted">{camp.name}{p.player_id ? '' : ' · гость'}{p.guest_contact ? ` · ${p.guest_contact}` : ''} · оплачено {gel(paidOf(p))} из {gel(p.amount)}{p.status === 'declined' ? ' · отказ' : ''}</p>
+      <p className="muted">{camp.name}{p.player_id ? '' : ' · гость'}{p.guest_contact ? ` · ${p.guest_contact}` : ''} · оплачено {gel(paidOf(p))} из {gel(p.amount)}{p.status === 'declined' ? ' · отказ' : p.status === 'cancelled' ? ' · отменил родитель' : ''}</p>
       {msg && <p className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}
 
       {dialog}
@@ -358,7 +358,7 @@ function PartView({ part, camp, tariffs, onBack }: { part: Part; camp: Camp; tar
       <label className="field">Комментарий<input value={cmt} maxLength={120} onChange={e => setCmt(e.target.value)} /></label>
       <button type="button" className="ks-btn" disabled={busy === 'save' || Number.isNaN(num(amount))} onClick={() => void run('save', () => supabase.rpc('camp_update_participant', { pid: p.id, tid: tid || null, amt: num(amount), tshirt: size, cmt, st: p.status }), 'Сохранено.')}>Сохранить</button>
       <div style={{ height: 8 }} />
-      <button type="button" className="ks-btn secondary" disabled={busy === 'st'} onClick={() => void run('st', () => supabase.rpc('camp_update_participant', { pid: p.id, tid: tid || null, amt: num(amount), tshirt: size, cmt, st: p.status === 'declined' ? 'registered' : 'declined' }), p.status === 'declined' ? 'Снова записан.' : 'Отказ отмечен.')}>{p.status === 'declined' ? 'Вернуть в список' : 'Отметить отказ'}</button>
+      {p.status !== 'cancelled' && <button type="button" className="ks-btn secondary" disabled={busy === 'st'} onClick={() => void run('st', () => supabase.rpc('camp_update_participant', { pid: p.id, tid: tid || null, amt: num(amount), tshirt: size, cmt, st: p.status === 'declined' ? 'registered' : 'declined' }), p.status === 'declined' ? 'Снова записан.' : 'Отказ отмечен.')}>{p.status === 'declined' ? 'Вернуть в список' : 'Отметить отказ'}</button>}
     </main>
   );
 }

@@ -182,7 +182,7 @@ select lives_ok($$update consent_doc_versions set text_ref = 'syn-ref-1' where i
 select throws_ok($$update consent_doc_versions set text_ref = 'syn-ref-2' where id = '00000000-0000-0000-0000-0000000f0004'$$, '42501', null, 'заданную ссылку на текст менять нельзя');
 
 -- Связь удалена (например, erase_parent): согласие недействительно, пока связи нет
--- (с 0161 удаление связи записывает системный отзыв: идентификаторы событий выдаёт последовательность, поэтому уводим её выше явных id этого теста)
+-- (с 0162 удаление связи записывает системный отзыв: идентификаторы событий выдаёт последовательность, поэтому уводим её выше явных id этого теста)
 select setval(pg_get_serial_sequence('parental_consent_events', 'id'), 900);
 delete from player_guardians where user_id = '00000000-0000-0000-0000-0000000000b3';
 select as_user('00000000-0000-0000-0000-0000000000b3');
