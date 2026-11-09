@@ -28,8 +28,16 @@ export interface SupabaseState {
     { id: string; ok: boolean; err: string | null; give_up: boolean }
   >;
   requests: Array<
-    { method: string; path: string; query: string; body: Json | null }
+    { method: string; path: string; query: string; body: Json | null; auth?: string; size?: number }
   >;
+  // camp-docs: ответы функций базы и хранилища
+  docBegin: Json;
+  docBeginError: { code: string; message: string } | null;
+  docPath: string;
+  docPathError: { code: string; message: string } | null;
+  docFinishError: { code: string; message: string } | null;
+  storageUploadStatus: number;
+  storageSignStatus: number;
 }
 
 function freshState(): SupabaseState {
@@ -50,6 +58,13 @@ function freshState(): SupabaseState {
     bookingError: null,
     finish: [],
     requests: [],
+    docBegin: {},
+    docBeginError: null,
+    docPath: "",
+    docPathError: null,
+    docFinishError: null,
+    storageUploadStatus: 200,
+    storageSignStatus: 200,
   };
 }
 
@@ -84,13 +99,41 @@ export function createSupabaseFake() {
   const state = freshState();
   const server = Deno.serve({ port: 0, hostname: "127.0.0.1" }, async (req) => {
     const url = new URL(req.url);
-    const body = await bodyOf(req);
+    const raw = new Uint8Array(await req.arrayBuffer());
+    let body: Json | null = null;
+    try {
+      body = raw.length ? JSON.parse(new TextDecoder().decode(raw)) as Json : null;
+    } catch {
+      body = null;
+    }
     state.requests.push({
       method: req.method,
       path: url.pathname,
       query: url.search,
       body,
+      auth: req.headers.get("authorization") ?? "",
+      size: raw.length,
     });
+
+    const pgError = (e: { code: string; message: string }) =>
+      json({ code: e.code, message: e.message, details: null, hint: null }, e.code === "42501" ? 403 : 400);
+    if (url.pathname === "/rest/v1/rpc/camp_document_begin") {
+      return state.docBeginError ? pgError(state.docBeginError) : json(state.docBegin);
+    }
+    if (url.pathname === "/rest/v1/rpc/camp_document_path") {
+      return state.docPathError ? pgError(state.docPathError) : json(state.docPath);
+    }
+    if (url.pathname === "/rest/v1/rpc/camp_document_finish") {
+      return state.docFinishError ? pgError(state.docFinishError) : new Response(null, { status: 204 });
+    }
+    if (url.pathname.startsWith("/storage/v1/object/sign/camp-docs/") && req.method === "POST") {
+      if (state.storageSignStatus !== 200) return json({ message: "sign failed" }, state.storageSignStatus);
+      return json({ signedURL: url.pathname.replace("/storage/v1", "") + "?token=signed-test-token" });
+    }
+    if (url.pathname.startsWith("/storage/v1/object/camp-docs") && (req.method === "POST" || req.method === "DELETE")) {
+      if (req.method === "POST" && state.storageUploadStatus !== 200) return json({ message: "upload failed" }, state.storageUploadStatus);
+      return json(req.method === "POST" ? { Key: url.pathname, Id: "x" } : []);
+    }
 
     if (url.pathname === "/rest/v1/rpc/rate_limit_hit") {
       if (state.rateError) return postgrestError(state.rateError);

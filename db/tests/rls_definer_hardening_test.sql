@@ -108,7 +108,8 @@ select is(
         -- 0161: гостевые заявки (camp_apply: вошедший пользователь; camp_application_decide: администратор; camp_owns_participant: для политик RLS)
         'camp_apply', 'camp_application_decide', 'camp_owns_participant',
         -- 0166: правка и отмена своей записи (проверка внутри), возврат и замена (администратор, проверка внутри)
-        'camp_parent_update', 'camp_parent_cancel', 'camp_refund', 'camp_replace_participant')),
+        'camp_parent_update', 'camp_parent_cancel', 'camp_refund', 'camp_replace_participant',
+        'camp_documents_list', 'camp_document_admin_list', 'camp_document_begin', 'camp_document_path', 'camp_document_remove')),
   '', 'список функций, доступных вошедшим пользователям, не расширился без решения');
 
 select is(

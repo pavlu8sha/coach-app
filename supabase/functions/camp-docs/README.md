@@ -1,0 +1,32 @@
+# Документы сбора (Edge Function `camp-docs`)
+
+Issue #470, этап 5, миграция 0169. Условия приёмки: `docs/CAMP_SELF_SIGNUP_ACCEPTANCE.md` (37, 38, 38а).
+
+Хранилище `camp-docs` закрыто, политик чтения у него нет. Файл можно получить только по ссылке на 60 секунд,
+которую функция выдаёт после проверки прав в базе от имени пользователя.
+
+```js
+// ссылка на документ (подтверждённый участник сбора или администратор)
+const r = await supabase.functions.invoke('camp-docs', { body: { action: 'link', id } });   // { url, expires_in: 60 }
+// загрузка (только администратор): тело запроса и есть PDF
+await fetch(`${SUPABASE_URL}/functions/v1/camp-docs?action=upload&camp=${campId}&title=${encodeURIComponent(title)}`,
+  { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}`, apikey: PUBLISHABLE_KEY, 'Content-Type': 'application/pdf' }, body: file });
+```
+
+## Что нужно сделать владельцу (после применения 0169, отдельным решением)
+1. Применить миграцию 0169 (после `db/ops/preflight.sql`). Она же создаёт закрытое хранилище `camp-docs` (10 МБ, только PDF).
+2. Развернуть функцию с проверкой JWT (без `--no-verify-jwt`):
+   `npx.cmd supabase@latest functions deploy camp-docs --project-ref ypxbwhjsqkrciozdhajf`
+3. Новых секретов не нужно. `ALLOWED_ORIGIN` (необязательный) ограничивает CORS одним доменом.
+
+## Безопасность
+- Решение о доступе принимает база (`camp_document_path`, `camp_document_begin`) по токену пользователя. Сервисный ключ
+  используется только для записи файла, подписи ссылки и `camp_document_finish`; как токен пользователя он не принимается.
+- Файл проверяется по содержимому (`%PDF-` в начале, `%%EOF` в конце) и по размеру; тело читается с ограничением 10 МБ.
+- В хранилище пишется и подписывается только путь вида `<сбор>/<документ>.pdf`, полученный из базы.
+- Ссылка живёт 60 секунд; её может открыть любой, кому её передали за это время. Ответ не кэшируется.
+- Тексты ошибок базы наружу не отдаются, кроме короткого известного списка.
+
+## Не проверено
+Функция не запускалась на живом проекте. Тесты: `tests/edge/camp-docs-logic.test.mjs` (Node) и `tests/deno/camp-docs.test.ts`
+(настоящий `index.ts` против заглушек Supabase). Первая проверка на проде после применения 0169.
