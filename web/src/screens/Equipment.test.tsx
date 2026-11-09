@@ -355,54 +355,72 @@ describe('Новый заказ: локация', () => {
 });
 
 describe('Экипировка: выгрузка в CSV (docs/acceptance/eq-export-csv-2026-11-09.md)', () => {
+  const ord = (id: string, name: string, date: string, lines: { kit: string; size: string | null }[], extra: Record<string, unknown> = {}) => ({
+    id, ordered_on: date, total: 100, paid: 100, installment: false, number: '7', inscription: null, location: 'Исани', status: 'accepted',
+    players: { full_name: name, groups: { name: 'U9-A' } },
+    equipment_order_lines: lines.map((l, n) => ({ id: `${id}-${n}`, kit: l.kit, size: l.size, quantity: 1 })), equipment_issues: [], ...extra,
+  });
   const seedExport = () => {
     fake.db.equipment_orders = [
-      { id: 'o1', ordered_on: '2026-09-10', total: 160, paid: 60, installment: false, number: '7', inscription: null, location: 'Исани', status: 'accepted', players: { full_name: 'Иванов Пётр', groups: { name: 'U9-A' } }, equipment_order_lines: [{ id: 'l1', kit: 'Дождевик', size: '140', quantity: 1 }, { id: 'l2', kit: 'Форма', size: 'M', quantity: 1 }], equipment_issues: [] },
-      { id: 'o2', ordered_on: '2026-09-11', total: 100, paid: 100, installment: false, number: '9', inscription: null, location: 'Исани', status: 'accepted', players: { full_name: 'Сидоров Ян', groups: { name: 'U11' } }, equipment_order_lines: [{ id: 'l3', kit: 'Форма', size: 'L', quantity: 1 }], equipment_issues: [] },
+      ord('o1', 'Иванов Пётр', '2026-09-10', [{ kit: 'Дождевик', size: '140' }, { kit: 'Форма', size: 'M' }]),
+      ord('o2', 'Сидоров Ян', '2026-09-11', [{ kit: 'Форма', size: 'L' }]),
     ];
   };
   const writeText = vi.fn(() => Promise.resolve());
   afterEach(() => { vi.restoreAllMocks(); writeText.mockClear(); });
   const mockClipboard = () => Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+  const copied = () => (writeText.mock.calls[0] as unknown as [string])[0];
 
-  it('условия 1-3, 11: «Скопировать» отдаёт строки по вещи только выбранного товара', async () => {
+  it('условия 1, 3, 4, 13: «Скопировать» отдаёт строки только выбранного товара в колонках эталонного запроса', async () => {
     seedExport(); mockClipboard();
     render(<Equipment />);
     await screen.findByText('Иванов Пётр');
     fireEvent.change(screen.getByLabelText('Товар'), { target: { value: 'Дождевик' } });
     fireEvent.click(screen.getByRole('button', { name: 'Скопировать' }));
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
-    const text = (writeText.mock.calls[0] as unknown as [string])[0];
-    expect(text.startsWith('﻿')).toBe(false); // в буфер без BOM
-    expect(text.split('\r\n')).toHaveLength(2);
-    expect(text).toContain('Иванов Пётр;U9-A;Исани;Дождевик;140;1');
-    expect(text).not.toContain('Сидоров Ян');
-    expect(text).not.toContain('Форма');
+    expect(copied().startsWith('﻿')).toBe(false); // в буфер без BOM
+    expect(copied().split('\r\n')).toEqual([
+      'дата заказа;номер;игрок;группа;локация;вещь;размер;количество;id заказа',
+      '2026-09-10;7;Иванов Пётр;U9-A;Исани;Дождевик;140;1;o1',
+    ]);
     expect(await screen.findByText('Список скопирован.')).toBeInTheDocument();
   });
 
-  it('условие 2: выгрузка следует за поиском и фильтрами экрана', async () => {
+  it('условие 2: выгрузка берёт все заказы клуба, а не только 500 с экрана, и следует фильтру «Товар»', async () => {
+    fake.db.equipment_orders = Array.from({ length: 1100 }, (_, n) =>
+      ord(`o${n}`, `Игрок ${String(n).padStart(4, '0')}`, `2026-09-${String(1 + (n % 28)).padStart(2, '0')}`, [{ kit: 'Дождевик', size: '140' }]));
+    mockClipboard();
+    render(<Equipment />);
+    await screen.findAllByText(/Игрок 0/);
+    fireEvent.change(screen.getByLabelText('Товар'), { target: { value: 'Дождевик' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Скопировать' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1), { timeout: 5000 });
+    expect(copied().split('\r\n')).toHaveLength(1101); // заголовок + 1100 вещей
+    expect(new Set(copied().split('\r\n').slice(1).map(l => l.split(';')[8])).size).toBe(1100);
+  });
+
+  it('условие 2: выгрузка следует за поиском экрана', async () => {
     seedExport(); mockClipboard();
     render(<Equipment />);
     await screen.findByText('Иванов Пётр');
     fireEvent.change(screen.getByLabelText('Найти игрока'), { target: { value: 'Сидоров' } });
     fireEvent.click(screen.getByRole('button', { name: 'Скопировать' }));
     await waitFor(() => expect(writeText).toHaveBeenCalled());
-    const text = (writeText.mock.calls[0] as unknown as [string])[0];
-    expect(text).toContain('Сидоров Ян');
-    expect(text).not.toContain('Иванов Пётр');
+    expect(copied()).toContain('Сидоров Ян');
+    expect(copied()).not.toContain('Иванов Пётр');
   });
 
-  it('условие 8: нет строк, кнопки неактивны', async () => {
-    seedExport();
+  it('условие 9: нет строк, файл и буфер не создаются, видно сообщение', async () => {
+    seedExport(); mockClipboard();
     render(<Equipment />);
     await screen.findByText('Иванов Пётр');
     fireEvent.change(screen.getByLabelText('Найти игрока'), { target: { value: 'Никто' } });
-    expect(screen.getByRole('button', { name: 'Скачать CSV' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Скопировать' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Скопировать' }));
+    expect(await screen.findByText('Нет заказов по выбранным фильтрам.')).toBeInTheDocument();
+    expect(writeText).not.toHaveBeenCalled();
   });
 
-  it('условия 6, 9, 10: «Скачать CSV» создаёт файл equipment-<дата>.csv и не вызывает RPC', async () => {
+  it('условия 7, 11, 12: «Скачать CSV» создаёт файл equipment-<дата>.csv с BOM и не вызывает RPC', async () => {
     seedExport();
     const create = vi.fn(() => 'blob:x');
     Object.defineProperty(URL, 'createObjectURL', { value: create, configurable: true });
@@ -412,9 +430,24 @@ describe('Экипировка: выгрузка в CSV (docs/acceptance/eq-expo
     render(<Equipment />);
     await screen.findByText('Иванов Пётр');
     fireEvent.click(screen.getByRole('button', { name: 'Скачать CSV' }));
-    expect(create).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
     expect(name).toBe(`equipment-${today()}.csv`);
-    expect((create.mock.calls[0] as unknown as [Blob])[0].type).toContain('text/csv');
+    const blob = (create.mock.calls[0] as unknown as [Blob])[0];
+    expect(blob.type).toContain('text/csv');
+    // FileReader.readAsText отбрасывает BOM при декодировании, поэтому смотрим сырые байты
+    const bytes = await new Promise<Uint8Array>(res => { const fr = new FileReader(); fr.onload = () => res(new Uint8Array(fr.result as ArrayBuffer)); fr.readAsArrayBuffer(blob); });
+    expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+    expect(new TextDecoder().decode(bytes.slice(3, 40))).toMatch(/^дата заказа;/);
     expect(fake.calls).toEqual([]); // ни RPC, ни записей
+  });
+
+  it('условие 10: ошибка загрузки заказов видна рядом с кнопками', async () => {
+    seedExport(); mockClipboard();
+    render(<Equipment />);
+    await screen.findByText('Иванов Пётр');
+    fake.errors.equipment_orders = 'boom';
+    fireEvent.click(screen.getByRole('button', { name: 'Скопировать' }));
+    expect(await screen.findByRole('status')).toHaveTextContent(/boom|Не удалось/);
+    expect(writeText).not.toHaveBeenCalled();
   });
 });
