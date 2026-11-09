@@ -65,6 +65,13 @@ describe('«Матчи» родителя: статус прошедшего м�
     render(<Matches />);
     expect(await screen.findByText('Идёт')).toBeInTheDocument();
   });
+
+  it('через 2 часа после начала матч без результата уже не «Идёт» (окно 1,5 часа)', async () => {
+    seedParent([row({ match_id: 'r5', starts_at: ago(2), can_answer: false, response: null })]);
+    render(<Matches />);
+    expect(await screen.findByText('Прошёл, результат не внесён')).toBeInTheDocument();
+    expect(screen.queryByText('Идёт')).toBeNull();
+  });
 });
 
 describe('Карточка матча родителя: оформление', () => {
