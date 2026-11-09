@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ExpandableTextarea } from '../ui/ExpandableTextarea';
 import { coachError, compareGroups, fmtDate, groupByGroupName, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
@@ -9,6 +9,7 @@ import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { settingNumberError, useClubSettings } from '../lib/clubSettings';
 import { bundleDiscount, priorAmount } from '../lib/equipmentDiscount';
+import { CSV_BOM, csvFileName, equipmentCsv } from '../lib/equipmentExport';
 import { allKitsIssued, EQUIPMENT_REQUIRED_KEY, EQUIPMENT_REQUIRED_TEXT, issueStateLabel, lastStatusDate, nextStatus, orderStatusLabel, prevStatus, type StatusEvent } from '../lib/equipment';
 
 interface Line { id?: string; kit: string; size: string | null; quantity: number; unit_price?: number | string | null }
@@ -91,6 +92,7 @@ export default function Equipment() {
   const [fIssue, setFIssue] = useNavState<'' | 'yes' | 'no'>('eq.issue', '', { entry: 0, persist: { kind: 'enum', values: ['', 'yes', 'no'] } });
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [exportMsg, setExportMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -104,15 +106,16 @@ export default function Equipment() {
     })();
   }, [reload]);
 
-  const shown = useMemo(() => {
+  const matches = useCallback((o: Order) => {
     const t = q.trim().toLowerCase();
-    return (orders ?? []).filter(o => (!t || (o.players?.full_name ?? '').toLowerCase().includes(t))
+    return (!t || (o.players?.full_name ?? '').toLowerCase().includes(t))
       && (tab === 'unpaid' ? o.paid < o.total : tab === 'noissue' ? issueState(o) !== 'Да' : tab === 'incomplete' ? missingOf(o).length > 0 : true)
       && (!fGroup || o.players?.groups?.name === fGroup)
       && (!fKit || o.equipment_order_lines.some(l => l.kit === fKit))
       && (!fLoc || (o.location ?? '') === fLoc)
-      && (!fIssue || (fIssue === 'yes' ? issueState(o) === 'Да' : issueState(o) !== 'Да')));
-  }, [orders, q, tab, fGroup, fKit, fLoc, fIssue]);
+      && (!fIssue || (fIssue === 'yes' ? issueState(o) === 'Да' : issueState(o) !== 'Да'));
+  }, [q, tab, fGroup, fKit, fLoc, fIssue]);
+  const shown = useMemo(() => (orders ?? []).filter(matches), [orders, matches]);
   const options = useMemo(() => {
     const uniq = (xs: (string | null | undefined)[]) => [...new Set(xs.filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'ru'));
     return {
@@ -126,6 +129,67 @@ export default function Equipment() {
     const total = shown.reduce((s, o) => s + o.total, 0), paid = shown.reduce((s, o) => s + Math.min(o.paid, o.total), 0);
     return { players: new Set(shown.map(o => o.players?.full_name ?? o.id)).size, total, paid, debt: total - paid };
   }, [shown]);
+
+  // Выгрузка в CSV (docs/acceptance/eq-export-csv-2026-11-09.md): все заказы клуба (экран держит только последние 500)
+  // с теми же фильтрами, что на экране; файл и копирование (в Mini App скачивание может быть закрыто).
+  // Загруженные заказы запоминаются до следующего обновления списка: повторное нажатие не ждёт сети
+  // (копирование в буфер сразу после долгого запроса некоторые браузеры отклоняют, тогда хватит нажать ещё раз).
+  const [exporting, setExporting] = useState(false);
+  const allOrders = useRef<Order[] | null>(null);
+  useEffect(() => { allOrders.current = null; }, [reload]);
+  const loadAll = async (): Promise<Order[] | null> => {
+    if (allOrders.current) return allOrders.current;
+    const rows: Order[] = [];
+    for (let from = 0; ; from += 1000) {
+      const r = await supabase
+        .from('equipment_orders')
+        .select(`${ORDER_COLS}, players(full_name, groups(name))`)
+        .order('ordered_on', { ascending: false, nullsFirst: false })
+        .order('id') // устойчивый порядок между страницами
+        .range(from, from + 999);
+      if (r.error) { setExportMsg({ ok: false, text: errText(r.error.message) }); return null; }
+      const page = (r.data ?? []) as unknown as Order[];
+      rows.push(...page.map(o => ({ ...o, total: Number(o.total), paid: Number(o.paid) })));
+      if (page.length < 1000) break;
+    }
+    return (allOrders.current = rows);
+  };
+  const exportCsv = async (kind: 'file' | 'copy') => {
+    setExporting(true);
+    setExportMsg(null);
+    try {
+      const all = await loadAll();
+      if (!all) return;
+      const csv = equipmentCsv(all.filter(matches), fKit);
+      if (!csv) return setExportMsg({ ok: false, text: 'Нет заказов по выбранным фильтрам.' });
+      if (kind === 'copy') {
+        try {
+          await navigator.clipboard.writeText(csv.replace(CSV_BOM, ''));
+          setExportMsg({ ok: true, text: 'Список скопирован.' });
+        } catch {
+          setExportMsg({ ok: false, text: 'Не удалось скопировать список. Нажмите «Скопировать» ещё раз.' });
+        }
+        return;
+      }
+      try {
+        const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = csvFileName(today());
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+        setExportMsg({ ok: true, text: 'Файл сохранён. Если не открылся, нажмите «Скопировать».' });
+      } catch {
+        setExportMsg({ ok: false, text: 'Не удалось сохранить файл: нажмите «Скопировать».' });
+      }
+    } catch {
+      setExportMsg({ ok: false, text: 'Не удалось загрузить заказы для выгрузки.' });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const done = () => { nav.backToRoot(); setOrders(null); setReload(n => n + 1); };
   if (error) return <Failure title="Не удалось загрузить заказы" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
@@ -160,6 +224,11 @@ export default function Equipment() {
           <div className="ks-tile"><b style={{ color: sums.debt > 0 ? 'var(--ks-danger, #b3261e)' : undefined }}>{gel(sums.debt)}</b>долг</div>
         </div>
       )}
+      <div className="ks-pair" style={{ marginBottom: 12 }}>
+        <button type="button" className="ks-btn secondary" disabled={exporting || !orders} onClick={() => void exportCsv('file')}>Скачать CSV</button>
+        <button type="button" className="ks-btn secondary" disabled={exporting || !orders} onClick={() => void exportCsv('copy')}>Скопировать</button>
+      </div>
+      {exportMsg && <div role="status" className={exportMsg.ok ? 'ks-muted' : 'ks-error'} style={{ marginBottom: 12, fontSize: 13 }}>{exportMsg.text}</div>}
       {!orders ? <Loading /> : shown.length === 0 ? (
         <EmptyState icon="box" title="Заказов нет" text="Измените фильтр или создайте заказ." />
       ) : (
