@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import Equipment from './Equipment';
+import { today } from '../lib/coach';
 import { useNav } from '../nav';
 
 const order = (id: string, name: string, total: number, paid: number, issued: string[] = []) => ({
@@ -81,7 +82,36 @@ describe('«Экипировка»', () => {
     fireEvent.change(await screen.findByLabelText(/Сумма, ₾ \(минус/), { target: { value: '500' } });
     fireEvent.click(screen.getByRole('button', { name: 'Записать платёж' }));
     expect(await screen.findByText('Оплата больше суммы заказа.')).toBeInTheDocument();
-    expect(fake.rpcCalls('eq_add_payment')).toEqual([{ o: 'o2', amt: 500, mth: 'Наличные' }]);
+    expect(fake.rpcCalls('eq_add_payment')).toEqual([{ o: 'o2', amt: 500, d: today(), mth: 'Наличные' }]);
+  });
+
+  it('#474: в оплате заказа дата по умолчанию сегодня, предыдущую можно выбрать, в RPC уходит она', async () => {
+    seed();
+    fake.rpc.eq_add_payment = () => 160;
+    render(<Equipment />);
+    fireEvent.click(await screen.findByText('Сидоров Ян'));
+    const dateInput = await screen.findByLabelText('Дата платежа') as HTMLInputElement;
+    expect(dateInput.value).toBe(today());
+    expect(dateInput).toHaveAttribute('max', today());
+    fireEvent.change(dateInput, { target: { value: '2026-10-13' } });
+    fireEvent.change(await screen.findByLabelText(/^Способ оплаты/), { target: { value: 'Перевод' } });
+    fireEvent.change(await screen.findByLabelText(/Сумма, ₾ \(минус/), { target: { value: '100' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Записать платёж' }));
+    await waitFor(() => expect(fake.rpcCalls('eq_add_payment')).toEqual([{ o: 'o2', amt: 100, d: '2026-10-13', mth: 'Перевод' }]));
+    await waitFor(() => expect((screen.getByLabelText('Дата платежа') as HTMLInputElement).value).toBe(today()));
+  });
+
+  it('#474: будущая дата в оплате заказа отклоняется до вызова RPC', async () => {
+    seed();
+    fake.rpc.eq_add_payment = () => 160;
+    render(<Equipment />);
+    fireEvent.click(await screen.findByText('Сидоров Ян'));
+    fireEvent.change(await screen.findByLabelText('Дата платежа'), { target: { value: '2999-01-05' } });
+    fireEvent.change(await screen.findByLabelText(/^Способ оплаты/), { target: { value: 'Наличные' } });
+    fireEvent.change(await screen.findByLabelText(/Сумма, ₾ \(минус/), { target: { value: '100' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Записать платёж' }));
+    expect(await screen.findByText('Дата платежа не может быть в будущем.')).toBeInTheDocument();
+    expect(fake.rpcCalls('eq_add_payment')).toHaveLength(0);
   });
 
   it('выдача вещи отмечается по позиции', async () => {
