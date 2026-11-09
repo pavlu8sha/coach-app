@@ -1,51 +1,59 @@
--- #473, дополнение: проставить сумму исторических оплат дополнительных тренировок. Запускает только Павел в SQL Editor.
--- Решение Павла 09.11: все эти тренировки стоили 15 ₾, кроме занятия 11.10.2026 (35-я школа); у оплат осталась сумма 0.00 (метка из старого импорта).
--- Что меняется: extra_bookings.paid_amount для записей paid = true, у которых сумма пустая или 0, на занятиях до 01.11.2026 (кроме 11.10).
--- Что НЕ меняется: paid, способ оплаты (method остаётся пустым: способ неизвестен), даты, отметки посещаемости, журнал service_payments, записи с уже заполненной суммой.
--- Зачем: сейчас долг по занятию считается как «сумма занятия минус paid_amount», и с paid_amount = 0.00 такая оплата выглядит неоплаченной на 15 ₾.
--- Защита: скрипт остановится с ошибкой и ничего не изменит, если у какого-то из этих занятий сумма занятия (extra_sessions.amount) не равна 15.
--- Идемпотентно: повторный запуск вернёт 0 строк. Не зависит от backfill посещаемости, их можно запускать в любом порядке.
--- Результат (список с прежней и новой суммой) сохраните в CSV и пришлите: это журнал аудита.
+-- #473, дополнение (версия 2 после разбора сумм): проставить 15 ₾ историческим дополнительным тренировкам и их оплатам. Запускает только Павел в SQL Editor.
+-- Факты из read-only проверки 09.11: 21 занятие с 18.01 по 26.09.2026 записаны в базе с суммой занятия 0.00 (места нет), у 317 их оплат сумма 0.00.
+-- Решение Павла 09.11: все эти тренировки стоили по 15 ₾. Занятия 03.10 (15, без нулей), 11.10 (20, 35-я школа) и 17.10 (15, Исани) уже заполнены и не затрагиваются.
+-- Что меняется:
+--   1) extra_sessions.amount: 0.00 -> 15.00 у этих 21 занятия;
+--   2) extra_bookings.paid_amount: 0.00 -> 15.00 у 317 оплат на этих занятиях (оплаты с уже проставленными 15.00 не трогаются).
+-- Что НЕ меняется: paid, способ оплаты (у старых оплат он пуст и остаётся пустым), даты, отметки посещаемости, журнал service_payments, места, остальные занятия.
+-- Долгов не появится: на этих 21 занятии нет ни одной неоплаченной записи (скрипт это проверяет и останавливается, если иначе).
+-- Защита: один запуск = одна транзакция. Ожидается ровно 21 занятие и 317 оплат (или 0 и 0 при повторном запуске), иначе ошибка и никаких изменений.
+-- Результат (список изменений с прежним и новым значением) сохраните в CSV и пришлите: это журнал аудита.
 
 do $$
-declare n int;
+declare s int; n int; unpaid int;
 begin
-  select count(*) into n
-    from extra_bookings b
-    join extra_sessions e on e.id = b.session_id
-   where b.paid and coalesce(b.paid_amount, 0) = 0
-     and e.cancelled_at is null
-     and e.starts_on < date '2026-11-01'
-     and e.starts_on <> date '2026-10-11'
-     and e.amount <> 15;
-  if n > 0 then
-    raise exception 'у % записей сумма занятия не 15, остановка', n;
+  select count(*) into s from extra_sessions e
+   where e.amount = 0 and e.cancelled_at is null and e.starts_on < date '2026-11-01';
+  select count(*) into n from extra_bookings b join extra_sessions e on e.id = b.session_id
+   where e.amount = 0 and e.cancelled_at is null and e.starts_on < date '2026-11-01'
+     and b.paid and coalesce(b.paid_amount, 0) = 0;
+  select count(*) into unpaid from extra_bookings b join extra_sessions e on e.id = b.session_id
+   where e.amount = 0 and e.cancelled_at is null and e.starts_on < date '2026-11-01' and not b.paid;
+  if unpaid > 0 then
+    raise exception 'на занятиях с суммой 0 есть неоплаченные записи (%), остановка', unpaid;
+  end if;
+  if not ((s = 21 and n = 317) or (s = 0 and n = 0)) then
+    raise exception 'ожидалось 21 занятие и 317 оплат (или 0 и 0), найдено % и %', s, n;
   end if;
 end $$;
 
-with t as (
-  select b.session_id, b.player_id, e.starts_on, b.paid_amount as old_amount
-    from extra_bookings b
-    join extra_sessions e on e.id = b.session_id
+with tgt as (
+  select e.id from extra_sessions e
+   where e.amount = 0 and e.cancelled_at is null and e.starts_on < date '2026-11-01'
+), pay as (
+  select b.session_id, b.player_id, b.paid_amount as old_amount
+    from extra_bookings b join tgt on tgt.id = b.session_id
    where b.paid and coalesce(b.paid_amount, 0) = 0
-     and e.cancelled_at is null
-     and e.starts_on < date '2026-11-01'
-     and e.starts_on <> date '2026-10-11'
-     and e.amount = 15
-), upd as (
-  update extra_bookings b
-     set paid_amount = 15
-    from t
-   where b.session_id = t.session_id and b.player_id = t.player_id
+), upd_pay as (
+  update extra_bookings b set paid_amount = 15
+    from pay where b.session_id = pay.session_id and b.player_id = pay.player_id
   returning b.session_id, b.player_id
+), upd_ses as (
+  update extra_sessions e set amount = 15
+    from tgt where e.id = tgt.id
+  returning e.id, e.starts_on
 )
-select t.starts_on as "дата", t.session_id as "id занятия", t.player_id, t.old_amount as "было", 15 as "стало", now() as "когда"
-  from t join upd using (session_id, player_id)
- order by t.starts_on, t.player_id;
+select 'занятие' as "что", u.starts_on as "дата", u.id as "id занятия", null::uuid as player_id, 0::numeric as "было", 15 as "стало", now() as "когда"
+  from upd_ses u
+union all
+select 'оплата', e.starts_on, p.session_id, p.player_id, coalesce(pay.old_amount, 0), 15, now()
+  from upd_pay p
+  join pay on pay.session_id = p.session_id and pay.player_id = p.player_id
+  join extra_sessions e on e.id = p.session_id
+order by 2, 1, 4;
 
--- Проверка после записи (оплаченных с суммой 0 или пустой на этих занятиях должно остаться 0):
--- select count(*) from extra_bookings b join extra_sessions e on e.id = b.session_id
---  where b.paid and coalesce(b.paid_amount, 0) = 0 and e.starts_on < date '2026-11-01';
+-- Проверка после записи (занятий с суммой 0 и оплат с суммой 0 до 01.11 не должно остаться):
+-- select (select count(*) from extra_sessions where amount = 0 and starts_on < date '2026-11-01') as "занятий с нулём",
+--        (select count(*) from extra_bookings b join extra_sessions e on e.id = b.session_id where b.paid and coalesce(b.paid_amount, 0) = 0 and e.starts_on < date '2026-11-01') as "оплат с нулём";
 
--- Отмена (вернёт 0.00 только для записей из журнала аудита выше, подставьте их список в in (...)):
--- update extra_bookings set paid_amount = 0 where (session_id, player_id) in (('<id занятия>'::uuid, '<player_id>'::uuid));
+-- Отмена: вернуть 0.00 по списку из журнала аудита (занятия: update extra_sessions set amount = 0 where id in (...); оплаты: update extra_bookings set paid_amount = 0 where (session_id, player_id) in (...)).
