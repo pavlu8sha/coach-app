@@ -35,6 +35,12 @@ begin
   perform set_config('role', 'authenticated', true);
   perform set_config('request.jwt.claims', json_build_object('sub', uid, 'role', 'authenticated')::text, true);
 end $$;
+create or replace function as_service() returns void language plpgsql as $$
+begin
+  perform set_config('role', 'service_role', true);
+  perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
+end $$;
+grant execute on function as_service() to public;
 create or replace function as_anon() returns void language plpgsql as $$
 begin
   perform set_config('role', 'anon', true);
@@ -42,7 +48,7 @@ begin
 end $$;
 grant execute on function as_user(uuid), as_anon() to public;
 create temp table ids (k text primary key, id uuid);
-grant all on ids to authenticated;
+grant all on ids to authenticated, service_role;
 create temp table cnt (k text primary key, n int);
 grant all on cnt to authenticated;
 insert into cnt select 'players', count(*) from players;
@@ -203,8 +209,8 @@ select throws_ok($$select camp_apply('00000000-0000-0000-0000-0000000000ce', rep
 select throws_ok($$select camp_apply('00000000-0000-0000-0000-0000000000ce', 'Пустышка', '2015-05-05', repeat(chr(8203), 3), '555 22 22 22', '00000000-0000-0000-0000-0000000000e7', null)$$, '22023', 'bad application', 'имя родителя из невидимых символов отклоняется');
 select throws_ok($$select camp_apply('00000000-0000-0000-0000-0000000000ce', 'Пустышка', '2015-05-05', 'Мама Б', '-----', '00000000-0000-0000-0000-0000000000e7', null)$$, '22023', 'bad application', 'телефон без цифр отклоняется');
 select throws_ok($$select camp_apply('00000000-0000-0000-0000-0000000000ce', 'Пустышка', '2015-05-05', 'Мама Б', '+-1 2', '00000000-0000-0000-0000-0000000000e7', null)$$, '22023', 'bad application', 'телефон менее 5 цифр отклоняется');
--- владелец записи неизменяем
-select as_user('00000000-0000-0000-0000-0000000000a1');
+-- владелец записи неизменяем (прямые правки доступны только service_role, администратору закрыты в 0165)
+select as_service();
 select throws_ok($$update camp_participants set owner_user_id = '00000000-0000-0000-0000-0000000000b2' where id = (select id from ids where k = 'x1')$$, 'P0001', 'immutable', 'владельца гостевой записи нельзя сменить');
 select throws_ok($$update camp_participants set owner_user_id = null where id = (select id from ids where k = 'x1')$$, 'P0001', 'immutable', 'владельца гостевой записи нельзя сбросить');
 -- суточный лимит заявок одного пользователя
