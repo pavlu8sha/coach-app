@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1180" viewBox="0 0 1000 1180">
+<defs><style>.bg{fill:#f4f6fa}.panel{fill:#fff;stroke:#dce2eb;stroke-width:1.3}.ink{fill:#182334;font-family:Inter,Arial,sans-serif}.muted{fill:#6c7889;font-family:Inter,Arial,sans-serif}.h1{font-size:25px;font-weight:700}.h2{font-size:18px;font-weight:700}.body{font-size:14px}.small{font-size:12px}.label{font-size:11px;font-weight:700;letter-spacing:.5px}.line{stroke:#e6eaf0;stroke-width:1}.blue{fill:#2458d3}.blueText{fill:#2458d3;font-family:Arial,sans-serif}.field{fill:#fff;stroke:#cfd7e2;stroke-width:1.2}.tag{fill:#edf2ff}</style></defs>
+<rect width="1000" height="1180" class="bg"/>
+<text x="44" y="42" class="muted label">COACH APP · UX PROPOSAL · ISSUE #266</text>
+<text x="44" y="82" class="ink h1">Создание индивидуальной цели</text>
+<text x="44" y="108" class="muted body">Форма тренера · desktop / tablet · создание и редактирование</text>
+<rect x="44" y="140" width="912" height="980" rx="14" class="panel"/>
+<text x="80" y="190" class="ink h2">Новая цель игрока</text>
+<text x="80" y="216" class="muted small">Игрок: Георгий Метревели · U13-A</text>
+<text x="80" y="270" class="ink label">НАЗВАНИЕ ЦЕЛИ</text><rect x="80" y="284" width="840" height="48" rx="7" class="field"/><text x="98" y="314" class="muted body">Например, улучшить точность передач</text>
+<text x="80" y="374" class="ink label">НАПРАВЛЕНИЕ</text>
+<rect x="80" y="388" width="260" height="46" rx="7" class="tag"/><text x="98" y="417" class="blueText body" font-weight="700">Техническое качество</text>
+<rect x="354" y="388" width="260" height="46" rx="7" class="field"/><text x="372" y="417" class="muted body">Физическое качество</text>
+<rect x="628" y="388" width="292" height="46" rx="7" class="field"/><text x="646" y="417" class="muted body">Игровое качество</text>
+<text x="80" y="476" class="ink label">ОПИСАНИЕ / ФОКУС РАБОТЫ</text><rect x="80" y="490" width="840" height="100" rx="7" class="field"/><text x="98" y="520" class="muted body">Что именно игроку предстоит улучшить?</text><text x="98" y="544" class="muted small">Можно описать наблюдаемое поведение, навык или игровой эпизод.</text>
+<text x="80" y="632" class="ink label">РЕКОМЕНДАЦИИ И УПРАЖНЕНИЯ</text><rect x="80" y="646" width="840" height="102" rx="7" class="field"/><text x="98" y="676" class="muted body">Добавить упражнение или рекомендацию</text><text x="98" y="700" class="muted small">Необязательный блок. Можно добавить несколько пунктов.</text><text x="98" y="730" class="blueText small">+ Добавить упражнение</text>
+<text x="80" y="792" class="ink label">КОММЕНТАРИЙ ТРЕНЕРА</text><rect x="80" y="806" width="840" height="82" rx="7" class="field"/><text x="98" y="836" class="muted body">Комментарий, который увидят родитель и ребёнок</text>
+<text x="80" y="932" class="ink label">СТАТУС ПРИ СОЗДАНИИ</text>
+<rect x="80" y="946" width="196" height="44" rx="7" class="tag"/><text x="178" y="974" text-anchor="middle" class="blueText body" font-weight="700">Запланирована</text>
+<rect x="290" y="946" width="196" height="44" rx="7" class="field"/><text x="388" y="974" text-anchor="middle" class="muted body">В работе</text>
+<text x="80" y="1024" class="muted small">Срок выполнения не обязателен. Не вводим KPI, баллы или проценты без отдельного решения.</text>
+<line x1="80" y1="1050" x2="920" y2="1050" class="line"/>
+<rect x="80" y="1070" width="180" height="42" rx="7" class="field"/><text x="170" y="1097" text-anchor="middle" class="ink body" font-weight="700">Отмена</text>
+<rect x="724" y="1070" width="196" height="42" rx="7" class="blue"/><text x="822" y="1097" text-anchor="middle" fill="#fff" font-family="Arial" font-size="14" font-weight="700">Сохранить цель</text>
+</svg>
