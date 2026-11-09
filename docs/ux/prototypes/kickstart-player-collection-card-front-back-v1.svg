@@ -63,14 +63,14 @@
  <path d="M52 238H338" stroke="#60718d" opacity=".5"/>
  <text x="52" y="270" class="white body">Голы</text><text x="338" y="270" text-anchor="end" class="white h2">—</text>
  <path d="M52 286H338" stroke="#60718d" opacity=".5"/>
- <text x="52" y="318" class="white body">Ассисты</text><text x="338" y="318" text-anchor="end" class="white h2">—</text>
+ 
  <rect x="30" y="362" width="330" height="104" rx="12" fill="#1a3156" stroke="#415879"/>
- <text x="52" y="396" class="gold tiny">РАЗВИТИЕ</text>
- <text x="52" y="428" class="white body">Тесты / достижения</text>
+ <text x="52" y="396" class="gold tiny">СЕЗОН</text>
+ <text x="52" y="428" class="white body">Период</text>
  <text x="338" y="428" text-anchor="end" class="white h2">—</text>
- <rect x="30" y="488" width="118" height="118" rx="8" fill="#fff" stroke="#d5b66e" stroke-width="2"/>
- <path d="M44 502H78V536H44Z M100 502H134V536H100Z M44 558H78V592H44Z" fill="none" stroke="#14213a" stroke-width="5"/>
- <path d="M87 502V536 M87 550V592 M100 550H134 M58 550H72 M100 574H116" stroke="#14213a" stroke-width="5"/>
+ <rect x="30" y="488" width="118" height="118" rx="8" fill="#20385e" stroke="#d5b66e" stroke-width="2" stroke-dasharray="7 5"/>
+ <text x="89" y="543" text-anchor="middle" class="gold small">QR</text>
+ <text x="89" y="565" text-anchor="middle" class="muted tiny">placeholder</text>
  <text x="165" y="528" class="white body">QR профиля</text>
  <text x="165" y="551" class="muted tiny">место для реального QR</text>
  <text x="165" y="570" class="muted tiny">после утверждения</text>
