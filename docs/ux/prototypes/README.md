@@ -116,7 +116,7 @@
 
 ### Notes for A27
 
-- Entry is inside the selected child's existing profile; the bottom navigation is unchanged.
+- Entry is the existing child card on the «Ребёнок» tab; no new child-profile screen or bottom-navigation change is required.
 - The preview switches between front and reverse without editing player data.
 - Save and share are separate explicit user actions; sharing uses the system share sheet when supported.
 - A personal copy is distinct from publication by the club. Public photo use remains gated by the separately approved consent.
