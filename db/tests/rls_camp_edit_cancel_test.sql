@@ -2,7 +2,7 @@
 -- правка тарифа и комментария родителем, отмена с условиями, возврат администратором, замена участника, журнал смены суммы и тарифа.
 begin;
 create extension if not exists pgtap;
-select plan(62);
+select plan(65);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -109,6 +109,18 @@ reset role;  -- camp_terms_for внутренняя, прикладным рол
 select is(camp_terms_for('00000000-0000-0000-0000-0000000000ca', (now() at time zone 'Asia/Tbilisi')::date)::text, '{"text": "Возврат 100%", "version": 1}', 'на дату действует нужный период версии 1');
 select is(camp_terms_for('00000000-0000-0000-0000-0000000000ca', '2099-01-05')::text, '{"text": "Без возврата", "version": 1}', 'на более позднюю дату действует второй период');
 select is(camp_terms_for('00000000-0000-0000-0000-0000000000cb', current_date), null::jsonb, 'без условий возвращается пусто');
+-- пересекающиеся периоды: выбор не зависит от порядка в списке (раньше заканчивающийся период важнее)
+insert into camp_cancel_terms (camp_id, version, periods) values
+  ('00000000-0000-0000-0000-0000000000cc', 1, '[{"to":"2099-12-20","text":"до 20.12"},{"to":"2099-12-01","text":"до 1.12"}]'),
+  ('00000000-0000-0000-0000-0000000000cd', 1, '[{"to":"2099-12-01","text":"до 1.12"},{"to":"2099-12-20","text":"до 20.12"}]');
+select is(camp_terms_for('00000000-0000-0000-0000-0000000000cc', current_date)->>'text', 'до 1.12', 'пересечение периодов: берётся раньше заканчивающийся');
+select is(camp_terms_for('00000000-0000-0000-0000-0000000000cd', current_date)->>'text', 'до 1.12', 'пересечение периодов: порядок в списке на выбор не влияет');
+-- неактивный сбор: правка закрыта, отмена разрешена
+update camps set active = false where id = '00000000-0000-0000-0000-0000000000cb';
+select as_user('00000000-0000-0000-0000-0000000000b1');
+select throws_ok($$select camp_parent_update((select id from ids where k = 'nodl'), null, 'неактивный')$$, '22023', 'camp closed', 'на неактивном сборе родитель запись не правит');
+reset role;
+update camps set active = true where id = '00000000-0000-0000-0000-0000000000cb';
 
 -- ===== 30. Отмена родителем =====
 select as_user('00000000-0000-0000-0000-0000000000b1');

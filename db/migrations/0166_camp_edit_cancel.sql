@@ -19,9 +19,10 @@ declare v int; per jsonb; t jsonb;
 begin
   select version, periods into v, per from camp_cancel_terms where camp_id = cid order by version desc limit 1;
   if v is null then return null; end if;
-  select e into t from jsonb_array_elements(per) e
+  select e into t from jsonb_array_elements(per) with ordinality as x(e, ord)
    where (e->>'from' is null or (e->>'from')::date <= d) and (e->>'to' is null or d <= (e->>'to')::date)
-   order by coalesce((e->>'from')::date, date '0001-01-01') desc limit 1;
+   -- пересекающиеся периоды: берётся с самым поздним началом, затем с самым ранним концом, затем первый по порядку в списке
+   order by coalesce((e->>'from')::date, date '0001-01-01') desc, coalesce((e->>'to')::date, date '9999-12-31') asc, ord limit 1;
   return jsonb_build_object('version', v, 'text', t->>'text');
 end $$;
 revoke execute on function camp_terms_for(uuid, date) from public, anon, authenticated;
@@ -62,9 +63,12 @@ language plpgsql security definer set search_path = public as $$
 declare cp camp_participants; c camps; cm text := nullif(btrim(cmt), ''); tp numeric; cur numeric; paid numeric;
 begin
   if not camp_participant_mine(pid) then raise exception 'forbidden' using errcode = '42501'; end if;
+  -- порядок блокировок как у остальных функций сборов: сначала сбор, потом участник (иначе взаимная блокировка)
+  perform 1 from camps where id = (select camp_id from camp_participants where id = pid) for update;
   select * into cp from camp_participants where id = pid for update;
   select * into c from camps where id = cp.camp_id;
-  if c.ends_on < (now() at time zone 'Asia/Tbilisi')::date then raise exception 'camp closed' using errcode = '22023'; end if;
+  -- правка, как и запись, только на активном и не закончившемся сборе
+  if not c.active or c.ends_on < (now() at time zone 'Asia/Tbilisi')::date then raise exception 'camp closed' using errcode = '22023'; end if;
   if cp.status <> 'registered' then raise exception 'not registered' using errcode = '22023'; end if;
   if length(coalesce(cm, '')) > 500 then raise exception 'bad comment' using errcode = '22023'; end if;
   perform set_config('camp.note', 'parent', true);
@@ -90,6 +94,8 @@ language plpgsql security definer set search_path = public as $$
 declare cp camp_participants; c camps; paid numeric;
 begin
   if not camp_participant_mine(pid) then raise exception 'forbidden' using errcode = '42501'; end if;
+  -- порядок блокировок как у остальных функций сборов: сначала сбор, потом участник (иначе взаимная блокировка)
+  perform 1 from camps where id = (select camp_id from camp_participants where id = pid) for update;
   select * into cp from camp_participants where id = pid for update;
   select * into c from camps where id = cp.camp_id;
   if cp.status = 'cancelled' then raise exception 'already cancelled' using errcode = '23505'; end if;
@@ -108,6 +114,8 @@ language plpgsql security definer set search_path = public as $$
 declare cp camp_participants; paid numeric; r uuid;
 begin
   perform camp_assert_admin();
+  -- порядок блокировок как у остальных функций сборов: сначала сбор, потом участник (иначе взаимная блокировка)
+  perform 1 from camps where id = (select camp_id from camp_participants where id = pid) for update;
   select * into cp from camp_participants where id = pid for update;
   if not found then raise exception 'participant not found' using errcode = 'P0002'; end if;
   if amt is null or amt <= 0 then raise exception 'bad amount' using errcode = '22023'; end if;
@@ -115,13 +123,13 @@ begin
   select coalesce(sum(amount), 0) into paid from camp_payments where participant_id = pid;
   if amt > paid then raise exception 'refund above paid' using errcode = '22023'; end if;
   insert into camp_payments (camp_id, participant_id, player_id, amount, paid_on, kind, comment)
-  values (cp.camp_id, pid, cp.player_id, -amt, coalesce(d, (now() at time zone 'Asia/Tbilisi')::date), 'refund', nullif(btrim(cmt), ''))
+  values (cp.camp_id, pid, cp.player_id, -amt, coalesce(d, current_date), 'refund', nullif(btrim(cmt), ''))
   returning id into r;
   return r;
 end $$;
 
 -- Замена участника: журнал фактов (только добавление)
-create table camp_participant_replacements (
+create table if not exists camp_participant_replacements (
   id uuid primary key default gen_random_uuid(),
   camp_id uuid not null references camps(id),
   old_participant_id uuid not null references camp_participants(id),
@@ -131,6 +139,8 @@ create table camp_participant_replacements (
   note text check (note is null or length(note) <= 500),
   unique (old_participant_id)
 );
+drop trigger if exists camp_participant_replacements_no_change on camp_participant_replacements;
+drop trigger if exists camp_participant_replacements_no_truncate on camp_participant_replacements;
 create trigger camp_participant_replacements_no_change before update or delete on camp_participant_replacements
   for each row execute function camp_events_immutable();
 create trigger camp_participant_replacements_no_truncate before truncate on camp_participant_replacements
@@ -138,6 +148,7 @@ create trigger camp_participant_replacements_no_truncate before truncate on camp
 alter table camp_participant_replacements enable row level security;
 revoke all on camp_participant_replacements from public, anon, authenticated, service_role;
 grant select on camp_participant_replacements to authenticated;
+drop policy if exists camp_participant_replacements_read on camp_participant_replacements;
 create policy camp_participant_replacements_read on camp_participant_replacements for select using (is_admin());
 
 create or replace function camp_replace_participant(old_pid uuid, new_pid uuid, nt text) returns uuid
@@ -146,15 +157,36 @@ declare o camp_participants; n camp_participants; r uuid; note_t text := nullif(
 begin
   perform camp_assert_admin();
   if length(coalesce(note_t, '')) > 500 then raise exception 'bad note' using errcode = '22023'; end if;
-  select * into o from camp_participants where id = old_pid;
-  select * into n from camp_participants where id = new_pid;
+  -- сначала блокировка сбора, потом чтение обеих записей: статус не меняется между проверкой и записью
+  perform 1 from camps where id = (select camp_id from camp_participants where id = old_pid) for update;
+  select * into o from camp_participants where id = old_pid for update;
+  select * into n from camp_participants where id = new_pid for update;
   if o.id is null or n.id is null then raise exception 'participant not found' using errcode = 'P0002'; end if;
-  perform 1 from camps where id = o.camp_id for update;
   if o.id = n.id or o.camp_id <> n.camp_id or o.status = 'registered' or n.status <> 'registered' then raise exception 'bad replacement' using errcode = '22023'; end if;
   if exists (select 1 from camp_participant_replacements where old_participant_id = old_pid) then raise exception 'already replaced' using errcode = '23505'; end if;
   insert into camp_participant_replacements (camp_id, old_participant_id, new_participant_id, by_user, note)
   values (o.camp_id, old_pid, new_pid, current_user_id(), note_t) returning id into r;
   return r;
+end $$;
+
+-- Отмена платежа (0085) и возврат теперь идут по очереди: без блокировки две операции могли увести оплаченное в минус.
+-- Права прежние (администратор и локальный администратор своего места), тело то же, добавлены блокировки сбора и участника.
+create or replace function camp_cancel_payment(payid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare p camp_payments; total numeric;
+begin
+  if not (is_admin() or has_location_admin()) then raise exception 'forbidden' using errcode = '42501'; end if;
+  select * into p from camp_payments where id = payid;
+  if not found then raise exception 'payment not found' using errcode = 'P0002'; end if;
+  if not is_admin() and not is_location_admin(camp_location(p.camp_id)) then raise exception 'forbidden' using errcode = '42501'; end if;
+  perform 1 from camps where id = p.camp_id for update;
+  perform 1 from camp_participants where id = p.participant_id for update;
+  if p.kind = 'refund' or p.amount <= 0 then raise exception 'not cancellable' using errcode = '22023'; end if;
+  if exists (select 1 from camp_payments where legacy_ref = 'cancel:' || payid) then raise exception 'already cancelled' using errcode = '23505'; end if;
+  select coalesce(sum(amount), 0) into total from camp_payments where participant_id = p.participant_id;
+  if total - p.amount < 0 then raise exception 'paid below zero' using errcode = '22023'; end if;
+  insert into camp_payments (camp_id, participant_id, player_id, amount, paid_on, kind, method, comment, legacy_ref)
+  values (p.camp_id, p.participant_id, p.player_id, -p.amount, current_date, 'refund', p.method, 'Отмена платежа', 'cancel:' || payid);
 end $$;
 
 revoke execute on function camp_parent_update(uuid, uuid, text), camp_parent_cancel(uuid), camp_refund(uuid, numeric, date, text),
