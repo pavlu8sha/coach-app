@@ -122,3 +122,21 @@
 - A personal copy is distinct from publication by the club. Public photo use remains gated by the separately approved consent.
 - Missing statistics are not rendered as zero. QR remains inactive until its destination and public fields are approved.
 - The flow is a UX proposal, not implementation approval.
+
+
+## Public player card settings and access
+
+| ID | Screen / document | Preview |
+|---|---|---|
+| A28 | Parent settings, public preview, publication confirmation and link management | [SVG](public-player-card-settings-flow-v1.svg) |
+| A28 spec | Roles, public/private data boundary, consent, link lifecycle, states and acceptance criteria | [Specification](public-player-card-settings-flow-v1.md) |
+
+### Notes for A28
+
+- The parent controls creation and revocation of the public link; the child may customize the card appearance and selected fields.
+- The five core fields are enabled by default; family can remove fields. New fields must be off by default until separately reviewed.
+- Public card is a separate unauthenticated page, not the internal player profile. Matches, attendance, payments, tests, goals and staff notes remain private.
+- A parent must preview and confirm the exact public version. Photo upload is not public-photo consent.
+- The club and staff do not upload player photos or publish a card on the family's behalf.
+- The link must be revocable; technical token, cache and audit details remain for engineering specification.
+- The diagram is a UX proposal for implementation planning, not authorization to implement.
