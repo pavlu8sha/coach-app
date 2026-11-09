@@ -73,7 +73,7 @@
  <text x="89" y="565" text-anchor="middle" class="muted tiny">placeholder</text>
  <text x="165" y="528" class="white body">QR публичной страницы</text>
  <text x="165" y="551" class="muted tiny">ссылка на отдельную страницу A28</text>
- <text x="165" y="570" class="muted tiny">после утверждения</text>
+ <text x="165" y="570" class="muted tiny">при активной публичной ссылке A28</text>
  <text x="165" y="589" class="muted tiny">не на внутренний профиль</text>
  <text x="30" y="654" class="gold tiny">SEASON CARD · ДАННЫЕ МОГУТ ОБНОВЛЯТЬСЯ</text>
 </g>
