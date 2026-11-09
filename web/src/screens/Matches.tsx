@@ -49,6 +49,7 @@ export default function Matches() {
   const [tour, setTour] = useNavState('pm.tour', ''); // название турнира на диск не пишем
   const [reload, setReload] = useState(0);
   const [rsvp, setRsvp] = useState<MyRsvp[]>([]); // матчи с подтверждением участия (миграция 0134); без неё список пуст
+  const [rsvpScored, setRsvpScored] = useState<Set<string>>(new Set()); // матчи с подтверждением, у которых внесён счёт
 
   useEffect(() => {
     void (async () => {
@@ -70,7 +71,12 @@ export default function Matches() {
       for (const r of (mp.data ?? []) as { match_id: string; player_id: string; played: boolean; goals: number }[]) map.set(`${r.match_id}|${r.player_id}`, { played: r.played, goals: r.goals });
       setParts(map);
       const rs = await supabase.rpc('match_rsvp_my_matches');
-      setRsvp(rs.error ? [] : ((rs.data ?? []) as MyRsvp[]));
+      const rsRows = rs.error ? [] : ((rs.data ?? []) as MyRsvp[]);
+      setRsvp(rsRows);
+      // счёт прошедших матчей с подтверждением: без него статус «Прошёл» не определить
+      const rsIds = [...new Set(rsRows.map(r => r.match_id))];
+      const sc = rsIds.length ? await supabase.from('matches').select('id, goals_for').in('id', rsIds) : null;
+      setRsvpScored(new Set(((sc?.data ?? []) as { id: string; goals_for: number | null }[]).filter(x => x.goals_for !== null).map(x => x.id)));
       const m = await supabase.from('matches').select('id, team, played_on, opponent, goals_for, goals_against').in('team', teamNames(names)).order('played_on', { ascending: false }).limit(100);
       if (m.error) return setError(m.error.message);
       const rows = (m.data ?? []) as Match[];
@@ -181,7 +187,7 @@ export default function Matches() {
 
       {showPast && (
         <>
-          <RsvpSection rows={rsvp} part="past" onChanged={() => setReload(n => n + 1)} />
+          <RsvpSection rows={rsvp} part="past" withResult={rsvpScored} onChanged={() => setReload(n => n + 1)} />
           {filter === 'all' && played.length > 0 && <h2 className="ks-sub">Результаты</h2>}
           {groupInOrder(played, m => m.played_on.slice(0, 7)).map(([ym, items]) => (
             <details className="ks-group" key={ym}>
