@@ -49,6 +49,7 @@
 | A20 | Staff player profile — desktop | [SVG](staff-player-profile-desktop-v1.svg) |
 | A21 | Unified information architecture, data boundaries and acceptance criteria | [Specification](player-profile-information-architecture-v1.md) |
 | A22 | Responsive mobile states — 320/390/430 px, light/dark, empty/error/loading | [SVG](player-profile-mobile-states-v1.svg) |
+| A23 | Parent profile detail tabs — matches and training history/data boundaries | [SVG](parent-player-profile-matches-trainings-v1.svg) |
 
 ### Notes for A19–A21
 
@@ -57,4 +58,5 @@
 - The proposed «Тренировки» section must not show a fabricated personal group-training history: the current implementation does not yet provide a confirmed complete source for it.
 - «Достижения» remain a placeholder until the product defines their source and rules. Points, test ranking and achievements are separate concepts.
 - A22 checks narrow mobile composition and loading/empty/error states; final tokens and interaction details still require UI-kit validation.
+- A23 distinguishes team match information from confirmed player participation and separates individual/extra bookings from the currently unavailable complete personal group-training history.
 - Names and values in the drawings are illustrative; no sample values should be treated as live player data.
