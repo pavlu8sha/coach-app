@@ -75,3 +75,17 @@
 - No invented metrics, streaks, percentages, badges, reward levels or sample player results are displayed.
 - The achievements area is an informational placeholder until the product defines the source, eligibility rules, award lifecycle and visibility permissions.
 - Parent and child see the same player-development information. Staff access remains role- and group-scoped.
+
+
+## Cross-screen UX review
+
+| ID | Document | Purpose |
+|---|---|---|
+| A25 | [Cross-screen player profile UX audit](player-profile-cross-screen-ux-audit-v1.md) | End-to-end role, data-source, privacy, responsive-state and handoff audit; separates UX requirements from unresolved product decisions |
+
+### Notes for A25
+
+- The audit is a review/handoff aid, not implementation approval.
+- It records data-source dependencies for match participation and personal group-training history.
+- It keeps achievements and photo/consent decisions open for product confirmation.
+- A22 was cleaned up to remove realistic-looking sample identity and points values.
