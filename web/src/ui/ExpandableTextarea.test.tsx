@@ -13,7 +13,7 @@ describe('ExpandableTextarea', () => {
     render(<Host />);
     const ta = screen.getByRole('textbox', { name: 'Текст' }) as HTMLTextAreaElement;
     expect(screen.queryByRole('dialog')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Развернуть' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Развернуть на весь экран' }));
     expect(screen.getByRole('dialog', { name: 'Текст' })).toBeTruthy();
     expect(screen.getByRole('textbox', { name: 'Текст' })).toBe(ta);
     expect(ta.value).toBe('Первая строка\nВторая строка');
@@ -24,7 +24,7 @@ describe('ExpandableTextarea', () => {
 
   it('правка в развёрнутом виде сохраняется после сворачивания', () => {
     render(<Host />);
-    fireEvent.click(screen.getByRole('button', { name: 'Развернуть' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Развернуть на весь экран' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Текст' }), { target: { value: 'Новый текст' } });
     fireEvent.click(screen.getByRole('button', { name: 'Свернуть' }));
     expect((screen.getByRole('textbox', { name: 'Текст' }) as HTMLTextAreaElement).value).toBe('Новый текст');
@@ -32,7 +32,7 @@ describe('ExpandableTextarea', () => {
 
   it('Esc сворачивает поле', () => {
     render(<Host />);
-    fireEvent.click(screen.getByRole('button', { name: 'Развернуть' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Развернуть на весь экран' }));
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('dialog')).toBeNull();
   });

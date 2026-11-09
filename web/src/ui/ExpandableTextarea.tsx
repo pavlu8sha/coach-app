@@ -33,13 +33,17 @@ export function ExpandableTextarea({ label, value, onChange, rows = 6, maxLength
   return (
     <div className={`field ks-expandable${expanded ? ' is-expanded' : ''}`} role={expanded ? 'dialog' : undefined} aria-modal={expanded ? true : undefined} aria-label={expanded ? label : undefined}>
       {expanded && <ScrollLock />}
-      <div className="ks-expandable-head">
-        <label htmlFor={id}>{label}</label>
-        <button type="button" className="ks-btn secondary sm" aria-expanded={expanded} onClick={() => setExpanded(v => !v)}>
-          {expanded ? 'Свернуть' : 'Развернуть'}
+      <label htmlFor={id}>{label}</label>
+      <div className="ks-expandable-box">
+        <textarea id={id} rows={rows} maxLength={maxLength} value={value} onChange={e => onChange(e.target.value)} />
+        <button type="button" className="ks-expand-btn" aria-expanded={expanded} aria-label={expanded ? 'Свернуть' : 'Развернуть на весь экран'} onClick={() => setExpanded(v => !v)}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            {expanded
+              ? <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
+              : <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />}
+          </svg>
         </button>
       </div>
-      <textarea id={id} rows={rows} maxLength={maxLength} value={value} onChange={e => onChange(e.target.value)} />
       {expanded && hint && <p className="ks-hint">{hint}</p>}
     </div>
   );
