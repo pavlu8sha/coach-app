@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import Equipment from './Equipment';
 import { today } from '../lib/coach';
@@ -351,5 +351,70 @@ describe('Новый заказ: локация', () => {
     fireEvent.change(await screen.findByLabelText(/Найти игрока/), { target: { value: 'Иван' } });
     fireEvent.click(await screen.findByText('Иванов Пётр'));
     expect(await screen.findByLabelText('Локация')).toHaveValue('Красный парк');
+  });
+});
+
+describe('Экипировка: выгрузка в CSV (docs/acceptance/eq-export-csv-2026-11-09.md)', () => {
+  const seedExport = () => {
+    fake.db.equipment_orders = [
+      { id: 'o1', ordered_on: '2026-09-10', total: 160, paid: 60, installment: false, number: '7', inscription: null, location: 'Исани', status: 'accepted', players: { full_name: 'Иванов Пётр', groups: { name: 'U9-A' } }, equipment_order_lines: [{ id: 'l1', kit: 'Дождевик', size: '140', quantity: 1 }, { id: 'l2', kit: 'Форма', size: 'M', quantity: 1 }], equipment_issues: [] },
+      { id: 'o2', ordered_on: '2026-09-11', total: 100, paid: 100, installment: false, number: '9', inscription: null, location: 'Исани', status: 'accepted', players: { full_name: 'Сидоров Ян', groups: { name: 'U11' } }, equipment_order_lines: [{ id: 'l3', kit: 'Форма', size: 'L', quantity: 1 }], equipment_issues: [] },
+    ];
+  };
+  const writeText = vi.fn(() => Promise.resolve());
+  afterEach(() => { vi.restoreAllMocks(); writeText.mockClear(); });
+  const mockClipboard = () => Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+
+  it('условия 1-3, 11: «Скопировать» отдаёт строки по вещи только выбранного товара', async () => {
+    seedExport(); mockClipboard();
+    render(<Equipment />);
+    await screen.findByText('Иванов Пётр');
+    fireEvent.change(screen.getByLabelText('Товар'), { target: { value: 'Дождевик' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Скопировать' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    const text = (writeText.mock.calls[0] as unknown as [string])[0];
+    expect(text.startsWith('﻿')).toBe(false); // в буфер без BOM
+    expect(text.split('\r\n')).toHaveLength(2);
+    expect(text).toContain('Иванов Пётр;U9-A;Исани;Дождевик;140;1');
+    expect(text).not.toContain('Сидоров Ян');
+    expect(text).not.toContain('Форма');
+    expect(await screen.findByText('Список скопирован.')).toBeInTheDocument();
+  });
+
+  it('условие 2: выгрузка следует за поиском и фильтрами экрана', async () => {
+    seedExport(); mockClipboard();
+    render(<Equipment />);
+    await screen.findByText('Иванов Пётр');
+    fireEvent.change(screen.getByLabelText('Найти игрока'), { target: { value: 'Сидоров' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Скопировать' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    const text = (writeText.mock.calls[0] as unknown as [string])[0];
+    expect(text).toContain('Сидоров Ян');
+    expect(text).not.toContain('Иванов Пётр');
+  });
+
+  it('условие 8: нет строк, кнопки неактивны', async () => {
+    seedExport();
+    render(<Equipment />);
+    await screen.findByText('Иванов Пётр');
+    fireEvent.change(screen.getByLabelText('Найти игрока'), { target: { value: 'Никто' } });
+    expect(screen.getByRole('button', { name: 'Скачать CSV' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Скопировать' })).toBeDisabled();
+  });
+
+  it('условия 6, 9, 10: «Скачать CSV» создаёт файл equipment-<дата>.csv и не вызывает RPC', async () => {
+    seedExport();
+    const create = vi.fn(() => 'blob:x');
+    Object.defineProperty(URL, 'createObjectURL', { value: create, configurable: true });
+    Object.defineProperty(URL, 'revokeObjectURL', { value: vi.fn(), configurable: true });
+    let name = '';
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) { name = this.download; });
+    render(<Equipment />);
+    await screen.findByText('Иванов Пётр');
+    fireEvent.click(screen.getByRole('button', { name: 'Скачать CSV' }));
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(name).toBe(`equipment-${today()}.csv`);
+    expect((create.mock.calls[0] as unknown as [Blob])[0].type).toContain('text/csv');
+    expect(fake.calls).toEqual([]); // ни RPC, ни записей
   });
 });

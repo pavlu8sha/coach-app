@@ -9,6 +9,7 @@ import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { settingNumberError, useClubSettings } from '../lib/clubSettings';
 import { bundleDiscount, priorAmount } from '../lib/equipmentDiscount';
+import { csvFileName, equipmentCsv } from '../lib/equipmentExport';
 import { allKitsIssued, EQUIPMENT_REQUIRED_KEY, EQUIPMENT_REQUIRED_TEXT, issueStateLabel, lastStatusDate, nextStatus, orderStatusLabel, prevStatus, type StatusEvent } from '../lib/equipment';
 
 interface Line { id?: string; kit: string; size: string | null; quantity: number; unit_price?: number | string | null }
@@ -91,6 +92,7 @@ export default function Equipment() {
   const [fIssue, setFIssue] = useNavState<'' | 'yes' | 'no'>('eq.issue', '', { entry: 0, persist: { kind: 'enum', values: ['', 'yes', 'no'] } });
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [exportMsg, setExportMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -127,6 +129,30 @@ export default function Equipment() {
     return { players: new Set(shown.map(o => o.players?.full_name ?? o.id)).size, total, paid, debt: total - paid };
   }, [shown]);
 
+  // Выгрузка видимого списка (после фильтров) в CSV: файл и копирование (в Mini App скачивание может быть закрыто)
+  const csv = useMemo(() => equipmentCsv(shown, fKit), [shown, fKit]);
+  const downloadCsv = () => {
+    try {
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = csvFileName(today());
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      setExportMsg({ ok: true, text: 'Файл сохранён. Если не открылся, нажмите «Скопировать».' });
+    } catch {
+      setExportMsg({ ok: false, text: 'Не удалось сохранить файл: нажмите «Скопировать».' });
+    }
+  };
+  const copyCsv = () => {
+    void navigator.clipboard?.writeText(csv.replace('\uFEFF', '')).then(
+      () => setExportMsg({ ok: true, text: 'Список скопирован.' }),
+      () => setExportMsg({ ok: false, text: 'Не удалось скопировать список.' }),
+    );
+  };
+
   const done = () => { nav.backToRoot(); setOrders(null); setReload(n => n + 1); };
   if (error) return <Failure title="Не удалось загрузить заказы" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   const screen = nav.top.screen;
@@ -160,6 +186,11 @@ export default function Equipment() {
           <div className="ks-tile"><b style={{ color: sums.debt > 0 ? 'var(--ks-danger, #b3261e)' : undefined }}>{gel(sums.debt)}</b>долг</div>
         </div>
       )}
+      <div className="ks-pair" style={{ marginBottom: 12 }}>
+        <button type="button" className="ks-btn secondary" disabled={!csv} onClick={downloadCsv}>Скачать CSV</button>
+        <button type="button" className="ks-btn secondary" disabled={!csv} onClick={copyCsv}>Скопировать</button>
+      </div>
+      {exportMsg && <div role="status" className={exportMsg.ok ? 'ks-muted' : 'ks-error'} style={{ marginBottom: 12, fontSize: 13 }}>{exportMsg.text}</div>}
       {!orders ? <Loading /> : shown.length === 0 ? (
         <EmptyState icon="box" title="Заказов нет" text="Измените фильтр или создайте заказ." />
       ) : (
