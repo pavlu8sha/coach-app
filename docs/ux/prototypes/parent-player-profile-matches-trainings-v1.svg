@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="1260" viewBox="0 0 860 1260">
+<defs><style>
+.bg{fill:#eef1f6}.phone{fill:#fff;stroke:#d9e0e9}.ink{fill:#1d2a3b;font-family:Arial,sans-serif}.muted{fill:#718096;font-family:Arial,sans-serif}.blue{fill:#2458d3;font-family:Arial,sans-serif}.h{font:bold 21px Arial}.h2{font:bold 15px Arial}.b{font:13px Arial}.s{font:11px Arial}.xs{font:9px Arial}.bold{font:bold 13px Arial}.line{stroke:#e4e9f0}
+</style></defs>
+<rect width="860" height="1260" class="bg"/>
+<text x="24" y="34" class="muted xs">COACH APP · ISSUE #266 · A23 · PROPOSAL</text>
+<text x="24" y="66" class="ink h">Детальные разделы профиля: матчи и тренировки</text>
+<!-- MATCHES -->
+<rect x="24" y="92" width="390" height="1138" rx="16" class="phone"/>
+<text x="44" y="126" class="muted xs">РОДИТЕЛЬ / РЕБЁНОК · 390 PX</text>
+<text x="44" y="164" class="ink h">Матчи</text><text x="44" y="188" class="muted s">Александр Беридзе · U13-A</text>
+<rect x="44" y="208" width="350" height="42" rx="8" fill="#eef3ff"/><text x="60" y="234" class="blue b">Все матчи</text><text x="180" y="234" class="muted b">Предстоящие</text><text x="306" y="234" class="muted b">Прошедшие</text>
+<text x="44" y="282" class="ink h2">Ближайший матч</text>
+<rect x="44" y="296" width="350" height="116" rx="10" fill="#fff" stroke="#e2e7ef"/>
+<text x="60" y="321" class="muted xs">СУББОТА · 10:30 · ТУРНИР</text>
+<text x="60" y="351" class="ink h2">Kickstart — Соперник</text>
+<text x="60" y="376" class="muted s">Место и время — по расписанию клуба</text>
+<text x="60" y="397" class="blue s">Открыть матч ›</text>
+<text x="44" y="452" class="ink h2">История матчей</text>
+<rect x="44" y="466" width="350" height="132" rx="10" fill="#fff" stroke="#e2e7ef"/>
+<text x="60" y="490" class="muted xs">ПРОШЕДШИЙ МАТЧ · 02 НОЯБРЯ</text>
+<text x="60" y="520" class="ink bold">Kickstart — Соперник</text>
+<text x="60" y="544" class="ink b">2 : 1</text><text x="112" y="544" class="muted s">Командный счёт</text>
+<line x1="60" y1="558" x2="378" y2="558" class="line"/>
+<text x="60" y="581" class="muted s">Участие игрока: подтверждено</text>
+<rect x="44" y="612" width="350" height="132" rx="10" fill="#fff" stroke="#e2e7ef"/>
+<text x="60" y="636" class="muted xs">ПРОШЕДШИЙ МАТЧ · 26 ОКТЯБРЯ</text>
+<text x="60" y="666" class="ink bold">Kickstart — Другой соперник</text>
+<text x="60" y="690" class="ink b">0 : 0</text><text x="112" y="690" class="muted s">Командный счёт</text>
+<line x1="60" y1="704" x2="378" y2="704" class="line"/>
+<text x="60" y="727" class="muted s">Нет персональной записи участия</text>
+<rect x="44" y="762" width="350" height="142" rx="10" fill="#fff8e8" stroke="#f0dfb7"/>
+<text x="60" y="790" class="ink bold">Важно о статистике</text>
+<text x="60" y="816" class="ink s">Командный счёт не означает, что игрок</text><text x="60" y="834" class="ink s">участвовал в матче. Если персональная</text><text x="60" y="852" class="ink s">запись отсутствует, мы не показываем</text><text x="60" y="870" class="ink s">голы и участие как подтверждённые.</text>
+<text x="44" y="946" class="ink h2">Пустое состояние</text>
+<rect x="44" y="960" width="350" height="118" rx="10" fill="#f7f9fc" stroke="#e2e7ef"/>
+<text x="60" y="990" class="ink bold">Матчей пока нет</text><text x="60" y="1016" class="muted s">Когда появятся матчи группы, они</text><text x="60" y="1034" class="muted s">будут отображаться здесь.</text>
+<text x="44" y="1120" class="muted xs">НЕ ДОБАВЛЯТЬ ЛИЧНЫЕ ГОЛЫ/МИНУТЫ, ЕСЛИ НЕТ ИСТОЧНИКА</text>
+<rect x="24" y="1170" width="390" height="60" rx="0" fill="#fff" stroke="#d9e0e9"/>
+<text x="64" y="1204" text-anchor="middle" class="muted xs">РЕБЁНОК</text><text x="142" y="1204" text-anchor="middle" class="muted xs">РАСПИС.</text><text x="220" y="1204" text-anchor="middle" class="muted xs">МАТЧИ</text><text x="298" y="1204" text-anchor="middle" class="muted xs">ОПЛАТА</text><text x="376" y="1204" text-anchor="middle" class="muted xs">ПРОФИЛЬ</text>
+<!-- TRAININGS -->
+<rect x="446" y="92" width="390" height="1138" rx="16" class="phone"/>
+<text x="466" y="126" class="muted xs">РОДИТЕЛЬ / РЕБЁНОК · 390 PX</text>
+<text x="466" y="164" class="ink h">Тренировки</text><text x="466" y="188" class="muted s">Александр Беридзе · U13-A</text>
+<rect x="466" y="208" width="350" height="64" rx="9" fill="#f7f9fc" stroke="#e2e7ef"/>
+<text x="482" y="232" class="muted xs">ИСТОРИЯ ЗАНЯТИЙ</text><text x="482" y="255" class="ink bold">Доступность зависит от типа записи</text>
+<text x="466" y="314" class="ink h2">Индивидуальные занятия</text>
+<rect x="466" y="328" width="350" height="106" rx="10" fill="#fff" stroke="#e2e7ef"/>
+<text x="482" y="354" class="muted xs">ИНДИВИДУАЛЬНАЯ / ВРАТАРСКАЯ</text>
+<text x="482" y="382" class="ink bold">Запись на занятие</text><text x="482" y="405" class="muted s">Статус и детали — из подтверждённой</text><text x="482" y="421" class="muted s">записи бронирования</text>
+<text x="466" y="474" class="ink h2">Дополнительные тренировки</text>
+<rect x="466" y="488" width="350" height="106" rx="10" fill="#fff" stroke="#e2e7ef"/>
+<text x="482" y="514" class="muted xs">ДОПОЛНИТЕЛЬНОЕ ЗАНЯТИЕ</text>
+<text x="482" y="542" class="ink bold">Запись / участие</text><text x="482" y="565" class="muted s">Показывать только доступные поля</text><text x="482" y="581" class="muted s">из подтверждённой записи</text>
+<text x="466" y="634" class="ink h2">Групповые тренировки</text>
+<rect x="466" y="648" width="350" height="160" rx="10" fill="#fff8e8" stroke="#f0dfb7"/>
+<text x="482" y="678" class="ink bold">История пока недоступна</text>
+<text x="482" y="704" class="ink s">Текущие агрегаты посещаемости группы</text><text x="482" y="722" class="ink s">не являются персональной историей</text><text x="482" y="740" class="ink s">занятий ребёнка. Не показываем их</text><text x="482" y="758" class="ink s">как список посещённых тренировок.</text>
+<text x="482" y="786" class="blue s">Показать только после подключения источника</text>
+<text x="466" y="850" class="ink h2">Если записей нет</text>
+<rect x="466" y="864" width="350" height="118" rx="10" fill="#f7f9fc" stroke="#e2e7ef"/>
+<text x="482" y="894" class="ink bold">Занятий пока нет</text><text x="482" y="920" class="muted s">Новые подтверждённые записи появятся</text><text x="482" y="938" class="muted s">здесь автоматически.</text>
+<text x="466" y="1030" class="muted xs">НЕ ПОДМЕНЯТЬ ПЕРСОНАЛЬНУЮ ЛЕНТУ АГРЕГАТОМ ПОСЕЩАЕМОСТИ</text>
+<rect x="446" y="1170" width="390" height="60" fill="#fff" stroke="#d9e0e9"/>
+<text x="486" y="1204" text-anchor="middle" class="muted xs">РЕБЁНОК</text><text x="564" y="1204" text-anchor="middle" class="muted xs">РАСПИС.</text><text x="642" y="1204" text-anchor="middle" class="muted xs">МАТЧИ</text><text x="720" y="1204" text-anchor="middle" class="muted xs">ОПЛАТА</text><text x="798" y="1204" text-anchor="middle" class="muted xs">ПРОФИЛЬ</text>
+</svg>
