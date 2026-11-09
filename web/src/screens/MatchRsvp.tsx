@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { MATCH_DURATION_DEFAULT } from '../lib/clubSettings';
 import { supabase } from '../lib/supabase';
 import { fmtWhen, linkLabel, responseText, rsvpError, splitLinks, type MyRsvp, type RsvpResponse } from '../lib/matchRsvp';
 import { Pill } from '../ui/components';
@@ -16,22 +17,22 @@ function LinkText({ text }: { text: string }) {
 const LABEL = { fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' as const, margin: '10px 0 2px' };
 
 const KIND: Record<string, string> = { game: 'Матч чемпионата', friendly: 'Товарищеский матч' };
-/** Сколько после начала матч считаем «идущим», если счёта ещё нет (допущение: матч длится не дольше 1,5 часа) */
-const LIVE_WINDOW_MS = 1.5 * 3600_000;
+/** Длительность матча, если её не передали: 90 минут, как значение настройки по умолчанию */
+const defaultDuration = () => MATCH_DURATION_DEFAULT;
 
 /**
  * Подтверждение участия для родителя: матчи, на которые приглашены его дети. Только свои дети; других игроков, ответов
  * других семей и статистики здесь нет (база их не отдаёт). Ответ один на ребёнка и общий для обоих родителей.
  * «Предстоящие» — опубликованные и ещё не начавшиеся, «Прошедшие» — начавшиеся и отменённые.
  */
-export default function RsvpSection({ rows, part, onChanged, withResult = new Set() }: { rows: MyRsvp[]; part: 'upcoming' | 'past'; onChanged: () => void; withResult?: Set<string> }) {
+export default function RsvpSection({ rows, part, onChanged, withResult = new Set(), durationMin = defaultDuration }: { rows: MyRsvp[]; part: 'upcoming' | 'past'; onChanged: () => void; withResult?: Set<string>; durationMin?: (team: string) => number }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const now = Date.now();
-  /** Статус прошедшего матча: со счётом — «Прошёл»; без счёта и начался недавно — «Идёт»; иначе — «не внесён» */
+  /** Статус прошедшего матча: со счётом — «Прошёл»; без счёта, пока не истекла длительность матча команды (настройка клуба), — «Идёт»; иначе — «не внесён» */
   const pastStatus = (m: MyRsvp) => {
     if (withResult.has(m.match_id)) return 'Прошёл';
-    return now - new Date(m.starts_at).getTime() < LIVE_WINDOW_MS ? 'Идёт' : 'Прошёл, результат не внесён';
+    return now - new Date(m.starts_at).getTime() < durationMin(m.team) * 60_000 ? 'Идёт' : 'Прошёл, результат не внесён';
   };
   const upcoming = (r: MyRsvp) => r.lifecycle_status === 'published' && new Date(r.starts_at).getTime() > now;
   const mine = rows.filter(r => (part === 'upcoming' ? upcoming(r) : !upcoming(r)));

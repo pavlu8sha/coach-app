@@ -6,6 +6,9 @@ import { supabase } from './supabase';
 
 export const CHAMP_FEE_KEY = 'matches.champFee';
 export const GUEST_FEE_KEY = 'matches.guestFee';
+export const MATCH_DURATION_KEY = 'matches.durationMin';
+/** Длительность матча, если настройка не задана, не читается или недопустима. */
+export const MATCH_DURATION_DEFAULT = 90;
 
 export interface SettingDef {
   key: string;
@@ -39,6 +42,7 @@ export const SETTINGS: SettingDef[] = [
   { key: 'equip.discRound', title: 'Сумма со скидкой округляется до, ₾', group: 'Экипировка', kind: 'number', def: '5', min: 1, max: 100, integer: true, hint: 'До ближайшего значения, минимум 1 — как в старом приложении.' },
   { key: CHAMP_FEE_KEY, title: 'Взнос за чемпионат, ₾ — общий', group: 'Матчи', kind: 'number', def: '', emptyLabel: 'не задан', min: 0, max: 100000, hint: 'Подставляется в новый чемпионат, если у команды нет своего значения (ниже). Пусто — взнос вводится вручную.' },
   { key: GUEST_FEE_KEY, title: 'Разовый взнос гостя за матч чемпионата, ₾', group: 'Матчи', kind: 'number', def: '25', min: 0, max: 100000, hint: 'Игроку, отмеченному в матче чемпионата или фестиваля, но не входящему в заявку события, при сохранении матча назначается этот взнос. По умолчанию 25.' },
+  { key: MATCH_DURATION_KEY, title: 'Длительность матча, минут — общая', group: 'Матчи', kind: 'number', def: String(MATCH_DURATION_DEFAULT), min: 10, max: 600, integer: true, hint: 'Столько минут после начала матч без счёта показывается родителям как «Идёт», потом как «Прошёл, результат не внесён». Свои значения команд ниже.' },
 ];
 
 export const settingDef = (key: string) => SETTINGS.find(s => s.key === key);
@@ -82,7 +86,7 @@ export function settingError(def: SettingDef, raw: string): string | null {
   return null;
 }
 
-/** Значения по командам: ключ → (команда → значение). Сейчас так хранится взнос за чемпионат (matches.champFee). */
+/** Значения по командам: ключ → (команда → значение). Так хранятся взнос за чемпионат (matches.champFee) и длительность матча (matches.durationMin). */
 export type ScopedValues = Record<string, Record<string, string>>;
 
 export interface ClubSettings { values: SettingValues; scoped: ScopedValues; clubId: string | null; loaded: boolean; reload: () => void }
@@ -93,6 +97,17 @@ export function champFeeFor(values: SettingValues, scoped: ScopedValues, team: s
   if ((scoped[CHAMP_FEE_KEY]?.[team] ?? '').trim() !== '' && Number.isFinite(own) && own >= 0) return own;
   const all = settingNumber(values, CHAMP_FEE_KEY);
   return Number.isFinite(all) ? all : null;
+}
+
+/** Длительность матча команды в минутах: своё значение команды, иначе общее, иначе 90. Недопустимое значение пропускается. */
+export function matchDurationFor(values: SettingValues, scoped: ScopedValues, team: string): number {
+  const def = settingDef(MATCH_DURATION_KEY)!;
+  const valid = (raw: string | null | undefined): number | null => {
+    const v = (raw ?? '').trim();
+    if (v === '' || settingError(def, v) !== null) return null;
+    return Number(v.replace(',', '.'));
+  };
+  return valid(scoped[MATCH_DURATION_KEY]?.[team]) ?? valid(values[MATCH_DURATION_KEY]) ?? MATCH_DURATION_DEFAULT;
 }
 
 /** Читает все настройки клуба одним запросом. До ответа базы и при ошибке values пуст, и действуют значения по умолчанию. */

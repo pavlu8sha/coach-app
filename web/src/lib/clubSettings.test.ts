@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { champFeeFor, settingError, settingDef, settingNumber, settingNumberError, settingText } from './clubSettings';
+import { champFeeFor, matchDurationFor, settingError, settingDef, settingNumber, settingNumberError, settingText } from './clubSettings';
 import { compareGroups, setGroupOrder, sortGroups } from './coach';
 
 afterEach(() => setGroupOrder(''));
@@ -44,6 +44,24 @@ describe('Настройки клуба: значения и проверка', 
     expect(champFeeFor({ 'matches.champFee': '200' }, scoped, 'U9')).toBe(200);
     expect(champFeeFor({}, scoped, 'U9')).toBeNull();
     expect(champFeeFor({ 'matches.champFee': '200' }, { 'matches.champFee': { 'U13-A': '0' } }, 'U13-A')).toBe(0);
+  });
+
+  it('длительность матча: своя у команды важнее общей, без обеих 90 минут', () => {
+    const scoped = { 'matches.durationMin': { 'U8': '50' } };
+    expect(matchDurationFor({ 'matches.durationMin': '120' }, scoped, 'U8')).toBe(50);
+    expect(matchDurationFor({ 'matches.durationMin': '120' }, scoped, 'U14')).toBe(120);
+    expect(matchDurationFor({}, {}, 'U14')).toBe(90);
+    expect(matchDurationFor({ 'matches.durationMin': '' }, {}, 'U14')).toBe(90);
+  });
+
+  it('длительность матча: недопустимое значение не действует, берётся следующее по порядку', () => {
+    expect(matchDurationFor({ 'matches.durationMin': '120' }, { 'matches.durationMin': { 'U8': 'abc' } }, 'U8')).toBe(120);
+    expect(matchDurationFor({ 'matches.durationMin': '120' }, { 'matches.durationMin': { 'U8': '5' } }, 'U8')).toBe(120);
+    expect(matchDurationFor({ 'matches.durationMin': '45,5' }, {}, 'U8')).toBe(90);
+    expect(matchDurationFor({ 'matches.durationMin': '9000' }, {}, 'U8')).toBe(90);
+    expect(settingError(settingDef('matches.durationMin')!, '9')).toBe('Не меньше 10.');
+    expect(settingError(settingDef('matches.durationMin')!, '601')).toBe('Не больше 600.');
+    expect(settingError(settingDef('matches.durationMin')!, '75')).toBeNull();
   });
 });
 

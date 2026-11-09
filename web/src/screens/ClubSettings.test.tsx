@@ -88,4 +88,32 @@ describe('Настройки клуба (#339)', () => {
       { club_id: 'c1', key: 'matches.champFee', scope: 'U9', value: '150', updated_at: expect.any(String) },
     ]));
   });
+
+  it('длительность матча: общая и свои значения команд (область = команда)', async () => {
+    fake.db.club_settings = [
+      { club_id: 'c1', key: 'matches.durationMin', scope: '', value: '100' },
+      { club_id: 'c1', key: 'matches.durationMin', scope: 'U8', value: '50' },
+    ];
+    render(<ClubSettings />);
+    await screen.findByText(/Длительность матча, минут — общая/);
+    expect(within(card(/Длительность матча, минут — общая/)).getByRole('textbox')).toHaveValue('100');
+    expect(within(card(/^U8$/)).getByRole('textbox')).toHaveValue('50');
+    fireEvent.change(screen.getByLabelText('Команда (длительность матча)'), { target: { value: 'U14' } });
+    fireEvent.change(screen.getByLabelText('Длительность, минут'), { target: { value: '120' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Добавить длительность' }));
+    await waitFor(() => expect(fake.writes('club_settings', 'upsert')).toEqual([
+      { club_id: 'c1', key: 'matches.durationMin', scope: 'U14', value: '120', updated_at: expect.any(String) },
+    ]));
+  });
+
+  it('длительность матча команды: дробное и слишком маленькое значение не сохраняются', async () => {
+    fake.db.club_settings = [];
+    render(<ClubSettings />);
+    await screen.findByText(/Длительность матча, минут — общая/);
+    fireEvent.change(screen.getByLabelText('Команда (длительность матча)'), { target: { value: 'U14' } });
+    fireEvent.change(screen.getByLabelText('Длительность, минут'), { target: { value: '5' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Добавить длительность' }));
+    expect(await screen.findByText('Не меньше 10.')).toBeInTheDocument();
+    expect(fake.writes('club_settings', 'upsert')).toEqual([]);
+  });
 });

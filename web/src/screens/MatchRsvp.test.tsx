@@ -66,6 +66,45 @@ describe('«Матчи» родителя: статус прошедшего м�
     expect(await screen.findByText('Идёт')).toBeInTheDocument();
   });
 
+  it('общая длительность матча из настроек клуба продлевает «Идёт»', async () => {
+    seedParent([row({ match_id: 'r6', starts_at: ago(2), can_answer: false, response: null })]);
+    fake.rpc.match_duration_minutes = () => [{ team: '', value: '150' }];
+    render(<Matches />);
+    expect(await screen.findByText('Идёт')).toBeInTheDocument();
+  });
+
+  it('длительность команды важнее общей', async () => {
+    seedParent([row({ match_id: 'r7', team: 'U9', starts_at: ago(1), can_answer: false, response: null })]);
+    fake.rpc.match_duration_minutes = () => [{ team: '', value: '150' }, { team: 'U9', value: '40' }];
+    render(<Matches />);
+    expect(await screen.findByText('Прошёл, результат не внесён')).toBeInTheDocument();
+    expect(screen.queryByText('Идёт')).toBeNull();
+  });
+
+  it('если настройка не читается или недопустима, действует 90 минут', async () => {
+    seedParent([row({ match_id: 'r8', starts_at: ago(1), can_answer: false, response: null }), row({ match_id: 'r9', opponent: 'Динамо', starts_at: ago(2), can_answer: false, response: null })]);
+    fake.rpc.match_duration_minutes = () => ({ data: null, error: { message: 'function does not exist' } });
+    render(<Matches />);
+    expect(await screen.findByText('Идёт')).toBeInTheDocument();
+    expect(screen.getByText('Прошёл, результат не внесён')).toBeInTheDocument();
+  });
+
+  it('недопустимое значение настройки не ломает экран: действует 90 минут', async () => {
+    seedParent([row({ match_id: 'r10', starts_at: ago(2), can_answer: false, response: null })]);
+    fake.rpc.match_duration_minutes = () => [{ team: '', value: 'abc' }, { team: 'U9', value: '100000' }];
+    render(<Matches />);
+    expect(await screen.findByText('Прошёл, результат не внесён')).toBeInTheDocument();
+  });
+
+  it('счёт внесён: «Прошёл», даже если длительность ещё не истекла', async () => {
+    seedParent([row({ match_id: 'r11', starts_at: ago(1), can_answer: false, response: 'yes' })]);
+    fake.db.matches = [{ id: 'r11', team: 'U9', played_on: '2026-11-07', opponent: 'Олимп', goals_for: 0, goals_against: 0 }];
+    fake.rpc.match_duration_minutes = () => [{ team: '', value: '300' }];
+    render(<Matches />);
+    expect(await screen.findByText('Прошёл')).toBeInTheDocument();
+    expect(screen.queryByText('Идёт')).toBeNull();
+  });
+
   it('через 2 часа после начала матч без результата уже не «Идёт» (окно 1,5 часа)', async () => {
     seedParent([row({ match_id: 'r5', starts_at: ago(2), can_answer: false, response: null })]);
     render(<Matches />);
