@@ -107,8 +107,11 @@ create or replace function parental_consent_event_guard() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v consent_doc_versions; vfound boolean;
 begin
-  select * into v from consent_doc_versions where id = new.version_id;
+  -- версия блокируется на время транзакции: пока событие не закоммичено, её название и дату вступления не изменить
+  select * into v from consent_doc_versions where id = new.version_id for share;
   vfound := found;
+  -- время события задаёт сервер, подставить своё нельзя
+  new.occurred_at := now();
   if vfound and v.consent_type <> new.consent_type then
     raise exception 'version belongs to another consent type' using errcode = '23503';
   end if;

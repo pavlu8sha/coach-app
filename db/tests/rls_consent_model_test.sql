@@ -3,7 +3,7 @@
 -- «ожидание» без записей и то, что старые данные и старое поведение не тронуты.
 begin;
 create extension if not exists pgtap;
-select plan(67);
+select plan(68);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -207,6 +207,11 @@ select throws_ok($$insert into parental_consent_events (id, parent_user_id, play
 select throws_ok($$update parental_consents set status = 'pending', version_id = null, last_event_id = null, granted_at = null where parent_user_id = '00000000-0000-0000-0000-0000000000b1' and consent_type = 'data_processing'$$, '23514', 'consent state cannot return to pending', 'состояние нельзя вернуть в ожидание');
 select throws_ok($$update parental_consents set granted_at = '2020-01-01' where parent_user_id = '00000000-0000-0000-0000-0000000000b1' and consent_type = 'data_processing'$$, '23514', 'state changes require a new history event', 'время состояния не меняется без нового события');
 select lives_ok($$update consent_doc_versions set version = 'syn-dp-3-moved', effective_from = now() + interval '9 days' where id = '00000000-0000-0000-0000-0000000f0004'$$, 'версию, которую никто не подтверждал, можно исправить');
+
+-- Время события задаёт сервер
+insert into parental_consent_events (id, parent_user_id, player_id, consent_type, version_id, event, source, occurred_at) overriding system value values
+  (91, '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'media_publication', '00000000-0000-0000-0000-0000000f0010', 'granted', 'app', '2020-01-01');
+select is((select occurred_at from parental_consent_events where id = 91), now(), 'подставленное время события игнорируется, время ставит сервер');
 
 select * from finish();
 rollback;
