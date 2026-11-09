@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { ExpandableTextarea } from '../ui/ExpandableTextarea';
 import { today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill } from '../ui/components';
@@ -176,7 +177,7 @@ export default function Debtors() {
       <div className="ks-card">
         <b>Текст сообщения родителям</b>
         <p className="ks-muted" style={{ margin: '6px 0' }}>{'{месяц}'} и {'{имя}'} подставятся сами. Шаблон запоминается на этом устройстве.</p>
-        <textarea className="ks-input" rows={3} aria-label="Текст сообщения" value={tpl} onChange={e => changeTpl(e.target.value)} />
+        <ExpandableTextarea label="Текст сообщения" rows={3} value={tpl} onChange={changeTpl} />
         <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} onClick={() => void copy(textFor(''), 'текст сообщения')}>Скопировать текст</button>
       </div>
       </details>

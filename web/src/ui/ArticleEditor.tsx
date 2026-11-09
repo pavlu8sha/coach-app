@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useDirtyGuard } from '../nav';
 import { articleDate, safeHttpUrl, type ArticleAudience, type ArticleStatus } from '../lib/articles';
 import { Segmented } from './components';
+import { ExpandableTextarea } from './ExpandableTextarea';
 
 export interface ArticleDraft {
   title: string;
@@ -86,10 +87,7 @@ export default function ArticleEditor(props: {
         Заголовок
         <input value={title} maxLength={200} onChange={e => setTitle(e.target.value)} />
       </label>
-      <label className="field">
-        Текст
-        <textarea rows={10} maxLength={20000} value={body} onChange={e => setBody(e.target.value)} />
-      </label>
+      <ExpandableTextarea label="Текст" rows={10} maxLength={20000} value={body} onChange={setBody} />
       <p className="ks-label">Аудитория</p>
       <Segmented
         label="Аудитория материала"

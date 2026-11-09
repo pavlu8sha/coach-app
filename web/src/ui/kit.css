@@ -447,3 +447,15 @@ main.page > :nth-child(n+8) { animation-delay: 175ms; }
 /* Политика и согласие: нумерация в тексте, без второго маркера; абзацы с воздухом */
 ul.policy { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 8px; }
 .policy-doc p { margin: 0 0 10px; }
+
+/* Поле «Развернуть» (#517): тот же textarea, в развёрнутом виде на весь экран */
+.ks-expandable { display: block; }
+.ks-expandable-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.ks-expandable-head > label { min-width: 0; }
+.ks-expandable-head > .ks-btn { flex: 0 0 auto; width: auto; margin: 0; }
+.ks-expandable.is-expanded {
+  position: fixed; inset: 0; z-index: 1000; margin: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  background: var(--ks-surface, #ffffff); display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;
+}
+.ks-expandable.is-expanded > textarea { flex: 1 1 auto; min-height: 0; width: 100%; box-sizing: border-box; resize: none; overflow-y: auto; }
+.ks-expandable > textarea { font: inherit; font-size: 1rem; padding: 12px; width: 100%; box-sizing: border-box; border-radius: var(--ks-radius); border: 1px solid var(--ks-border-strong); background: var(--bg-2); color: var(--fg); }

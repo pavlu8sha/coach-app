@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { ExpandableTextarea } from '../ui/ExpandableTextarea';
 import { coachError } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { ListRow, Pill, SearchInput, Segmented } from '../ui/components';
@@ -119,7 +120,7 @@ export default function FirstWave() {
       ))}
       <h3>Загрузить список</h3>
       <p className="muted">Вставьте фамилии по одной в строке или выберите файл CSV/TXT. Во второй колонке можно указать направление (суббота, воскресенье, вратарская), иначе берётся выбранное выше.</p>
-      <label className="field">Список<textarea rows={5} value={text} onChange={e => { setText(e.target.value); setImp(null); }} /></label>
+      <ExpandableTextarea label="Список" rows={5} value={text} onChange={v => { setText(v); setImp(null); }} />
       <label className="field">Файл<input type="file" accept=".csv,.txt,text/csv,text/plain" onChange={e => void readFile(e.target.files?.[0])} /></label>
       <button type="button" className="ks-btn secondary" disabled={busy === 'check' || !text.trim()} onClick={() => void checkList()}>Проверить список</button>
       {imp && (
