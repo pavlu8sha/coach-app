@@ -26,5 +26,7 @@ echo "== db/tests/concurrency_match_rsvp.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_match_rsvp.sh || fail=1
 echo "== db/tests/concurrency_booking.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_booking.sh || fail=1
+echo "== db/tests/concurrency_camp_seats.sh"
+DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_camp_seats.sh || fail=1
 $PSQL -q -d postgres -c "drop database if exists $DB"
 [ "$fail" = 0 ] && echo "Все тесты доступа прошли" || { echo "ЕСТЬ ПАДЕНИЯ"; exit 1; }
