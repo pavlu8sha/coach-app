@@ -6,6 +6,7 @@ import { route, BEFORE_START } from './bot-logic.js';
 import { leadStep, withLeadButton } from './lead-logic.js';
 import { parseRsvp, rsvpCalls } from './rsvp-logic.js';
 import { parseWaitlist, waitlistCalls } from './waitlist-logic.js';
+import { parseBookingData, bookingFlow } from './booking-logic.js';
 
 const APP_URL = Deno.env.get('MINI_APP_URL') ?? 'https://coach-app-84b.pages.dev/';
 // Заявки «Хочу в KickStart» (lead-logic.js): включаются LEADS_ENABLED=1 и требуют миграцию 0039 и ключ службы Supabase
@@ -46,6 +47,13 @@ Deno.serve(async (req: Request) => {
         console.error('rsvp_answer_by_telegram', e instanceof Error ? e.message : String(e));
       }
       calls = rsvpCalls(update.callback_query, rsvp, result);
+    } else if (parseBookingData(update?.callback_query?.data) && SB_URL && SB_KEY) {
+      // «Записаться на тренировку» (Issue #274, миграция 0158): списки и запись выполняет база тем же кодом, что и приложение
+      calls = await bookingFlow(update.callback_query, parseBookingData(update.callback_query.data), async (fn: string, args: object) => {
+        const r = await sb(`rpc/${fn}`, { method: 'POST', body: JSON.stringify(args) });
+        if (!r.ok) { console.error(fn, r.status, (await r.text()).slice(0, 200)); return null; }
+        return await r.json();
+      });
     } else if (parseWaitlist(update?.callback_query?.data) && typeof update?.callback_query?.from?.id === 'number' && SB_URL && SB_KEY) {
       // «Занять место» в сообщении об освободившемся месте: место занимает база (waitlist_claim_by_telegram), первому нажавшему
       const wl = parseWaitlist(update.callback_query.data)!;

@@ -58,5 +58,25 @@ full=$(q -c "select count(*) from (select session_id from individual_bookings b 
 [ "$over" = 0 ] && ok "очередь: ни одно занятие не переполнено при одновременном подтверждении" || bad "очередь: переполнено занятий: $over"
 [ "$full" = 30 ] && ok "очередь: на каждом занятии место получил один ребёнок" || bad "очередь: занятых мест: $full из 30"
 
+# Запись из Telegram (0158): два родителя жмут «Записаться» на последнее место одновременно (booking_signup_by_telegram).
+TG1=00000000-0000-0000-0000-0000000000a7; TG2=00000000-0000-0000-0000-0000000000a8
+q <<SQL
+insert into users (id, telegram_id, display_name, is_admin) values ('$TG1', 990201, 'Родитель TG 1', false), ('$TG2', 990202, 'Родитель TG 2', false);
+insert into player_guardians (player_id, user_id, consent_version, consent_given_at) values ('$K1', '$TG1', 't', now()), ('$K2', '$TG2', 't', now());
+insert into individual_sessions (club_id, external_id, starts_at, goalkeepers)
+  select '$CL', 'TG-' || g, (now() at time zone 'Asia/Tbilisi') + interval '6 days' + g * interval '1 minute', false from generate_series(1, 30) g;
+SQL
+TSESSIONS=$(q -c "select id from individual_sessions where club_id = '$CL' and external_id like 'TG-%' order by external_id")
+tg() {  # нажатия кнопки «Записаться» по всем занятиям (service_role, как у бота); отказы ожидаемы, поэтому без ON_ERROR_STOP
+  local tgid=$1 kid8=$2
+  { for s in $TSESSIONS; do echo "select booking_signup_by_telegram($tgid, '$s', '$kid8');"; done; } | $PSQL -q -d "$DB" >/dev/null 2>&1 || true
+}
+tg 990201 "${K1:0:8}" & A=$!; tg 990202 "${K2:0:8}" & B=$!
+wait $A; wait $B
+over=$(q -c "select count(*) from (select session_id from individual_bookings b join individual_sessions s on s.id = b.session_id where s.club_id = '$CL' and s.external_id like 'TG-%' group by session_id having count(*) > 1) x")
+full=$(q -c "select count(*) from (select session_id from individual_bookings b join individual_sessions s on s.id = b.session_id where s.club_id = '$CL' and s.external_id like 'TG-%' group by session_id having count(*) = 1) x")
+[ "$over" = 0 ] && ok "запись из Telegram: ни одно занятие не переполнено при одновременных нажатиях" || bad "запись из Telegram: переполнено занятий: $over"
+[ "$full" = 30 ] && ok "запись из Telegram: на каждом занятии занято единственное место" || bad "запись из Telegram: занятых мест: $full из 30"
+
 [ "$fail" = 0 ] || exit 1
 echo "Конкурентные проверки записи прошли"
