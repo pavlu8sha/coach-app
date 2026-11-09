@@ -133,18 +133,28 @@ $$;
 revoke execute on function camp_visible_to_parent(uuid) from public, anon;
 grant execute on function camp_visible_to_parent(uuid) to authenticated;
 
+-- Родитель, чей ребёнок когда-либо был записан на сбор (любой статус): сохраняет доступ к сбору, тарифам и условиям
+-- для истории записей, оплат и возвратов, даже когда сбор закончился или стал неактивным.
+create or replace function camp_has_my_child(cid uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from camp_participants cp join player_guardians g on g.player_id = cp.player_id
+                  where cp.camp_id = cid and g.user_id = current_user_id() and g.consent_revoked_at is null)
+$$;
+revoke execute on function camp_has_my_child(uuid) from public, anon;
+grant execute on function camp_has_my_child(uuid) to authenticated;
+
 create policy camp_cancel_terms_read on camp_cancel_terms for select
-  using (is_admin() or is_location_admin(camp_location(camp_id)) or camp_visible_to_parent(camp_id));
+  using (is_admin() or is_location_admin(camp_location(camp_id)) or camp_visible_to_parent(camp_id) or camp_has_my_child(camp_id));
 
 -- Чтение сборов и тарифов сужено (было: любой вошедший читал все сборы всех клубов, включая неактивные, а с 0160 ещё лимит и ссылку).
--- Теперь: администратор, локальный администратор сбора, родитель активного ребёнка клуба (активный сбор). Родитель видит свои записи
--- и долги через camp_participants/parent_dues, публичные посетители читают camp_public.
+-- Теперь: администратор, локальный администратор сбора, родитель активного ребёнка клуба (активный сбор) и родитель ребёнка, который был
+-- записан на сбор (история остаётся и после окончания сбора). Публичные посетители читают camp_public.
 drop policy if exists camps_read on camps;
 create policy camps_read on camps for select
-  using (is_admin() or is_location_admin(camp_location(id)) or camp_visible_to_parent(id));
+  using (is_admin() or is_location_admin(camp_location(id)) or camp_visible_to_parent(id) or camp_has_my_child(id));
 drop policy if exists camp_tariffs_read on camp_tariffs;
 create policy camp_tariffs_read on camp_tariffs for select
-  using (is_admin() or is_location_admin(camp_location(camp_id)) or camp_visible_to_parent(camp_id));
+  using (is_admin() or is_location_admin(camp_location(camp_id)) or camp_visible_to_parent(camp_id) or camp_has_my_child(camp_id));
 
 -- Лимит не ниже числа подтверждённых и при прямом изменении таблицы (политика camps_admin, служебная роль): триггер.
 create or replace function camps_capacity_guard() returns trigger

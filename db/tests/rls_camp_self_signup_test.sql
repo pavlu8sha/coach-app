@@ -2,7 +2,7 @@
 -- вместимость во всех путях записи, родительская запись, публичные данные, условия отмены, журнал статусов.
 begin;
 create extension if not exists pgtap;
-select plan(103);
+select plan(113);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб'), ('00000000-0000-0000-0000-00000000c002', 'Чужой клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -209,7 +209,12 @@ insert into users (id, telegram_id, display_name, is_admin) values ('00000000-00
 insert into players (id, club_id, full_name, status) values ('00000000-0000-0000-0000-00000000d007', '00000000-0000-0000-0000-00000000c002', 'Ребёнок чужого клуба', 'active');
 insert into player_guardians (player_id, user_id, consent_version, consent_given_at) values ('00000000-0000-0000-0000-00000000d007', '00000000-0000-0000-0000-0000000000b3', 'test', now());
 
-select as_user('00000000-0000-0000-0000-0000000000b1');
+insert into users (id, telegram_id, display_name, is_admin) values ('00000000-0000-0000-0000-0000000000b4', 9706, 'Родитель без записей', false), ('00000000-0000-0000-0000-0000000000b5', 9707, 'Родитель без активного игрока', false);
+insert into players (id, club_id, full_name, status) values ('00000000-0000-0000-0000-00000000d008', '00000000-0000-0000-0000-00000000c001', 'Ребёнок без записей', 'active');
+insert into player_guardians (player_id, user_id, consent_version, consent_given_at) values
+  ('00000000-0000-0000-0000-00000000d008', '00000000-0000-0000-0000-0000000000b4', 'test', now()),
+  ('00000000-0000-0000-0000-00000000d004', '00000000-0000-0000-0000-0000000000b5', 'test', now());
+select as_user('00000000-0000-0000-0000-0000000000b4');
 select is((select count(*)::int from camp_cancel_terms), 3, 'родитель клуба читает версии условий активных сборов своего клуба');
 select is(camp_seats('00000000-0000-0000-0000-0000000000ca'), 0, 'родитель клуба получает свободные места активного сбора');
 select throws_ok($$select camp_seats('00000000-0000-0000-0000-0000000000ff')$$, '42501', 'forbidden', 'несуществующий сбор: forbidden, как и чужой (ответ не различается)');
@@ -221,7 +226,7 @@ select is((select count(*)::int from camp_cancel_terms), 0, 'пользоват�
 select throws_ok($$select camp_seats('00000000-0000-0000-0000-0000000000ca')$$, '42501', 'forbidden', 'пользователь без ребёнка в клубе не получает свободные места');
 reset role;
 update camps set active = false where id = '00000000-0000-0000-0000-0000000000cb';
-select as_user('00000000-0000-0000-0000-0000000000b1');
+select as_user('00000000-0000-0000-0000-0000000000b4');
 select is((select count(*)::int from camp_cancel_terms), 2, 'условия неактивного сбора родитель не читает');
 select throws_ok($$select camp_seats('00000000-0000-0000-0000-0000000000cb')$$, '42501', 'forbidden', 'неактивный сбор: места родителю не отдаются');
 select as_user('00000000-0000-0000-0000-0000000000a1');
@@ -238,7 +243,7 @@ select lives_ok($$update camps set capacity = null where id = '00000000-0000-000
 reset role;
 update camps set capacity = 3 where id = '00000000-0000-0000-0000-0000000000ca';
 select throws_ok($$update camps set capacity = 1 where id = '00000000-0000-0000-0000-0000000000ca'$$, '22023', 'capacity below registered', 'служебная роль и владелец базы лимит ниже подтверждённых тоже не задают');
-select as_user('00000000-0000-0000-0000-0000000000b1');
+select as_user('00000000-0000-0000-0000-0000000000b4');
 select is((select count(*)::int from camps), 2, 'родитель видит только активные сборы своего клуба (Зимний и Старый; Другой неактивен)');
 select is((select count(*)::int from camp_tariffs), 3, 'родитель видит тарифы только этих сборов');
 select as_user('00000000-0000-0000-0000-0000000000b3');
@@ -248,6 +253,28 @@ select as_user('00000000-0000-0000-0000-0000000000c1');
 select is((select count(*)::int from camps), 0, 'тренер без ребёнка в клубе сборов не читает');
 select as_user('00000000-0000-0000-0000-0000000000a1');
 select is((select count(*)::int from camps), 3, 'администратор читает все сборы');
+
+-- ===== История родителя после окончания сбора (решение владельца 09.11) =====
+select as_user('00000000-0000-0000-0000-0000000000a1');
+select camp_pay((select id from ids where k = 'd1'), 300, 'payment', current_date, 'Наличные', null);
+select camp_cancel_payment((select id from camp_payments where participant_id = (select id from ids where k = 'd1') and amount = 300));
+reset role;
+update camps set starts_on = '2020-01-25', ends_on = '2020-02-01' where id = '00000000-0000-0000-0000-0000000000cb';
+select as_user('00000000-0000-0000-0000-0000000000b1');
+select is((select count(*)::int from camps where id = '00000000-0000-0000-0000-0000000000cb'), 1, 'сбор закончился и неактивен: родитель записанного ребёнка по-прежнему видит сбор');
+select is((select status from camp_participants where id = (select id from ids where k = 'd1')), 'cancelled', 'история: запись ребёнка (отменённая) видна родителю');
+select is((select count(*)::int from camp_payments where participant_id = (select id from ids where k = 'd1')), 2, 'история: платёж и возврат видны родителю');
+select is((select count(*)::int from camp_tariffs where camp_id = '00000000-0000-0000-0000-0000000000cb'), 1, 'история: тариф сбора виден');
+select is((select count(*)::int from camp_cancel_terms where camp_id = '00000000-0000-0000-0000-0000000000cb'), 1, 'история: условия отмены сбора видны');
+select is((select count(*)::int from camp_participant_events where participant_id = (select id from ids where k = 'd1')), 2, 'история: журнал статусов записи виден (запись и отмена)');
+select as_user('00000000-0000-0000-0000-0000000000b4');
+select is((select count(*)::int from camps where id = '00000000-0000-0000-0000-0000000000cb'), 0, 'родитель без записей на этот сбор его не видит');
+select as_user('00000000-0000-0000-0000-0000000000b3');
+select is((select count(*)::int from camps where id = '00000000-0000-0000-0000-0000000000cb'), 0, 'родитель другого клуба этот сбор не видит');
+-- родитель без активного игрока: сборы не читает, публичные данные доступны
+select as_user('00000000-0000-0000-0000-0000000000b5');
+select is((select count(*)::int from camps), 0, 'родитель без активного игрока сборы не читает');
+select isnt(camp_public('winter-2099'), null, 'родитель без активного игрока получает публичные данные сбора');
 
 select * from finish();
 rollback;
