@@ -512,6 +512,23 @@ describe('«К оплате»: взносы матчей и событий', () 
     }
   });
 
+  it('«Перейти к оплате»: кнопка есть только у раздела, который есть у игрока (сбор без записи не показывается)', async () => {
+    seedFees();
+    fake.db.camp_participants = []; // не записан ни на один сбор
+    await openPlayer();
+    await screen.findByRole('heading', { name: 'Взносы матчей' });
+    expect(screen.getByRole('button', { name: 'Матчи' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'События' })).toBeInTheDocument();
+    fake.db.prices = []; // абонемента нет вовсе, кнопка «Абонемент» остаётся всегда
+    fireEvent.click(screen.getByRole('button', { name: 'Сменить' }));
+    fireEvent.change(screen.getByLabelText(/^Игрок/), { target: { value: 'Иванов' } });
+    fireEvent.click(await screen.findByRole('button', { name: /Иванов Пётр/ }));
+    await screen.findByRole('heading', { name: 'Взносы матчей' });
+    expect(screen.queryByRole('heading', { name: 'Абонемент' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Абонемент' })).toBeInTheDocument();
+    for (const gone of ['Сборы', 'Экипировка', 'Индивидуальные', 'Дополнительные']) expect(screen.queryByRole('button', { name: gone })).not.toBeInTheDocument();
+  });
+
   it('сбой чтения взносов не ломает остальные разделы', async () => {
     seedFees();
     fake.db.equipment_orders = [{ id: 'o1', player_id: 'p1', ordered_on: '2026-09-10', total: 160, paid: 60, equipment_order_lines: [{ kit: 'Форма' }] }];
