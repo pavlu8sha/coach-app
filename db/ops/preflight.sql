@@ -160,6 +160,7 @@ select * from (values
   ('0156_cash_day_match_event_payments', coalesce((select position('match_payments' in prosrc) > 0 from pg_proc where proname = 'cash_day_service' limit 1), false)),
   ('0157_eq_add_payment_date_guard', coalesce((select position('bad date' in prosrc) > 0 from pg_proc where proname = 'eq_add_payment' limit 1), false)),
   ('0147_status_log_read_any_coach', coalesce((exists (select 1 from pg_policies where tablename = 'player_status_log' and policyname = 'player_status_log_read' and qual like '%is_any_coach%')), false)),
-  ('0158_booking_telegram', coalesce((to_regproc('booking_signup_by_telegram') is not null and to_regproc('waitlist_join_by_telegram') is not null and to_regproc('booking_options_by_telegram') is not null), false))
+  ('0158_booking_telegram', coalesce((to_regproc('booking_signup_by_telegram') is not null and to_regproc('waitlist_join_by_telegram') is not null and to_regproc('booking_options_by_telegram') is not null), false)),
+  ('0159_consent_model', coalesce((to_regclass('parental_consents') is not null and to_regclass('parental_consent_events') is not null and to_regclass('consent_doc_versions') is not null and to_regproc('my_data_consent_ok') is not null and to_regproc('consent_doc_versions_no_delete') is not null and coalesce((select position('not in force yet' in prosrc) > 0 from pg_proc where proname = 'consent_doc_versions_keep_open' limit 1), false)), false))
 ) as t(migration, applied)
 order by migration;
