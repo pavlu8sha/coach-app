@@ -3,23 +3,28 @@
 -- «ожидание» без записей и то, что старые данные и старое поведение не тронуты.
 begin;
 create extension if not exists pgtap;
-select plan(40);
+select plan(49);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
   ('00000000-0000-0000-0000-0000000000a1', 5101, 'Админ', true),
   ('00000000-0000-0000-0000-0000000000c1', 5102, 'Тренер', false),
   ('00000000-0000-0000-0000-0000000000b1', 5103, 'Родитель А', false),
-  ('00000000-0000-0000-0000-0000000000b2', 5104, 'Родитель Б', false);
+  ('00000000-0000-0000-0000-0000000000b2', 5104, 'Родитель Б', false),
+  ('00000000-0000-0000-0000-0000000000b3', 5105, 'Родитель В (старый отзыв)', false);
 insert into groups (id, club_id, name) values ('00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-00000000c001', 'U9');
 insert into coach_groups (user_id, group_id) values ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000e1');
 insert into players (id, club_id, group_id, full_name) values
   ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-0000000000e1', 'Ребёнок А'),
-  ('00000000-0000-0000-0000-00000000d002', '00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-0000000000e1', 'Ребёнок Б');
+  ('00000000-0000-0000-0000-00000000d002', '00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-0000000000e1', 'Ребёнок Б'),
+  ('00000000-0000-0000-0000-00000000d003', '00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-0000000000e1', 'Ребёнок В');
 -- Прежняя модель: единое согласие в player_guardians
 insert into player_guardians (player_id, user_id, consent_version, consent_given_at) values
   ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000000b1', 'lawyer-2026-11-v1', '2026-11-03 10:00+00'),
   ('00000000-0000-0000-0000-00000000d002', '00000000-0000-0000-0000-0000000000b2', 'draft-2026-10', '2026-10-20 10:00+00');
+-- Связь родителя В отозвана по старой модели (consent_revoked_at), запись связи осталась
+insert into player_guardians (player_id, user_id, consent_version, consent_given_at, consent_revoked_at) values
+  ('00000000-0000-0000-0000-00000000d003', '00000000-0000-0000-0000-0000000000b3', 'draft-2026-10', '2026-10-21 10:00+00', '2026-11-01 10:00+00');
 
 create or replace function as_user(uid uuid) returns void language plpgsql as $$
 begin
@@ -124,6 +129,37 @@ select is(
   (select count(*)::int from pg_proc p where p.proname in ('my_data_consent_ok', 'consent_current_version', 'has_consent') and has_function_privilege('anon', p.oid, 'execute')),
   0, 'гость (anon) новые функции не вызывает');
 select is(has_function_privilege('authenticated', 'has_consent(uuid, uuid, text)', 'execute'), false, 'внутренний предикат из приложения не вызывается');
+
+-- Согласие только по существующей связи этого родителя
+insert into link_requests (user_id, player_id, status) values
+  ('00000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-00000000d001', 'rejected');
+select throws_ok($$insert into parental_consents (parent_user_id, player_id, consent_type, version_id, status, granted_at, last_event_id) values ('00000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-00000000d001', 'media_publication', '00000000-0000-0000-0000-0000000f0002', 'granted', now(), 1)$$, '23503', 'no guardian link for this parent and child', 'состояние за чужого ребёнка не создаётся');
+select throws_ok($$insert into parental_consent_events (id, parent_user_id, player_id, consent_type, version_id, event, source) overriding system value values (98, '00000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-00000000d001', 'media_publication', '00000000-0000-0000-0000-0000000f0002', 'granted', 'app')$$, '23503', 'no guardian link for this parent and child', 'событие за чужого ребёнка не записывается (отклонённый запрос связью не считается)');
+insert into link_requests (user_id, player_id, status) values
+  ('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d002', 'pending');
+select lives_ok($$insert into parental_consent_events (id, parent_user_id, player_id, consent_type, version_id, event, source) overriding system value values (97, '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d002', 'media_publication', '00000000-0000-0000-0000-0000000f0002', 'granted', 'app')$$, 'действующий запрос на связь допускает согласие при новой привязке');
+
+-- Повторное принятие после старого отзыва: связь родителя В есть, новый режим даёт согласие без новой привязки и без правки старых строк
+select as_user('00000000-0000-0000-0000-0000000000b3');
+select is(my_data_consent_ok('00000000-0000-0000-0000-00000000d003'), false, 'после старого отзыва новое согласие ещё не принято');
+reset role;
+select is((select count(*)::int from player_guardians where player_id = '00000000-0000-0000-0000-00000000d003' and consent_revoked_at is not null), 1, 'старый отзыв записан в связи');
+insert into consent_doc_versions (id, consent_type, version, effective_from) values
+  ('00000000-0000-0000-0000-0000000f0005', 'data_processing', 'syn-dp-4', now() - interval '1 second');
+insert into parental_consent_events (id, parent_user_id, player_id, consent_type, version_id, event, actor_id, source) overriding system value values
+  (96, '00000000-0000-0000-0000-0000000000b3', '00000000-0000-0000-0000-00000000d003', 'data_processing', '00000000-0000-0000-0000-0000000f0005', 'granted', '00000000-0000-0000-0000-0000000000b3', 'app');
+insert into parental_consents (parent_user_id, player_id, consent_type, version_id, status, granted_at, last_actor_id, last_event_id) values
+  ('00000000-0000-0000-0000-0000000000b3', '00000000-0000-0000-0000-00000000d003', 'data_processing', '00000000-0000-0000-0000-0000000f0005', 'granted', now(), '00000000-0000-0000-0000-0000000000b3', 96);
+select as_user('00000000-0000-0000-0000-0000000000b3');
+select is(my_data_consent_ok('00000000-0000-0000-0000-00000000d003'), true, 'после повторного принятия обязательное согласие действует');
+reset role;
+select is((select count(*)::int from player_guardians where player_id = '00000000-0000-0000-0000-00000000d003'), 1, 'дублирующей связи не создано');
+select is((select consent_version from player_guardians where player_id = '00000000-0000-0000-0000-00000000d003'), 'draft-2026-10', 'старые сведения связи не изменены');
+
+-- Публикационное согласие не блокирует: родитель А отозвал публикационное, обязательное действует по новой модели
+select as_user('00000000-0000-0000-0000-0000000000b3');
+select is(my_data_consent_ok('00000000-0000-0000-0000-00000000d003'), true, 'обязательное согласие не зависит от публикационного (публикационного нет вовсе)');
+reset role;
 
 select * from finish();
 rollback;

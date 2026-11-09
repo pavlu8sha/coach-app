@@ -87,6 +87,25 @@ grant select, insert, update on parental_consents to service_role;
 create policy parental_consents_read on parental_consents for select
   using (is_admin() or parent_user_id = current_user_id());
 
+-- 3а. Согласие нельзя создать без связи: состояние и событие принимаются только для пары «этот родитель и этот ребёнок»,
+--     у которой есть связь (player_guardians, в том числе со старым отзывом, чтобы родитель мог принять заново без повторной
+--     привязки) либо действующий запрос на связь (pending или approved). Защита на уровне данных, она действует для любой роли.
+create or replace function parental_consent_link_guard() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if not (
+    exists (select 1 from player_guardians where user_id = new.parent_user_id and player_id = new.player_id)
+    or exists (select 1 from link_requests where user_id = new.parent_user_id and player_id = new.player_id and status in ('pending', 'approved'))
+  ) then
+    raise exception 'no guardian link for this parent and child' using errcode = '23503';
+  end if;
+  return new;
+end $$;
+create trigger parental_consents_link_guard before insert on parental_consents
+  for each row execute function parental_consent_link_guard();
+create trigger parental_consent_events_link_guard before insert on parental_consent_events
+  for each row execute function parental_consent_link_guard();
+
 -- 4. Текущая версия типа: принимаемая версия с самой поздней датой вступления (уже наступившей).
 create or replace function consent_current_version(t text) returns uuid
 language sql stable security definer set search_path = public as $$
@@ -114,7 +133,7 @@ language sql stable security definer set search_path = public as $$
   select current_user_id() is not null and has_consent(current_user_id(), p, 'data_processing')
 $$;
 
-revoke execute on function consent_current_version(text), has_consent(uuid, uuid, text), my_data_consent_ok(uuid), parental_consent_events_immutable() from public, anon, authenticated;
+revoke execute on function consent_current_version(text), has_consent(uuid, uuid, text), my_data_consent_ok(uuid), parental_consent_events_immutable(), parental_consent_link_guard() from public, anon, authenticated;
 -- Для политик и представления: чужие данные они не раскрывают (текущая версия — общая для всех, предикат смотрит только на текущего пользователя).
 grant execute on function my_data_consent_ok(uuid), consent_current_version(text) to authenticated;
 
