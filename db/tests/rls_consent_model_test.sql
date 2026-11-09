@@ -3,7 +3,7 @@
 -- «ожидание» без записей и то, что старые данные и старое поведение не тронуты.
 begin;
 create extension if not exists pgtap;
-select plan(72);
+select plan(76);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -101,6 +101,10 @@ select is(has_consent('00000000-0000-0000-0000-0000000000b1', '00000000-0000-000
 update consent_doc_versions set accepting = false where id = '00000000-0000-0000-0000-0000000f0001';
 select is(consent_current_version('data_processing'), '00000000-0000-0000-0000-0000000f0003'::uuid, 'закрытие прежней версии текущую не меняет');
 select is(has_consent('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'data_processing'), false, 'подтверждение закрытой прежней версии согласия не даёт');
+select throws_ok($$update consent_doc_versions set accepting = false where id = '00000000-0000-0000-0000-0000000f0004'$$, '23514', 'a consent version that is not in force yet must stay open for confirmations', 'версию с будущей датой вступления закрыть нельзя: по наступлении даты она стала бы текущей закрытой');
+select throws_ok($$insert into consent_doc_versions (consent_type, version, effective_from, accepting) values ('data_processing', 'syn-dp-future-closed', now() + interval '9 days', false)$$, '23514', 'a consent version that is not in force yet must stay open for confirmations', 'закрытая версия с будущей датой вступления не добавляется');
+select throws_ok($$delete from consent_doc_versions where id = '00000000-0000-0000-0000-0000000f0003'$$, '42501', 'consent versions cannot be deleted', 'текущую версию удалить нельзя');
+select throws_ok($$truncate consent_doc_versions cascade$$, '42501', 'consent versions cannot be deleted', 'версии не очищаются');
 
 -- Целостность
 select throws_ok($$insert into parental_consent_events (id, parent_user_id, player_id, consent_type, version_id, event, source) overriding system value values (99, '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'media_publication', '00000000-0000-0000-0000-0000000f0001', 'granted', 'app')$$, '23503', null, 'версия другого типа в событии не принимается');

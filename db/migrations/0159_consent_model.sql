@@ -202,12 +202,21 @@ language sql stable security definer set search_path = public, pg_temp as $$
    limit 1
 $$;
 
--- 4а. Текущая версия типа всегда открыта для подтверждений: закрыть её (или добавить закрытую версию, которая тут же станет
---     текущей) нельзя, иначе согласия исчезли бы у всех родителей. Сначала добавляется новая версия, потом закрывается прежняя.
+-- 4а. Инварианты версий типа (проверяются после каждой вставки и правки):
+--     1) текущая версия открыта для подтверждений (иначе согласия исчезли бы у всех родителей);
+--     2) версия с датой вступления в будущем всегда открыта (закрытая будущая стала бы текущей закрытой по наступлении даты).
+--     Закрывается только уже вступившая версия, и только после того, как её сменила другая вступившая версия:
+--     сначала добавляется новая версия (дата вступления не позже now()), потом закрывается прежняя.
+--     Проверки типа сериализуются блокировкой на тип, чтобы две параллельные транзакции не обошли инвариант друг через друга.
 create or replace function consent_doc_versions_keep_open() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
-declare cur uuid := consent_current_version(new.consent_type);
+declare cur uuid;
 begin
+  perform pg_advisory_xact_lock(hashtext('consent_doc_versions:' || new.consent_type));
+  if not new.accepting and new.effective_from > now() then
+    raise exception 'a consent version that is not in force yet must stay open for confirmations' using errcode = '23514';
+  end if;
+  cur := consent_current_version(new.consent_type);
   if cur is not null and not (select accepting from consent_doc_versions where id = cur) then
     raise exception 'the current consent version must stay open for confirmations' using errcode = '23514';
   end if;
@@ -215,6 +224,18 @@ begin
 end $$;
 create trigger consent_doc_versions_keep_open after insert or update on consent_doc_versions
   for each row execute function consent_doc_versions_keep_open();
+
+-- 4б. Версии не удаляются (текущую версию нельзя убрать, история ссылается на версии). Ошибочную версию без подтверждений
+--     закрывают после выпуска следующей; удаление — только осознанно владельцем с отключением триггера.
+create or replace function consent_doc_versions_no_delete() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  raise exception 'consent versions cannot be deleted' using errcode = '42501';
+end $$;
+create trigger consent_doc_versions_no_delete before delete on consent_doc_versions
+  for each row execute function consent_doc_versions_no_delete();
+create trigger consent_doc_versions_no_truncate before truncate on consent_doc_versions
+  for each statement execute function consent_doc_versions_no_delete();
 
 -- 5. Внутренний предикат: у родителя по ребёнку действует подтверждение именно текущей версии типа.
 --    Нет текущей версии, нет строки, статус не granted или версия устарела — согласия нет.
@@ -235,7 +256,7 @@ language sql stable security definer set search_path = public, pg_temp as $$
   select current_user_id() is not null and has_consent(current_user_id(), p, 'data_processing')
 $$;
 
-revoke execute on function consent_current_version(text), has_consent(uuid, uuid, text), my_data_consent_ok(uuid), parental_consent_events_immutable(), parental_consent_link_check(uuid, uuid), parental_consent_event_guard(), parental_consent_state_guard(), consent_doc_versions_guard(), consent_doc_versions_keep_open() from public, anon, authenticated;
+revoke execute on function consent_current_version(text), has_consent(uuid, uuid, text), my_data_consent_ok(uuid), parental_consent_events_immutable(), parental_consent_link_check(uuid, uuid), parental_consent_event_guard(), parental_consent_state_guard(), consent_doc_versions_guard(), consent_doc_versions_keep_open(), consent_doc_versions_no_delete() from public, anon, authenticated;
 -- Для политик и представления: чужие данные они не раскрывают (текущая версия — общая для всех, предикат смотрит только на текущего пользователя).
 grant execute on function my_data_consent_ok(uuid), consent_current_version(text) to authenticated;
 

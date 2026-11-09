@@ -10,8 +10,8 @@ with mig(k, v) as (
   union all select '0159_consent_model (PR 1 #238)', (to_regclass('parental_consents') is not null)::text
 )
 select 'миграция: ' || k as metric, v as value from mig
-union all select 'защитные триггеры согласий включены (ожидается 6 после 0159)',
-  (select count(*)::text from pg_trigger where not tgisinternal and tgenabled = 'O' and tgname in ('consent_doc_versions_no_rewrite', 'consent_doc_versions_keep_open', 'parental_consent_events_guard', 'parental_consent_events_no_change', 'parental_consent_events_no_truncate', 'parental_consents_guard'))
+union all select 'защитные триггеры согласий включены (ожидается 8 после 0159)',
+  (select count(*)::text from pg_trigger where not tgisinternal and tgenabled = 'O' and tgname in ('consent_doc_versions_no_rewrite', 'consent_doc_versions_keep_open', 'consent_doc_versions_no_delete', 'consent_doc_versions_no_truncate', 'parental_consent_events_guard', 'parental_consent_events_no_change', 'parental_consent_events_no_truncate', 'parental_consents_guard'))
 union all select 'связей родитель–ребёнок, действующих по старой модели',
   (select count(*)::text from player_guardians where consent_revoked_at is null)
 union all select '— из них у детей со статусом «занимается»',
