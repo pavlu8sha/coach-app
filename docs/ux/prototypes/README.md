@@ -87,7 +87,7 @@
 
 - The audit is a review/handoff aid, not implementation approval.
 - It records data-source dependencies for match participation and personal group-training history.
-- It keeps achievements and photo/consent decisions open for product confirmation.
+- It separates approved public-card product decisions from technical follow-ups and keeps achievement source/rules unresolved.
 - A22 was cleaned up to remove realistic-looking sample identity and points values.
 
 
@@ -101,9 +101,9 @@
 ### Notes for A26
 
 - The front uses the agreed club-card concept; the no-photo state is a complete branded composition.
-- The reverse side reserves space for season statistics and QR, but does not invent metrics or generate a fake working QR.
+- The front/reverse sides form a personal image export; the reverse may contain only verified personal seasonal metrics and must not use fake zeros or team aggregates.
+- A QR on the personal image, if included, points only to the separate public digital page defined by A28; the public page does not expose reverse-side statistics.
 - Assists, rarity tiers, levels and invented achievements are excluded.
-- Public export and photo use remain gated by the separately approved consent model; QR destination and public fields are open product decisions.
 - All names and values are placeholders. The SVG is a new UX proposal, not the original Kickstart presentation file.
 
 
@@ -119,8 +119,8 @@
 - Entry is the existing child card on the «Ребёнок» tab; no new child-profile screen or bottom-navigation change is required.
 - The preview switches between front and reverse without editing player data.
 - Save and share are separate explicit user actions; sharing uses the system share sheet when supported.
-- A personal copy is distinct from publication by the club. Public photo use remains gated by the separately approved consent.
-- Missing statistics are not rendered as zero. QR remains inactive until its destination and public fields are approved.
+- Saving/sharing a personal image does not create or publish a public page. The QR, if present in the image, points only to the separate A28 public page.
+- Missing statistics are not rendered as zero. Public-page fields and link permissions follow A28; do not duplicate them in A27.
 - The flow is a UX proposal, not implementation approval.
 
 
@@ -134,9 +134,10 @@
 ### Notes for A28
 
 - The parent controls creation and revocation of the public link; the child may customize the card appearance and selected fields.
-- The five core fields are enabled by default; family can remove fields. New fields must be off by default until separately reviewed.
-- Public card is a separate unauthenticated page, not the internal player profile. Matches, attendance, payments, tests, goals and staff notes remain private.
+- The six default values are name, surname, group, position, shirt number and birth year; the family can remove fields. New fields must be off by default until separately reviewed.
+- Public card is a separate unauthenticated page, not the internal player profile. Matches, statistics, attendance, payments, tests, goals, coach evaluations and internal comments remain private.
 - A parent must preview and confirm the exact public version. Photo upload is not public-photo consent.
 - The club and staff do not upload player photos or publish a card on the family's behalf.
+- Technical follow-ups (multiple parent accounts/authority, token and rotation, cache/indexing, audit, and previously saved images after changes/revocation) do not reopen approved product rules.
 - The link must be revocable; technical token, cache and audit details remain for engineering specification.
 - The diagram is a UX proposal for implementation planning, not authorization to implement.
