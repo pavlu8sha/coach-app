@@ -3,7 +3,7 @@
 -- Идентификаторы детей начинаются с разных восьми знаков: по ним бот выбирает ребёнка (префикс id).
 begin;
 create extension if not exists pgtap;
-select plan(36);
+select plan(39);
 
 insert into clubs (id, name) values
   ('c0000000-0000-0000-0000-00000000c001', 'Клуб'),
@@ -47,6 +47,7 @@ insert into res select 'opts1', booking_options_by_telegram(9902);
 select is((select v->>'ok' from res where k = 'opts1'), 'true', 'родитель с привязкой получает список');
 select is((select jsonb_array_length(v->'sessions') from res where k = 'opts1'), 4, 'в списке четыре занятия: два индивидуальных, вратарская и дополнительная; отменённое и прошедшее не показаны');
 select is((select jsonb_array_length(s->'children') from res, jsonb_array_elements(v->'sessions') s where k = 'opts1' and s->>'id' = 'c1000001-0000-0000-0000-000000000001'), 2, 'на занятии два подходящих ребёнка: Аня и Гриша (неактивная Ира не показана)');
+select ok((select (s->>'price') is not null from res, jsonb_array_elements(v->'sessions') s where k = 'opts1' and s->>'id' = 'c1000001-0000-0000-0000-000000000001'), 'цена передаётся в списке до записи');
 select ok(not (select v::text like '%b0000005%' or v::text like '%Ира%' from res where k = 'opts1'), 'неактивный ребёнок не виден в списке');
 insert into res select 'opts2', booking_options_by_telegram(9903);
 select ok(not (select v::text like '%b0000001%' or v::text like '%Аня%' from res where k = 'opts2'), 'родитель 2 не видит детей родителя 1');
@@ -85,6 +86,13 @@ select is((select v->>'code' from res where k = 'su12'), 'ok', 'дополнит
 select ok(exists (select 1 from extra_bookings where session_id = 'c1000002-0000-0000-0000-000000000002' and player_id = 'b0000001-0000-0000-0000-000000000001'), 'дополнительная запись создана');
 insert into res select 'su13', booking_signup_by_telegram(9902, 'c1000001-0000-0000-0000-000000000003', 'b0000004');
 select is((select v->>'code' from res where k = 'su13'), 'ok', 'вратарская тренировка: запись ребёнка');
+
+-- пересечение по времени: предупреждение в ответе, запись не запрещается
+insert into individual_sessions (id, club_id, external_id, starts_at, goalkeepers) values
+  ('c1000001-0000-0000-0000-000000000005', 'c0000000-0000-0000-0000-00000000c001', 'T-I3', ((now() at time zone 'Asia/Tbilisi')::date + 2) + time '19:00', false);
+insert into res select 'su14', booking_signup_by_telegram(9902, 'c1000001-0000-0000-0000-000000000005', 'b0000001');
+select is((select v->>'code' from res where k = 'su14'), 'ok', 'при пересечении времени запись не запрещается');
+select is((select jsonb_array_length(v->'conflicts') from res where k = 'su14'), 1, 'пересечение с другой записью ребёнка показывается предупреждением');
 
 -- 3. После записи список для родителя обновляется: Аня уже записана, занятие заполнено
 insert into res select 'opts3', booking_options_by_telegram(9902);

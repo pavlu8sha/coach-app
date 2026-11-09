@@ -59,7 +59,7 @@ begin
   ), b as (
     select * from booking_board() where kind in ('individual', 'goalkeeper', 'extra')
   ), rows as (
-    select b.kind, b.session_id, b.starts_at, b.capacity, b.booked,
+    select b.kind, b.session_id, b.starts_at, b.capacity, b.booked, b.amount,
            coalesce((select jsonb_agg(jsonb_build_object('id8', left(k.id::text, 8), 'name', k.full_name) order by k.full_name)
                        from kids k
                       where not exists (select 1 from individual_bookings x where x.session_id = b.session_id and x.player_id = k.id)
@@ -69,7 +69,7 @@ begin
   )
   select coalesce(jsonb_agg(jsonb_build_object(
            'id', r.session_id, 'kind', r.kind, 'label', booking_session_label(r.kind, r.session_id),
-           'free', (r.capacity is null or jsonb_array_length(r.booked) < r.capacity),
+           'price', r.amount, 'free', (r.capacity is null or jsonb_array_length(r.booked) < r.capacity),
            'children', r.children) order by r.starts_at, r.session_id), '[]'::jsonb)
     into out
     from rows r
@@ -82,7 +82,7 @@ grant execute on function booking_options_by_telegram(bigint) to service_role;
 -- Запись ребёнка на занятие нажатием кнопки. Возвращает { ok, code, player, label }. Повтор → code 'already' (ничего не создаётся).
 create or replace function booking_signup_by_telegram(p_telegram_id bigint, p_session uuid, p_child text) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare u uuid; pl uuid; k text; nm text;
+declare u uuid; pl uuid; k text; nm text; conf jsonb;
 begin
   select id into u from users where telegram_id = p_telegram_id;
   if u is null then return jsonb_build_object('ok', false, 'code', 'unknown_user'); end if;
@@ -97,7 +97,12 @@ begin
   exception when others then
     return jsonb_build_object('ok', false, 'code', booking_tg_code(sqlstate, sqlerrm), 'player', nm, 'label', booking_session_label(k, p_session));
   end;
-  return jsonb_build_object('ok', true, 'code', 'ok', 'player', nm, 'label', booking_session_label(k, p_session));
+  -- пересечение по времени: только предупреждение, запись не запрещается
+  begin
+    select coalesce(jsonb_agg(c.label || ' ' || to_char(c.starts_at, 'DD.MM HH24:MI') order by c.starts_at), '[]'::jsonb) into conf from booking_conflicts(k, p_session, pl) c;
+  exception when others then conf := '[]'::jsonb;
+  end;
+  return jsonb_build_object('ok', true, 'code', 'ok', 'player', nm, 'label', booking_session_label(k, p_session), 'conflicts', conf);
 end $$;
 revoke execute on function booking_signup_by_telegram(bigint, uuid, text) from public, anon, authenticated;
 grant execute on function booking_signup_by_telegram(bigint, uuid, text) to service_role;

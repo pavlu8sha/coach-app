@@ -182,3 +182,25 @@ test('поток: сбой базы (null или исключение) даёт 
   const unknown = await bookingFlow(priv(), { action: 'menu' }, fakeRpc({ booking_options_by_telegram: { ok: false, code: 'unknown_user' } }));
   assert.equal(unknown[0].body.text, BOOK_FAIL.unknown_user);
 });
+
+test('цена показывается до записи: в списке и на экране выбора ребёнка', () => {
+  const m = sessionsMenu([{ id: S, label: 'Пт 19:00', free: true, price: 25 }, { id: S2, label: 'Сб', free: false, price: null }]);
+  assert.equal(m.inline_keyboard[0][0].text, 'Пт 19:00 · 25 ₾');
+  assert.equal(m.inline_keyboard[1][0].text, 'Сб · мест нет');
+  assert.match(childrenMenu(S, true, [{ id8: P8, name: 'Аня' }], 25).text, /Стоимость: 25 ₾/);
+  assert.match(childrenMenu(S, false, [{ id8: P8, name: 'Аня' }], 25).text, /Стоимость: 25 ₾/);
+});
+
+test('несколько детей за один сценарий: после записи убирается только кнопка этого ребёнка', () => {
+  const kb = [[{ text: 'Записать: Аня', callback_data: `bc:${S}:${P8}` }], [{ text: 'Записать: Боря', callback_data: `bc:${S}:${P8B}` }], [{ text: '← К занятиям', callback_data: 'bk' }]];
+  const c = { id: 'q1', data: `bc:${S}:${P8}`, message: { chat: { id: 42 }, message_id: 9, reply_markup: { inline_keyboard: kb } } };
+  const calls = bookCalls(c, 'book', { ok: true, code: 'ok', player: 'Аня', label: 'Пт' });
+  assert.deepEqual(calls[1].body.reply_markup.inline_keyboard.map(r => r[0].callback_data), [`bc:${S}:${P8B}`, 'bk']);
+});
+
+test('пересечение по времени: предупреждение в ответе, запись остаётся подтверждённой', () => {
+  const calls = bookCalls(cb, 'book', { ok: true, code: 'ok', player: 'Аня', label: 'Пт', conflicts: ['Тренировка группы 07.11 19:00'] });
+  assert.match(calls[0].body.text, /Запись подтверждена: Аня — Пт/);
+  assert.match(calls[0].body.text, /⚠️.*Тренировка группы 07\.11 19:00.*Запись сохранена/s);
+  assert.doesNotMatch(bookCalls(cb, 'book', { ok: true, code: 'ok', player: 'Аня', label: 'Пт', conflicts: [] })[0].body.text, /⚠️/);
+});
