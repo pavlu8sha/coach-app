@@ -272,13 +272,7 @@ export default function CashDesk() {
               <button type="button" key={m} className={payMethod === m ? 'ks-btn' : 'ks-btn secondary'} aria-pressed={payMethod === m} onClick={() => setPayMethod(m)}>{m}</button>
             ))}
           </div>
-          <p className="ks-label">Перейти к оплате</p>
-          <div className="two">
-            {JUMPS.map(j => (
-              <button type="button" key={j.label} className="ks-btn secondary" onClick={() => document.querySelector(`[data-sec="${j.section}"]`)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })}>{j.label}</button>
-            ))}
-          </div>
-          <PlayerDues embedded player={player} sharedMethod={payMethod} />
+          <PlayerDues embedded jumps player={player} sharedMethod={payMethod} />
         </>
       ) : (
         <>
@@ -316,7 +310,7 @@ export default function CashDesk() {
   );
 }
 
-export function PlayerDues({ player, onBack, embedded = false, sharedMethod }: { player: Pl; onBack?: () => void; embedded?: boolean; sharedMethod?: string }) {
+export function PlayerDues({ player, onBack, embedded = false, sharedMethod, jumps = false }: { player: Pl; onBack?: () => void; embedded?: boolean; sharedMethod?: string; jumps?: boolean }) {
   const [dues, setDues] = useState<Due[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openKey, setOpenKey] = useState<string | null>(null);
@@ -335,6 +329,16 @@ export function PlayerDues({ player, onBack, embedded = false, sharedMethod }: {
     <Wrap className={embedded ? undefined : 'page'}>
       {!embedded && onBack && <BackNav onBack={onBack} />}
       {!embedded && <h1 style={{ overflowWrap: 'anywhere' }}>{player.full_name}</h1>}
+      {jumps && dues && JUMPS.some(j => dues.some(d => d.section === j.section)) && (
+        <>
+          <p className="ks-label">Перейти к оплате</p>
+          <div className="two">
+            {JUMPS.filter(j => dues.some(d => d.section === j.section)).map(j => (
+              <button type="button" key={j.label} className="ks-btn secondary" onClick={() => document.querySelector(`[data-sec="${j.section}"]`)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })}>{j.label}</button>
+            ))}
+          </div>
+        </>
+      )}
       <p className="muted">{embedded ? '' : `${player.groups?.name ?? 'без группы'}`}{dues ? `${embedded ? '' : ' · '}к оплате: ${gel(sum)}` : ''}</p>
       {msg && <p className="ks-ok">{msg}</p>}
       {dues && dues.length > 0 && !dues.some(d => !d.advance) && <p className="muted">Долгов нет. Ниже можно принять оплату вперёд.</p>}
