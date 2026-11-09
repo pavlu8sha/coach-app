@@ -2,7 +2,7 @@
 -- вместимость во всех путях записи, родительская запись, публичные данные, условия отмены, журнал статусов.
 begin;
 create extension if not exists pgtap;
-select plan(78);
+select plan(93);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб'), ('00000000-0000-0000-0000-00000000c002', 'Чужой клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -74,7 +74,8 @@ select camp_update_participant((select id from ids where k = 'g'), null, 1500, n
 select lives_ok($$select camp_register('00000000-0000-0000-0000-0000000000ca', '00000000-0000-0000-0000-00000000d003', '00000000-0000-0000-0000-0000000000e1', null, null, null)$$, 'отказ освободил место');
 select throws_ok($$select camp_update_participant((select id from ids where k = 'g'), null, 1500, null, null, 'registered')$$, '22023', 'camp full', 'возврат отказанного в registered тоже проверяет лимит');
 select lives_ok($$select camp_update_participant((select id from ids where k = 'a'), null, 1600, null, 'правка', 'registered')$$, 'правка уже записанного не требует места');
-select lives_ok($$select camp_set_public('00000000-0000-0000-0000-0000000000ca', 'winter-2099', 1)$$, 'лимит можно снизить ниже числа записанных');
+select throws_ok($$select camp_set_public('00000000-0000-0000-0000-0000000000ca', 'winter-2099', 1)$$, '22023', 'capacity below registered', 'лимит ниже числа подтверждённых участников запрещён (2 записано, лимит 1)');
+select lives_ok($$select camp_set_public('00000000-0000-0000-0000-0000000000ca', 'winter-2099', 2)$$, 'лимит, равный числу подтверждённых, разрешён (2 и 2)');
 select throws_ok($$select camp_register_guest('00000000-0000-0000-0000-0000000000ca', 'Третий', null, '00000000-0000-0000-0000-0000000000e1', null, null, null)$$, '22023', 'camp full', 'после снижения новые записи невозможны');
 select lives_ok($$select camp_set_public('00000000-0000-0000-0000-0000000000ca', 'winter-2099', 3)$$, 'лимит поднят до 3');
 
@@ -198,6 +199,36 @@ select camp_set_public('00000000-0000-0000-0000-0000000000cc', 'old-2020', null)
 select as_anon();
 select is(camp_public('old-2020'), null, 'закончившийся сбор аноним не видит');
 
+
+-- ===== Замечания Павла к PR #586: лимит не ниже подтверждённых; доступ к camp_seats и условиям отмены =====
+select as_user('00000000-0000-0000-0000-0000000000a1');
+select lives_ok($$select camp_set_public('00000000-0000-0000-0000-0000000000cb', 'other-2099', 1)$$, 'лимит 1 при одном подтверждённом: отменённые и отказанные не считаются');
+select lives_ok($$select camp_set_public('00000000-0000-0000-0000-0000000000cb', 'other-2099', null)$$, 'пустой лимит (без ограничения) разрешён при записанных');
+reset role;
+insert into users (id, telegram_id, display_name, is_admin) values ('00000000-0000-0000-0000-0000000000b3', 9705, 'Родитель чужого клуба', false);
+insert into players (id, club_id, full_name, status) values ('00000000-0000-0000-0000-00000000d007', '00000000-0000-0000-0000-00000000c002', 'Ребёнок чужого клуба', 'active');
+insert into player_guardians (player_id, user_id, consent_version, consent_given_at) values ('00000000-0000-0000-0000-00000000d007', '00000000-0000-0000-0000-0000000000b3', 'test', now());
+
+select as_user('00000000-0000-0000-0000-0000000000b1');
+select is((select count(*)::int from camp_cancel_terms), 3, 'родитель клуба читает версии условий активных сборов своего клуба');
+select is(camp_seats('00000000-0000-0000-0000-0000000000ca'), 0, 'родитель клуба получает свободные места активного сбора');
+select throws_ok($$select camp_seats('00000000-0000-0000-0000-0000000000ff')$$, '42501', 'forbidden', 'несуществующий сбор: forbidden, как и чужой (ответ не различается)');
+select as_user('00000000-0000-0000-0000-0000000000b3');
+select is((select count(*)::int from camp_cancel_terms), 0, 'родитель другого клуба условий отмены не читает');
+select throws_ok($$select camp_seats('00000000-0000-0000-0000-0000000000ca')$$, '42501', 'forbidden', 'родитель другого клуба не получает места чужого сбора по UUID');
+select as_user('00000000-0000-0000-0000-0000000000c1');
+select is((select count(*)::int from camp_cancel_terms), 0, 'пользователь без ребёнка в клубе условий отмены не читает');
+select throws_ok($$select camp_seats('00000000-0000-0000-0000-0000000000ca')$$, '42501', 'forbidden', 'пользователь без ребёнка в клубе не получает свободные места');
+reset role;
+update camps set active = false where id = '00000000-0000-0000-0000-0000000000cb';
+select as_user('00000000-0000-0000-0000-0000000000b1');
+select is((select count(*)::int from camp_cancel_terms), 2, 'условия неактивного сбора родитель не читает');
+select throws_ok($$select camp_seats('00000000-0000-0000-0000-0000000000cb')$$, '42501', 'forbidden', 'неактивный сбор: места родителю не отдаются');
+select as_user('00000000-0000-0000-0000-0000000000a1');
+select lives_ok($$select camp_seats('00000000-0000-0000-0000-0000000000cb')$$, 'администратор видит места и неактивного сбора');
+select is((select count(*)::int from camp_cancel_terms), 3, 'администратор читает все версии условий');
+select as_anon();
+select throws_ok($$select camp_seats('00000000-0000-0000-0000-0000000000ca')$$, '42501', null, 'аноним camp_seats не вызывает');
 
 select * from finish();
 rollback;

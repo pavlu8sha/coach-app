@@ -75,7 +75,8 @@ revoke all on camp_cancel_terms from public, anon, authenticated;
 grant select on camp_cancel_terms to authenticated;
 revoke all on camp_cancel_terms from service_role;
 grant select on camp_cancel_terms to service_role;
-create policy camp_cancel_terms_read on camp_cancel_terms for select using (auth.uid() is not null);
+-- Читает администратор, локальный администратор сбора и родитель активного ребёнка клуба этого сбора (только активный сбор);
+-- посетителям публичной страницы условия отдаёт camp_public. Политика создаётся ниже, после camp_visible_to_parent.
 
 -- ===== Служебные функции =====
 -- Журнал статусов и лимит мест ведутся триггерами на самой таблице: прямая запись в таблицу (администратор, служебная роль)
@@ -120,6 +121,21 @@ create trigger camp_participants_seat_guard before insert or update of status, c
 
 revoke execute on function camp_participants_log(), camp_participants_seat_guard(), camp_assert_seat(uuid), camp_events_immutable() from public, anon, authenticated;
 
+-- Родитель активного ребёнка клуба сбора, согласие не отозвано, сбор активен. Для политик и camp_seats.
+create or replace function camp_visible_to_parent(cid uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from camps c
+      join players p on p.club_id = c.club_id and p.status = 'active'
+      join player_guardians g on g.player_id = p.id
+     where c.id = cid and c.active and g.user_id = current_user_id() and g.consent_revoked_at is null)
+$$;
+revoke execute on function camp_visible_to_parent(uuid) from public, anon;
+grant execute on function camp_visible_to_parent(uuid) to authenticated;
+
+create policy camp_cancel_terms_read on camp_cancel_terms for select
+  using (is_admin() or is_location_admin(camp_location(camp_id)) or camp_visible_to_parent(camp_id));
+
 -- ===== Администратор: лимит, ссылка, условия отмены =====
 create or replace function camp_set_public(cid uuid, sl text, cap int) returns void
 language plpgsql security definer set search_path = public as $$
@@ -128,9 +144,14 @@ begin
   perform camp_assert_admin();
   if s is not null and (length(s) not between 3 and 60 or s !~ '^[a-z0-9]+(-[a-z0-9]+)*$') then raise exception 'bad slug' using errcode = '22023'; end if;
   if cap is not null and cap < 1 then raise exception 'bad capacity' using errcode = '22023'; end if;
+  perform 1 from camps where id = cid for update;
+  if not found then raise exception 'camp not found' using errcode = 'P0002'; end if;
+  -- Лимит не ниже числа подтверждённых участников (registered). Отменённые, отказанные и гостевые заявки не считаются.
+  if cap is not null and cap < (select count(*) from camp_participants where camp_id = cid and status = 'registered') then
+    raise exception 'capacity below registered' using errcode = '22023';
+  end if;
   -- sl = null: ссылку не менять; sl = '' (пусто): убрать ссылку; лимит: null = без лимита
   update camps set slug = case when sl is null then slug else s end, capacity = cap where id = cid;
-  if not found then raise exception 'camp not found' using errcode = 'P0002'; end if;
 end $$;
 
 -- Новая версия условий: массив периодов [{from, to, text}], даты необязательны (строка YYYY-MM-DD или null). Лишние ключи отбрасываются.
@@ -168,12 +189,16 @@ begin
 end $$;
 
 -- ===== Свободные места (null — лимита нет) =====
+-- Администратору по любому сбору; родителю только по активному сбору своего клуба (camp_visible_to_parent); иначе forbidden
+-- (и для чужого, и для неактивного, и для несуществующего сбора: ответ не различается). Публичная страница берёт признак из camp_public.
 create or replace function camp_seats(cid uuid) returns int
-language sql stable security definer set search_path = public as $$
-  select case when c.capacity is null then null
-              else greatest(c.capacity - (select count(*)::int from camp_participants where camp_id = c.id and status = 'registered'), 0) end
-    from camps c where c.id = cid
-$$;
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if current_user_id() is null or not (is_admin() or camp_visible_to_parent(cid)) then raise exception 'forbidden' using errcode = '42501'; end if;
+  return (select case when c.capacity is null then null
+                      else greatest(c.capacity - (select count(*)::int from camp_participants where camp_id = c.id and status = 'registered'), 0) end
+            from camps c where c.id = cid);
+end $$;
 
 -- ===== Публичные данные сбора без входа =====
 create or replace function camp_public(sl text) returns jsonb
