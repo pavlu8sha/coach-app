@@ -519,6 +519,13 @@ describe('«К оплате»: взносы матчей и событий', () 
     await screen.findByRole('heading', { name: 'Взносы матчей' });
     expect(screen.getByRole('button', { name: 'Матчи' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'События' })).toBeInTheDocument();
+    fake.db.prices = []; // абонемента нет вовсе, кнопка «Абонемент» остаётся всегда
+    fireEvent.click(screen.getByRole('button', { name: 'Сменить' }));
+    fireEvent.change(screen.getByLabelText(/^Игрок/), { target: { value: 'Иванов' } });
+    fireEvent.click(await screen.findByRole('button', { name: /Иванов Пётр/ }));
+    await screen.findByRole('heading', { name: 'Взносы матчей' });
+    expect(screen.queryByRole('heading', { name: 'Абонемент' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Абонемент' })).toBeInTheDocument();
     for (const gone of ['Сборы', 'Экипировка', 'Индивидуальные', 'Дополнительные']) expect(screen.queryByRole('button', { name: gone })).not.toBeInTheDocument();
   });
 

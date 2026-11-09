@@ -329,11 +329,11 @@ export function PlayerDues({ player, onBack, embedded = false, sharedMethod, jum
     <Wrap className={embedded ? undefined : 'page'}>
       {!embedded && onBack && <BackNav onBack={onBack} />}
       {!embedded && <h1 style={{ overflowWrap: 'anywhere' }}>{player.full_name}</h1>}
-      {jumps && dues && JUMPS.some(j => dues.some(d => d.section === j.section)) && (
+      {jumps && dues && (
         <>
           <p className="ks-label">Перейти к оплате</p>
           <div className="two">
-            {JUMPS.filter(j => dues.some(d => d.section === j.section)).map(j => (
+            {JUMPS.filter(j => j.section === SECTIONS[0] || dues.some(d => d.section === j.section)).map(j => ( // «Абонемент» всегда, остальные только при наличии раздела
               <button type="button" key={j.label} className="ks-btn secondary" onClick={() => document.querySelector(`[data-sec="${j.section}"]`)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })}>{j.label}</button>
             ))}
           </div>
