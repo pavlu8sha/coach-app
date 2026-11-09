@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="430" height="1500" viewBox="0 0 430 1500">
+<defs><style>
+.bg{fill:#f4f6fa}.card{fill:#fff;stroke:#e1e6ee}.ink{fill:#182334;font-family:Arial,sans-serif}.muted{fill:#718096;font-family:Arial,sans-serif}.blue{fill:#2458d3}.blueT{fill:#2458d3;font-family:Arial,sans-serif}.line{stroke:#e8ecf2}.h{font:bold 22px Arial}.h2{font:bold 16px Arial}.b{font:14px Arial}.s{font:12px Arial}.xs{font:10px Arial}.bold{font:bold 14px Arial}
+</style></defs>
+<rect width="430" height="1500" class="bg"/>
+<text x="20" y="28" class="muted xs">COACH APP · PROPOSAL · 390 PX MOBILE</text>
+<text x="20" y="66" class="ink h">Мой ребёнок</text>
+<rect x="16" y="86" width="398" height="72" rx="12" class="card"/>
+<circle cx="52" cy="122" r="22" fill="#e8edf7"/><text x="52" y="127" text-anchor="middle" class="blueT bold">АБ</text>
+<text x="88" y="117" class="ink bold">Александр Беридзе</text><text x="88" y="139" class="muted s">U13-A · Игрок клуба</text>
+<text x="378" y="128" class="blueT b" text-anchor="end">›</text>
+<text x="20" y="188" class="muted xs">ПРЕДЛОЖЕНИЕ: НАЖАТИЕ НА КАРТОЧКУ ОТКРЫВАЕТ ПРОФИЛЬ</text>
+<line x1="16" y1="210" x2="414" y2="210" class="line"/>
+<text x="20" y="250" class="muted s">‹  Мой ребёнок</text>
+<text x="20" y="287" class="ink h">Профиль игрока</text>
+<text x="20" y="312" class="muted s">Александр Беридзе · U13-A</text>
+<rect x="16" y="334" width="398" height="178" rx="14" fill="#142b49"/>
+<rect x="28" y="346" width="374" height="154" rx="10" fill="#1c3d66" stroke="#45658d"/>
+<circle cx="82" cy="414" r="39" fill="#dce6f5"/><text x="82" y="420" text-anchor="middle" class="blueT h2">АБ</text>
+<text x="142" y="388" fill="#b8cce8" font-family="Arial" font-size="10">KICKSTART · PLAYER CARD</text>
+<text x="142" y="420" fill="#fff" font-family="Arial" font-size="20" font-weight="700">Александр</text>
+<text x="142" y="445" fill="#fff" font-family="Arial" font-size="20" font-weight="700">Беридзе</text>
+<text x="142" y="475" fill="#d5e2f3" font-family="Arial" font-size="12">U13-A  ·  №  —  ·  Позиция —</text>
+<text x="28" y="530" class="muted xs">КОЛЛЕКЦИОННАЯ КАРТОЧКА — ОТДЕЛЬНЫЙ ЭКСПОРТ; НАЖАТИЕ ЗДЕСЬ НЕ ОБЯЗАТЕЛЬНО</text>
+<rect x="16" y="550" width="398" height="64" rx="12" class="card"/>
+<text x="32" y="576" class="muted xs">БАЛЛЫ · ОТДЕЛЬНО ОТ СПОРТИВНОГО ПРОГРЕССА</text>
+<text x="32" y="600" class="ink h2">24 балла</text><text x="388" y="592" text-anchor="end" class="blueT s">Журнал ›</text>
+<rect x="16" y="630" width="398" height="128" rx="12" class="card"/>
+<text x="32" y="658" class="ink h2">Последнее событие</text>
+<text x="32" y="684" class="muted s">Матч · персональная запись участия</text>
+<text x="32" y="714" class="ink b">Kickstart — соперник</text><text x="388" y="714" text-anchor="end" class="muted s">Подробнее ›</text>
+<text x="20" y="800" class="ink h2">Разделы профиля</text>
+<rect x="16" y="818" width="398" height="48" rx="9" fill="#eaf0ff"/>
+<text x="32" y="848" class="blueT bold">Обзор</text><text x="388" y="848" text-anchor="end" class="blueT b">●</text>
+<rect x="16" y="874" width="398" height="48" rx="9" class="card"/><text x="32" y="904" class="ink b">Матчи</text><text x="388" y="904" text-anchor="end" class="muted b">›</text>
+<rect x="16" y="930" width="398" height="48" rx="9" class="card"/><text x="32" y="960" class="ink b">Тренировки</text><text x="388" y="960" text-anchor="end" class="muted b">›</text>
+<rect x="16" y="986" width="398" height="48" rx="9" class="card"/><text x="32" y="1016" class="ink b">Прогресс</text><text x="388" y="1016" text-anchor="end" class="muted b">›</text>
+<rect x="16" y="1042" width="398" height="48" rx="9" class="card"/><text x="32" y="1072" class="ink b">Достижения</text><text x="388" y="1072" text-anchor="end" class="muted b">›</text>
+<rect x="16" y="1110" width="398" height="110" rx="12" class="card"/>
+<text x="32" y="1138" class="ink h2">Прогресс</text>
+<text x="32" y="1164" class="muted s">Здесь будут опубликованные тесты, личная</text><text x="32" y="1184" class="muted s">динамика и цели. Пока данных нет.</text>
+<text x="32" y="1205" class="blueT s">Открыть прогресс ›</text>
+<rect x="0" y="1370" width="430" height="70" fill="#fff" stroke="#dce2eb"/>
+<text x="42" y="1400" class="muted xs" text-anchor="middle">РЕБЁНОК</text><text x="128" y="1400" class="muted xs" text-anchor="middle">РАСПИСАНИЕ</text><text x="218" y="1400" class="muted xs" text-anchor="middle">МАТЧИ</text><text x="306" y="1400" class="muted xs" text-anchor="middle">ОПЛАТА</text><text x="386" y="1400" class="muted xs" text-anchor="middle">ПРОФИЛЬ</text>
+<text x="215" y="1465" class="muted xs" text-anchor="middle">Схема потока: без изменения существующей нижней навигации</text>
+</svg>

@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="900" viewBox="0 0 1240 900">
+<defs><style>
+.bg{fill:#eef2f7}.panel{fill:#fff;stroke:#dce3ec;stroke-width:1.5}.navy{fill:#142b49}.muted{fill:#718096}.ink{fill:#1c2b3e}.blue{fill:#2563eb}.green{fill:#16845b}.amber{fill:#a76612}.line{stroke:#e4e9f0;stroke-width:1}.small{font:12px Arial,sans-serif}.body{font:14px Arial,sans-serif}.bold{font:bold 14px Arial,sans-serif}.h{font:bold 20px Arial,sans-serif}.label{font:bold 11px Arial,sans-serif;letter-spacing:1px}
+</style></defs>
+<rect width="1240" height="900" class="bg"/>
+<text x="40" y="45" class="h" fill="#142b49">COACH APP · ТЕСТИРОВАНИЕ ИГРОКОВ</text>
+<text x="40" y="70" class="body muted">Служебный сценарий тренера · PROPOSAL v1 · демонстрационные данные</text>
+<text x="40" y="115" class="label muted">01 · СОЗДАТЬ ТЕСТИРОВАНИЕ</text>
+<text x="455" y="115" class="label muted">02 · ВНЕСТИ РЕЗУЛЬТАТЫ</text>
+<text x="870" y="115" class="label muted">03 · ПРОВЕРИТЬ И ОПУБЛИКОВАТЬ</text>
+<!-- phone 1 -->
+<rect x="40" y="135" width="370" height="710" rx="22" class="panel"/>
+<rect x="40" y="135" width="370" height="62" rx="22" class="navy"/><rect x="40" y="175" width="370" height="22" class="navy"/>
+<text x="64" y="174" fill="#fff" class="bold">←  Новое тестирование</text>
+<text x="64" y="230" class="h ink">Создать сессию</text>
+<text x="64" y="255" class="small muted">Шаг 1 из 3 · параметры и участники</text>
+<text x="64" y="292" class="label muted">НАЗВАНИЕ</text>
+<rect x="64" y="302" width="322" height="43" rx="8" fill="#f8fafc" stroke="#d9e1eb"/><text x="78" y="329" class="body ink">Контрольное тестирование</text>
+<text x="64" y="376" class="label muted">ДАТА</text>
+<rect x="64" y="386" width="150" height="43" rx="8" fill="#f8fafc" stroke="#d9e1eb"/><text x="78" y="413" class="body ink">09.11.2026</text>
+<text x="232" y="376" class="label muted">ТРЕНЕР</text>
+<rect x="232" y="386" width="154" height="43" rx="8" fill="#f8fafc" stroke="#d9e1eb"/><text x="246" y="413" class="body ink">Мой профиль</text>
+<text x="64" y="460" class="label muted">ГРУППА И УЧАСТНИКИ</text>
+<rect x="64" y="470" width="322" height="43" rx="8" fill="#f8fafc" stroke="#d9e1eb"/><text x="78" y="497" class="body ink">U13-A · 18 игроков</text>
+<rect x="64" y="526" width="322" height="52" rx="8" fill="#eff6ff"/><text x="78" y="548" class="bold blue">✓  Выбрана вся группа</text><text x="78" y="566" class="small muted">Можно изменить состав участников</text>
+<text x="64" y="615" class="label muted">НАБОР ТЕСТОВ</text>
+<rect x="64" y="626" width="322" height="42" rx="8" fill="#fff" stroke="#d9e1eb"/><text x="78" y="652" class="body ink">☑  Спринт 10 м · секунды</text>
+<rect x="64" y="675" width="322" height="42" rx="8" fill="#fff" stroke="#d9e1eb"/><text x="78" y="701" class="body ink">☑  Челночный бег · секунды</text>
+<rect x="64" y="724" width="322" height="42" rx="8" fill="#fff" stroke="#d9e1eb"/><text x="78" y="750" class="body ink">☐  Точность передач · из 10</text>
+<rect x="64" y="790" width="322" height="38" rx="9" class="blue"/><text x="178" y="815" fill="#fff" class="bold">Далее →</text>
+<!-- phone 2 -->
+<rect x="435" y="135" width="370" height="710" rx="22" class="panel"/>
+<rect x="435" y="135" width="370" height="62" rx="22" class="navy"/><rect x="435" y="175" width="370" height="22" class="navy"/>
+<text x="459" y="174" fill="#fff" class="bold">←  Результаты · U13-A</text>
+<text x="459" y="230" class="h ink">Спринт 10 м</text>
+<text x="459" y="255" class="small muted">Секунды · меньше — лучше · попытки сохраняются</text>
+<rect x="459" y="276" width="322" height="38" rx="8" fill="#eff6ff"/><text x="473" y="300" class="small blue">Введено 12 из 18 · черновик сохранён</text>
+<text x="459" y="345" class="label muted">ИГРОК</text><text x="647" y="345" class="label muted">ЛУЧШАЯ</text>
+<line x1="459" y1="357" x2="781" y2="357" class="line"/>
+<text x="459" y="387" class="bold ink">Александр К.</text><text x="459" y="405" class="small muted">Предыдущий: 2,14 с</text><rect x="650" y="370" width="112" height="38" rx="7" fill="#f8fafc" stroke="#cbd5e1"/><text x="680" y="395" class="bold ink">2,08</text>
+<line x1="459" y1="421" x2="781" y2="421" class="line"/>
+<text x="459" y="451" class="bold ink">Давид М.</text><text x="459" y="469" class="small muted">Предыдущий: 2,21 с</text><rect x="650" y="434" width="112" height="38" rx="7" fill="#f8fafc" stroke="#cbd5e1"/><text x="680" y="459" class="bold ink">2,19</text>
+<line x1="459" y1="485" x2="781" y2="485" class="line"/>
+<text x="459" y="515" class="bold ink">Георгий Б.</text><text x="459" y="533" class="small muted">Предыдущий: нет данных</text><rect x="650" y="498" width="112" height="38" rx="7" fill="#fff" stroke="#cbd5e1"/><text x="681" y="523" class="small muted">—</text>
+<line x1="459" y1="549" x2="781" y2="549" class="line"/>
+<text x="459" y="579" class="bold ink">Николоз Ч.</text><text x="459" y="597" class="small muted">Предыдущий: 2,30 с</text><rect x="650" y="562" width="112" height="38" rx="7" fill="#f8fafc" stroke="#cbd5e1"/><text x="681" y="587" class="bold ink">2,26</text>
+<rect x="459" y="620" width="322" height="52" rx="8" fill="#fff7ed"/><text x="473" y="642" class="bold amber">Нет результата ≠ 0</text><text x="473" y="660" class="small muted">Пропуск можно отметить с указанием причины</text>
+<rect x="459" y="690" width="322" height="42" rx="8" fill="#fff" stroke="#d9e1eb"/><text x="473" y="716" class="body ink">＋ Добавить попытку / игрока</text>
+<rect x="459" y="790" width="150" height="38" rx="9" fill="#fff" stroke="#2563eb"/><text x="500" y="815" class="bold blue">Сохранить</text>
+<rect x="619" y="790" width="162" height="38" rx="9" class="blue"/><text x="657" y="815" fill="#fff" class="bold">К проверке →</text>
+<!-- phone 3 -->
+<rect x="830" y="135" width="370" height="710" rx="22" class="panel"/>
+<rect x="830" y="135" width="370" height="62" rx="22" class="navy"/><rect x="830" y="175" width="370" height="22" class="navy"/>
+<text x="854" y="174" fill="#fff" class="bold">←  Проверка результатов</text>
+<text x="854" y="230" class="h ink">Перед публикацией</text>
+<text x="854" y="255" class="small muted">Проверьте полноту и соответствие игроков</text>
+<rect x="854" y="278" width="322" height="75" rx="9" fill="#f0fdf4" stroke="#bbebd1"/>
+<text x="872" y="305" class="bold green">✓  Данные сохранены</text><text x="872" y="328" class="small ink">12 из 18 участников с результатами</text><text x="872" y="344" class="small muted">2 теста · 36 возможных значений</text>
+<text x="854" y="390" class="label muted">ПРОВЕРКИ</text>
+<circle cx="866" cy="420" r="6" fill="#16845b"/><text x="883" y="425" class="body ink">Нет отрицательных значений</text>
+<circle cx="866" cy="454" r="6" fill="#16845b"/><text x="883" y="459" class="body ink">Игроки привязаны корректно</text>
+<circle cx="866" cy="488" r="6" fill="#d18a25"/><text x="883" y="493" class="body ink">6 игроков без результата</text>
+<text x="883" y="513" class="small muted">Можно оставить без результата или указать причину пропуска</text>
+<line x1="854" y1="540" x2="1176" y2="540" class="line"/>
+<text x="854" y="572" class="label muted">КТО УВИДИТ ПОСЛЕ ПУБЛИКАЦИИ</text>
+<text x="854" y="600" class="body ink">• Игрок и его родители — свои результаты</text>
+<text x="854" y="626" class="body ink">• Тренер — результаты своих игроков</text>
+<text x="854" y="652" class="small muted">Черновик остаётся доступен только сотрудникам</text>
+<rect x="854" y="680" width="322" height="55" rx="9" fill="#fff7ed" stroke="#f1d6ad"/>
+<text x="870" y="704" class="bold amber">Публикация — отдельное действие</text><text x="870" y="722" class="small muted">После неё исправления сохраняют историю</text>
+<rect x="854" y="754" width="145" height="42" rx="9" fill="#fff" stroke="#2563eb"/><text x="882" y="781" class="bold blue">Назад</text>
+<rect x="1009" y="754" width="167" height="42" rx="9" class="blue"/><text x="1036" y="781" fill="#fff" class="bold">Опубликовать</text>
+<text x="40" y="878" class="small muted">Мобильный сценарий для работы на поле. Для планшета/desktop — та же модель данных в таблице: игроки в строках, тесты в столбцах.</text>
+</svg>

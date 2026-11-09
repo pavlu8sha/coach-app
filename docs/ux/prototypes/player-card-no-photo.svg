@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200" viewBox="0 0 900 1200">
+ <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#101d35"/><stop offset="1" stop-color="#243b61"/></linearGradient><linearGradient id="accent" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#d6ff4f"/><stop offset="1" stop-color="#a9e82e"/></linearGradient></defs>
+ <rect width="100%" height="100%" fill="#eef1f5"/>
+ <text x="48" y="58" font-family="Arial,sans-serif" font-size="25" font-weight="700" fill="#14233b">A1 — Карточка игрока без фото</text>
+ <text x="48" y="88" font-family="Arial,sans-serif" font-size="15" fill="#66758a">Восстановленный визуальный прототип по ранее согласованной композиции</text>
+ <rect x="48" y="112" width="804" height="1040" rx="26" fill="#fff" stroke="#d9e0e9"/>
+ <rect x="278" y="160" width="344" height="760" rx="28" fill="url(#bg)"/>
+<rect x="300" y="182" width="300" height="716" rx="20" fill="none" stroke="#6f86a7" stroke-width="1.5"/>
+<text x="450" y="228" font-family="Arial,sans-serif" font-size="19" fill="#d6ff4f" font-weight="700">KICKSTART</text><text x="450" y="257" font-family="Arial,sans-serif" font-size="11" fill="#b8c5d7" font-weight="700">PLAYER CARD</text>
+<circle cx="450" cy="445" r="122" fill="#253c60" stroke="#7890b4" stroke-width="2"/>
+<path d="M450 344 L450 530 M355 435 H545 M387 365 L513 515 M513 365 L387 515" stroke="#647d9f" stroke-width="2" opacity=".45"/>
+<circle cx="450" cy="402" r="40" fill="#8ea2bc"/><path d="M374 514 Q385 451 450 451 Q515 451 526 514" fill="#8ea2bc"/>
+<text x="450" y="626" font-family="Arial,sans-serif" font-size="24" fill="#ffffff" font-weight="700">ИМЯ И ФАМИЛИЯ</text><text x="450" y="666" font-family="Arial,sans-serif" font-size="16" fill="#d6ff4f" font-weight="700">№  •  ПОЗИЦИЯ</text>
+<text x="450" y="715" font-family="Arial,sans-serif" font-size="16" fill="#d9e2ee" font-weight="400">Группа U10-A</text><text x="450" y="750" font-family="Arial,sans-serif" font-size="14" fill="#aebdd0" font-weight="400">Год рождения</text>
+<rect x="404" y="795" width="92" height="5" rx="3" fill="#d6ff4f"/><text x="450" y="858" font-family="Arial,sans-serif" font-size="13" fill="#b8c5d7" font-weight="700">KICKSTART FC</text>
+<text x="680" y="250" font-family="Arial,sans-serif" font-size="17" fill="#17263d" font-weight="700">Вариант без фото</text><text x="680" y="280" font-family="Arial,sans-serif" font-size="14" fill="#66758a" font-weight="400">Фирменная заглушка</text><text x="680" y="304" font-family="Arial,sans-serif" font-size="14" fill="#66758a" font-weight="400">делает карточку</text><text x="680" y="328" font-family="Arial,sans-serif" font-size="14" fill="#66758a" font-weight="400">законченной.</text>
+<text x="680" y="410" font-family="Arial,sans-serif" font-size="14" fill="#66758a" font-weight="400">Отдельное изображение</text><text x="680" y="434" font-family="Arial,sans-serif" font-size="14" fill="#66758a" font-weight="400">для сохранения и</text><text x="680" y="458" font-family="Arial,sans-serif" font-size="14" fill="#66758a" font-weight="400">пересылки.</text>
+ <text x="48" y="1178" font-family="Arial,sans-serif" font-size="13" fill="#718096">COACH APP  •  UX PROPOSAL  •  NOT APPROVED FOR DEVELOPMENT</text>
+ </svg>
