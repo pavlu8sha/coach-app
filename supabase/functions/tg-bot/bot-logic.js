@@ -1,6 +1,8 @@
 // Сообщения бота клуба: /start → приветствие с кнопкой «Далее» → что важно знать, «Наш канал» и «Открыть приложение».
 // Чистая функция: принимает update Telegram, возвращает список вызовов Bot API. Сеть и секреты — в index.ts.
 
+import { bookMenuButton } from './booking-logic.js';
+
 export const CHANNEL_URL = 'https://t.me/fc_kickstart_tbs';
 
 export const WELCOME = [
@@ -45,13 +47,13 @@ export function route(update, appUrl) {
     if (/^\/start(@\w+)?(\s|$)/.test(msg.text)) {
       return [{ method: 'sendMessage', body: { chat_id: msg.chat.id, text: WELCOME, reply_markup: { inline_keyboard: [[{ text: 'Далее ➡️', callback_data: 'next' }]] } } }];
     }
-    return [{ method: 'sendMessage', body: { chat_id: msg.chat.id, text: HINT, reply_markup: { inline_keyboard: [[openApp]] } } }];
+    return [{ method: 'sendMessage', body: { chat_id: msg.chat.id, text: HINT, reply_markup: { inline_keyboard: [[openApp], [bookMenuButton()]] } } }];
   }
   const cb = update?.callback_query;
   if (cb && cb.data === 'next' && cb.message?.chat?.type === 'private') {
     return [
       { method: 'answerCallbackQuery', body: { callback_query_id: cb.id } },
-      { method: 'sendMessage', body: { chat_id: cb.message.chat.id, text: BEFORE_START, reply_markup: { inline_keyboard: [[{ text: 'Наш канал', url: CHANNEL_URL }], [openApp]] } } },
+      { method: 'sendMessage', body: { chat_id: cb.message.chat.id, text: BEFORE_START, reply_markup: { inline_keyboard: [[{ text: 'Наш канал', url: CHANNEL_URL }], [openApp], [bookMenuButton()]] } } },
     ];
   }
   if (cb) return [{ method: 'answerCallbackQuery', body: { callback_query_id: cb.id } }];

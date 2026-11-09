@@ -22,6 +22,8 @@ export interface SupabaseState {
   notifications: Array<{ id: string; telegram_id: number; text: string; buttons?: unknown }>;
   rsvpResult: Json;
   rsvpError: string | null;
+  bookingResults: Record<string, Json>;
+  bookingError: string | null;
   finish: Array<
     { id: string; ok: boolean; err: string | null; give_up: boolean }
   >;
@@ -44,6 +46,8 @@ function freshState(): SupabaseState {
     notifications: [],
     rsvpResult: { ok: true, player: "Иванов Пётр" },
     rsvpError: null,
+    bookingResults: {},
+    bookingError: null,
     finish: [],
     requests: [],
   };
@@ -101,6 +105,11 @@ export function createSupabaseFake() {
     if (url.pathname === "/rest/v1/rpc/rsvp_answer_by_telegram") {
       if (state.rsvpError) return postgrestError(state.rsvpError);
       return json(state.rsvpResult);
+    }
+
+    if (/^\/rest\/v1\/rpc\/(booking_options_by_telegram|booking_signup_by_telegram|waitlist_join_by_telegram)$/.test(url.pathname)) {
+      if (state.bookingError) return postgrestError(state.bookingError);
+      return json(state.bookingResults[url.pathname.split("/").pop()!] ?? { ok: false, code: "error" });
     }
 
     if (url.pathname === "/rest/v1/rpc/finish_notification") {
