@@ -2,7 +2,7 @@
 -- вместимость во всех путях записи, родительская запись, публичные данные, условия отмены, журнал статусов.
 begin;
 create extension if not exists pgtap;
-select plan(74);
+select plan(78);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб'), ('00000000-0000-0000-0000-00000000c002', 'Чужой клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -169,6 +169,13 @@ select is((select note from camp_participant_events where participant_id = (sele
 select lives_ok($$select camp_update_participant((select id from ids where k = 'd1'), null, 950, null, 'после отмены', 'cancelled')$$, 'правка суммы отменённой записи без смены статуса');
 select throws_ok($$select camp_update_participant((select id from ids where k = 'a'), null, 950, null, null, 'cancelled')$$, '22023', 'bad status', 'администратор не выставляет cancelled другим записям');
 
+-- смена сбора прямым update не обходит лимит; запись с журналом не удаляется; статус null и «пустой» текст
+select camp_register('00000000-0000-0000-0000-0000000000cb', '00000000-0000-0000-0000-00000000d006', '00000000-0000-0000-0000-0000000000e3', null, null, null);
+select throws_ok($$update camp_participants set camp_id = '00000000-0000-0000-0000-0000000000cb' where id = (select id from ids where k = 'a')$$, '22023', 'camp full', 'перенос записи на полный сбор прямым update не обходит лимит');
+select throws_ok($$delete from camp_participants where id = (select id from ids where k = 'a')$$, '23503', null, 'участник с журналом не удаляется');
+select throws_ok($$select camp_update_participant((select id from ids where k = 'a'), null, 950, null, null, null)$$, '22023', 'bad status', 'статус null отклоняется');
+select throws_ok($$select camp_terms_save('00000000-0000-0000-0000-0000000000cb', jsonb_build_array(jsonb_build_object('text', E'\u00a0\u200b')))$$, '22023', 'bad terms', 'текст из невидимых символов отклоняется');
+
 -- служебная роль не пишет в журнал и условия напрямую
 select ok(not has_table_privilege('service_role', 'camp_participant_events', 'insert') and not has_table_privilege('service_role', 'camp_cancel_terms', 'insert'), 'служебная роль журнал и условия только читает');
 
@@ -178,7 +185,7 @@ select is((select periods::text from camp_cancel_terms where camp_id = '00000000
 select throws_ok($$select camp_terms_save('00000000-0000-0000-0000-0000000000cb', '[]'::jsonb)$$, '22023', 'bad terms', 'пустой список периодов отклоняется');
 select throws_ok($$select camp_terms_save('00000000-0000-0000-0000-0000000000cb', '[{"from":20981201,"to":null,"text":"x"}]'::jsonb)$$, '22023', 'bad terms', 'дата числом отклоняется');
 select throws_ok($$select camp_terms_save('00000000-0000-0000-0000-0000000000cb', '[{"from":"2099-01-05","to":"2099-01-01","text":"x"}]'::jsonb)$$, '22023', 'bad terms', 'конец периода раньше начала отклоняется');
-select throws_ok($$select camp_terms_save('00000000-0000-0000-0000-0000000000cb', (select jsonb_agg(jsonb_build_object('text', repeat('я', 480))) from generate_series(1, 10)))$$, '22023', 'bad terms', 'слишком большой объём условий отклоняется');
+select throws_ok($$select camp_terms_save('00000000-0000-0000-0000-0000000000cb', (select jsonb_agg(jsonb_build_object('text', 'x', 'pad', repeat('я', 1000))) from generate_series(1, 10)))$$, '22023', 'bad terms', 'слишком большой объём условий отклоняется');
 
 -- ссылку и лимит можно менять раздельно
 select camp_set_public('00000000-0000-0000-0000-0000000000cb', null, 4);

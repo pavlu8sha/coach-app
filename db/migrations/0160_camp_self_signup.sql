@@ -83,7 +83,7 @@ create policy camp_cancel_terms_read on camp_cancel_terms for select using (auth
 create or replace function camp_participants_log() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  if tg_op = 'UPDATE' and old.status = new.status then return null; end if;
+  if tg_op = 'UPDATE' and old.status = new.status and old.camp_id = new.camp_id then return null; end if;
   insert into camp_participant_events (participant_id, camp_id, player_id, from_status, to_status, actor_id, tariff_id, amount, paid, terms_version, note)
   values (new.id, new.camp_id, new.player_id, case when tg_op = 'UPDATE' then old.status end, new.status, current_user_id(), new.tariff_id, new.amount,
           (select coalesce(sum(amount), 0) from camp_payments where participant_id = new.id),
@@ -91,7 +91,7 @@ begin
           coalesce(nullif(current_setting('camp.note', true), ''), 'direct'));
   return null;
 end $$;
-create trigger camp_participants_log after insert or update of status on camp_participants
+create trigger camp_participants_log after insert or update of status, camp_id on camp_participants
   for each row execute function camp_participants_log();
 
 -- Лимит мест. Строка сбора уже заблокирована вызывающей функцией (for update): проверки идут по одной.
@@ -109,13 +109,13 @@ end $$;
 create or replace function camp_participants_seat_guard() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  if new.status = 'registered' and (tg_op = 'INSERT' or old.status <> 'registered') then
+  if new.status = 'registered' and (tg_op = 'INSERT' or old.status <> 'registered' or old.camp_id <> new.camp_id) then
     perform 1 from camps where id = new.camp_id for update;
     perform camp_assert_seat(new.camp_id);
   end if;
   return new;
 end $$;
-create trigger camp_participants_seat_guard before insert or update of status on camp_participants
+create trigger camp_participants_seat_guard before insert or update of status, camp_id on camp_participants
   for each row execute function camp_participants_seat_guard();
 
 revoke execute on function camp_participants_log(), camp_participants_seat_guard(), camp_assert_seat(uuid), camp_events_immutable() from public, anon, authenticated;
@@ -142,12 +142,12 @@ begin
   perform camp_assert_admin();
   perform 1 from camps where id = cid for update;
   if not found then raise exception 'camp not found' using errcode = 'P0002'; end if;
-  if periods is null or jsonb_typeof(periods) <> 'array' or jsonb_array_length(periods) not between 1 and 10 or octet_length(periods::text) > 8000 then
+  if periods is null or jsonb_typeof(periods) <> 'array' or jsonb_array_length(periods) not between 1 and 10 or octet_length(periods::text) > 16000 then
     raise exception 'bad terms' using errcode = '22023';
   end if;
   for p in select * from jsonb_array_elements(periods) loop
     if jsonb_typeof(p) <> 'object' or jsonb_typeof(p -> 'text') is distinct from 'string'
-       or nullif(btrim(p ->> 'text'), '') is null or length(p ->> 'text') > 500
+       or regexp_replace(p ->> 'text', '[[:space:]\u00a0\u200b\u2060\ufeff]', '', 'g') = '' or length(p ->> 'text') > 500
        or jsonb_typeof(coalesce(p -> 'from', 'null'::jsonb)) not in ('string', 'null')
        or jsonb_typeof(coalesce(p -> 'to', 'null'::jsonb)) not in ('string', 'null') then
       raise exception 'bad terms' using errcode = '22023';
@@ -289,7 +289,7 @@ begin
   perform 1 from camps where id = cid for update;
   select status into old from camp_participants where id = pid;
   -- «cancelled» (отмена родителем) админ не выставляет, но может править сумму и комментарий отменённой записи, оставляя статус
-  if st not in ('registered', 'declined') and not (st = 'cancelled' and old = 'cancelled') then raise exception 'bad status' using errcode = '22023'; end if;
+  if st is null or (st not in ('registered', 'declined') and not (st = 'cancelled' and old = 'cancelled')) then raise exception 'bad status' using errcode = '22023'; end if;
   if amt is null or amt < 0 then raise exception 'bad amount' using errcode = '22023'; end if;
   if amt < (select coalesce(sum(amount), 0) from camp_payments where participant_id = pid) then raise exception 'amount below paid' using errcode = '22023'; end if;
   if tid is not null and not exists (select 1 from camp_tariffs where id = tid and camp_id = cid) then raise exception 'tariff not found' using errcode = 'P0002'; end if;
