@@ -3,7 +3,7 @@
 -- «ожидание» без записей и то, что старые данные и старое поведение не тронуты.
 begin;
 create extension if not exists pgtap;
-select plan(68);
+select plan(69);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -95,10 +95,11 @@ select is((select is_current from parental_consent_status where parent_user_id =
 insert into consent_doc_versions (id, consent_type, version, effective_from) values
   ('00000000-0000-0000-0000-0000000f0004', 'data_processing', 'syn-dp-3-future', now() + interval '5 days');
 update consent_doc_versions set accepting = false where id = '00000000-0000-0000-0000-0000000f0003';
-select is(consent_current_version('data_processing'), '00000000-0000-0000-0000-0000000f0001'::uuid, 'будущая и неприменяемая версии текущими не считаются');
+select is(consent_current_version('data_processing'), '00000000-0000-0000-0000-0000000f0003'::uuid, 'закрытая новейшая версия остаётся текущей (прежняя в силу не возвращается), будущая текущей не считается');
+select is(has_consent('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'data_processing'), false, 'после закрытия новейшей версии подтверждение прежней согласия не даёт');
 update consent_doc_versions set accepting = false where consent_type = 'data_processing';
-select is(consent_current_version('data_processing'), null::uuid, 'нет принимаемой версии — текущей нет');
-select is(has_consent('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'data_processing'), false, 'нет текущей версии — согласия нет');
+select is(consent_current_version('data_processing'), '00000000-0000-0000-0000-0000000f0003'::uuid, 'закрытие всех версий текущую не меняет: новейшая наступившая');
+select is(has_consent('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'data_processing'), false, 'текущая версия закрыта для подтверждений — согласия нет ни у кого');
 
 -- Целостность
 select throws_ok($$insert into parental_consent_events (id, parent_user_id, player_id, consent_type, version_id, event, source) overriding system value values (99, '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'media_publication', '00000000-0000-0000-0000-0000000f0001', 'granted', 'app')$$, '23503', null, 'версия другого типа в событии не принимается');

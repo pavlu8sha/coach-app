@@ -9,7 +9,9 @@
 -- Версии согласий здесь не заводятся: утверждённые тексты (по типам) пока не определены, версии добавляются отдельно.
 
 -- 1. Версии: каждая версия принадлежит одному типу согласия.
---    accepting — версию можно принимать сейчас; текущей считается принимаемая версия с самой поздней датой вступления.
+--    accepting — версию можно подтверждать сейчас (закрывает только новые подтверждения). Текущей считается версия с самой поздней
+--    наступившей датой вступления независимо от accepting: закрытие версии не возвращает в силу прежнюю (без отката назад по версиям);
+--    чтобы выпустить исправленный текст, добавляется новая версия с более поздней датой.
 create table consent_doc_versions (
   id uuid primary key default gen_random_uuid(),
   consent_type text not null check (consent_type in ('data_processing', 'media_publication')),
@@ -188,11 +190,12 @@ end $$;
 create trigger consent_doc_versions_no_rewrite before update on consent_doc_versions
   for each row execute function consent_doc_versions_guard();
 
--- 4. Текущая версия типа: принимаемая версия с самой поздней датой вступления (уже наступившей).
+-- 4. Текущая версия типа: версия с самой поздней уже наступившей датой вступления (закрытая для новых подтверждений тоже: тогда
+--    согласия нет ни у кого, пока не добавлена новая версия; прежняя версия в силу не возвращается).
 create or replace function consent_current_version(t text) returns uuid
 language sql stable security definer set search_path = public, pg_temp as $$
   select id from consent_doc_versions
-   where consent_type = t and accepting and effective_from <= now()
+   where consent_type = t and effective_from <= now()
    order by effective_from desc, created_at desc, id desc
    limit 1
 $$;
