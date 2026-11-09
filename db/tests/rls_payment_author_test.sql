@@ -32,19 +32,21 @@ select isnt((select recorded_at from payments where id = '00000000-0000-0000-000
 
 -- сбор: автор и время тоже ставит сервер
 insert into camps (id, club_id, name, starts_on, ends_on) values ('00000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-00000000c001', 'Сбор', '2026-10-01', '2026-10-31');
+reset role;
 insert into camp_participants (camp_id, player_id) values ('00000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-00000000d001');
-insert into camp_payments (id, camp_id, participant_id, player_id, amount, paid_on, kind, method, recorded_by)
-  select '00000000-0000-0000-0000-0000000000c3', '00000000-0000-0000-0000-0000000000c2', cp.id, cp.player_id, 30, '2026-10-06', 'payment', 'Наличные', '00000000-0000-0000-0000-0000000000a1'
-    from camp_participants cp where cp.camp_id = '00000000-0000-0000-0000-0000000000c2';
-select is((select recorded_by from camp_payments where id = '00000000-0000-0000-0000-0000000000c3'), '00000000-0000-0000-0000-0000000000a2'::uuid, 'сбор: автор — вошедший пользователь');
+select as_user('00000000-0000-0000-0000-0000000000a2');
+select camp_pay((select id from camp_participants where camp_id = '00000000-0000-0000-0000-0000000000c2'), 30, 'payment', '2026-10-06', 'Наличные', 'c3');
+select is((select recorded_by from camp_payments where comment = 'c3'), '00000000-0000-0000-0000-0000000000a2'::uuid, 'сбор: автор — вошедший пользователь');
 
 -- после записи автор не меняется (даже администратором)
 select throws_ok(
   $$update payments set recorded_by = '00000000-0000-0000-0000-0000000000a1' where id = '00000000-0000-0000-0000-0000000000f1'$$,
   '42501', null, 'автор платежа нельзя изменить после записи');
+reset role;  -- прямая правка администратору закрыта (0165); защита автора срабатывает раньше запрета правок и у владельца базы
 select throws_ok(
-  $$update camp_payments set recorded_at = '2001-01-01' where id = '00000000-0000-0000-0000-0000000000c3'$$,
+  $$update camp_payments set recorded_at = '2001-01-01' where comment = 'c3'$$,
   '42501', null, 'время сбора нельзя изменить после записи');
+select as_user('00000000-0000-0000-0000-0000000000a2');
 
 -- обычный пользователь без прав не записывает платежи
 select as_user('00000000-0000-0000-0000-0000000000b1');

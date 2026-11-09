@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="980" viewBox="0 0 1280 980">
+<defs><style>
+.bg{fill:#f4f6fa}.panel{fill:#fff;stroke:#dce2eb;stroke-width:1.3}.ink{fill:#182334;font-family:Inter,Arial,sans-serif}.muted{fill:#6c7889;font-family:Inter,Arial,sans-serif}.h1{font-size:27px;font-weight:700}.h2{font-size:18px;font-weight:700}.body{font-size:14px}.small{font-size:12px}.label{font-size:11px;font-weight:700;letter-spacing:.5px}.line{stroke:#e6eaf0;stroke-width:1}.green{fill:#e7f5ed}.gt{fill:#23744b;font-family:Arial,sans-serif}.amber{fill:#fff4df}.at{fill:#95600c;font-family:Arial,sans-serif}.red{fill:#fff0ee}.rt{fill:#b33c32;font-family:Arial,sans-serif}.blue{fill:#2458d3}
+</style></defs>
+<rect class="bg" width="1280" height="980"/>
+<text x="44" y="42" class="muted label">COACH APP · UX PROPOSAL · ISSUE #266</text>
+<text x="44" y="82" class="ink h1">Проверка и публикация результатов</text>
+<text x="44" y="108" class="muted body">Отдельный контрольный этап между черновиком и доступом результатов родителю и игроку</text>
+<rect x="44" y="138" width="1192" height="780" rx="14" class="panel"/>
+<text x="76" y="180" class="ink h2">Физическая подготовка · U13-A</text>
+<text x="76" y="205" class="muted small">12 ноября 2026 · 14 игроков · 4 теста · Черновик</text>
+<rect x="76" y="230" width="1128" height="84" rx="9" fill="#f7f9fc"/>
+<g>
+<text x="100" y="258" class="muted label">ЗАПОЛНЕНО</text><text x="100" y="292" class="ink h2">47 / 56</text>
+<text x="340" y="258" class="muted label">ПРОПУСКИ</text><text x="340" y="292" class="ink h2">5</text>
+<text x="550" y="258" class="muted label">НЕ ВНЕСЕНО</text><text x="550" y="292" class="ink h2">4</text>
+<text x="770" y="258" class="muted label">ТРЕБУЮТ ПРОВЕРКИ</text><text x="770" y="292" class="ink h2">2</text>
+<rect x="1000" y="250" width="174" height="42" rx="8" class="green"/><text x="1087" y="276" text-anchor="middle" class="gt body" font-weight="700">Черновик сохранён</text>
+</g>
+<text x="76" y="358" class="ink h2">Контроль по тестам</text>
+<rect x="76" y="378" width="1128" height="38" rx="6" fill="#f0f3f8"/>
+<text x="94" y="402" class="ink label">ТЕСТ</text><text x="510" y="402" class="ink label">РЕЗУЛЬТАТЫ</text><text x="700" y="402" class="ink label">ПРОПУСКИ</text><text x="850" y="402" class="ink label">ПРОВЕРКА</text><text x="1040" y="402" class="ink label">ДЕЙСТВИЕ</text>
+<g>
+<text x="94" y="450" class="ink body" font-weight="700">Спринт 20 м</text><text x="94" y="470" class="muted small">секунды · меньше — лучше</text><text x="510" y="458" class="ink body">12 / 14</text><text x="700" y="458" class="ink body">1</text><rect x="850" y="438" width="118" height="26" rx="13" class="amber"/><text x="909" y="456" text-anchor="middle" class="at small">1 значение</text><text x="1040" y="458" class="blue body">Открыть</text><line x1="76" y1="486" x2="1204" y2="486" class="line"/>
+<text x="94" y="526" class="ink body" font-weight="700">Челночный бег</text><text x="94" y="546" class="muted small">секунды · меньше — лучше</text><text x="510" y="534" class="ink body">14 / 14</text><text x="700" y="534" class="ink body">0</text><rect x="850" y="514" width="118" height="26" rx="13" class="green"/><text x="909" y="532" text-anchor="middle" class="gt small">Проверен</text><text x="1040" y="534" class="blue body">Открыть</text><line x1="76" y1="562" x2="1204" y2="562" class="line"/>
+<text x="94" y="602" class="ink body" font-weight="700">Прыжок в длину</text><text x="94" y="622" class="muted small">сантиметры · больше — лучше</text><text x="510" y="610" class="ink body">11 / 14</text><text x="700" y="610" class="ink body">2</text><rect x="850" y="590" width="118" height="26" rx="13" class="red"/><text x="909" y="608" text-anchor="middle" class="rt small">1 ошибка</text><text x="1040" y="610" class="blue body">Открыть</text><line x1="76" y1="638" x2="1204" y2="638" class="line"/>
+<text x="94" y="678" class="ink body" font-weight="700">Отжимания</text><text x="94" y="698" class="muted small">количество · больше — лучше</text><text x="510" y="686" class="ink body">10 / 14</text><text x="700" y="686" class="ink body">2</text><rect x="850" y="666" width="118" height="26" rx="13" class="amber"/><text x="909" y="684" text-anchor="middle" class="at small">Не завершён</text><text x="1040" y="686" class="blue body">Открыть</text>
+</g>
+<rect x="76" y="730" width="1128" height="76" rx="9" class="amber"/>
+<text x="100" y="758" class="at body" font-weight="700">Перед публикацией осталось проверить 2 значения</text>
+<text x="100" y="782" class="ink small">4 поля не заполнены. Их можно оставить без результата или отдельно отметить пропуск.</text>
+<rect x="76" y="832" width="210" height="48" rx="8" fill="#fff" stroke="#dce2eb"/><text x="181" y="862" text-anchor="middle" class="ink body" font-weight="700">Вернуться к вводу</text>
+<rect x="304" y="832" width="210" height="48" rx="8" fill="#fff" stroke="#dce2eb"/><text x="409" y="862" text-anchor="middle" class="ink body" font-weight="700">Сохранить черновик</text>
+<rect x="900" y="832" width="304" height="48" rx="8" fill="#2458d3"/><text x="1052" y="862" text-anchor="middle" fill="#fff" font-family="Arial" font-size="14" font-weight="700">Опубликовать результаты</text>
+<text x="76" y="900" class="muted small">Публикация — отдельное подтверждаемое действие. Сохранение черновика не делает результаты видимыми родителю/игроку.</text>
+</svg>

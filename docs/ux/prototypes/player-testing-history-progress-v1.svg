@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1080" viewBox="0 0 1280 1080">
+<defs><style>.bg{fill:#f4f6fa}.panel{fill:#fff;stroke:#dce2eb;stroke-width:1.3}.ink{fill:#182334;font-family:Inter,Arial,sans-serif}.muted{fill:#6c7889;font-family:Inter,Arial,sans-serif}.h1{font-size:26px;font-weight:700}.h2{font-size:18px;font-weight:700}.body{font-size:14px}.small{font-size:12px}.label{font-size:11px;font-weight:700;letter-spacing:.5px}.line{stroke:#e6eaf0;stroke-width:1}.blue{fill:#2458d3}.bt{fill:#2458d3;font-family:Arial,sans-serif}.green{fill:#e7f5ed}.gt{fill:#23744b;font-family:Arial,sans-serif}.amber{fill:#fff4df}.at{fill:#95600c;font-family:Arial,sans-serif}</style></defs>
+<rect width="1280" height="1080" class="bg"/>
+<text x="44" y="42" class="muted label">COACH APP · UX PROPOSAL · ISSUE #266</text>
+<text x="44" y="82" class="ink h1">История тестирований и личная динамика</text>
+<text x="44" y="108" class="muted body">Только сопоставимые результаты одного показателя · родитель и ребёнок видят одинаковую картину</text>
+<rect x="44" y="140" width="1192" height="884" rx="14" class="panel"/>
+<text x="76" y="184" class="ink h2">Прогресс игрока</text><text x="76" y="210" class="muted small">Георгий Метревели · U13-A</text>
+<rect x="76" y="238" width="1128" height="48" rx="8" fill="#f7f9fc"/>
+<text x="96" y="268" class="ink body" font-weight="700">Физические качества</text><text x="322" y="268" class="muted body">Технические качества</text><text x="536" y="268" class="muted body">Игровые качества</text><text x="756" y="268" class="muted body">Индивидуальные цели</text>
+<text x="76" y="338" class="ink h2">Спринт 20 метров</text><text x="76" y="361" class="muted small">Скорость · секунды · меньше — лучше</text>
+<rect x="76" y="382" width="700" height="284" rx="10" fill="#fff" stroke="#dce2eb"/>
+<text x="100" y="414" class="muted label">ЛИЧНАЯ ДИНАМИКА</text>
+<!-- graph -->
+<line x1="128" y1="460" x2="724" y2="460" class="line"/><line x1="128" y1="520" x2="724" y2="520" class="line"/><line x1="128" y1="580" x2="724" y2="580" class="line"/>
+<text x="96" y="465" class="muted small">3,8</text><text x="96" y="525" class="muted small">3,6</text><text x="96" y="585" class="muted small">3,4</text>
+<polyline points="170,474 360,515 550,552 700,574" fill="none" stroke="#2458d3" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+<g fill="#2458d3"><circle cx="170" cy="474" r="6"/><circle cx="360" cy="515" r="6"/><circle cx="550" cy="552" r="6"/><circle cx="700" cy="574" r="6"/></g>
+<text x="170" y="451" text-anchor="middle" class="ink small">3,76</text><text x="360" y="492" text-anchor="middle" class="ink small">3,62</text><text x="550" y="529" text-anchor="middle" class="ink small">3,49</text><text x="700" y="551" text-anchor="middle" class="ink small">3,42</text>
+<text x="170" y="620" text-anchor="middle" class="muted small">июнь</text><text x="360" y="620" text-anchor="middle" class="muted small">август</text><text x="550" y="620" text-anchor="middle" class="muted small">октябрь</text><text x="700" y="620" text-anchor="middle" class="muted small">ноябрь</text>
+<rect x="796" y="382" width="408" height="284" rx="10" fill="#f7f9fc"/>
+<text x="824" y="418" class="muted label">ПОСЛЕДНИЙ РЕЗУЛЬТАТ</text><text x="824" y="470" class="ink" font-family="Arial" font-size="38" font-weight="700">3,42 сек</text>
+<rect x="824" y="492" width="156" height="28" rx="14" class="green"/><text x="902" y="511" text-anchor="middle" class="gt small">Личный прогресс</text>
+<text x="824" y="555" class="muted small">Предыдущий сопоставимый: 3,49 сек</text><text x="824" y="579" class="muted small">Изменение: −0,07 сек</text>
+<text x="824" y="620" class="muted small">Методика и условия сопоставимы</text>
+<text x="76" y="714" class="ink h2">История результатов</text>
+<rect x="76" y="734" width="1128" height="42" rx="6" fill="#f0f3f8"/>
+<text x="96" y="760" class="ink label">ДАТА</text><text x="300" y="760" class="ink label">ТЕСТИРОВАНИЕ</text><text x="680" y="760" class="ink label">РЕЗУЛЬТАТ</text><text x="860" y="760" class="ink label">СРАВНИМОСТЬ</text><text x="1060" y="760" class="ink label">ДЕТАЛИ</text>
+<text x="96" y="810" class="ink body">12.11.2026</text><text x="300" y="810" class="ink body">Физическая подготовка</text><text x="680" y="810" class="ink body">3,42 сек</text><rect x="860" y="791" width="112" height="26" rx="13" class="green"/><text x="916" y="809" text-anchor="middle" class="gt small">Сопоставим</text><text x="1060" y="810" class="bt body">Открыть →</text><line x1="76" y1="832" x2="1204" y2="832" class="line"/>
+<text x="96" y="866" class="ink body">15.10.2026</text><text x="300" y="866" class="ink body">Контрольная сессия</text><text x="680" y="866" class="ink body">3,49 сек</text><rect x="860" y="847" width="112" height="26" rx="13" class="green"/><text x="916" y="865" text-anchor="middle" class="gt small">Сопоставим</text><text x="1060" y="866" class="bt body">Открыть →</text><line x1="76" y1="888" x2="1204" y2="888" class="line"/>
+<text x="96" y="922" class="ink body">20.08.2026</text><text x="300" y="922" class="ink body">Летнее тестирование</text><text x="680" y="922" class="ink body">3,62 сек</text><rect x="860" y="903" width="112" height="26" rx="13" class="green"/><text x="916" y="921" text-anchor="middle" class="gt small">Сопоставим</text><text x="1060" y="922" class="bt body">Открыть →</text>
+<rect x="76" y="950" width="1128" height="50" rx="8" class="amber"/><text x="96" y="980" class="at small">Если методика, единицы или условия отличаются, результаты не соединяются в график динамики.</text>
+</svg>

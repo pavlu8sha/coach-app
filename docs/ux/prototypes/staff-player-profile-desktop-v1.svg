@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1060" viewBox="0 0 1440 1060">
+<defs><style>
+.bg{fill:#f3f5f8}.white{fill:#fff}.navy{fill:#142b49}.ink{fill:#1d2b3d;font-family:Arial,sans-serif}.muted{fill:#728096;font-family:Arial,sans-serif}.blue{fill:#2563eb}.blueT{fill:#2563eb;font-family:Arial,sans-serif}.line{stroke:#e3e8ef}.h{font:bold 24px Arial}.h2{font:bold 17px Arial}.b{font:14px Arial}.s{font:12px Arial}.xs{font:10px Arial}.bold{font:bold 14px Arial}.label{font:bold 10px Arial;letter-spacing:1px}
+</style></defs>
+<rect width="1440" height="1060" class="bg"/><rect width="1440" height="64" class="navy"/>
+<text x="32" y="40" fill="#fff" class="h2">COACH APP</text><text x="190" y="40" fill="#dce6f4" class="b">Игроки / Карточка игрока</text><text x="1330" y="40" fill="#fff" class="s">Администратор ▾</text>
+<text x="32" y="112" class="muted s">Игроки  /  U13-A  /  Александр Беридзе</text><text x="32" y="154" class="ink h">Александр Беридзе</text><text x="32" y="181" class="muted b">U13-A · № — · Позиция — · Год рождения —</text>
+<rect x="1160" y="98" width="120" height="42" rx="7" class="white" stroke="#cbd5e1"/><text x="1220" y="124" text-anchor="middle" class="ink b">Назад к списку</text>
+<rect x="1292" y="98" width="116" height="42" rx="7" class="blue"/><text x="1350" y="124" text-anchor="middle" fill="#fff" class="bold">Действия ▾</text>
+<rect x="32" y="212" width="1376" height="158" rx="12" class="white"/>
+<rect x="52" y="232" width="108" height="108" rx="10" fill="#eaf0fa"/><text x="106" y="294" text-anchor="middle" class="blueT h">АБ</text>
+<text x="184" y="258" class="ink h2">Основная информация</text><text x="184" y="288" class="muted s">Группа</text><text x="184" y="311" class="ink b">U13-A</text><text x="350" y="288" class="muted s">Номер</text><text x="350" y="311" class="ink b">Не указан</text><text x="500" y="288" class="muted s">Позиция</text><text x="500" y="311" class="ink b">Не указана</text><text x="660" y="288" class="muted s">Год рождения</text><text x="660" y="311" class="ink b">Не указан</text>
+<text x="1000" y="278" class="muted s">СЛУЖЕБНЫЙ ПРОСМОТР</text><text x="1000" y="306" class="ink b">Права зависят от роли</text><text x="1000" y="330" class="blueT s">История изменений ›</text>
+<rect x="32" y="392" width="1376" height="58" rx="10" class="white"/>
+<rect x="48" y="402" width="122" height="38" rx="6" fill="#eaf1ff"/><text x="109" y="426" text-anchor="middle" class="blueT bold">Абонемент</text>
+<text x="196" y="426" class="muted b">К оплате</text><text x="300" y="426" class="muted b">Занятия</text><text x="396" y="426" class="muted b">Экипировка</text><text x="520" y="426" class="muted b">Матчи</text><text x="600" y="426" class="muted b">Баллы</text><text x="690" y="426" class="muted b">Развитие · предложение</text>
+<rect x="32" y="472" width="890" height="520" rx="12" class="white"/>
+<text x="58" y="514" class="ink h2">Сводка игрока</text><text x="58" y="540" class="muted s">Служебные данные; не заменяют родительский профиль</text>
+<rect x="58" y="566" width="260" height="110" rx="9" fill="#f7f9fc"/><text x="78" y="596" class="muted label">ТЕКУЩИЙ РАЗДЕЛ</text><text x="78" y="630" class="ink h2">Абонемент</text><text x="78" y="653" class="muted s">Данные действующего раздела</text>
+<rect x="336" y="566" width="260" height="110" rx="9" fill="#f7f9fc"/><text x="356" y="596" class="muted label">ЗАНЯТИЯ</text><text x="356" y="630" class="ink h2">Открыть историю</text><text x="356" y="653" class="muted s">Групповые данные не подменять агрегатами</text>
+<rect x="614" y="566" width="282" height="110" rx="9" fill="#f7f9fc"/><text x="634" y="596" class="muted label">РАЗВИТИЕ · PROPOSAL</text><text x="634" y="630" class="ink h2">Тесты и цели</text><text x="634" y="653" class="muted s">Только после согласования источников</text>
+<text x="58" y="724" class="ink h2">Развитие игрока</text><text x="58" y="750" class="muted s">Предлагаемая служебная область для тренера/администратора</text>
+<rect x="58" y="776" width="838" height="74" rx="8" fill="#f7f9fc"/><text x="78" y="806" class="ink b">Последнее опубликованное тестирование</text><text x="78" y="830" class="muted s">Если данных нет — показать пустое состояние, не нулевые показатели</text>
+<rect x="58" y="866" width="838" height="74" rx="8" fill="#f7f9fc"/><text x="78" y="896" class="ink b">Активные индивидуальные цели</text><text x="78" y="920" class="muted s">Тренер управляет; родитель и ребёнок только просматривают / предлагают цель</text>
+<rect x="944" y="472" width="464" height="520" rx="12" class="white"/>
+<text x="970" y="514" class="ink h2">Быстрые переходы</text>
+<text x="970" y="540" class="muted s">Только доступные сотруднику действия</text>
+<g class="b ink">
+<rect x="970" y="566" width="412" height="52" rx="8" fill="#f7f9fc"/><text x="990" y="598">Открыть матчи</text><text x="1358" y="598" text-anchor="end" class="muted">›</text>
+<rect x="970" y="630" width="412" height="52" rx="8" fill="#f7f9fc"/><text x="990" y="662">Открыть баллы</text><text x="1358" y="662" text-anchor="end" class="muted">›</text>
+<rect x="970" y="694" width="412" height="52" rx="8" fill="#f7f9fc"/><text x="990" y="726">Перейти к тестированиям</text><text x="1358" y="726" text-anchor="end" class="muted">›</text>
+<rect x="970" y="758" width="412" height="52" rx="8" fill="#f7f9fc"/><text x="990" y="790">Перейти к индивидуальным целям</text><text x="1358" y="790" text-anchor="end" class="muted">›</text>
+</g>
+<rect x="970" y="840" width="412" height="112" rx="8" fill="#fff4df"/><text x="990" y="870" class="ink bold">Граница данных</text><text x="990" y="895" class="ink s">История групповых тренировок пока не</text><text x="990" y="914" class="ink s">подтверждена как персональный источник.</text><text x="990" y="933" class="ink s">Не показывать выдуманные записи.</text>
+<text x="32" y="1030" class="muted xs">DESKTOP WIREFRAME · PROPOSAL · существующие вкладки отделены от новой области «Развитие»</text>
+</svg>

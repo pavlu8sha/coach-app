@@ -106,7 +106,9 @@ select is(
         -- 0136: возврат отметок из снимка после переноса; доступ проверяется внутри
         'match_rsvp_restore_marks',
         -- 0160: самозапись на сборы. camp_parent_register: опекун ребёнка (проверка внутри); остальные: администратор или справочные данные
-        'camp_set_public', 'camp_terms_save', 'camp_parent_register', 'camp_seats', 'camp_public', 'camp_visible_to_parent', 'camp_has_my_child')),
+        'camp_set_public', 'camp_terms_save', 'camp_parent_register', 'camp_seats', 'camp_public', 'camp_visible_to_parent', 'camp_has_my_child',
+        -- 0161: гостевые заявки (camp_apply: вошедший пользователь; camp_application_decide: администратор; camp_owns_participant: для политик RLS)
+        'camp_apply', 'camp_application_decide', 'camp_owns_participant')),
   '', 'список функций, доступных вошедшим пользователям, не расширился без решения');
 
 select is(

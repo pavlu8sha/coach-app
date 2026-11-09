@@ -2,7 +2,7 @@
 -- Условия приёмки: docs/CONSENT_PR2A_ACCEPTANCE.md (П1-П10, С1-С5).
 begin;
 create extension if not exists pgtap;
-select plan(68);
+select plan(69);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -117,7 +117,10 @@ select is((select count(*)::int from player_guardians g join legacy_before l usi
             where g.consent_version is distinct from l.consent_version or g.consent_given_at is distinct from l.consent_given_at or g.consent_revoked_at is distinct from l.consent_revoked_at), 0, 'П9: старые consent_* не изменены никакой функцией');
 
 -- П10: права
-select is((select count(*)::int from pg_proc where proname in ('accept_consent', 'revoke_parent_consent') and (has_function_privilege('anon', oid, 'execute') or has_function_privilege('public', oid, 'execute'))), 0, 'гостю функции согласий недоступны');
+select is((select count(*)::int from pg_proc where proname in ('accept_consent', 'revoke_parent_consent') and has_function_privilege('anon', oid, 'execute')), 0, 'гостю (anon) функции согласий недоступны');
+-- PUBLIC — псевдороль: проверяем через ACL функции (grantee = 0), в том числе для служебных функций
+select is((select count(*)::int from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname in ('accept_consent', 'revoke_parent_consent', 'consent_record', 'consent_on_link_delete', 'consent_versions_lock', 'consent_links_lock')
+            and exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a where a.grantee = 0 and a.privilege_type = 'EXECUTE')), 0, 'PUBLIC не имеет EXECUTE на функциях согласий (по ACL)');
 select is((select count(*)::int from pg_proc where proname in ('accept_consent', 'revoke_parent_consent') and has_function_privilege('authenticated', oid, 'execute')), 2, 'вошедшему доступны две функции');
 select is((select count(*)::int from pg_proc where proname in ('consent_record', 'consent_on_link_delete', 'consent_versions_lock', 'consent_links_lock')
             and (has_function_privilege('authenticated', oid, 'execute') or has_function_privilege('anon', oid, 'execute') or has_function_privilege('service_role', oid, 'execute'))), 0, 'внутренние функции записи недоступны ролям приложения и service_role');
