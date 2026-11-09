@@ -367,7 +367,11 @@ describe('Экипировка: выгрузка в CSV (docs/acceptance/eq-expo
     ];
   };
   const writeText = vi.fn(() => Promise.resolve());
-  afterEach(() => { vi.restoreAllMocks(); writeText.mockClear(); });
+  afterEach(() => {
+    vi.restoreAllMocks(); writeText.mockClear();
+    delete (window as unknown as { Telegram?: unknown }).Telegram;
+    delete (navigator as unknown as { share?: unknown }).share; delete (navigator as unknown as { canShare?: unknown }).canShare;
+  });
   const mockClipboard = () => Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
   const copied = () => (writeText.mock.calls[0] as unknown as [string])[0];
 
@@ -449,5 +453,61 @@ describe('Экипировка: выгрузка в CSV (docs/acceptance/eq-expo
     fireEvent.click(screen.getByRole('button', { name: 'Скопировать' }));
     expect(await screen.findByRole('status')).toHaveTextContent(/boom|Не удалось/);
     expect(writeText).not.toHaveBeenCalled();
+  });
+
+  describe('внутри Telegram Mini App (условия 14-16)', () => {
+    const inTelegram = () => { (window as unknown as { Telegram: unknown }).Telegram = { WebApp: { initData: 'query_id=1', ready() {}, expand() {}, themeParams: {} } }; };
+    const spyLinks = () => {
+      const create = vi.fn(() => 'blob:x');
+      Object.defineProperty(URL, 'createObjectURL', { value: create, configurable: true });
+      Object.defineProperty(URL, 'revokeObjectURL', { value: vi.fn(), configurable: true });
+      return { create, click: vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {}) };
+    };
+    const setShare = (share: (d: ShareData) => Promise<void>, can = true) => {
+      Object.defineProperty(navigator, 'share', { value: share, configurable: true });
+      Object.defineProperty(navigator, 'canShare', { value: () => can, configurable: true });
+    };
+
+    it('условие 14: файл уходит в меню «Поделиться», ссылка на файл не открывается', async () => {
+      seedExport(); inTelegram();
+      const { create, click } = spyLinks();
+      const share = vi.fn(() => Promise.resolve());
+      setShare(share);
+      render(<Equipment />);
+      await screen.findByText('Иванов Пётр');
+      fireEvent.click(screen.getByRole('button', { name: 'Скачать CSV' }));
+      await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+      const file = ((share.mock.calls[0] as unknown as [ShareData])[0].files ?? [])[0];
+      expect(file.name).toBe(`equipment-${today()}.csv`);
+      expect(create).not.toHaveBeenCalled();
+      expect(click).not.toHaveBeenCalled();
+    });
+
+    it('условие 15: телефон не умеет делиться файлами, окно не уводим, объясняем про «Скопировать»', async () => {
+      seedExport(); inTelegram();
+      const { create, click } = spyLinks();
+      render(<Equipment />);
+      await screen.findByText('Иванов Пётр');
+      fireEvent.click(screen.getByRole('button', { name: 'Скачать CSV' }));
+      expect(await screen.findByText(/в Telegram файл скачать нельзя/i)).toBeInTheDocument();
+      expect(screen.getByText('Экипировка')).toBeInTheDocument();
+      expect(create).not.toHaveBeenCalled();
+      expect(click).not.toHaveBeenCalled();
+    });
+
+    it('условие 16: отмена меню без ошибки, другая ошибка с советом', async () => {
+      seedExport(); inTelegram(); spyLinks();
+      const share = vi.fn(() => Promise.reject(Object.assign(new Error('cancel'), { name: 'AbortError' })));
+      setShare(share);
+      render(<Equipment />);
+      await screen.findByText('Иванов Пётр');
+      fireEvent.click(screen.getByRole('button', { name: 'Скачать CSV' }));
+      await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Скачать CSV' })).toBeEnabled());
+      expect(screen.queryByRole('status')).toBeNull();
+      share.mockImplementationOnce(() => Promise.reject(Object.assign(new Error('x'), { name: 'NotAllowedError' })));
+      fireEvent.click(screen.getByRole('button', { name: 'Скачать CSV' }));
+      expect(await screen.findByText(/нажмите «Скачать CSV» ещё раз/)).toBeInTheDocument();
+    });
   });
 });

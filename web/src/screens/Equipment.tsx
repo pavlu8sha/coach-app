@@ -10,6 +10,7 @@ import { useConfirm } from '../ui/ConfirmSheet';
 import { settingNumberError, useClubSettings } from '../lib/clubSettings';
 import { bundleDiscount, priorAmount } from '../lib/equipmentDiscount';
 import { CSV_BOM, csvFileName, equipmentCsv } from '../lib/equipmentExport';
+import { initData } from '../lib/telegram';
 import { allKitsIssued, EQUIPMENT_REQUIRED_KEY, EQUIPMENT_REQUIRED_TEXT, issueStateLabel, lastStatusDate, nextStatus, orderStatusLabel, prevStatus, type StatusEvent } from '../lib/equipment';
 
 interface Line { id?: string; kit: string; size: string | null; quantity: number; unit_price?: number | string | null }
@@ -168,6 +169,20 @@ export default function Equipment() {
           setExportMsg({ ok: true, text: 'Список скопирован.' });
         } catch {
           setExportMsg({ ok: false, text: 'Не удалось скопировать список. Нажмите «Скопировать» ещё раз.' });
+        }
+        return;
+      }
+      if (initData()) {
+        // В Mini App переход по blob-ссылке уводит окно со страницы приложения (и ломает «Назад»): отдаём файл через системное меню «Поделиться».
+        const file = new File([csv], csvFileName(today()), { type: 'text/csv' });
+        if (typeof navigator.canShare !== 'function' || typeof navigator.share !== 'function' || !navigator.canShare({ files: [file] })) {
+          return setExportMsg({ ok: false, text: 'В Telegram файл скачать нельзя: нажмите «Скопировать» и вставьте список в таблицу или откройте приложение в браузере.' });
+        }
+        try {
+          await navigator.share({ files: [file] });
+          setExportMsg({ ok: true, text: 'Файл передан в меню «Поделиться».' });
+        } catch (e) {
+          if ((e as { name?: string }).name !== 'AbortError') setExportMsg({ ok: false, text: 'Не удалось открыть меню «Поделиться»: нажмите «Скачать CSV» ещё раз или «Скопировать».' });
         }
         return;
       }
