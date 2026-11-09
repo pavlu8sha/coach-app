@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1180" viewBox="0 0 1800 1180">
+<defs>
+ <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#08172d"/><stop offset="1" stop-color="#142d4d"/></linearGradient>
+ <linearGradient id="hero" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#173e63"/><stop offset="1" stop-color="#0b203a"/></linearGradient>
+ <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#b9f36a"/><stop offset="1" stop-color="#7ed957"/></linearGradient>
+ <filter id="shadow" x="-30%" y="-20%" width="160%" height="160%"><feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#020817" flood-opacity=".28"/></filter>
+ <style>
+ .h{font-family:Inter,Arial,sans-serif;font-weight:700}.m{font-family:Inter,Arial,sans-serif;font-weight:500}.muted{fill:#8b9bb0}.white{fill:#f7f9fc}.dark{fill:#10233c}.green{fill:#b9f36a}.small{font-size:13px}.tiny{font-size:11px}
+ </style>
+</defs>
+<rect width="1800" height="1180" fill="#edf1f5"/>
+<text x="90" y="82" class="h" font-size="34" fill="#10233c">Профиль игрока · родительский интерфейс</text>
+<text x="90" y="118" class="m" font-size="17" fill="#607086">Визуальная концепция v1 · mobile 390 px · данные в макете демонстрационные</text>
+<rect x="90" y="150" width="1620" height="1" fill="#d4dce5"/>
+<!-- phone 1 -->
+<g transform="translate(120 195)" filter="url(#shadow)">
+ <rect width="440" height="900" rx="42" fill="#0b1728"/>
+ <rect x="12" y="12" width="416" height="876" rx="32" fill="#f5f7fa"/>
+ <rect x="12" y="12" width="416" height="38" rx="25" fill="#f5f7fa"/>
+ <text x="34" y="37" class="h dark" font-size="14">9:41</text><text x="375" y="37" class="m dark" font-size="12">●●●</text>
+ <text x="36" y="92" class="h dark" font-size="19">Мой ребёнок</text>
+ <text x="36" y="119" class="m muted" font-size="13">Профиль игрока</text>
+ <rect x="28" y="143" width="384" height="240" rx="22" fill="url(#hero)"/>
+ <circle cx="220" cy="235" r="66" fill="#244d70" stroke="#6685a0" stroke-width="2"/>
+ <circle cx="220" cy="214" r="25" fill="#d5e0e9"/><path d="M173 281 Q220 225 267 281 L267 295 L173 295Z" fill="#d5e0e9"/>
+ <text x="220" y="322" text-anchor="middle" class="h white" font-size="22">Деметре Махашвили</text>
+ <text x="220" y="348" text-anchor="middle" class="m" fill="#c4d1df" font-size="13">U13-A · 2013 · № 10</text>
+ <rect x="49" y="361" width="342" height="1" fill="#49627c"/>
+ <text x="220" y="377" text-anchor="middle" class="h green" font-size="11" letter-spacing="1">KICKSTART</text>
+ <text x="36" y="426" class="h dark" font-size="17">Сезон 2026/27</text>
+ <rect x="28" y="446" width="184" height="94" rx="16" fill="#fff"/>
+ <rect x="224" y="446" width="188" height="94" rx="16" fill="#fff"/>
+ <text x="48" y="476" class="m muted small">Матчи</text><text x="48" y="516" class="h dark" font-size="30">12</text>
+ <text x="244" y="476" class="m muted small">Голы</text><text x="244" y="516" class="h dark" font-size="30">8</text>
+ <rect x="28" y="554" width="384" height="102" rx="16" fill="#fff"/>
+ <text x="48" y="584" class="h dark" font-size="15">Баллы игрока</text><text x="48" y="624" class="h dark" font-size="28">24</text>
+ <text x="115" y="622" class="m muted small">за сезон</text>
+ <rect x="310" y="578" width="78" height="32" rx="16" fill="#edf7df"/><text x="349" y="599" text-anchor="middle" class="h" fill="#477b28" font-size="12">Журнал</text>
+ <rect x="28" y="670" width="384" height="74" rx="16" fill="#fff"/>
+ <text x="48" y="699" class="h dark" font-size="15">Последнее обновление</text><text x="48" y="723" class="m muted small">Баллы · 3 ноября 2026</text>
+ <rect x="28" y="758" width="384" height="54" rx="14" fill="#122b48"/>
+ <text x="220" y="791" text-anchor="middle" class="h white" font-size="14">Открыть карточку игрока ↗</text>
+ <rect x="12" y="828" width="416" height="60" rx="0" fill="#fff"/>
+ <path d="M12 828H428" stroke="#e3e8ee"/>
+ <g class="m" font-size="10" fill="#738196" text-anchor="middle"><text x="57" y="861">Ребёнок</text><text x="139" y="861">Расписание</text><text x="220" y="861">Матчи</text><text x="301" y="861">Оплата</text><text x="382" y="861">Профиль</text></g>
+ <circle cx="57" cy="846" r="4" fill="#76b83f"/>
+</g>
+<!-- phone 2 -->
+<g transform="translate(680 195)" filter="url(#shadow)">
+ <rect width="440" height="900" rx="42" fill="#0b1728"/><rect x="12" y="12" width="416" height="876" rx="32" fill="#f5f7fa"/>
+ <text x="34" y="37" class="h dark" font-size="14">9:41</text><text x="375" y="37" class="m dark" font-size="12">●●●</text>
+ <text x="36" y="92" class="h dark" font-size="19">Матчи</text><text x="36" y="119" class="m muted" font-size="13">Деметре Махашвили · U13-A</text>
+ <rect x="28" y="145" width="384" height="48" rx="14" fill="#e8edf2"/>
+ <rect x="32" y="149" width="124" height="40" rx="11" fill="#fff"/>
+ <text x="94" y="174" text-anchor="middle" class="h dark" font-size="12">Все</text>
+ <text x="220" y="174" text-anchor="middle" class="m muted" font-size="12">Предстоящие</text><text x="345" y="174" text-anchor="middle" class="m muted" font-size="12">Прошедшие</text>
+ <text x="36" y="232" class="h dark" font-size="17">Участие в матчах</text>
+ <rect x="28" y="250" width="384" height="100" rx="16" fill="#fff"/>
+ <circle cx="60" cy="285" r="18" fill="#e9f4df"/><text x="60" y="290" text-anchor="middle" class="h" fill="#4f862d" font-size="13">В</text>
+ <text x="91" y="281" class="h dark" font-size="14">Kickstart — Faskunji</text><text x="91" y="305" class="m muted small">2 ноября · GAFA League</text><text x="365" y="292" text-anchor="end" class="h dark" font-size="19">2:0</text>
+ <text x="91" y="332" class="m" fill="#4f862d" font-size="11">Участие отмечено</text>
+ <rect x="28" y="362" width="384" height="100" rx="16" fill="#fff"/>
+ <circle cx="60" cy="397" r="18" fill="#f1f3f6"/><text x="60" y="402" text-anchor="middle" class="h muted" font-size="13">П</text>
+ <text x="91" y="393" class="h dark" font-size="14">Kickstart — Olimpi</text><text x="91" y="417" class="m muted small">26 октября · GAFA League</text><text x="365" y="404" text-anchor="end" class="h dark" font-size="19">1:1</text>
+ <text x="91" y="444" class="m muted" font-size="11">Участие не указано</text>
+ <rect x="28" y="474" width="384" height="100" rx="16" fill="#fff"/>
+ <circle cx="60" cy="509" r="18" fill="#fbe9e7"/><text x="60" y="514" text-anchor="middle" class="h" fill="#b45b51" font-size="13">П</text>
+ <text x="91" y="505" class="h dark" font-size="14">Kickstart — Terminal</text><text x="91" y="529" class="m muted small">19 октября · GAFA League</text><text x="365" y="516" text-anchor="end" class="h dark" font-size="19">0:1</text>
+ <text x="91" y="556" class="m" fill="#b45b51" font-size="11">Участие отмечено</text>
+ <rect x="28" y="598" width="384" height="106" rx="16" fill="#fff7e6" stroke="#f0d8a8"/>
+ <text x="48" y="628" class="h dark" font-size="14">Важно об участии</text>
+ <text x="48" y="653" class="m dark" font-size="12">Если участие игрока не зафиксировано,</text><text x="48" y="673" class="m dark" font-size="12">мы не делаем вывод, что он не играл.</text>
+ <text x="36" y="753" class="m muted small">Показаны только матчи, связанные с игроком.</text>
+ <rect x="12" y="828" width="416" height="60" fill="#fff"/><path d="M12 828H428" stroke="#e3e8ee"/>
+ <g class="m" font-size="10" fill="#738196" text-anchor="middle"><text x="57" y="861">Ребёнок</text><text x="139" y="861">Расписание</text><text x="220" y="861" fill="#477b28">Матчи</text><text x="301" y="861">Оплата</text><text x="382" y="861">Профиль</text></g><circle cx="220" cy="846" r="4" fill="#76b83f"/>
+</g>
+<!-- phone 3 -->
+<g transform="translate(1240 195)" filter="url(#shadow)">
+ <rect width="440" height="900" rx="42" fill="#0b1728"/><rect x="12" y="12" width="416" height="876" rx="32" fill="#f5f7fa"/>
+ <text x="34" y="37" class="h dark" font-size="14">9:41</text><text x="375" y="37" class="m dark" font-size="12">●●●</text>
+ <text x="36" y="92" class="h dark" font-size="19">Баллы</text><text x="36" y="119" class="m muted" font-size="13">Деметре Махашвили · личный журнал</text>
+ <rect x="28" y="145" width="384" height="152" rx="18" fill="url(#hero)"/>
+ <text x="52" y="181" class="m" fill="#c4d1df" font-size="13">Всего баллов</text><text x="52" y="246" class="h white" font-size="54">24</text>
+ <rect x="284" y="184" width="94" height="76" rx="14" fill="#244d70"/><text x="331" y="216" text-anchor="middle" class="h green" font-size="24">+5</text><text x="331" y="239" text-anchor="middle" class="m white" font-size="10">за матч</text>
+ <text x="36" y="341" class="h dark" font-size="17">История начислений</text>
+ <rect x="28" y="360" width="384" height="86" rx="15" fill="#fff"/>
+ <circle cx="59" cy="403" r="16" fill="#edf7df"/><text x="59" y="408" text-anchor="middle" class="h" fill="#4f862d" font-size="14">+</text>
+ <text x="89" y="394" class="h dark" font-size="14">Участие в матче</text><text x="89" y="418" class="m muted small">2 ноября · Kickstart — Faskunji</text><text x="380" y="408" text-anchor="end" class="h" fill="#4f862d" font-size="18">+3</text>
+ <rect x="28" y="458" width="384" height="86" rx="15" fill="#fff"/>
+ <circle cx="59" cy="501" r="16" fill="#edf7df"/><text x="59" y="506" text-anchor="middle" class="h" fill="#4f862d" font-size="14">+</text>
+ <text x="89" y="492" class="h dark" font-size="14">Тренировочная активность</text><text x="89" y="516" class="m muted small">31 октября · U13-A</text><text x="380" y="506" text-anchor="end" class="h" fill="#4f862d" font-size="18">+2</text>
+ <rect x="28" y="556" width="384" height="86" rx="15" fill="#fff"/>
+ <circle cx="59" cy="599" r="16" fill="#edf7df"/><text x="59" y="604" text-anchor="middle" class="h" fill="#4f862d" font-size="14">+</text>
+ <text x="89" y="590" class="h dark" font-size="14">Игровое достижение</text><text x="89" y="614" class="m muted small">24 октября · U13-A</text><text x="380" y="604" text-anchor="end" class="h" fill="#4f862d" font-size="18">+1</text>
+ <rect x="28" y="668" width="384" height="92" rx="15" fill="#fff"/>
+ <text x="48" y="700" class="h dark" font-size="14">Групповое сравнение</text><text x="48" y="725" class="m muted small">Доступно только для объективных тестов.</text><text x="48" y="744" class="m muted small">Баллы не являются рейтингом игрока.</text>
+ <text x="36" y="795" class="m muted tiny">Демонстрационные записи — не реальные данные.</text>
+ <rect x="12" y="828" width="416" height="60" fill="#fff"/><path d="M12 828H428" stroke="#e3e8ee"/>
+ <g class="m" font-size="10" fill="#738196" text-anchor="middle"><text x="57" y="861">Ребёнок</text><text x="139" y="861">Расписание</text><text x="220" y="861">Матчи</text><text x="301" y="861">Оплата</text><text x="382" y="861">Профиль</text></g><circle cx="57" cy="846" r="4" fill="#76b83f"/>
+</g>
+<text x="340" y="1135" text-anchor="middle" class="h" fill="#607086" font-size="14">01 · Обзор</text>
+<text x="900" y="1135" text-anchor="middle" class="h" fill="#607086" font-size="14">02 · Матчи</text>
+<text x="1460" y="1135" text-anchor="middle" class="h" fill="#607086" font-size="14">03 · Баллы</text>
+</svg>
