@@ -454,11 +454,8 @@ ul.policy { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 8px
 .ks-expandable > .ks-expandable-box > textarea { font: inherit; font-size: 1rem; padding: 12px 48px 12px 12px; width: 100%; box-sizing: border-box; border-radius: var(--ks-radius); border: 1px solid var(--ks-border-strong); background: var(--bg-2); color: var(--fg); }
 .ks-expand-btn { position: absolute; top: 6px; right: 6px; width: 36px; height: 36px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 50%; background: transparent; color: var(--muted, inherit); cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .ks-expand-btn:focus-visible { outline: 3px solid var(--ks-primary); outline-offset: 2px; }
-.ks-expandable.is-expanded {
-  position: fixed; inset: 0; z-index: 1000; margin: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-  background: var(--ks-surface, #ffffff); overflow: hidden; box-sizing: border-box;
-}
-.ks-expandable.is-expanded > label { padding: 8px 52px 8px 0; min-height: 28px; }
-.ks-expandable.is-expanded > .ks-expandable-box { position: static; flex: 1 1 auto; min-height: 0; }
-.ks-expandable.is-expanded > .ks-expandable-box > textarea { flex: 1 1 auto; min-height: 0; resize: none; overflow-y: auto; border: 0; background: transparent; padding: 4px 0 12px; font-size: 1.0625rem; line-height: 1.5; }
-.ks-expandable.is-expanded > .ks-expandable-box > .ks-expand-btn { top: 8px; right: 12px; background: var(--bg-2); }
+.ks-expand-layer { position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: var(--ks-surface, #ffffff); color: var(--fg); box-sizing: border-box; overflow: hidden; }
+.ks-expand-layer > label { padding: 8px 52px 8px 0; min-height: 28px; font-size: 0.85rem; color: var(--muted, inherit); }
+.ks-expand-layer > .ks-expandable-box { position: static; flex: 1 1 auto; min-height: 0; }
+.ks-expand-layer textarea { flex: 1 1 auto; min-height: 0; width: 100%; box-sizing: border-box; resize: none; overflow-y: auto; border: 0; background: transparent; color: inherit; font: inherit; font-size: 1.0625rem; line-height: 1.5; padding: 4px 0 12px; outline: none; }
+.ks-expand-layer .ks-expand-btn { position: absolute; top: 8px; right: 12px; background: var(--bg-2); }
