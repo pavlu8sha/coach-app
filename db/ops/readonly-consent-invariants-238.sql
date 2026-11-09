@@ -9,4 +9,6 @@ union all select 'версий с будущей датой, закрытых д
 union all select 'событий истории со ссылкой на несуществующую версию (ожидается 0)',
        (select count(*)::text from parental_consent_events e where not exists (select 1 from consent_doc_versions v where v.id = e.version_id))
 union all select 'строк состояния без собственного события (ожидается 0)',
-       (select count(*)::text from parental_consents c where c.status <> 'pending' and not exists (select 1 from parental_consent_events e where e.id = c.last_event_id));
+       (select count(*)::text from parental_consents c where c.status <> 'pending' and not exists (select 1 from parental_consent_events e where e.id = c.last_event_id))
+union all select 'защитные триггеры согласий включены (ожидается 8 после 0159, 11 после 0161)',
+       (select count(*)::text from pg_trigger where not tgisinternal and tgenabled = 'O' and tgname in ('consent_doc_versions_no_rewrite', 'consent_doc_versions_keep_open', 'consent_doc_versions_no_delete', 'consent_doc_versions_no_truncate', 'parental_consent_events_guard', 'parental_consent_events_no_change', 'parental_consent_events_no_truncate', 'parental_consents_guard', 'consent_versions_lock', 'consent_links_lock', 'consent_on_link_delete'));
