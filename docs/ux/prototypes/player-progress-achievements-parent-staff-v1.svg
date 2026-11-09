@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="1500" viewBox="0 0 1120 1500">
+<defs><style>
+.bg{fill:#f3f5f8}.panel{fill:#fff;stroke:#dce2ea;stroke-width:2}.navy{fill:#101f3c}.blue{fill:#2563eb}.muted{fill:#68758a}.ink{fill:#18243a}.line{stroke:#e3e8ef;stroke-width:2}.tag{fill:#eaf1ff}.green{fill:#e8f5ed}.amber{fill:#fff4df}.h1{font:700 30px Arial}.h2{font:700 22px Arial}.body{font:16px Arial}.small{font:13px Arial}.bold{font-weight:700}
+</style></defs>
+<rect width="1120" height="1500" class="bg"/>
+<text x="48" y="55" class="h1 ink">A24 · Прогресс и достижения — родитель / ребёнок</text>
+<text x="48" y="84" class="body muted">Мобильная концепция · данные и примеры не подставляются · PROPOSAL</text>
+<!-- frame 1 -->
+<rect x="48" y="120" width="480" height="1320" rx="28" class="panel"/>
+<rect x="48" y="120" width="480" height="78" rx="28" class="navy"/>
+<text x="78" y="168" fill="#fff" class="h2">Профиль игрока</text>
+<text x="78" y="235" class="small muted">РЕБЁНОК · ОБЩИЙ ВИД ДЛЯ РОДИТЕЛЯ И ИГРОКА</text>
+<text x="78" y="282" class="h1 ink">Прогресс</text>
+<text x="78" y="314" class="body muted">Личные результаты и развитие</text>
+<rect x="78" y="345" width="420" height="108" rx="16" class="tag"/>
+<text x="100" y="380" class="h2 ink">Тестирования</text>
+<text x="100" y="410" class="body muted">История измеряемых результатов</text>
+<text x="100" y="435" class="small blue">Открыть историю →</text>
+<text x="78" y="500" class="h2 ink">Личная динамика</text>
+<rect x="78" y="522" width="420" height="170" rx="14" class="panel"/>
+<text x="100" y="560" class="body muted">Выберите тест, чтобы увидеть</text>
+<text x="100" y="584" class="body muted">сопоставимые результаты во времени.</text>
+<rect x="100" y="610" width="376" height="54" rx="10" fill="#f3f5f8"/>
+<text x="118" y="643" class="body muted">Тест не выбран</text>
+<text x="78" y="744" class="h2 ink">Сравнение с группой</text>
+<rect x="78" y="766" width="420" height="220" rx="14" class="panel"/>
+<text x="100" y="804" class="body muted">Только для выбранной сессии</text>
+<text x="100" y="842" class="body ink">Ваше место</text><text x="450" y="842" text-anchor="end" class="body bold ink">—</text>
+<line x1="100" y1="858" x2="476" y2="858" class="line"/>
+<text x="100" y="892" class="body ink">Лучший результат группы</text><text x="450" y="892" text-anchor="end" class="body bold ink">—</text>
+<line x1="100" y1="908" x2="476" y2="908" class="line"/>
+<text x="100" y="942" class="body ink">Средний результат группы</text><text x="450" y="942" text-anchor="end" class="body bold ink">—</text>
+<text x="100" y="970" class="small muted">Без имён и индивидуальных результатов других игроков</text>
+<text x="78" y="1040" class="h2 ink">Индивидуальные цели</text>
+<rect x="78" y="1062" width="420" height="118" rx="14" class="panel"/>
+<text x="100" y="1100" class="body ink">Цели тренера</text>
+<text x="100" y="1130" class="body muted">Просмотр текущих задач и комментариев</text>
+<text x="100" y="1158" class="small blue">Перейти к целям →</text>
+<text x="78" y="1230" class="h2 ink">Достижения</text>
+<rect x="78" y="1252" width="420" height="142" rx="14" class="amber"/>
+<text x="100" y="1292" class="body bold ink">Раздел готовится</text>
+<text x="100" y="1322" class="body ink">Здесь появятся достижения клуба,</text>
+<text x="100" y="1348" class="body ink">когда будут утверждены правила</text>
+<text x="100" y="1374" class="body ink">их получения и отображения.</text>
+<!-- frame 2 -->
+<rect x="592" y="120" width="480" height="1320" rx="28" class="panel"/>
+<rect x="592" y="120" width="480" height="78" rx="28" class="navy"/>
+<text x="622" y="168" fill="#fff" class="h2">Служебный просмотр</text>
+<text x="622" y="235" class="small muted">ТРЕНЕР / АДМИНИСТРАТОР · DESKTOP ADAPTATION</text>
+<text x="622" y="282" class="h1 ink">Развитие игрока</text>
+<text x="622" y="314" class="body muted">Разделение данных по назначению</text>
+<rect x="622" y="345" width="420" height="180" rx="14" class="panel"/>
+<text x="646" y="384" class="h2 ink">Тестирования</text>
+<text x="646" y="418" class="body muted">История сессий · результаты · попытки</text>
+<text x="646" y="450" class="body muted">Исправления и причины доступны</text>
+<text x="646" y="476" class="body muted">в рамках служебных прав.</text>
+<rect x="622" y="550" width="420" height="190" rx="14" class="panel"/>
+<text x="646" y="590" class="h2 ink">Индивидуальные цели</text>
+<text x="646" y="624" class="body muted">Назначение и изменение — тренер.</text>
+<text x="646" y="654" class="body muted">Администратор — просмотр в рамках</text>
+<text x="646" y="680" class="body muted">своих полномочий клуба.</text>
+<text x="646" y="712" class="small blue">История изменений сохраняется</text>
+<rect x="622" y="765" width="420" height="230" rx="14" class="tag"/>
+<text x="646" y="805" class="h2 ink">Баллы ≠ тесты ≠ достижения</text>
+<text x="646" y="846" class="body ink">Баллы</text><text x="1018" y="846" text-anchor="end" class="body muted">отдельный журнал</text>
+<line x1="646" y1="864" x2="1018" y2="864" class="line"/>
+<text x="646" y="900" class="body ink">Тесты</text><text x="1018" y="900" text-anchor="end" class="body muted">измеряемые показатели</text>
+<line x1="646" y1="918" x2="1018" y2="918" class="line"/>
+<text x="646" y="954" class="body ink">Достижения</text><text x="1018" y="954" text-anchor="end" class="body muted">правила ещё не утверждены</text>
+<text x="622" y="1050" class="h2 ink">Состояние раздела «Достижения»</text>
+<rect x="622" y="1072" width="420" height="190" rx="14" class="amber"/>
+<text x="646" y="1112" class="body bold ink">Не создавать фиктивные награды</text>
+<text x="646" y="1148" class="body ink">До определения источника данных,</text>
+<text x="646" y="1176" class="body ink">условий получения и прав публикации</text>
+<text x="646" y="1204" class="body ink">показываем нейтральное состояние.</text>
+<text x="622" y="1320" class="h2 ink">Права и приватность</text>
+<text x="622" y="1355" class="body muted">Родитель/ребёнок: только свои данные.</text>
+<text x="622" y="1383" class="body muted">Сотрудники: только разрешённые группы/клуб.</text>
+<text x="48" y="1470" class="small muted">Все пустые значения намеренно обозначены тире. Никаких вымышленных показателей, медалей или прогресс-метрик.</text>
+</svg>
