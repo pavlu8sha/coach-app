@@ -2,7 +2,7 @@
 -- Условия приёмки: docs/CONSENT_PR2A_ACCEPTANCE.md (П1-П10, С1-С5).
 begin;
 create extension if not exists pgtap;
-select plan(67);
+select plan(68);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -170,6 +170,8 @@ select is((select count(*)::int from player_guardians where user_id = '00000000-
 select is((select status from parental_consents where parent_user_id = '00000000-0000-0000-0000-0000000000b2' and consent_type = 'data_processing'), 'revoked', 'С1: erase_parent записал отзыв');
 select is((select count(*)::int from parental_consent_events where parent_user_id = '00000000-0000-0000-0000-0000000000b2'), 2, 'С3: история сохранена (принятие и отзыв)');
 select is((select count(*)::int from users where id = '00000000-0000-0000-0000-0000000000b2'), 1, 'С3: пользователь не удалён');
+
+select is((select count(*)::int from parental_consent_events a join parental_consent_events b on b.parent_user_id = a.parent_user_id and b.player_id = a.player_id and b.consent_type = a.consent_type and b.id > a.id and b.occurred_at < a.occurred_at), 0, 'П7а: время событий пары и типа не убывает по порядку записи');
 
 -- Б: триггеры и блокировки на месте
 select is((select count(*)::int from pg_trigger where not tgisinternal and tgenabled = 'O' and tgname in ('consent_versions_lock', 'consent_links_lock', 'consent_on_link_delete')), 3, 'Б1: три новых триггера включены');

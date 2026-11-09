@@ -67,8 +67,10 @@ begin
   -- версия блокируется на время транзакции: пока событие не закоммичено, её название и дату вступления не изменить
   select * into v from consent_doc_versions where id = new.version_id for share;
   vfound := found;
-  -- время события задаёт сервер, подставить своё нельзя
-  new.occurred_at := now();
+  -- время события задаёт сервер (подставить своё нельзя): момент вставки, не начало транзакции, и не раньше предыдущего
+  -- события этой пары и типа, чтобы хронология не шла назад при ожидании блокировок и сдвигах часов
+  new.occurred_at := greatest(clock_timestamp(), coalesce((select max(x.occurred_at) from parental_consent_events x
+      where x.parent_user_id = new.parent_user_id and x.player_id = new.player_id and x.consent_type = new.consent_type), '-infinity'::timestamptz));
   if vfound and v.consent_type <> new.consent_type then
     raise exception 'version belongs to another consent type' using errcode = '23503';
   end if;
@@ -128,6 +130,7 @@ declare me uuid := current_user_id(); eid bigint;
 begin
   if me is null then raise exception 'not authenticated' using errcode = '42501'; end if;
   if t is null or t not in ('data_processing', 'media_publication') then raise exception 'unknown consent type' using errcode = '22023'; end if;
+  perform set_config('lock_timeout', '5s', true);   -- правка версий админом не подвешивает родителя: через 5 с отказ (55P03), повтор безопасен
   eid := consent_record(me, p, t, 'granted', ver, 'app', me);
   if eid is not null then
     insert into audit_log (actor_id, action, entity, entity_id, after)
@@ -142,6 +145,7 @@ declare me uuid := current_user_id(); eid bigint;
 begin
   if me is null then raise exception 'not authenticated' using errcode = '42501'; end if;
   if t is null or t not in ('data_processing', 'media_publication') then raise exception 'unknown consent type' using errcode = '22023'; end if;
+  perform set_config('lock_timeout', '5s', true);
   eid := consent_record(me, p, t, 'revoked', null, 'app', me);
   if eid is not null then
     insert into audit_log (actor_id, action, entity, entity_id, after)

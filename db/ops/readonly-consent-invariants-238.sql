@@ -10,5 +10,9 @@ union all select 'событий истории со ссылкой на нес�
        (select count(*)::text from parental_consent_events e where not exists (select 1 from consent_doc_versions v where v.id = e.version_id))
 union all select 'строк состояния без собственного события (ожидается 0)',
        (select count(*)::text from parental_consents c where c.status <> 'pending' and not exists (select 1 from parental_consent_events e where e.id = c.last_event_id))
+union all select 'состояний, не равных последнему событию пары и типа (ожидается 0)',
+       (select count(*)::text from parental_consents c where c.status <> 'pending' and c.last_event_id is distinct from (select max(e.id) from parental_consent_events e where e.parent_user_id = c.parent_user_id and e.player_id = c.player_id and e.consent_type = c.consent_type))
+union all select 'событий с временем раньше предыдущего события пары и типа (ожидается 0)',
+       (select count(*)::text from parental_consent_events a join parental_consent_events b on b.parent_user_id = a.parent_user_id and b.player_id = a.player_id and b.consent_type = a.consent_type and b.id > a.id and b.occurred_at < a.occurred_at)
 union all select 'защитные триггеры согласий включены (ожидается 8 после 0159, 11 после 0162)',
        (select count(*)::text from pg_trigger where not tgisinternal and tgenabled = 'O' and tgname in ('consent_doc_versions_no_rewrite', 'consent_doc_versions_keep_open', 'consent_doc_versions_no_delete', 'consent_doc_versions_no_truncate', 'parental_consent_events_guard', 'parental_consent_events_no_change', 'parental_consent_events_no_truncate', 'parental_consents_guard', 'consent_versions_lock', 'consent_links_lock', 'consent_on_link_delete'));

@@ -232,6 +232,45 @@ delete from player_guardians where user_id = '$(P 12)' and player_id = '$(K 12)'
 SQL
 check "13а. granted, затем удаление связи: ровно одно revoked" '[ "$(nev $(P 11) $(K 11) data_processing revoked)" = 1 ]'
 check "13б. отозвано родителем, затем удаление связи: повторного revoked нет" '[ "$(nev $(P 12) $(K 12) data_processing revoked)" = 1 ] && [ "$(nev $(P 12) $(K 12) data_processing)" = 2 ]'
+
+# --- 14. хронология: транзакция, начатая раньше, но записавшая событие позже, не получает более раннее время (occurred_at не убывает по id)
+q <<SQL
+begin; $(as "$(P 13)") select accept_consent('$(K 13)', 'data_processing', '$V_DP1'); commit;
+SQL
+cat >"$TMP/a.sql" <<SQL
+begin; select pg_sleep(2); $(as "$(P 13)") select revoke_parent_consent('$(K 13)', 'data_processing'); commit;
+SQL
+cat >"$TMP/b.sql" <<SQL
+begin; $(as "$(P 13)") select revoke_parent_consent('$(K 13)', 'data_processing'); select accept_consent('$(K 13)', 'data_processing', '$V_DP1'); commit;
+SQL
+race "$TMP/a.sql" "$TMP/b.sql"
+check "14. хронология: время событий пары не убывает по порядку записи" '[ "$(q -c "select count(*) from parental_consent_events a join parental_consent_events b on b.parent_user_id = a.parent_user_id and b.player_id = a.player_id and b.consent_type = a.consent_type and b.id > a.id and b.occurred_at < a.occurred_at")" = 0 ]'
+q <<SQL
+begin; $(as "$(P 14)") select accept_consent('$(K 14)', 'data_processing', '$V_DP1'); commit;
+SQL
+# тест хронологии на одной паре и одном типе: поздний старт, ранняя запись
+cat >"$TMP/a.sql" <<SQL
+begin; select pg_sleep(2); $(as "$(P 14)") select revoke_parent_consent('$(K 14)', 'data_processing'); commit;
+SQL
+cat >"$TMP/b.sql" <<SQL
+begin; $(as "$(P 14)") select revoke_parent_consent('$(K 14)', 'data_processing'); select pg_sleep(0.2); select accept_consent('$(K 14)', 'data_processing', '$V_DP1'); commit;
+SQL
+race "$TMP/a.sql" "$TMP/b.sql"
+check "14б. одна пара и тип: порядок записи и время событий согласованы" '[ "$(q -c "select count(*) from parental_consent_events a join parental_consent_events b on b.parent_user_id = a.parent_user_id and b.player_id = a.player_id and b.consent_type = a.consent_type and b.id > a.id and b.occurred_at < a.occurred_at")" = 0 ] && [ "$(consistent $(P 14) $(K 14) data_processing)" = 0 ] && [ "$(dead)" = 0 ]'
+
+# --- 15. длинная правка версий не подвешивает принятие: родитель получает отказ по таймауту блокировки, событие не пишется
+q <<SQL
+insert into consent_doc_versions (id, consent_type, version, effective_from) values ('$(id 49941)', 'media_publication', 'conc-lt', now() + interval '90 days');
+SQL
+cat >"$TMP/a.sql" <<SQL
+begin; update consent_doc_versions set effective_from = effective_from where id = '$(id 49941)'; select pg_sleep(8); commit;
+SQL
+q -c "insert into users (id, telegram_id, display_name, is_admin) values ('$(P 15)', 993115, 'Родитель 15', false); insert into players (id, club_id, full_name) values ('$(K 15)', '$CLUB', 'Ребёнок 15'); insert into player_guardians (player_id, user_id, consent_version, consent_given_at) values ('$(K 15)', '$(P 15)', 'lawyer-2026-11-v1', now())"
+cat >"$TMP/b.sql" <<SQL
+begin; $(as "$(P 15)") select accept_consent('$(K 15)', 'data_processing', '$V_DP1'); commit;
+SQL
+race "$TMP/a.sql" "$TMP/b.sql"
+check "15. правка версий дольше таймаута: принятие получает отказ по lock timeout, событий нет" 'grep -qi "lock timeout\|could not obtain lock" "$TMP/t2.out" && [ "$(nev $(P 15) $(K 15) data_processing)" = 0 ]'
 fi
 
 # --- итог: инварианты версий
