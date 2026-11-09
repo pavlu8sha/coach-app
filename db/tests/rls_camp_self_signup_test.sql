@@ -2,7 +2,7 @@
 -- вместимость во всех путях записи, родительская запись, публичные данные, условия отмены, журнал статусов.
 begin;
 create extension if not exists pgtap;
-select plan(93);
+select plan(103);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб'), ('00000000-0000-0000-0000-00000000c002', 'Чужой клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -229,6 +229,25 @@ select lives_ok($$select camp_seats('00000000-0000-0000-0000-0000000000cb')$$, '
 select is((select count(*)::int from camp_cancel_terms), 3, 'администратор читает все версии условий');
 select as_anon();
 select throws_ok($$select camp_seats('00000000-0000-0000-0000-0000000000ca')$$, '42501', null, 'аноним camp_seats не вызывает');
+
+-- ===== Круг 3: прямое изменение лимита и чтение сборов/тарифов =====
+select as_user('00000000-0000-0000-0000-0000000000a1');
+select throws_ok($$update camps set capacity = 2 where id = '00000000-0000-0000-0000-0000000000ca'$$, '22023', 'capacity below registered', 'прямой update лимита ниже подтверждённых (3) запрещён администратору');
+select lives_ok($$update camps set capacity = 3 where id = '00000000-0000-0000-0000-0000000000ca'$$, 'прямой update лимита, равного числу подтверждённых, разрешён');
+select lives_ok($$update camps set capacity = null where id = '00000000-0000-0000-0000-0000000000ca'$$, 'прямой update: пустой лимит разрешён');
+reset role;
+update camps set capacity = 3 where id = '00000000-0000-0000-0000-0000000000ca';
+select throws_ok($$update camps set capacity = 1 where id = '00000000-0000-0000-0000-0000000000ca'$$, '22023', 'capacity below registered', 'служебная роль и владелец базы лимит ниже подтверждённых тоже не задают');
+select as_user('00000000-0000-0000-0000-0000000000b1');
+select is((select count(*)::int from camps), 2, 'родитель видит только активные сборы своего клуба (Зимний и Старый; Другой неактивен)');
+select is((select count(*)::int from camp_tariffs), 3, 'родитель видит тарифы только этих сборов');
+select as_user('00000000-0000-0000-0000-0000000000b3');
+select is((select count(*)::int from camps), 0, 'родитель другого клуба сборов не читает');
+select is((select count(*)::int from camp_tariffs), 0, 'родитель другого клуба тарифов не читает');
+select as_user('00000000-0000-0000-0000-0000000000c1');
+select is((select count(*)::int from camps), 0, 'тренер без ребёнка в клубе сборов не читает');
+select as_user('00000000-0000-0000-0000-0000000000a1');
+select is((select count(*)::int from camps), 3, 'администратор читает все сборы');
 
 select * from finish();
 rollback;

@@ -136,6 +136,30 @@ grant execute on function camp_visible_to_parent(uuid) to authenticated;
 create policy camp_cancel_terms_read on camp_cancel_terms for select
   using (is_admin() or is_location_admin(camp_location(camp_id)) or camp_visible_to_parent(camp_id));
 
+-- Чтение сборов и тарифов сужено (было: любой вошедший читал все сборы всех клубов, включая неактивные, а с 0160 ещё лимит и ссылку).
+-- Теперь: администратор, локальный администратор сбора, родитель активного ребёнка клуба (активный сбор). Родитель видит свои записи
+-- и долги через camp_participants/parent_dues, публичные посетители читают camp_public.
+drop policy if exists camps_read on camps;
+create policy camps_read on camps for select
+  using (is_admin() or is_location_admin(camp_location(id)) or camp_visible_to_parent(id));
+drop policy if exists camp_tariffs_read on camp_tariffs;
+create policy camp_tariffs_read on camp_tariffs for select
+  using (is_admin() or is_location_admin(camp_location(camp_id)) or camp_visible_to_parent(camp_id));
+
+-- Лимит не ниже числа подтверждённых и при прямом изменении таблицы (политика camps_admin, служебная роль): триггер.
+create or replace function camps_capacity_guard() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.capacity is not null and new.capacity is distinct from old.capacity
+     and new.capacity < (select count(*) from camp_participants where camp_id = new.id and status = 'registered') then
+    raise exception 'capacity below registered' using errcode = '22023';
+  end if;
+  return new;
+end $$;
+create trigger camps_capacity_guard before update of capacity on camps
+  for each row execute function camps_capacity_guard();
+revoke execute on function camps_capacity_guard() from public, anon, authenticated;
+
 -- ===== Администратор: лимит, ссылка, условия отмены =====
 create or replace function camp_set_public(cid uuid, sl text, cap int) returns void
 language plpgsql security definer set search_path = public as $$
