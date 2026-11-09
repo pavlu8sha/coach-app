@@ -105,14 +105,21 @@ end $$;
 
 create or replace function parental_consent_event_guard() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
-declare v consent_doc_versions;
+declare v consent_doc_versions; vfound boolean;
 begin
   select * into v from consent_doc_versions where id = new.version_id;
-  if found and v.consent_type <> new.consent_type then
+  vfound := found;
+  if vfound and v.consent_type <> new.consent_type then
     raise exception 'version belongs to another consent type' using errcode = '23503';
   end if;
-  perform parental_consent_link_check(new.parent_user_id, new.player_id);
-  if found and new.event = 'granted' and not (v.accepting and v.effective_from <= now()) then
+  -- подтверждение требует связи; отзыв записывается всегда, если по этой паре и типу уже есть собственная история
+  -- (связь могла исчезнуть: erase_parent, удаление администратором), иначе тоже требует связи
+  if new.event = 'granted' or not exists (
+       select 1 from parental_consent_events x
+        where x.parent_user_id = new.parent_user_id and x.player_id = new.player_id and x.consent_type = new.consent_type) then
+    perform parental_consent_link_check(new.parent_user_id, new.player_id);
+  end if;
+  if vfound and new.event = 'granted' and not (v.accepting and v.effective_from <= now()) then
     raise exception 'consent version is not accepted now' using errcode = '23514';
   end if;
   return new;
@@ -128,6 +135,13 @@ begin
     if (new.parent_user_id, new.player_id, new.consent_type) is distinct from (old.parent_user_id, old.player_id, old.consent_type) then
       raise exception 'consent state identity is immutable' using errcode = '42501';
     end if;
+    if old.status <> 'pending' and new.status = 'pending' then
+      raise exception 'consent state cannot return to pending' using errcode = '23514';
+    end if;
+    if new.last_event_id is not distinct from old.last_event_id
+       and (new.status, new.version_id, new.granted_at, new.revoked_at) is distinct from (old.status, old.version_id, old.granted_at, old.revoked_at) then
+      raise exception 'state changes require a new history event' using errcode = '23514';
+    end if;
   else
     perform parental_consent_link_check(new.parent_user_id, new.player_id);
   end if;
@@ -141,6 +155,10 @@ begin
                    where x.parent_user_id = e.parent_user_id and x.player_id = e.player_id and x.consent_type = e.consent_type and x.id > e.id) then
       raise exception 'state must follow the latest own history event' using errcode = '23514';
     end if;
+    if (new.status = 'granted' and new.granted_at is distinct from e.occurred_at)
+       or (new.status = 'revoked' and new.revoked_at is distinct from e.occurred_at) then
+      raise exception 'state time must equal the history event time' using errcode = '23514';
+    end if;
   end if;
   return new;
 end $$;
@@ -148,11 +166,18 @@ create trigger parental_consents_guard before insert or update on parental_conse
   for each row execute function parental_consent_state_guard();
 
 create or replace function consent_doc_versions_guard() returns trigger
-language plpgsql set search_path = public, pg_temp as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 begin
-  if (new.id, new.consent_type, new.version, new.effective_from, new.created_at)
-       is distinct from (old.id, old.consent_type, old.version, old.effective_from, old.created_at)
-     or (old.text_ref is not null and new.text_ref is distinct from old.text_ref) then
+  if (new.id, new.consent_type, new.created_at) is distinct from (old.id, old.consent_type, old.created_at) then
+    raise exception 'consent version type and identity are immutable' using errcode = '42501';
+  end if;
+  -- пока версию никто не подтвердил, название и дату вступления можно исправить;
+  -- после первого события истории они неизменны, ссылку на текст можно задать один раз
+  if (new.version, new.effective_from) is distinct from (old.version, old.effective_from)
+     and exists (select 1 from parental_consent_events where version_id = old.id) then
+    raise exception 'consent version is immutable (only accepting and a first text_ref can change)' using errcode = '42501';
+  end if;
+  if old.text_ref is not null and new.text_ref is distinct from old.text_ref then
     raise exception 'consent version is immutable (only accepting and a first text_ref can change)' using errcode = '42501';
   end if;
   return new;
