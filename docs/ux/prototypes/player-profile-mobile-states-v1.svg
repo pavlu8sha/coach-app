@@ -9,12 +9,12 @@
 <!-- 320 -->
 <rect x="32" y="132" width="320" height="740" rx="14" fill="#fff" stroke="#d5dce6"/>
 <text x="48" y="160" class="blue s">320 PX · LIGHT · EMPTY</text>
-<text x="48" y="198" class="ink h2">Профиль игрока</text><text x="48" y="220" class="muted s">Александр Беридзе · U13-A</text>
+<text x="48" y="198" class="ink h2">Профиль игрока</text><text x="48" y="220" class="muted s">Игрок · Группа</text>
 <rect x="48" y="238" width="288" height="100" rx="10" fill="#142b49"/>
 <circle cx="86" cy="288" r="27" fill="#e1e9f5"/><text x="86" y="293" text-anchor="middle" class="blue b">АБ</text>
-<text x="124" y="276" fill="#fff" font-family="Arial" font-size="14" font-weight="700">Александр</text><text x="124" y="296" fill="#fff" font-family="Arial" font-size="14" font-weight="700">Беридзе</text><text x="124" y="317" fill="#dce6f4" font-family="Arial" font-size="10">U13-A · № —</text>
+<text x="124" y="276" fill="#fff" font-family="Arial" font-size="14" font-weight="700">Игрок</text><text x="124" y="296" fill="#fff" font-family="Arial" font-size="14" font-weight="700">Беридзе</text><text x="124" y="317" fill="#dce6f4" font-family="Arial" font-size="10">Группа · № —</text>
 <rect x="48" y="352" width="288" height="60" rx="9" fill="#f7f9fc" stroke="#e4e9f0"/>
-<text x="62" y="375" class="muted xs">БАЛЛЫ</text><text x="62" y="398" class="ink h2">24</text><text x="320" y="391" text-anchor="end" class="blue s">Журнал ›</text>
+<text x="62" y="375" class="muted xs">БАЛЛЫ</text><text x="62" y="398" class="ink h2">—</text><text x="320" y="391" text-anchor="end" class="blue s">Журнал ›</text>
 <text x="48" y="448" class="ink h2">Прогресс</text>
 <rect x="48" y="462" width="288" height="146" rx="9" fill="#fff" stroke="#e4e9f0"/>
 <text x="64" y="492" class="ink b">Пока нет опубликованных тестов</text>
@@ -25,10 +25,10 @@
 <!-- 390 -->
 <rect x="376" y="132" width="390" height="740" rx="14" fill="#fff" stroke="#d5dce6"/>
 <text x="392" y="160" class="blue s">390 PX · LIGHT · ERROR</text>
-<text x="392" y="198" class="ink h2">Профиль игрока</text><text x="392" y="220" class="muted s">Александр Беридзе · U13-A</text>
+<text x="392" y="198" class="ink h2">Профиль игрока</text><text x="392" y="220" class="muted s">Игрок · Группа</text>
 <rect x="392" y="238" width="358" height="100" rx="10" fill="#142b49"/>
 <circle cx="432" cy="288" r="27" fill="#e1e9f5"/><text x="432" y="293" text-anchor="middle" class="blue b">АБ</text>
-<text x="472" y="276" fill="#fff" font-family="Arial" font-size="14" font-weight="700">Александр Беридзе</text><text x="472" y="301" fill="#dce6f4" font-family="Arial" font-size="10">U13-A · № — · Позиция —</text>
+<text x="472" y="276" fill="#fff" font-family="Arial" font-size="14" font-weight="700">Игрок</text><text x="472" y="301" fill="#dce6f4" font-family="Arial" font-size="10">Группа · № — · Позиция —</text>
 <rect x="392" y="358" width="358" height="186" rx="10" fill="#fff" stroke="#e4e9f0"/>
 <text x="410" y="390" class="ink h2">Не удалось загрузить прогресс</text>
 <text x="410" y="418" class="muted s">Проверьте подключение и попробуйте</text><text x="410" y="436" class="muted s">ещё раз. Остальные разделы профиля</text><text x="410" y="454" class="muted s">остаются доступны.</text>
@@ -41,10 +41,10 @@
 <!-- 430 dark -->
 <rect x="790" y="132" width="430" height="740" rx="14" fill="#111d30" stroke="#2c3d56"/>
 <text x="806" y="160" fill="#9eb4d1" class="s">430 PX · DARK · LOADING</text>
-<text x="806" y="198" fill="#f2f5fa" class="h2">Профиль игрока</text><text x="806" y="220" fill="#a9b7ca" class="s">Александр Беридзе · U13-A</text>
+<text x="806" y="198" fill="#f2f5fa" class="h2">Профиль игрока</text><text x="806" y="220" fill="#a9b7ca" class="s">Игрок · Группа</text>
 <rect x="806" y="238" width="398" height="100" rx="10" fill="#1a3558"/>
 <circle cx="848" cy="288" r="27" fill="#dbe5f2"/><text x="848" y="293" text-anchor="middle" class="blue b">АБ</text>
-<text x="890" y="276" fill="#fff" font-family="Arial" font-size="14" font-weight="700">Александр Беридзе</text><text x="890" y="301" fill="#c5d3e5" font-family="Arial" font-size="10">U13-A · № — · Позиция —</text>
+<text x="890" y="276" fill="#fff" font-family="Arial" font-size="14" font-weight="700">Игрок</text><text x="890" y="301" fill="#c5d3e5" font-family="Arial" font-size="10">Группа · № — · Позиция —</text>
 <rect x="806" y="358" width="398" height="92" rx="10" fill="#1a293e"/>
 <rect x="824" y="378" width="160" height="12" rx="6" fill="#34475f"/><rect x="824" y="402" width="290" height="10" rx="5" fill="#293d56"/><rect x="824" y="422" width="240" height="10" rx="5" fill="#293d56"/>
 <rect x="806" y="466" width="398" height="160" rx="10" fill="#1a293e"/>
