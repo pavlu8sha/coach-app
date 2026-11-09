@@ -60,3 +60,18 @@
 - A22 checks narrow mobile composition and loading/empty/error states; final tokens and interaction details still require UI-kit validation.
 - A23 distinguishes team match information from confirmed player participation and separates individual/extra bookings from the currently unavailable complete personal group-training history.
 - Names and values in the drawings are illustrative; no sample values should be treated as live player data.
+
+
+## Progress and achievements
+
+| ID | Screen / state | Preview |
+|---|---|---|
+| A24 | Parent/child progress and staff development view; achievements remain an explicitly neutral placeholder until product rules are defined | [SVG](player-progress-achievements-parent-staff-v1.svg) |
+
+### Notes for A24
+
+- Personal progress remains the primary view; group comparison is limited to approved anonymous aggregates for a selected comparable testing session.
+- The screen keeps points, objective tests and achievements as separate concepts. It does not infer achievements from points or test rankings.
+- No invented metrics, streaks, percentages, badges, reward levels or sample player results are displayed.
+- The achievements area is an informational placeholder until the product defines the source, eligibility rules, award lifecycle and visibility permissions.
+- Parent and child see the same player-development information. Staff access remains role- and group-scoped.
