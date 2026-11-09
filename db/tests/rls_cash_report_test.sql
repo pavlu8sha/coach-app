@@ -33,9 +33,7 @@ insert into payments (id, player_id, amount, paid_on, method) values ('00000000-
 select as_user('00000000-0000-0000-0000-0000000000a2');
 insert into payments (id, player_id, amount, paid_on, method) values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-00000000d002', 165, '2026-10-06', 'Перевод');
 insert into payments (id, player_id, amount, paid_on, method) values ('00000000-0000-0000-0000-0000000000f3', '00000000-0000-0000-0000-00000000d002', 50, '2026-10-06', 'Исправление');
-insert into camp_payments (camp_id, participant_id, player_id, amount, paid_on, kind, method)
-  select '00000000-0000-0000-0000-0000000000c2', cp.id, cp.player_id, 30, '2026-10-06', 'payment', 'Наличные'
-    from camp_participants cp where cp.camp_id = '00000000-0000-0000-0000-0000000000c2';
+select camp_pay((select id from camp_participants where camp_id = '00000000-0000-0000-0000-0000000000c2' limit 1), 30, 'payment', '2026-10-06', 'Наличные', null);
 
 select as_user('00000000-0000-0000-0000-0000000000a1');
 -- отмена платежа Ани: строка с минусом, способ берётся от исходного

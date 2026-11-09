@@ -44,7 +44,10 @@ select lives_ok($$select camp_cancel_payment((select id from camp_payments where
 select is((cash_report(current_date, current_date)->>'total')::numeric, 0::numeric, 'после отмены итог кассы 0');
 select lives_ok($$select camp_update_guest((select id from ids where k = 'g1'), 'Иван Гость', '')$$, 'имя гостя меняется');
 select throws_ok($$select camp_update_guest((select id from ids where k = 'kid'), 'Игрок', null)$$, '22023', 'not a guest', 'у игрока клуба гостевые поля не правятся');
+-- прямая вставка администратору закрыта (0165), ограничение таблицы проверяется владельцем базы
+reset role;
 select throws_ok($$insert into camp_participants (camp_id, player_id, status) values ('00000000-0000-0000-0000-0000000000ca', null, 'registered')$$, '23514', null, 'строка без игрока и без имени гостя отвергается');
+select as_user('00000000-0000-0000-0000-0000000000a1');
 
 -- локальный администратор: видит гостей своей локации и вносит оплату, но не записывает
 select as_user('00000000-0000-0000-0000-0000000000b1');
