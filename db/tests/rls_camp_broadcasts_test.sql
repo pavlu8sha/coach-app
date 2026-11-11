@@ -2,7 +2,7 @@
 -- две ручные рассылки (информационная и напоминание об оплате), предпросмотр, подтверждение числом получателей, журнал.
 begin;
 create extension if not exists pgtap;
-select plan(57);
+select plan(69);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб'), ('00000000-0000-0000-0000-00000000c002', 'Чужой клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -73,7 +73,11 @@ $$;
 create or replace function nall(k text) returns int language sql security definer as $$
   select count(*)::int from notifications where kind = k
 $$;
-grant execute on function nq(uuid, text), ntext(uuid, text), nall(text) to public;
+create or replace function bsend(cid uuid, k text, b text, n int) returns jsonb language plpgsql as $$
+begin
+  return camp_broadcast_send(cid, k, b, n, camp_broadcast_preview(cid, k, b)->>'token');
+end $$;
+grant execute on function nq(uuid, text), ntext(uuid, text), nall(text), bsend(uuid, text, text, int) to public;
 
 -- Участники сбора: Аня и Боря (родитель b1; у Ани есть второй родитель b7), Вася оплачен полностью (b2), Дима (b5, уведомления выключены),
 -- Егор (b6, согласие отозвано), Женя отменён (b8), гость подтверждён (b4). Частичная оплата: Аня 400 из 1000.
@@ -101,14 +105,14 @@ delete from notifications;
 -- ===== 39. Кто может: только администратор =====
 select as_user('00000000-0000-0000-0000-0000000000b1');
 select throws_ok($$select camp_broadcast_preview('00000000-0000-0000-0000-0000000000ca', 'info', 'Текст')$$, '42501', 'forbidden', 'родитель предпросмотр не открывает');
-select throws_ok($$select camp_broadcast_send('00000000-0000-0000-0000-0000000000ca', 'info', 'Текст', 1)$$, '42501', 'forbidden', 'родитель рассылку не отправляет');
+select throws_ok($$select bsend('00000000-0000-0000-0000-0000000000ca', 'info', 'Текст', 1)$$, '42501', 'forbidden', 'родитель рассылку не отправляет');
 select throws_ok($$select * from camp_broadcast_list('00000000-0000-0000-0000-0000000000ca')$$, '42501', 'forbidden', 'родитель журнал рассылок не читает');
 select as_user('00000000-0000-0000-0000-0000000000d1');
-select throws_ok($$select camp_broadcast_send('00000000-0000-0000-0000-0000000000ca', 'info', 'Текст', 1)$$, '42501', 'forbidden', 'локальный администратор рассылку не отправляет');
+select throws_ok($$select bsend('00000000-0000-0000-0000-0000000000ca', 'info', 'Текст', 1)$$, '42501', 'forbidden', 'локальный администратор рассылку не отправляет');
 select as_user('00000000-0000-0000-0000-0000000000c1');
 select throws_ok($$select camp_broadcast_preview('00000000-0000-0000-0000-0000000000ca', 'info', 'Текст')$$, '42501', 'forbidden', 'тренер предпросмотр не открывает');
 select as_service();
-select throws_ok($$select camp_broadcast_send('00000000-0000-0000-0000-0000000000ca', 'info', 'Текст', 1)$$, '42501', null, 'сервер рассылку не отправляет (расписаний нет)');
+select throws_ok($$select bsend('00000000-0000-0000-0000-0000000000ca', 'info', 'Текст', 1)$$, '42501', null, 'сервер рассылку не отправляет (расписаний нет)');
 
 -- ===== Проверка входных данных =====
 select as_user('00000000-0000-0000-0000-0000000000a1');
@@ -123,10 +127,10 @@ select is((camp_broadcast_preview('00000000-0000-0000-0000-0000000000ca', 'info'
 select ok(camp_broadcast_preview('00000000-0000-0000-0000-0000000000ca', 'info', 'Выезд в 9:00 от стадиона.')->>'sample' like '%Зимний сбор%Выезд в 9:00 от стадиона.%', 'предпросмотр показывает итоговый текст с названием сбора');
 select is(nall('camp_broadcast_info'), 0, 'предпросмотр сообщения не ставит');
 select is((select count(*)::int from camp_broadcast_list('00000000-0000-0000-0000-0000000000ca')), 0, 'предпросмотр в журнал не пишет');
-select throws_ok($$select camp_broadcast_send('00000000-0000-0000-0000-0000000000ca', 'info', 'Выезд в 9:00 от стадиона.', null)$$, '22023', 'confirmation required', 'без подтверждённого числа получателей отправки нет');
-select throws_ok($$select camp_broadcast_send('00000000-0000-0000-0000-0000000000ca', 'info', 'Выезд в 9:00 от стадиона.', 4)$$, '22023', 'recipients changed', 'если число получателей не совпало с показанным, отправки нет');
+select throws_ok($$select bsend('00000000-0000-0000-0000-0000000000ca', 'info', 'Выезд в 9:00 от стадиона.', null)$$, '22023', 'confirmation required', 'без подтверждённого числа получателей отправки нет');
+select throws_ok($$select bsend('00000000-0000-0000-0000-0000000000ca', 'info', 'Выезд в 9:00 от стадиона.', 4)$$, '22023', 'recipients changed', 'если число получателей не совпало с показанным, отправки нет');
 select is(nall('camp_broadcast_info'), 0, 'после отказов сообщений нет');
-insert into ids select 'b1', (camp_broadcast_send('00000000-0000-0000-0000-0000000000ca', 'info', 'Выезд в 9:00 от стадиона.', 5)->>'id')::uuid;
+insert into ids select 'b1', (bsend('00000000-0000-0000-0000-0000000000ca', 'info', 'Выезд в 9:00 от стадиона.', 5)->>'id')::uuid;
 select is(nall('camp_broadcast_info'), 5, 'отправка ставит ровно столько сообщений, сколько показал предпросмотр');
 select is(nq('00000000-0000-0000-0000-0000000000b1', 'camp_broadcast_info'), 1, 'родитель двоих детей получает одно сообщение');
 select is(nq('00000000-0000-0000-0000-0000000000b7', 'camp_broadcast_info') + nq('00000000-0000-0000-0000-0000000000b2', 'camp_broadcast_info') + nq('00000000-0000-0000-0000-0000000000b3', 'camp_broadcast_info') + nq('00000000-0000-0000-0000-0000000000b8', 'camp_broadcast_info'), 4, 'родители клуба получают сообщение, в том числе не записанные на сбор');
@@ -151,14 +155,14 @@ select throws_ok($$truncate camp_broadcasts cascade$$, 'P0001', 'immutable', 'ж
 
 -- ===== Защита от повтора =====
 select as_user('00000000-0000-0000-0000-0000000000a1');
-select throws_ok($$select camp_broadcast_send('00000000-0000-0000-0000-0000000000ca', 'info', 'Выезд в 9:00 от стадиона.', 5)$$, '22023', 'duplicate broadcast', 'тот же текст повторно в течение десяти минут не отправляется');
+select throws_ok($$select bsend('00000000-0000-0000-0000-0000000000ca', 'info', 'Выезд в 9:00 от стадиона.', 5)$$, '22023', 'duplicate broadcast', 'тот же текст повторно в течение десяти минут не отправляется');
 select is(nall('camp_broadcast_info'), 5, 'повтор сообщений не добавил');
 
 -- ===== 40. Напоминание об оплате: только семьи с положительным остатком =====
 select is((camp_broadcast_preview('00000000-0000-0000-0000-0000000000ca', 'reminder', null)->>'recipients')::int, 3, 'напоминание: три получателя (родитель двоих, второй родитель Ани, гость)');
-select throws_ok($$select camp_broadcast_send('00000000-0000-0000-0000-0000000000ca', 'reminder', null, 4)$$, '22023', 'recipients changed', 'напоминание с неверным числом получателей не уходит');
+select throws_ok($$select bsend('00000000-0000-0000-0000-0000000000ca', 'reminder', null, 4)$$, '22023', 'recipients changed', 'напоминание с неверным числом получателей не уходит');
 select is(nall('camp_broadcast_reminder'), 0, 'предпросмотр напоминания сообщений не ставит');
-select camp_broadcast_send('00000000-0000-0000-0000-0000000000ca', 'reminder', 'Просим оплатить до срока.', 3);
+select bsend('00000000-0000-0000-0000-0000000000ca', 'reminder', 'Просим оплатить до срока.', 3);
 select is(nall('camp_broadcast_reminder'), 3, 'напоминание ушло трём получателям');
 select is(nq('00000000-0000-0000-0000-0000000000b1', 'camp_broadcast_reminder'), 1, 'родитель двоих должников получает одно сообщение');
 select ok(ntext('00000000-0000-0000-0000-0000000000b1', 'camp_broadcast_reminder') like '%Зимний сбор%' and ntext('00000000-0000-0000-0000-0000000000b1', 'camp_broadcast_reminder') like '%Аня: 600.00 ₾%' and ntext('00000000-0000-0000-0000-0000000000b1', 'camp_broadcast_reminder') like '%Боря: 1000.00 ₾%', 'в сообщении сбор, имена детей и остаток (частичная оплата учтена)');
@@ -175,32 +179,76 @@ select is((select kind || '|' || recipients from camp_broadcast_list('00000000-0
 select camp_pay((select id from camp_participants where owner_user_id = '00000000-0000-0000-0000-0000000000b4'), 1000, 'payment', current_date, 'cash', null);
 select is((camp_broadcast_preview('00000000-0000-0000-0000-0000000000ca', 'reminder', 'Ещё раз')->>'recipients')::int, 2, 'после полной оплаты получателей на одного меньше');
 -- должников нет: отправлять нечего
-select throws_ok($$select camp_broadcast_send('00000000-0000-0000-0000-0000000000cb', 'reminder', null, 0)$$, '22023', 'no recipients', 'рассылка без получателей не создаётся');
+select throws_ok($$select bsend('00000000-0000-0000-0000-0000000000cb', 'reminder', null, 0)$$, '22023', 'no recipients', 'рассылка без получателей не создаётся');
 -- сбор без срока оплаты: строки о сроке нет
 select camp_register('00000000-0000-0000-0000-0000000000cb', '00000000-0000-0000-0000-00000000d004', '00000000-0000-0000-0000-0000000000e2', null, null, null);
 select ok(camp_broadcast_preview('00000000-0000-0000-0000-0000000000cb', 'reminder', null)->>'sample' like '%Гена: 500.00 ₾%' and camp_broadcast_preview('00000000-0000-0000-0000-0000000000cb', 'reminder', null)->>'sample' not like '%Срок%', 'без срока оплаты строка о сроке не добавляется');
+
+-- ===== Подтверждается состав, а не только число (находка независимой проверки) =====
+select as_user('00000000-0000-0000-0000-0000000000a1');
+select camp_broadcast_preview('00000000-0000-0000-0000-0000000000ca', 'info', 'Проверка состава')->>'token' as tok \gset
+reset role;
+update player_guardians set consent_revoked_at = now() where user_id = '00000000-0000-0000-0000-0000000000b3';
+update player_guardians set consent_revoked_at = null where user_id = '00000000-0000-0000-0000-0000000000b6';
+select as_user('00000000-0000-0000-0000-0000000000a1');
+select throws_ok(format($$select camp_broadcast_send('00000000-0000-0000-0000-0000000000ca', 'info', 'Проверка состава', 5, %L)$$, :'tok'), '22023', 'recipients changed', 'число то же, а состав получателей изменился: отправки нет');
+select throws_ok($$select camp_broadcast_send('00000000-0000-0000-0000-0000000000ca', 'info', 'Проверка состава', 5, null)$$, '22023', 'recipients changed', 'без метки состава отправки нет');
+reset role;
+update player_guardians set consent_revoked_at = null where user_id = '00000000-0000-0000-0000-0000000000b3';
+update player_guardians set consent_revoked_at = now() where user_id = '00000000-0000-0000-0000-0000000000b6';
+-- напоминание: предпросмотр сообщает о должниках, до которых рассылка не дойдёт (Дима: уведомления выключены, Егор: согласие отозвано)
+select as_user('00000000-0000-0000-0000-0000000000a1');
+select is((camp_broadcast_preview('00000000-0000-0000-0000-0000000000ca', 'reminder', null)->>'unreachable')::int, 2, 'предпросмотр напоминания показывает, сколько должников недостижимо');
+select is(camp_broadcast_preview('00000000-0000-0000-0000-0000000000ca', 'info', 'Текст')->>'unreachable', null, 'для информационной недостижимые должники не считаются');
+-- журнал напоминания хранит текст
+select ok((select body like 'Напоминание об оплате%Просим оплатить до срока.' from camp_broadcast_list('00000000-0000-0000-0000-0000000000ca') where kind = 'reminder'), 'в журнале напоминания есть текст');
+-- невидимые символы и символы направления текста убираются
+select is(camp_broadcast_preview('00000000-0000-0000-0000-0000000000cb', 'info', E'А‮б⁦в­г؜д')->>'sample', E'Сбор «Сбор без срока»:\nАбвгд', 'символы направления текста и мягкие переносы убираются из текста');
+reset role;
+select is(camp_notify_name(E'А‮ня⁦ (01.02.2015)'), 'Аня', 'из имени ребёнка убираются символы направления текста');
+-- очередь: сообщения рассылок идут после обычных уведомлений
+insert into notifications (user_id, kind, text, created_at) values ('00000000-0000-0000-0000-0000000000b3', 'camp_application_decision', 'Решение', now() + interval '1 hour');
+select as_service();
+select is((select (select n.kind from notifications n where n.id = c.id) from claim_notifications(1) c), 'camp_application_decision', 'обычное уведомление идёт раньше сообщений рассылки');
+reset role;
+-- итог отправки сохраняется в журнале, когда очередь очистила старые сообщения
+update notifications set state = 'sent', sent_at = now() - interval '31 days' where kind = 'camp_broadcast_info' and user_id = '00000000-0000-0000-0000-0000000000b2';
+select as_service();
+select count(*) from claim_notifications(1);
+select as_user('00000000-0000-0000-0000-0000000000a1');
+select ok((select cleared >= 1 from camp_broadcast_list('00000000-0000-0000-0000-0000000000ca') where kind = 'info' order by created_at limit 1), 'очищенные очередью сообщения журнал показывает отдельно');
+-- удаление автора рассылки не ломается
+reset role;
+select lives_ok($$delete from users where id = '00000000-0000-0000-0000-0000000000a2'$$, 'пользователь, не отправлявший рассылок, удаляется');
+select is((select count(*)::int from camp_broadcasts where author_id is not null), 2, 'автор остаётся в журнале по идентификатору и имени');
+
+-- ===== Не больше трёх сообщений рассылок одному человеку за сутки =====
+select as_user('00000000-0000-0000-0000-0000000000a1');
+select bsend('00000000-0000-0000-0000-0000000000ca', 'info', 'Третья', 5);
+select is((camp_broadcast_preview('00000000-0000-0000-0000-0000000000ca', 'info', 'Четвёртая')->>'recipients')::int, 3, 'у кого уже три сообщения рассылок за сутки, тот в получатели не попадает');
+reset role;
+update notifications set created_at = now() - interval '2 days' where kind like 'camp\_broadcast\_%';
 
 -- ===== Выключатель camps.notify =====
 reset role;
 update club_settings set value = 'off' where key = 'camps.notify';
 select as_user('00000000-0000-0000-0000-0000000000a1');
 select is((camp_broadcast_preview('00000000-0000-0000-0000-0000000000ca', 'info', 'Новый текст')->>'enabled')::boolean, false, 'предпросмотр сообщает, что уведомления по сборам выключены');
-select throws_ok($$select camp_broadcast_send('00000000-0000-0000-0000-0000000000ca', 'info', 'Новый текст', 5)$$, '22023', 'notifications off', 'при выключенном camps.notify рассылка не отправляется');
-select is(nall('camp_broadcast_info'), 5, 'сообщений не прибавилось');
+select throws_ok($$select bsend('00000000-0000-0000-0000-0000000000ca', 'info', 'Новый текст', 5)$$, '22023', 'notifications off', 'при выключенном camps.notify рассылка не отправляется');
+select is(nall('camp_broadcast_info'), 9, 'сообщений не прибавилось');
 reset role;
 update club_settings set value = 'on' where key = 'camps.notify';
 
 -- ===== Лимит: не больше пяти рассылок по сбору за сутки =====
 select as_user('00000000-0000-0000-0000-0000000000a1');
-select camp_broadcast_send('00000000-0000-0000-0000-0000000000ca', 'info', 'Текст 3', 5);
-select camp_broadcast_send('00000000-0000-0000-0000-0000000000ca', 'info', 'Текст 4', 5);
-select camp_broadcast_send('00000000-0000-0000-0000-0000000000ca', 'info', 'Текст 5', 5);
-select throws_ok($$select camp_broadcast_send('00000000-0000-0000-0000-0000000000ca', 'info', 'Текст 6', 5)$$, '22023', 'too many broadcasts', 'шестая рассылка по сбору за сутки отклоняется');
+select bsend('00000000-0000-0000-0000-0000000000ca', 'info', 'Текст 4', 5);
+select bsend('00000000-0000-0000-0000-0000000000ca', 'info', 'Текст 5', 5);
+select throws_ok($$select bsend('00000000-0000-0000-0000-0000000000ca', 'info', 'Текст 6', 5)$$, '22023', 'too many broadcasts', 'шестая рассылка по сбору за сутки отклоняется');
 -- ссылки и упоминания в тексте администратора остаются как есть, управляющие символы убираются
 select ok(camp_broadcast_preview('00000000-0000-0000-0000-0000000000cb', 'info', E'Строка 1\nСтрока 2​')->>'sample' like E'%Строка 1\nСтрока 2', 'переносы строк сохраняются, невидимые символы убираются');
 -- 42. расписаний нет: функции отправки не выданы серверу и анониму
 reset role;
-select ok(not has_function_privilege('service_role', 'camp_broadcast_send(uuid, text, text, int)', 'execute') and not has_function_privilege('anon', 'camp_broadcast_send(uuid, text, text, int)', 'execute'), 'отправка рассылки не выдана серверу и анониму');
+select ok(not has_function_privilege('service_role', 'camp_broadcast_send(uuid, text, text, int, text)', 'execute') and not has_function_privilege('anon', 'camp_broadcast_send(uuid, text, text, int, text)', 'execute'), 'отправка рассылки не выдана серверу и анониму');
 select is((select count(*)::int from pg_trigger where not tgisinternal and tgfoid in (select oid from pg_proc where proname like 'camp_broadcast%' and proname <> 'camp_broadcasts_guard')), 0, 'ни один триггер рассылку не запускает');
 
 select * from finish();
