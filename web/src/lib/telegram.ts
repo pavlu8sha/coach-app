@@ -13,6 +13,8 @@ interface TgWebApp {
   BackButton?: TgButton;
   MainButton?: TgMainButton;
   // Bot API 8.0+: ярлык на экран «Домой»; на старых клиентах методов нет
+  // Открывает ссылку во внешнем браузере; работает и после ожидания ответа сервера, в отличие от window.open
+  openLink?(url: string, options?: { try_instant_view?: boolean }): void;
   addToHomeScreen?(): void;
   checkHomeScreenStatus?(cb: (status: HomeScreenStatus) => void): void;
 }

@@ -234,17 +234,30 @@ describe('Родитель: документы (условие 55)', () => {
     seed();
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ url: 'https://files.test/d1?token=1' }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
-    const open = vi.fn();
+    const win = { location: { href: '' }, opener: 'x', close: vi.fn() };
+    const open = vi.fn(() => win);
     vi.stubGlobal('open', open);
     await openCamp();
     const docs = await section('Документы');
     expect(within(docs).getByText(/Памятка/)).toBeInTheDocument();
     expect(fake.rpcCalls('camp_documents_list')[0]).toEqual({ cid: 'c1' });
     fireEvent.click(within(docs).getByRole('button', { name: 'Открыть' }));
-    await waitFor(() => expect(open).toHaveBeenCalledWith('https://files.test/d1?token=1', '_blank', 'noopener'));
+    await waitFor(() => expect(win.location.href).toBe('https://files.test/d1?token=1'));
+    expect(open).toHaveBeenCalledWith('', '_blank');
+    expect(win.opener).toBeNull();
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('http://fake.supabase/functions/v1/camp-docs');
     expect(JSON.parse(String(init.body))).toEqual({ action: 'link', id: 'd1' });
+  });
+  it('окно заблокировано: показывается ссылка «Открыть файл»', async () => {
+    seed();
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ url: 'https://files.test/d1?token=1' }), { status: 200 })));
+    vi.stubGlobal('open', vi.fn(() => null));
+    await openCamp();
+    const docs = await section('Документы');
+    fireEvent.click(within(docs).getByRole('button', { name: 'Открыть' }));
+    const a = await within(docs).findByRole('link', { name: 'Открыть файл' });
+    expect(a).toHaveAttribute('href', 'https://files.test/d1?token=1');
   });
   it('без записанного участника список документов не запрашивается', async () => {
     seed();

@@ -1,4 +1,5 @@
 import { SUPABASE_URL, supabase } from './supabase';
+import { tgApp } from './telegram';
 
 // Документы сбора: загрузка и короткоживущая ссылка идут через Edge Function camp-docs (Issue #470, этап 5).
 // Права проверяет база от имени пользователя; здесь только проверка файла до отправки и вызовы функции.
@@ -45,4 +46,33 @@ export async function campDocLink(id: string): Promise<Out<{ url: string }>> {
   } catch {
     return { ok: false, error: 'network' };
   }
+}
+
+/**
+ * Открыть документ (условие 65). Браузеры и Telegram блокируют окно, открытое после ожидания ответа сервера, поэтому:
+ * внутри Telegram ссылка открывается через Telegram.WebApp.openLink; вне Telegram окно открывается сразу по нажатию,
+ * а адрес подставляется после ответа. fallbackUrl: окно заблокировано, показать видимую ссылку (живёт 60 секунд).
+ */
+export async function openCampDoc(id: string): Promise<{ ok: true; fallbackUrl: string | null } | { ok: false; error: string }> {
+  const app = tgApp();
+  const viaTelegram = typeof app?.openLink === 'function';
+  let win: Window | null = null;
+  if (!viaTelegram) {
+    win = window.open('', '_blank');
+    if (win) win.opener = null; // открытая страница не должна управлять нашей
+  }
+  const r = await campDocLink(id);
+  if (!r.ok) {
+    win?.close();
+    return { ok: false, error: r.error };
+  }
+  if (viaTelegram) {
+    app!.openLink!(r.data.url);
+    return { ok: true, fallbackUrl: null };
+  }
+  if (win) {
+    win.location.href = r.data.url;
+    return { ok: true, fallbackUrl: null };
+  }
+  return { ok: true, fallbackUrl: r.data.url };
 }

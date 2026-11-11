@@ -217,11 +217,14 @@ describe('Админ: документы (условие 46)', () => {
     fake.rpc.camp_document_admin_list = () => docs;
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ url: 'https://files.test/x?token=1', expires_in: 60 }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
-    const open = vi.fn();
+    const win = { location: { href: '' }, opener: 'x', close: vi.fn() };
+    const open = vi.fn(() => win);
     vi.stubGlobal('open', open);
     await openCamp('Документы');
     fireEvent.click((await screen.findAllByRole('button', { name: 'Открыть' }))[0]);
-    await waitFor(() => expect(open).toHaveBeenCalledWith('https://files.test/x?token=1', '_blank', 'noopener'));
+    await waitFor(() => expect(win.location.href).toBe('https://files.test/x?token=1'));
+    expect(open).toHaveBeenCalledWith('', '_blank');
+    expect(win.opener).toBeNull();
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('http://fake.supabase/functions/v1/camp-docs');
     expect(JSON.parse(String(init.body))).toEqual({ action: 'link', id: 'd2' });
