@@ -64,7 +64,7 @@ select is((select count(*)::int from player_guardians where consent_revoked_at i
 insert into parental_consent_events (id, parent_user_id, player_id, consent_type, version_id, event, actor_id, source) overriding system value values
   (1, '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'data_processing', '00000000-0000-0000-0000-0000000f0001', 'granted', '00000000-0000-0000-0000-0000000000b1', 'app');
 insert into parental_consents (parent_user_id, player_id, consent_type, version_id, status, granted_at, last_actor_id, last_event_id) values
-  ('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'data_processing', '00000000-0000-0000-0000-0000000f0001', 'granted', now(), '00000000-0000-0000-0000-0000000000b1', 1);
+  ('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'data_processing', '00000000-0000-0000-0000-0000000f0001', 'granted', (select occurred_at from parental_consent_events where id = 1), '00000000-0000-0000-0000-0000000000b1', 1);
 
 select as_user('00000000-0000-0000-0000-0000000000b1');
 select is(my_data_consent_ok('00000000-0000-0000-0000-00000000d001'), true, 'после подтверждения предикат истинен');
@@ -80,7 +80,7 @@ insert into parental_consent_events (id, parent_user_id, player_id, consent_type
   (2, '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'media_publication', '00000000-0000-0000-0000-0000000f0002', 'granted', '00000000-0000-0000-0000-0000000000b1', 'app'),
   (3, '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'media_publication', '00000000-0000-0000-0000-0000000f0002', 'revoked', '00000000-0000-0000-0000-0000000000b1', 'app');
 insert into parental_consents (parent_user_id, player_id, consent_type, version_id, status, granted_at, revoked_at, last_actor_id, last_event_id) values
-  ('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'media_publication', '00000000-0000-0000-0000-0000000f0002', 'revoked', now() - interval '1 hour', now(), '00000000-0000-0000-0000-0000000000b1', 3);
+  ('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'media_publication', '00000000-0000-0000-0000-0000000f0002', 'revoked', now() - interval '1 hour', (select occurred_at from parental_consent_events where id = 3), '00000000-0000-0000-0000-0000000000b1', 3);
 select is(has_consent('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'media_publication'), false, 'отозванное публикационное согласие недействительно');
 select is(has_consent('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'data_processing'), true, 'обязательное при этом действует');
 select is((select count(*)::int from parental_consent_events where parent_user_id = '00000000-0000-0000-0000-0000000000b1'), 3, 'история хранит каждое событие отдельно');
@@ -108,7 +108,7 @@ select throws_ok($$truncate consent_doc_versions cascade$$, '42501', 'consent ve
 
 -- Целостность
 select throws_ok($$insert into parental_consent_events (id, parent_user_id, player_id, consent_type, version_id, event, source) overriding system value values (99, '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'media_publication', '00000000-0000-0000-0000-0000000f0001', 'granted', 'app')$$, '23503', null, 'версия другого типа в событии не принимается');
-select throws_ok($$insert into parental_consents (parent_user_id, player_id, consent_type, version_id, status, granted_at, last_event_id) values ('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'data_processing', '00000000-0000-0000-0000-0000000f0001', 'granted', now(), 1)$$, '23505', null, 'одна строка состояния на родитель + ребёнок + тип');
+select throws_ok($$insert into parental_consents (parent_user_id, player_id, consent_type, version_id, status, granted_at, last_event_id) values ('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'data_processing', '00000000-0000-0000-0000-0000000f0001', 'granted', (select occurred_at from parental_consent_events where id = 1), 1)$$, '23505', null, 'одна строка состояния на родитель + ребёнок + тип');
 select throws_ok($$insert into parental_consents (parent_user_id, player_id, consent_type, status) values ('00000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-00000000d002', 'data_processing', 'granted')$$, '23514', null, 'granted без версии, времени и события не записывается');
 
 -- История неизменяема
@@ -155,7 +155,7 @@ insert into consent_doc_versions (id, consent_type, version, effective_from) val
 insert into parental_consent_events (id, parent_user_id, player_id, consent_type, version_id, event, actor_id, source) overriding system value values
   (96, '00000000-0000-0000-0000-0000000000b3', '00000000-0000-0000-0000-00000000d003', 'data_processing', '00000000-0000-0000-0000-0000000f0005', 'granted', '00000000-0000-0000-0000-0000000000b3', 'app');
 insert into parental_consents (parent_user_id, player_id, consent_type, version_id, status, granted_at, last_actor_id, last_event_id) values
-  ('00000000-0000-0000-0000-0000000000b3', '00000000-0000-0000-0000-00000000d003', 'data_processing', '00000000-0000-0000-0000-0000000f0005', 'granted', now(), '00000000-0000-0000-0000-0000000000b3', 96);
+  ('00000000-0000-0000-0000-0000000000b3', '00000000-0000-0000-0000-00000000d003', 'data_processing', '00000000-0000-0000-0000-0000000f0005', 'granted', (select occurred_at from parental_consent_events where id = 96), '00000000-0000-0000-0000-0000000000b3', 96);
 select as_user('00000000-0000-0000-0000-0000000000b3');
 select is(my_data_consent_ok('00000000-0000-0000-0000-00000000d003'), true, 'после повторного принятия обязательное согласие действует');
 reset role;
@@ -182,6 +182,8 @@ select lives_ok($$update consent_doc_versions set text_ref = 'syn-ref-1' where i
 select throws_ok($$update consent_doc_versions set text_ref = 'syn-ref-2' where id = '00000000-0000-0000-0000-0000000f0004'$$, '42501', null, 'заданную ссылку на текст менять нельзя');
 
 -- Связь удалена (например, erase_parent): согласие недействительно, пока связи нет
+-- (с 0162 удаление связи записывает системный отзыв: идентификаторы событий выдаёт последовательность, поэтому уводим её выше явных id этого теста)
+select setval(pg_get_serial_sequence('parental_consent_events', 'id'), 900);
 delete from player_guardians where user_id = '00000000-0000-0000-0000-0000000000b3';
 select as_user('00000000-0000-0000-0000-0000000000b3');
 select is(my_data_consent_ok('00000000-0000-0000-0000-00000000d003'), false, 'без связи согласие не действует');
@@ -218,7 +220,7 @@ select lives_ok($$update consent_doc_versions set version = 'syn-dp-3-moved', ef
 -- Время события задаёт сервер
 insert into parental_consent_events (id, parent_user_id, player_id, consent_type, version_id, event, source, occurred_at) overriding system value values
   (91, '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'media_publication', '00000000-0000-0000-0000-0000000f0010', 'granted', 'app', '2020-01-01');
-select is((select occurred_at from parental_consent_events where id = 91), now(), 'подставленное время события игнорируется, время ставит сервер');
+select ok((select occurred_at >= now() and occurred_at <= clock_timestamp() from parental_consent_events where id = 91), 'подставленное время события игнорируется, время ставит сервер (момент вставки)');
 
 select * from finish();
 rollback;
