@@ -71,6 +71,16 @@ describe('данные сбора (условия 58, 61)', () => {
     expect(screen.getByText(/с 02\.12\.2026: Возврат 50%/)).toBeInTheDocument();
     expect(screen.getByText('Есть места')).toBeInTheDocument();
   });
+  it('описание сборов из презентации и обложка; пустые условия отмены блока не дают', async () => {
+    api({ ...camp, terms: [] });
+    const root = mount('/camp/zima');
+    await screen.findByRole('heading', { name: 'Зимний лагерь' });
+    const t = root.textContent ?? '';
+    for (const x of ['Тренировочная программа', 'Hotel Surami', 'Программа по возрастам', 'U6–7', 'Жизнь команды', 'Для всей семьи', '11 проведённых сборов']) expect(t).toContain(x);
+    expect(t).not.toContain('Условия отмены');
+    expect(root.querySelector('img.hero')?.getAttribute('src')).toBe('/img/camp-hero.jpg');
+  });
+
   it('мест нет', async () => {
     api({ ...camp, seats_available: false });
     mount('/camp/zima');
@@ -107,7 +117,7 @@ describe('текст из базы как текст (условие 59)', () =>
     });
     const root = mount('/camp/zima');
     await screen.findByRole('heading', { level: 1 });
-    expect(root.querySelector('img, script, b')).toBeNull();
+    expect(root.querySelector('img:not(.hero), script, b')).toBeNull();
     expect(root.querySelectorAll('a')).toHaveLength(1); // только «Открыть в Telegram»
     expect(root.textContent).toContain(evil);
     expect((window as any).__xss).toBeUndefined();

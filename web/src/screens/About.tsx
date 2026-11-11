@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useNav, useNavState, useSubEntry } from '../nav';
-import { ADMIN_CHAT, BRANCHES, CAMP, CAMP_MORE, CHAMPIONSHIPS, CLUB_CHANNEL, EQUIPMENT, GOALKEEPERS, INDIVIDUAL, INSTALLMENT_CHAT, PRODUCTS, SUIT_SIZES, type Product } from '../lib/clubInfo';
+import ParentCamps from './ParentCamps';
+import { ADMIN_CHAT, BRANCHES, CAMP, CHAMPIONSHIPS, CLUB_CHANNEL, EQUIPMENT, GOALKEEPERS, INDIVIDUAL, INSTALLMENT_CHAT, PRODUCTS, SUIT_SIZES, type Product } from '../lib/clubInfo';
 import { Photo } from '../lib/photos';
 import { Gallery, ZoomPhoto } from '../ui/Lightbox';
 import { Art, CoverBanner, CoverTile, type CoverId } from '../ui/Cover';
@@ -167,110 +168,93 @@ function Equipment({ product, setProduct }: { product: Product['id'] | null; set
   );
 }
 
-type CampTab = 'about' | 'program' | 'hotel' | 'price';
 const photo = (n: string, alt: string) => <ZoomPhoto name={n} alt={alt} className="ks-photo" />;
+const Eyebrow = ({ children }: { children: string }) => <p className="ks-eyebrow">{children}</p>;
 
-function Camp() {
-  const [tab, setTab] = useNavState<CampTab>('ab.camp', 'about', { persist: { kind: 'enum', values: ['about', 'program', 'hotel', 'price'] } });
-  const M = CAMP_MORE;
+// Winter Camp 2027: одна лента секций в порядке презентации (docs/CAMP_GUEST_SECTION_ACCEPTANCE.md)
+function Camp({ cabinet }: { cabinet?: boolean }) {
+  const C = CAMP;
+  const nav = useNav();
   return (
     <>
-      <CoverBanner id="camp" title={CAMP.title} sub={CAMP.when} photo="camp-hero" />
-      <div className="ks-tabs">
-        <Segmented<CampTab>
-          label="Разделы сборов"
-          value={tab}
-          onChange={setTab}
-          items={[{ value: 'about', label: 'Обзор' }, { value: 'program', label: 'Программа' }, { value: 'hotel', label: 'Отель' }, { value: 'price', label: 'Стоимость' }]}
-        />
-      </div>
-      {tab === 'about' && (
-        <>
-          <Card title={M.tagline}>
-            <p className="ks-lead">Группы: {CAMP.groups}</p>
-            <p className="ks-lead" style={{ marginBottom: 0 }}>{M.lead}</p>
-          </Card>
-          <Card>
-            <Gallery className="ks-gallery" keys={['camp-resort', 'camp-team', 'camp-garden', 'camp-play', 'camp-sunset']} alt="Фото сборов" />
-            {M.idea.map(i => <Price key={i.title} name={i.title} note={i.text} price="" />)}
-          </Card>
-          <Card title={M.fields.title}>
-            {photo('camp-fields', 'Футбольные поля на территории отеля')}
-            <p className="ks-lead" style={{ marginBottom: 0 }}>{M.fields.text}</p>
-          </Card>
-          <Card title="Опыт FC KickStart">
-            <div className="ks-nums">{M.experience.numbers.map(([n, l]) => <div key={l}><b>{n}</b><span>{l}</span></div>)}</div>
-            <p className="ks-hint">{M.experience.note}</p>
-            <p className="ks-label">В конце: письменные рекомендации каждому игроку</p>
-            <Checks items={M.experience.report} />
-          </Card>
-          <Card title="Эксклюзивная футболка только для участников Winter Camp 2027">
-            {photo('camp-shirt', 'Футболка участника сборов с кикбарсом')}
-            <p className="ks-lead" style={{ marginBottom: 0 }}>{M.shirt}</p>
-          </Card>
-          <Sign text="Забронировать место" />
-        </>
+      <CoverBanner id="camp" title={C.title} sub={`${C.short} · ${C.groups}`} photo="camp-hero" />
+      {cabinet && (
+        <button type="button" className="ks-btn" style={{ marginBottom: 12 }} onClick={() => nav.push('ab.camps')}>
+          Записаться / мои сборы
+        </button>
       )}
-      {tab === 'program' && (
-        <>
-          <Card title="Каждому возрасту своя задача">
-            <p className="ks-lead">{M.agesNote}</p>
-            <ul className="ks-steps2">
-              {M.ages.map(a => <li key={a.group}><b>{a.group}</b>{a.items.join(' · ')}</li>)}
-            </ul>
-          </Card>
-          <Card title="7 дней в режиме футболиста">
-            {photo('camp-class', 'Теория и разбор игровых ситуаций')}
-            <ul className="ks-steps2">
-              {M.day.map(d => <li key={d.title}><b>{d.title}</b>{d.text}</li>)}
-            </ul>
-            <p className="ks-hint">{M.dayNote}</p>
-          </Card>
-          <Card title="Один отпуск, два сценария">
-            <div className="ks-two">
-              <div><h3>Для ребёнка</h3><Checks items={M.family.child} /></div>
-              <div><h3>Для родителей</h3><Checks items={M.family.parents} /></div>
-            </div>
-            <p className="ks-hint">{M.family.note}</p>
-          </Card>
-        </>
-      )}
-      {tab === 'hotel' && (
-        <>
-          <Card title="Kolkhida Resort & Spa">
-            {photo('camp-resort', 'Территория отеля')}
-            <p className="ks-lead" style={{ marginBottom: 0 }}>Отель на берегу моря в Уреки: поля, питание и отдых рядом.</p>
-          </Card>
-          <Card title="Номера">
-            <Gallery className="ks-gallery" keys={['camp-room1', 'camp-room2', 'camp-room3']} alt="Номер отеля" />
-            <p className="ks-hint"><b>{M.rooms.title}.</b> {M.rooms.text}</p>
-          </Card>
-          <Card title="На территории">
-            {M.services.map(x => <Price key={x.title} name={x.title} note={x.text} price="" />)}
-            {photo('camp-garden', 'Территория отеля')}
-          </Card>
-        </>
-      )}
-      {tab === 'price' && (
-        <>
-          <Card title="Тарифы Winter Camp 2027">
-            {CAMP.prices.map(p => <Price key={p.name} name={p.name} note={p.note} price={p.price} />)}
-            {M.priceNotes.slice(0, 2).map(n => <p className="ks-hint" key={n}>{n}</p>)}
-          </Card>
-          <Card title="Бронь и отмена">
-            <p className="ks-callout" style={{ marginTop: 0 }}><b>500 GEL</b> бронь до 1 декабря, полная оплата до 20 декабря.</p>
-            <Checks items={CAMP.terms.slice(1, 5)} plain />
-            <p className="ks-hint">{M.priceNotes[2]}</p>
-          </Card>
-          <Sign text="Забронировать место" />
-        </>
-      )}
+      <Card>
+        <Eyebrow>{C.atmosphere.label}</Eyebrow>
+        <h2 className="ks-h">{C.atmosphere.title}</h2>
+        {photo('camp-snow', 'Футболисты на снегу')}
+        <p className="ks-lead">{C.atmosphere.text}</p>
+        <p className="ks-hint">{C.atmosphere.note}</p>
+      </Card>
+      <Card>
+        <Eyebrow>{C.program.label}</Eyebrow>
+        <h2 className="ks-h">{C.program.title}</h2>
+        {photo('camp-field', 'Тренировка на поле')}
+        <p className="ks-callout"><b>{C.program.lead}</b></p>
+        <p className="ks-lead" style={{ marginBottom: 0 }}>{C.program.text}</p>
+      </Card>
+      <Card>
+        <Eyebrow>{C.hotel.label}</Eyebrow>
+        <h2 className="ks-h">{C.hotel.title}</h2>
+        {photo('camp-room', 'Номер в отеле')}
+        <p className="ks-label">{C.hotel.lead}</p>
+        <Checks items={C.hotel.items} />
+      </Card>
+      <Card>
+        <Eyebrow>{C.ages.label}</Eyebrow>
+        <h2 className="ks-h">{C.ages.title}</h2>
+        {photo('camp-ages', 'Занятие по возрастам')}
+        <ul className="ks-steps2">
+          {C.ages.items.map(a => <li key={a.group}><b>{a.group}</b>{a.text}</li>)}
+        </ul>
+      </Card>
+      <Card>
+        <Eyebrow>{C.life.label}</Eyebrow>
+        <h2 className="ks-h">{C.life.title}</h2>
+        <div className="ks-two">{photo('camp-life1', 'Команда в свободное время')}{photo('camp-life2', 'Командный вечер')}</div>
+        <ul className="ks-steps2" style={{ marginTop: 10 }}>
+          {C.life.day.map(d => <li key={d.title}><b>{d.title}</b>{d.text}</li>)}
+        </ul>
+      </Card>
+      <Card>
+        <Eyebrow>{C.family.label}</Eyebrow>
+        <h2 className="ks-h">{C.family.title}</h2>
+        {photo('camp-family', 'Футболист на сборах')}
+        <p className="ks-lead"><b>{C.family.lead}</b></p>
+        <p className="ks-lead">{C.family.text}</p>
+        <p className="ks-hint">{C.family.note}</p>
+      </Card>
+      <Card>
+        <Eyebrow>{C.result.label}</Eyebrow>
+        <h2 className="ks-h">{C.result.title}</h2>
+        <div className="ks-nums">{C.result.numbers.map(([n, l]) => <div key={l}><b>{n}</b><span>{l}</span></div>)}</div>
+        <p className="ks-lead" style={{ marginTop: 12 }}>{C.result.text}</p>
+        <p className="ks-hint">{C.result.note}</p>
+      </Card>
+      <Card>
+        <Eyebrow>{C.price.label}</Eyebrow>
+        <h2 className="ks-h">{C.price.title}</h2>
+        {C.price.tariffs.map(t => <Price key={t.name} name={t.name} note={t.note} price={t.price} />)}
+        <p className="ks-hint">{C.price.transfer}</p>
+        <p className="ks-callout"><b>{C.price.booking}</b><br /><b>{C.price.full}</b></p>
+      </Card>
+      <Card>
+        {photo('camp-team', 'Участники Winter Camp')}
+        <h2 className="ks-h">{C.cta.title}</h2>
+        <p className="ks-lead">{C.short}</p>
+        <a className="ks-btn" href={ADMIN_CHAT} target="_blank" rel="noreferrer">{C.cta.open} · {C.chat}</a>
+        <p className="ks-hint">{C.cta.note}</p>
+      </Card>
     </>
   );
 }
 
 const TILES: { id: Exclude<CoverId, 'channel'>; title: string; sub: string; wide?: boolean; photo?: string }[] = [
-  { id: 'camp', title: CAMP.title, sub: `${CAMP.when.split(' · ')[0]} · Уреки`, wide: true, photo: 'camp-hero' },
+  { id: 'camp', title: CAMP.title, sub: CAMP.short, wide: true, photo: 'camp-hero' },
   { id: 'branches', title: 'Филиалы', sub: 'Три филиала и карты' },
   { id: 'champ', title: 'Чемпионаты', sub: 'Сезон 2026/27' },
   { id: 'individual', title: 'Индивидуальные', sub: 'До 3 футболистов на тренера' },
@@ -291,6 +275,8 @@ export default function About({ role, onChangeRole, onBack, cabinet }: { role: R
   const setProduct = (id: Product['id'] | null) => (id ? nav.push('ab.product', { id }) : nav.back());
   const setMaterials = (s: ArticleSection) => nav.push('ab.materials', { s });
 
+  const campsOpen = Boolean(useSubEntry('ab.camps'));
+  if (campsOpen) return <ParentCamps onBack={() => nav.back()} />;
   if (materials) return <ClubArticles role={role === 'parent' ? 'parent' : 'guest'} section={materials} onBack={() => nav.back()} />;
 
   // «Экипировка» не для гостя (#234): плитки нет, а прямое открытие раздела закрыто. Родителю раздел остаётся.

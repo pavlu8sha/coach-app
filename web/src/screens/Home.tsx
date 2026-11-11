@@ -155,7 +155,6 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
         {children.map(c => (
           <ChildCard c={c} key={c.id} />
         ))}
-        <ListRow title="Сборы" sub={['Запись, оплаты, документы']} onClick={() => nav.push('hm.camps')} />
       </HideWhen>
       {addMore ? (
         <Link onApproved={refresh} onOpenStatus={openStatus} />
