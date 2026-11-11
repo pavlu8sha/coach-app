@@ -56,6 +56,18 @@ export const issueStateLabel = (lines: IssueLine[], issues: IssueRow[]) => {
   return total === 0 || issued === 0 ? 'Нет' : full ? 'Да' : 'Частично';
 };
 
+/** Выдана ли вещь заказа: выдача хранится по комплекту (kit). */
+export const kitIssued = (issues: IssueRow[], kit: string) => issues.some(i => i.kit === kit);
+
+/**
+ * Подходит ли заказ под «Выдано» (want = true) или «Не выдано» (false).
+ * Если выбрана вещь (kit), смотрим только на неё; иначе на заказ целиком («выдано» = выдано всё).
+ */
+export function orderMatchesIssue(lines: IssueLine[], issues: IssueRow[], want: boolean, kit = ''): boolean {
+  const done = kit ? kitIssued(issues, kit) : issueUnits(lines, issues).full;
+  return done === want;
+}
+
 /** Текст требования к тренировочной форме для родителя. До ответа базы и при ошибке показывается утверждённый текст. */
 export function useEquipmentRequirement() {
   const [text, setText] = useState(EQUIPMENT_REQUIRED_TEXT);

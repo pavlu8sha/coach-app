@@ -68,6 +68,19 @@ describe('equipmentCsv', () => {
   });
 });
 
+describe('equipmentCsv: выдача по вещи (условие 5)', () => {
+  const partly = order({ equipment_issues: [{ kit: 'Игровая форма' }] }); // форма выдана, дождевик нет
+  const notIssued = (o: ExportOrder, kit: string) => !(o.equipment_issues ?? []).some(i => i.kit === kit);
+  it('«Не выдано»: в файле только невыданная вещь заказа', () => {
+    const l = lines(equipmentCsv([partly], '', notIssued));
+    expect(l).toHaveLength(2);
+    expect(l[1]).toContain(';Дождевик;');
+  });
+  it('«Не выдано» + Товар «Игровая форма»: выданная форма не выгружается, файла нет', () => {
+    expect(equipmentCsv([partly], 'Игровая форма', notIssued)).toBe('');
+  });
+});
+
 describe('csvFileName (условие 11)', () => {
   it('equipment-ГГГГ-ММ-ДД.csv', () => expect(csvFileName('2026-11-09')).toBe('equipment-2026-11-09.csv'));
 });

@@ -341,6 +341,40 @@ describe('Экипировка: фильтры как в старом прило
   });
 });
 
+describe('Экипировка: «Выдача» считается по вещи (условия docs/acceptance/eq-issue-filter-per-kit-2026-11-11.md)', () => {
+  it('условия 1-2: Товар «Форма» + «Не выдано» не включает того, кому форму выдали, а куртку нет', async () => {
+    seed(); // o1: всё выдано; o2: ничего; o3: выдана форма, куртка нет
+    render(<Equipment />);
+    expect(await screen.findByText('Петров Иван')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Товар'), { target: { value: 'Форма' } });
+    fireEvent.change(screen.getByLabelText('Выдача'), { target: { value: 'no' } });
+    expect(screen.getByText('Сидоров Ян')).toBeInTheDocument();
+    expect(screen.queryByText('Петров Иван')).toBeNull();
+    expect(screen.queryByText('Иванов Пётр')).toBeNull();
+    fireEvent.change(screen.getByLabelText('Выдача'), { target: { value: 'yes' } });
+    expect(screen.getByText('Петров Иван')).toBeInTheDocument();
+    expect(screen.getByText('Иванов Пётр')).toBeInTheDocument();
+    expect(screen.queryByText('Сидоров Ян')).toBeNull();
+  });
+  it('условие 3: вкладка «Не выданы» вместе с «Товар» тоже смотрит на вещь', async () => {
+    seed();
+    render(<Equipment />);
+    expect(await screen.findByText('Петров Иван')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Товар'), { target: { value: 'Форма' } });
+    fireEvent.click(screen.getByRole('tab', { name: /Не выданы/ }));
+    expect(screen.getByText('Сидоров Ян')).toBeInTheDocument();
+    expect(screen.queryByText('Петров Иван')).toBeNull();
+  });
+  it('условие 4: без «Товар» заказ целиком (частично выданный остаётся в «Не выдано»)', async () => {
+    seed();
+    render(<Equipment />);
+    expect(await screen.findByText('Петров Иван')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Выдача'), { target: { value: 'no' } });
+    expect(screen.getByText('Петров Иван')).toBeInTheDocument();
+    expect(screen.queryByText('Иванов Пётр')).toBeNull();
+  });
+});
+
 describe('Новый заказ: локация', () => {
   it('локация подставляется из группы выбранного игрока и остаётся редактируемой', async () => {
     fake.db.equipment_orders = [];

@@ -11,7 +11,7 @@ import { settingNumberError, useClubSettings } from '../lib/clubSettings';
 import { bundleDiscount, priorAmount } from '../lib/equipmentDiscount';
 import { CSV_BOM, csvFileName, equipmentCsv } from '../lib/equipmentExport';
 import { initData } from '../lib/telegram';
-import { allKitsIssued, EQUIPMENT_REQUIRED_KEY, EQUIPMENT_REQUIRED_TEXT, issueStateLabel, lastStatusDate, nextStatus, orderStatusLabel, prevStatus, type StatusEvent } from '../lib/equipment';
+import { allKitsIssued, EQUIPMENT_REQUIRED_KEY, EQUIPMENT_REQUIRED_TEXT, issueStateLabel, kitIssued, lastStatusDate, orderMatchesIssue, nextStatus, orderStatusLabel, prevStatus, type StatusEvent } from '../lib/equipment';
 
 interface Line { id?: string; kit: string; size: string | null; quantity: number; unit_price?: number | string | null }
 interface Order {
@@ -110,12 +110,17 @@ export default function Equipment() {
   const matches = useCallback((o: Order) => {
     const t = q.trim().toLowerCase();
     return (!t || (o.players?.full_name ?? '').toLowerCase().includes(t))
-      && (tab === 'unpaid' ? o.paid < o.total : tab === 'noissue' ? issueState(o) !== 'Да' : tab === 'incomplete' ? missingOf(o).length > 0 : true)
+      && (tab === 'unpaid' ? o.paid < o.total : tab === 'noissue' ? orderMatchesIssue(o.equipment_order_lines, o.equipment_issues, false, fKit) : tab === 'incomplete' ? missingOf(o).length > 0 : true)
       && (!fGroup || o.players?.groups?.name === fGroup)
       && (!fKit || o.equipment_order_lines.some(l => l.kit === fKit))
       && (!fLoc || (o.location ?? '') === fLoc)
-      && (!fIssue || (fIssue === 'yes' ? issueState(o) === 'Да' : issueState(o) !== 'Да'));
+      && (!fIssue || orderMatchesIssue(o.equipment_order_lines, o.equipment_issues, fIssue === 'yes', fKit));
   }, [q, tab, fGroup, fKit, fLoc, fIssue]);
+  // Для CSV: строка файла = вещь, поэтому состояние выдачи проверяется по самой вещи, а не по заказу.
+  const lineOk = useCallback((o: { equipment_issues?: { kit: string }[] }, kit: string) => {
+    const done = kitIssued(o.equipment_issues ?? [], kit);
+    return (tab !== 'noissue' || !done) && (!fIssue || done === (fIssue === 'yes'));
+  }, [tab, fIssue]);
   const shown = useMemo(() => (orders ?? []).filter(matches), [orders, matches]);
   const options = useMemo(() => {
     const uniq = (xs: (string | null | undefined)[]) => [...new Set(xs.filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'ru'));
@@ -161,7 +166,7 @@ export default function Equipment() {
     try {
       const all = await loadAll();
       if (!all) return;
-      const csv = equipmentCsv(all.filter(matches), fKit);
+      const csv = equipmentCsv(all.filter(matches), fKit, lineOk);
       if (!csv) return setExportMsg({ ok: false, text: 'Нет заказов по выбранным фильтрам.' });
       if (kind === 'copy') {
         try {
