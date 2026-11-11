@@ -9,7 +9,8 @@ import { PlayerDues } from './CashDesk';
 import PlayerStatusPanel from './PlayerStatusPanel';
 import { Failure, Loading } from './Message';
 import { EquipmentTab, MatchesTab, PointsTab, SessionsTab } from './PlayerCardTabs';
-import { monthIso, monthName, nextMonth, Row, SEASON_START, tariffFor, type Sub } from './MonthPayments';
+import { DEBT_START } from '../lib/debtSeason';
+import { monthIso, monthName, nextMonth, Row, tariffFor, type Sub } from './MonthPayments';
 import type { PlayerForm } from './PlayerEdit';
 
 interface Price { group_id: string | null; amount: number; valid_from: string; valid_to: string | null }
@@ -42,7 +43,7 @@ export default function PlayerCard({ player, onBack, onEdit, onStatus, managed }
     const out: string[] = [];
     const now = new Date();
     // следующий месяц тоже в списке: родители платят вперёд, и экран «Оплаты за месяц» его показывает
-    for (let d = new Date(now.getFullYear(), now.getMonth() + 1, 1); monthIso(d) >= SEASON_START; d.setMonth(d.getMonth() - 1)) out.push(monthIso(d));
+    for (let d = new Date(now.getFullYear(), now.getMonth() + 1, 1); monthIso(d) >= DEBT_START; d.setMonth(d.getMonth() - 1)) out.push(monthIso(d));
     return out;
   }, []);
   const [prices, setPrices] = useState<Price[]>([]);
@@ -60,7 +61,7 @@ export default function PlayerCard({ player, onBack, onEdit, onStatus, managed }
   useEffect(() => {
     void (async () => {
       const pr = await supabase.from('prices').select('group_id, amount, valid_from, valid_to').eq('kind', 'subscription');
-      const pay = await supabase.from('payments').select('amount, paid_on, pay_month').eq('player_id', player.id).gte('pay_month', SEASON_START).limit(1000);
+      const pay = await supabase.from('payments').select('amount, paid_on, pay_month').eq('player_id', player.id).gte('pay_month', DEBT_START).limit(1000);
       const sb = await supabase.from('subscriptions').select('player_id, month, discount, written_off, closed_kind, closed_reason').eq('player_id', player.id);
       const cr = await supabase.from('players').select('created_at, ends_on').eq('id', player.id).maybeSingle();
       if (!cr.error && cr.data?.created_at) setCreated(monthIso(new Date(cr.data.created_at)));
@@ -112,7 +113,7 @@ export default function PlayerCard({ player, onBack, onEdit, onStatus, managed }
       {tab === 'equip' && <EquipmentTab playerId={player.id} staff />}
       {tab === 'matches' && <MatchesTab playerId={player.id} />}
       {tab === 'points' && <PointsTab playerId={player.id} />}
-      {tab === 'sub' && (pays === null ? <Loading /> : visibleMonths(months, firstMonth([...subs.keys()], payMonths, created, SEASON_START), status !== 'active' ? lastMonth([...subs.keys()], payMonths, firstMonth([...subs.keys()], payMonths, created, SEASON_START)) : null).filter(m => !((isPausedMonth(m) || afterLeft(m)) && gotIn(m) <= 0)).map(m => {
+      {tab === 'sub' && (pays === null ? <Loading /> : visibleMonths(months, firstMonth([...subs.keys()], payMonths, created, DEBT_START), status !== 'active' ? lastMonth([...subs.keys()], payMonths, firstMonth([...subs.keys()], payMonths, created, DEBT_START)) : null).filter(m => !((isPausedMonth(m) || afterLeft(m)) && gotIn(m) <= 0)).map(m => {
         const tariff = player.group_id ? tariffFor(prices, player.group_id, m) : null;
         const got = gotIn(m);
         const sub = subs.get(m);

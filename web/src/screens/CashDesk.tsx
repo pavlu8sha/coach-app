@@ -6,7 +6,8 @@ import { useConfirm } from '../ui/ConfirmSheet';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 import { afterLeftMonthTest, pausedMonthTest, type StatusLogPoint } from '../lib/playerStatus';
-import { gel, monthIso, monthName, nextMonth, SEASON_START, tariffFor } from './MonthPayments';
+import { DEBT_START } from '../lib/debtSeason';
+import { gel, monthIso, monthName, nextMonth, tariffFor } from './MonthPayments';
 import { useNavState } from '../nav';
 
 interface Pl { id: string; full_name: string; group_id: string | null; groups: { name: string } | null; external_id?: string | null; birth_date?: string | null; status?: string }
@@ -57,7 +58,7 @@ async function loadDues(p: Pl): Promise<Due[]> {
     ((pays.data ?? []) as { amount: number; paid_on: string; pay_month?: string | null }[]).forEach(x => { const m = x.pay_month ?? monthIso(new Date(x.paid_on + 'T12:00:00')); paidBy.set(m, (paidBy.get(m) ?? 0) + Number(x.amount)); });
     const sb = new Map(((subs.data ?? []) as { month: string; group_id: string | null; discount: boolean; written_off: boolean }[]).map(s => [s.month, s]));
     const cur = monthIso(new Date());
-    for (let m = SEASON_START; m <= nextMonth(cur); m = nextMonth(m)) {
+    for (let m = DEBT_START; m <= nextMonth(cur); m = nextMonth(m)) {
       const s = sb.get(m);
       if ((isPausedMonth(m) || afterLeft(m)) && (paidBy.get(m) ?? 0) <= 0) continue;
       // ушедшему игроку текущий и будущий месяцы долгом не считаются, пока нет строки абонемента или платежа
