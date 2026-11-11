@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { DEBT_START } from '../lib/debtSeason';
 import { fake } from '../test/fakeSupabase';
 import MonthPayments, { inMonth, tariffFor } from './MonthPayments';
 
@@ -67,6 +68,15 @@ describe('«Оплаты за месяц»', () => {
     expect(screen.getByText(/^Скидка · внесено 50 ₾$/)).toBeInTheDocument();
     expect(screen.getAllByText('1 из 3')).toHaveLength(2); // плитка «Оплатили» и заголовок группы
     expect(screen.getByText(/внесено 150 ₾ из 495 ₾/)).toBeInTheDocument(); // итог группы
+  });
+
+  it('нижняя граница списка месяцев — DEBT_START', async () => {
+    seed();
+    render(<MonthPayments />);
+    const select = await screen.findByRole('combobox', { name: 'Месяц' });
+    const values = within(select).getAllByRole('option').map(o => (o as HTMLOptionElement).value);
+    expect(values).toContain(DEBT_START);
+    expect(values).not.toContain('2026-08-01');
   });
 
   it('деньги ушедшего игрока остаются в итоге месяца, а должником он не становится', async () => {

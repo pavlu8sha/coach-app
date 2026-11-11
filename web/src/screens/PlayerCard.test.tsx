@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
+import { DEBT_START } from '../lib/debtSeason';
 import { fake } from '../test/fakeSupabase';
 import PlayerCard from './PlayerCard';
 
@@ -26,6 +27,13 @@ function seed() {
 const open = (name: string) => fireEvent.click(screen.getByRole('tab', { name }));
 
 describe('карточка игрока: вкладки', () => {
+  it('абонемент начинается с DEBT_START; августа нет', async () => {
+    seed();
+    render(<PlayerCard player={player} onBack={() => {}} onEdit={() => {}} />);
+    expect(await screen.findByText(/Сентябрь 2026/)).toBeInTheDocument();
+    expect(screen.queryByText(/Август 2026/)).toBeNull();
+  });
+
   it('«Занятия»: индивидуальные и допы игрока по датам, чужие записи не попадают', async () => {
     seed();
     render(<PlayerCard player={player} onBack={() => {}} onEdit={() => {}} />);
@@ -138,7 +146,8 @@ describe('firstMonth', () => {
   it('платёж и его отмена не открывают месяц', async () => {
     const { firstMonth } = await import('./PlayerCard');
     const pays = [{ amount: 130, month: '2026-10-01' }, { amount: -130, month: '2026-10-01' }, { amount: 130, month: '2026-11-01' }];
-    expect(firstMonth([], pays, '2026-11-01', '2026-09-01')).toBe('2026-11-01');
-    expect(firstMonth([], [{ amount: 130, month: '2026-10-01' }], '2026-11-01', '2026-09-01')).toBe('2026-10-01');
+    expect(firstMonth([], pays, '2026-11-01', DEBT_START)).toBe('2026-11-01');
+    expect(firstMonth([], [{ amount: 130, month: '2026-10-01' }], '2026-11-01', DEBT_START)).toBe('2026-10-01');
+    expect(firstMonth([], [], null, DEBT_START)).toBe(DEBT_START);
   });
 });

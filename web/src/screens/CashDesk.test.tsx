@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { today } from '../lib/coach';
+import { DEBT_START } from '../lib/debtSeason';
 import { fake } from '../test/fakeSupabase';
 import CashDesk, { PlayerDues } from './CashDesk';
 import { monthIso, nextMonth } from './MonthPayments';
@@ -40,6 +41,16 @@ describe('«Приём оплат»', () => {
     expect(screen.getByText(/Внесено 60 ₾ из 160 ₾/)).toBeInTheDocument();
     expect(screen.getByText(/Вратари 10.01.2020/)).toBeInTheDocument();
     expect(screen.queryByText(/10.01.2099/)).not.toBeInTheDocument();
+  });
+
+  it('абонемент начинается с DEBT_START; августа нет', async () => {
+    seed();
+    fake.db.subscriptions = [{ player_id: 'p1', month: DEBT_START, group_id: null, discount: false, written_off: false }];
+    fake.db.payments = [];
+    await openPlayer();
+    expect(await screen.findByText(/Сентябрь 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/Ноябрь 2026.*\(вперёд\)/)).toBeInTheDocument();
+    expect(screen.queryByText(/Август 2026/)).toBeNull();
   });
 
   it('абонемент: частичный платёж идёт в журнал со способом и датой', async () => {
