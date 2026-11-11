@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { coachError, fmtDate } from '../lib/coach';
-import { campDocLink, checkPdfFile, uploadCampDoc } from '../lib/campDocs';
+import { checkPdfFile, openCampDoc, uploadCampDoc } from '../lib/campDocs';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, Segmented } from '../ui/components';
 import { useConfirm } from '../ui/ConfirmSheet';
@@ -265,6 +265,7 @@ export function CampDocuments({ camp }: { camp: CampLite }) {
     setDocs(null);
     setReload(n => n + 1);
   };
+  const [fallback, setFallback] = useState<string | null>(null);
   const remove = async (d: Doc) => {
     const ok = await ask({ title: 'Снять документ?', lines: [['Документ', d.title], ['Версия', String(d.version)]], note: 'Документ исчезнет у участников вместе со всеми версиями. В истории он останется.', confirmLabel: 'Снять документ', danger: true });
     if (!ok) return;
@@ -275,9 +276,10 @@ export function CampDocuments({ camp }: { camp: CampLite }) {
   };
   const open = async (d: Doc) => {
     setMsg(null);
-    const r = await campDocLink(d.id);
+    setFallback(null);
+    const r = await openCampDoc(d.id);
     if (!r.ok) return setMsg({ ok: false, text: campErr(r.error) });
-    window.open(r.data.url, '_blank', 'noopener');
+    setFallback(r.fallbackUrl);
   };
 
   return (
@@ -301,6 +303,7 @@ export function CampDocuments({ camp }: { camp: CampLite }) {
       <label className="field">Файл PDF<input key={inputKey} type="file" accept="application/pdf,.pdf" onChange={e => pick(e.target.files?.[0])} /></label>
       {fileErr && <p className="error">{fileErr}</p>}
       {msg && <p className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}
+      {fallback && <p><a href={fallback} target="_blank" rel="noopener">Открыть файл</a></p>}
       <button type="button" className="ks-btn" disabled={busy || !file || !!fileErr || (!replacing && !title.trim())} onClick={() => void upload()}>{replacing ? 'Загрузить новую версию' : 'Загрузить'}</button>
     </>
   );

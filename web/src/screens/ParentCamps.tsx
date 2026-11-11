@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fmtDate } from '../lib/coach';
-import { campDocLink } from '../lib/campDocs';
+import { openCampDoc } from '../lib/campDocs';
 import { supabase } from '../lib/supabase';
 import { useNav, useSubEntry } from '../nav';
 import { EmptyState, ListRow, Pill } from '../ui/components';
@@ -303,11 +303,13 @@ function PartRow(props: { name: string; kid: Kid | null; part: Part | null; camp
 
 function Docs({ docs }: { docs: Doc[] }) {
   const [msg, setMsg] = useState<string | null>(null);
+  const [fallback, setFallback] = useState<string | null>(null);
   const openDoc = async (d: Doc) => {
     setMsg(null);
-    const r = await campDocLink(d.id);
+    setFallback(null);
+    const r = await openCampDoc(d.id);
     if (!r.ok) return setMsg(campErr(r.error));
-    window.open(r.data.url, '_blank', 'noopener');
+    setFallback(r.fallbackUrl);
   };
   return (
     <section className="ks-card" aria-label="Документы">
@@ -321,6 +323,7 @@ function Docs({ docs }: { docs: Doc[] }) {
         ))}
       </ul>
       {msg && <p role="alert" className="error">{msg}</p>}
+      {fallback && <p><a href={fallback} target="_blank" rel="noopener">Открыть файл</a></p>}
     </section>
   );
 }
