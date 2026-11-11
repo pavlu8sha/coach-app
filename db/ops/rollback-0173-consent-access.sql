@@ -117,24 +117,23 @@ begin
   return r;
 end $function$;
 
-CREATE OR REPLACE FUNCTION public.camp_broadcast_targets(cid uuid, k text, b text)
- RETURNS TABLE(user_id uuid, msg text)
- LANGUAGE plpgsql
- STABLE SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
+-- camp_broadcast_audience и camp_broadcast_targets в редакции 0172 (откатывает и дельту 0175)
+create or replace function camp_broadcast_audience(cid uuid, k text, b text) returns table (user_id uuid, name text, msg text, status text)
+language plpgsql stable security definer set search_path = public as $$
 declare c camps;
 begin
   select * into c from camps where id = cid;
   if k = 'info' then
     return query
-      select x.uid, 'Сбор «' || left(c.name, 200) || E'»:\n' || b
+      select x.uid, camp_notify_name(u.display_name), 'Сбор «' || left(c.name, 200) || E'»:\n' || b,
+             case when not u.notifications_enabled then 'notifications_off'
+                  when (select count(*) from notifications n where n.user_id = x.uid and n.kind like 'camp\_broadcast\_%' and n.created_at > now() - interval '1 day') >= 3 then 'daily_limit'
+                  else 'ok' end
         from (select distinct g.user_id as uid
                 from player_guardians g
                 join players p on p.id = g.player_id and p.club_id = c.club_id and p.status = 'active'
-                join users u on u.id = g.user_id and u.notifications_enabled
-               where g.consent_revoked_at is null
-                 and (select count(*) from notifications n where n.user_id = g.user_id and n.kind like 'camp\_broadcast\_%' and n.created_at > now() - interval '1 day') < 3) x
+               where g.consent_revoked_at is null) x
+        join users u on u.id = x.uid
        order by x.uid;
   else
     return query
@@ -148,18 +147,26 @@ begin
         select g.user_id as uid, d.child, d.rest from debt d join player_guardians g on g.player_id = d.player_id and g.consent_revoked_at is null where d.rest > 0
         union all
         select d.owner_user_id, d.child, d.rest from debt d where d.rest > 0 and d.owner_user_id is not null)
-      select f.uid,
+      select f.uid, camp_notify_name(u.display_name),
              'Напоминание об оплате сбора «' || left(c.name, 200) || E'».\nОсталось внести:\n'
              || string_agg(f.child || ': ' || trim(to_char(f.rest, 'FM999999990.00')) || ' ₾', E'\n' order by f.child)
              || case when c.full_payment_deadline is not null then E'\nСрок полной оплаты: ' || to_char(c.full_payment_deadline, 'DD.MM.YYYY') || '.' else '' end
              || case when b is not null then E'\n\n' || b else '' end
-             || E'\nОткройте приложение, раздел «Сборы».'
-        from fam f join users u on u.id = f.uid and u.notifications_enabled
-       where (select count(*) from notifications n where n.user_id = f.uid and n.kind like 'camp\_broadcast\_%' and n.created_at > now() - interval '1 day') < 3
-       group by f.uid
+             || E'\nОткройте приложение, раздел «Сборы».',
+             case when not u.notifications_enabled then 'notifications_off'
+                  when (select count(*) from notifications n where n.user_id = f.uid and n.kind like 'camp\_broadcast\_%' and n.created_at > now() - interval '1 day') >= 3 then 'daily_limit'
+                  else 'ok' end
+        from fam f join users u on u.id = f.uid
+       group by f.uid, u.display_name, u.notifications_enabled
        order by f.uid;
   end if;
-end $function$;
+end $$;
+
+create or replace function camp_broadcast_targets(cid uuid, k text, b text) returns table (user_id uuid, msg text)
+language sql stable security definer set search_path = public as $$
+  select a.user_id, a.msg from camp_broadcast_audience(cid, k, b) a where a.status = 'ok' order by a.user_id
+$$;
+
 
 CREATE OR REPLACE FUNCTION public.camp_broadcast_unreachable(cid uuid)
  RETURNS integer
