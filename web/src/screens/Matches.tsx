@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { groupInOrder } from '../lib/coach';
 import { useNavState } from '../nav';
 import { supabase } from '../lib/supabase';
+import { MATCH_DURATION_KEY, matchDurationFor, type ScopedValues, type SettingValues } from '../lib/clubSettings';
 import { teamResults } from '../lib/teamResults';
 import { EmptyState, ListRow, Pill, Segmented, type Tone } from '../ui/components';
 import { type MyRsvp } from '../lib/matchRsvp';
@@ -50,6 +51,7 @@ export default function Matches() {
   const [reload, setReload] = useState(0);
   const [rsvp, setRsvp] = useState<MyRsvp[]>([]); // матчи с подтверждением участия (миграция 0134); без неё список пуст
   const [rsvpScored, setRsvpScored] = useState<Set<string>>(new Set()); // матчи с подтверждением, у которых внесён счёт
+  const [durations, setDurations] = useState<{ values: SettingValues; scoped: ScopedValues }>({ values: {}, scoped: {} }); // длительность матча из настроек клуба (0168)
 
   useEffect(() => {
     void (async () => {
@@ -75,8 +77,17 @@ export default function Matches() {
       setRsvp(rsRows);
       // счёт прошедших матчей с подтверждением: без него статус «Прошёл» не определить
       const rsIds = [...new Set(rsRows.map(r => r.match_id))];
-      const sc = rsIds.length ? await supabase.from('matches').select('id, goals_for').in('id', rsIds) : null;
-      setRsvpScored(new Set(((sc?.data ?? []) as { id: string; goals_for: number | null }[]).filter(x => x.goals_for !== null).map(x => x.id)));
+      const sc = rsIds.length ? await supabase.from('matches').select('id, goals_for, goals_against').in('id', rsIds) : null;
+      // длительность матча по командам; без миграции 0168 или при ошибке действует 90 минут
+      const du = rsIds.length ? await supabase.rpc('match_duration_minutes') : null;
+      const dv: SettingValues = {};
+      const dt: Record<string, string> = {};
+      for (const x of ((du && !du.error ? du.data : null) ?? []) as { team: string | null; value: string | null }[]) {
+        if ((x.team ?? '') === '') dv[MATCH_DURATION_KEY] = x.value ?? '';
+        else dt[x.team as string] = x.value ?? '';
+      }
+      setDurations({ values: dv, scoped: { [MATCH_DURATION_KEY]: dt } });
+      setRsvpScored(new Set(((sc?.data ?? []) as { id: string; goals_for: number | null; goals_against: number | null }[]).filter(x => x.goals_for !== null && x.goals_against !== null).map(x => x.id)));
       const m = await supabase.from('matches').select('id, team, played_on, opponent, goals_for, goals_against').in('team', teamNames(names)).order('played_on', { ascending: false }).limit(100);
       if (m.error) return setError(m.error.message);
       const rows = (m.data ?? []) as Match[];
@@ -107,10 +118,11 @@ export default function Matches() {
 
   const t = today();
   // матчи с подтверждением показываются карточками ниже и в общем списке не дублируются
-  const rsvpIds = new Set(rsvp.map(r => r.match_id));
+  // со счётом матч переходит в «Результаты» и в итоги команды; отменённый остаётся карточкой
+  const rsvpIds = new Set(rsvp.filter(r => r.lifecycle_status === 'cancelled' || !rsvpScored.has(r.match_id)).map(r => r.match_id));
   matches = matches.filter(m => !rsvpIds.has(m.id));
   const hasRsvpUpcoming = rsvp.some(r => r.lifecycle_status === 'published' && new Date(r.starts_at).getTime() > Date.now());
-  const hasRsvpPast = rsvp.length > 0 && rsvp.some(r => !(r.lifecycle_status === 'published' && new Date(r.starts_at).getTime() > Date.now()));
+  const hasRsvpPast = rsvp.some(r => !(r.lifecycle_status === 'published' && new Date(r.starts_at).getTime() > Date.now()) && (r.lifecycle_status === 'cancelled' || !rsvpScored.has(r.match_id)));
   const upcoming = matches.filter(m => m.played_on >= t && m.goals_for === null).reverse();
   // сыгранные: со счётом, а также прошедшие без счёта (например, товарищеские без результата): их тоже показываем, но в итоги команды они не входят
   const finished = (m: Match) => isResult(m) || m.played_on < t;
@@ -187,7 +199,7 @@ export default function Matches() {
 
       {showPast && (
         <>
-          <RsvpSection rows={rsvp} part="past" withResult={rsvpScored} onChanged={() => setReload(n => n + 1)} />
+          <RsvpSection rows={rsvp} part="past" scored={rsvpScored} durationMin={team => matchDurationFor(durations.values, durations.scoped, team)} onChanged={() => setReload(n => n + 1)} />
           {filter === 'all' && played.length > 0 && <h2 className="ks-sub">Результаты</h2>}
           {groupInOrder(played, m => m.played_on.slice(0, 7)).map(([ym, items]) => (
             <details className="ks-group" key={ym}>

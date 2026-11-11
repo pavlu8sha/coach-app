@@ -52,18 +52,68 @@ describe('«Матчи» родителя: статус прошедшего м�
     expect(screen.queryByText('Идёт или прошёл')).toBeNull();
   });
 
-  it('прошедший матч с результатом показывается как «Прошёл»', async () => {
-    seedParent([row({ match_id: 'r3', starts_at: ago(48), can_answer: false, response: 'yes' })]);
-    fake.db.matches = [{ id: 'r3', team: 'U9', played_on: '2026-11-07', opponent: 'Олимп', goals_for: 2, goals_against: 1 }];
-    render(<Matches />);
-    expect(await screen.findByText('Прошёл')).toBeInTheDocument();
-    expect(screen.queryByText('Прошёл, результат не внесён')).toBeNull();
-  });
-
   it('матч, начавшийся час назад, и без результата показывается как «Идёт»', async () => {
     seedParent([row({ match_id: 'r4', starts_at: ago(1), can_answer: false, response: null })]);
     render(<Matches />);
     expect(await screen.findByText('Идёт')).toBeInTheDocument();
+  });
+
+  it('общая длительность матча из настроек клуба продлевает «Идёт»', async () => {
+    seedParent([row({ match_id: 'r6', starts_at: ago(2), can_answer: false, response: null })]);
+    fake.rpc.match_duration_minutes = () => [{ team: '', value: '150' }];
+    render(<Matches />);
+    expect(await screen.findByText('Идёт')).toBeInTheDocument();
+  });
+
+  it('длительность команды важнее общей', async () => {
+    seedParent([row({ match_id: 'r7', team: 'U9', starts_at: ago(1), can_answer: false, response: null })]);
+    fake.rpc.match_duration_minutes = () => [{ team: '', value: '150' }, { team: 'U9', value: '40' }];
+    render(<Matches />);
+    expect(await screen.findByText('Прошёл, результат не внесён')).toBeInTheDocument();
+    expect(screen.queryByText('Идёт')).toBeNull();
+  });
+
+  it('если настройка не читается или недопустима, действует 90 минут', async () => {
+    seedParent([row({ match_id: 'r8', starts_at: ago(1), can_answer: false, response: null }), row({ match_id: 'r9', opponent: 'Динамо', starts_at: ago(2), can_answer: false, response: null })]);
+    fake.rpc.match_duration_minutes = () => ({ data: null, error: { message: 'function does not exist' } });
+    render(<Matches />);
+    expect(await screen.findByText('Идёт')).toBeInTheDocument();
+    expect(screen.getByText('Прошёл, результат не внесён')).toBeInTheDocument();
+  });
+
+  it('недопустимое значение настройки не ломает экран: действует 90 минут', async () => {
+    seedParent([row({ match_id: 'r10', starts_at: ago(2), can_answer: false, response: null })]);
+    fake.rpc.match_duration_minutes = () => [{ team: '', value: 'abc' }, { team: 'U9', value: '100000' }];
+    render(<Matches />);
+    expect(await screen.findByText('Прошёл, результат не внесён')).toBeInTheDocument();
+  });
+
+  it('отменённый и перенесённый матч не зависят от длительности', async () => {
+    seedParent([
+      row({ match_id: 'r12', opponent: 'Отмена', lifecycle_status: 'cancelled', starts_at: ago(1), can_answer: false }),
+      row({ match_id: 'r13', opponent: 'Перенос', rescheduled: true, starts_at: ago(1), can_answer: false }),
+    ]);
+    fake.rpc.match_duration_minutes = () => [{ team: '', value: '300' }];
+    render(<Matches />);
+    expect(await screen.findByText('Отменён')).toBeInTheDocument();
+    expect(screen.getByText('Перенесён')).toBeInTheDocument();
+    expect(screen.queryByText('Идёт')).toBeNull();
+  });
+
+  it('название команды в настройке без учёта регистра: «u8» действует для «U8»', async () => {
+    seedParent([row({ match_id: 'r14', team: 'U8', starts_at: ago(1), can_answer: false, response: null })]);
+    fake.rpc.match_duration_minutes = () => [{ team: '', value: '300' }, { team: 'u8', value: '30' }];
+    render(<Matches />);
+    expect(await screen.findByText('Прошёл, результат не внесён')).toBeInTheDocument();
+  });
+
+  it('счёт внесён: матч не «Идёт», даже если длительность ещё не истекла', async () => {
+    seedParent([row({ match_id: 'r11', starts_at: ago(1), can_answer: false, response: 'yes' })]);
+    fake.db.matches = [{ id: 'r11', team: 'U9', played_on: new Date().toISOString().slice(0, 10), opponent: 'Олимп', goals_for: 0, goals_against: 0 }];
+    fake.rpc.match_duration_minutes = () => [{ team: '', value: '300' }];
+    render(<Matches />);
+    expect((await screen.findAllByText('0:0')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('Идёт')).toBeNull();
   });
 
   it('через 2 часа после начала матч без результата уже не «Идёт» (окно 1,5 часа)', async () => {
@@ -71,6 +121,49 @@ describe('«Матчи» родителя: статус прошедшего м�
     render(<Matches />);
     expect(await screen.findByText('Прошёл, результат не внесён')).toBeInTheDocument();
     expect(screen.queryByText('Идёт')).toBeNull();
+  });
+});
+
+describe('«Матчи» родителя: матч с подтверждением и счётом попадает в результаты', () => {
+  const ago = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
+  const today = new Date().toISOString().slice(0, 10);
+  it('со счётом: в «Результатах» и итогах команды, а из секции «Отменённые и начавшиеся» ушёл', async () => {
+    seedParent([row({ match_id: 'q1', opponent: 'Динамо', starts_at: ago(48), can_answer: false, response: 'yes' })]);
+    fake.db.matches = [{ id: 'q1', team: 'U9', played_on: today, opponent: 'Динамо', goals_for: 2, goals_against: 1 }];
+    render(<Matches />);
+    // счёт виден и в строке результата, и в итогах команды (разность голов), поэтому ищем все
+    expect((await screen.findAllByText('2:1')).length).toBeGreaterThan(0);
+    expect(screen.getByText('Динамо')).toBeInTheDocument();
+    expect(screen.getByText('Результаты')).toBeInTheDocument();
+    expect(screen.queryByText('Отменённые и начавшиеся')).toBeNull();
+    expect(screen.queryByText('Идёт')).toBeNull();
+    expect(screen.queryByText('Прошёл, результат не внесён')).toBeNull();
+  });
+
+  it('без счёта: остаётся карточкой с подтверждением и не попадает в «Результаты»', async () => {
+    seedParent([row({ match_id: 'q2', opponent: 'Динамо', starts_at: ago(48), can_answer: false, response: 'yes' })]);
+    fake.db.matches = [{ id: 'q2', team: 'U9', played_on: today, opponent: 'Динамо', goals_for: null, goals_against: null }];
+    render(<Matches />);
+    expect(await screen.findByText('Прошёл, результат не внесён')).toBeInTheDocument();
+    expect(screen.getAllByText('Динамо')).toHaveLength(1);
+    expect(screen.queryByText('Результаты')).toBeNull();
+  });
+
+  it('отменённый матч остаётся в своей секции, даже если в базе есть счёт', async () => {
+    seedParent([row({ match_id: 'q3', opponent: 'Динамо', lifecycle_status: 'cancelled', starts_at: ago(48), can_answer: false })]);
+    fake.db.matches = [{ id: 'q3', team: 'U9', played_on: today, opponent: 'Динамо', goals_for: 2, goals_against: 1 }];
+    render(<Matches />);
+    expect(await screen.findByText('Отменён')).toBeInTheDocument();
+    expect(screen.queryByText('2:1')).toBeNull();
+    expect(screen.queryByText('Результаты')).toBeNull();
+  });
+
+  it('предстоящий матч с подтверждением не дублируется в общем списке', async () => {
+    seedParent([row({ match_id: 'q4', opponent: 'Динамо' })]);
+    fake.db.matches = [{ id: 'q4', team: 'U9', played_on: today, opponent: 'Динамо', goals_for: null, goals_against: null }];
+    render(<Matches />);
+    expect(await screen.findByText('Предстоит')).toBeInTheDocument();
+    expect(screen.getAllByText('Динамо')).toHaveLength(1);
   });
 });
 

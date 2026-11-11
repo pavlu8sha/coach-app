@@ -111,6 +111,8 @@ select is(
         'camp_apply', 'camp_application_decide', 'camp_owns_participant',
         -- 0166: правка и отмена своей записи (проверка внутри), возврат и замена (администратор, проверка внутри)
         'camp_parent_update', 'camp_parent_cancel', 'camp_refund', 'camp_replace_participant',
+        -- 0168: длительность матча из настроек клуба; отдаёт один ключ и только клуба своего ребёнка
+        'match_duration_minutes',
         -- 0169: документы сбора (права проверяет функция: админ, подтверждённый участник)
         'camp_documents_list', 'camp_document_admin_list', 'camp_document_begin', 'camp_document_path', 'camp_document_remove',
         -- 0170: рассылки по сбору (только администратор, проверка внутри)
