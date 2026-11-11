@@ -19,7 +19,7 @@ create temp table sid (id uuid);
 grant all on sid to authenticated;
 
 select as_user('00000000-0000-0000-0000-0000000000a1');
-insert into sid select extra_create_session('2026-11-10', 20, 'Зал');
+insert into sid select extra_create_session(((now() at time zone 'Asia/Tbilisi')::date + 7), 20, 'Зал');
 
 -- Настройки нет — без ограничения
 select lives_ok($$select extra_add_player((select id from sid), '00000000-0000-0000-0000-00000000d001')$$, 'без настройки лимита нет');
