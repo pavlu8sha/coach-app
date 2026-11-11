@@ -175,10 +175,7 @@ select * from (values
   ('0170_camp_broadcasts', coalesce((to_regclass('camp_broadcasts') is not null and to_regproc('camp_broadcast_send') is not null and (select count(*) = 4 from pg_trigger where not tgisinternal and tgenabled = 'O' and tgname in ('camp_broadcasts_immutable', 'camp_broadcasts_no_truncate', 'camp_broadcast_messages_immutable', 'camp_broadcast_messages_no_truncate'))), false)),
   ('0171_individual_template_admin', coalesce((not has_table_privilege('authenticated', 'individual_templates', 'delete') and has_table_privilege('authenticated', 'individual_templates', 'insert') and has_table_privilege('authenticated', 'individual_templates', 'update')), false)),
   ('0172_camp_broadcast_audience', coalesce((to_regproc('camp_broadcast_audience') is not null and to_regproc('camp_broadcast_recipients') is not null), false)),
-<<<<<<< Updated upstream
-  ('0174_booking_cancel_notice', coalesce((select position('Отмена записи на занятие' in prosrc) > 0 from pg_proc where proname = 'booking_cancel' limit 1) and (select position('Индивидуальные / Дополнительные' in prosrc) = 0 from pg_proc where proname = 'booking_signup' limit 1), false))
-=======
+  ('0174_booking_cancel_notice', coalesce((select position('Отмена записи на занятие' in prosrc) > 0 from pg_proc where proname = 'booking_cancel' limit 1) and (select position('Индивидуальные / Дополнительные' in prosrc) = 0 from pg_proc where proname = 'booking_signup' limit 1), false)),
   ('0177_ind_autocreate_topic_offset', coalesce((position($$/ 7 + 2) % array_length$$ in pg_get_functiondef(to_regprocedure('ind_autocreate(date)'))) > 0), false))
->>>>>>> Stashed changes
 ) as t(migration, applied)
 order by migration;
