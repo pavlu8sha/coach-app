@@ -106,9 +106,10 @@ export const supabase: any = {
         ? (a: { q: string }) => (fake.db.players ?? []).filter(p => String(p.full_name).toLowerCase().includes(String(a.q).toLowerCase()))
             .map(p => ({ id: p.id, full_name: p.full_name, group_id: p.group_id ?? null, external_id: p.external_id ?? null, birth_date: p.birth_date ?? null, status: p.status ?? 'active', group_name: p.groups?.name ?? null }))
         : undefined);
-      const out = h ? h(args) : null;
-      const shaped = out && typeof out === 'object' && ('error' in out || 'data' in out) ? { data: out.data ?? null, error: out.error ?? null } : { data: out, error: null };
-      return Promise.resolve(shaped).then(res, rej);
+      // ответ может быть обещанием: тест сам решает, когда база «ответит» (проверка повторного нажатия во время запроса)
+      return Promise.resolve(h ? h(args) : null)
+        .then((out: any) => (out && typeof out === 'object' && ('error' in out || 'data' in out) ? { data: out.data ?? null, error: out.error ?? null } : { data: out, error: null }))
+        .then(res, rej);
     },
   }),
   auth: {

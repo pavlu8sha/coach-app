@@ -7,6 +7,7 @@ import Link from './Link';
 import LinkOnboarding from './LinkOnboarding';
 import LinkStatus, { STATUS, type Req } from './LinkStatus';
 import { Failure, Loading } from './Message';
+import ParentCamps from './ParentCamps';
 import PointsLedger from './PointsLedger';
 
 interface Child {
@@ -53,6 +54,7 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
   const [addMore, setAddMore] = useState(false);
   const nav = useNav();
   const statusOpen = Boolean(useSubEntry('hm.status')); // статусы запросов — запись стека
+  const campsOpen = Boolean(useSubEntry('hm.camps')); // сборы родителя (#470, условие 49)
   const wasStatus = useRef(false);
   const retry = () => {
     setError(null);
@@ -106,6 +108,7 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
   if (error) return <Failure title="Не удалось загрузить данные" text={error} onRetry={retry} />;
   if (!children) return <Loading />;
   if (statusOpen) return <LinkStatus onBack={() => nav.back()} />;
+  if (campsOpen) return <ParentCamps onBack={() => nav.back()} />;
 
   const waiting = reqs.filter(r => r.status === 'pending').length;
   const rejected = reqs.filter(r => r.status === 'rejected').length;
@@ -141,6 +144,7 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
       {children.map(c => (
         <ChildCard c={c} key={c.id} />
       ))}
+      <ListRow title="Сборы" sub={['Запись, оплаты, документы']} onClick={() => nav.push('hm.camps')} />
       {addMore ? (
         <Link onApproved={refresh} onOpenStatus={openStatus} />
       ) : (

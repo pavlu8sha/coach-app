@@ -2,7 +2,7 @@
 -- Условия приёмки: docs/CONSENT_PR2B_ACCEPTANCE.md (Р, Д, М, Ф, С).
 begin;
 create extension if not exists pgtap;
-select plan(79);
+select plan(81);
 
 create function tx(n int) returns uuid language sql immutable as $$ select ('00000000-0000-0000-0000-' || lpad(to_hex(n), 12, '0'))::uuid $$;
 create or replace function as_user(uid uuid) returns void language plpgsql as $$
@@ -244,5 +244,10 @@ select is((select coalesce(string_agg(x, ', ' order by x), '') from (
   'С1: consent_revoked_at только в белом списке');
 select is((select position('consent_revoked_at is null' in prosrc) from pg_proc where proname = 'export_my_data'), 0, 'С1: в выгрузке доступ определяет предикат, старое поле только в истории');
 
+-- 0175: рассылки по сборам после 0172 и 0173: один источник получателей и условие доступа parent_access_ok
+select ok(pg_get_functiondef('camp_broadcast_targets(uuid,text,text)'::regprocedure) like '%from camp_broadcast_audience(%',
+  '0175: camp_broadcast_targets берёт получателей из camp_broadcast_audience (как в 0172)');
+select is((select count(*)::int from regexp_matches(pg_get_functiondef('camp_broadcast_audience(uuid,text,text)'::regprocedure), 'parent_access_ok\(g\.user_id, g\.player_id\)', 'g')), 2,
+  '0175: camp_broadcast_audience проверяет доступ через parent_access_ok в info и reminder');
 select * from finish();
 rollback;
