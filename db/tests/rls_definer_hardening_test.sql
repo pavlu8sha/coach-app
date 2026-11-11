@@ -113,8 +113,10 @@ select is(
         'camp_parent_update', 'camp_parent_cancel', 'camp_refund', 'camp_replace_participant',
         -- 0168: длительность матча из настроек клуба; отдаёт один ключ и только клуба своего ребёнка
         'match_duration_minutes',
-        -- 0169: документы сбора (проверка доступа внутри)
-        'camp_documents_list', 'camp_document_admin_list', 'camp_document_begin', 'camp_document_path', 'camp_document_remove')),
+        -- 0169: документы сбора (права проверяет функция: админ, подтверждённый участник)
+        'camp_documents_list', 'camp_document_admin_list', 'camp_document_begin', 'camp_document_path', 'camp_document_remove',
+        -- 0170: рассылки по сбору (только администратор, проверка внутри)
+        'camp_broadcast_preview', 'camp_broadcast_send', 'camp_broadcast_list')),
   '', 'список функций, доступных вошедшим пользователям, не расширился без решения');
 
 select is(
