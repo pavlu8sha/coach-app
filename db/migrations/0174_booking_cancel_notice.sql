@@ -1,13 +1,13 @@
 -- Уведомление администратору после отмены записи родителем (Issue #556, продолжение #274).
 -- booking_cancel() (0145) сохраняла отмену и удаляла запись, но не ставила уведомление. Теперь после удаления ставится одно
--- уведомление администраторам (enqueue_to_admins, вид booking) с именем ребёнка. Оно подчиняется клубному выключателю booking.notify,
+-- уведомление администраторам (enqueue_to_admins, вид booking) с именем ребёнка и занятием (вид, дата, время). Оно подчиняется клубному выключателю booking.notify,
 -- как и остальные уведомления о записи. Родителю при отмене ничего не уходит. Ошибка отмены откатывает и уведомление.
 -- Исправлен текст уведомления о новой записи в booking_signup (0148): раздел называется «Индивидуальные».
 -- Ничего не включается: booking.notify не меняется. Условия: docs/BOOKING_CANCEL_NOTICE_ACCEPTANCE.md.
 
 create or replace function booking_cancel(k text, s uuid, p uuid) returns void
 language plpgsql security definer set search_path = public as $$
-declare st timestamp; was_paid boolean; marked boolean; hrs numeric; now_local timestamp := now() at time zone 'Asia/Tbilisi'; c uuid; amt numeric; lbl text; nm text;
+declare st timestamp; was_paid boolean; marked boolean; hrs numeric; now_local timestamp := now() at time zone 'Asia/Tbilisi'; c uuid; amt numeric; lbl text; nm text; lbl2 text;
 begin
   if current_user_id() is null or not is_guardian_of(p) then raise exception 'forbidden' using errcode = '42501'; end if;
   if k in ('individual', 'goalkeeper') then
@@ -34,7 +34,10 @@ begin
   -- админу: только после успешной отмены (при ошибке выше до этого места не доходим, а транзакция откатывается целиком)
   if booking_notify_enabled(c) then
     select full_name into nm from players where id = p;
-    perform enqueue_to_admins('booking', 'Отмена записи на занятие: ' || coalesce(nm, '—') || '. Откройте приложение: Ещё → Индивидуальные.');
+    -- какое занятие отменили: вид, дата и время (для дополнительной без времени так и пишем, время не придумываем)
+    lbl2 := booking_session_label(k, s)
+            || case when k = 'extra' and exists (select 1 from extra_sessions e where e.id = s and e.starts_time is null) then ', время не задано' else '' end;
+    perform enqueue_to_admins('booking', 'Отмена записи на занятие: ' || coalesce(nm, '—') || ', ' || lbl2 || '. Откройте приложение: Ещё → Индивидуальные.');
   end if;
 end $$;
 
