@@ -43,6 +43,37 @@ describe('«Матчи» родителя: подтверждение участ
   });
 });
 
+describe('«Матчи» родителя: статус прошедшего матча', () => {
+  const ago = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
+  it('прошедший матч без результата не помечается как «Идёт или прошёл»', async () => {
+    seedParent([row({ match_id: 'r2', starts_at: ago(48), can_answer: false, response: null })]);
+    render(<Matches />);
+    expect(await screen.findByText('Прошёл, результат не внесён')).toBeInTheDocument();
+    expect(screen.queryByText('Идёт или прошёл')).toBeNull();
+  });
+
+  it('прошедший матч с результатом показывается как «Прошёл»', async () => {
+    seedParent([row({ match_id: 'r3', starts_at: ago(48), can_answer: false, response: 'yes' })]);
+    fake.db.matches = [{ id: 'r3', team: 'U9', played_on: '2026-11-07', opponent: 'Олимп', goals_for: 2, goals_against: 1 }];
+    render(<Matches />);
+    expect(await screen.findByText('Прошёл')).toBeInTheDocument();
+    expect(screen.queryByText('Прошёл, результат не внесён')).toBeNull();
+  });
+
+  it('матч, начавшийся час назад, и без результата показывается как «Идёт»', async () => {
+    seedParent([row({ match_id: 'r4', starts_at: ago(1), can_answer: false, response: null })]);
+    render(<Matches />);
+    expect(await screen.findByText('Идёт')).toBeInTheDocument();
+  });
+
+  it('через 2 часа после начала матч без результата уже не «Идёт» (окно 1,5 часа)', async () => {
+    seedParent([row({ match_id: 'r5', starts_at: ago(2), can_answer: false, response: null })]);
+    render(<Matches />);
+    expect(await screen.findByText('Прошёл, результат не внесён')).toBeInTheDocument();
+    expect(screen.queryByText('Идёт')).toBeNull();
+  });
+});
+
 describe('Карточка матча родителя: оформление', () => {
   it('ссылка в адресе кликабельна, заметка и место подписаны', async () => {
     seedParent([row({ venue: 'Isani', address: 'https://maps.app.goo.gl/abc', notes: 'Форма синяя' })]);

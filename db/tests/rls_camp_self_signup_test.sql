@@ -277,7 +277,7 @@ select is((select status from camp_participants where id = (select id from ids w
 select is((select count(*)::int from camp_payments where participant_id = (select id from ids where k = 'd1')), 2, 'история: платёж и возврат видны родителю');
 select is((select count(*)::int from camp_tariffs where camp_id = '00000000-0000-0000-0000-0000000000cb'), 1, 'история: тариф сбора виден');
 select is((select count(*)::int from camp_cancel_terms where camp_id = '00000000-0000-0000-0000-0000000000cb'), 1, 'история: условия отмены сбора видны');
-select is((select count(*)::int from camp_participant_events where participant_id = (select id from ids where k = 'd1')), 2, 'история: журнал статусов записи виден (запись и отмена)');
+select is((select count(*)::int from camp_participant_events where participant_id = (select id from ids where k = 'd1')), 3, 'история: журнал записи виден (запись, отмена, правка суммы; правка суммы пишется с 0166)');
 select as_user('00000000-0000-0000-0000-0000000000b4');
 select is((select count(*)::int from camps where id = '00000000-0000-0000-0000-0000000000cb'), 0, 'родитель без записей на этот сбор его не видит');
 select as_user('00000000-0000-0000-0000-0000000000b3');
