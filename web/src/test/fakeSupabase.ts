@@ -113,7 +113,7 @@ export const supabase: any = {
   }),
   auth: {
     getUser: async () => ({ data: { user: fake.user } }),
-    getSession: async () => ({ data: { session: fake.user ? {} : null } }),
+    getSession: async () => ({ data: { session: fake.user ? { access_token: 'test-token' } : null } }),
     signOut: async () => {
       fake.calls.push({ kind: 'rpc', name: 'auth.signOut' });
       return { error: null };
