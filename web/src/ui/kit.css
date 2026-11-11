@@ -459,3 +459,4 @@ ul.policy { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 8px
 .ks-expand-layer > .ks-expandable-box { position: static; flex: 1 1 auto; min-height: 0; }
 .ks-expand-layer textarea { flex: 1 1 auto; min-height: 0; width: 100%; box-sizing: border-box; resize: none; overflow-y: auto; border: 0; background: transparent; color: inherit; font: inherit; font-size: 1.0625rem; line-height: 1.5; padding: 4px 0 12px; outline: none; }
 .ks-expand-layer .ks-expand-btn { position: absolute; top: 8px; right: 12px; background: var(--bg-2); }
+.ks-eyebrow { margin: 0 0 4px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ks-primary); }
