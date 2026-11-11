@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { sortGroups, today } from '../lib/coach';
 import { settingNumber, settingNumberError, useClubSettings } from '../lib/clubSettings';
+import { DEBT_START } from '../lib/debtSeason';
 import { supabase } from '../lib/supabase';
 import { EmptyState, Pill, SearchInput, SwitchRow } from '../ui/components';
 import { CLOSURE_LABELS, closureFlags, useClosure, type ClosureKind } from '../ui/ClosureSheet';
@@ -20,7 +21,6 @@ export const gel = (n: number) => {
   return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0')}${frac ? `.${frac}` : ''} ₾`;
 };
 const METHODS = ['Наличные', 'Перевод'];
-export const SEASON_START = '2026-09-01'; // как debt_start() в базе
 export const monthIso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
 export const monthName = (iso: string) => {
   const [y, m] = iso.split('-').map(Number);
@@ -52,7 +52,7 @@ export default function MonthPayments() {
     const out: string[] = [];
     const now = new Date();
     // следующий месяц тоже доступен: родители платят вперёд
-    for (let d = new Date(now.getFullYear(), now.getMonth() + 1, 1); monthIso(d) >= SEASON_START; d.setMonth(d.getMonth() - 1)) out.push(monthIso(d));
+    for (let d = new Date(now.getFullYear(), now.getMonth() + 1, 1); monthIso(d) >= DEBT_START; d.setMonth(d.getMonth() - 1)) out.push(monthIso(d));
     return out;
   }, []);
   // Месяц, выбранный администратором, хранится в навигации (возвращается при «Назад» и смене вкладок).

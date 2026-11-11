@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ExpandableTextarea } from '../ui/ExpandableTextarea';
 import { today } from '../lib/coach';
+import { DEBT_START } from '../lib/debtSeason';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill } from '../ui/components';
 import { useConfirm } from '../ui/ConfirmSheet';
@@ -15,7 +16,6 @@ const METHODS = ['Наличные', 'Перевод'];
 const DEFAULT_TPL = 'Добрый день\nУ вас не оплачен абонемент за {месяц}';
 const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
 const IND_GROUP = 'индивидуальные / вратарские';
-const SEASON_START = '2026-09-01'; // как debt_start() в базе
 const monthIso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
 const monthName = (iso: string) => {
   const [y, m] = iso.split('-').map(Number);
@@ -25,14 +25,14 @@ const monthName = (iso: string) => {
 const monthsList = () => {
   const out: string[] = [];
   const now = new Date();
-  for (let d = new Date(now.getFullYear(), now.getMonth(), 1); monthIso(d) >= SEASON_START; d.setMonth(d.getMonth() - 1)) out.push(monthIso(d));
+  for (let d = new Date(now.getFullYear(), now.getMonth(), 1); monthIso(d) >= DEBT_START; d.setMonth(d.getMonth() - 1)) out.push(monthIso(d));
   return out;
 };
 
 // Для администратора: должники по абонементу за месяц, скидки и включение показа долга родителям (docs/DEBT_RULES.md).
 export default function Debtors() {
   const months = useMemo(monthsList, []);
-  const [month, setMonth] = useNavState('db.month', months[0] ?? SEASON_START);
+  const [month, setMonth] = useNavState('db.month', months[0] ?? DEBT_START);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [discs, setDiscs] = useState<Disc[]>([]);
   const [offs, setOffs] = useState<Disc[]>([]);

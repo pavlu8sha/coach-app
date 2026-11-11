@@ -1,5 +1,6 @@
 import { fireEvent, within, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
+import { DEBT_START } from '../lib/debtSeason';
 import { fake } from '../test/fakeSupabase';
 import Debtors from './Debtors';
 import Payments from './Payments';
@@ -27,6 +28,15 @@ describe('«Должники» (администратор)', () => {
     expect(screen.getByRole('heading', { name: 'weekends' })).toBeInTheDocument();
     expect(screen.getByText('Внесено 100 ₾ из 165 ₾')).toBeInTheDocument();
     expect(fake.rpcCalls('debtors')).toEqual([{ m: monthIso() }]);
+  });
+
+  it('нижняя граница списка месяцев — DEBT_START', async () => {
+    seed();
+    render(<Debtors />);
+    const select = await screen.findByRole('combobox', { name: 'Месяц' });
+    const values = within(select).getAllByRole('option').map(o => (o as HTMLOptionElement).value);
+    expect(values).toContain(DEBT_START);
+    expect(values).not.toContain('2026-08-01');
   });
 
   it('показ долга родителям выключен по умолчанию и включается кнопкой', async () => {
