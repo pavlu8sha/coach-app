@@ -2,7 +2,7 @@
 -- две ручные рассылки (информационная и напоминание об оплате), предпросмотр, подтверждение числом получателей, журнал.
 begin;
 create extension if not exists pgtap;
-select plan(69);
+select plan(81);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб'), ('00000000-0000-0000-0000-00000000c002', 'Чужой клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -246,6 +246,26 @@ select bsend('00000000-0000-0000-0000-0000000000ca', 'info', 'Текст 5', 5);
 select throws_ok($$select bsend('00000000-0000-0000-0000-0000000000ca', 'info', 'Текст 6', 5)$$, '22023', 'too many broadcasts', 'шестая рассылка по сбору за сутки отклоняется');
 -- ссылки и упоминания в тексте администратора остаются как есть, управляющие символы убираются
 select ok(camp_broadcast_preview('00000000-0000-0000-0000-0000000000cb', 'info', E'Строка 1\nСтрока 2​')->>'sample' like E'%Строка 1\nСтрока 2', 'переносы строк сохраняются, невидимые символы убираются');
+-- ===== Интерфейс рассылок (0171): фактический список получателей, недоступные с причиной, результат по получателям =====
+select as_user('00000000-0000-0000-0000-0000000000a1');
+select is((camp_broadcast_preview('00000000-0000-0000-0000-0000000000cb', 'info', 'Текст')->>'messages')::int, 5, 'предпросмотр показывает фактическое число сообщений (каждому родителю отдельно)');
+select is(jsonb_array_length(camp_broadcast_preview('00000000-0000-0000-0000-0000000000cb', 'info', 'Текст')->'list'), 5, 'предпросмотр показывает список получателей');
+select ok((camp_broadcast_preview('00000000-0000-0000-0000-0000000000cb', 'info', 'Текст')->'list') @> '[{"name": "Родитель записанных"}]'::jsonb is not true and (camp_broadcast_preview('00000000-0000-0000-0000-0000000000cb', 'info', 'Текст')->'list') @> '[{"name": "Родитель оплатившего"}, {"name": "Второй родитель Ани"}]'::jsonb, 'оба родителя одного ребёнка в списке отдельно');
+select is(camp_broadcast_preview('00000000-0000-0000-0000-0000000000cb', 'info', 'Текст')->'blocked', '[{"name": "Родитель с выключенными уведомлениями", "reason": "notifications_off"}]'::jsonb, 'недоступный родитель показан с причиной и другим не заменён');
+select is((camp_broadcast_preview('00000000-0000-0000-0000-0000000000ca', 'reminder', null)->>'messages')::int, 2, 'напоминание: каждому родителю с долгом отдельно');
+select is(camp_broadcast_preview('00000000-0000-0000-0000-0000000000ca', 'reminder', null)->'blocked', '[{"name": "Родитель с выключенными уведомлениями", "reason": "notifications_off"}]'::jsonb, 'напоминание: должник с выключенными уведомлениями показан как недоступный');
+reset role;
+insert into notifications (user_id, kind, text) select '00000000-0000-0000-0000-0000000000b1', 'camp_broadcast_info', 'x' from generate_series(1, 3);
+select as_user('00000000-0000-0000-0000-0000000000a1');
+select ok((camp_broadcast_preview('00000000-0000-0000-0000-0000000000cb', 'info', 'Текст')->'blocked') @> '[{"name": "Родитель двоих (долг)", "reason": "daily_limit"}]'::jsonb and (camp_broadcast_preview('00000000-0000-0000-0000-0000000000cb', 'info', 'Текст')->>'messages')::int = 4, 'исчерпавший суточный лимит показан недоступным, остальным сообщения остаются');
+select is((select count(*)::int from camp_broadcast_recipients((select id from ids where k = 'b1'))), 5, 'результат рассылки: строка на каждого получателя');
+select is((select error from camp_broadcast_recipients((select id from ids where k = 'b1')) where state = 'failed'), 'blocked', 'результат: не доставлено с причиной');
+select is((select name from camp_broadcast_recipients((select id from ids where k = 'b1')) where state = 'cleared'), 'Родитель оплатившего', 'результат: сообщение, очищенное очередью, помечено как очищенное');
+select as_user('00000000-0000-0000-0000-0000000000b1');
+select throws_ok($$select * from camp_broadcast_recipients('00000000-0000-0000-0000-000000000000')$$, '42501', 'forbidden', 'родитель результат рассылки не читает');
+reset role;
+select ok(not has_function_privilege('authenticated', 'camp_broadcast_audience(uuid, text, text)', 'execute') and not has_function_privilege('anon', 'camp_broadcast_recipients(uuid)', 'execute'), 'внутренний отбор получателей клиентам не выдан, результат закрыт от anon');
+
 -- 42. расписаний нет: функции отправки не выданы серверу и анониму
 reset role;
 select ok(not has_function_privilege('service_role', 'camp_broadcast_send(uuid, text, text, int, text)', 'execute') and not has_function_privilege('anon', 'camp_broadcast_send(uuid, text, text, int, text)', 'execute'), 'отправка рассылки не выдана серверу и анониму');
