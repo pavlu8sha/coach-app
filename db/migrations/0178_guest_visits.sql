@@ -1,4 +1,4 @@
--- 0177: разовые посещения тренировок другой группы (учёт посещения, оплата, баллы). Условия приёмки: docs/GUEST_VISIT_ACCEPTANCE.md.
+-- 0178: разовые посещения тренировок другой группы (учёт посещения, оплата, баллы). Условия приёмки: docs/GUEST_VISIT_ACCEPTANCE.md.
 -- Решения владельца 2026-11-11: 15 ₾ за посещение, баллы как за обычную тренировку, показывать родителю.
 --  * session_guests: игрок другой группы на занятии группы. Это не attendance: отметки группы, проверка «отмечены все», статистика и серии не меняются.
 --  * session_guest_add / session_guest_remove / session_guest_set_paid: админ и тренер добавляют, убирают гостя и принимают оплату; снимает оплату только админ.
@@ -160,7 +160,7 @@ begin
                'points', pts, 'components', jsonb_build_object('class', s.class, 'base', pts), 'rule_version_id', rv.id) as e
           from attendance a where a.session_id = sid and a.status = 'present'
         union all
-        -- разовое посещение (0177): баллы идут в собственную группу игрока на дату занятия; тот же игрок не считается дважды
+        -- разовое посещение (0178): баллы идут в собственную группу игрока на дату занятия; тот же игрок не считается дважды
         select jsonb_build_object('player_id', g.player_id, 'group_id', points_group_at(g.player_id, day), 'event_date', day, 'reason_code', 'attended',
                'points', pts, 'components', jsonb_build_object('class', s.class, 'base', pts, 'guest', true), 'rule_version_id', rv.id)
           from session_guests g
@@ -293,7 +293,7 @@ begin
 
     union all
 
-    -- Разовое посещение тренировки другой группы (0177): только сам гость; родители группы-хозяина его не видят
+    -- Разовое посещение тренировки другой группы (0178): только сам гость; родители группы-хозяина его не видят
     select
       ('guest:' || gs.id::text)::text,
       tbilisi_day(gs.starts_at),

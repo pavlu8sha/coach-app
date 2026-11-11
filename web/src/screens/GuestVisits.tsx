@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { SearchInput } from '../ui/components';
 
-// Разовые посещения (миграция 0177): игрок другой группы пришёл на эту тренировку. Не отметка группы и не абонемент:
+// Разовые посещения (миграция 0178): игрок другой группы пришёл на эту тренировку. Не отметка группы и не абонемент:
 // баллы начисляются автоматически, оплата идёт отдельной строкой кассы и в долг по абонементу не входит.
 interface Guest { player_id: string; amount: number; paid: boolean; paid_amount: number | null; method: string | null; players: { full_name: string; groups: { name: string } | null } | null }
 interface Found { id: string; full_name: string; groups: { name: string } | null }
