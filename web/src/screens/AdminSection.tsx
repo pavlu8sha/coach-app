@@ -28,7 +28,7 @@ import TrainerLog from './TrainerLog';
 // Экран раздела администратора: одинаков, лежит ли раздел на нижней панели или в «Ещё»
 export default function AdminSection({ id, groups, onMenuChanged }: { id: SectionId; groups: CoachGroup[]; onMenuChanged: () => void }) {
   switch (id) {
-    case 'sessions': return <Sessions groups={groups} />;
+    case 'sessions': return <Sessions groups={groups} admin />;
     case 'players': return <Players />;
     case 'money': return <Money />;
     case 'cmatches': return <CoachMatches groups={groups} admin />;
