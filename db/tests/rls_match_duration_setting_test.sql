@@ -2,7 +2,7 @@
 -- остальные настройки клуба и сама таблица club_settings остаются закрытыми. Условия: docs/MATCH_DURATION_SETTING_ACCEPTANCE.md, п. 9–12.
 begin;
 create extension if not exists pgtap;
-select plan(12);
+select plan(16);
 
 insert into clubs (id, name) values
   ('00000000-0000-0000-0000-00000000c001', 'Свой клуб'),
@@ -11,12 +11,25 @@ insert into users (id, telegram_id, display_name, is_admin) values
   ('00000000-0000-0000-0000-0000000000a1', 9701, 'Админ', true),
   ('00000000-0000-0000-0000-0000000000b1', 9702, 'Родитель', false),
   ('00000000-0000-0000-0000-0000000000b2', 9703, 'Родитель с отозванной связью', false),
-  ('00000000-0000-0000-0000-0000000000f1', 9704, 'Без детей', false);
+  ('00000000-0000-0000-0000-0000000000f1', 9704, 'Без детей', false),
+  ('00000000-0000-0000-0000-0000000000c1', 9705, 'Тренер группы', false),
+  ('00000000-0000-0000-0000-0000000000d1', 9706, 'Локальный админ', false);
 insert into players (id, club_id, full_name, status) values
   ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-00000000c001', 'Ребёнок', 'active');
 insert into player_guardians (player_id, user_id, consent_version, consent_given_at, consent_revoked_at) values
   ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000000b1', 'v1', now(), null),
   ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000000b2', 'v1', now(), now());
+insert into groups (id, club_id, name, location) values
+  ('00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-00000000c001', 'U8', 'Isani');
+insert into coach_groups (user_id, group_id) values ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000e1');
+insert into location_admins (user_id, location) values ('00000000-0000-0000-0000-0000000000d1', 'Isani');
+insert into players (id, club_id, full_name, status) values
+  ('00000000-0000-0000-0000-00000000d002', '00000000-0000-0000-0000-00000000c002', 'Ребёнок во втором клубе', 'active');
+insert into users (id, telegram_id, display_name, is_admin) values
+  ('00000000-0000-0000-0000-0000000000b3', 9707, 'Родитель двух клубов', false);
+insert into player_guardians (player_id, user_id, consent_version, consent_given_at, consent_revoked_at) values
+  ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000000b3', 'v1', now(), null),
+  ('00000000-0000-0000-0000-00000000d002', '00000000-0000-0000-0000-0000000000b3', 'v1', now(), null);
 insert into club_settings (club_id, key, scope, value) values
   ('00000000-0000-0000-0000-00000000c001', 'matches.durationMin', '', '100'),
   ('00000000-0000-0000-0000-00000000c001', 'matches.durationMin', 'U8', '50'),
@@ -47,6 +60,17 @@ select is((select count(*)::int from match_duration_minutes()), 0, 'родите
 -- пользователь без детей
 select as_user('00000000-0000-0000-0000-0000000000f1');
 select is((select count(*)::int from match_duration_minutes()), 0, 'пользователь без детей получает пустой список');
+
+-- тренер группы и локальный администратор сами по себе настроек не получают (доступ только родителю и глобальному администратору)
+select as_user('00000000-0000-0000-0000-0000000000c1');
+select is((select count(*)::int from match_duration_minutes()), 0, 'тренер группы без детей ничего не получает');
+select as_user('00000000-0000-0000-0000-0000000000d1');
+select is((select count(*)::int from match_duration_minutes()), 0, 'локальный администратор без детей ничего не получает');
+
+-- родитель с детьми в двух клубах видит строки обоих клубов (приложение работает с одним клубом, см. условия приёмки п. 10)
+select as_user('00000000-0000-0000-0000-0000000000b3');
+select is((select count(*)::int from match_duration_minutes()), 4, 'родитель двух клубов видит строки обоих своих клубов');
+select is((select count(*)::int from match_duration_minutes() where value in ('200', '25')), 0, 'и тоже без взносов');
 
 -- администратор видит все клубы
 select as_user('00000000-0000-0000-0000-0000000000a1');

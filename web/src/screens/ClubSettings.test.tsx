@@ -116,4 +116,39 @@ describe('Настройки клуба (#339)', () => {
     expect(await screen.findByText('Не меньше 10.')).toBeInTheDocument();
     expect(fake.writes('club_settings', 'upsert')).toEqual([]);
   });
+
+  it('длительность матча: общее значение сохраняется, 601 и дробное не принимаются', async () => {
+    render(<ClubSettings />);
+    await screen.findByText(/Длительность матча, минут — общая/);
+    const c = card(/Длительность матча, минут — общая/);
+    expect(within(c).getByRole('textbox')).toHaveValue('90');
+    fireEvent.change(within(c).getByRole('textbox'), { target: { value: '601' } });
+    fireEvent.click(within(c).getByRole('button', { name: 'Сохранить' }));
+    expect(await within(c).findByText('Не больше 600.')).toBeInTheDocument();
+    fireEvent.change(within(c).getByRole('textbox'), { target: { value: '75,5' } });
+    fireEvent.click(within(c).getByRole('button', { name: 'Сохранить' }));
+    expect(await within(c).findByText('Нужно целое число.')).toBeInTheDocument();
+    expect(fake.writes('club_settings', 'upsert')).toEqual([]);
+    fireEvent.change(within(c).getByRole('textbox'), { target: { value: '75' } });
+    fireEvent.click(within(c).getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() => expect(fake.writes('club_settings', 'upsert')).toEqual([
+      { club_id: 'c1', key: 'matches.durationMin', scope: '', value: '75', updated_at: expect.any(String) },
+    ]));
+  });
+
+  it('длительность матча: «К общему» убирает значение только этой команды', async () => {
+    fake.db.club_settings = [
+      { club_id: 'c1', key: 'matches.durationMin', scope: 'U8', value: '50' },
+      { club_id: 'c1', key: 'matches.champFee', scope: 'U8', value: '150' },
+    ];
+    render(<ClubSettings />);
+    await screen.findByText(/Своя длительность матча у команд/);
+    // карточки U8 две: взнос за чемпионат (первая) и длительность (вторая, под заголовком «Своя длительность…»)
+    const c = screen.getAllByText(/^U8$/)[1].closest('.ks-card') as HTMLElement;
+    expect(within(c).getByRole('textbox')).toHaveValue('50');
+    fireEvent.click(within(c).getByRole('button', { name: 'К общему' }));
+    await waitFor(() => expect(fake.db.club_settings).toEqual([
+      { club_id: 'c1', key: 'matches.champFee', scope: 'U8', value: '150' },
+    ]));
+  });
 });

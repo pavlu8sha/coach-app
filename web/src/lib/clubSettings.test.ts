@@ -54,6 +54,13 @@ describe('Настройки клуба: значения и проверка', 
     expect(matchDurationFor({ 'matches.durationMin': '' }, {}, 'U14')).toBe(90);
   });
 
+  it('длительность матча: название команды сравнивается без учёта регистра и пробелов', () => {
+    const scoped = { 'matches.durationMin': { 'u8 ': '50' } };
+    expect(matchDurationFor({ 'matches.durationMin': '120' }, scoped, 'U8')).toBe(50);
+    expect(matchDurationFor({ 'matches.durationMin': '120' }, scoped, ' U8')).toBe(50);
+    expect(matchDurationFor({ 'matches.durationMin': '120' }, scoped, 'U9')).toBe(120);
+  });
+
   it('длительность матча: недопустимое значение не действует, берётся следующее по порядку', () => {
     expect(matchDurationFor({ 'matches.durationMin': '120' }, { 'matches.durationMin': { 'U8': 'abc' } }, 'U8')).toBe(120);
     expect(matchDurationFor({ 'matches.durationMin': '120' }, { 'matches.durationMin': { 'U8': '5' } }, 'U8')).toBe(120);

@@ -107,7 +107,10 @@ export function matchDurationFor(values: SettingValues, scoped: ScopedValues, te
     if (v === '' || settingError(def, v) !== null) return null;
     return Number(v.replace(',', '.'));
   };
-  return valid(scoped[MATCH_DURATION_KEY]?.[team]) ?? valid(values[MATCH_DURATION_KEY]) ?? MATCH_DURATION_DEFAULT;
+  // название команды сравнивается без учёта регистра и пробелов по краям: «u8 » и «U8» — одна команда
+  const norm = (t: string) => t.trim().toLowerCase();
+  const own = Object.entries(scoped[MATCH_DURATION_KEY] ?? {}).find(([t]) => norm(t) === norm(team))?.[1];
+  return valid(own) ?? valid(values[MATCH_DURATION_KEY]) ?? MATCH_DURATION_DEFAULT;
 }
 
 /** Читает все настройки клуба одним запросом. До ответа базы и при ошибке values пуст, и действуют значения по умолчанию. */
