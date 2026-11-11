@@ -40,9 +40,21 @@ type Event =
   | { kind: 'drop'; index: number; file: string; line: number }
   | { kind: 'create'; index: number; file: string; line: number; body: string | null; reason?: string };
 
-const FUNCTION_NAME = String.raw`(?:(?:"public"|public)\s*\.\s*)?"?debt_start"?\s*\(\s*\)`;
+const FUNCTION_NAME = String.raw`(?:(?<schema>"(?:[^"]|"")+"|[A-Za-z_][A-Za-z0-9_$]*)\s*\.\s*)?"?debt_start"?\s*\(\s*\)`;
 const CREATE_RE = new RegExp(String.raw`\bcreate\s+(?:or\s+replace\s+)?function\s+${FUNCTION_NAME}`, 'gi');
 const DROP_RE = new RegExp(String.raw`\bdrop\s+function\s+(?:if\s+exists\s+)?${FUNCTION_NAME}`, 'gi');
+
+function schemaOf(match: RegExpMatchArray): string | undefined {
+  const schema = match.groups?.schema;
+  if (!schema) return undefined;
+  if (schema.startsWith('"')) return schema.slice(1, -1).replace(/""/g, '"');
+  return schema.toLowerCase();
+}
+
+function isTargetSchema(match: RegExpMatchArray): boolean {
+  const schema = schemaOf(match);
+  return schema === undefined || schema === 'public';
+}
 
 function lineAt(sql: string, index: number): number {
   return sql.slice(0, index).split('\n').length;
@@ -178,12 +190,14 @@ function collectEvents(file: string, sql: string): Event[] {
   const events: Event[] = [];
 
   for (const match of masked.matchAll(CREATE_RE)) {
+    if (!isTargetSchema(match)) continue;
     const index = match.index ?? 0;
     const found = findBody(masked, sql, index + match[0].length, dollars);
     events.push({ kind: 'create', index, file, line: lineAt(sql, index), ...found });
   }
 
   for (const match of masked.matchAll(DROP_RE)) {
+    if (!isTargetSchema(match)) continue;
     const index = match.index ?? 0;
     events.push({ kind: 'drop', index, file, line: lineAt(sql, index) });
   }
@@ -275,6 +289,39 @@ describe('latestDebtStart', () => {
     ]);
     expect(definition.date).toBe('2026-10-01');
     expect(definition.file).toBe('0002_b.sql');
+  });
+
+  it('keeps the public definition when another schema is created', () => {
+    const definition = latestDebtStart([
+      migration('0001_a.sql', "create or replace function public.debt_start() returns date as $$ select date '2026-09-01' $$;"),
+      migration('0002_b.sql', "create or replace function another_schema.debt_start() returns date as $$ select date '2026-10-01' $$;"),
+    ]);
+    expect(definition.date).toBe('2026-09-01');
+    expect(definition.file).toBe('0001_a.sql');
+  });
+
+  it('keeps the public definition when another schema is dropped', () => {
+    const definition = latestDebtStart([
+      migration('0001_a.sql', "create or replace function public.debt_start() returns date as $$ select date '2026-09-01' $$;"),
+      migration('0002_b.sql', 'drop function if exists another_schema.debt_start();'),
+    ]);
+    expect(definition.date).toBe('2026-09-01');
+    expect(definition.file).toBe('0001_a.sql');
+  });
+
+  it('detects a redefinition of public.debt_start()', () => {
+    const definition = latestDebtStart([
+      migration('0001_a.sql', "create or replace function public.debt_start() returns date as $$ select date '2026-09-01' $$;"),
+      migration('0002_b.sql', "create or replace function PUBLIC.debt_start() returns date as $function$ select date '2026-10-01' $function$;"),
+    ]);
+    expect(definition.date).toBe('2026-10-01');
+    expect(definition.file).toBe('0002_b.sql');
+  });
+
+  it('does not treat another schema as a target when no public definition exists', () => {
+    expect(() => latestDebtStart([
+      migration('0001_a.sql', "create or replace function another_schema.debt_start() returns date as $$ select date '2026-09-01' $$;"),
+    ])).toThrow(/active definition not found/);
   });
 
   it('applies CREATE and DROP in order', () => {
