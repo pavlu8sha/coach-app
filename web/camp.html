@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#25335a" />
+    <link rel="icon" href="/icon-192.png" />
+    <title>Сбор · FC Kickstart</title>
+    <style>
+      :root { --bg: #f3f5fa; --fg: #1c2540; --muted: #5a6584; --card: #fff; --line: #d9dfec; --primary: #25335a; --on-primary: #fff; --ok: #1c7c4a; --no: #b3261e; }
+      @media (prefers-color-scheme: dark) { :root { --bg: #10162a; --fg: #e8ecf8; --muted: #9aa6c8; --card: #18203a; --line: #2a3558; --primary: #5b7bd5; --ok: #5fd18d; --no: #ff8a80; } }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+      main, #root > p { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; overflow-wrap: anywhere; }
+      h1 { font-size: 24px; margin: 0 0 8px; }
+      h2 { font-size: 18px; margin: 0 0 4px; }
+      ul { padding-left: 20px; margin: 4px 0 0; }
+      li { margin: 6px 0; }
+      .muted { color: var(--muted); font-size: 14px; }
+      .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 18px; margin: 0 0 14px; }
+      .pill { display: inline-block; font-weight: 600; margin: 0 0 14px; }
+      .pill.ok { color: var(--ok); }
+      .pill.no { color: var(--no); }
+      .btn { display: block; width: 100%; padding: 14px 16px; margin: 8px 0 12px; border: 0; border-radius: 12px; background: var(--primary); color: var(--on-primary); font: inherit; font-weight: 600; text-align: center; text-decoration: none; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <div id="root"><p>Загрузка…</p></div>
+    <script type="module" src="/src/camp/main.ts"></script>
+  </body>
+</html>

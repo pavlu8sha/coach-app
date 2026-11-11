@@ -2,7 +2,7 @@ import { applyTelegramTheme } from '../ui/telegram-theme';
 // Обёртка над Telegram.WebApp (скрипт подключён в index.html). Вне Telegram window.Telegram.WebApp.initData пустой.
 interface TgWebApp {
   initData: string;
-  initDataUnsafe?: { user?: { language_code?: string; first_name?: string; last_name?: string } };
+  initDataUnsafe?: { user?: { language_code?: string; first_name?: string; last_name?: string }; start_param?: string };
   ready(): void;
   expand(): void;
   themeParams: Record<string, string | undefined>;
