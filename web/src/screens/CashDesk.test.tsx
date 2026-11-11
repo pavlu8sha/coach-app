@@ -83,6 +83,22 @@ describe('«Приём оплат»', () => {
     expect(fake.writes('subscriptions', 'upsert')[0]).toMatchObject({ player_id: 'p1', month: M, discount: true });
   });
 
+  it('разовое посещение другой группы показано отдельным разделом и платится через session_guest_set_paid', async () => {
+    seed();
+    fake.db.session_guests = [{ session_id: 's9', player_id: 'p1', paid: false, amount: 15, sessions: { starts_at: '2020-02-03T15:00:00+04:00', groups: { name: 'U9-B' } } }];
+    fake.rpc.session_guest_set_paid = () => null;
+    await openPlayer();
+    await screen.findByText(/к оплате:/);
+    const title = /Разовое посещение 03.02.2020 · U9-B/;
+    await screen.findByText(title);
+    const c = card(title);
+    await waitFor(() => expect(within(c).getByRole('button', { name: 'Принять оплату' })).toBeEnabled());
+    fireEvent.click(within(c).getByRole('button', { name: 'Принять оплату' }));
+    fireEvent.click(within(c).getByRole('button', { name: 'Записать платёж' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
+    await waitFor(() => expect(fake.rpcCalls('session_guest_set_paid')[0]).toMatchObject({ s: 's9', p: 'p1', is_paid: true, mth: 'Наличные', amt: 15 }));
+  });
+
   it('экипировка, индивидуальные, доп. тренировки и сборы платятся через свои функции', async () => {
     seed();
     fake.rpc.eq_add_payment = () => 160;

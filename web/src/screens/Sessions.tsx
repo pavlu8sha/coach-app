@@ -7,6 +7,7 @@ import { useMainButton } from '../ui/nav';
 import { useNav, useNavState } from '../nav';
 import IndMarks, { indDay, indTitle, type IndSession } from './IndMarks';
 import { Failure, Loading } from './Message';
+import GuestVisits from './GuestVisits';
 import { wasActiveOn, type StatusLogPoint } from '../lib/playerStatus';
 
 type Status = 'present' | 'absent' | 'excused';
@@ -41,7 +42,7 @@ export function groupExtraRoster(rows: ExtraRosterRow[]): IndSession[] {
 const isIndGroup = (name: string) => /^(Индивидуальные|Вратар|Дополнительные)/.test(name);
 
 // «Отметки»: вкладки «Группы» и «Индивидуальные», выбор группы и даты, ниже сразу список детей — как в старом приложении.
-export default function Sessions({ groups }: { groups: CoachGroup[] }) {
+export default function Sessions({ groups, admin = false }: { groups: CoachGroup[]; admin?: boolean }) {
   // Выбор вкладки, даты и группы живёт в записи списка (entry: 0): возвращается при «Назад» из индивидуальной отметки и при смене вкладок.
   // После перезагрузки возвращаются вкладка, группа и «Все группы»; дата — только в тот же день (kind: 'day')
   const nav = useNav();
@@ -106,7 +107,10 @@ export default function Sessions({ groups }: { groups: CoachGroup[] }) {
           {shown.length === 0 ? (
             <EmptyState icon="box" title="Нет занятий в расписании" text="В этот день по расписанию тренировок нет. Для дополнительной или перенесённой включите «Показать все группы»." />
           ) : (
-            <Roster key={`${gid}|${date}`} gid={gid} date={date} />
+            <>
+              <Roster key={`${gid}|${date}`} gid={gid} date={date} />
+              <GuestVisits key={`guest|${gid}|${date}`} gid={gid} date={date} admin={admin} />
+            </>
           )}
         </>
       )}

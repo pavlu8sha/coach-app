@@ -11,7 +11,7 @@ import { gel, monthIso, monthName, nextMonth, tariffFor } from './MonthPayments'
 import { useNavState } from '../nav';
 
 interface Pl { id: string; full_name: string; group_id: string | null; groups: { name: string } | null; external_id?: string | null; birth_date?: string | null; status?: string }
-interface Due { key: string; kind: 'sub' | 'eq' | 'ind' | 'extra' | 'camp' | 'match' | 'event'; section: string; title: string; sub?: string; due: number; paid: number; month?: string; advance?: boolean; pay: (amount: number, method: string, date: string) => PromiseLike<{ error: { message: string } | null }>; discount?: () => PromiseLike<{ error: { message: string } | null }> }
+interface Due { key: string; kind: 'sub' | 'eq' | 'ind' | 'extra' | 'visit' | 'camp' | 'match' | 'event'; section: string; title: string; sub?: string; due: number; paid: number; month?: string; advance?: boolean; pay: (amount: number, method: string, date: string) => PromiseLike<{ error: { message: string } | null }>; discount?: () => PromiseLike<{ error: { message: string } | null }> }
 
 const METHODS = ['Наличные', 'Перевод'];
 const PAY_METHODS = ['Наличные', 'Перевод'];
@@ -19,9 +19,10 @@ const JUMPS = [
   { label: 'Абонемент', section: 'Абонемент' }, { label: 'Экипировка', section: 'Экипировка' },
   { label: 'Индивидуальные', section: 'Индивидуальные и вратари' }, { label: 'Дополнительные', section: 'Дополнительные тренировки' },
   { label: 'Сборы', section: 'Сборы' }, { label: 'Матчи', section: 'Взносы матчей' }, { label: 'События', section: 'Взносы событий' },
+  { label: 'Разовые', section: 'Разовые посещения' },
 ];
 const r2 = (n: number) => Math.round(n * 100) / 100;
-const SECTIONS = ['Абонемент', 'Экипировка', 'Индивидуальные и вратари', 'Дополнительные тренировки', 'Сборы', 'Взносы матчей', 'Взносы событий'];
+const SECTIONS = ['Абонемент', 'Экипировка', 'Индивидуальные и вратари', 'Дополнительные тренировки', 'Сборы', 'Взносы матчей', 'Взносы событий', 'Разовые посещения'];
 const EVENT_KIND: Record<string, string> = { championship: 'Чемпионат', festival: 'Фестиваль', cup: 'Кубок' };
 const errText = (m: string) => (m.includes('paid above total') ? 'Оплата больше суммы заказа.' : m.includes('bad amount') ? 'Сумма указана неверно.' : coachError(m));
 
@@ -122,6 +123,15 @@ async function loadDues(p: Pl): Promise<Due[]> {
       if (fee <= 0 || got >= fee) return;
       const t = f.tournaments;
       out.push({ key: 'tf' + f.tournament_id, kind: 'event', section: SECTIONS[6], title: t ? (t.name?.trim() || `${EVENT_KIND[t.kind] ?? 'Событие'} ${t.team}`) : 'Событие', sub: t?.name && t.kind ? `${EVENT_KIND[t.kind] ?? ''} ${t.team}`.trim() : undefined, due: fee, paid: got, pay: (amount, method, date) => supabase.rpc('event_pay', { t: f.tournament_id, ids: [p.id], amt: r2(amount), d: date, mth: method, cmt: null }) });
+    });
+  }
+  // разовые посещения тренировок других групп (0178): остаток = сумма посещения; сбой чтения не ломает остальные разделы
+  const vis = await supabase.from('session_guests').select('session_id, amount, sessions(starts_at, groups(name))').eq('player_id', p.id).eq('paid', false);
+  if (!vis.error) {
+    ((vis.data ?? []) as unknown as { session_id: string; amount: number; sessions: { starts_at: string; groups: { name: string } | null } | null }[]).forEach(g => {
+      if (Number(g.amount) <= 0) return;
+      const day = g.sessions ? dayOf(g.sessions.starts_at) : null;
+      out.push({ key: 'vis' + g.session_id, kind: 'visit', section: SECTIONS[7], title: `Разовое посещение${day ? ` ${fmtDate(day)}` : ''}${g.sessions?.groups ? ` · ${g.sessions.groups.name}` : ''}`, due: Number(g.amount), paid: 0, pay: (amount, method, date) => supabase.rpc('session_guest_set_paid', { s: g.session_id, p: p.id, is_paid: true, mth: method, amt: r2(amount), d: date }) });
     });
   }
   return out;
@@ -420,7 +430,7 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false 
         <div style={{ marginTop: 8 }}>
           {!fixedAmount && <label className="field">Сумма, ₾ (меньше остатка — частичный платёж, останется долг)<input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /></label>}
           {(() => {
-            const dateField = due.kind === 'sub' || due.kind === 'eq' || due.kind === 'camp' || due.kind === 'ind' || due.kind === 'extra' || due.kind === 'match' || due.kind === 'event' ? <label className="field">Дата<input type="date" value={date} max={today()} onChange={e => setDate(e.target.value)} /></label> : null;
+            const dateField = due.kind === 'sub' || due.kind === 'eq' || due.kind === 'camp' || due.kind === 'ind' || due.kind === 'extra' || due.kind === 'visit' || due.kind === 'match' || due.kind === 'event' ? <label className="field">Дата<input type="date" value={date} max={today()} onChange={e => setDate(e.target.value)} /></label> : null;
             const methodField = sharedMethod !== undefined ? null : <label className="field">Способ<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option>{METHODS.map(m => <option key={m}>{m}</option>)}</select></label>;
             return dateField && methodField ? <div className="two pay-fields">{dateField}{methodField}</div> : dateField ?? methodField;
           })()}

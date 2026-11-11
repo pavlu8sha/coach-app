@@ -18,4 +18,17 @@ describe('Оплата у родителя: все виды', () => {
     expect(screen.getByText('Оплаты по другим видам')).toBeInTheDocument();
     expect(screen.getByText(/Дополнительная тренировка · 17.10.2026/)).toBeInTheDocument();
   });
+
+  it('разовое посещение другой группы показано отдельным видом, долг входит в «К оплате»', async () => {
+    fake.db.player_guardians = [{ user_id: 'u', consent_revoked_at: null, players: { id: 'p1', full_name: 'Тимофей' } }];
+    fake.db.payments = [];
+    fake.rpc.parent_debts = () => [];
+    fake.rpc.parent_dues = () => [
+      { player_id: 'p1', kind: 'visit', title: 'Разовое посещение: U9-B', on_date: '2026-11-11', due: 15, paid: 0, debt: 15 },
+    ];
+    render(<Payments />);
+    expect(await screen.findByText('К оплате: 15 ₾')).toBeInTheDocument();
+    expect(screen.getByText(/Разовое посещение: U9-B · 11.11.2026/)).toBeInTheDocument();
+    expect(screen.getByText(/Разовые посещения · внесено 0 ₾ из 15 ₾/)).toBeInTheDocument();
+  });
 });

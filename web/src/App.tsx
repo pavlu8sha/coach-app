@@ -274,7 +274,7 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
     locAdmin && tab === 'cash' ? <LocationCash locations={locations} />
     : admin && tab === 'more' ? <More groups={allGroups} bar={bar} onMenuChanged={() => setMenuKey(k => k + 1)} onPreview={startPreview} />
     : admin && isSection(tab) ? <AdminSection key={tab} id={tab} groups={allGroups} onMenuChanged={() => setMenuKey(k => k + 1)} />
-    : (admin || coach) && tab === 'sessions' ? <Sessions groups={allGroups.length ? allGroups : coachGroups} />
+    : (admin || coach) && tab === 'sessions' ? <Sessions groups={allGroups.length ? allGroups : coachGroups} admin={admin} />
     : (admin || coach) && tab === 'cmatches' ? <CoachMatches groups={allGroups.length ? allGroups : coachGroups} admin={admin} allTeams={!admin} />
     : coach && tab === 'group' ? <Group groups={coachGroups} notify />
     : coach && tab === 'attendance' ? <Stats own />

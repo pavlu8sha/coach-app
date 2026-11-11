@@ -5,8 +5,8 @@ import PaymentInfo from './PaymentInfo';
 
 interface Kid { id: string; name: string; months: { month: string; sum: number }[] }
 interface Debt { player_id: string; month: string; tariff: number; paid: number; debt: number }
-interface Due { player_id: string; kind: 'eq' | 'ind' | 'extra' | 'camp'; title: string; on_date: string | null; due: number; paid: number; debt: number }
-const KIND_NAME: Record<Due['kind'], string> = { eq: 'Экипировка', ind: 'Индивидуальные и вратарские', extra: 'Дополнительные тренировки', camp: 'Сборы' };
+interface Due { player_id: string; kind: 'eq' | 'ind' | 'extra' | 'visit' | 'camp'; title: string; on_date: string | null; due: number; paid: number; debt: number }
+const KIND_NAME: Record<Due['kind'], string> = { eq: 'Экипировка', ind: 'Индивидуальные и вратарские', extra: 'Дополнительные тренировки', visit: 'Разовые посещения', camp: 'Сборы' };
 const fmt = (iso: string | null) => (iso ? iso.slice(8, 10) + '.' + iso.slice(5, 7) + '.' + iso.slice(0, 4) : '');
 
 const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
