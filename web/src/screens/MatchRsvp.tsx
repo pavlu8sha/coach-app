@@ -23,19 +23,20 @@ const defaultDuration = () => MATCH_DURATION_DEFAULT;
 /**
  * Подтверждение участия для родителя: матчи, на которые приглашены его дети. Только свои дети; других игроков, ответов
  * других семей и статистики здесь нет (база их не отдаёт). Ответ один на ребёнка и общий для обоих родителей.
- * «Предстоящие» — опубликованные и ещё не начавшиеся, «Прошедшие» — начавшиеся и отменённые.
+ * «Предстоящие» — опубликованные и ещё не начавшиеся, «Прошедшие» — начавшиеся без счёта и отменённые.
  */
-export default function RsvpSection({ rows, part, onChanged, withResult = new Set(), durationMin = defaultDuration }: { rows: MyRsvp[]; part: 'upcoming' | 'past'; onChanged: () => void; withResult?: Set<string>; durationMin?: (team: string) => number }) {
+export default function RsvpSection({ rows, part, onChanged, scored = new Set(), durationMin = defaultDuration }: { rows: MyRsvp[]; part: 'upcoming' | 'past'; onChanged: () => void; scored?: Set<string>; durationMin?: (team: string) => number }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const now = Date.now();
-  /** Статус прошедшего матча: со счётом — «Прошёл»; без счёта, пока не истекла длительность матча команды (настройка клуба), — «Идёт»; иначе — «не внесён» */
+  /** Статус начавшегося матча без счёта: пока не истекла длительность матча команды (настройка клуба) — «Идёт», иначе «не внесён» */
   const pastStatus = (m: MyRsvp) => {
-    if (withResult.has(m.match_id)) return 'Прошёл';
     return now - new Date(m.starts_at).getTime() < durationMin(m.team) * 60_000 ? 'Идёт' : 'Прошёл, результат не внесён';
   };
   const upcoming = (r: MyRsvp) => r.lifecycle_status === 'published' && new Date(r.starts_at).getTime() > now;
-  const mine = rows.filter(r => (part === 'upcoming' ? upcoming(r) : !upcoming(r)));
+  // матч со счётом показывается в «Результатах» общего списка, а не здесь (отменённый остаётся)
+  const inResults = (r: MyRsvp) => r.lifecycle_status !== 'cancelled' && scored.has(r.match_id);
+  const mine = rows.filter(r => !inResults(r) && (part === 'upcoming' ? upcoming(r) : !upcoming(r)));
   const matches = [...new Set(mine.map(r => r.match_id))];
   if (!matches.length) return null;
 
