@@ -45,6 +45,18 @@ const MESSAGES: [string, string][] = [
   ['already replaced', 'За этого участника уже оформлена замена.'],
   ['bad replacement', 'Замена невозможна: заменяемый должен быть отменившим или отказавшимся, заменяющий записанным.'],
   ['bad note', 'Комментарий слишком длинный.'],
+  // родительские сценарии (условия 52-54)
+  ['registration declined', 'Администратор отказал в записи на этот сбор.'],
+  ['camp closed', 'Запись на сбор закрыта.'],
+  ['not eligible', 'Этого ребёнка нельзя записать на этот сбор.'],
+  ['tariff change closed', 'Срок смены тарифа прошёл.'],
+  ['custom amount', 'У записи особая сумма, тариф меняет администратор.'],
+  ['amount below paid', 'Тариф дешевле уже внесённой суммы.'],
+  ['already cancelled', 'Запись уже отменена.'],
+  ['not registered', 'Запись не активна.'],
+  ['tariff not found', 'Тариф недоступен.'],
+  ['bad comment', 'Комментарий до 500 знаков.'],
+  ['camp not found', 'Сбор не найден.'],
 ];
 export const campErr = (m: string): string => MESSAGES.find(([k]) => m.includes(k))?.[1] ?? coachError(m);
 
