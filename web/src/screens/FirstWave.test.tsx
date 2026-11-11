@@ -16,6 +16,14 @@ describe('Первая волна', () => {
     expect(await screen.findByText('Сидоров Ян')).toBeInTheDocument();
   });
 
+  it('отмечает ребёнка без действующего согласия родителей (#238)', async () => {
+    fake.rpc.first_wave_list = () => [row({ parents: 0, enabled: 0, consent_missing: true }), row({ player_id: 'p2', name: 'Сидоров Ян' })];
+    render(<FirstWave />);
+    expect(await screen.findByText('Иванов Пётр')).toBeInTheDocument();
+    expect(screen.getAllByText('Нет действующего согласия')).toHaveLength(1);
+    expect(screen.getByText('уведомления не уходят: у родителей нет действующего согласия')).toBeInTheDocument();
+  });
+
   it('добавление ребёнка уходит в first_wave_add с выбранным направлением, удаление в first_wave_remove', async () => {
     fake.db.players = [{ id: 'p9', full_name: 'Кузнецов Лев', status: 'active' }];
     fake.rpc.first_wave_list = () => [row()];

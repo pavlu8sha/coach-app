@@ -7,7 +7,8 @@ import { Loading } from './Message';
 import { matchPlayers, parseLines, type ImportResult } from '../lib/firstWaveImport';
 
 type Dir = 'ind_sat' | 'ind_sun' | 'goalkeeper';
-interface Row { player_id: string; name: string; direction: Dir; parents: number; enabled: number }
+// consent_missing (#238): ни у одного родителя нет действующего согласия; до миграции 0173 поля нет
+interface Row { player_id: string; name: string; direction: Dir; parents: number; enabled: number; consent_missing?: boolean }
 interface Preview { direction: Dir; recipients: number }
 
 const DIRS: { value: Dir; label: string }[] = [{ value: 'ind_sat', label: 'Суббота' }, { value: 'ind_sun', label: 'Воскресенье' }, { value: 'goalkeeper', label: 'Вратарская' }];
@@ -109,8 +110,8 @@ export default function FirstWave() {
       <h3>В списке ({mine.length})</h3>
       {mine.length === 0 ? <p className="muted">Пока никого.</p> : mine.map(r => (
         <ListRow key={r.player_id + r.direction} avatar={r.name} title={r.name}
-          sub={[r.parents === 0 ? 'нет привязанных родителей' : `Родителей: ${r.parents}, получают: ${r.enabled}`]}
-          end={<span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>{r.parents > 0 && r.enabled === 0 && <Pill tone="warning">Отключено</Pill>}<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} aria-label={`Убрать: ${r.name}`} disabled={busy === 'd' + r.player_id} onClick={() => void remove(r)}>Убрать</button></span>} />
+          sub={[r.consent_missing ? 'уведомления не уходят: у родителей нет действующего согласия' : r.parents === 0 ? 'нет привязанных родителей' : `Родителей: ${r.parents}, получают: ${r.enabled}`]}
+          end={<span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>{r.consent_missing && r.parents === 0 ? <Pill tone="warning">Нет действующего согласия</Pill> : r.parents > 0 && r.enabled === 0 && <Pill tone="warning">Отключено</Pill>}<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} aria-label={`Убрать: ${r.name}`} disabled={busy === 'd' + r.player_id} onClick={() => void remove(r)}>Убрать</button></span>} />
       ))}
       <h3>Добавить ребёнка</h3>
       <SearchInput label="Найти игрока" placeholder="Фамилия или имя (от 2 букв)" value={q} onChange={setQ} suggestions={found.map(f => f.full_name)} />
