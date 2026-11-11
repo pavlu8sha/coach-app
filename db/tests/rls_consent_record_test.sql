@@ -2,7 +2,7 @@
 -- Условия приёмки: docs/CONSENT_PR2A_ACCEPTANCE.md (П1-П10, С1-С5).
 begin;
 create extension if not exists pgtap;
-select plan(69);
+select plan(75);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -179,6 +179,26 @@ select is((select count(*)::int from parental_consent_events a join parental_con
 -- Б: триггеры и блокировки на месте
 select is((select count(*)::int from pg_trigger where not tgisinternal and tgenabled = 'O' and tgname in ('consent_versions_lock', 'consent_links_lock', 'consent_on_link_delete')), 3, 'Б1: три новых триггера включены');
 select is((select position('advisory' in prosrc) from pg_proc where proname = 'consent_doc_versions_keep_open'), 0, 'Б3: проверка инварианта версий блокировку больше не берёт');
+
+-- Н-B/Н-D (раунд 2): прямая запись истории и состояния в обход функций закрыта для ролей приложения, включая service_role.
+-- Остаётся только у владельца базы (как и отключение триггеров); ловится db/ops/readonly-consent-invariants-238.sql.
+reset role;
+select is(has_table_privilege('service_role', 'parental_consent_events', 'insert'), false, 'Н-B: service_role не пишет историю напрямую');
+select is(has_table_privilege('service_role', 'parental_consents', 'insert') or has_table_privilege('service_role', 'parental_consents', 'update'), false, 'Н-D: service_role не пишет состояние напрямую');
+select is(has_table_privilege('service_role', 'parental_consent_events', 'select') and has_table_privilege('service_role', 'parental_consents', 'select'), true, 'service_role по-прежнему читает историю и состояние');
+set local role service_role;
+select throws_ok($$insert into parental_consent_events (parent_user_id, player_id, consent_type, version_id, event, source) values ('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'media_publication', '00000000-0000-0000-0000-0000000f0002', 'revoked', 'admin')$$, '42501', null, 'Н-B: прямая вставка события от service_role отклонена');
+reset role;
+
+-- Н-C (раунд 2): таймаут блокировки вызывающего не меняется после вызова; более строгий не ослабляется.
+set local lock_timeout = '200ms';
+select as_user('00000000-0000-0000-0000-0000000000b1');
+select revoke_parent_consent('00000000-0000-0000-0000-00000000d001', 'media_publication');
+select is(current_setting('lock_timeout'), '200ms', 'Н-C: после вызова остаётся таймаут вызывающего (200ms)');
+set local lock_timeout = 0;
+select revoke_parent_consent('00000000-0000-0000-0000-00000000d001', 'media_publication');
+select is(current_setting('lock_timeout'), '0', 'Н-C: после вызова таймаут снова 0, 5 с не остаются в транзакции');
+reset role;
 
 select * from finish();
 rollback;

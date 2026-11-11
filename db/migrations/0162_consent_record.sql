@@ -126,31 +126,37 @@ end $$;
 -- 5. Публичные функции родителя.
 create or replace function accept_consent(p uuid, t text, ver uuid) returns jsonb
 language plpgsql security definer set search_path = public, pg_temp as $$
-declare me uuid := current_user_id(); eid bigint;
+declare me uuid := current_user_id(); eid bigint; lt_old text := current_setting('lock_timeout'); lt_ms int;
 begin
   if me is null then raise exception 'not authenticated' using errcode = '42501'; end if;
   if t is null or t not in ('data_processing', 'media_publication') then raise exception 'unknown consent type' using errcode = '22023'; end if;
-  perform set_config('lock_timeout', '5s', true);   -- правка версий админом не подвешивает родителя: через 5 с отказ (55P03), повтор безопасен
+  -- правка версий админом не подвешивает родителя: через 5 с отказ (55P03), повтор безопасен.
+  -- Более строгий таймаут вызывающего не ослабляется; после вызова прежнее значение возвращается (Н-C).
+  select setting::int into lt_ms from pg_settings where name = 'lock_timeout';
+  if lt_ms = 0 or lt_ms > 5000 then perform set_config('lock_timeout', '5s', true); end if;
   eid := consent_record(me, p, t, 'granted', ver, 'app', me);
   if eid is not null then
     insert into audit_log (actor_id, action, entity, entity_id, after)
       values (me, 'consent_granted', 'parental_consents', p, jsonb_build_object('type', t, 'version_id', ver, 'event_id', eid));
   end if;
+  perform set_config('lock_timeout', lt_old, true);
   return jsonb_build_object('changed', eid is not null, 'event_id', eid);
 end $$;
 
 create or replace function revoke_parent_consent(p uuid, t text) returns jsonb
 language plpgsql security definer set search_path = public, pg_temp as $$
-declare me uuid := current_user_id(); eid bigint;
+declare me uuid := current_user_id(); eid bigint; lt_old text := current_setting('lock_timeout'); lt_ms int;
 begin
   if me is null then raise exception 'not authenticated' using errcode = '42501'; end if;
   if t is null or t not in ('data_processing', 'media_publication') then raise exception 'unknown consent type' using errcode = '22023'; end if;
-  perform set_config('lock_timeout', '5s', true);
+  select setting::int into lt_ms from pg_settings where name = 'lock_timeout';
+  if lt_ms = 0 or lt_ms > 5000 then perform set_config('lock_timeout', '5s', true); end if;
   eid := consent_record(me, p, t, 'revoked', null, 'app', me);
   if eid is not null then
     insert into audit_log (actor_id, action, entity, entity_id, after)
       values (me, 'consent_revoked', 'parental_consents', p, jsonb_build_object('type', t, 'event_id', eid));
   end if;
+  perform set_config('lock_timeout', lt_old, true);
   return jsonb_build_object('changed', eid is not null, 'event_id', eid);
 end $$;
 
@@ -200,5 +206,8 @@ end $$;
 -- 8. Права: внутренние функции никому, публичные только вошедшим.
 revoke execute on function consent_record(uuid, uuid, text, text, uuid, text, uuid), consent_on_link_delete(), consent_versions_lock(), consent_links_lock()
   from public, anon, authenticated, service_role;
+-- Н-B/Н-D (раунд 2 независимой проверки): история и состояние пишутся только функциями выше (они выполняются от владельца).
+-- Прямая запись ролью service_role в обход функций не обновляла состояние и могла нарушить хронологию; чтение остаётся.
+revoke insert, update on parental_consent_events, parental_consents from service_role;
 revoke execute on function accept_consent(uuid, text, uuid), revoke_parent_consent(uuid, text) from public, anon;
 grant execute on function accept_consent(uuid, text, uuid), revoke_parent_consent(uuid, text) to authenticated;

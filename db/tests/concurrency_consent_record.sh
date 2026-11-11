@@ -208,12 +208,12 @@ SQL
 race "$TMP/a.sql" "$TMP/b.sql"
 check "11. правка версии против идущего принятия: правка ждёт завершения принятия" '[ "$(q -c "select (select t from conc_marks where k = '"'"'edit_done'"'"') >= (select t from conc_marks where k = '"'"'accept_end'"'"')")" = t ] && [ "$(dead)" = 0 ]'
 
-# --- 12. прямая запись события service_role против удаления связи
+# --- 12. прямая запись события в обход функций (владелец базы) против удаления связи
 q <<SQL
 begin; $(as "$(P 10)") select accept_consent('$(K 10)', 'data_processing', '$V_DP1'); commit;
 SQL
 cat >"$TMP/a.sql" <<SQL
-begin; set local role service_role;
+begin;
 insert into parental_consent_events (parent_user_id, player_id, consent_type, version_id, event, source) values ('$(P 10)', '$(K 10)', 'media_publication', '$V_M3', 'granted', 'admin');
 select pg_sleep(3); commit;
 SQL
@@ -221,7 +221,7 @@ cat >"$TMP/b.sql" <<SQL
 begin; delete from player_guardians where user_id = '$(P 10)' and player_id = '$(K 10)'; commit;
 SQL
 race "$TMP/a.sql" "$TMP/b.sql"
-check "12. прямая вставка события service_role против удаления связи: без дедлока, обе транзакции завершены" '[ "$(dead)" = 0 ] && ! grep -qi "error" "$TMP/t1.out" "$TMP/t2.out" && [ "$(nev $(P 10) $(K 10) data_processing revoked)" = 1 ]'
+check "12. прямая вставка события владельцем базы (service_role это запрещено с раунда 2) против удаления связи: без дедлока, обе транзакции завершены" '[ "$(dead)" = 0 ] && ! grep -qi "error" "$TMP/t1.out" "$TMP/t2.out" && [ "$(nev $(P 10) $(K 10) data_processing revoked)" = 1 ]'
 
 # --- 13. повторный revoked: (а) granted -> удаление связи -> одно событие; (б) отозвано родителем -> удаление связи -> нового события нет
 q <<SQL
@@ -271,6 +271,54 @@ begin; $(as "$(P 15)") select accept_consent('$(K 15)', 'data_processing', '$V_D
 SQL
 race "$TMP/a.sql" "$TMP/b.sql"
 check "15. правка версий дольше таймаута: принятие получает отказ по lock timeout, событий нет" 'grep -qi "lock timeout\|could not obtain lock" "$TMP/t2.out" && [ "$(nev $(P 15) $(K 15) data_processing)" = 0 ]'
+# --- 15б. Н-C: более строгий таймаут вызывающего не ослабляется до 5 с (1 с вызывающего действует внутри функции)
+q -c "insert into users (id, telegram_id, display_name, is_admin) values ('$(P 19)', 993119, 'Родитель 19', false); insert into players (id, club_id, full_name) values ('$(K 19)', '$CLUB', 'Ребёнок 19'); insert into player_guardians (player_id, user_id, consent_version, consent_given_at) values ('$(K 19)', '$(P 19)', 'lawyer-2026-11-v1', now())"
+cat >"$TMP/a.sql" <<SQL
+begin; update consent_doc_versions set effective_from = effective_from where id = '$(id 49941)'; select pg_sleep(6); commit;
+SQL
+cat >"$TMP/b.sql" <<SQL
+\set ON_ERROR_STOP 0
+select extract(epoch from clock_timestamp()) as t0 \gset
+begin; set local lock_timeout = '1s'; $(as "$(P 19)") select accept_consent('$(K 19)', 'data_processing', '$V_DP1'); rollback;
+select round((extract(epoch from clock_timestamp()) - :t0)::numeric, 1) as waited;
+SQL
+race "$TMP/a.sql" "$TMP/b.sql"
+W15=$(grep -A2 'waited' "$TMP/t2.out" | grep -oE '^ *[0-9]+\.[0-9]' | tr -d ' ' | head -1)
+check "15б. таймаут вызывающего 1 с не поднимается до 5 с: отказ по lock timeout примерно через 1 с (ждали ${W15:-?} с), событий нет" 'grep -qi "lock timeout" "$TMP/t2.out" && [ -n "$W15" ] && awk -v w="$W15" "BEGIN{exit !(w < 3)}" && [ "$(nev $(P 19) $(K 19) data_processing)" = 0 ]'
+
+CUR_DP=$(q -c "select consent_current_version('data_processing')")
+for n in 16 17 18; do
+q -c "insert into users (id, telegram_id, display_name, is_admin) values ('$(P $n)', $((993100 + n)), 'Родитель $n', false); insert into players (id, club_id, full_name) values ('$(K $n)', '$CLUB', 'Ребёнок $n'); insert into player_guardians (player_id, user_id, consent_version, consent_given_at) values ('$(K $n)', '$(P $n)', 'lawyer-2026-11-v1', now())"
+done
+
+# --- 16. Н-F (принятое ограничение): две транзакции, каждая и принимает согласие, и правит версии. PostgreSQL обнаруживает
+#     дедлок и откатывает одну целиком; вторая завершается; частичных записей нет, состояние = последнее событие.
+cat >"$TMP/a.sql" <<SQL
+begin; $(as "$(P 16)") select accept_consent('$(K 16)', 'data_processing', '$CUR_DP'); reset role; select pg_sleep(2);
+update consent_doc_versions set accepting = accepting where id = '$CUR_DP'; commit;
+SQL
+cat >"$TMP/b.sql" <<SQL
+begin; $(as "$(P 17)") select accept_consent('$(K 17)', 'data_processing', '$CUR_DP'); reset role;
+update consent_doc_versions set accepting = accepting where id = '$CUR_DP'; commit;
+SQL
+race "$TMP/a.sql" "$TMP/b.sql"
+check "16. смешанные транзакции (принятие + правка версий): ровно один откат по дедлоку, одно событие, состояния согласованы" '[ "$(dead)" = 1 ] && [ $(( $(nev $(P 16) $(K 16) data_processing) + $(nev $(P 17) $(K 17) data_processing) )) = 1 ] && [ "$(consistent $(P 16) $(K 16) data_processing)" = 0 ] && [ "$(consistent $(P 17) $(K 17) data_processing)" = 0 ] && [ "$(q -c "select count(*) from parental_consents where parent_user_id in ('"'"'$(P 16)'"'"', '"'"'$(P 17)'"'"') and status = '"'"'granted'"'"' and last_event_id is null")" = 0 ]'
+
+# --- 17. Н-E (принятое ограничение): удаление связи ждёт правку версий без таймаута и завершается после неё, без дедлока,
+#     системный отзыв записан один раз
+q <<SQL
+begin; $(as "$(P 18)") select accept_consent('$(K 18)', 'data_processing', '$CUR_DP'); commit;
+SQL
+cat >"$TMP/a.sql" <<SQL
+begin; update consent_doc_versions set accepting = accepting where id = '$CUR_DP'; select pg_sleep(3);
+insert into conc_marks values ('e17_done', extract(epoch from clock_timestamp())); commit;
+SQL
+cat >"$TMP/b.sql" <<SQL
+begin; delete from player_guardians where user_id = '$(P 18)' and player_id = '$(K 18)';
+insert into conc_marks values ('d17_done', extract(epoch from clock_timestamp())); commit;
+SQL
+race "$TMP/a.sql" "$TMP/b.sql"
+check "17. удаление связи во время правки версий: ждёт её завершения, без ошибок и дедлока, один системный отзыв" '[ "$(q -c "select (select t from conc_marks where k = '"'"'d17_done'"'"') >= (select t from conc_marks where k = '"'"'e17_done'"'"')")" = t ] && [ "$(dead)" = 0 ] && ! grep -qi "error" "$TMP/t1.out" "$TMP/t2.out" && [ "$(nev $(P 18) $(K 18) data_processing revoked)" = 1 ] && [ "$(status $(P 18) $(K 18) data_processing)" = revoked ]'
 fi
 
 # --- итог: инварианты версий
