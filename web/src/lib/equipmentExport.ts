@@ -5,6 +5,7 @@ export interface ExportOrder {
   id: string; ordered_on: string | null; number: string | null; location: string | null;
   players: { full_name: string; groups?: { name: string } | null } | null;
   equipment_order_lines: { kit: string; size: string | null; quantity: number }[];
+  equipment_issues?: { kit: string }[];
 }
 
 export const CSV_BOM = '﻿';
@@ -17,8 +18,8 @@ const cell = (v: string | number | null | undefined, isText = true): string => {
   return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
-/** Текст CSV или пустая строка, если подходящих строк нет. kit — фильтр «Товар» (пустая строка = все вещи). */
-export function equipmentCsv(orders: ExportOrder[], kit: string): string {
+/** Текст CSV или пустая строка, если подходящих строк нет. kit — фильтр «Товар» (пустая строка = все вещи); lineOk — доп. условие на вещь (например, по состоянию выдачи). */
+export function equipmentCsv(orders: ExportOrder[], kit: string, lineOk?: (o: ExportOrder, kit: string) => boolean): string {
   // как в эталоне: по дате заказа, затем по имени игрока (сортировка устойчивая, вещи внутри заказа остаются в своём порядке)
   const sorted = [...orders].sort((a, b) =>
     (a.ordered_on ?? '￿').localeCompare(b.ordered_on ?? '￿') || (a.players?.full_name ?? '').localeCompare(b.players?.full_name ?? '', 'ru'));
@@ -26,6 +27,7 @@ export function equipmentCsv(orders: ExportOrder[], kit: string): string {
   for (const o of sorted) {
     for (const l of o.equipment_order_lines) {
       if (kit && l.kit !== kit) continue;
+      if (lineOk && !lineOk(o, l.kit)) continue;
       rows.push([
         cell(o.ordered_on, false), cell(o.number), cell(o.players?.full_name), cell(o.players?.groups?.name), cell(o.location),
         cell(l.kit), cell(l.size), cell(l.quantity, false), cell(o.id, false),
