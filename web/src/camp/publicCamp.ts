@@ -1,6 +1,8 @@
 // Публичная страница сбора /camp/<имя> (Issue #470, docs/CAMP_SELF_SIGNUP_ACCEPTANCE.md, условия 57-61, 63).
 // Без входа и без Telegram: один анонимный вызов camp_public обычным fetch (без клиента Supabase, без сессии и без хранения данных). Весь текст из базы выводится через textContent, разметка не создаётся.
 
+import { CAMP } from '../lib/clubInfo';
+
 interface Tariff { name: string; price: number }
 interface Period { from: string | null; to: string | null; text: string }
 interface PublicCamp {
@@ -52,12 +54,32 @@ function card(title: string, items: string[]): HTMLElement {
   return s;
 }
 
+// Описание сборов из презентации Winter Camp 2027: постоянный текст приложения, не данные базы
+function about(): HTMLElement[] {
+  const C = CAMP;
+  const hero = el('img', undefined, 'hero');
+  hero.src = '/img/camp-hero.jpg';
+  hero.alt = C.title;
+  hero.loading = 'lazy';
+  return [
+    hero,
+    card(C.atmosphere.label, [C.atmosphere.title, C.atmosphere.text]),
+    card(C.program.label, [C.program.lead, C.program.text]),
+    card(C.hotel.label, [C.hotel.lead, ...C.hotel.items]),
+    card(C.ages.label, C.ages.items.map(a => `${a.group}: ${a.text}`)),
+    card(C.life.label, C.life.day.map(d => `${d.title}: ${d.text}`)),
+    card(C.family.label, [C.family.lead, C.family.text, C.family.note]),
+    card(C.result.label, [...C.result.numbers.map(([n, l]) => `${n} ${l}`), C.result.text]),
+  ];
+}
+
 function renderCamp(root: HTMLElement, slug: string, d: PublicCamp) {
   const c = d.camp;
   const main = el('main');
   main.append(el('h1', c.name));
   main.append(el('p', `${fmtDate(c.starts_on)} — ${fmtDate(c.ends_on)}${c.location ? ` · ${c.location}` : ''}`, 'muted'));
   main.append(el('p', d.seats_available ? 'Есть места' : 'Мест нет', d.seats_available ? 'pill ok' : 'pill no'));
+  main.append(...about());
   if (d.tariffs.length) main.append(card('Тарифы', d.tariffs.map(t => `${t.name}: ${money(t.price)}`)));
   const dates: string[] = [];
   if (c.booking_deadline) dates.push(`Бронь${c.booking_fee ? ` ${money(c.booking_fee)}` : ''} до ${fmtDate(c.booking_deadline)}`);

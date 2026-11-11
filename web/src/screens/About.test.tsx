@@ -73,7 +73,8 @@ describe('«О клубе» для гостя', () => {
     for (const h of ['Зимняя атмосфера. Футбольный характер.', '7 дней в режиме футболиста', 'Всё для тренировок и восстановления', 'Каждому возрасту — свои задачи', 'Не только тренировки', 'Ребёнок — в команде. Родители — рядом.', 'Больше, чем неделя футбола', 'Выберите свой формат поездки']) {
       expect(screen.getByRole('heading', { name: h })).toBeInTheDocument();
     }
-    for (const g of ['U6-7', 'U8–U9', 'U10–U11', 'U12–U13']) expect(screen.getByText(g)).toBeInTheDocument();
+    for (const g of ['U6–7', 'U8–U9', 'U10–U11', 'U12–U13']) expect(screen.getByText(g)).toBeInTheDocument();
+    expect(screen.getByText('U6–U13', { exact: false })).toBeInTheDocument();
     expect(screen.getByText('1 350 GEL')).toBeInTheDocument();
     expect(screen.getByText('3 100 GEL')).toBeInTheDocument();
     expect(screen.getByText(/Бронь — 500 GEL до 5 декабря/)).toBeInTheDocument();
