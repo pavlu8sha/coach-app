@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
+import { resetStartParam } from '../lib/startParam';
 import Home from './Home';
 
 const kid = (id: string, name: string, group: string | null) => ({ player_id: id, user_id: 'u', consent_revoked_at: null, players: { id, full_name: name, groups: group ? { name: group } : null } });
@@ -70,3 +71,52 @@ describe('главная родителя', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Найти ребёнка' })).toBeInTheDocument());
   });
 });
+
+// Вход по ссылке t.me/kicksapp?startapp=camp_<имя> (Issue #470, условие 62)
+describe('вход по ссылке на сбор', () => {
+  const start = (v?: string) => { (window as any).Telegram = { WebApp: { initData: 'x', initDataUnsafe: { start_param: v } } }; resetStartParam(); };
+  const seedCamps = () => {
+    fake.db.player_guardians = [{ ...kid('p1', 'Алексей Петров', null), players: { id: 'p1', full_name: 'Алексей Петров', club_id: 'club1', status: 'active', groups: null } }];
+    fake.db.camps = [
+      { id: 'c1', club_id: 'club1', slug: 'zima', name: 'Зимний лагерь', location: null, starts_on: '2027-01-02', ends_on: '2027-01-09', booking_fee: 0, booking_deadline: null, full_payment_deadline: null, active: true },
+      { id: 'c2', club_id: 'club2', slug: 'chuzhoy', name: 'Чужой сбор', location: null, starts_on: '2027-02-01', ends_on: '2027-02-05', booking_fee: 0, booking_deadline: null, full_payment_deadline: null, active: true },
+    ];
+  };
+  afterEach(() => { delete (window as any).Telegram; resetStartParam(); });
+
+  it('родитель с детьми: открывается карточка сбора из ссылки, «назад» ведёт в список и повторно не открывает', async () => {
+    seedCamps();
+    start('camp_Zima');
+    render(<Home />);
+    const back = await screen.findByRole('button', { name: '← Сборы' }); // кнопка есть только у загруженной карточки сбора
+    expect(screen.getByRole('heading', { name: 'Зимний лагерь' })).toBeInTheDocument();
+    fireEvent.click(back);
+    expect(await screen.findByText('Зимний лагерь', { selector: '.ks-row-title' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Сборы' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Зимний лагерь' })).not.toBeInTheDocument();
+  });
+  it('сбор другого клуба или неизвестное имя: список сборов, без ошибок и без чужого сбора', async () => {
+    seedCamps();
+    start('camp_chuzhoy');
+    render(<Home />);
+    expect(await screen.findByText('Зимний лагерь', { selector: '.ks-row-title' })).toBeInTheDocument(); // загруженный список
+    expect(screen.getByRole('heading', { name: 'Сборы' })).toBeInTheDocument();
+    expect(screen.queryByText('Чужой сбор')).not.toBeInTheDocument();
+  });
+  it('чужой параметр запуска: обычная главная', async () => {
+    seedCamps();
+    start('link_zima');
+    render(<Home />);
+    expect(await screen.findByText('Алексей Петров')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Сборы' })).not.toBeInTheDocument();
+  });
+  it('без детей параметр игнорируется: привязка ребёнка как раньше', async () => {
+    seedCamps();
+    fake.db.player_guardians = [];
+    start('camp_zima');
+    render(<Home />);
+    expect(await screen.findByRole('heading', { name: 'Подключите профиль ребёнка' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Сборы' })).not.toBeInTheDocument();
+  });
+});
+

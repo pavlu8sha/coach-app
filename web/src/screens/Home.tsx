@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNav, useSubEntry } from '../nav';
+import { peekCampSlug, takeCampSlug } from '../lib/startParam';
 import { supabase } from '../lib/supabase';
 import { fetchLedgerTotals } from '../lib/pointsLedger';
 import { Avatar, EmptyState, ListRow, Pill } from '../ui/components';
@@ -54,7 +55,8 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
   const [addMore, setAddMore] = useState(false);
   const nav = useNav();
   const statusOpen = Boolean(useSubEntry('hm.status')); // статусы запросов — запись стека
-  const campsOpen = Boolean(useSubEntry('hm.camps')); // сборы родителя (#470, условие 49)
+  const campsEntry = useSubEntry('hm.camps'); // сборы родителя (#470, условие 49)
+  const campsOpen = Boolean(campsEntry);
   const wasStatus = useRef(false);
   const retry = () => {
     setError(null);
@@ -67,6 +69,13 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
     wasStatus.current = statusOpen;
   }, [statusOpen]);
   const refresh = useCallback(() => setReload(n => n + 1), []);
+  // Ссылка t.me/kicksapp?startapp=camp_<имя> (условие 62): родителю с детьми один раз за запуск открываем сборы с этим именем
+  const hasKids = Boolean(children && children.length > 0);
+  useEffect(() => {
+    if (!hasKids || !peekCampSlug()) return;
+    const slug = takeCampSlug();
+    if (slug) nav.push('hm.camps', { open: slug });
+  }, [hasKids, nav]);
 
   useEffect(() => {
     void (async () => {
@@ -108,7 +117,7 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
   if (error) return <Failure title="Не удалось загрузить данные" text={error} onRetry={retry} />;
   if (!children) return <Loading />;
   if (statusOpen) return <LinkStatus onBack={() => nav.back()} />;
-  if (campsOpen) return <ParentCamps onBack={() => nav.back()} />;
+  if (campsOpen) return <ParentCamps onBack={() => nav.back()} openSlug={campsEntry?.params.open ?? null} />;
 
   const waiting = reqs.filter(r => r.status === 'pending').length;
   const rejected = reqs.filter(r => r.status === 'rejected').length;

@@ -12,14 +12,14 @@ import { Failure, Loading } from './Message';
 // Экран только вызывает функции базы и показывает их ответ: права, сроки, места и суммы решает база.
 
 interface Kid { id: string; name: string; club: string | null; active: boolean }
-interface Camp { id: string; club_id: string; name: string; location: string | null; starts_on: string; ends_on: string; booking_fee: number | null; booking_deadline: string | null; full_payment_deadline: string | null; active: boolean }
+interface Camp { id: string; club_id: string; slug: string | null; name: string; location: string | null; starts_on: string; ends_on: string; booking_fee: number | null; booking_deadline: string | null; full_payment_deadline: string | null; active: boolean }
 interface Pay { id: string; amount: number; paid_on: string | null; kind: string | null }
 interface Part { id: string; camp_id: string; player_id: string | null; guest_name: string | null; owner_user_id: string | null; tariff_id: string | null; amount: number; comment: string | null; status: 'registered' | 'cancelled' | 'declined'; camp_tariffs: { name: string } | null; camp_payments: Pay[] | null }
 interface Tariff { id: string; name: string; price: number; active: boolean }
 interface Period { from: string | null; to: string | null; text: string }
 interface Doc { id: string; title: string; version: number }
 
-const CAMP_COLS = 'id, club_id, name, location, starts_on, ends_on, booking_fee, booking_deadline, full_payment_deadline, active';
+const CAMP_COLS = 'id, club_id, slug, name, location, starts_on, ends_on, booking_fee, booking_deadline, full_payment_deadline, active';
 const PART_COLS = 'id, camp_id, player_id, guest_name, owner_user_id, tariff_id, amount, comment, status, camp_tariffs(name), camp_payments(id, amount, paid_on, kind)';
 const STATUS: Record<Part['status'] | 'none', { label: string; tone: 'success' | 'neutral' | 'danger' }> = {
   registered: { label: 'Записан', tone: 'success' },
@@ -54,12 +54,13 @@ async function loadMine(campId?: string): Promise<{ me: string; kids: Kid[]; par
   return { me, kids, parts };
 }
 
-export default function ParentCamps({ onBack }: { onBack?: () => void } = {}) {
+export default function ParentCamps({ onBack, openSlug }: { onBack?: () => void; openSlug?: string | null } = {}) {
   const nav = useNav();
   const open = useSubEntry('pc.camp');
   const [data, setData] = useState<{ camps: Camp[]; kids: Kid[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const deepLinkDone = useRef(false);
 
   useEffect(() => {
     let live = true;
@@ -77,6 +78,14 @@ export default function ParentCamps({ onBack }: { onBack?: () => void } = {}) {
     })();
     return () => { live = false; };
   }, [reload]);
+
+  // Вход по ссылке (условие 62): один раз открываем карточку сбора с этим именем среди видимых родителю; иначе остаётся список
+  useEffect(() => {
+    if (!data || !openSlug || deepLinkDone.current) return;
+    deepLinkDone.current = true;
+    const c = data.camps.find(x => x.slug === openSlug);
+    if (c) nav.push('pc.camp', { id: c.id });
+  }, [data, openSlug, nav]);
 
   if (error) return <Failure title="Не удалось загрузить сборы" text={error} onRetry={() => { setError(null); setData(null); setReload(n => n + 1); }} />;
   if (!data) return <Loading title="Сборы" />;
