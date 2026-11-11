@@ -77,6 +77,14 @@ export default function Individual() {
   }, [tab, reload, limit]);
 
   const done = () => { setList(null); setDebts(null); setReload(n => n + 1); };
+  // Занятие или форма закрылись любым способом (кнопка «Назад» Telegram, жест, наша кнопка): список перечитывается,
+  // иначе правки темы и времени видны только после перезагрузки страницы.
+  const subScreen = nav.top.screen === 'session' || nav.top.screen === 'new';
+  const wasSub = useRef(false);
+  useEffect(() => {
+    if (wasSub.current && !subScreen) done();
+    wasSub.current = subScreen;
+  }, [subScreen]); // eslint-disable-line react-hooks/exhaustive-deps
   if (error) return <Failure title="Не удалось загрузить занятия" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   if (nav.top.screen === 'new') return <SessionForm onBack={() => nav.back()} onDone={() => { nav.back(); done(); }} />;
   const open = nav.top.screen === 'session' ? list?.find(s => s.id === nav.top.params.id) : undefined;

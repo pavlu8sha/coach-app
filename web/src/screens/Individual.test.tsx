@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import { coachError } from '../lib/coach';
 import Individual from './Individual';
+import { NavProvider, NavRoot } from '../nav';
 
 const future = '2099-01-10T12:00:00';
 const past = '2020-01-10T12:00:00';
@@ -136,6 +137,22 @@ describe('«Индивидуальные»', () => {
     await waitFor(() => expect(fake.rpcCalls('ind_edit_session')).toHaveLength(1));
     expect(fake.rpcCalls('ind_edit_session')[0]).toMatchObject({ s: 's1', gk: true });
     expect(await screen.findByRole('heading', { name: '10.01.2099 12:00 · Вратари' })).toBeInTheDocument();
+  });
+
+  it('системная «Назад» (кнопка Telegram) после правки темы: список сразу показывает новую тему', async () => {
+    seed();
+    // база отдаёт новый объект, как настоящая: изменение общего объекта подтянулось бы без перечитывания и скрыло бы ошибку
+    fake.rpc.ind_edit_session = (a: { theme: string }) => { fake.db.individual_sessions = fake.db.individual_sessions.map(x => (x.id === 's1' ? { ...x, topic: a.theme } : x)); return null; };
+    render(<NavProvider initial="m"><NavRoot root="m"><Individual /></NavRoot></NavProvider>);
+    fireEvent.click(await screen.findByText('10.01.2099 12:00 · Индивидуальные'));
+    fireEvent.change(await screen.findByLabelText('Тема'), { target: { value: 'Финты' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() => expect(fake.rpcCalls('ind_edit_session')).toHaveLength(1));
+    await screen.findByText('Сохранено.');
+    await act(async () => { window.dispatchEvent(new PopStateEvent('popstate')); });
+    expect(await screen.findByText('Записано: 2, оплатили: 1')).toBeInTheDocument(); // вернулись в список
+    expect(await screen.findByText(/Финты/)).toBeInTheDocument();
+    expect(screen.queryByText(/Дриблинг/)).not.toBeInTheDocument();
   });
 
   it('у занятия с оплатой нельзя удалить, дата и время закрыты', async () => {
