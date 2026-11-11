@@ -42,5 +42,7 @@ echo "== db/tests/concurrency_camp_refund.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_camp_refund.sh || fail=1
 echo "== db/tests/concurrency_consent_record.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_consent_record.sh || fail=1
+echo "== db/tests/concurrency_consent_claim.sh"
+DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_consent_claim.sh || fail=1
 $PSQL -q -d postgres -c "drop database if exists $DB"
 [ "$fail" = 0 ] && echo "Все тесты доступа прошли" || { echo "ЕСТЬ ПАДЕНИЯ"; exit 1; }

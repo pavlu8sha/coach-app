@@ -177,6 +177,7 @@ select * from (values
   ('0171_individual_template_admin', coalesce((not has_table_privilege('authenticated', 'individual_templates', 'delete') and has_table_privilege('authenticated', 'individual_templates', 'insert') and has_table_privilege('authenticated', 'individual_templates', 'update')), false)),
   ('0172_camp_broadcast_audience', coalesce((to_regproc('camp_broadcast_audience') is not null and to_regproc('camp_broadcast_recipients') is not null), false)),
   ('0174_booking_cancel_notice', coalesce((select position('Отмена записи на занятие' in prosrc) > 0 from pg_proc where proname = 'booking_cancel' limit 1) and (select position('Индивидуальные / Дополнительные' in prosrc) = 0 from pg_proc where proname = 'booking_signup' limit 1), false)),
+  ('0176_consent_claim_check', coalesce((exists (select 1 from information_schema.columns where table_name = 'notifications' and column_name = 'player_ids') and exists (select 1 from information_schema.columns where table_name = 'notifications' and column_name = 'consent_check_attempts') and position('parent_access_ok' in pg_get_functiondef(to_regprocedure('claim_notifications(integer)'))) > 0 and to_regprocedure('camp_broadcast_player_ids(uuid,uuid)') is not null), false)),
   ('0177_ind_autocreate_topic_offset', coalesce((position($$/ 7 + 2) % array_length$$ in pg_get_functiondef(to_regprocedure('ind_autocreate(date)'))) > 0), false))
 ) as t(migration, applied)
 order by migration;

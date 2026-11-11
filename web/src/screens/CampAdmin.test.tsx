@@ -351,6 +351,24 @@ describe('Админ: рассылки (условие 47)', () => {
       'Папа Глеб: очищено из очереди',
     ]);
   });
+  it('подавленные по согласию (skipped): отдельный счётчик журнала и строка результата', async () => {
+    seed();
+    fake.rpc.camp_broadcast_list = () => [{ id: 'b3', kind: 'reminder', body: 'Напоминание', recipients: 3, author_name: 'Админ', created_at: '2026-11-10T08:00:00Z', pending: 0, sent: 1, failed: 0, skipped: 1, cleared: 1 }];
+    fake.rpc.camp_broadcast_recipients = () => [
+      { name: 'Мама Анна', state: 'sent', error: null },
+      { name: 'Папа Борис', state: 'skipped', error: 'consent' },
+      { name: 'Мама Вера', state: 'cleared', error: null },
+    ];
+    await openCamp('Рассылки');
+    expect(await screen.findByText('Получателей 3: ждёт 0, отправлено 1, не доставлено 0, не отправлено из-за согласия 1, очищено 1')).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Результат' }));
+    const list = await screen.findByRole('list', { name: 'Результат по получателям' });
+    expect(within(list).getAllByRole('listitem').map(e => e.textContent)).toEqual([
+      'Мама Анна: отправлено',
+      'Папа Борис: не отправлено: нет согласия',
+      'Мама Вера: очищено из очереди',
+    ]);
+  });
   it('повторная отправка той же рассылки отклоняется базой: показан понятный текст и предпросмотр сброшен', async () => {
     seed();
     fake.rpc.camp_broadcast_list = () => [];
