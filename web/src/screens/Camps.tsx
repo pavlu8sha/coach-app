@@ -6,9 +6,10 @@ import { EmptyState, ListRow, Pill, SearchInput, Segmented, SwitchRow } from '..
 import { useConfirm } from '../ui/ConfirmSheet';
 import { BackNav } from '../ui/nav';
 import { useNav, useNavState } from '../nav';
+import { CampApplications, CampBroadcasts, CampDocuments, CampSettings, campErr } from './CampSelfSignup';
 import { Failure, Loading } from './Message';
 
-interface Camp { id: string; name: string; location: string | null; starts_on: string; ends_on: string; booking_fee: number; booking_deadline: string | null; full_payment_deadline: string | null; active: boolean }
+interface Camp { id: string; name: string; location: string | null; starts_on: string; ends_on: string; booking_fee: number; booking_deadline: string | null; full_payment_deadline: string | null; active: boolean; capacity: number | null; slug: string | null }
 interface Tariff { id: string; name: string; price: number; active: boolean }
 interface Pay { id: string; amount: number; paid_on: string; kind: 'booking' | 'payment' | 'refund'; method: string | null; comment: string | null; legacy_ref?: string | null }
 interface Part {
@@ -23,7 +24,7 @@ const KIND: Record<Pay['kind'], string> = { booking: 'Бронь', payment: 'О�
 const errText = (m: string) =>
   m.includes('camp full') ? 'На сборе нет свободных мест.' : m.includes('capacity below registered') ? 'Лимит не может быть меньше числа подтверждённых участников.' : m.includes('already registered') ? 'Уже записан на этот сбор.' : m.includes('not a guest') ? 'Имя и контакт правятся только у гостя.' : m.includes('already cancelled') ? 'Этот платёж уже отменён.' : m.includes('not cancellable') ? 'Этот платёж отменить нельзя.' : m.includes('paid below zero') ? 'Отмена увела бы оплату ниже нуля.' :
   m.includes('bad dates') ? 'Дата конца раньше даты начала.' : m.includes('bad amount') ? 'Сумма указана неверно.' : m.includes('amount below paid') ? 'Сумма участника не может быть меньше уже оплаченного.' : m.includes('name required') ? 'Введите название.' : m.includes('tariff not found') ? 'Выберите действующий тариф.' :
-  m.includes('Could not find the function') || m.includes('camp_') ? 'Модуль ещё не установлен в базе (миграция 0037).' : coachError(m);
+  m.includes('Could not find the function') || m.includes('camp_') ? 'Модуль ещё не установлен в базе (миграция 0037).' : campErr(m);
 const nameOf = (p: Pick<Part, 'players' | 'guest_name'>) => p.players?.full_name ?? p.guest_name ?? 'Участник';
 const groupOf = (p: Pick<Part, 'players' | 'player_id'>) => (p.player_id ? p.players?.groups?.name ?? 'Без группы' : 'Гости');
 const paidOf = (p: Part) => p.camp_payments.reduce((s, x) => s + Number(x.amount), 0);
@@ -37,7 +38,7 @@ export default function Camps() {
   const nav = useNav();
 
   useEffect(() => {
-    void supabase.from('camps').select('id, name, location, starts_on, ends_on, booking_fee, booking_deadline, full_payment_deadline, active').order('starts_on', { ascending: false }).limit(60).then(r => {
+    void supabase.from('camps').select('id, name, location, starts_on, ends_on, booking_fee, booking_deadline, full_payment_deadline, active, capacity, slug').order('starts_on', { ascending: false }).limit(60).then(r => {
       if (r.error) return setError(errText(r.error.message));
       setCamps(((r.data ?? []) as Camp[]).map(c => ({ ...c, booking_fee: Number(c.booking_fee) })));
     });
@@ -51,7 +52,7 @@ export default function Camps() {
   }
   const campIndex = nav.entries.findIndex(e => e.screen === 'camp');
   const open = campIndex >= 0 ? camps?.find(c => c.id === nav.entries[campIndex].params.id) : undefined;
-  if (open) return <CampView camp={open} campIndex={campIndex} onBack={() => { nav.back(); done(); }} onEdit={() => nav.push('camp.form', { id: open.id })} />;
+  if (open) return <CampView camp={open} campIndex={campIndex} onBack={() => { nav.back(); done(); }} onEdit={() => nav.push('camp.form', { id: open.id })} onPatched={p => setCamps(cs => (cs ? cs.map(c => (c.id === open.id ? { ...c, ...p } : c)) : cs))} />;
   return (
     <main className="page">
       <h1>Сборы</h1>
@@ -98,11 +99,11 @@ function CampForm({ camp, onBack, onDone }: { camp: Camp | null; onBack: () => v
   );
 }
 
-type Tab = 'people' | 'tariffs' | 'list';
+type Tab = 'people' | 'apps' | 'tariffs' | 'settings' | 'docs' | 'broadcasts' | 'list';
 
-function CampView({ camp, campIndex, onBack, onEdit }: { camp: Camp; campIndex: number; onBack: () => void; onEdit: () => void }) {
+function CampView({ camp, campIndex, onBack, onEdit, onPatched }: { camp: Camp; campIndex: number; onBack: () => void; onEdit: () => void; onPatched: (p: Partial<Camp>) => void }) {
   const nav = useNav();
-  const [tab, setTab] = useNavState<Tab>('camp.tab', 'people', { entry: campIndex, persist: { kind: 'enum', values: ['people', 'tariffs', 'list'] } });
+  const [tab, setTab] = useNavState<Tab>('camp.tab', 'people', { entry: campIndex, persist: { kind: 'enum', values: ['people', 'apps', 'tariffs', 'settings', 'docs', 'broadcasts', 'list'] } });
   const [parts, setParts] = useState<Part[] | null>(null);
   const [tariffs, setTariffs] = useState<Tariff[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -123,7 +124,7 @@ function CampView({ camp, campIndex, onBack, onEdit }: { camp: Camp; campIndex: 
   if (error) return <Failure title="Не удалось загрузить сбор" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   if (nav.top.screen === 'camp.add') return <AddPart camp={camp} tariffs={tariffs.filter(t => t.active)} taken={new Set((parts ?? []).filter(p => p.status === 'registered' && p.player_id).map(p => p.player_id as string))} onBack={() => nav.back()} onDone={() => { nav.back(); refresh(); }} />;
   const open = nav.top.screen === 'camp.part' ? parts?.find(p => p.id === nav.top.params.id) : undefined;
-  if (open) return <PartView part={open} camp={camp} tariffs={tariffs} onBack={() => { nav.back(); refresh(); }} />;
+  if (open) return <PartView part={open} camp={camp} tariffs={tariffs} others={(parts ?? []).filter(x => x.status === 'registered' && x.id !== open.id).map(x => ({ id: x.id, name: nameOf(x) }))} onBack={() => { nav.back(); refresh(); }} />;
 
   const reg = (parts ?? []).filter(p => p.status === 'registered');
   const owed = reg.reduce((s, p) => s + p.amount, 0);
@@ -135,8 +136,8 @@ function CampView({ camp, campIndex, onBack, onEdit }: { camp: Camp; campIndex: 
       <p className="muted">{fmtDate(camp.starts_on)} — {fmtDate(camp.ends_on)}{camp.location ? ` · ${camp.location}` : ''}{camp.booking_fee ? ` · бронь ${gel(camp.booking_fee)}` : ''}</p>
       <button type="button" className="ks-btn secondary" onClick={onEdit}>Данные сбора</button>
       <div style={{ height: 10 }} />
-      <Segmented label="Раздел" value={tab} onChange={setTab} items={[{ value: 'people', label: 'Участники' }, { value: 'tariffs', label: 'Тарифы' }, { value: 'list', label: 'Список' }]} />
-      {tab === 'tariffs' ? <Tariffs camp={camp} tariffs={tariffs} onChanged={refresh} /> : !parts ? <Loading /> : tab === 'list' ? <ListText parts={reg} /> : (
+      <Segmented label="Раздел" value={tab} onChange={setTab} items={[{ value: 'people', label: 'Участники' }, { value: 'apps', label: 'Заявки' }, { value: 'tariffs', label: 'Тарифы' }, { value: 'settings', label: 'Настройки' }, { value: 'docs', label: 'Документы' }, { value: 'broadcasts', label: 'Рассылки' }, { value: 'list', label: 'Список' }]} />
+      {tab === 'apps' ? <CampApplications camp={camp} /> : tab === 'settings' ? <CampSettings camp={camp} onPatched={onPatched} /> : tab === 'docs' ? <CampDocuments camp={camp} /> : tab === 'broadcasts' ? <CampBroadcasts camp={camp} /> : tab === 'tariffs' ? <Tariffs camp={camp} tariffs={tariffs} onChanged={refresh} /> : !parts ? <Loading /> : tab === 'list' ? <ListText parts={reg} /> : (
         <>
           <p className="muted" style={{ margin: '10px 0' }}>Записано: {reg.length} · оплачено {gel(paid)} из {gel(owed)}</p>
           <button type="button" className="ks-btn" onClick={() => nav.push('camp.add')} disabled={tariffs.filter(t => t.active).length === 0}>{tariffs.some(t => t.active) ? 'Записать игрока' : 'Сначала добавьте тариф'}</button>
@@ -260,7 +261,7 @@ function AddPart({ camp, tariffs, taken, onBack, onDone }: { camp: Camp; tariffs
   );
 }
 
-function PartView({ part, camp, tariffs, onBack }: { part: Part; camp: Camp; tariffs: Tariff[]; onBack: () => void }) {
+function PartView({ part, camp, tariffs, others, onBack }: { part: Part; camp: Camp; tariffs: Tariff[]; others: { id: string; name: string }[]; onBack: () => void }) {
   const [p, setP] = useState(part);
   const [tid, setTid] = useState(part.tariff_id ?? '');
   const [amount, setAmount] = useState(String(part.amount));
@@ -274,6 +275,11 @@ function PartView({ part, camp, tariffs, onBack }: { part: Part; camp: Camp; tar
   const [method, setMethod] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [refundAmount, setRefundAmount] = useState('');
+  const [refundDate, setRefundDate] = useState(today());
+  const [refundNote, setRefundNote] = useState('');
+  const [newPid, setNewPid] = useState('');
+  const [replaceNote, setReplaceNote] = useState('');
 
   const { ask, dialog } = useConfirm();
 
@@ -287,6 +293,31 @@ function PartView({ part, camp, tariffs, onBack }: { part: Part; camp: Camp; tar
     if (!ok) return;
     const saved = await run('pay', () => supabase.rpc('camp_pay', { pid: p.id, amt: num(payAmount), k: kind, d: date, mth: method, cmt: null }), 'Платёж записан.');
     if (saved) setPayAmount('');
+  };
+
+  const refund = async () => {
+    const ok = await ask({
+      title: 'Оформить возврат?',
+      lines: [[p.player_id ? 'Игрок' : 'Гость', nameOf(p)], ['Сбор', camp.name], ['Сумма', gel(num(refundAmount))], ['Дата', fmtDate(refundDate)]],
+      note: 'Возврат записывается суммой с минусом и не удаляется. Деньги возвращаются вручную.',
+      confirmLabel: 'Вернуть деньги',
+      danger: true,
+    });
+    if (!ok) return;
+    const saved = await run('refund', () => supabase.rpc('camp_refund', { pid: p.id, amt: num(refundAmount), d: refundDate, cmt: refundNote.trim() || null }), 'Возврат записан.');
+    if (saved) { setRefundAmount(''); setRefundNote(''); }
+  };
+  const replace = async () => {
+    const who = others.find(o => o.id === newPid);
+    const ok = await ask({
+      title: 'Оформить замену?',
+      lines: [['Отменил', nameOf(p)], ['Занял место', who?.name]],
+      note: 'Деньги переносятся вручную: платежи участников не меняются. Замена записывается в историю и не удаляется.',
+      confirmLabel: 'Оформить замену',
+    });
+    if (!ok) return;
+    const saved = await run('replace', () => supabase.rpc('camp_replace_participant', { old_pid: p.id, new_pid: newPid, nt: replaceNote.trim() || null }), 'Замена оформлена.');
+    if (saved) { setNewPid(''); setReplaceNote(''); }
   };
 
   const cancelPay = async (x: Pay) => {
@@ -334,6 +365,27 @@ function PartView({ part, camp, tariffs, onBack }: { part: Part; camp: Camp; tar
           )}
         </div>
       ))}
+      {paidOf(p) > 0 && (
+        <>
+          <h3>Возврат</h3>
+          <p className="muted" style={{ margin: '4px 0' }}>Внесено {gel(paidOf(p))}. Сумму возврата определяете вы по условиям отмены.</p>
+          <div className="two">
+            <label className="field">Сумма возврата, ₾<input inputMode="decimal" value={refundAmount} onChange={e => setRefundAmount(e.target.value)} /></label>
+            <label className="field">Дата возврата<input type="date" value={refundDate} max={today()} onChange={e => setRefundDate(e.target.value)} /></label>
+          </div>
+          <label className="field">Комментарий к возврату<input value={refundNote} maxLength={120} onChange={e => setRefundNote(e.target.value)} /></label>
+          <button type="button" className="ks-btn secondary" disabled={busy === 'refund' || refundAmount.trim() === '' || Number.isNaN(num(refundAmount)) || num(refundAmount) <= 0 || !refundDate} onClick={() => void refund()}>Оформить возврат</button>
+        </>
+      )}
+      {p.status !== 'registered' && others.length > 0 && (
+        <>
+          <h3>Замена</h3>
+          <p className="muted" style={{ margin: '4px 0' }}>Если место заняли другим игроком, отметьте это. Деньги переносятся вручную.</p>
+          <label className="field">Кто занял место<select value={newPid} onChange={e => setNewPid(e.target.value)}><option value="">Выберите участника</option>{others.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}</select></label>
+          <label className="field">Комментарий к замене<input value={replaceNote} maxLength={500} onChange={e => setReplaceNote(e.target.value)} /></label>
+          <button type="button" className="ks-btn secondary" disabled={busy === 'replace' || !newPid} onClick={() => void replace()}>Оформить замену</button>
+        </>
+      )}
       <h3>Внести платёж</h3>
       <Segmented label="Вид" value={kind} onChange={setKind} items={[{ value: 'booking', label: 'Бронь' }, { value: 'payment', label: 'Оплата' }]} />
       <label className="field">Сумма, ₾<input inputMode="decimal" value={payAmount} onChange={e => setPayAmount(e.target.value)} /></label>
