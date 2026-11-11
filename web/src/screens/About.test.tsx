@@ -119,6 +119,23 @@ describe('«О клубе» для гостя', () => {
     expect(screen.getByRole('button', { name: /^Филиалы/ })).toBeInTheDocument();
   });
 
+  it('карточка сбора: гостю «Мои сборы» не показываются (условие 66 #470)', () => {
+    render(<About role="guest" onChangeRole={() => undefined} />);
+    open(/Winter Camp 2027/);
+    expect(screen.getByRole('link', { name: 'Забронировать место' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Мои сборы' })).toBeNull();
+  });
+
+  it('карточка сбора: «Мои сборы» у родителя ведут на сборы родителя (условие 66 #470)', async () => {
+    render(<About role="parent" cabinet onChangeRole={() => undefined} />);
+    open(/Winter Camp 2027/);
+    fireEvent.click(screen.getByRole('button', { name: 'Мои сборы' }));
+    expect(await screen.findByText('Сборов пока нет')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Сборы' })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: '← Назад' }));
+    expect(await screen.findByRole('button', { name: 'Мои сборы' })).toBeInTheDocument();
+  });
+
   it('лимит заявок: понятное сообщение', async () => {
     fake.rpc.lead_submit_app = () => ({ error: { message: 'too many leads' } });
     render(<About role="guest" onChangeRole={() => undefined} />);

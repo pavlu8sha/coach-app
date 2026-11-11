@@ -10,6 +10,7 @@ import type { Role } from './RoleSelect';
 import ClubArticles from './ClubArticles';
 import { SECTION_HINT, type ArticleSection } from '../lib/articles';
 import TrialForm from './TrialForm';
+import ParentCamps from './ParentCamps';
 
 export { CLUB_CHANNEL };
 
@@ -170,7 +171,7 @@ function Equipment({ product, setProduct }: { product: Product['id'] | null; set
 type CampTab = 'about' | 'program' | 'hotel' | 'price';
 const photo = (n: string, alt: string) => <ZoomPhoto name={n} alt={alt} className="ks-photo" />;
 
-function Camp() {
+function Camp({ onMyCamps }: { onMyCamps?: () => void }) {
   const [tab, setTab] = useNavState<CampTab>('ab.camp', 'about', { persist: { kind: 'enum', values: ['about', 'program', 'hotel', 'price'] } });
   const M = CAMP_MORE;
   return (
@@ -209,6 +210,7 @@ function Camp() {
             <p className="ks-lead" style={{ marginBottom: 0 }}>{M.shirt}</p>
           </Card>
           <Sign text="Забронировать место" />
+          {onMyCamps && <button type="button" className="ks-btn secondary" onClick={onMyCamps}>Мои сборы</button>}
         </>
       )}
       {tab === 'program' && (
@@ -277,7 +279,7 @@ const TILES: { id: Exclude<CoverId, 'channel'>; title: string; sub: string; wide
   { id: 'gk', title: 'Вратарские', sub: 'Отдельные тренировки' },
   { id: 'equipment', title: 'Экипировка', sub: 'Комплекты от 100 GEL', photo: 'kit-game' },
 ];
-const SCREENS: Record<Exclude<CoverId, 'channel'>, (p: { cabinet?: boolean }) => ReactNode> = { branches: Branches, champ: Championships, individual: Individual, gk: Goalkeepers, equipment: () => null, camp: Camp };
+const SCREENS: Record<Exclude<CoverId, 'channel'>, (p: { cabinet?: boolean; onMyCamps?: () => void }) => ReactNode> = { branches: Branches, champ: Championships, individual: Individual, gk: Goalkeepers, equipment: () => null, camp: Camp };
 
 // «О клубе» для гостя, ребёнка и тренера без назначенных групп: только открытая информация, без данных детей и результатов игроков.
 // Главный экран — плитки-разделы; каждый раздел открывается отдельным экраном.
@@ -291,6 +293,8 @@ export default function About({ role, onChangeRole, onBack, cabinet }: { role: R
   const setProduct = (id: Product['id'] | null) => (id ? nav.push('ab.product', { id }) : nav.back());
   const setMaterials = (s: ArticleSection) => nav.push('ab.materials', { s });
 
+  const myCamps = Boolean(useSubEntry('ab.mycamps')); // сборы родителя (#470, условие 66)
+  if (myCamps) return <ParentCamps onBack={() => nav.back()} />;
   if (materials) return <ClubArticles role={role === 'parent' ? 'parent' : 'guest'} section={materials} onBack={() => nav.back()} />;
 
   // «Экипировка» не для гостя (#234): плитки нет, а прямое открытие раздела закрыто. Родителю раздел остаётся.
@@ -300,7 +304,7 @@ export default function About({ role, onChangeRole, onBack, cabinet }: { role: R
     return (
       <main className="page">
         <BackNav onBack={() => nav.back()} managed />
-        {open === 'equipment' ? <Equipment product={product} setProduct={setProduct} /> : Screen ? <Screen cabinet={cabinet} /> : <TrialForm startOpen />}
+        {open === 'equipment' ? <Equipment product={product} setProduct={setProduct} /> : Screen ? <Screen cabinet={cabinet} onMyCamps={role === 'parent' ? () => nav.push('ab.mycamps') : undefined} /> : <TrialForm startOpen />}
       </main>
     );
   }

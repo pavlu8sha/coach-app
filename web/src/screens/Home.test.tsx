@@ -38,13 +38,11 @@ describe('главная родителя', () => {
     expect(screen.getByLabelText('1 балл')).toBeInTheDocument();
   });
 
-  it('строка «Сборы» открывает сборы родителя (условие 49 #470)', async () => {
+  it('строки «Сборы» на главной нет, вход в «О клубе» (условие 67 #470)', async () => {
     fake.db.player_guardians = [{ ...kid('p1', 'Алексей Петров', 'U10-A'), players: { id: 'p1', full_name: 'Алексей Петров', club_id: 'club1', status: 'active', groups: { name: 'U10-A' } } }];
-    fake.db.camps = [{ id: 'c1', club_id: 'club1', name: 'Зимний лагерь', location: null, starts_on: '2027-01-02', ends_on: '2027-01-09', booking_fee: 0, booking_deadline: null, full_payment_deadline: null, active: true }];
     render(<Home />);
-    fireEvent.click(await screen.findByText('Сборы'));
-    expect(await screen.findByText('Зимний лагерь')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Сборы' })).toBeInTheDocument();
+    await screen.findByText('Алексей Петров');
+    expect(screen.queryByText('Сборы')).not.toBeInTheDocument();
   });
 
   it('«Добавить ещё ребёнка»: политика открывается без списка детей над ней', async () => {
