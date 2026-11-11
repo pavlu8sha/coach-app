@@ -35,11 +35,12 @@ const periodText = (p: Period) => {
   return `${range}: ${p.text}`;
 };
 
-// Свои дети (связь с действующим согласием) и свои записи. Администратору база отдаёт больше, поэтому фильтруем по себе.
+// Свои дети и свои записи. Администратору база отдаёт больше, поэтому фильтруем по себе.
+// Доступ к ребёнку решает база (#238, parent_access_ok в политике players): ребёнок без доступа приходит без players и не показывается.
 async function loadMine(campId?: string): Promise<{ me: string; kids: Kid[]; parts: Part[] } | { error: string }> {
   const me = (await supabase.auth.getUser()).data.user?.id as string | undefined;
   if (!me) return { error: 'Нет сессии' };
-  const g = await supabase.from('player_guardians').select('player_id, players(id, full_name, club_id, status)').eq('user_id', me).is('consent_revoked_at', null);
+  const g = await supabase.from('player_guardians').select('player_id, players(id, full_name, club_id, status)').eq('user_id', me);
   if (g.error) return { error: g.error.message };
   const kids: Kid[] = (g.data ?? []).filter((l: any) => l.players?.id).map((l: any) => ({ id: l.players.id, name: l.players.full_name ?? '', club: l.players.club_id ?? null, active: l.players.status === 'active' }));
   const ids = kids.map(k => k.id);

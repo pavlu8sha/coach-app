@@ -8,7 +8,9 @@ const kid = (id: string, name: string, club = 'club1', status = 'active', user =
   ({ user_id: user, player_id: id, consent_revoked_at: null, players: { id, full_name: name, club_id: club, status } });
 
 function seed() {
-  fake.db.player_guardians = [kid('p1', 'Иванов Пётр'), kid('p2', 'Иванова Аня'), kid('p9', 'Чужой Ребёнок', 'club1', 'active', 'other')];
+  fake.db.player_guardians = [kid('p1', 'Иванов Пётр'), kid('p2', 'Иванова Аня'), kid('p9', 'Чужой Ребёнок', 'club1', 'active', 'other'),
+    // связь есть, но база не отдаёт ребёнка (нет доступа по согласию): players пустой
+    { user_id: 'u', player_id: 'p5', consent_revoked_at: '2026-11-01T00:00:00Z', players: null }];
   fake.db.camps = [
     { id: 'c1', club_id: 'club1', name: 'Зимний лагерь', location: 'Бакуриани', starts_on: '2027-01-02', ends_on: '2027-01-09', booking_fee: 100, booking_deadline: '2026-12-01', full_payment_deadline: '2026-12-20', active: true },
     { id: 'c2', club_id: 'club2', name: 'Чужой сбор', location: 'Батуми', starts_on: '2027-02-01', ends_on: '2027-02-05', booking_fee: 0, booking_deadline: null, full_payment_deadline: null, active: true },
@@ -88,6 +90,8 @@ describe('Родитель: карточка сбора (условие 51)', ()
     expect(within(guest).getByText('Записан')).toBeInTheDocument();
     expect(screen.queryByText('Чужой Ребёнок')).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Чужой Ребёнок' })).not.toBeInTheDocument();
+    // ребёнок без доступа (база не отдала players) не показывается и не запрашивается
+    expect(screen.getAllByRole('region').map(r => r.getAttribute('aria-label'))).toEqual(['Тарифы', 'Условия отмены', 'Иванов Пётр', 'Иванова Аня', 'Гость Маша', 'Документы']);
   });
   it('ошибка мест: строка мест не показывается, остальное на месте', async () => {
     seed();
