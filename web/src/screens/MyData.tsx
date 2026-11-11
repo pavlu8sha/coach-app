@@ -1,3 +1,4 @@
+import { ExpandableTextarea } from '../ui/ExpandableTextarea';
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Pill } from '../ui/components';
@@ -89,7 +90,7 @@ export default function MyData({ onBack }: { onBack: () => void }) {
           <>
             <div style={{ height: 8 }} />
             <button type="button" className="ks-btn secondary" onClick={() => void copy()}>Скопировать данные</button>
-            <textarea className="ks-input" readOnly rows={6} value={dump} style={{ marginTop: 8, fontSize: 12 }} aria-label="Выгруженные данные" />
+            <div style={{ marginTop: 8 }}><ExpandableTextarea label="Выгруженные данные" readOnly rows={6} value={dump} /></div>
           </>
         )}
       </div>

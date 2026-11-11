@@ -1,3 +1,4 @@
+import { ExpandableTextarea } from '../ui/ExpandableTextarea';
 import { useCallback, useEffect, useState } from 'react';
 import { coachError, fmtDate } from '../lib/coach';
 import { checkPdfFile, openCampDoc, uploadCampDoc } from '../lib/campDocs';
@@ -207,7 +208,7 @@ export function CampSettings({ camp, onPatched }: { camp: CampLite; onPatched: (
             <label className="field">С<input type="date" aria-label="Период с" value={p.from} onChange={e => setRow(i, { from: e.target.value })} /></label>
             <label className="field">По<input type="date" aria-label="Период по" value={p.to} min={p.from || undefined} onChange={e => setRow(i, { to: e.target.value })} /></label>
           </div>
-          <label className="field">Текст периода<textarea aria-label="Текст периода" rows={2} maxLength={500} value={p.text} onChange={e => setRow(i, { text: e.target.value })} /></label>
+          <ExpandableTextarea label="Текст периода" rows={2} maxLength={500} value={p.text} onChange={v => setRow(i, { text: v })} />
           <button type="button" className="ks-btn secondary" onClick={() => setRows(rows.filter((_, j) => j !== i))}>Убрать период</button>
         </div>
       ))}
@@ -378,7 +379,7 @@ export function CampBroadcasts({ camp }: { camp: CampLite }) {
       {dialog}
       <p className="muted" style={{ margin: '10px 0' }}>Рассылка уходит только после предпросмотра и вашего подтверждения. Каждый родитель получает своё сообщение, недоступного родителя другим членом семьи не заменяют.</p>
       <Segmented label="Вид рассылки" value={kind} onChange={v => edit(() => setKind(v))} items={[{ value: 'info', label: KIND.info }, { value: 'reminder', label: KIND.reminder }]} />
-      <label className="field">Текст рассылки<textarea rows={4} maxLength={1000} value={text} placeholder={kind === 'reminder' ? 'Необязательно: добавится к напоминанию' : 'Сообщение родителям клуба'} onChange={e => edit(() => setText(e.target.value))} /></label>
+      <ExpandableTextarea label="Текст рассылки" rows={4} maxLength={1000} value={text} placeholder={kind === 'reminder' ? 'Необязательно: добавится к напоминанию' : 'Сообщение родителям клуба'} onChange={v => edit(() => setText(v))} />
       {msg && <p className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}
       <button type="button" className="ks-btn secondary" disabled={busy || (kind === 'info' && !text.trim())} onClick={() => void doPreview()}>Предпросмотр</button>
       {preview && (

@@ -1,3 +1,4 @@
+import { ExpandableTextarea } from '../ui/ExpandableTextarea';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fmtDate } from '../lib/coach';
 import { openCampDoc } from '../lib/campDocs';
@@ -259,10 +260,7 @@ function PartRow(props: { name: string; kid: Kid | null; part: Part | null; camp
           {choices.map(t => <option key={t.id} value={t.id}>{t.name} — {money(Number(t.price))}</option>)}
         </select>
       </label>
-      <label>
-        Комментарий
-        <textarea className="ks-input" maxLength={500} value={cmt} onChange={e => setCmt(e.target.value)} />
-      </label>
+      <ExpandableTextarea label="Комментарий" rows={3} maxLength={500} value={cmt} onChange={setCmt} />
       <div style={{ display: 'flex', gap: 8 }}>
         <button type="button" className="ks-btn" disabled={busy} onClick={onSubmit}>{submitLabel}</button>
         <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => setMode('none')}>Закрыть</button>
