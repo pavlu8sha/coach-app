@@ -1,3 +1,4 @@
+import { ExpandableTextarea } from '../ui/ExpandableTextarea';
 import { useDirtyGuard } from '../nav';
 import { useEffect, useRef, useState } from 'react';
 import { setGroupOrder } from '../lib/coach';
@@ -65,7 +66,7 @@ function Row({ def, scope = '', title, saved, clubId, resetLabel = 'По умо�
       {savedError && <p className="error" style={{ margin: '4px 0 0' }}>Сохранённое значение недопустимо: {savedError}</p>}
       <div className="field" style={{ marginTop: 10 }}>
         {def.kind === 'list'
-          ? <textarea id={inputId} rows={3} value={value} onChange={e => setValue(e.target.value)} style={{ font: 'inherit', fontSize: '1rem', padding: 12, borderRadius: 'var(--ks-radius)', border: '1px solid var(--ks-border-strong)' }} />
+          ? <ExpandableTextarea id={inputId} label={title ?? def.title} hideLabel rows={3} value={value} onChange={setValue} />
           : <input id={inputId} inputMode={def.integer ? 'numeric' : 'decimal'} value={value} onChange={e => setValue(e.target.value)} />}
       </div>
       <div className="two" style={{ marginTop: 10 }}>

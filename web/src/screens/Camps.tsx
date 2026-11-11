@@ -1,3 +1,4 @@
+import { ExpandableTextarea } from '../ui/ExpandableTextarea';
 import { useEffect, useState } from 'react';
 import { useDirtyGuard, useDirtySignature } from '../nav';
 import { coachError, fmtDate, groupByGroupName, today } from '../lib/coach';
@@ -193,7 +194,7 @@ function ListText({ parts }: { parts: Part[] }) {
   return (
     <>
       <p className="muted" style={{ margin: '10px 0' }}>Записавшиеся по группам (U7-A и U7-B объединены). Скопируйте и отправьте.</p>
-      <textarea className="ks-input" readOnly rows={Math.min(20, text.split('\n').length + 1)} value={text || 'Пока никого'} style={{ marginBottom: 10 }} aria-label="Список" />
+      <div style={{ marginBottom: 10 }}><ExpandableTextarea label="Список" readOnly hideLabel rows={Math.min(20, text.split('\n').length + 1)} value={text || 'Пока никого'} /></div>
       <button type="button" className="ks-btn" onClick={() => void navigator.clipboard?.writeText(text).then(() => setCopied(true))}>{copied ? 'Скопировано' : 'Скопировать'}</button>
     </>
   );

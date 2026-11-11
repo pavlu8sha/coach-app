@@ -21,15 +21,23 @@ function Icon({ expanded }: { expanded: boolean }) {
  * `position: fixed` закрывал бы только карточку. При переключении режимов сохраняются текст,
  * положение курсора и прокрутка. Свернуть можно значком или клавишей Esc.
  */
-export function ExpandableTextarea({ label, value, onChange, rows = 6, maxLength, hint }: {
+export function ExpandableTextarea({ label, value, onChange, rows = 6, maxLength, hint, readOnly, placeholder, hideLabel, id: idProp }: {
   label: string;
   value: string;
-  onChange: (v: string) => void;
+  /** Для полей только для чтения можно не передавать. */
+  onChange?: (v: string) => void;
+  readOnly?: boolean;
+  placeholder?: string;
+  /** Подпись уже есть рядом: в обычном виде не показывать вторую (в развёрнутом слое подпись остаётся). */
+  hideLabel?: boolean;
+  /** Внешняя подпись может ссылаться на поле через htmlFor. */
+  id?: string;
   rows?: number;
   maxLength?: number;
   hint?: string;
 }) {
-  const id = useId();
+  const autoId = useId();
+  const id = idProp ?? autoId;
   const [expanded, setExpanded] = useState(false);
   const area = useRef<HTMLTextAreaElement | null>(null);
   const saved = useRef<{ start: number; end: number; top: number; height: number } | null>(null);
@@ -64,7 +72,7 @@ export function ExpandableTextarea({ label, value, onChange, rows = 6, maxLength
 
   const field = (
     <>
-      <textarea ref={area} id={id} rows={rows} maxLength={maxLength} value={value} onChange={e => onChange(e.target.value)} />
+      <textarea ref={area} id={id} rows={rows} maxLength={maxLength} value={value} readOnly={readOnly} placeholder={placeholder} aria-label={hideLabel && !expanded ? label : undefined} onChange={e => onChange?.(e.target.value)} />
       <button type="button" className="ks-expand-btn" aria-expanded={expanded} aria-label={expanded ? 'Свернуть' : 'Развернуть на весь экран'} onClick={toggle}>
         <Icon expanded={expanded} />
       </button>
@@ -94,7 +102,7 @@ export function ExpandableTextarea({ label, value, onChange, rows = 6, maxLength
 
   return (
     <div className="field ks-expandable">
-      <label htmlFor={id}>{label}</label>
+      {!hideLabel && <label htmlFor={id}>{label}</label>}
       <div className="ks-expandable-box">{field}</div>
     </div>
   );
