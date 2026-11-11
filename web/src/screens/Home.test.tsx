@@ -47,6 +47,23 @@ describe('главная родителя', () => {
     expect(screen.getByRole('heading', { name: 'Сборы' })).toBeInTheDocument();
   });
 
+  it('«Добавить ещё ребёнка»: политика открывается без списка детей над ней', async () => {
+    fake.db.player_guardians = [kid('p1', 'Алексей Петров', 'U10-A')];
+    render(<Home />);
+    fireEvent.click(await screen.findByRole('button', { name: /Добавить ещё одного ребёнка/ }));
+    fake.rpc.search_players_for_link = () => [{ player_id: 'p2', full_name: 'Мария Иванова', group_name: 'U9' }];
+    fireEvent.change(await screen.findByLabelText('Фамилия или имя ребёнка'), { target: { value: 'Мар' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Найти' }));
+    fireEvent.click(await screen.findByRole('button', { name: /Мария Иванова/ }));
+    expect(screen.getByText('Алексей Петров')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: /правилами обработки персональных данных/ }));
+    expect(await screen.findByRole('heading', { name: 'Политика конфиденциальности' })).toBeVisible();
+    expect(screen.getByText('Алексей Петров')).not.toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(await screen.findByLabelText('Фамилия или имя ребёнка')).toHaveValue('Мар');
+    expect(screen.getByText('Алексей Петров')).toBeVisible();
+  });
+
   it('нет детей, запрос ждёт подтверждения: поясняет и ведёт к статусу', async () => {
     fake.db.link_requests = [{ id: 'r1', user_id: 'u', status: 'pending', players: { full_name: 'Алексей Петров' } }];
     render(<Home />);

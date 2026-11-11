@@ -3,7 +3,7 @@ import { useNav, useSubEntry } from '../nav';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow } from '../ui/components';
 import { BackNav } from '../ui/nav';
-import Link from './Link';
+import Link, { HideWhen, useLinkPolicyOpen } from './Link';
 import LinkStatus from './LinkStatus';
 import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
@@ -17,6 +17,7 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const nav = useNav();
+  const policyOpen = useLinkPolicyOpen();
   const statusOpen = Boolean(useSubEntry('mk.status')); // статусы запросов — запись стека
   const wasStatus = useRef(false);
   useEffect(() => {
@@ -88,29 +89,31 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
 
   return (
     <main className="page">
-      <BackNav onBack={onBack} managed />
-      <h1>Мои дети</h1>
-      {kids.length === 0 ? (
-        <EmptyState icon="users" title="Нет привязанных детей" text="Найдите ребёнка ниже. Администратор клуба подтвердит запрос." />
-      ) : (
-        kids.map(k => (
-          <div key={k.id}>
-            <ListRow avatar={k.name} title={k.name} sub={k.group ? [k.group] : undefined} />
-            {codes[k.id] ? (
-              <div className="ks-card" style={{ marginTop: -4, marginBottom: 8 }}>
-                <p className="muted">Код для ребёнка (действует 3 дня): ребёнок выбирает роль «Ребёнок» и вводит его при входе.</p>
-                <p style={{ fontSize: 24, letterSpacing: 4, fontWeight: 600 }}>{codes[k.id]}</p>
-              </div>
-            ) : linkedKids.has(k.id) ? (
-              <button type="button" className="ks-back" style={{ marginBottom: 8 }} disabled={busy} onClick={() => void unlinkChild(k.id)}>Отвязать аккаунт ребёнка</button>
-            ) : (
-              <button type="button" className="ks-back" style={{ marginBottom: 8 }} disabled={busy} onClick={() => void makeCode(k.id)}>Код для ребёнка</button>
-            )}
-            <button type="button" className="ks-back" style={{ marginBottom: 8 }} disabled={busy} onClick={() => void askRevoke(k)}>Отозвать согласие</button>
-          </div>
-        ))
-      )}
-      {msg && <p className="error">{msg}</p>}
+      <HideWhen hide={policyOpen}>
+        <BackNav onBack={onBack} managed />
+        <h1>Мои дети</h1>
+        {kids.length === 0 ? (
+          <EmptyState icon="users" title="Нет привязанных детей" text="Найдите ребёнка ниже. Администратор клуба подтвердит запрос." />
+        ) : (
+          kids.map(k => (
+            <div key={k.id}>
+              <ListRow avatar={k.name} title={k.name} sub={k.group ? [k.group] : undefined} />
+              {codes[k.id] ? (
+                <div className="ks-card" style={{ marginTop: -4, marginBottom: 8 }}>
+                  <p className="muted">Код для ребёнка (действует 3 дня): ребёнок выбирает роль «Ребёнок» и вводит его при входе.</p>
+                  <p style={{ fontSize: 24, letterSpacing: 4, fontWeight: 600 }}>{codes[k.id]}</p>
+                </div>
+              ) : linkedKids.has(k.id) ? (
+                <button type="button" className="ks-back" style={{ marginBottom: 8 }} disabled={busy} onClick={() => void unlinkChild(k.id)}>Отвязать аккаунт ребёнка</button>
+              ) : (
+                <button type="button" className="ks-back" style={{ marginBottom: 8 }} disabled={busy} onClick={() => void makeCode(k.id)}>Код для ребёнка</button>
+              )}
+              <button type="button" className="ks-back" style={{ marginBottom: 8 }} disabled={busy} onClick={() => void askRevoke(k)}>Отозвать согласие</button>
+            </div>
+          ))
+        )}
+        {msg && <p className="error">{msg}</p>}
+      </HideWhen>
       <div style={{ height: 8 }} />
       <Link onApproved={() => setReload(n => n + 1)} onOpenStatus={() => nav.push('mk.status')} />
       {confirmDialog}

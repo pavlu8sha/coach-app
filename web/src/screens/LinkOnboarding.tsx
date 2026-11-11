@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { ADMIN_CHAT } from '../lib/clubInfo';
 import { ListRow, Pill } from '../ui/components';
-import Link from './Link';
+import Link, { HideWhen, useLinkPolicyOpen } from './Link';
 import { STATUS, type Req } from './LinkStatus';
 
 const STEPS = ['Найдите ребёнка по фамилии и имени', 'Отметьте согласие на обработку данных', 'Дождитесь подтверждения администратора клуба'];
@@ -38,6 +38,7 @@ const AdminLink = ({ children }: { children: string }) => (
 // Родитель вошёл, но ребёнок не привязан: один понятный путь вместо пустых блоков.
 // Новые данные не запрашиваются: запросы родителя уже загружены главной.
 export default function LinkOnboarding({ reqs, onApproved, onOpenStatus, onGuest }: { reqs: Req[]; onApproved: () => void; onOpenStatus: () => void; onGuest?: () => void }) {
+  const policyOpen = useLinkPolicyOpen();
   const [searching, setSearching] = useState(false);
   const waiting = reqs.filter(r => r.status === 'pending').length;
   const rejected = reqs.some(r => r.status === 'rejected');
@@ -109,7 +110,7 @@ export default function LinkOnboarding({ reqs, onApproved, onOpenStatus, onGuest
 
   return (
     <main className="page">
-      <h1>Подключите профиль ребёнка</h1>
+      <HideWhen hide={policyOpen}><h1>Подключите профиль ребёнка</h1></HideWhen>
       <Link onApproved={onApproved} onOpenStatus={onOpenStatus} />
     </main>
   );
