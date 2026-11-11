@@ -10,6 +10,13 @@ import { ADMIN_CHAT } from '../lib/clubInfo';
 import { STATUS, type Req } from './LinkStatus';
 
 interface Found { player_id: string; full_name: string; group_name: string | null }
+/** Открыта ли политика поверх экрана с формой привязки (запись стека 'policy'). */
+export const useLinkPolicyOpen = () => Boolean(useSubEntry('policy'));
+/** Прячет остальное содержимое экрана, пока открыта политика: форма (поиск, согласие) остаётся смонтированной, видна только политика. */
+export const HideWhen = ({ hide, children }: { hide: boolean; children: React.ReactNode }) => (
+  <div style={{ display: hide ? 'none' : 'contents' }}>{children}</div>
+);
+
 // Родитель ищет ребёнка по имени и отправляет запрос; связь создаёт администратор.
 const MIN = 3; // функция поиска в базе ищет от 3 букв
 const LIMIT = 5; // и отдаёт не больше 5 детей

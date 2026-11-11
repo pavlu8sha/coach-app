@@ -4,7 +4,7 @@ import { peekCampSlug, takeCampSlug } from '../lib/startParam';
 import { supabase } from '../lib/supabase';
 import { fetchLedgerTotals } from '../lib/pointsLedger';
 import { Avatar, EmptyState, ListRow, Pill } from '../ui/components';
-import Link from './Link';
+import Link, { HideWhen, useLinkPolicyOpen } from './Link';
 import LinkOnboarding from './LinkOnboarding';
 import LinkStatus, { STATUS, type Req } from './LinkStatus';
 import { Failure, Loading } from './Message';
@@ -54,6 +54,7 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
   const [showLink, setShowLink] = useState(false);
   const [addMore, setAddMore] = useState(false);
   const nav = useNav();
+  const policyOpen = useLinkPolicyOpen();
   const statusOpen = Boolean(useSubEntry('hm.status')); // статусы запросов — запись стека
   const campsEntry = useSubEntry('hm.camps'); // сборы родителя (#470, условие 49)
   const campsOpen = Boolean(campsEntry);
@@ -149,11 +150,13 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
   }
   return (
     <main className="page">
-      <h1>{children.length > 1 ? 'Мои дети' : 'Мой ребёнок'}</h1>
-      {children.map(c => (
-        <ChildCard c={c} key={c.id} />
-      ))}
-      <ListRow title="Сборы" sub={['Запись, оплаты, документы']} onClick={() => nav.push('hm.camps')} />
+      <HideWhen hide={policyOpen}>
+        <h1>{children.length > 1 ? 'Мои дети' : 'Мой ребёнок'}</h1>
+        {children.map(c => (
+          <ChildCard c={c} key={c.id} />
+        ))}
+        <ListRow title="Сборы" sub={['Запись, оплаты, документы']} onClick={() => nav.push('hm.camps')} />
+      </HideWhen>
       {addMore ? (
         <Link onApproved={refresh} onOpenStatus={openStatus} />
       ) : (
