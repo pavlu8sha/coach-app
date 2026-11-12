@@ -10,8 +10,8 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // Исключения: поле выводится как данные, а не как условие доступа (файл: число вхождений, только точное совпадение).
-// 0185 пересоздаёт export_my_data (тело 0173): поле отзыва показывается родителю в разделе children выгрузки, доступ по parent_access_ok.
-const MIGRATION_DATA_ONLY = { '0185_points_legacy_off.sql': 3 };
+// 0186 пересоздаёт export_my_data (тело 0173): поле отзыва показывается родителю в разделе children выгрузки, доступ по parent_access_ok.
+const MIGRATION_DATA_ONLY = { '0186_points_legacy_off.sql': 3 };
 
 test('миграции после 0173 не содержат consent_revoked_at', () => {
   const dir = path.join(ROOT, 'db/migrations');

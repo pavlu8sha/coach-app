@@ -21,7 +21,7 @@ insert into link_requests (user_id, player_id, status, consent_version) values
   ('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'approved', 'v1'),
   ('00000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-00000000d002', 'approved', 'v1');
 insert into rules (id, club_id, code, points, explanation, active_from) values ('00000000-0000-0000-0000-0000000000f0', '00000000-0000-0000-0000-00000000c001', 'x', 1, 'x', '2026-01-01');
--- баллы из нового журнала (0185: выгрузка берёт points_ledger)
+-- баллы из нового журнала (0186: выгрузка берёт points_ledger)
 insert into points_ledger (club_id, player_id, event_date, source_type, source_id, reason_code, points, components) values
   ('00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-00000000d001', '2026-10-20', 'manual', gen_random_uuid(), 'manual', 3, '{"note":"Отлично"}'),
   ('00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-00000000d002', '2026-10-20', 'manual', gen_random_uuid(), 'manual', 9, '{"note":"Чужой балл"}');

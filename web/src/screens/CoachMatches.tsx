@@ -313,7 +313,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     setMsg(null);
     const roster = (players ?? []).map(pl => ({ player_id: pl.id, played: line(pl.id).played, goals: line(pl.id).played ? line(pl.id).goals : 0, best: bestId === pl.id && line(pl.id).played }));
     const score = { gf: gf === '' ? null : Number(gf), ga: ga === '' ? null : Number(ga) };
-    // смена технического результата сохраняется вместе с матчем одной транзакцией (миграция 0185):
+    // смена технического результата сохраняется вместе с матчем одной транзакцией (миграция 0186):
     // иначе родитель успевал получить уведомление о баллах, которые тут же снимались
     const techChanged = technical !== savedTech;
     const r = techChanged

@@ -1,4 +1,4 @@
--- pgTAP: отключение старой системы баллов (0185, #504). Условия: docs/POINTS_LEGACY_OFF_ACCEPTANCE.md. Фикстуры вымышленные.
+-- pgTAP: отключение старой системы баллов (0186, #504). Условия: docs/POINTS_LEGACY_OFF_ACCEPTANCE.md. Фикстуры вымышленные.
 -- Отложенные триггеры журнала срабатывают в конце транзакции; здесь одна общая транзакция, поэтому «конец транзакции»
 -- изображается парой set constraints all immediate / deferred.
 begin;
@@ -40,7 +40,7 @@ insert into matches (id, club_id, played_on, team, opponent, goals_for, goals_ag
 insert into match_players (match_id, player_id, played, goals) values
   ('00000000-0000-0000-0000-0000000007a1', '00000000-0000-0000-0000-00000000d001', true, 1);
 
--- архив старых баллов (как в prod до 0185): вставляется в обход заморозки
+-- архив старых баллов (как в prod до 0186): вставляется в обход заморозки
 alter table point_events disable trigger point_events_archive_freeze;
 insert into point_events (id, player_id, rule_id, points, source_type, source_id, occurred_on, explanation) values
   ('00000000-0000-0000-0000-0000000008a1', '00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000001a1', 1, 'session', '00000000-0000-0000-0000-0000000005a1', '2026-11-03', 'Архив: тренировка'),

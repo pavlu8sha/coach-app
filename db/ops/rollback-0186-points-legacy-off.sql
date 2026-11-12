@@ -1,40 +1,17 @@
--- 0185: отключение старой системы баллов (#504; условия docs/POINTS_LEGACY_OFF_ACCEPTANCE.md). Решения владельца 2026-11-12.
---  * point_events становится замороженным архивом: вставка, правка и прямое удаление молча пропускаются триггером, поэтому
---    mark_attendance, save_match (через apply_match_points), delete_match продолжают работать, но старые баллы не пишут и не стирают.
---    Удаление каскадом (удаление игрока) проходит. Функции старой системы НЕ пересоздаются: 0185 не пересекается с 0180 и 0181.
---  * award_bonus, revoke_bonus, recalc_match_points: права только у владельца (интерфейс их больше не вызывает).
---  * Старое уведомление point_events_notify удалено (новое по журналу 0130 остаётся).
---  * points_consistency_run (тело 0131): действующие ручные баллы с датой раньше points_start закрываются с причиной points_start.
---    Смена даты старта вызывает этот пересчёт (0129), поэтому ноябрьские ручные баллы закроются вместе с остальными. Снятие даты их не возвращает.
---  * export_my_data (тело 0173): раздел points берётся из points_ledger (действующие строки).
---  * save_match_tech: матч и признак технического результата в одной транзакции (родитель не получает уведомление о баллах,
---    которые тут же снимаются).
--- Откат: db/ops/rollback-0185-points-legacy-off.sql. Применять в SQL Editor целиком, сначала db/ops/preflight.sql.
+-- Откат 0186 (отключение старой системы баллов). Применять в SQL Editor целиком.
+-- Ручные баллы, закрытые сменой даты старта, остаются закрытыми: журнал только добавляется (при необходимости начислить заново).
 begin;
-
--- 1. Архив старых баллов
-create or replace function point_events_archive_guard() returns trigger
-language plpgsql set search_path = public as $$
-begin
-  -- каскадное удаление (игрок удалён) приходит из триггера внешнего ключа: глубина больше 1
-  if tg_op = 'DELETE' and pg_trigger_depth() > 1 then return old; end if;
-  return null;
-end $$;
-revoke execute on function point_events_archive_guard() from public, anon, authenticated;
 drop trigger if exists point_events_archive_freeze on point_events;
-create trigger point_events_archive_freeze before insert or update or delete on point_events
-  for each row execute function point_events_archive_guard();
-
+drop function if exists point_events_archive_guard();
 drop trigger if exists point_events_notify on point_events;
+create trigger point_events_notify after insert on point_events for each row execute function notify_bonus();
+grant execute on function award_bonus(uuid, int, text), revoke_bonus(uuid), recalc_match_points(uuid) to authenticated;
+drop function if exists save_match_tech(uuid, uuid, text, date, text, int, int, jsonb, boolean);
 
--- 2. Старые ручные баллы и пересчёт
-revoke execute on function award_bonus(uuid, int, text), revoke_bonus(uuid), recalc_match_points(uuid) from public, anon, authenticated;
-
--- 3. Сверка и смена даты старта закрывают ручные баллы до даты старта (тело 0131 + источник manual)
+-- тело из 0131
 create or replace function points_consistency_run(fix boolean) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare floor_day date; r record; before_id bigint; n int; drift jsonb := '[]'::jsonb; total int := 0; checked int := 0; exc jsonb := '[]'::jsonb;
-        club uuid;
 begin
   for r in
     select 'group_session' as st, id from sessions where kind = 'training'
@@ -47,8 +24,6 @@ begin
     union select 'match', source_id from points_ledger where source_type = 'match'
     union select 'series', id from players
     union select 'series', source_id from points_ledger where source_type = 'series_bonus'
-    -- 0185: ручные баллы раньше даты старта (тестовый период) закрываются
-    union select 'manual', source_id from points_ledger where source_type = 'manual' and status = 'active' and event_date < points_start()
   loop
     checked := checked + 1;
     select coalesce(max(id), 0) into before_id from points_ledger_audit;
@@ -58,9 +33,6 @@ begin
         when 'individual' then perform points_reconcile_individual(r.id);
         when 'extra' then perform points_reconcile_extra(r.id);
         when 'match' then perform points_reconcile_match(r.id);
-        when 'manual' then
-          select l.club_id into club from points_ledger l where l.source_type = 'manual' and l.source_id = r.id limit 1;
-          perform points_ledger_apply(club, 'manual', r.id, '[]'::jsonb, 'points_start');
         else perform points_reconcile_series(r.id);
       end case;
       select count(*) into n from points_ledger_audit where id > before_id;
@@ -92,7 +64,7 @@ begin
 end $$;
 revoke execute on function points_consistency_run(boolean) from public, anon, authenticated;
 
--- 4. Выгрузка данных родителя: тело 0173, раздел points из нового журнала
+-- тело из 0173
 CREATE OR REPLACE FUNCTION public.export_my_data()
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -113,38 +85,11 @@ begin
     'children', coalesce((select jsonb_agg(jsonb_build_object('name', full_name, 'group', gname, 'consent_version', consent_version, 'consent_given_at', consent_given_at, 'consent_revoked_at', consent_revoked_at) order by full_name) from kids), '[]'::jsonb),
     'link_requests', coalesce((select jsonb_agg(jsonb_build_object('child', pl.full_name, 'status', r.status, 'created_at', r.created_at, 'decided_at', r.decided_at, 'consent_version', r.consent_version) order by r.created_at) from link_requests r join players pl on pl.id = r.player_id where r.user_id = me), '[]'::jsonb),
     'attendance', coalesce((select jsonb_agg(jsonb_build_object('child', a2.full_name, 'date', tbilisi_day(s.starts_at), 'status', at.status) order by s.starts_at) from attendance at join sessions s on s.id = at.session_id join active a2 on a2.id = at.player_id), '[]'::jsonb),
-    'points', coalesce((select jsonb_agg(jsonb_build_object('child', a2.full_name, 'date', l.event_date, 'points', l.points, 'explanation',
-                 case l.source_type
-                   when 'group_session' then 'Тренировка — посещение'
-                   when 'individual' then 'Индивидуальная тренировка — посещение'
-                   when 'goalkeeper' then 'Вратарская тренировка — посещение'
-                   when 'extra' then 'Дополнительная тренировка — посещение'
-                   when 'match' then 'Матч'
-                   when 'series_bonus' then 'Серия: ' || coalesce(l.components ->> 'threshold', '') || ' тренировок подряд'
-                   when 'manual' then 'От тренера: ' || coalesce(nullif(l.components ->> 'note', ''), 'без комментария')
-                   else 'Начисление' end) order by l.event_date, l.created_at)
-               from points_ledger l join active a2 on a2.id = l.player_id where l.status = 'active'), '[]'::jsonb),
+    'points', coalesce((select jsonb_agg(jsonb_build_object('child', a2.full_name, 'date', e.occurred_on, 'points', e.points, 'explanation', e.explanation) order by e.occurred_on) from point_events e join active a2 on a2.id = e.player_id where e.occurred_on >= coalesce(points_start(), '-infinity'::date)), '[]'::jsonb),
     'payments', coalesce((select jsonb_agg(jsonb_build_object('child', a2.full_name, 'date', p.paid_on, 'amount', p.amount, 'method', p.method) order by p.paid_on) from payments p join active a2 on a2.id = p.player_id), '[]'::jsonb),
     'matches', coalesce((select jsonb_agg(jsonb_build_object('child', a2.full_name, 'date', m.played_on, 'team', m.team, 'opponent', m.opponent, 'played', mp.played, 'goals', mp.goals) order by m.played_on) from match_players mp join matches m on m.id = mp.match_id join active a2 on a2.id = mp.player_id), '[]'::jsonb)
   ) into res;
   return res;
 end $function$;
-
--- 5. Матч и технический результат одной транзакцией. Права проверяют вложенные функции (save_match, save_match_team, set_match_technical).
-create or replace function save_match_tech(m uuid, g uuid, tm text, d date, opp text, gf int, ga int, roster jsonb, tech boolean) returns uuid
-language plpgsql set search_path = public as $$
-declare mid uuid;
-begin
-  if tech is null then raise exception 'technical flag required' using errcode = '22023'; end if;
-  if m is null and g is null and nullif(trim(tm), '') is not null then
-    mid := save_match_team(tm, d, opp, gf, ga, roster);
-  else
-    mid := save_match(m, g, d, opp, gf, ga, roster);
-  end if;
-  perform set_match_technical(mid, tech);
-  return mid;
-end $$;
-revoke execute on function save_match_tech(uuid, uuid, text, date, text, int, int, jsonb, boolean) from public, anon;
-grant execute on function save_match_tech(uuid, uuid, text, date, text, int, int, jsonb, boolean) to authenticated;
 
 commit;
