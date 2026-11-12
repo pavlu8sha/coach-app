@@ -34,7 +34,8 @@ export default function LocationEquipment() {
 
   useEffect(() => {
     void (async () => {
-      const r = await supabase.from('equipment_orders').select(COLS).order('ordered_on', { ascending: false, nullsFirst: false }).limit(500);
+      // отменённые заказы (#471, 0185) локальному администратору не показываем: выдавать по ним нечего
+      const r = await supabase.from('equipment_orders').select(COLS).neq('status', 'cancelled').order('ordered_on', { ascending: false, nullsFirst: false }).limit(500);
       if (r.error) return setError(errText(r.error.message));
       setOrders((r.data ?? []) as unknown as Order[]);
     })();
