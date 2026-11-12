@@ -68,7 +68,7 @@ with m(migration, applied) as (values
   ('0064_parent_calendar',         coalesce((to_regprocedure('parent_calendar(uuid,date,date)') is not null), false)),
   ('0065_link_search_rate_limit',  coalesce((pg_get_functiondef(to_regprocedure('search_players_for_link(text)')) like '%link_search%'), false)),
   ('0066_link_flood_limits',       coalesce((to_regclass('link_notify_log') is not null), false)),
-  ('0067_export_points_start',     coalesce((pg_get_functiondef(to_regprocedure('export_my_data()')) like '%points_start%'), false)),
+  ('0067_export_points_start',     coalesce((pg_get_functiondef(to_regprocedure('export_my_data()')) like '%points_start%' or pg_get_functiondef(to_regprocedure('export_my_data()')) like '%points_ledger%'), false)), -- 0185 перевела выгрузку на журнал
   ('0068_notify_bonus_points_start', coalesce((pg_get_functiondef(to_regprocedure('notify_bonus()')) like '%points_start%'), false)),
   ('0069_booking_cancel_started',  coalesce((pg_get_functiondef(to_regprocedure('booking_cancel(text,uuid,uuid)')) like '%session already started%'), false)),
   ('0076_event_roster_remove_paid', coalesce((pg_get_functiondef(to_regprocedure('event_roster_remove(uuid,uuid)')) like '%tournament_fees where tournament_id = t and player_id = pid and paid%'), false)),
@@ -178,7 +178,8 @@ with m(migration, applied) as (values
   ('0172_camp_broadcast_audience', coalesce((to_regproc('camp_broadcast_audience') is not null and to_regproc('camp_broadcast_recipients') is not null), false)),
   ('0174_booking_cancel_notice', coalesce((select position('Отмена записи на занятие' in prosrc) > 0 from pg_proc where proname = 'booking_cancel' limit 1) and (select position('Индивидуальные / Дополнительные' in prosrc) = 0 from pg_proc where proname = 'booking_signup' limit 1), false)),
   ('0176_consent_claim_check', (exists (select 1 from information_schema.columns where table_name = 'notifications' and column_name = 'player_ids') and exists (select 1 from information_schema.columns where table_name = 'notifications' and column_name = 'consent_check_attempts') and exists (select 1 from pg_proc where oid = to_regprocedure('claim_notifications(integer)') and position('parent_access_ok' in prosrc) > 0) and to_regprocedure('camp_broadcast_player_ids(uuid,uuid)') is not null)),
-  ('0177_ind_autocreate_topic_offset', coalesce((position($$/ 7 + 2) % array_length$$ in pg_get_functiondef(to_regprocedure('ind_autocreate(date)'))) > 0), false))
+  ('0177_ind_autocreate_topic_offset', coalesce((position($$/ 7 + 2) % array_length$$ in pg_get_functiondef(to_regprocedure('ind_autocreate(date)'))) > 0), false)),
+  ('0185_points_legacy_off', coalesce((exists (select 1 from pg_trigger where tgname = 'point_events_archive_freeze' and not tgisinternal) and not exists (select 1 from pg_trigger where tgname = 'point_events_notify') and to_regprocedure('save_match_tech(uuid,uuid,text,date,text,integer,integer,jsonb,boolean)') is not null and not has_function_privilege('authenticated', 'award_bonus(uuid,integer,text)', 'execute') and position('points_ledger' in pg_get_functiondef(to_regprocedure('export_my_data()'))) > 0), false))
 )
 -- note для 0176 (требует 0173 и 0175): applied | ready | blocked: ... | inconsistent: ... | ambiguous: ... | unknown: ... (NULL не приводится к false).
 select m.migration, m.applied,
