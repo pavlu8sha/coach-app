@@ -3,7 +3,7 @@
 \set pf `cat db/ops/preflight.sql`
 begin;
 create extension if not exists pgtap;
-select plan(27);
+select plan(29);
 
 create temp view pf as :pf;
 
@@ -69,6 +69,11 @@ select is(sst('revoke insert on individual_templates from authenticated', '0171_
 select is(st('0173_consent_access'), 'APPLIED', '0173: текущее состояние APPLIED');
 select is(sst($ddl$create function bad_consent_probe() returns text language sql as 'select ''consent_revoked_at''::text'$ddl$, '0173_consent_access'), 'UNKNOWN', '0173: посторонняя функция с consent_revoked_at = UNKNOWN');
 select is(sst('alter function decide_link(uuid, boolean) rename to decide_link_x', '0173_consent_access'), 'NOT_APPLIED', '0173: одна из четырёх функций не обновлена = NOT_APPLIED');
+select is(sst($ddl$create function parent_access_ok(text, text) returns boolean language sql as 'select true /* consent_revoked_at */'$ddl$, '0173_consent_access'), 'UNKNOWN', '0173: лишний overload с тем же именем = UNKNOWN, не APPLIED');
+select is(sst($ddl$do $do$ begin
+  execute $q$create or replace function parent_access_ok(parent uuid, player uuid) returns boolean language sql stable security definer set search_path = public, pg_temp as $body$select false$body$$q$;
+  execute $q$create function parent_access_ok(text, text) returns boolean language sql as $body$select true /* consent_revoked_at */$body$$q$;
+end $do$$ddl$, '0173_consent_access'), 'NOT_APPLIED', '0173: ожидаемая сигнатура не обновлена, остался overload с токеном = NOT_APPLIED');
 select is(sst('drop trigger consent_mode_guard on club_settings', '0173_consent_access'), 'NOT_APPLIED', '0173: нет consent_mode_guard = NOT_APPLIED');
 
 -- 0176: статус и note должны оставаться согласованными.

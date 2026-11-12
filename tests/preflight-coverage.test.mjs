@@ -65,7 +65,11 @@ test('preflight.sql различает замену и неопределённ�
   }
   assert.match(overrides[1], /'SUPERSEDED'/);
   assert.match(overrides[1], /'UNKNOWN'/);
-  assert.match(overrides[1], /count\(distinct proname\)[\s\S]*?< 4/);
+  assert.doesNotMatch(overrides[1], /count\(distinct proname\)/);
+  assert.match(overrides[1], /to_regprocedure\('public\.parent_access_ok\(uuid,uuid\)'\)/);
+  assert.match(overrides[1], /to_regprocedure\('public\.decide_link\(uuid,boolean\)'\)/);
+  assert.match(overrides[1], /to_regprocedure\('public\.revoke_consent\(uuid\)'\)/);
+  assert.match(overrides[1], /to_regprocedure\('public\.export_my_data\(\)'\)/);
 });
 
 test('run-db-tests.sh проверяет статусы, а не скрывает 0047/0052', () => {

@@ -211,15 +211,22 @@ overrides(migration, status) as (
   end
   union all select '0173_consent_access', case
     when not coalesce((select applied from m where migration = '0173_consent_access'), false) then 'NOT_APPLIED'
-    when (select count(distinct proname) from pg_proc
-          where pronamespace = 'public'::regnamespace
-            and proname in ('parent_access_ok', 'decide_link', 'revoke_consent', 'export_my_data')
-            and prosrc like '%consent_revoked_at%') < 4 then 'NOT_APPLIED'
+    when not (
+      coalesce((select prosrc like '%consent_revoked_at%' from pg_proc where oid = to_regprocedure('public.parent_access_ok(uuid,uuid)')), false)
+      and coalesce((select prosrc like '%consent_revoked_at%' from pg_proc where oid = to_regprocedure('public.decide_link(uuid,boolean)')), false)
+      and coalesce((select prosrc like '%consent_revoked_at%' from pg_proc where oid = to_regprocedure('public.revoke_consent(uuid)')), false)
+      and coalesce((select prosrc like '%consent_revoked_at%' from pg_proc where oid = to_regprocedure('public.export_my_data()')), false)
+    ) then 'NOT_APPLIED'
     when exists (
-      select 1 from pg_proc
-      where pronamespace = 'public'::regnamespace
-        and prosrc like '%consent_revoked_at%'
-        and proname not in ('parent_access_ok', 'decide_link', 'revoke_consent', 'export_my_data')
+      select 1 from pg_proc p
+      where p.pronamespace = 'public'::regnamespace
+        and p.prosrc like '%consent_revoked_at%'
+        and p.oid not in (
+          to_regprocedure('public.parent_access_ok(uuid,uuid)')::oid,
+          to_regprocedure('public.decide_link(uuid,boolean)')::oid,
+          to_regprocedure('public.revoke_consent(uuid)')::oid,
+          to_regprocedure('public.export_my_data()')::oid
+        )
     ) then 'UNKNOWN'
     else 'APPLIED'
   end
