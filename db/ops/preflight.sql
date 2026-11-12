@@ -181,6 +181,17 @@ with m(migration, applied) as (values
   ('0177_ind_autocreate_topic_offset', coalesce((position($$/ 7 + 2) % array_length$$ in pg_get_functiondef(to_regprocedure('ind_autocreate(date)'))) > 0), false)),
   ('0181_roster_on_date', coalesce((to_regprocedure('points_player_on_roster(uuid,date)') is not null and position('points_player_on_roster' in pg_get_functiondef(to_regprocedure('mark_attendance(uuid,jsonb)'))) > 0), false)),
   ('0185_equipment_order_foundation', coalesce((to_regclass('equipment_order_events') is not null and to_regprocedure('eq_cancel_order(uuid,text)') is not null and to_regprocedure('eq_restore_order(uuid,text)') is not null and exists (select 1 from information_schema.columns where table_name = 'equipment_orders' and column_name = 'status_before_cancel') and (select count(*) = 5 from pg_trigger where not tgisinternal and tgenabled = 'O' and tgname in ('equipment_orders_guard', 'equipment_lines_cancelled_freeze', 'equipment_issues_cancelled_freeze', 'equipment_order_events_immutable', 'equipment_order_events_no_truncate'))), false)),
+  ('0179_payment_history_guard', coalesce((
+    (select count(*) = 16 from pg_trigger where not tgisinternal and tgenabled = 'O' and tgname in (
+      'payments_history_guard', 'payments_history_no_truncate', 'payments_history_audit',
+      'match_payments_history_guard', 'match_payments_history_no_truncate', 'match_payments_history_audit',
+      'tournament_payments_history_guard', 'tournament_payments_history_no_truncate', 'tournament_payments_history_audit',
+      'service_payments_history_guard', 'service_payments_history_no_truncate', 'service_payments_history_audit',
+      'subscriptions_closed_no_delete', 'players_delete_audit', 'match_fees_player_cascade_guard', 'tournament_fees_player_cascade_guard'))
+    and to_regproc('payment_history_guard') is not null and to_regproc('payment_history_audit') is not null
+    and to_regproc('subscription_closure_guard') is not null and to_regproc('player_delete_audit') is not null
+    and to_regproc('fee_player_cascade_guard') is not null and not has_table_privilege('authenticated', 'players', 'delete')
+  ), false)),
   ('0186_points_legacy_off', coalesce((exists (select 1 from pg_trigger where tgname = 'point_events_archive_freeze' and not tgisinternal) and not exists (select 1 from pg_trigger where tgname = 'point_events_notify') and to_regprocedure('save_match_tech(uuid,uuid,text,date,text,integer,integer,jsonb,boolean)') is not null and not has_function_privilege('authenticated', 'award_bonus(uuid,integer,text)', 'execute') and position('points_ledger' in pg_get_functiondef(to_regprocedure('export_my_data()'))) > 0), false))
 )
 -- note для 0176 (требует 0173 и 0175): applied | ready | blocked: ... | inconsistent: ... | ambiguous: ... | unknown: ... (NULL не приводится к false).
