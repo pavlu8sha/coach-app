@@ -313,12 +313,12 @@ export function CampDocuments({ camp }: { camp: CampLite }) {
 // ===== Рассылки (47) =====
 type Kind = 'info' | 'reminder';
 interface Preview { recipients: number; messages: number; list: { name: string }[]; blocked: { name: string; reason: string }[]; sample: string | null; token: string; unreachable: number | null; enabled: boolean }
-interface Entry { id: string; kind: Kind; body: string | null; recipients: number; author_name: string | null; created_at: string; pending: number; sent: number; failed: number; cleared: number }
-interface Result { name: string; state: 'pending' | 'sent' | 'failed' | 'cleared'; error: string | null }
+interface Entry { id: string; kind: Kind; body: string | null; recipients: number; author_name: string | null; created_at: string; pending: number; sent: number; failed: number; skipped?: number; cleared: number }
+interface Result { name: string; state: 'pending' | 'sent' | 'failed' | 'skipped' | 'cleared'; error: string | null }
 const KIND: Record<Kind, string> = { info: 'Информационная', reminder: 'Напоминание об оплате' };
 const BLOCKED: Record<string, string> = { notifications_off: 'выключены уведомления бота', daily_limit: 'уже три сообщения рассылок за сутки' };
 const plural = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'получателю' : 'получателям');
-const resultText = (r: Result) => (r.state === 'sent' ? 'отправлено' : r.state === 'failed' ? `не доставлено${r.error ? ` (${r.error})` : ''}` : r.state === 'pending' ? 'ждёт отправки' : 'очищено из очереди');
+const resultText = (r: Result) => (r.state === 'sent' ? 'отправлено' : r.state === 'failed' ? `не доставлено${r.error ? ` (${r.error})` : ''}` : r.state === 'pending' ? 'ждёт отправки' : r.state === 'skipped' ? 'не отправлено: нет согласия' : 'очищено из очереди');
 
 export function CampBroadcasts({ camp }: { camp: CampLite }) {
   const [kind, setKind] = useState<Kind>('info');
@@ -412,7 +412,7 @@ export function CampBroadcasts({ camp }: { camp: CampLite }) {
         <div className="ks-card" key={e.id}>
           <div className="ks-line"><b>{KIND[e.kind]}</b><span className="muted">{when(e.created_at)}{e.author_name ? ` · ${e.author_name}` : ''}</span></div>
           {e.body && <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', margin: '6px 0' }}>{e.body}</p>}
-          <p className="muted" style={{ margin: '4px 0' }}>{`Получателей ${e.recipients}: ждёт ${e.pending}, отправлено ${e.sent}, не доставлено ${e.failed}, очищено ${e.cleared}`}</p>
+          <p className="muted" style={{ margin: '4px 0' }}>{`Получателей ${e.recipients}: ждёт ${e.pending}, отправлено ${e.sent}, не доставлено ${e.failed}${e.skipped ? `, не отправлено из-за согласия ${e.skipped}` : ''}, очищено ${e.cleared}`}</p>
           <button type="button" className="ks-btn secondary" onClick={() => void showResult(e.id)}>Результат</button>
           {results[e.id] && <ul aria-label="Результат по получателям" style={{ margin: '8px 0 0', paddingLeft: 18 }}>{results[e.id].map((r, i) => <li key={i}>{`${r.name}: ${resultText(r)}`}</li>)}</ul>}
         </div>

@@ -1,7 +1,7 @@
 -- Что из миграций 0001–0085 уже применено в этой базе. Только чтение, ничего не меняет.
 -- Запустить в SQL Editor целиком. applied = true — применять эту миграцию не нужно (повторный запуск упадёт на create table/trigger).
 -- Применять надо по номерам только те, где applied = false.
-select * from (values
+with m(migration, applied) as (values
   ('0001_init',                    coalesce((to_regclass('clubs') is not null and to_regclass('players') is not null and to_regclass('groups') is not null), false)),
   ('0002_rls',                     coalesce((to_regprocedure('is_admin()') is not null), false)),
   ('0003_legacy_domains',          coalesce((to_regclass('equipment_orders') is not null and to_regclass('payments') is not null), false)),
@@ -165,9 +165,9 @@ select * from (values
   ('0160_camp_self_signup', coalesce((to_regproc('camp_parent_register') is not null and to_regproc('camp_public') is not null and exists (select 1 from information_schema.columns where table_name = 'camps' and column_name = 'capacity') and to_regclass('camp_participant_events') is not null and to_regclass('camp_cancel_terms') is not null), false)),
   ('0161_camp_applications', coalesce((to_regclass('camp_applications') is not null and to_regproc('camp_apply') is not null and to_regproc('camp_application_decide') is not null and exists (select 1 from information_schema.columns where table_name = 'camp_participants' and column_name = 'owner_user_id')), false)),
   ('0162_consent_record', coalesce((to_regproc('accept_consent') is not null and to_regproc('revoke_parent_consent') is not null and exists (select 1 from pg_trigger where tgname = 'consent_links_lock' and not tgisinternal) and coalesce((select position('pg_advisory_xact_lock_shared' in prosrc) > 0 from pg_proc where proname = 'parental_consent_event_guard' limit 1), false)), false)),
-  ('0173_consent_access', coalesce((to_regproc('parent_access_ok') is not null and to_regclass('consent_test_parents') is not null and exists (select 1 from pg_trigger where tgname = 'consent_mode_guard' and not tgisinternal) and exists (select 1 from information_schema.columns where table_name = 'consent_doc_versions' and column_name = 'coach_contacts') and not exists (select 1 from pg_proc where pronamespace = 'public'::regnamespace and prosrc like '%consent_revoked_at%' and proname not in ('parent_access_ok', 'decide_link', 'revoke_consent', 'export_my_data'))), false)),
+  ('0173_consent_access', ((to_regproc('parent_access_ok') is not null and to_regclass('consent_test_parents') is not null and exists (select 1 from pg_trigger where tgname = 'consent_mode_guard' and not tgisinternal) and exists (select 1 from information_schema.columns where table_name = 'consent_doc_versions' and column_name = 'coach_contacts') and not exists (select 1 from pg_proc where pronamespace = 'public'::regnamespace and prosrc like '%consent_revoked_at%' and proname not in ('parent_access_ok', 'decide_link', 'revoke_consent', 'export_my_data'))))),
   ('0178_guest_visits', coalesce((to_regclass('session_guests') is not null and to_regproc('session_guest_add') is not null and to_regproc('session_guest_set_paid') is not null and to_regproc('session_guest_remove') is not null and to_regproc('guest_visit_fee') is not null and exists (select 1 from pg_trigger where tgname = 'points_session_guests_sync' and not tgisinternal) and coalesce((select position('session_guests' in prosrc) > 0 from pg_proc where proname = 'points_reconcile_group_session' limit 1), false) and coalesce((select position('Разовое посещение' in prosrc) > 0 from pg_proc where proname = 'cash_report' limit 1), false) and coalesce((select position('Разовое посещение' in prosrc) > 0 from pg_proc where proname = 'cash_day_service' limit 1), false) and coalesce((select position('session_guests' in prosrc) > 0 from pg_proc where proname = 'parent_calendar' limit 1), false) and coalesce((select position('session_guests' in prosrc) > 0 from pg_proc where proname = 'parent_dues' limit 1), false)), false)),
-  ('0175_consent_camp_broadcast_audience', coalesce((pg_get_functiondef(to_regprocedure('camp_broadcast_audience(uuid,text,text)')) like '%parent_access_ok%' and pg_get_functiondef(to_regprocedure('camp_broadcast_targets(uuid,text,text)')) like '%camp_broadcast_audience%'), false)),
+  ('0175_consent_camp_broadcast_audience', (exists (select 1 from pg_proc where oid = to_regprocedure('camp_broadcast_audience(uuid,text,text)') and prosrc like '%parent_access_ok%') and exists (select 1 from pg_proc where oid = to_regprocedure('camp_broadcast_targets(uuid,text,text)') and prosrc like '%camp_broadcast_audience%'))),
   ('0165_camp_history_immutable', coalesce((select count(*) = 5 from pg_trigger where not tgisinternal and tgenabled = 'O' and tgname in ('camp_payments_immutable', 'camp_payments_no_truncate', 'camp_payments_insert_guard', 'camp_participants_no_delete', 'camp_participants_no_truncate')) and not has_table_privilege('authenticated', 'camp_payments', 'delete') and not has_table_privilege('service_role', 'camp_payments', 'update') and not has_table_privilege('authenticated', 'camp_tariffs', 'update'), false)),
   ('0166_camp_edit_cancel', coalesce((to_regproc('camp_parent_update') is not null and to_regproc('camp_parent_cancel') is not null and to_regproc('camp_refund') is not null and to_regclass('camp_participant_replacements') is not null and exists (select 1 from information_schema.columns where table_name = 'camp_participant_events' and column_name = 'terms_text') and (select count(*) = 2 from pg_trigger where not tgisinternal and tgenabled = 'O' and tgname in ('camp_participant_replacements_no_change', 'camp_participant_replacements_no_truncate')) and exists (select 1 from pg_trigger t join pg_attribute a on a.attrelid = t.tgrelid and a.attnum = any(t.tgattr) where t.tgname = 'camp_participants_log' and a.attname = 'amount')), false)),
   ('0167_camp_notifications', coalesce((to_regproc('camp_notify_enabled') is not null and (select count(*) = 2 from pg_trigger where not tgisinternal and tgenabled = 'O' and tgname in ('camp_participant_events_notify', 'camp_applications_notify'))), false)),
@@ -177,6 +177,26 @@ select * from (values
   ('0171_individual_template_admin', coalesce((not has_table_privilege('authenticated', 'individual_templates', 'delete') and has_table_privilege('authenticated', 'individual_templates', 'insert') and has_table_privilege('authenticated', 'individual_templates', 'update')), false)),
   ('0172_camp_broadcast_audience', coalesce((to_regproc('camp_broadcast_audience') is not null and to_regproc('camp_broadcast_recipients') is not null), false)),
   ('0174_booking_cancel_notice', coalesce((select position('Отмена записи на занятие' in prosrc) > 0 from pg_proc where proname = 'booking_cancel' limit 1) and (select position('Индивидуальные / Дополнительные' in prosrc) = 0 from pg_proc where proname = 'booking_signup' limit 1), false)),
+  ('0176_consent_claim_check', (exists (select 1 from information_schema.columns where table_name = 'notifications' and column_name = 'player_ids') and exists (select 1 from information_schema.columns where table_name = 'notifications' and column_name = 'consent_check_attempts') and exists (select 1 from pg_proc where oid = to_regprocedure('claim_notifications(integer)') and position('parent_access_ok' in prosrc) > 0) and to_regprocedure('camp_broadcast_player_ids(uuid,uuid)') is not null)),
   ('0177_ind_autocreate_topic_offset', coalesce((position($$/ 7 + 2) % array_length$$ in pg_get_functiondef(to_regprocedure('ind_autocreate(date)'))) > 0), false))
-) as t(migration, applied)
-order by migration;
+)
+-- note для 0176 (требует 0173 и 0175): applied | ready | blocked: ... | inconsistent: ... | ambiguous: ... | unknown: ... (NULL не приводится к false).
+select m.migration, m.applied,
+  case when m.migration = '0176_consent_claim_check' then
+    (select case
+       when p73 is null or p75 is null or m.applied is null then 'unknown: признак 0173, 0175 или 0176 не определён (NULL)'
+       when s176 not in (0, 4) then 'ambiguous: 0176 применена частично (' || s176 || ' из 4 признаков), не применять, разобрать вручную'
+       when m.applied and p73 and p75 then 'applied'
+       when m.applied then 'inconsistent: 0176 есть, но нет ' || case when not p73 and not p75 then '0173 и 0175' when not p73 then '0173' else '0175' end || ' (не применять заново, разобрать вручную)'
+       when p73 and p75 then 'ready: 0173 и 0175 применены, 0176 можно применять'
+       else 'blocked: применять нельзя, сначала ' || case when not p73 and not p75 then '0173, затем 0175' when not p73 then '0173' else '0175' end
+     end
+     from (select (select m2.applied from m m2 where m2.migration = '0173_consent_access') as p73,
+                  (select m2.applied from m m2 where m2.migration = '0175_consent_camp_broadcast_audience') as p75,
+                  (exists (select 1 from information_schema.columns where table_name = 'notifications' and column_name = 'player_ids'))::int
+                  + (exists (select 1 from information_schema.columns where table_name = 'notifications' and column_name = 'consent_check_attempts'))::int
+                  + (exists (select 1 from pg_proc where oid = to_regprocedure('claim_notifications(integer)') and position('parent_access_ok' in prosrc) > 0))::int
+                  + (to_regprocedure('camp_broadcast_player_ids(uuid,uuid)') is not null)::int as s176) pre)
+  end as note
+from m
+order by m.migration;
