@@ -97,7 +97,7 @@ function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBa
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  // новые правила (миграция 0123): пока они не действуют, работают прежние ручные баллы
+  // ручные баллы по правилам (миграция 0123); пока правила не действуют, начислять нельзя
   const [manual, setManual] = useState<ManualStatus | null>(null);
   const [manualRows, setManualRows] = useState<ManualRow[]>([]);
   const [req, setReq] = useState(() => crypto.randomUUID());
