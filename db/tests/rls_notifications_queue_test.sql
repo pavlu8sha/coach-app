@@ -2,7 +2,7 @@
 -- Условия приёмки: docs/NOTIFICATIONS_QUEUE_ACCEPTANCE.md (Q1-Q9). Только синтетические данные, реальных отправок нет.
 begin;
 create extension if not exists pgtap;
-select plan(47);
+select plan(58);
 
 create function tx(n int) returns uuid language sql immutable as $$ select ('00000000-0000-0000-0000-' || lpad(to_hex(n), 12, '0'))::uuid $$;
 insert into clubs (id, name) values (tx(1), 'Клуб');
@@ -27,19 +27,26 @@ create function q(lbl text, st text default 'pending', att int default 0, claime
   returning id
 $$;
 -- claim под служебной ролью: отсортированные метки выданных строк
+-- выдача и токен последней выдачи (один на вызов claim_notifications)
+create temp table last_claim (text text, claim_token uuid);
+grant all on last_claim to service_role;
 create function cl(n int default 50) returns text[] language plpgsql as $$
 declare r text[];
 begin
+  delete from last_claim;
   perform as_service();
-  select coalesce(array_agg(c.text order by c.text), '{}') into r from claim_notifications(n) c where c.text like 'Q%';
+  insert into last_claim select c.text, c.claim_token from claim_notifications(n) c;
   reset role;
+  select coalesce(array_agg(c.text order by c.text), '{}') into r from last_claim c where c.text like 'Q%';
   return r;
 end $$;
-create function rel(ids uuid[]) returns int language plpgsql as $$
-declare r int;
+create function last_tok() returns uuid language sql as $$ select claim_token from last_claim limit 1 $$;
+-- release под служебной ролью; без явного токена берётся токен последней выдачи
+create function rel(ids uuid[], t uuid default null) returns int language plpgsql as $$
+declare r int; tk uuid := coalesce(t, last_tok());
 begin
   perform as_service();
-  r := release_notifications(ids);
+  r := release_notifications(ids, tk);
   reset role;
   return r;
 end $$;
@@ -114,11 +121,30 @@ select finish_notification((row_of('QRother')).id, true, null);
 reset role;
 select is(rel(array[(row_of('QRother')).id, (row_of('Q1a')).id, (row_of('Q3k')).id]), 0, 'Q4. sent, failed, skipped не возвращаются');
 select is((row_of('QRother')).state || '/' || (row_of('QRother')).attempts, 'sent/1', 'Q4. отправленная строка не изменилась');
-update notifications set attempts = 0, claimed_at = now() where text = 'QR';
+update notifications set attempts = 0, claimed_at = now(), claim_token = last_tok() where text = 'QR';
 select is(rel(array[(row_of('QR')).id]), 1, 'Q4. attempts=0 при закреплении: строка возвращена');
 select is((row_of('QR')).attempts, 0, 'Q4. attempts не уходит ниже 0');
 select is(rel(null), 0, 'Q4. null: ничего');
+select is(rel(array[(row_of('QR')).id], gen_random_uuid()), 0, 'Q4. чужой токен: ничего');
 select is(rel('{}'), 0, 'Q4. пустой список: ничего');
+
+-- ===== Q4а (замечание к PR #623): старый запуск не снимает более новую выдачу другого запуска =====
+update notifications set state = 'sent', sent_at = now() where text = 'QR';  -- QR больше не участвует
+select q('QX');
+select is(cl(), array['QX'], 'Q4а. запуск A выдал строку');
+create temp table tok_a as select last_tok() as t;
+select age_claims('QX');  -- A обрабатывает пачку дольше 2 минут, закрепление истекло
+select is(cl(), array['QX'], 'Q4а. запуск B выдал ту же строку заново');
+create temp table tok_b as select last_tok() as t;
+create temp table qx_b as select attempts, claimed_at, claim_token from notifications where text = 'QX';
+select isnt((select t from tok_a), (select t from tok_b), 'Q4а. у выдач A и B разные токены');
+select is(rel(array[(row_of('QX')).id], (select t from tok_a)), 0, 'Q4а. release запуска A со старым токеном ничего не возвращает');
+select is((row_of('QX')).attempts, (select attempts from qx_b), 'Q4а. попытки выдачи B не уменьшены');
+select is((row_of('QX')).claimed_at, (select claimed_at from qx_b), 'Q4а. закрепление B не снято');
+select is((row_of('QX')).claim_token, (select t from tok_b), 'Q4а. токен остаётся у B');
+select is(cl(), '{}'::text[], 'Q4а. строка не выдаётся третьему запуску, пока B её держит');
+select is(rel(array[(row_of('QX')).id], (select t from tok_b)), 1, 'Q4а. release со своим токеном (B) возвращает строку');
+select ok((row_of('QX')).claimed_at is null and (row_of('QX')).claim_token is null, 'Q4а. после release закрепление и токен сняты');
 
 -- ===== Q5 на уровне базы: Telegram пять раз подряд отвечает 429 на первую строку пачки =====
 select q('QA');
@@ -130,7 +156,7 @@ begin
     perform as_service();
     perform claim_notifications(50);
     perform finish_notification(a, false, '429 Too Many Requests');  -- строка с 429
-    perform release_notifications(array[b]);                        -- остальные возвращаются
+    perform release_notifications(array[b], (select claim_token from notifications where id = b)); -- остальные возвращаются
     reset role;
     update notifications set claimed_at = now() - interval '5 minutes' where id = a and state = 'pending';
   end loop;
@@ -140,14 +166,14 @@ select is((row_of('QB')).state || '/' || (row_of('QB')).attempts, 'pending/0', '
 select is(cl(), array['QB'], 'Q5. и уходят следующим запуском');
 
 -- ===== Q7: права =====
-select is(has_function_privilege('anon', 'release_notifications(uuid[])', 'execute'), false, 'Q7. anon не вызывает release_notifications');
-select is(has_function_privilege('authenticated', 'release_notifications(uuid[])', 'execute'), false, 'Q7. authenticated не вызывает release_notifications');
-select is(has_function_privilege('service_role', 'release_notifications(uuid[])', 'execute'), true, 'Q7. service_role вызывает release_notifications');
+select is(has_function_privilege('anon', 'release_notifications(uuid[],uuid)', 'execute'), false, 'Q7. anon не вызывает release_notifications');
+select is(has_function_privilege('authenticated', 'release_notifications(uuid[],uuid)', 'execute'), false, 'Q7. authenticated не вызывает release_notifications');
+select is(has_function_privilege('service_role', 'release_notifications(uuid[],uuid)', 'execute'), true, 'Q7. service_role вызывает release_notifications');
 select as_user(tx(162));
-select throws_ok($$select release_notifications(array[gen_random_uuid()])$$, '42501', null, 'Q7. родитель не может вернуть строки очереди');
+select throws_ok($$select release_notifications(array[gen_random_uuid()], gen_random_uuid())$$, '42501', null, 'Q7. родитель не может вернуть строки очереди');
 select throws_ok($$select claim_notifications(10)$$, '42501', null, 'Q7. родитель не забирает уведомления');
 reset role;
-select is((select p.prosecdef and p.proconfig @> array['search_path=public'] from pg_proc p where p.oid = 'release_notifications(uuid[])'::regprocedure), true,
+select is((select p.prosecdef and p.proconfig @> array['search_path=public'] from pg_proc p where p.oid = 'release_notifications(uuid[],uuid)'::regprocedure), true,
           'Q7. release_notifications: security definer с закреплённым search_path');
 
 select * from finish();

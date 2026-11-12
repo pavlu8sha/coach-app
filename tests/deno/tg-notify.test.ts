@@ -14,11 +14,13 @@ const rows = [
     id: "11111111-1111-1111-1111-111111111111",
     telegram_id: 42,
     text: "Первый",
+    claim_token: "99999999-9999-9999-9999-999999999999",
   },
   {
     id: "22222222-2222-2222-2222-222222222222",
     telegram_id: 43,
     text: "Второй",
+    claim_token: "99999999-9999-9999-9999-999999999999",
   },
 ];
 
@@ -116,7 +118,8 @@ Deno.test("tg-notify: HTTP → claim/finish + Telegram", async (t) => {
           },
         ]);
         // REL-02 (0184): необработанная строка возвращена без потери попытки
-        assert.deepEqual(supa.state.released, [[rows[1].id]]);
+        // токен своей выдачи передаётся: чужая, более новая выдача не снимается
+        assert.deepEqual(supa.state.released, [{ ids: [rows[1].id], token: rows[0].claim_token }]);
       },
     );
 
@@ -128,6 +131,17 @@ Deno.test("tg-notify: HTTP → claim/finish + Telegram", async (t) => {
       telegram.state.text = "Too Many Requests";
       const r = await send();
       assert.deepEqual(r.data, { claimed: 1, sent: 0, failed: 1, released: 0 });
+      assert.deepEqual(supa.state.released, []);
+    });
+
+    await t.step("no claim token: nothing is released", async () => {
+      supa.reset();
+      telegram.reset();
+      supa.state.notifications = rows.map(({ claim_token: _t, ...r }) => r);
+      telegram.state.status = 429;
+      telegram.state.text = "Too Many Requests";
+      const r = await send();
+      assert.deepEqual(r.data, { claimed: 2, sent: 0, failed: 1, released: 0 });
       assert.deepEqual(supa.state.released, []);
     });
 

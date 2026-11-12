@@ -5,14 +5,20 @@
 --  * claim_notifications перед выдачей закрывает такие строки: state = failed, last_error = 'stalled[: прежняя ошибка]'.
 --    Строка, выданная меньше 2 минут назад, не трогается (отправка может ещё идти). Остальное тело взято из 0176 без изменений
 --    (проверка согласия, порядок, лимит 50, удаление sent старше 30 дней).
---  * release_notifications(ids): tg-notify возвращает выданные, но не обработанные строки (после 429): attempts - 1, claimed_at = null.
+--  * release_notifications(ids, token): tg-notify возвращает выданные, но не обработанные строки (после 429): attempts - 1,
+--    claimed_at = null. Каждая выдача помечает строки своим токеном (notifications.claim_token, возвращается claim_notifications),
+--    release снимает только строки со своим токеном: старый запуск не может снять более новую выдачу другого запуска
+--    (замечание к PR #623). Тип результата claim_notifications меняется (добавлен claim_token), поэтому функция пересоздаётся.
 -- Тело claim_notifications сверено с master 8f2d2d3 (0176); при слиянии с другой миграцией, меняющей claim_notifications,
 -- пересобрать тело (CLAUDE.md, урок 2026-11-11).
 begin;
 
-create or replace function claim_notifications(n int) returns table (id uuid, telegram_id bigint, text text, buttons jsonb)
+alter table notifications add column if not exists claim_token uuid;
+
+drop function claim_notifications(int);
+create function claim_notifications(n int) returns table (id uuid, telegram_id bigint, text text, buttons jsonb, claim_token uuid)
 language plpgsql security definer set search_path = public as $$
-declare r record; ok boolean; pass uuid[] := '{}';
+declare r record; ok boolean; pass uuid[] := '{}'; tk uuid := gen_random_uuid();
 begin
   delete from notifications where state = 'sent' and sent_at < now() - interval '30 days';
   -- 0184: три выдачи без ответа отправителя; повторять нельзя (Telegram мог принять сообщение), держать pending бессмысленно
@@ -41,24 +47,26 @@ begin
     end;
   end loop;
   return query
-    update notifications nt set attempts = nt.attempts + 1, claimed_at = now()
+    update notifications nt set attempts = nt.attempts + 1, claimed_at = now(), claim_token = tk
      where nt.id = any (pass)
-    returning nt.id, (select u.telegram_id from users u where u.id = nt.user_id), nt.text, nt.buttons;
+    returning nt.id, (select u.telegram_id from users u where u.id = nt.user_id), nt.text, nt.buttons, nt.claim_token;
 end $$;
 revoke execute on function claim_notifications(int) from public, anon, authenticated;
 grant execute on function claim_notifications(int) to service_role;
 
--- Вернуть выданные, но не обработанные строки (tg-notify после 429): попытка не засчитывается, строка доступна сразу
-create or replace function release_notifications(ids uuid[]) returns int
+-- Вернуть выданные, но не обработанные строки (tg-notify после 429): попытка не засчитывается, строка доступна сразу.
+-- Только строки, которые всё ещё держит выдача с этим токеном; без токена ничего не делает.
+create or replace function release_notifications(ids uuid[], token uuid) returns int
 language plpgsql security definer set search_path = public as $$
 declare k int;
 begin
-  update notifications set attempts = greatest(attempts - 1, 0), claimed_at = null
-   where id = any (coalesce(ids, '{}')) and state = 'pending' and claimed_at is not null;
+  if token is null then return 0; end if;
+  update notifications set attempts = greatest(attempts - 1, 0), claimed_at = null, claim_token = null
+   where id = any (coalesce(ids, '{}')) and state = 'pending' and claimed_at is not null and claim_token = token;
   get diagnostics k = row_count;
   return k;
 end $$;
-revoke execute on function release_notifications(uuid[]) from public, anon, authenticated;
-grant execute on function release_notifications(uuid[]) to service_role;
+revoke execute on function release_notifications(uuid[], uuid) from public, anon, authenticated;
+grant execute on function release_notifications(uuid[], uuid) to service_role;
 
 commit;

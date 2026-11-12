@@ -1,10 +1,12 @@
 -- Откат миграции 0184 (REL-02). Запускать только по решению владельца, в SQL Editor целиком, в одной транзакции.
--- Возвращает тело claim_notifications из 0176 (без закрытия зависших строк) и удаляет release_notifications.
+-- Возвращает claim_notifications из 0176 (тип результата без claim_token, без закрытия зависших строк), удаляет
+-- release_notifications и столбец notifications.claim_token.
 -- Строки, уже закрытые как failed с причиной stalled, остаются failed: их повторная отправка рискует дублем.
 -- После отката tg-notify должна быть версии без вызова release_notifications (иначе в логе функции будет ошибка release, отправка не ломается).
 begin;
 
-create or replace function claim_notifications(n int) returns table (id uuid, telegram_id bigint, text text, buttons jsonb)
+drop function claim_notifications(int);
+create function claim_notifications(n int) returns table (id uuid, telegram_id bigint, text text, buttons jsonb)
 language plpgsql security definer set search_path = public as $$
 declare r record; ok boolean; pass uuid[] := '{}';
 begin
@@ -39,6 +41,7 @@ end $$;
 revoke execute on function claim_notifications(int) from public, anon, authenticated;
 grant execute on function claim_notifications(int) to service_role;
 
-drop function if exists release_notifications(uuid[]);
+drop function if exists release_notifications(uuid[], uuid);
+alter table notifications drop column if exists claim_token;
 
 commit;

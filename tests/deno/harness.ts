@@ -19,7 +19,7 @@ export interface SupabaseState {
   usersSelectError: string | null;
   usersInsertError: string | null;
   claimError: string | null;
-  notifications: Array<{ id: string; telegram_id: number; text: string; buttons?: unknown }>;
+  notifications: Array<{ id: string; telegram_id: number; text: string; buttons?: unknown; claim_token?: string }>;
   rsvpResult: Json;
   rsvpError: string | null;
   bookingResults: Record<string, Json>;
@@ -28,7 +28,7 @@ export interface SupabaseState {
     { id: string; ok: boolean; err: string | null; give_up: boolean }
   >;
   // tg-notify после 429: какие строки возвращены в очередь (release_notifications, 0184)
-  released: string[][];
+  released: Array<{ ids: string[]; token: string | null }>;
   releaseError: string | null;
   requests: Array<
     { method: string; path: string; query: string; body: Json | null; auth?: string; size?: number }
@@ -171,7 +171,7 @@ export function createSupabaseFake() {
     if (url.pathname === "/rest/v1/rpc/release_notifications") {
       if (state.releaseError) return postgrestError(state.releaseError);
       const ids = Array.isArray(body?.ids) ? (body?.ids as unknown[]).map(String) : [];
-      state.released.push(ids);
+      state.released.push({ ids, token: (body?.token as string | null) ?? null });
       return json(ids.length);
     }
 

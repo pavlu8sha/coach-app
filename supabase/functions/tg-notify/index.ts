@@ -23,7 +23,7 @@ Deno.serve(async (req: Request) => {
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
     const claimed = await admin.rpc('claim_notifications', { n: 20 });
     if (claimed.error) throw new Error(`claim: ${claimed.error.message}`);
-    const rows = (claimed.data ?? []) as { id: string; telegram_id: number; text: string; buttons?: { text: string; data: string }[][] | null }[];
+    const rows = (claimed.data ?? []) as { id: string; telegram_id: number; text: string; buttons?: { text: string; data: string }[][] | null; claim_token?: string | null }[];
     let sent = 0, failed = 0, released = 0;
     for (const [idx, n] of rows.entries()) {
       const call = buildCall(n, APP_URL);
@@ -40,9 +40,11 @@ Deno.serve(async (req: Request) => {
       if (res.stop) {
         // Telegram просит притормозить: необработанные строки возвращаем без потери попытки (0184, REL-02),
         // иначе после трёх таких пачек они закрывались бы как зависшие. Следующий запуск заберёт их снова.
+        // Токен своей выдачи: release не снимает строки, которые уже забрал другой запуск.
         const rest = rows.slice(idx + 1).map(r => r.id);
-        if (rest.length > 0) {
-          const rel = await admin.rpc('release_notifications', { ids: rest });
+        const token = n.claim_token ?? null;
+        if (rest.length > 0 && token) {
+          const rel = await admin.rpc('release_notifications', { ids: rest, token });
           if (rel.error) console.error('release_notifications', rel.error.message);
           else released = Number(rel.data ?? 0);
         }
