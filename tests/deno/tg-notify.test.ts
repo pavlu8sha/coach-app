@@ -46,7 +46,7 @@ Deno.test("tg-notify: HTTP → claim/finish + Telegram", async (t) => {
       telegram.reset();
       const r = await send();
       assert.equal(r.res.status, 200);
-      assert.deepEqual(r.data, { claimed: 0, sent: 0, failed: 0 });
+      assert.deepEqual(r.data, { claimed: 0, sent: 0, failed: 0, released: 0 });
       assert.equal(telegram.state.calls.length, 0);
     });
 
@@ -58,7 +58,7 @@ Deno.test("tg-notify: HTTP → claim/finish + Telegram", async (t) => {
         supa.state.notifications = rows;
         const r = await send();
         assert.equal(r.res.status, 200);
-        assert.deepEqual(r.data, { claimed: 2, sent: 2, failed: 0 });
+        assert.deepEqual(r.data, { claimed: 2, sent: 2, failed: 0, released: 0 });
         assert.deepEqual(telegram.state.calls.map((c) => c.method), [
           "sendMessage",
           "sendMessage",
@@ -85,7 +85,7 @@ Deno.test("tg-notify: HTTP → claim/finish + Telegram", async (t) => {
       telegram.state.status = 403;
       telegram.state.text = "Forbidden: bot was blocked by the user";
       const r = await send();
-      assert.deepEqual(r.data, { claimed: 1, sent: 0, failed: 1 });
+      assert.deepEqual(r.data, { claimed: 1, sent: 0, failed: 1, released: 0 });
       assert.deepEqual(supa.state.finish, [
         {
           id: rows[0].id,
@@ -97,7 +97,7 @@ Deno.test("tg-notify: HTTP → claim/finish + Telegram", async (t) => {
     });
 
     await t.step(
-      "429 records the error and stops before the next row",
+      "429 records the error, stops and releases the rest of the batch",
       async () => {
         supa.reset();
         telegram.reset();
@@ -105,7 +105,7 @@ Deno.test("tg-notify: HTTP → claim/finish + Telegram", async (t) => {
         telegram.state.status = 429;
         telegram.state.text = "Too Many Requests";
         const r = await send();
-        assert.deepEqual(r.data, { claimed: 2, sent: 0, failed: 1 });
+        assert.deepEqual(r.data, { claimed: 2, sent: 0, failed: 1, released: 1 });
         assert.equal(telegram.state.calls.length, 1);
         assert.deepEqual(supa.state.finish, [
           {
@@ -115,8 +115,34 @@ Deno.test("tg-notify: HTTP → claim/finish + Telegram", async (t) => {
             give_up: false,
           },
         ]);
+        // REL-02 (0184): необработанная строка возвращена без потери попытки
+        assert.deepEqual(supa.state.released, [[rows[1].id]]);
       },
     );
+
+    await t.step("429 on the last row releases nothing", async () => {
+      supa.reset();
+      telegram.reset();
+      supa.state.notifications = [rows[0]];
+      telegram.state.status = 429;
+      telegram.state.text = "Too Many Requests";
+      const r = await send();
+      assert.deepEqual(r.data, { claimed: 1, sent: 0, failed: 1, released: 0 });
+      assert.deepEqual(supa.state.released, []);
+    });
+
+    await t.step("release failure is logged, response stays 200", async () => {
+      supa.reset();
+      telegram.reset();
+      supa.state.notifications = rows;
+      supa.state.releaseError = "boom";
+      telegram.state.status = 429;
+      telegram.state.text = "Too Many Requests";
+      const r = await send();
+      assert.equal(r.res.status, 200);
+      assert.deepEqual(r.data, { claimed: 2, sent: 0, failed: 1, released: 0 });
+      assert.equal(telegram.state.calls.length, 1);
+    });
 
     await t.step("500 records the error and continues", async () => {
       supa.reset();
@@ -125,7 +151,8 @@ Deno.test("tg-notify: HTTP → claim/finish + Telegram", async (t) => {
       telegram.state.status = 500;
       telegram.state.text = "oops";
       const r = await send();
-      assert.deepEqual(r.data, { claimed: 2, sent: 0, failed: 2 });
+      assert.deepEqual(r.data, { claimed: 2, sent: 0, failed: 2, released: 0 });
+      assert.deepEqual(supa.state.released, []);
       assert.equal(telegram.state.calls.length, 2);
       assert.deepEqual(
         supa.state.finish.map((f) => [f.id, f.ok, f.err, f.give_up]),

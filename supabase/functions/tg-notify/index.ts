@@ -24,8 +24,8 @@ Deno.serve(async (req: Request) => {
     const claimed = await admin.rpc('claim_notifications', { n: 20 });
     if (claimed.error) throw new Error(`claim: ${claimed.error.message}`);
     const rows = (claimed.data ?? []) as { id: string; telegram_id: number; text: string; buttons?: { text: string; data: string }[][] | null }[];
-    let sent = 0, failed = 0;
-    for (const n of rows) {
+    let sent = 0, failed = 0, released = 0;
+    for (const [idx, n] of rows.entries()) {
       const call = buildCall(n, APP_URL);
       let res: { ok: boolean; giveUp: boolean; stop: boolean; error: string | null };
       try {
@@ -37,9 +37,19 @@ Deno.serve(async (req: Request) => {
       const fin = await admin.rpc('finish_notification', { i: n.id, ok: res.ok, err: res.error, give_up: res.giveUp });
       if (fin.error) console.error('finish_notification', fin.error.message);
       if (res.ok) sent++; else failed++;
-      if (res.stop) break; // Telegram просит притормозить: остальное заберёт следующий запуск
+      if (res.stop) {
+        // Telegram просит притормозить: необработанные строки возвращаем без потери попытки (0184, REL-02),
+        // иначе после трёх таких пачек они закрывались бы как зависшие. Следующий запуск заберёт их снова.
+        const rest = rows.slice(idx + 1).map(r => r.id);
+        if (rest.length > 0) {
+          const rel = await admin.rpc('release_notifications', { ids: rest });
+          if (rel.error) console.error('release_notifications', rel.error.message);
+          else released = Number(rel.data ?? 0);
+        }
+        break;
+      }
     }
-    return new Response(JSON.stringify({ claimed: rows.length, sent, failed }), { headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ claimed: rows.length, sent, failed, released }), { headers: { 'Content-Type': 'application/json' } });
   } catch (e) {
     console.error('tg-notify', e instanceof Error ? e.message : String(e));
     return new Response(JSON.stringify({ error: 'internal' }), { status: 500, headers: { 'Content-Type': 'application/json' } });

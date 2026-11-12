@@ -178,7 +178,8 @@ with m(migration, applied) as (values
   ('0172_camp_broadcast_audience', coalesce((to_regproc('camp_broadcast_audience') is not null and to_regproc('camp_broadcast_recipients') is not null), false)),
   ('0174_booking_cancel_notice', coalesce((select position('Отмена записи на занятие' in prosrc) > 0 from pg_proc where proname = 'booking_cancel' limit 1) and (select position('Индивидуальные / Дополнительные' in prosrc) = 0 from pg_proc where proname = 'booking_signup' limit 1), false)),
   ('0176_consent_claim_check', (exists (select 1 from information_schema.columns where table_name = 'notifications' and column_name = 'player_ids') and exists (select 1 from information_schema.columns where table_name = 'notifications' and column_name = 'consent_check_attempts') and exists (select 1 from pg_proc where oid = to_regprocedure('claim_notifications(integer)') and position('parent_access_ok' in prosrc) > 0) and to_regprocedure('camp_broadcast_player_ids(uuid,uuid)') is not null)),
-  ('0177_ind_autocreate_topic_offset', coalesce((position($$/ 7 + 2) % array_length$$ in pg_get_functiondef(to_regprocedure('ind_autocreate(date)'))) > 0), false))
+  ('0177_ind_autocreate_topic_offset', coalesce((position($$/ 7 + 2) % array_length$$ in pg_get_functiondef(to_regprocedure('ind_autocreate(date)'))) > 0), false)),
+  ('0184_notifications_queue_stall', coalesce((to_regprocedure('release_notifications(uuid[])') is not null and exists (select 1 from pg_proc where oid = to_regprocedure('claim_notifications(integer)') and position('stalled' in prosrc) > 0 and position('parent_access_ok' in prosrc) > 0)), false))
 )
 -- note для 0176 (требует 0173 и 0175): applied | ready | blocked: ... | inconsistent: ... | ambiguous: ... | unknown: ... (NULL не приводится к false).
 select m.migration, m.applied,
