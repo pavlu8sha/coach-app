@@ -18,7 +18,7 @@ select t.id, t.name, t.price, t.active from camp_tariffs t join camps c on c.id 
 with c as (select id from camps where name ilike '%winter%camp%2027%'),
      f  as (select t.id, t.price from camp_tariffs t, c where t.camp_id = c.id and regexp_replace(replace(lower(btrim(t.name)),'ё','е'),'\s+',' ','g') = 'футболист'),
      f2 as (select t.id, t.name, t.price from camp_tariffs t, c where t.camp_id = c.id and regexp_replace(replace(lower(btrim(t.name)),'ё','е'),'\s+',' ','g') = 'футболист + 2 родителя')
-select p.id, p.player_id, p.guest_name, t.name as tariff_now, p.amount as amount_now,
+select p.id, p.player_id, p.guest_name, p.tariff_id as tariff_id_now, t.name as tariff_now, p.amount as amount_now,
        case when p.tariff_id = f.id then 'Футболист' else f2.name end as tariff_new,
        case when p.tariff_id = f.id then f.price else f2.price end as amount_new,
        q.paid,
@@ -31,6 +31,8 @@ select p.id, p.player_id, p.guest_name, t.name as tariff_now, p.amount as amount
  where p.status = 'registered'
    and (p.amount <> case when p.tariff_id = f.id then f.price else f2.price end or p.tariff_id not in (f.id, f2.id))
  order by tariff_now, p.amount;
+
+-- ВАЖНО: сохраните вывод этой выборки (Export → CSV в SQL Editor) до ПРИМЕНЕНИЯ. Это снимок для отката.
 
 -- ===== ПРИМЕНЕНИЕ =====
 begin;
@@ -63,3 +65,14 @@ end $$;
 commit;
 
 -- Результат: повторите вторую выборку ПРОВЕРКИ. Должны остаться только записи с overpaid > 0.
+
+-- ===== ОТКАТ (только если понадобится) =====
+-- По сохранённому снимку из ПРОВЕРКИ: для каждой строки вернуть tariff_id_now и amount_now.
+-- Подставьте строки снимка в values(...). Платежи скрипт не менял, их откатывать не нужно.
+-- begin;
+-- update camp_participants p set tariff_id = v.tariff_id, amount = v.amount
+--   from (values
+--     ('<id>'::uuid, '<tariff_id_now>'::uuid, <amount_now>::numeric)
+--   ) as v(id, tariff_id, amount)
+--  where p.id = v.id;
+-- commit;
