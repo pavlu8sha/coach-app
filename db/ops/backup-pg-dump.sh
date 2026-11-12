@@ -4,13 +4,12 @@
 #
 # Переменные (их можно положить в файл BACKUP_ENV_FILE, по умолчанию ~/.config/kickstart/backup.env, права 600):
 #   SUPABASE_DB_URL  строка подключения: Supabase → Connect → Session pooler, порт 5432. Не коммитить, не присылать в чат.
-#   AGE_RECIPIENT    публичный ключ age (начинается с age1...). Обязателен, если не задан ALLOW_PLAIN=1.
+#   AGE_RECIPIENT    публичный ключ age (age1...). Обязателен всегда: незашифрованная копия не пишется ни при каких настройках.
 #   BACKUP_DIR       каталог копий, по умолчанию ~/kickstart-backups. Внутри репозитория запрещён.
 #   BACKUP_KIND      daily (по умолчанию: ротация 14 дней, воскресенье дублируется в weekly/)
 #                    или premigration (перед миграцией: папка premigration/, без ротации).
 #   KEEP_DAILY       сколько дней хранить daily, по умолчанию 14.
 #   KEEP_WEEKLY      сколько недель хранить weekly, по умолчанию 8.
-#   ALLOW_PLAIN=1    писать без шифрования. Только для отладки, боевые копии так не пишем.
 #   PG_BIN           каталог с pg_dump, psql, pg_restore, если их нет в PATH.
 set -euo pipefail
 
@@ -35,6 +34,14 @@ hash_file() {  # hash_file <путь>: печатает «<sha256>  <имя фа
 }
 
 # ---- 1. Проверки до подключения к базе ----
+# Шифрование обязательно. Отключить его нечем: открытый дамп существует только во временной папке
+# с правами 700 и удаляется при любом завершении скрипта.
+if [ -n "${ALLOW_PLAIN+x}" ]; then
+  die "ALLOW_PLAIN не поддерживается: копия всегда шифруется. Уберите ALLOW_PLAIN из окружения и backup.env"
+fi
+[ -n "${AGE_RECIPIENT:-}" ] || die "AGE_RECIPIENT не задан: копия не пишется без шифрования (см. db/ops/BACKUP.md, раздел «Настройка»)"
+[[ "$AGE_RECIPIENT" =~ ^age1[02-9ac-hj-np-z]{58}$ ]] || die "AGE_RECIPIENT не похож на публичный ключ age (age1 и 58 символов)"
+command -v age >/dev/null 2>&1 || die "нет age (установите пакет age)"
 [ -n "${SUPABASE_DB_URL:-}" ] || die "SUPABASE_DB_URL не задан (см. db/ops/BACKUP.md, раздел «Настройка»)"
 command -v "$PG_DUMP" >/dev/null 2>&1 || die "нет pg_dump (установите клиент PostgreSQL или задайте PG_BIN)"
 command -v "$PSQL" >/dev/null 2>&1 || die "нет psql"
@@ -44,11 +51,6 @@ BACKUP_KIND="${BACKUP_KIND:-daily}"
 case "$BACKUP_KIND" in daily|premigration) ;; *) die "BACKUP_KIND: daily или premigration";; esac
 KEEP_DAILY="${KEEP_DAILY:-14}"
 KEEP_WEEKLY="${KEEP_WEEKLY:-8}"
-
-if [ -z "${AGE_RECIPIENT:-}" ] && [ "${ALLOW_PLAIN:-0}" != 1 ]; then
-  die "AGE_RECIPIENT не задан: боевой дамп не пишется без шифрования (задайте ключ age или ALLOW_PLAIN=1 для отладки)"
-fi
-if [ -n "${AGE_RECIPIENT:-}" ]; then command -v age >/dev/null 2>&1 || die "нет age (установите пакет age)"; fi
 
 BACKUP_DIR="${BACKUP_DIR:-$HOME/kickstart-backups}"
 case "$BACKUP_DIR" in /*) ;; *) BACKUP_DIR="$PWD/$BACKUP_DIR";; esac
@@ -66,51 +68,55 @@ if [ "$client_major" -lt "$server_major" ]; then
   die "pg_dump $client_major старше сервера $server_major: установите клиент PostgreSQL $server_major или новее"
 fi
 
-# ---- 3. Дамп во временный файл, затем переименование ----
+# ---- 3. Дамп в приватную временную папку (вне BACKUP_DIR) ----
 ts="$(date +%Y-%m-%d_%H%M)"
 case "$BACKUP_KIND" in premigration) sub=premigration;; *) sub=daily;; esac
 dest_dir="$BACKUP_DIR/$sub"
 mkdir -p "$dest_dir"
 base="$dest_dir/kickstart-$ts"
-[ ! -e "$base.dump" ] || die "файл уже существует: $base.dump (подождите минуту и запустите снова)"
-tmp=""
-cleanup() { if [ -n "$tmp" ] && [ -f "$tmp" ]; then rm -f -- "$tmp"; fi; }
-trap cleanup EXIT
-tmp="$base.dump.partial"
+name="kickstart-$ts"
+[ ! -e "$base.dump.age" ] || die "файл уже существует: $base.dump.age (подождите минуту и запустите снова)"
 
-echo "pg_dump: схемы public, auth, storage, cron, snap_* → $base.dump"
+umask 077
+work="$(mktemp -d "${TMPDIR:-/tmp}/kickstart-dump.XXXXXX")"
+chmod 700 "$work"
+cleanup() {
+  rm -rf -- "$work"
+  rm -f -- "$base.dump.age.partial" "$base.manifest.age.partial"
+}
+trap cleanup EXIT
+plain="$work/$name.dump"
+
+echo "pg_dump: схемы public, auth, storage, cron, snap_* → $base.dump.age"
 "$PG_DUMP" "$SUPABASE_DB_URL" --format=custom --no-owner --compress=6 --lock-wait-timeout=15000 \
-  -n public -n auth -n storage -n cron -n 'snap_*' -f "$tmp" \
+  -n public -n auth -n storage -n cron -n 'snap_*' -f "$plain" \
   || die "pg_dump завершился с ошибкой; копия не записана"
-"$PG_RESTORE" -l "$tmp" >/dev/null || die "pg_restore -l не читает дамп; копия не записана"
-[ -s "$tmp" ] || die "дамп пустой"
-mv "$tmp" "$base.dump"
-tmp=""
+"$PG_RESTORE" -l "$plain" >/dev/null || die "pg_restore -l не читает дамп; копия не записана"
+[ -s "$plain" ] || die "дамп пустой"
 
 # ---- 4. Контрольная сумма и manifest (число строк по таблицам public) ----
-sha_line="$(hash_file "$base.dump")"
+sha_line="$(hash_file "$plain")"
 sha="${sha_line%% *}"
 {
   echo "# kickstart backup manifest"
   echo "# created: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
   echo "# kind: $BACKUP_KIND"
   echo "# server_major: $server_major"
-  echo "# dump: $(basename "$base").dump"
+  echo "# dump: $name.dump"
   echo "# sha256: $sha"
   "$PSQL" "$SUPABASE_DB_URL" -X -Atq -f "$SCRIPT_DIR/backup-manifest-counts.sql" \
     || die "не сняты счётчики строк для manifest"
-} > "$base.manifest"
+} > "$work/$name.manifest"
 
-# ---- 5. Шифрование (age) ----
-if [ -n "${AGE_RECIPIENT:-}" ]; then
-  age -r "$AGE_RECIPIENT" -o "$base.dump.age" "$base.dump"
-  age -r "$AGE_RECIPIENT" -o "$base.manifest.age" "$base.manifest"
-  rm -f -- "$base.dump" "$base.manifest"
-  final="$base.dump.age"
-else
-  echo "ВНИМАНИЕ: записано без шифрования (ALLOW_PLAIN=1). Не копируйте такой файл в облако." >&2
-  final="$base.dump"
-fi
+# ---- 5. Шифрование (age): в BACKUP_DIR попадают только зашифрованные файлы ----
+is_age() { [ -s "$1" ] && [ "$(head -c 21 "$1")" = "age-encryption.org/v1" ]; }
+age -r "$AGE_RECIPIENT" -o "$base.dump.age.partial" "$plain" || die "age не зашифровал дамп; копия не записана"
+age -r "$AGE_RECIPIENT" -o "$base.manifest.age.partial" "$work/$name.manifest" || die "age не зашифровал manifest; копия не записана"
+is_age "$base.dump.age.partial" || die "зашифрованный дамп не в формате age; копия не записана"
+is_age "$base.manifest.age.partial" || die "зашифрованный manifest не в формате age; копия не записана"
+mv "$base.manifest.age.partial" "$base.manifest.age"
+mv "$base.dump.age.partial" "$base.dump.age"
+final="$base.dump.age"
 
 # ---- 6. Ротация ----
 if [ "$BACKUP_KIND" = daily ]; then

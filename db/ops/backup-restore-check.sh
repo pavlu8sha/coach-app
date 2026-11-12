@@ -2,14 +2,17 @@
 # Проверка восстановления дампа (REL-01). Восстанавливает ТОЛЬКО в локальный PostgreSQL, не в Supabase.
 # Условия приёмки: db/ops/BACKUP_ACCEPTANCE.md. Инструкция: db/ops/BACKUP.md.
 #
-# Использование: db/ops/backup-restore-check.sh <kickstart-ГГГГ-ММ-ДД_ЧЧММ.dump[.age]>
-# Рядом должен лежать manifest (.manifest или .manifest.age) из backup-pg-dump.sh.
+# Использование: db/ops/backup-restore-check.sh <kickstart-ГГГГ-ММ-ДД_ЧЧММ.dump.age>
+# Рядом должен лежать .manifest.age из backup-pg-dump.sh.
 #
 # Переменные:
 #   TEST_PG_URL      локальный сервер БЕЗ имени базы, например postgresql://postgres@localhost:5432
 #                    Адреса Supabase отвергаются.
-#   AGE_IDENTITY     файл с приватным ключом age, нужен для .age. Хранить вне репозитория.
-#   KEEP_RESTORE_DB=1  не удалять восстановленную базу kickstart_restore_check после проверки.
+#   AGE_IDENTITY     файл с приватным ключом age. Хранить вне репозитория.
+#   KEEP_RESTORE_DB=1  не удалять восстановленную базу после проверки (имя печатается).
+#
+# База для проверки всегда новая: kickstart_restore_check_<время>_<случайное>. Существующие базы скрипт
+# не удаляет и не перезаписывает: удаляется только база, созданная этим запуском и помеченная его меткой.
 #   PG_BIN           каталог с psql и pg_restore, если их нет в PATH.
 #
 # Код выхода: 0 — всё совпало; 1 — ошибка восстановления или расхождение счётчиков; 2 — неверный запуск.
@@ -20,7 +23,6 @@ fail() { echo "НЕ ПРОЙДЕНО: $*" >&2; exit 1; }
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-DB=kickstart_restore_check
 
 pgtool() { if [ -n "${PG_BIN:-}" ]; then echo "$PG_BIN/$1"; else echo "$1"; fi; }
 PSQL="$(pgtool psql)"; PG_RESTORE="$(pgtool pg_restore)"
@@ -31,7 +33,8 @@ hash_file() {
 }
 
 src="${1:-}"
-[ -n "$src" ] && [ -f "$src" ] || die "укажите файл дампа: backup-restore-check.sh <файл.dump[.age]>"
+[ -n "$src" ] && [ -f "$src" ] || die "укажите файл дампа: backup-restore-check.sh <файл.dump.age>"
+case "$src" in *.dump.age) ;; *) die "нужен зашифрованный дамп .dump.age из backup-pg-dump.sh";; esac
 [ -n "${TEST_PG_URL:-}" ] || die "TEST_PG_URL не задан (локальный PostgreSQL, например postgresql://postgres@localhost:5432)"
 case "$TEST_PG_URL" in
   *supabase*|*pooler*) die "TEST_PG_URL указывает на Supabase. Проверка восстановления идёт только в локальной базе";;
@@ -43,27 +46,44 @@ command -v "$PG_RESTORE" >/dev/null 2>&1 || die "нет pg_restore (версия
 
 work="$(mktemp -d "${TMPDIR:-/tmp}/kickstart-restore.XXXXXX")"
 chmod 700 "$work"
-cleanup() { rm -rf -- "$work"; }
+run_id="$(date +%Y%m%d_%H%M%S)_$(od -An -N3 -tx1 /dev/urandom | tr -d ' \n')"
+DB="kickstart_restore_check_$run_id"
+MARK="kickstart restore check $run_id"
+created=0
+drop_own_db() {
+  # Удаляем только свою базу: созданную этим запуском и с нашей меткой в комментарии.
+  [ "$created" = 1 ] || return 0
+  local c
+  c="$("$PSQL" "$TEST_PG_URL/postgres" -X -Atq -c "select shobj_description(oid, 'pg_database') from pg_database where datname = '$DB'" 2>/dev/null || true)"
+  if [ "$c" = "$MARK" ]; then
+    "$PSQL" "$TEST_PG_URL/postgres" -X -q -c "drop database \"$DB\"" >/dev/null 2>&1 || echo "не удалось удалить $DB, удалите вручную" >&2
+  else
+    echo "база $DB не удалена: метка не совпала" >&2
+  fi
+}
+cleanup() {
+  rm -rf -- "$work"
+  if [ "${KEEP_RESTORE_DB:-0}" = 1 ]; then
+    [ "$created" = 1 ] && echo "база оставлена: $DB (KEEP_RESTORE_DB=1)" >&2
+  else
+    drop_own_db
+  fi
+}
 trap cleanup EXIT
 started=$(date +%s)
 
 # ---- 1. Расшифровка и поиск manifest ----
 dir="$(cd "$(dirname "$src")" && pwd)"
 name="$(basename "$src")"
-stem="${name%.dump.age}"; stem="${stem%.dump}"
-dump="$src"
-if [ "${name%.age}" != "$name" ]; then
-  [ -n "${AGE_IDENTITY:-}" ] || die "для .age нужен AGE_IDENTITY (файл с приватным ключом age)"
-  command -v age >/dev/null 2>&1 || die "нет age"
-  dump="$work/$stem.dump"
-  age -d -i "$AGE_IDENTITY" -o "$dump" "$src" 2>/dev/null || fail "$name не расшифровывается этим ключом (AGE_IDENTITY) или повреждён"
-  [ -f "$dir/$stem.manifest.age" ] || fail "нет $stem.manifest.age рядом с дампом"
-  age -d -i "$AGE_IDENTITY" -o "$work/$stem.manifest" "$dir/$stem.manifest.age" 2>/dev/null \
-    || fail "manifest не расшифровывается этим ключом или повреждён"
-  mf="$work/$stem.manifest"
-else
-  mf="$dir/$stem.manifest"
-fi
+stem="${name%.dump.age}"
+[ -n "${AGE_IDENTITY:-}" ] || die "нужен AGE_IDENTITY (файл с приватным ключом age)"
+command -v age >/dev/null 2>&1 || die "нет age"
+dump="$work/$stem.dump"
+age -d -i "$AGE_IDENTITY" -o "$dump" "$src" 2>/dev/null || fail "$name не расшифровывается этим ключом (AGE_IDENTITY) или повреждён"
+[ -f "$dir/$stem.manifest.age" ] || fail "нет $stem.manifest.age рядом с дампом"
+age -d -i "$AGE_IDENTITY" -o "$work/$stem.manifest" "$dir/$stem.manifest.age" 2>/dev/null \
+  || fail "manifest не расшифровывается этим ключом или повреждён"
+mf="$work/$stem.manifest"
 [ -f "$mf" ] || fail "нет manifest для $name"
 
 # ---- 2. Целостность и читаемость ----
@@ -77,7 +97,9 @@ echo "ok - оглавление дампа читается"
 
 # ---- 3. Восстановление в локальную базу ----
 "$PSQL" "$TEST_PG_URL/postgres" -X -q -v ON_ERROR_STOP=1 \
-  -c "drop database if exists $DB" -c "create database $DB"
+  -c "create database \"$DB\"" || die "не удалось создать новую базу $DB (существующие базы не трогаются)"
+created=1
+"$PSQL" "$TEST_PG_URL/postgres" -X -q -v ON_ERROR_STOP=1 -c "comment on database \"$DB\" is '$MARK'"
 # Роли, которые Supabase создаёт сама. Без них GRANT из дампа падает.
 "$PSQL" "$TEST_PG_URL/$DB" -X -q -v ON_ERROR_STOP=1 <<'SQL'
 do $$ begin
@@ -122,8 +144,5 @@ if [ -n "$not_applied" ]; then echo "$not_applied" | sed 's/^/   не приме
 elapsed=$(( $(date +%s) - started ))
 echo "время проверки: ${elapsed} с (для RTO: восстановление на боевом объёме займёт больше, см. db/ops/BACKUP.md)"
 
-if [ "${KEEP_RESTORE_DB:-0}" != 1 ]; then
-  "$PSQL" "$TEST_PG_URL/postgres" -X -q -c "drop database if exists $DB" >/dev/null
-  echo "ok - тестовая база $DB удалена (KEEP_RESTORE_DB=1 оставит её)"
-fi
+echo "тестовая база этого запуска: $DB (удаляется при выходе, KEEP_RESTORE_DB=1 оставит её)"
 echo "ПРОЙДЕНО: $name"
