@@ -1,7 +1,7 @@
 -- pgTAP: статусы заказов экипировки, история и текст требования к форме (0098, #240).
 begin;
 create extension if not exists pgtap;
-select plan(16);
+select plan(18);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -56,6 +56,11 @@ select throws_ok($$insert into equipment_order_status_history (order_id, status)
 
 select as_user('00000000-0000-0000-0000-0000000000b3');
 select is((select count(*)::int from equipment_order_status_history where order_id = (select id from ids where k = 'o1')), 0, 'история чужого ребёнка родителю не видна');
+
+-- 0185 (#471 PR-1): назад в «Новый» нельзя, «Отменён» не ставится сменой статуса
+select as_user('00000000-0000-0000-0000-0000000000a1');
+select throws_ok($$select eq_set_order_status((select id from ids where k = 'o3'), 'new')$$, '22023', 'bad transition', '0185: «Принят в заказ» → «Новый» нельзя');
+select throws_ok($$select eq_set_order_status((select id from ids where k = 'o3'), 'cancelled')$$, '22023', 'bad status', '0185: отмена только через eq_cancel_order');
 
 -- требование к форме: утверждённый текст по умолчанию, затем правка администратором; club_settings родителю закрыта
 select ok(equipment_requirement() like '%обязателен для всех воспитанников%', 'по умолчанию отдаётся утверждённый текст');
