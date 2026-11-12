@@ -99,6 +99,14 @@ describe('«Приём оплат»', () => {
     await waitFor(() => expect(fake.rpcCalls('session_guest_set_paid')[0]).toMatchObject({ s: 's9', p: 'p1', is_paid: true, mth: 'Наличные', amt: 15 }));
   });
 
+  it('#471 Ф9: отменённый заказ экипировки к оплате не предлагается', async () => {
+    seed();
+    (fake.db.equipment_orders as Record<string, unknown>[]).push({ id: 'o9', player_id: 'p1', ordered_on: '2026-09-12', total: 300, paid: 0, status: 'cancelled', equipment_order_lines: [{ kit: 'Дождевик' }] });
+    await openPlayer();
+    expect(await screen.findByText('Форма + Куртка')).toBeInTheDocument();
+    expect(screen.queryByText('Дождевик')).not.toBeInTheDocument();
+  });
+
   it('экипировка, индивидуальные, доп. тренировки и сборы платятся через свои функции', async () => {
     seed();
     fake.rpc.eq_add_payment = () => 160;

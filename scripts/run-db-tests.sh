@@ -6,6 +6,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 DB="${DB_NAME:-kickstart_test}"
 PSQL="${PSQL:-psql}"
+# shellcheck source=lib/local-db-guard.sh
+. scripts/lib/local-db-guard.sh
+local_db_guard "$PSQL" || exit 2
 
 $PSQL -q -d postgres -c "drop database if exists $DB" -c "create database $DB"
 run() { $PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f "$1"; }

@@ -31,4 +31,17 @@ describe('Оплата у родителя: все виды', () => {
     expect(screen.getByText(/Разовое посещение: U9-B · 11.11.2026/)).toBeInTheDocument();
     expect(screen.getByText(/Разовые посещения · внесено 0 ₾ из 15 ₾/)).toBeInTheDocument();
   });
+
+  it('#471 Ф9: отменённый заказ с оплатой показан с подписью «Отменён» и в «К оплате» не входит', async () => {
+    fake.db.player_guardians = [{ user_id: 'u', consent_revoked_at: null, players: { id: 'p1', full_name: 'Аня' } }];
+    fake.db.payments = [];
+    fake.rpc.parent_debts = () => [];
+    fake.rpc.parent_dues = () => [
+      { player_id: 'p1', kind: 'eq', title: 'Форма', on_date: '2026-09-10', due: 160, paid: 60, debt: 100 },
+      { player_id: 'p1', kind: 'eq', title: 'Отменён: Дождевик', on_date: '2026-09-12', due: 0, paid: 50, debt: 0 },
+    ];
+    render(<Payments />);
+    expect(await screen.findByText('К оплате: 100 ₾')).toBeInTheDocument();
+    expect(screen.getByText(/Отменён: Дождевик · 12.09.2026/)).toBeInTheDocument();
+  });
 });
