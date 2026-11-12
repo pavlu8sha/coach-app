@@ -5,7 +5,7 @@ import { EmptyState, Pill } from '../ui/components';
 import { Loading } from './Message';
 import PointsLedger from './PointsLedger';
 import { gel } from './MonthPayments';
-import { issueUnits, lastStatusDate, orderStatusLabel, useEquipmentRequirement, type StatusEvent } from '../lib/equipment';
+import { isCancelled, issueUnits, lastStatusDate, orderDue, orderStatusLabel, useEquipmentRequirement, type StatusEvent } from '../lib/equipment';
 
 // Вкладки карточки игрока (только просмотр; платежи — вкладки «Абонемент» и «К оплате»). Каждая вкладка читает свои таблицы по player_id.
 function useRows<T>(load: () => PromiseLike<{ data: unknown; error: { message: string } | null }>, deps: unknown[]) {
@@ -56,7 +56,7 @@ export function EquipmentTab({ playerId, staff = false }: { playerId: string; st
   if (!rows) return <Loading />;
   const note = staff ? null : <p className="ks-callout" style={{ marginTop: 0, whiteSpace: 'pre-line' }}>{requirement}</p>;
   if (rows.length === 0) return <>{note}<EmptyState icon="box" title="Заказов нет" text="У игрока нет заказов экипировки." /></>;
-  const playerNumber = [...rows].sort((x, y) => (y.ordered_on ?? '').localeCompare(x.ordered_on ?? '')).map(o => (o.number ?? '').trim()).find(Boolean);
+  const playerNumber = [...rows].filter(o => !isCancelled(o)).sort((x, y) => (y.ordered_on ?? '').localeCompare(x.ordered_on ?? '')).map(o => (o.number ?? '').trim()).find(Boolean);
   return (
     <>
       {note}
@@ -64,10 +64,13 @@ export function EquipmentTab({ playerId, staff = false }: { playerId: string; st
       {rows.map(o => {
         const kits = [...new Set(o.equipment_order_lines.map(l => l.kit))];
         const { issued, total: units, full } = issueUnits(o.equipment_order_lines, o.equipment_issues);
-        const left = Number(o.total) - Number(o.paid);
+        const left = orderDue(o); // у отменённого заказа к оплате 0 (0185)
+        const pill = isCancelled(o)
+          ? <Pill tone="neutral" dot>{Number(o.paid) > 0 ? `Отменён, оплачено ${gel(Number(o.paid))}` : 'Отменён'}</Pill>
+          : <Pill tone={left <= 0 ? 'success' : 'danger'} dot>{left <= 0 ? 'Оплачен' : `${gel(Number(o.paid))} из ${gel(Number(o.total))}`}</Pill>;
         return (
           <div className="ks-card" key={o.id}>
-            <div className="ks-line"><b style={{ overflowWrap: 'anywhere' }}>{kits.join(' + ') || 'Заказ'}</b><Pill tone={left <= 0 ? 'success' : 'danger'} dot>{left <= 0 ? 'Оплачен' : `${gel(Number(o.paid))} из ${gel(Number(o.total))}`}</Pill></div>
+            <div className="ks-line"><b style={{ overflowWrap: 'anywhere' }}>{kits.join(' + ') || 'Заказ'}</b>{pill}</div>
             <div className="ks-muted" style={{ fontSize: 13 }}>{[o.ordered_on ? fmtDate(o.ordered_on) : 'без даты', o.number ? `№ ${o.number}` : null, o.installment ? 'рассрочка' : null].filter(Boolean).join(' · ')}</div>
             <div className="ks-muted" style={{ fontSize: 13 }}>Статус: <b>{orderStatusLabel(o.status)}</b>{lastStatusDate(o.equipment_order_status_history) ? ` · с ${fmtDate(lastStatusDate(o.equipment_order_status_history) as string)}` : ''}</div>
             <div className="ks-muted" style={{ fontSize: 13 }}>Выдано: {issued} из {units}{full ? ' (всё)' : ''}</div>

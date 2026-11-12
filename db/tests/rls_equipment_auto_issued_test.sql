@@ -1,7 +1,7 @@
 -- pgTAP: статус заказа экипировки следует за выдачей (0132).
 begin;
 create extension if not exists pgtap;
-select plan(9);
+select plan(12);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -46,6 +46,13 @@ select is((select count(*)::int from equipment_order_status_history where order_
 select throws_ok($$select eq_set_order_status((select id from ids where k = 'o1'), 'issued')$$, '22023', 'not all issued', 'вручную «Выдан» нельзя, пока не выданы все вещи');
 select eq_set_issued((select id from ids where k = 'o1'), 'Костюм', true);
 select is((select status from equipment_orders where id = (select id from ids where k = 'o1')), 'issued', 'выдали последнюю вещь: «Выдан»');
+
+-- 0185 (#471 PR-1): отменённый выданный заказ автостатус не трогает, после восстановления статус прежний
+select eq_cancel_order((select id from ids where k = 'o1'), 'проверка');
+select is((select status from equipment_orders where id = (select id from ids where k = 'o1')), 'cancelled', '0185: отменённый заказ остаётся «Отменён», хотя выдано всё');
+select throws_ok($$select eq_set_issued((select id from ids where k = 'o1'), 'Костюм', false)$$, '22023', 'order cancelled', '0185: выдачу отменённого не снять, автостатус не сработает');
+select eq_restore_order((select id from ids where k = 'o1'), null);
+select is((select status from equipment_orders where id = (select id from ids where k = 'o1')), 'issued', '0185: после восстановления снова «Выдан»');
 
 select * from finish();
 rollback;
