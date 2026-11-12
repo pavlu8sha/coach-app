@@ -4,7 +4,8 @@
 -- Сначала выполните блок «ПРОВЕРКА» (только чтение), посмотрите строки, потом блок «ПРИМЕНЕНИЕ».
 --
 -- Что меняется: даты 2027-01-02..2027-01-09, место «Hotel Surami», бронь 500 до 2026-12-05, полная оплата до 2026-12-20,
--- тариф «Футболист» 1350, тариф «Футболист + 2 родителя» 3100 (прежний «Ребёнок + 2 родителя» переименовывается), тариф «Ребёнок + 1 родитель» отключается (active=false, не удаляется).
+-- тариф «Футболист» 1350, тариф «Футболист + 2 родителя» 3100 (прежний «Ребёнок + 2 родителя» переименовывается), тариф «Ребёнок + 1 родитель» отключается (active=false, не удаляется). Названия сравниваются без учёта регистра, «ё»/«е» и лишних пробелов.
+-- Записи на старых тарифах пересчитывает отдельный файл db/ops/camp-surami-2027-reprice.sql (после этого файла): «Футболист» остаётся «Футболистом» с новой ценой, любой другой тариф становится «Футболист + 2 родителя» (решение Павла 12.11).
 -- Что НЕ меняется: суммы уже записанных участников (camp_participants.amount), платежи, прежние версии условий отмены (журнал только добавляется), вместимость, ссылка.
 
 -- ===== ПРОВЕРКА (только чтение) =====
@@ -28,11 +29,11 @@ begin
                    booking_fee = 500, booking_deadline = date '2026-12-05', full_payment_deadline = date '2026-12-20'
    where id = cid;
 
-  update camp_tariffs set price = 1350 where camp_id = cid and name = 'Футболист';
+  update camp_tariffs set price = 1350 where camp_id = cid and regexp_replace(replace(lower(name), 'ё', 'е'), '\s+', ' ', 'g') = 'футболист';
   get diagnostics t1 = row_count;
-  update camp_tariffs set price = 3100, name = 'Футболист + 2 родителя' where camp_id = cid and name = 'Ребёнок + 2 родителя';
+  update camp_tariffs set price = 3100, name = 'Футболист + 2 родителя' where camp_id = cid and regexp_replace(replace(lower(name), 'ё', 'е'), '\s+', ' ', 'g') = 'ребенок + 2 родителя';
   get diagnostics t2 = row_count;
-  update camp_tariffs set active = false where camp_id = cid and name = 'Ребёнок + 1 родитель';
+  update camp_tariffs set active = false where camp_id = cid and regexp_replace(replace(lower(name), 'ё', 'е'), '\s+', ' ', 'g') = 'ребенок + 1 родитель';
   get diagnostics t3 = row_count;
   if t1 <> 1 or t2 <> 1 or t3 <> 1 then
     raise exception 'тарифы не совпали с ожидаемыми (Футболист: %, Ребёнок + 2 родителя: %, Ребёнок + 1 родитель: %): проверьте названия в блоке ПРОВЕРКА', t1, t2, t3;
@@ -51,4 +52,4 @@ commit;
 insert into camp_cancel_terms (camp_id, version, periods)
 select c.id, coalesce((select max(version) from camp_cancel_terms k where k.camp_id = c.id), 0) + 1, '[]'::jsonb
   from camps c where c.name ilike '%winter%camp%2027%'
- having (select count(*) from camps where name ilike '%winter%camp%2027%') = 1;
+   and (select count(*) from camps where name ilike '%winter%camp%2027%') = 1;
