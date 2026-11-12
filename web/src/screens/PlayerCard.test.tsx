@@ -53,6 +53,16 @@ describe('карточка игрока: вкладки', () => {
     expect(screen.getByText('Выдано: 1 из 2')).toBeInTheDocument();
   });
 
+  it('#471 Ф9: отменённый заказ подписан «Отменён», долгом не считается', async () => {
+    seed();
+    (fake.db.equipment_orders as Record<string, unknown>[]).push({ id: 'o9', player_id: 'p1', ordered_on: '2026-09-12', total: 300, paid: 50, installment: false, number: '9', status: 'cancelled', equipment_order_lines: [{ kit: 'Дождевик', size: '140', quantity: 1 }], equipment_issues: [] });
+    render(<PlayerCard player={player} onBack={() => {}} onEdit={() => {}} />);
+    open('Экипировка');
+    expect(await screen.findByText('Отменён, оплачено 50 ₾')).toBeInTheDocument();
+    expect(screen.getByText('Номер игрока:')).toHaveTextContent('7'); // номер отменённого заказа не берётся
+    expect(screen.getByText('100 ₾ из 160 ₾')).toBeInTheDocument();
+  });
+
   it('«Матчи»: сыгранные матчи, счёт и голы', async () => {
     seed();
     render(<PlayerCard player={player} onBack={() => {}} onEdit={() => {}} />);

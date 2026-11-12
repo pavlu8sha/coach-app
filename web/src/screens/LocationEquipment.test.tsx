@@ -24,6 +24,14 @@ describe('Выдача формы локальным админом', () => {
     expect(screen.getByText('Сидоров Ян')).toBeInTheDocument();
   });
 
+  it('#471 Ф9: отменённые заказы локальному админу не показываются даже во «Всех заказах»', async () => {
+    (fake.db.equipment_orders as Record<string, unknown>[]).push({ ...order('o9', 'Отменов Лев', 'Isani'), status: 'cancelled' });
+    render(<LocationEquipment />);
+    expect(await screen.findByText('Иванов Пётр')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Все заказы' }));
+    expect(screen.queryByText('Отменов Лев')).not.toBeInTheDocument();
+  });
+
   it('отмечает выдачу комплекта после подтверждения; кнопки «снять» нет', async () => {
     fake.rpc.eq_set_issued = () => null;
     render(<LocationEquipment />);
