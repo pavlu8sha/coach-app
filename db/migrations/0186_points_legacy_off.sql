@@ -147,4 +147,29 @@ end $$;
 revoke execute on function save_match_tech(uuid, uuid, text, date, text, int, int, jsonb, boolean) from public, anon;
 grant execute on function save_match_tech(uuid, uuid, text, date, text, int, int, jsonb, boolean) to authenticated;
 
+-- notify_points_ledger (тело 0130): повторное создание строки того же источника не уведомляет.
+-- Снятие points_start возвращает закрытую строку матча как новую; без этой проверки родитель получил бы то же уведомление второй раз.
+create or replace function notify_points_ledger() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare child text; txt text;
+begin
+  if new.status <> 'active' or new.supersedes_id is not null or new.points <= 0 then return null; end if;
+  if new.source_type not in ('manual', 'match') then return null; end if;
+  if new.event_date < tbilisi_day(now()) - 7 then return null; end if;
+  if exists (select 1 from points_ledger o
+              where o.player_id = new.player_id and o.source_type = new.source_type and o.source_id = new.source_id and o.id <> new.id) then
+    return null;
+  end if;
+  select full_name into child from players where id = new.player_id;
+  if new.source_type = 'manual' then
+    txt := coalesce(nullif(new.components ->> 'note', ''), 'баллы от тренера');
+  else
+    txt := 'матч ' || to_char(new.event_date, 'DD.MM')
+        || case new.components ->> 'result' when 'win' then ', победа' when 'draw' then ', ничья' else '' end;
+  end if;
+  perform enqueue_to_guardians(new.player_id, 'bonus', coalesce(child, 'Ребёнок') || ': +' || new.points || ' — ' || txt);
+  return null;
+end $$;
+revoke execute on function notify_points_ledger() from public, anon, authenticated;
+
 commit;

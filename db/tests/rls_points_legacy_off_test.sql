@@ -3,7 +3,7 @@
 -- изображается парой set constraints all immediate / deferred.
 begin;
 create extension if not exists pgtap;
-select plan(47);
+select plan(51);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -184,6 +184,22 @@ select as_user('00000000-0000-0000-0000-0000000000b1');
 select throws_ok($$select save_match_tech(null, '00000000-0000-0000-0000-0000000000e1', null, tbilisi_day(now()) - 1, 'X', 1, 0, '[]', false)$$, '42501', null,
   'родитель не может сохранить матч через save_match_tech');
 reset role;
+
+-- 9. Снятие даты старта не шлёт родителю повторное уведомление о том же матче
+select as_user('00000000-0000-0000-0000-0000000000c1');
+select lives_ok($$select save_match(null, '00000000-0000-0000-0000-0000000000e1', tbilisi_day(now()) - 2, 'Повтор', 2, 0, '[{"player_id":"00000000-0000-0000-0000-00000000d001","played":true,"goals":0,"best":false}]')$$,
+  'матч за последнюю неделю сохранён');
+reset role;
+set constraints all immediate; set constraints all deferred;
+create temp table nb2 as select n_bonus() as c;
+select ok((select count(*) from points_ledger l join matches m on m.id = l.source_id where m.opponent = 'Повтор' and l.status = 'active') = 1, 'строка матча в журнале есть');
+insert into club_settings (club_id, key, value, scope, updated_at)
+  values ('00000000-0000-0000-0000-00000000c001', 'points_start', to_char(tbilisi_day(now()) + 1, 'YYYY-MM-DD'), '', current_date);
+set constraints all immediate; set constraints all deferred;
+delete from club_settings where key = 'points_start';
+set constraints all immediate; set constraints all deferred;
+select is((select count(*)::int from points_ledger l join matches m on m.id = l.source_id where m.opponent = 'Повтор' and l.status = 'active'), 1, 'после снятия даты старта строка матча вернулась');
+select is(n_bonus(), (select c from nb2), 'повторного уведомления о том же матче нет');
 
 select * from finish();
 rollback;
