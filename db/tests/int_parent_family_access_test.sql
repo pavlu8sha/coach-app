@@ -5,7 +5,7 @@
 -- Данные вымышленные. Реальных отправок нет (только строки в notifications).
 begin;
 create extension if not exists pgtap;
-select plan(34);
+select plan(35);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -114,6 +114,8 @@ select is((select count(*) filter (where player_id not in (select pid from mine)
 select is((select string_agg(x->>'name', ',') from booking_board() b, jsonb_array_elements(b.mine) x), 'Аня', 'booking_board: в «моих записях» только свой ребёнок, хотя Боря записан туда же');
 select throws_ok($$select * from parent_calendar('00000000-0000-0000-0000-00000000d003', (now() at time zone 'Asia/Tbilisi')::date - 10, (now() at time zone 'Asia/Tbilisi')::date)$$,
   '42501', 'forbidden', 'parent_calendar чужого ребёнка: отказ');
+select is((select string_agg(event_id || ':' || coalesce(attendance_status, '-'), ',' order by event_id) from parent_calendar('00000000-0000-0000-0000-00000000d002', (now() at time zone 'Asia/Tbilisi')::date - 10, (now() at time zone 'Asia/Tbilisi')::date) where event_type = 'training'),
+  'session:00000000-0000-0000-0000-0000000005a2:present', 'parent_calendar своего ребёнка: его посещённая тренировка группы с отметкой (положительный сценарий до смены группы)');
 select ok(position('Боря' in export_my_data()::text) = 0 and position('Аня' in export_my_data()::text) > 0, 'export_my_data: в выгрузке нет чужого ребёнка, свой есть');
 
 -- ===== 2. Второй опекун одного ребёнка: видит общего ребёнка, но не других детей первого родителя =====
