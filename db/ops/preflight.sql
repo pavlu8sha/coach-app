@@ -191,7 +191,8 @@ with m(migration, applied) as (values
     and to_regproc('payment_history_guard') is not null and to_regproc('payment_history_audit') is not null
     and to_regproc('subscription_closure_guard') is not null and to_regproc('player_delete_audit') is not null
     and to_regproc('fee_player_cascade_guard') is not null and not has_table_privilege('authenticated', 'players', 'delete')
-  ), false))
+  ), false)),
+  ('0180_function_acl', coalesce((select count(*) = 0 from unnest(array['apply_match_points(uuid)', 'award_bonus(uuid,integer,text)', 'cancel_link(uuid)', 'debt_start()', 'debtors(date)', 'decide_link(uuid,boolean)', 'delete_match(uuid)', 'erase_parent(uuid)', 'export_my_data()', 'group_parents(uuid)', 'mark_attendance(uuid,jsonb)', 'open_session(uuid,date)', 'parent_debts()', 'recalc_match_points(uuid)', 'reject_data_request(uuid,text)', 'request_data_deletion()', 'request_link(uuid,text)', 'retry_link(uuid)', 'revoke_bonus(uuid)', 'revoke_consent(uuid)', 'rule_for(uuid,text,date)', 'save_match(uuid,uuid,date,text,integer,integer,jsonb)', 'search_players_for_link(text)', 'tariff_for(uuid,uuid,date)', 'tbilisi_day(timestamptz)']) s where has_function_privilege('anon', s, 'execute')) and (select count(*) = 0 from unnest(array['apply_match_points(uuid)', 'debt_start()', 'points_rules_for(uuid,date)', 'rule_for(uuid,text,date)', 'tariff_for(uuid,uuid,date)']) s where has_function_privilege('authenticated', s, 'execute')), false))
 )
 -- note для 0176 (требует 0173 и 0175): applied | ready | blocked: ... | inconsistent: ... | ambiguous: ... | unknown: ... (NULL не приводится к false).
 select m.migration, m.applied,
