@@ -179,6 +179,17 @@ with m(migration, applied) as (values
   ('0174_booking_cancel_notice', coalesce((select position('Отмена записи на занятие' in prosrc) > 0 from pg_proc where proname = 'booking_cancel' limit 1) and (select position('Индивидуальные / Дополнительные' in prosrc) = 0 from pg_proc where proname = 'booking_signup' limit 1), false)),
   ('0176_consent_claim_check', (exists (select 1 from information_schema.columns where table_name = 'notifications' and column_name = 'player_ids') and exists (select 1 from information_schema.columns where table_name = 'notifications' and column_name = 'consent_check_attempts') and exists (select 1 from pg_proc where oid = to_regprocedure('claim_notifications(integer)') and position('parent_access_ok' in prosrc) > 0) and to_regprocedure('camp_broadcast_player_ids(uuid,uuid)') is not null)),
   ('0177_ind_autocreate_topic_offset', coalesce((position($$/ 7 + 2) % array_length$$ in pg_get_functiondef(to_regprocedure('ind_autocreate(date)'))) > 0), false)),
+  ('0179_payment_history_guard', coalesce((
+    (select count(*) = 16 from pg_trigger where not tgisinternal and tgenabled = 'O' and tgname in (
+      'payments_history_guard', 'payments_history_no_truncate', 'payments_history_audit',
+      'match_payments_history_guard', 'match_payments_history_no_truncate', 'match_payments_history_audit',
+      'tournament_payments_history_guard', 'tournament_payments_history_no_truncate', 'tournament_payments_history_audit',
+      'service_payments_history_guard', 'service_payments_history_no_truncate', 'service_payments_history_audit',
+      'subscriptions_closed_no_delete', 'players_delete_audit', 'match_fees_player_cascade_guard', 'tournament_fees_player_cascade_guard'))
+    and to_regproc('payment_history_guard') is not null and to_regproc('payment_history_audit') is not null
+    and to_regproc('subscription_closure_guard') is not null and to_regproc('player_delete_audit') is not null
+    and to_regproc('fee_player_cascade_guard') is not null and not has_table_privilege('authenticated', 'players', 'delete')
+  ), false)),
   ('0180_function_acl', coalesce((select count(*) = 0 from unnest(array['apply_match_points(uuid)', 'award_bonus(uuid,integer,text)', 'cancel_link(uuid)', 'debt_start()', 'debtors(date)', 'decide_link(uuid,boolean)', 'delete_match(uuid)', 'erase_parent(uuid)', 'export_my_data()', 'group_parents(uuid)', 'mark_attendance(uuid,jsonb)', 'open_session(uuid,date)', 'parent_debts()', 'recalc_match_points(uuid)', 'reject_data_request(uuid,text)', 'request_data_deletion()', 'request_link(uuid,text)', 'retry_link(uuid)', 'revoke_bonus(uuid)', 'revoke_consent(uuid)', 'rule_for(uuid,text,date)', 'save_match(uuid,uuid,date,text,integer,integer,jsonb)', 'search_players_for_link(text)', 'tariff_for(uuid,uuid,date)', 'tbilisi_day(timestamptz)']) s where has_function_privilege('anon', s, 'execute')) and (select count(*) = 0 from unnest(array['apply_match_points(uuid)', 'debt_start()', 'points_rules_for(uuid,date)', 'rule_for(uuid,text,date)', 'tariff_for(uuid,uuid,date)']) s where has_function_privilege('authenticated', s, 'execute')), false))
 )
 -- note для 0176 (требует 0173 и 0175): applied | ready | blocked: ... | inconsistent: ... | ambiguous: ... | unknown: ... (NULL не приводится к false).
