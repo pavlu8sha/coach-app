@@ -16,7 +16,7 @@ jobs:
         with:
           node-version: 24
       - name: node --test (приложение, импорт, вход через Telegram)
-        run: node --test tests/preflight-coverage.test.mjs tests/consent-legacy-guard.test.mjs tests/eq471-pr0.test.mjs tests/import/*.test.mjs tests/edge/*.test.mjs
+        run: node --test tests/preflight-coverage.test.mjs tests/consent-legacy-guard.test.mjs tests/eq471-pr0.test.mjs tests/import/*.test.mjs tests/edge/*.test.mjs tests/ops/backup-scripts.test.mjs
 
   edge:
     runs-on: ubuntu-latest
@@ -40,6 +40,11 @@ jobs:
           sudo -u postgres psql -c "create role runner superuser login"
       - name: Миграции и pgTAP-тесты доступа (RLS)
         run: PSQL="psql -h /var/run/postgresql -U runner" scripts/run-db-tests.sh
+      - name: Резервные копии (REL-01) на локальном PostgreSQL
+        run: |
+          sudo apt-get install -y age
+          sudo -u postgres psql -c "alter role runner password 'ci-only'"
+          BACKUP_IT_PG_URL=postgresql://runner@localhost:5432 PGPASSWORD=ci-only node --test tests/ops/backup-integration.test.mjs
 
   web:
     runs-on: ubuntu-latest
