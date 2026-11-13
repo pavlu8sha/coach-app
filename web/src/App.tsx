@@ -242,7 +242,7 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
           value={cur}
           onChange={setTab}
           items={[
-            { value: 'home', label: 'Мои баллы', icon: 'child' },
+            { value: 'home', label: 'Главная', icon: 'child' },
             ...(linked ? [{ value: 'matches' as const, label: 'Матчи', icon: 'trophy' as const }] : []),
             { value: 'schedule', label: 'Расписание', icon: 'calendar' },
             { value: 'about', label: 'О клубе', icon: 'user' },

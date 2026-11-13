@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNav, useSubEntry } from '../nav';
 import { peekCampSlug, takeCampSlug } from '../lib/startParam';
 import { supabase } from '../lib/supabase';
-import { fetchLedgerTotals } from '../lib/pointsLedger';
 import { Avatar, EmptyState, ListRow, Pill } from '../ui/components';
 import Link, { HideWhen, useLinkPolicyOpen } from './Link';
 import LinkOnboarding from './LinkOnboarding';
@@ -10,23 +9,16 @@ import LinkStatus, { STATUS, type Req } from './LinkStatus';
 import { Failure, Loading } from './Message';
 import ParentCamps from './ParentCamps';
 import PlayerProfile from './PlayerProfile';
-import PointsLedger from './PointsLedger';
 
 interface Child {
   id: string;
   name: string;
   group: string | null;
-  points: number;
   played: number;
   goals: number;
 }
 
-const plural = (n: number) => {
-  const a = Math.abs(n);
-  return a % 10 === 1 && a % 100 !== 11 ? 'балл' : a % 10 >= 2 && a % 10 <= 4 && (a % 100 < 10 || a % 100 >= 20) ? 'балла' : 'баллов';
-};
-
-// Карточка ребёнка: имя, группа, сумма баллов и история начислений по новому журналу. Других детей и голов здесь нет.
+// Карточка ребёнка: имя, группа, сыгранные матчи и вход в профиль (баллы — во вкладке «Баллы» профиля). Других детей здесь нет.
 function ChildCard({ c, onProfile }: { c: Child; onProfile: () => void }) {
   return (
     <section className="ks-card ks-kid" aria-label={c.name}>
@@ -36,16 +28,11 @@ function ChildCard({ c, onProfile }: { c: Child; onProfile: () => void }) {
           <h2>{c.name}</h2>
           {c.group && <p className="muted">{c.group}</p>}
         </div>
-        <div className="ks-kid-score" aria-label={`${c.points} ${plural(c.points)}`}>
-          <strong>{c.points}</strong>
-          <span>{plural(c.points)}</span>
-        </div>
       </div>
       <p className="muted ks-kid-stats">Матчей сыграно: {c.played} · голов: {c.goals}</p>
       <button type="button" className="ks-btn secondary" onClick={onProfile} aria-label={`Профиль игрока: ${c.name}`}>
         Профиль игрока
       </button>
-      <PointsLedger playerId={c.id} showEmpty />
     </section>
   );
 }
@@ -100,8 +87,6 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
         group: (l.players?.groups?.name ?? null) as string | null,
       })).filter(k => k.id);
       const ids = kids.map(k => k.id);
-      const led = ids.length ? await fetchLedgerTotals(ids) : { totals: {} as Record<string, number>, error: null };
-      if (led.error) return setError(led.error);
       // Голы и матчи видны только своему ребёнку: чужие карточки родитель не получает (RLS), других детей здесь нет
       const mp = ids.length
         ? await supabase.from('match_players').select('player_id, played, goals').in('player_id', ids)
@@ -114,7 +99,7 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
       setChildren(
         kids.map(k => {
           const played = parts.filter(p => p.player_id === k.id);
-          return { ...k, points: led.totals[k.id] ?? 0, played: played.filter(p => p.played).length, goals: played.reduce((s, p) => s + (p.goals ?? 0), 0) };
+          return { ...k, played: played.filter(p => p.played).length, goals: played.reduce((s, p) => s + (p.goals ?? 0), 0) };
         }),
       );
     })();
