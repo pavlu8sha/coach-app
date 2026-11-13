@@ -56,6 +56,23 @@ describe('«Сборы»', () => {
     expect(fake.rpcCalls('camp_pay')[0]).toMatchObject({ pid: 'cp2', amt: 250.5, k: 'payment', mth: 'Наличные' });
   });
 
+  it.each([
+    ['not registered', 'Запись не активна: платёж не принимается.'],
+    ['duplicate payment', 'Такой платёж только что внесён.'],
+  ])('платёж: ошибка %s показывается понятным текстом (аудит C-05)', async (code, text) => {
+    seed();
+    fake.rpc.camp_pay = () => ({ error: { message: code } });
+    render(<Camps />);
+    fireEvent.click(await screen.findByText('Зимний лагерь'));
+    fireEvent.click(await screen.findByText('Сидоров Ян'));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Оплата' }));
+    fireEvent.change(screen.getAllByLabelText('Сумма, ₾')[0], { target: { value: '100' } });
+    fireEvent.change(screen.getByLabelText(/^Способ/), { target: { value: 'Наличные' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Записать платёж' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
+    expect(await screen.findByText(text)).toBeInTheDocument();
+  });
+
   it('отмена платежа и повторная отмена с понятным сообщением', async () => {
     seed();
     fake.rpc.camp_cancel_payment = () => ({ error: { message: 'already cancelled' } });
