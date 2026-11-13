@@ -301,7 +301,7 @@ describe('«Новое событие»', () => {
     expect(screen.getByLabelText('Группа')).toHaveValue('g2');
   });
 
-  it('«Добавить матч»: галочка «Матч только этой группы» оставляет в составе детей группы и вызывает set_match_team_group', async () => {
+  it('«Добавить матч»: выбор группы U13-B оставляет в составе детей группы и записывает команду матча U13-B', async () => {
     seed();
     const ab = [{ id: 'g1', name: 'U13-A' }, { id: 'g2', name: 'U13-B' }];
     fake.db.matches = [];
@@ -316,36 +316,26 @@ describe('«Новое событие»', () => {
     fireEvent.click(await screen.findByText('Добавить матч'));
     fireEvent.click(within(screen.getByLabelText('Добавить матч')).getByText('U13'));
     expect(await screen.findByRole('heading', { name: 'Новый матч' })).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: /Матч только этой группы/ })).not.toBeInTheDocument(); // отдельной галочки нет
     fireEvent.change(screen.getByLabelText('Группа'), { target: { value: 'g2' } });
-    const box = await screen.findByRole('checkbox', { name: 'Матч только этой группы (U13-B)' });
-    expect(box).not.toBeChecked(); // по умолчанию поведение прежнее: команда U13
     expect(await screen.findByText('Беридзе Бека')).toBeInTheDocument();
-    expect(screen.getByText('Алиев Анар')).toBeInTheDocument();
-    fireEvent.click(box);
-    await waitFor(() => expect(screen.queryByText('Алиев Анар')).not.toBeInTheDocument());
-    expect(screen.getByText('Беридзе Бека')).toBeInTheDocument();
+    expect(screen.queryByText('Алиев Анар')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить матч' }));
     await waitFor(() => expect(fake.rpcCalls('set_match_team_group')).toHaveLength(1));
     expect(fake.rpcCalls('set_match_team_group')[0]).toEqual({ m: 'm-b', g: 'g2', exact: true });
-    // после сохранения состав остаётся только группы U13-B, не расширяется до всей команды U13
+    // после сохранения состав остаётся только группы
     await screen.findByText(/Матч сохранён/);
     expect(screen.queryByText('Алиев Анар')).not.toBeInTheDocument();
-    expect(screen.getAllByText('Беридзе Бека').length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: 'Править состав' }));
     expect(screen.queryByText('Алиев Анар')).not.toBeInTheDocument();
   });
 
-  it('«Добавить матч»: без галочки set_match_team_group не вызывается', async () => {
+  it('«Добавить матч»: группа без буквы (U11) команду матча не меняет', async () => {
     seed();
-    const ab = [{ id: 'g1', name: 'U13-A' }, { id: 'g2', name: 'U13-B' }];
-    fake.db.matches = [];
-    fake.rpc.save_match = () => 'm-b';
     fake.rpc.set_match_team_group = () => null;
-    render(<CoachMatches groups={ab} allTeams />);
+    render(<CoachMatches groups={allGroups} allTeams />);
     fireEvent.click(await screen.findByText('Добавить матч'));
-    fireEvent.click(within(screen.getByLabelText('Добавить матч')).getByText('U13'));
-    await screen.findByRole('heading', { name: 'Новый матч' });
-    fireEvent.change(screen.getByLabelText('Группа'), { target: { value: 'g2' } });
+    fireEvent.click(within(screen.getByLabelText('Добавить матч')).getByText('U11'));
     fireEvent.click(await screen.findByRole('button', { name: 'Сохранить матч' }));
     await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
     expect(fake.rpcCalls('set_match_team_group')).toHaveLength(0);
