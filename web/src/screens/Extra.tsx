@@ -17,7 +17,7 @@ interface DebtRow { session_id: string; player_id: string; players: { full_name:
 const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
 const METHODS = ['Наличные', 'Перевод'];
 const errText = (m: string) =>
-  m.includes('already booked') ? 'Игрок уже записан.' : m.includes('session full') ? 'Все места заняты (лимит из настроек).' : m.includes('booking is paid') ? 'Сначала отмените оплату.' : m.includes('session has payments') ? 'На тренировке есть оплаты: сумму менять и тренировку удалять нельзя.' : m.includes('session exists') ? 'Тренировка на эту дату уже есть.' : m.includes('session cancelled') ? 'Тренировка отменена.' : m.includes('bad capacity') ? 'Вместимость: число от 1 до 100.' : m.includes('bad amount') ? 'Сумма указана неверно.' : m.includes('end before start') ? 'Окончание должно быть позже начала.' : m.includes('start required') ? 'Укажите время начала.' : coachError(m);
+  m.includes('already booked') ? 'Игрок уже записан.' : m.includes('session full') ? 'Все места заняты (лимит из настроек).' : m.includes('booking is paid') ? 'Сначала отмените оплату.' : m.includes('session has payments') ? 'На тренировке есть оплаты: сумму менять и тренировку удалять нельзя.' : m.includes('session exists') ? 'Тренировка на эту дату уже есть.' : m.includes('session cancelled') ? 'Тренировка отменена.' : m.includes('attendance marked') ? 'У части записей отмечено посещение «Был(а)». Сначала снимите отметки («—»), затем отмените тренировку.' : m.includes('bad capacity') ? 'Вместимость: число от 1 до 100.' : m.includes('bad amount') ? 'Сумма указана неверно.' : m.includes('end before start') ? 'Окончание должно быть позже начала.' : m.includes('start required') ? 'Укажите время начала.' : coachError(m);
 
 // Время занятия «ЧЧ:ММ–ЧЧ:ММ» (миграция 0070); пусто, если время не указано
 const timeSpan = (s: { starts_time: string | null; ends_time: string | null }) => (s.starts_time ? ` ${s.starts_time.slice(0, 5)}${s.ends_time ? `–${s.ends_time.slice(0, 5)}` : ''}` : '');
@@ -212,7 +212,7 @@ function View({ session, onBack }: { session: Session; onBack: () => void }) {
     setMsg({ ok: over === 0, text: over > 0 ? `Вместимость сохранена, но записано на ${over} больше лимита. Записи не удалены: решите, кого убрать.` : 'Вместимость сохранена.' });
   };
   const cancelSession = async () => {
-    if (!(await ask({ title: 'Отменить тренировку?', lines: [['Тренировка', `${fmtDate(session.starts_on)}${timeSpan(session)}`]], note: 'Записи перейдут в историю отмен (раздел «Индивидуальные», вкладка «Отмены»), оплаты не меняются, решение по ним принимаете вы. Новые записи и отметки закроются, баллы не начисляются. Отменить отмену нельзя.', confirmLabel: 'Отменить тренировку', danger: true }))) return;
+    if (!(await ask({ title: 'Отменить тренировку?', lines: [['Тренировка', `${fmtDate(session.starts_on)}${timeSpan(session)}`]], note: 'Все записи перейдут в историю отмен (раздел «Индивидуальные», вкладка «Отмены»), оплаты не меняются, решение по ним принимаете вы. Если у кого-то стоит отметка «Был(а)», отмена не пройдёт: сначала снимите отметку. Новые записи и отметки закроются, баллы не начисляются. Отменить отмену нельзя.', confirmLabel: 'Отменить тренировку', danger: true }))) return;
     if (await run('cancel', () => supabase.rpc('extra_cancel_session', { s: session.id, p_reason: reason }))) setGone(true);
   };
   const togglePaid = async (b: Booking) => {
