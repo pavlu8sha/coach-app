@@ -196,7 +196,7 @@ with m(migration, applied) as (values
     and to_regprocedure('public.subscription_closure_guard()') is not null
     and to_regprocedure('public.player_delete_audit()') is not null
     and to_regprocedure('public.fee_player_cascade_guard()') is not null
-    and not has_table_privilege('authenticated', 'public.players', 'delete')
+    and coalesce((select not has_table_privilege('authenticated', c.oid, 'delete') from pg_class c where c.oid = to_regclass('public.players')), false)
   ), false)),
   ('0180_function_acl', coalesce((
     select bool_and(case when to_regprocedure('public.' || s) is null then false
@@ -210,7 +210,7 @@ with m(migration, applied) as (values
   ('0181_roster_on_date', coalesce((to_regprocedure('public.points_player_on_roster(uuid,date)') is not null and position('points_player_on_roster' in pg_get_functiondef(to_regprocedure('public.mark_attendance(uuid,jsonb)'))) > 0), false)),
   ('0184_notifications_queue_stall', coalesce((to_regprocedure('public.release_notifications(uuid[],uuid)') is not null and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'notifications' and column_name = 'claim_token') and exists (select 1 from pg_proc where oid = to_regprocedure('public.claim_notifications(integer)') and position('stalled' in prosrc) > 0 and position('parent_access_ok' in prosrc) > 0)), false)),
   ('0185_equipment_order_foundation', coalesce((to_regclass('public.equipment_order_events') is not null and to_regprocedure('public.eq_cancel_order(uuid,text)') is not null and to_regprocedure('public.eq_restore_order(uuid,text)') is not null and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'equipment_orders' and column_name = 'status_before_cancel') and (select count(*) = 5 from pg_trigger where not tgisinternal and tgenabled = 'O' and tgname in ('equipment_orders_guard', 'equipment_lines_cancelled_freeze', 'equipment_issues_cancelled_freeze', 'equipment_order_events_immutable', 'equipment_order_events_no_truncate'))), false)),
-  ('0186_points_legacy_off', coalesce((exists (select 1 from pg_trigger where tgrelid = 'public.point_events'::regclass and tgname = 'point_events_archive_freeze' and not tgisinternal) and not exists (select 1 from pg_trigger where tgrelid = 'public.point_events'::regclass and tgname = 'point_events_notify') and to_regprocedure('public.save_match_tech(uuid,uuid,text,date,text,integer,integer,jsonb,boolean)') is not null and not has_function_privilege('authenticated', 'public.award_bonus(uuid,integer,text)', 'execute') and position('points_ledger' in pg_get_functiondef(to_regprocedure('public.export_my_data()'))) > 0), false))
+  ('0186_points_legacy_off', coalesce((exists (select 1 from pg_trigger where tgrelid = 'public.point_events'::regclass and tgname = 'point_events_archive_freeze' and not tgisinternal) and not exists (select 1 from pg_trigger where tgrelid = 'public.point_events'::regclass and tgname = 'point_events_notify') and to_regprocedure('public.save_match_tech(uuid,uuid,text,date,text,integer,integer,jsonb,boolean)') is not null and not coalesce((select has_function_privilege('authenticated', p.oid, 'execute') from pg_proc p where p.oid = to_regprocedure('public.award_bonus(uuid,integer,text)')), true) and position('points_ledger' in pg_get_functiondef(to_regprocedure('public.export_my_data()'))) > 0), false))
 ),
 overrides(migration, status) as (
   select '0047_ind_no_autobook', case
@@ -258,11 +258,15 @@ overrides(migration, status) as (
     ) then 'UNKNOWN'
     else 'APPLIED'
   end
+),
+st(migration, status) as (
+  select m.migration, coalesce(o.status, case when m.applied then 'APPLIED' else 'NOT_APPLIED' end)
+  from m left join overrides o on o.migration = m.migration
 )
 -- note для 0176 (требует 0173 и 0175): applied | ready | blocked: ... | inconsistent: ... | ambiguous: ... | unknown: ... (NULL не приводится к false).
 select m.migration,
        m.applied,
-       coalesce(o.status, case when m.applied then 'APPLIED' else 'NOT_APPLIED' end) as status,
+       st.status,
   case when m.migration = '0176_consent_claim_check' then
     (select case
        when p73 is null or p75 is null or m.applied is null then 'unknown: признак 0173, 0175 или 0176 не определён (NULL)'
@@ -272,13 +276,13 @@ select m.migration,
        when p73 and p75 then 'ready: 0173 и 0175 применены, 0176 можно применять'
        else 'blocked: применять нельзя, сначала ' || case when not p73 and not p75 then '0173, затем 0175' when not p73 then '0173' else '0175' end
      end
-     from (select (select m2.applied from m m2 where m2.migration = '0173_consent_access') as p73,
-                  (select m2.applied from m m2 where m2.migration = '0175_consent_camp_broadcast_audience') as p75,
+     from (select (select s2.status = 'APPLIED' from st s2 where s2.migration = '0173_consent_access') as p73,
+                  (select s2.status = 'APPLIED' from st s2 where s2.migration = '0175_consent_camp_broadcast_audience') as p75,
                   (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'notifications' and column_name = 'player_ids'))::int
                   + (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'notifications' and column_name = 'consent_check_attempts'))::int
                   + (exists (select 1 from pg_proc where oid = to_regprocedure('public.claim_notifications(integer)') and position('parent_access_ok' in prosrc) > 0))::int
                   + (to_regprocedure('public.camp_broadcast_player_ids(uuid,uuid)') is not null)::int as s176) pre)
   end as note
 from m
-left join overrides o on o.migration = m.migration
+join st on st.migration = m.migration
 order by m.migration;

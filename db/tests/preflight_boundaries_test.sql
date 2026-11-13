@@ -3,7 +3,7 @@
 \set pf `cat db/ops/preflight.sql`
 begin;
 create extension if not exists pgtap;
-select plan(29);
+select plan(31);
 
 create temp view pf as :pf;
 
@@ -74,6 +74,8 @@ select is(sst($ddl$do $do$ begin
   execute $q$create or replace function parent_access_ok(parent uuid, player uuid) returns boolean language sql stable security definer set search_path = public, pg_temp as $body$select false$body$$q$;
   execute $q$create function parent_access_ok(text, text) returns boolean language sql as $body$select true /* consent_revoked_at */$body$$q$;
 end $do$$ddl$, '0173_consent_access'), 'NOT_APPLIED', '0173: ожидаемая сигнатура не обновлена, остался overload с токеном = NOT_APPLIED');
+select is(sub($ddl$create function bad_consent_probe2() returns text language sql as 'select ''consent_revoked_at''::text'$ddl$, 'select left(note, 12) from pf where migration = ''0176_consent_claim_check'''), 'inconsistent', '0176: при UNKNOWN у 0173 note не applied (шлюз по status, не по applied)');
+select is(sub('drop trigger consent_mode_guard on club_settings', 'select status from pf where migration = ''0176_consent_claim_check'''), 'APPLIED', '0176: status считается по своим признакам, не зависит от 0173');
 select is(sst('drop trigger consent_mode_guard on club_settings', '0173_consent_access'), 'NOT_APPLIED', '0173: нет consent_mode_guard = NOT_APPLIED');
 
 -- 0176: статус и note должны оставаться согласованными.

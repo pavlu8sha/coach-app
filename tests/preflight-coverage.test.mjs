@@ -78,3 +78,13 @@ test('run-db-tests.sh проверяет статусы, а не скрывае�
   assert.match(runner, /SUPERSEDED/);
   assert.match(runner, /0176_consent_claim_check\|t\|APPLIED\|applied/);
 });
+
+test('preflight.sql не проверяет права по текстовой сигнатуре (падает, если объекта нет)', () => {
+  assert.doesNotMatch(preflight, /has_(function|table)_privilege\('[^']+',\s*'/, 'has_*_privilege по тексту: брать OID через to_regprocedure/to_regclass');
+  assert.doesNotMatch(preflight, /has_(function|table)_privilege\('[^']+',\s*s\s*,/, 'has_*_privilege по переменной-тексту');
+});
+
+test('0176: признаки 0173 и 0175 берутся из status, а не из applied', () => {
+  assert.match(preflight, /s2\.status = 'APPLIED' from st s2 where s2\.migration = '0173_consent_access'/);
+  assert.match(preflight, /s2\.status = 'APPLIED' from st s2 where s2\.migration = '0175_consent_camp_broadcast_audience'/);
+});
