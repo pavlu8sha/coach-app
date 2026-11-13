@@ -47,8 +47,8 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
       if (!showAll) q = q.in('team', groups.map(g => g.name));
       const r = await q.order('played_on', { ascending: false }).limit(showAll ? 150 : 60);
       if (r.error) return setError(r.error.message);
-      const now = Date.now();
-      const list = ((r.data ?? []) as Match[]).filter(m => !isRsvp(m) || (m.lifecycle_status === 'published' && m.starts_at != null && new Date(m.starts_at).getTime() <= now));
+      // матч с подтверждением виден в общем списке сразу после публикации (решение владельца 2026-11-13), черновики и отменённые остаются только на своём экране
+      const list = ((r.data ?? []) as Match[]).filter(m => !isRsvp(m) || m.lifecycle_status === 'published');
       setMatches(list);
       // сколько сыграло в каждом матче; порциями, чтобы не упереться в лимит строк; без доступа список остаётся прежним
       const ids = list.map(m => m.id);
