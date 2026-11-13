@@ -1,7 +1,7 @@
 -- pgTAP: исправления по аудиту сборов (0190; C-03, C-04, C-05, C-09), docs/CAMP_SELF_SIGNUP_ACCEPTANCE.md, условия 72-76.
 begin;
 create extension if not exists pgtap;
-select plan(25);
+select plan(26);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
