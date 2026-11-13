@@ -79,10 +79,10 @@ describe('«Экипировка»', () => {
     render(<Equipment />);
     fireEvent.click(await screen.findByText('Сидоров Ян'));
     fireEvent.change(await screen.findByLabelText(/^Способ оплаты/), { target: { value: 'Наличные' } });
-    fireEvent.change(await screen.findByLabelText(/Сумма, ₾ \(минус/), { target: { value: '500' } });
+    fireEvent.change(await screen.findByLabelText(/Сумма платежа, ₾/), { target: { value: '500' } });
     fireEvent.click(screen.getByRole('button', { name: 'Записать платёж' }));
     expect(await screen.findByText('Оплата больше суммы заказа.')).toBeInTheDocument();
-    expect(fake.rpcCalls('eq_add_payment')).toEqual([{ o: 'o2', amt: 500, d: today(), mth: 'Наличные' }]);
+    expect(fake.rpcCalls('eq_add_payment')).toEqual([{ o: 'o2', amt: 500, d: today(), mth: 'Наличные', req: expect.any(String) }]);
   });
 
   it('#474: в оплате заказа дата по умолчанию сегодня, предыдущую можно выбрать, в RPC уходит она', async () => {
@@ -95,9 +95,9 @@ describe('«Экипировка»', () => {
     expect(dateInput).toHaveAttribute('max', today());
     fireEvent.change(dateInput, { target: { value: '2026-10-13' } });
     fireEvent.change(await screen.findByLabelText(/^Способ оплаты/), { target: { value: 'Перевод' } });
-    fireEvent.change(await screen.findByLabelText(/Сумма, ₾ \(минус/), { target: { value: '100' } });
+    fireEvent.change(await screen.findByLabelText(/Сумма платежа, ₾/), { target: { value: '100' } });
     fireEvent.click(screen.getByRole('button', { name: 'Записать платёж' }));
-    await waitFor(() => expect(fake.rpcCalls('eq_add_payment')).toEqual([{ o: 'o2', amt: 100, d: '2026-10-13', mth: 'Перевод' }]));
+    await waitFor(() => expect(fake.rpcCalls('eq_add_payment')).toEqual([{ o: 'o2', amt: 100, d: '2026-10-13', mth: 'Перевод', req: expect.any(String) }]));
     await waitFor(() => expect((screen.getByLabelText('Дата платежа') as HTMLInputElement).value).toBe(today()));
   });
 
@@ -108,7 +108,7 @@ describe('«Экипировка»', () => {
     fireEvent.click(await screen.findByText('Сидоров Ян'));
     fireEvent.change(await screen.findByLabelText('Дата платежа'), { target: { value: '2999-01-05' } });
     fireEvent.change(await screen.findByLabelText(/^Способ оплаты/), { target: { value: 'Наличные' } });
-    fireEvent.change(await screen.findByLabelText(/Сумма, ₾ \(минус/), { target: { value: '100' } });
+    fireEvent.change(await screen.findByLabelText(/Сумма платежа, ₾/), { target: { value: '100' } });
     fireEvent.click(screen.getByRole('button', { name: 'Записать платёж' }));
     expect(await screen.findByText('Дата платежа не может быть в будущем.')).toBeInTheDocument();
     expect(fake.rpcCalls('eq_add_payment')).toHaveLength(0);
@@ -618,5 +618,52 @@ describe('Экипировка: отмена и восстановление з�
     fireEvent.click(await screen.findByRole('button', { name: 'Удалить заказ' }));
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Удалить' }));
     expect(await screen.findByText(/удалить его нельзя, можно только отменить/)).toBeInTheDocument();
+  });
+
+  const seedPays = () => {
+    seed();
+    fake.db.service_payments = [
+      { id: 'sp1', kind: 'equipment', ref_id: 'o2', amount: 60, paid_on: '2026-09-11', method: 'Наличные', op: 'payment', cancels: null, note: null },
+      { id: 'sp2', kind: 'equipment', ref_id: 'o2', amount: 20, paid_on: '2026-09-12', method: 'Перевод', op: 'payment', cancels: null, note: null },
+      { id: 'sp3', kind: 'equipment', ref_id: 'o2', amount: -20, paid_on: '2026-09-13', method: 'Перевод', op: 'reversal', cancels: 'sp2', note: 'ошибка' },
+    ];
+  };
+
+  it('Ж11: журнал оплат показывает платежи, сторно и «сторнирована»; сторно только у живой оплаты', async () => {
+    seedPays();
+    render(<Equipment />);
+    fireEvent.click(await screen.findByText('Сидоров Ян'));
+    expect(await screen.findByText('Журнал оплат')).toBeInTheDocument();
+    expect(screen.getByText(/Оплата \(сторнирована\)/)).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Сторно' })).toHaveLength(1);
+  });
+
+  it('Ж11: сторно требует причину и вызывает eq_reverse_payment с ключом', async () => {
+    seedPays();
+    fake.rpc.eq_reverse_payment = () => 0;
+    render(<Equipment />);
+    fireEvent.click(await screen.findByText('Сидоров Ян'));
+    const btn = await screen.findByRole('button', { name: 'Сторно' });
+    expect(btn).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/Причина \(для сторно/), { target: { value: ' ошибка кассира ' } });
+    fireEvent.click(btn);
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Сторнировать' }));
+    await waitFor(() => expect(fake.rpcCalls('eq_reverse_payment')).toEqual([{ pid: 'sp1', note: 'ошибка кассира', req: expect.any(String) }]));
+  });
+
+  it('Ж11: возврат: eq_refund с суммой, способом и причиной; ошибка понятным текстом', async () => {
+    seedPays();
+    fake.rpc.eq_refund = () => ({ error: { message: 'refund above paid' } });
+    render(<Equipment />);
+    fireEvent.click(await screen.findByText('Сидоров Ян'));
+    const btn = await screen.findByRole('button', { name: 'Записать возврат' });
+    expect(btn).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/^Способ оплаты/), { target: { value: 'Наличные' } });
+    fireEvent.change(screen.getByLabelText(/Причина \(для сторно/), { target: { value: 'отказ' } });
+    fireEvent.change(screen.getByLabelText(/Сумма возврата/), { target: { value: '30' } });
+    fireEvent.click(btn);
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать возврат' }));
+    expect(await screen.findByText('Возврат больше оплаченной суммы.')).toBeInTheDocument();
+    expect(fake.rpcCalls('eq_refund')).toEqual([{ o: 'o2', amt: 30, d: null, mth: 'Наличные', note: 'отказ', req: expect.any(String) }]);
   });
 });

@@ -48,6 +48,9 @@ insert into ids select 'o2', eq_create_order('00000000-0000-0000-0000-0000004711
 select is((select created_by from equipment_orders where id = (select id from ids where k = 'o2')), '00000000-0000-0000-0000-0000004711a1'::uuid, 'Ф1: created_by = вошедший администратор');
 select is((select source from equipment_orders where id = (select id from ids where k = 'o2')), 'admin', 'Ф1: заказ администратора source admin');
 select ok((select created_at > now() - interval '1 minute' from equipment_orders where id = (select id from ids where k = 'o2')), 'Ф1: created_at нового заказа = сейчас');
+-- с 0188 прямая запись у authenticated закрыта: триггер автора проверяем от имени владельца с входом пользователя
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', '00000000-0000-0000-0000-0000004711a1', 'role', 'authenticated')::text, true);
 insert into equipment_orders (id, club_id, player_id, total, created_by, request_id) values
   ('00000000-0000-0000-0000-000000471103', '00000000-0000-0000-0000-0000004711c1', '00000000-0000-0000-0000-0000004711d2', 50, '00000000-0000-0000-0000-0000004711b2', '00000000-0000-0000-0000-00000047a001');
 select is((select created_by from equipment_orders where id = '00000000-0000-0000-0000-000000471103'), '00000000-0000-0000-0000-0000004711a1'::uuid, 'Ф1: подставленный created_by заменяется вошедшим');
@@ -98,7 +101,9 @@ select is((select count(*)::int from equipment_order_events), 0, 'Ф4: роди�
 select is((select string_agg(title || ' / ' || due || ' / ' || paid || ' / ' || debt, '; ' order by title) from parent_dues() where kind = 'eq'),
   'Отменён: Форма / 0 / 100.00 / 0; Форма / 300.00 / 0.00 / 300.00', 'Ф9: отменённый заказ с оплатой показан с подписью, к оплате и долг 0');
 reset role;
+select set_config('eq.paid_sync', 'on', true); -- с 0188 paid правит только журнал; здесь это имитирует сторно
 update equipment_orders set paid = 0 where id = '00000000-0000-0000-0000-000000471101';
+select set_config('eq.paid_sync', '', true);
 select as_user('00000000-0000-0000-0000-0000004711b2');
 select is((select count(*)::int from parent_dues() where kind = 'eq'), 1, 'Ф9: отменённый заказ без оплат родителю не показывается');
 reset role;

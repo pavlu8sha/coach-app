@@ -92,14 +92,24 @@ const pid = new Map(players.map(p => [p.external_id, p.id]));
 const missing = [...new Set(orders.map(o => o.player_ext).filter(x => !pid.has(x)))];
 if (missing.length) { console.error('Игроки не найдены в базе (сначала реестр): ' + missing.join(', ')); process.exit(1); }
 
-// 3) заказы
-const rowsOrders = orders.map(o => ({
-  club_id: CLUB_ID, external_ord_id: o.ext_id, player_id: pid.get(o.player_ext), ordered_on: o.ordered_on,
-  inscription: o.inscription, number: o.number, installment: o.installment,
-  total: o.total, paid: o.paid, location: o.location,
-}));
-for (let i = 0; i < rowsOrders.length; i += 500) {
-  await rest('POST', 'equipment_orders?on_conflict=club_id,external_ord_id', rowsOrders.slice(i, i + 500), 'resolution=merge-duplicates,return=minimal');
+// 3) заказы. С миграции 0188 paid ведётся журналом оплат и прямое изменение paid отклоняется (42501):
+// у уже существующих заказов paid не пишем (оплаты вносятся через eq_add_payment), у новых заказов исходный paid
+// записывается при вставке (историческая загрузка) и переносится в журнал как opening_balance миграцией владельца (0189 и позднее).
+const existing = new Set((await getAll(rest, `equipment_orders?club_id=eq.${CLUB_ID}&select=external_ord_id`)).map(o => o.external_ord_id));
+const rowsOrders = orders.map(o => {
+  const r = {
+    club_id: CLUB_ID, external_ord_id: o.ext_id, player_id: pid.get(o.player_ext), ordered_on: o.ordered_on,
+    inscription: o.inscription, number: o.number, installment: o.installment,
+    total: o.total, location: o.location,
+  };
+  if (!existing.has(o.ext_id)) r.paid = o.paid;
+  return r;
+});
+// PostgREST требует одинаковый набор колонок в пачке: новые и существующие заказы идут отдельными запросами.
+for (const group of [rowsOrders.filter(r => 'paid' in r), rowsOrders.filter(r => !('paid' in r))]) {
+  for (let i = 0; i < group.length; i += 500) {
+    await rest('POST', 'equipment_orders?on_conflict=club_id,external_ord_id', group.slice(i, i + 500), 'resolution=merge-duplicates,return=minimal');
+  }
 }
 const dbOrders = await getAll(rest, `equipment_orders?club_id=eq.${CLUB_ID}&select=id,external_ord_id`);
 const oid = new Map(dbOrders.map(o => [o.external_ord_id, o.id]));
