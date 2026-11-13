@@ -3,6 +3,12 @@ begin;
 create extension if not exists pgtap;
 select plan(3);
 
+-- 0186 отключила старую систему баллов (point_events заморожен, старые функции и уведомление сняты). Этот тест проверяет
+-- старые функции и архив так, как они работают при откате 0186 (db/ops/rollback-0186-points-legacy-off.sql); всё откатывается в конце.
+alter table point_events disable trigger point_events_archive_freeze;
+create trigger point_events_notify after insert on point_events for each row execute function notify_bonus();
+grant execute on function award_bonus(uuid, int, text), revoke_bonus(uuid), recalc_match_points(uuid) to authenticated;
+
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
   ('00000000-0000-0000-0000-0000000000b1', 9501, 'Родитель', false);

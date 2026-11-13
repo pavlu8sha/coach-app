@@ -313,17 +313,18 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     setMsg(null);
     const roster = (players ?? []).map(pl => ({ player_id: pl.id, played: line(pl.id).played, goals: line(pl.id).played ? line(pl.id).goals : 0, best: bestId === pl.id && line(pl.id).played }));
     const score = { gf: gf === '' ? null : Number(gf), ga: ga === '' ? null : Number(ga) };
-    const r = teamOnly
-      ? await supabase.rpc('save_match_team', { tm: presetTeam, d: date, opp, gf: score.gf, ga: score.ga, roster })
-      : await supabase.rpc('save_match', { m: savedId, g: gid || null, d: date, opp, gf: score.gf, ga: score.ga, roster });
+    // смена технического результата сохраняется вместе с матчем одной транзакцией (миграция 0186):
+    // иначе родитель успевал получить уведомление о баллах, которые тут же снимались
+    const techChanged = technical !== savedTech;
+    const r = techChanged
+      ? await supabase.rpc('save_match_tech', { m: savedId, g: gid || null, tm: teamOnly ? presetTeam : null, d: date, opp, gf: score.gf, ga: score.ga, roster, tech: technical })
+      : teamOnly
+        ? await supabase.rpc('save_match_team', { tm: presetTeam, d: date, opp, gf: score.gf, ga: score.ga, roster })
+        : await supabase.rpc('save_match', { m: savedId, g: gid || null, d: date, opp, gf: score.gf, ga: score.ga, roster });
     setBusy(false);
     if (r.error) return setMsg({ ok: false, text: coachError(r.error.message) });
     setSavedId(r.data as string);
-    if (technical !== savedTech) {
-      const t = await supabase.rpc('set_match_technical', { m: r.data as string, tech: technical });
-      if (t.error) return setMsg({ ok: false, text: `Матч сохранён, но технический результат не записан: ${coachError(t.error.message)}` });
-      setSavedTech(technical);
-    }
+    if (techChanged) setSavedTech(technical);
     const playedNow = Object.entries(lines).filter(([, l]) => l.played).map(([id]) => id);
     setShownIds(playedNow.length ? playedNow : null);
     setShowAll(false);
@@ -398,7 +399,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
       {technical && <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>За технический результат баллы игрокам не начисляются. Счёт остаётся в статистике команды.</p>}
       <h2 className="ks-sub">Состав{Object.values(lines).some(l => l.played) ? ` · играло ${Object.values(lines).filter(l => l.played).length}` : ''}</h2>
       <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>
-        Баллы начисляются автоматически, когда внесён счёт: победа — 2 играющим, лучшему игроку — 3; поражение или ничья — 1 играющим; за каждый гол +1. Лучший игрок учитывается только при победе.
+        Баллы начисляются автоматически, когда внесён счёт, только тем, кто играл: поражение или ничья +1, победа +2, каждый гол +1, лучший игрок +2, всего не больше 5 за матч. За технический результат баллов нет.
       </p>
       {admin && savedId && players.length > 0 && (
         <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 36, marginBottom: 8 }} aria-pressed={editLineup} onClick={() => setEditLineup(v => !v)}>

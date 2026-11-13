@@ -38,3 +38,23 @@ export function equipmentCsv(orders: ExportOrder[], kit: string, lineOk?: (o: Ex
 }
 
 export const csvFileName = (isoDate: string) => `equipment-${isoDate}.csv`;
+
+// Режим «Не заказан» (docs/acceptance/eq-not-ordered-filter-2026-11-13.md): список строится от активных игроков, а не от заказов.
+export interface RosterPlayer { id: string; full_name: string; status: string; groups?: { name: string } | null }
+export interface NotOrderedOrder { player_id: string | null; status?: string | null; equipment_order_lines: { kit: string }[] }
+
+/** Активные игроки без неотменённого заказа с вещью kit; q — поиск по имени, group — название группы (пустая строка = любые). */
+export function notOrderedPlayers(players: RosterPlayer[], orders: NotOrderedOrder[], kit: string, q: string, group: string): RosterPlayer[] {
+  const have = new Set(orders.filter(o => o.status !== 'cancelled' && o.player_id && o.equipment_order_lines.some(l => l.kit === kit)).map(o => o.player_id as string));
+  const t = q.trim().toLowerCase();
+  return players
+    .filter(p => p.status === 'active' && !have.has(p.id) && (!t || p.full_name.toLowerCase().includes(t)) && (!group || p.groups?.name === group))
+    .sort((a, b) => a.full_name.localeCompare(b.full_name, 'ru'));
+}
+
+export function notOrderedCsv(players: RosterPlayer[]): string {
+  if (!players.length) return '';
+  return CSV_BOM + ['игрок;группа;id игрока', ...players.map(p => [cell(p.full_name), cell(p.groups?.name), cell(p.id, false)].join(';'))].join('\r\n');
+}
+
+export const notOrderedFileName = (isoDate: string) => `equipment-not-ordered-${isoDate}.csv`;
