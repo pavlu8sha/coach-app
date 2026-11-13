@@ -67,7 +67,8 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   const back = () => { nav.back(); setReload(n => n + 1); };
   if (screen.startsWith('rsvp')) return <CoachRsvp groups={groups} onBack={() => nav.back()} />;
   const openEvent = events.find(e => e.id === topId);
-  if (screen === 'event' && (openEvent || !topId)) {
+  // форму нового события открывает только администратор (миграция 0195); тренер ведёт состав и игры уже созданных событий
+  if (screen === 'event' && (openEvent || (!topId && admin))) {
     if (openEvent) return <EventScreen event={openEvent} groups={groups} admin={admin} onBack={back} />;
     const openCreated = async (id: string) => {
       const ev = await supabase.rpc('event_list');
@@ -117,14 +118,18 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
       <h1>Матчи</h1>
       <button type="button" className="ks-btn" onClick={() => setAddStep('pick')}>Добавить матч</button>
       <div style={{ height: 8 }} />
-      <button type="button" className="ks-btn secondary" onClick={() => nav.push('event')}>Новое событие</button>
-      <div style={{ height: 8 }} />
+      {admin && (
+        <>
+          <button type="button" className="ks-btn secondary" onClick={() => nav.push('event')}>Новое событие</button>
+          <div style={{ height: 8 }} />
+        </>
+      )}
       <button type="button" className="ks-btn secondary" onClick={() => nav.push('rsvp')}>Матчи с подтверждением</button>
       {addStep === 'pick' && (
         <div className="ks-card" aria-label="Добавить матч">
           <p className="ks-label">Матч чемпионата или фестиваля</p>
           {champEvents.length === 0 ? (
-            <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>Событий пока нет. Создайте чемпионат или фестиваль кнопкой «Новое событие».</p>
+            <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>Событий пока нет.{admin ? ' Создайте чемпионат или фестиваль кнопкой «Новое событие».' : ' Чемпионаты и фестивали создаёт администратор.'}</p>
           ) : (
             champEvents.map(e => (
               <ListRow key={e.id} title={eventTitle(e)} sub={[e.team, eventCounts(e)]} onClick={() => { setAddStep(null); nav.push('event', { id: e.id }); }} />
