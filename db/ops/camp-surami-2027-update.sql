@@ -29,14 +29,18 @@ begin
                    booking_fee = 500, booking_deadline = date '2026-12-05', full_payment_deadline = date '2026-12-20'
    where id = cid;
 
-  update camp_tariffs set price = 1350 where camp_id = cid and regexp_replace(replace(lower(name), 'ё', 'е'), '\s+', ' ', 'g') = 'футболист';
+  -- Название сравнивается без учёта регистра, «е»/«ё» и лишних пробелов. Блок повторяемый: уже обновлённые тарифы подходят под условие тоже.
+  update camp_tariffs set price = 1350 where camp_id = cid and regexp_replace(replace(lower(btrim(name)), 'ё', 'е'), '\s+', ' ', 'g') = 'футболист';
   get diagnostics t1 = row_count;
-  update camp_tariffs set price = 3100, name = 'Футболист + 2 родителя' where camp_id = cid and regexp_replace(replace(lower(name), 'ё', 'е'), '\s+', ' ', 'g') = 'ребенок + 2 родителя';
+  update camp_tariffs set price = 3100, name = 'Футболист + 2 родителя' where camp_id = cid
+     and regexp_replace(replace(lower(btrim(name)), 'ё', 'е'), '\s+', ' ', 'g') in ('ребенок + 2 родителя', 'футболист + 2 родителя');
   get diagnostics t2 = row_count;
-  update camp_tariffs set active = false where camp_id = cid and regexp_replace(replace(lower(name), 'ё', 'е'), '\s+', ' ', 'g') = 'ребенок + 1 родитель';
+  -- Тариф с одним родителем: «Ребёнок + 1 родитель» или «Ребёнок + родитель» (так он назван в базе); его может уже не быть или он уже отключён
+  update camp_tariffs set active = false where camp_id = cid
+     and regexp_replace(replace(lower(btrim(name)), 'ё', 'е'), '\s+', ' ', 'g') in ('ребенок + 1 родитель', 'ребенок + родитель');
   get diagnostics t3 = row_count;
-  if t1 <> 1 or t2 <> 1 or t3 <> 1 then
-    raise exception 'тарифы не совпали с ожидаемыми (Футболист: %, Ребёнок + 2 родителя: %, Ребёнок + 1 родитель: %): проверьте названия в блоке ПРОВЕРКА', t1, t2, t3;
+  if t1 <> 1 or t2 <> 1 or t3 > 1 then
+    raise exception 'тарифы не совпали с ожидаемыми (Футболист: %, семейный: %, с одним родителем: %): проверьте названия в блоке ПРОВЕРКА', t1, t2, t3;
   end if;
 end $$;
 commit;
