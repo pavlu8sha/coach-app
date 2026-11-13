@@ -57,6 +57,10 @@ echo "== db/tests/concurrency_consent_record.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_consent_record.sh || fail=1
 echo "== db/tests/concurrency_consent_claim.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_consent_claim.sh || fail=1
+echo "== db/tests/concurrency_eq_payments.sh"
+DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_eq_payments.sh || fail=1
+echo "== db/tests/atomic_0188.sh"
+DB_NAME="$DB" PSQL="$PSQL" db/tests/atomic_0188.sh || fail=1
 echo "== db/tests/concurrency_notifications_release.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_notifications_release.sh || fail=1
 $PSQL -q -d postgres -c "drop database if exists $DB"

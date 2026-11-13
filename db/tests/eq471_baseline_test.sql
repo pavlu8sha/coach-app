@@ -35,6 +35,8 @@ insert into equipment_order_lines (order_id, kit, size, quantity, unit_price) va
   ('00000000-0000-0000-0000-000000471004', ' дождевик ', '140', 1, 170),
   ('00000000-0000-0000-0000-000000471005', 'Носки', null, 2, 60);
 insert into equipment_issues (order_id, kit) values ('00000000-0000-0000-0000-000000471005', 'Носки');
+-- Журнал воспроизводит историю до 0188, где paid и журнал могли расходиться: кэш paid триггером не пересчитывается.
+alter table service_payments disable trigger service_payments_paid_sync;
 insert into service_payments (kind, ref_id, player_id, amount, paid_on, method) values
   ('equipment', '00000000-0000-0000-0000-000000471001', '00000000-0000-0000-0000-0000004710d1', 300, '2026-10-20', 'Наличные'),
   ('equipment', '00000000-0000-0000-0000-000000471003', '00000000-0000-0000-0000-0000004710d2', 30, '2026-10-21', 'Перевод');

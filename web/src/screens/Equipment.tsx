@@ -20,6 +20,7 @@ interface Order {
   players: { full_name: string; groups?: { name: string } | null } | null; equipment_order_lines: Line[]; equipment_issues: { kit: string; issued_on: string; issued_by: string | null }[];
 }
 const ORDER_COLS = 'id, player_id, ordered_on, total, paid, installment, number, inscription, location, status, cancel_reason, cancelled_at, equipment_order_status_history(status, changed_at, changed_by_name), equipment_order_lines(id, kit, size, quantity, unit_price), equipment_issues(kit, issued_on, issued_by)';
+interface Pay { id: string; amount: number | string; paid_on: string; method: string | null; op: string; note: string | null; cancels: string | null }
 interface Kit { kit: string; price: number }
 
 const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
@@ -27,6 +28,7 @@ const num = (s: string) => Number(s.replace(',', '.'));
 const errText = (m: string) =>
   m.includes('paid above total') ? 'Оплата больше суммы заказа.' : m.includes('paid below zero') ? 'Оплачено не может быть меньше нуля.' : m.includes('total below paid') ? 'Сумма заказа меньше уже оплаченного.' :
   m.includes('order has payments') ? 'У заказа есть оплата: сначала верните её записью с минусом.' : m.includes('order has issues') ? 'У заказа есть выданные вещи: сначала снимите выдачу.' : m.includes('item issued') ? 'Вещь уже выдана: сначала снимите выдачу (размер менять можно).' : m.includes('last line') ? 'Это последняя вещь в заказе: удалите весь заказ.' : m.includes('bad quantity') ? 'Количество от 1 до 10.' : m.includes('bad date') ? 'Дата не может быть в будущем.' : m.includes('kit not in catalog') ? 'Позиции нет в каталоге.' : m.includes('no items') ? 'Выберите хотя бы одну вещь.' : m.includes('bad amount') ? 'Сумма указана неверно.' :
+  m.includes('use reversal or refund') ? 'Сумма должна быть больше нуля. Ошибочную оплату отменяет «Сторно», деньги клиенту возвращает «Возврат».' : m.includes('already reversed') ? 'Эта оплата уже сторнирована.' : m.includes('not a payment') ? 'Сторнировать можно только оплату.' : m.includes('note required') ? 'Укажите причину.' : m.includes('refund above paid') ? 'Возврат больше оплаченной суммы.' : m.includes('request id reused') ? 'Эта отправка уже была с другими данными. Обновите экран и повторите.' :
   m.includes('order cancelled') ? 'Заказ отменён: менять его нельзя. Сначала восстановите заказ.' : m.includes('already cancelled') ? 'Заказ уже отменён.' : m.includes('not cancelled') ? 'Заказ не отменён.' : m.includes('reason required') ? 'Укажите причину отмены.' :
   m.includes('parent order') ? 'Заказ оформил родитель: удалить его нельзя, можно только отменить.' : m.includes('order has events') ? 'У заказа есть история отмены: удалить его нельзя.' :
   m.includes('bad transition') ? 'Статус можно менять только на один шаг вперёд (назад — администратору).' : m.includes('bad status') ? 'Такого статуса нет.' : m.includes('not all issued') ? 'Статус «Выдан» можно поставить, только когда выданы все вещи заказа.' :
@@ -569,6 +571,13 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
   const [addSize, setAddSize] = useState('');
   const [orderedOn, setOrderedOn] = useState(order.ordered_on ?? '');
   const [cancelReason, setCancelReason] = useState('');
+  // Журнал оплат заказа (#471, 0188): сторно и возврат. Ключ идемпотентности живёт, пока операция не прошла: повторное нажатие после обрыва связи не задвоит запись.
+  const [pays, setPays] = useState<Pay[]>([]);
+  const [reason, setReason] = useState('');
+  const [refundAmt, setRefundAmt] = useState('');
+  const newKey = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`);
+  const payKey = useRef(newKey());
+  const refundKey = useRef(newKey());
   // Кнопки внизу экрана, сообщение вверху: показываем его, чтобы ошибка сохранения не оставалась за кадром.
   useEffect(() => { msg && msgRef.current?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }); }, [msg]);
   useEffect(() => { if (gone) onBack(); }, [gone]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -614,8 +623,14 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
     if (r.error) { setMsg({ ok: false, text: errText(r.error.message) }); return false; }
     if (ok) setMsg({ ok: true, text: ok });
     lastFresh.current = await refresh();
+    void loadPays();
     return true;
   };
+  const loadPays = async () => {
+    const r = await supabase.from('service_payments').select('id, amount, paid_on, method, op, note, cancels').eq('kind', 'equipment').eq('ref_id', order.id).order('paid_on', { ascending: true });
+    if (!r.error) setPays((r.data ?? []) as unknown as Pay[]);
+  };
+  useEffect(() => { void loadPays(); }, [order.id]); // eslint-disable-line react-hooks/exhaustive-deps
   if (gone) return null;
   const hist = o.equipment_order_status_history ?? [];
   const issued = new Map(o.equipment_issues.map(i => [i.kit, i]));
@@ -643,6 +658,16 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
   const restoreOrder = async () => {
     if (!(await ask({ title: 'Восстановить заказ?', lines: [['Игрок', o.players?.full_name ?? 'Игрок'], ['Сумма', gel(o.total)]], note: 'Заказ вернётся в статус, который был до отмены.', confirmLabel: 'Восстановить' }))) return;
     await run('restore', () => supabase.rpc('eq_restore_order', { o: o.id, note: null }), 'Заказ восстановлен.');
+  };
+  // Сторно оплаты и возврат денег (#471, 0188): только администратор, причина обязательна.
+  const reversePayment = async (p: Pay) => {
+    if (!(await ask({ title: 'Сторнировать оплату?', lines: [['Игрок', o.players?.full_name ?? 'Игрок'], ['Оплата', `${fmtDate(p.paid_on)} · ${gel(Number(p.amount))}`], ['Причина', reason.trim()]], note: 'Появится запись с минусом на ту же сумму. Саму оплату удалить нельзя.', confirmLabel: 'Сторнировать', danger: true }))) return;
+    if (await run(`rev-${p.id}`, () => supabase.rpc('eq_reverse_payment', { pid: p.id, note: reason.trim(), req: newKey() }), 'Оплата сторнирована.')) setReason('');
+  };
+  const refund = async () => {
+    const amt = num(refundAmt);
+    if (!(await ask({ title: 'Записать возврат?', lines: [['Игрок', o.players?.full_name ?? 'Игрок'], ['Сумма', gel(amt)], ['Способ', method], ['Причина', reason.trim()]], note: 'Появится запись возврата с минусом. Деньги возвращаются вручную, итог заказа не меняется.', confirmLabel: 'Записать возврат', danger: true }))) return;
+    if (await run('refund', () => supabase.rpc('eq_refund', { o: o.id, amt, d: null, mth: method, note: reason.trim(), req: refundKey.current }), 'Возврат записан.')) { setRefundAmt(''); setReason(''); refundKey.current = newKey(); }
   };
   const deleteOrder = async () => {
     if (!(await ask({ title: 'Удалить заказ?', lines: [['Игрок', o.players?.full_name ?? 'Игрок'], ['Сумма', gel(o.total)]], note: 'Заказ будет удалён. Отменить нельзя.', confirmLabel: 'Удалить', danger: true }))) return;
@@ -722,13 +747,37 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
 
       <h3>Оплата</h3>
       <label className="field">Способ оплаты<select value={method} onChange={e => setMethod(e.target.value)}><option value="">Выберите способ</option><option>Наличные</option><option>Перевод</option></select></label>
-      <label className="field">Сумма, ₾ (минус — исправление)<input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /></label>
+      <label className="field">Сумма платежа, ₾<input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /></label>
       <label className="field">Дата платежа<input type="date" max={today()} value={payDate} onChange={e => { setPayDate(e.target.value); setPayDateErr(null); }} /></label>
       {payDateErr && <p className="ks-callout" role="alert">{payDateErr}</p>}
-      <button type="button" className="ks-btn" disabled={busy === 'pay' || !method || !payDate || amount.trim() === '' || Number.isNaN(num(amount)) || num(amount) === 0} onClick={() => {
+      <button type="button" className="ks-btn" disabled={busy === 'pay' || !method || !payDate || amount.trim() === '' || Number.isNaN(num(amount)) || num(amount) <= 0} onClick={() => {
         if (payDate > today()) return setPayDateErr('Дата платежа не может быть в будущем.');
-        void run('pay', () => supabase.rpc('eq_add_payment', { o: o.id, amt: num(amount), d: payDate, mth: method }), 'Платёж записан.').then(ok => { if (ok) { setAmount(''); setPayDate(today()); } });
+        void run('pay', () => supabase.rpc('eq_add_payment', { o: o.id, amt: num(amount), d: payDate, mth: method, req: payKey.current }), 'Платёж записан.').then(ok => { if (ok) { setAmount(''); setPayDate(today()); payKey.current = newKey(); } });
       }}>Записать платёж</button>
+
+      {pays.length > 0 && (
+        <>
+          <h3>Журнал оплат</h3>
+          <div className="ks-card">
+            {pays.map(p => {
+              const reversed = pays.some(x => x.cancels === p.id);
+              const kind = p.op === 'reversal' ? 'Сторно' : p.op === 'refund' ? 'Возврат' : p.op === 'opening_balance' ? 'Внесено до начала учёта в приложении' : reversed ? 'Оплата (сторнирована)' : 'Оплата';
+              return (
+                <div className="ks-line" key={p.id} style={{ alignItems: 'flex-start' }}>
+                  <span style={{ overflowWrap: 'anywhere' }}>{fmtDate(p.paid_on)} · {kind}{p.method ? ` · ${p.method}` : ''}{p.note ? ` · ${p.note}` : ''}</span>
+                  <b>{gel(Number(p.amount))}</b>
+                  {p.op === 'payment' && !reversed && (
+                    <button type="button" className="ks-btn secondary" disabled={busy === `rev-${p.id}` || !reason.trim()} onClick={() => void reversePayment(p)}>Сторно</button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <label className="field">Причина (для сторно и возврата)<input value={reason} maxLength={200} onChange={e => setReason(e.target.value)} /></label>
+          <label className="field">Сумма возврата, ₾<input inputMode="decimal" value={refundAmt} onChange={e => setRefundAmt(e.target.value)} /></label>
+          <button type="button" className="ks-btn secondary" disabled={busy === 'refund' || !method || !reason.trim() || refundAmt.trim() === '' || Number.isNaN(num(refundAmt)) || num(refundAmt) <= 0} onClick={() => void refund()}>Записать возврат</button>
+        </>
+      )}
 
       <h3>Данные заказа</h3>
       <label className="field">Надпись<input value={insc} maxLength={40} onChange={e => setInsc(e.target.value)} /></label>
