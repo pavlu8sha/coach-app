@@ -612,12 +612,31 @@ describe('Взносы за матч (администратор)', () => {
     fireEvent.change(screen.getByLabelText('Взнос с игрока, ₾'), { target: { value: '20' } });
     fireEvent.click(await screen.findByText(/Добавить игроков состава во взнос/));
     await waitFor(() => expect(fake.rpcCalls('match_fee_add')).toHaveLength(1));
-    expect(fake.rpcCalls('match_fee_add')[0]).toMatchObject({ m: 'm1', ids: ['p9', 'p1'], amt: 20 });
+    expect(fake.rpcCalls('match_fee_add')[0]).toMatchObject({ m: 'm1', amt: 20 });
+    expect([...(fake.rpcCalls('match_fee_add')[0].ids as string[])].sort()).toEqual(['p1', 'p2', 'p9']); // весь состав формы, не только сыгравшие
     fireEvent.click(await screen.findByLabelText('Платит: Иванов Пётр'));
     fireEvent.change(screen.getByLabelText(/^Способ/), { target: { value: 'Наличные' } });
     fireEvent.click(screen.getByText(/Записать оплату/));
     await waitFor(() => expect(fake.rpcCalls('match_pay')).toHaveLength(1));
     expect(fake.rpcCalls('match_pay')[0]).toMatchObject({ m: 'm1', amt: null });
+  });
+
+  it('взнос назначается и оплата принимается до игры: в матче ещё никто не отмечен «Играл»', async () => {
+    seed();
+    fake.db.match_players = []; // матч сохранён заранее, состав не отмечен
+    let fees: { player_id: string; full_name: string; group_name: string; due: number; paid: number }[] = [];
+    fake.rpc.match_fees_list = () => fees;
+    fake.rpc.match_payments_list = () => [];
+    fake.rpc.match_fee_add = a => { fees = (a.ids as string[]).map(id => ({ player_id: id, full_name: id === 'p1' ? 'Иванов Пётр' : 'Сидоров Ян', group_name: 'U9', due: Number(a.amt), paid: 0 })); return fees.length; };
+    render(<CoachMatches groups={groups} admin />);
+    fireEvent.click(await screen.findByText('Олимп'));
+    await screen.findByText('Взносы');
+    fireEvent.change(screen.getByLabelText('Взнос с игрока, ₾'), { target: { value: '20' } });
+    fireEvent.click(await screen.findByText(/Добавить игроков состава во взнос/));
+    await waitFor(() => expect(fake.rpcCalls('match_fee_add')).toHaveLength(1));
+    expect([...(fake.rpcCalls('match_fee_add')[0].ids as string[])].sort()).toEqual(['p1', 'p2']);
+    expect(screen.queryByText(/Сначала отметьте в составе/)).not.toBeInTheDocument();
+    expect(await screen.findByLabelText('Платит: Иванов Пётр')).toBeInTheDocument();
   });
 
   it('тренер принимает взносы за товарищеский матч, без скидки и отмены платежа', async () => {
