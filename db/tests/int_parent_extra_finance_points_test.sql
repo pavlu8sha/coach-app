@@ -4,7 +4,7 @@
 -- Данные вымышленные; тренировка сегодня без времени (запись ещё открыта, долг уже считается).
 begin;
 create extension if not exists pgtap;
-select plan(23);
+select plan(24);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -99,17 +99,19 @@ select is((select string_agg(pl.full_name || ':' || l.points, ',') from points_l
 -- ===== 4. Отмена тренировки клубом: записи, журнал отмен, долг, уведомления =====
 delete from notifications;
 select as_user('00000000-0000-0000-0000-0000000000a1');
+select throws_ok($$select extra_cancel_session(x1(), 'Дождь')$$, '22023', 'attendance marked', 'отмена с отметкой «был» отклонена (#630); сначала снимается отметка');
+select extra_set_attended(x1(), '00000000-0000-0000-0000-00000000d001', null);
 select extra_cancel_session(x1(), 'Дождь');
 select throws_ok($$select extra_cancel_session(x1(), 'Ещё раз')$$, '55000', 'session cancelled', 'повторная отмена отклонена');
 reset role;
-select is((select string_agg(pl.full_name || ':' || c.status, ',' order by pl.full_name) from booking_cancellations c join players pl on pl.id = c.player_id), 'Боря:cancelled,Гриша:cancelled',
-  'неотмеченные неоплаченные записи закрыты в журнале отмен; отмеченная Аня не тронута');
-select ok(exists (select 1 from extra_bookings where session_id = x1() and player_id = '00000000-0000-0000-0000-00000000d001' and attended), 'запись отмеченного ребёнка сохранилась');
+select is((select string_agg(pl.full_name || ':' || c.status, ',' order by pl.full_name) from booking_cancellations c join players pl on pl.id = c.player_id), 'Аня:awaiting,Боря:cancelled,Гриша:cancelled',
+  'после снятия отметки все записи закрыты в журнале отмен; оплаченная Аня ждёт решения');
+select is((select count(*)::int from extra_bookings where session_id = x1()), 0, 'активных записей после отмены нет');
 select is((select string_agg(u.display_name || ':' || n.text, ' | ' order by u.display_name) from notifications n join users u on u.id = n.user_id where n.kind = 'booking_cancelled'),
   (select string_agg(x, ' | ' order by x) from (values
-     ('Родитель 1 (Аня U9 и Гриша U11):Тренировка отменена: ' || booking_session_label('extra', x1()) || '. Причина: Дождь. Записан(ы): Гриша. Оплата, если была, сохранена: администратор свяжется с вами.'),
+     ('Родитель 1 (Аня U9 и Гриша U11):Тренировка отменена: ' || booking_session_label('extra', x1()) || '. Причина: Дождь. Записан(ы): Аня, Гриша. Оплата, если была, сохранена: администратор свяжется с вами.'),
      ('Родитель 2 (Боря U9):Тренировка отменена: ' || booking_session_label('extra', x1()) || '. Причина: Дождь. Записан(ы): Боря. Оплата, если была, сохранена: администратор свяжется с вами.')) v(x)),
-  'об отмене узнали семьи неотмеченных детей, по одному сообщению; Аня (уже отмечена) в сообщение не попала');
+  'об отмене узнали семьи всех записей, по одному сообщению; Аня попала после снятия отметки');
 select is((select count(*)::int from notifications where user_id = '00000000-0000-0000-0000-0000000000b3'), 0, 'нецелевая семья сообщений не получила');
 select as_user('00000000-0000-0000-0000-0000000000b1');
 select is(extra_debt('00000000-0000-0000-0000-00000000d002'), 'нет', 'после отмены тренировки долга за неё нет');
