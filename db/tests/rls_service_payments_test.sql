@@ -36,11 +36,11 @@ select is(
 -- без способа оплата не принимается
 select throws_ok($$select eq_add_payment((select id from ids where k = 'eq'), 50, '2026-11-03', null)$$, '22023', 'bad method', 'оплата без способа отклоняется');
 
--- возврат суммой минус — строка с минусом
-select eq_add_payment((select id from ids where k = 'eq'), -100, '2026-11-04', 'Наличные');
+-- сторно оплаты — строка с минусом (0188: минус только через eq_reverse_payment)
+select eq_reverse_payment((select id from service_payments where kind = 'equipment' and amount = 100 and paid_on = '2026-11-03'), 'исправление кассира', null);
 select is(
-  (select count(*)::int from service_payments where kind = 'equipment' and amount = -100 and paid_on = '2026-11-04'),
-  1, 'исправление экипировки — строка с минусом');
+  (select count(*)::int from service_payments where kind = 'equipment' and amount = -100 and op = 'reversal' and cancels is not null),
+  1, 'исправление экипировки — строка с минусом (сторно со ссылкой на оплату)');
 
 -- индивидуальное: оплата записи пишет строку на сумму записи
 select ind_set_paid((select id from ids where k = 'ind'), '00000000-0000-0000-0000-00000000d002', true, 'Перевод', '2026-11-07');

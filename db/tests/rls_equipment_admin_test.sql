@@ -46,14 +46,14 @@ select throws_ok($$select eq_create_order('00000000-0000-0000-0000-00000000d002'
 
 select is(eq_add_payment((select id from oid_t), 100, null, 'Наличные'), 100::numeric, 'оплата 100');
 select throws_ok($$select eq_add_payment((select id from oid_t), 200, null, 'Наличные')$$, '22023', 'paid above total', 'переплата отклоняется');
-select throws_ok($$select eq_add_payment((select id from oid_t), -150, null, 'Наличные')$$, '22023', 'paid below zero', 'оплата не уходит ниже нуля');
+select throws_ok($$select eq_add_payment((select id from oid_t), -150, null, 'Наличные')$$, '22023', 'use reversal or refund', 'отрицательная оплата отклоняется: сторно и возврат отдельными функциями (0188)');
 select throws_ok($$select eq_edit_order((select id from oid_t), 'ANYA', '7', true, 'Зал', 50)$$, '22023', 'total below paid', 'сумма заказа не ниже оплаченного');
 
 select lives_ok($$select eq_set_issued((select id from oid_t), 'Форма', true, 'Павел')$$, 'отметка о выдаче');
 select throws_ok($$select eq_set_issued((select id from oid_t), 'Шапка', true)$$, 'P0002', 'item not in order', 'выдать можно только вещь из заказа');
 select throws_ok($$select eq_delete_order((select id from oid_t))$$, '22023', 'order has payments', 'заказ с оплатой удалить нельзя');
 
-select eq_add_payment((select id from oid_t), -100, null, 'Наличные');
+select eq_reverse_payment((select id from service_payments where kind = 'equipment' and amount = 100 and ref_id = (select id from oid_t)), 'исправление', null);
 select throws_ok($$select eq_delete_order((select id from oid_t))$$, '22023', 'order has issues', 'заказ с выдачей удалить нельзя');
 select eq_set_issued((select id from oid_t), 'Форма', false);
 select lives_ok($$select eq_delete_order((select id from oid_t))$$, 'без оплат и выдач заказ удаляется');
