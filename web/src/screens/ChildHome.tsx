@@ -1,16 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNav, useSubEntry } from '../nav';
-import { fetchLedgerTotals } from '../lib/pointsLedger';
 import { supabase } from '../lib/supabase';
 import { Failure, Loading } from './Message';
 import PlayerProfile from './PlayerProfile';
-import PointsLedger from './PointsLedger';
 
 export interface ChildPlayer { id: string; name: string; group: string | null }
 
-interface Totals { points: number; played: number; goals: number }
-
-const plural = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'балл' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'балла' : 'баллов');
+interface Totals { played: number; goals: number }
 
 // Ввод кода от родителя: связывает аккаунт ребёнка с игроком.
 export function ChildCode({ onLinked }: { onLinked: () => void }) {
@@ -30,7 +26,7 @@ export function ChildCode({ onLinked }: { onLinked: () => void }) {
 
   return (
     <main className="page">
-      <h1>Мои баллы</h1>
+      <h1>Мой профиль</h1>
       <section className="ks-card">
         <h2>Введите код</h2>
         <p className="muted">Код создаёт родитель в приложении: «Профиль», «Мои дети», «Код для ребёнка». Он действует 3 дня.</p>
@@ -52,7 +48,7 @@ export function ChildCode({ onLinked }: { onLinked: () => void }) {
   );
 }
 
-// «Мои баллы» ребёнка: баллы по новому журналу и сыгранные матчи.
+// Главная ребёнка: сыгранные матчи и вход в профиль; баллы — во вкладке «Баллы» профиля.
 export default function ChildHome({ player }: { player: ChildPlayer }) {
   const [t, setT] = useState<Totals | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,37 +58,30 @@ export default function ChildHome({ player }: { player: ChildPlayer }) {
 
   useEffect(() => {
     void (async () => {
-      const led = await fetchLedgerTotals([player.id]);
-      if (led.error) return setError(led.error);
       const mp = await supabase.from('match_players').select('played, goals').eq('player_id', player.id);
       if (mp.error) return setError(mp.error.message);
       const parts = (mp.data ?? []) as { played: boolean; goals: number }[];
-      setT({ points: led.totals[player.id] ?? 0, played: parts.filter(p => p.played).length, goals: parts.reduce((s, p) => s + (p.goals ?? 0), 0) });
+      setT({ played: parts.filter(p => p.played).length, goals: parts.reduce((s, p) => s + (p.goals ?? 0), 0) });
     })();
   }, [player.id, reload]);
 
   if (profileOpen) return <PlayerProfile playerId={player.id} onBack={() => nav.back()} />;
-  if (error) return <Failure title="Не удалось загрузить баллы" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
+  if (error) return <Failure title="Не удалось загрузить данные" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   if (!t) return <Loading />;
   return (
     <main className="page">
-      <h1>Мои баллы</h1>
+      <h1>Мой профиль</h1>
       <section className="ks-card">
         <div className="row">
           <div>
             <h2>{player.name}</h2>
             {player.group && <p className="muted">{player.group}</p>}
           </div>
-          <div className="score">
-            <strong>{t.points}</strong>
-            <span className="muted"> {plural(t.points)}</span>
-          </div>
         </div>
         <p className="muted">Матчей сыграно: {t.played} · голов: {t.goals}</p>
         <button type="button" className="ks-btn secondary" onClick={() => nav.push('ch.profile')}>
           Мой профиль
         </button>
-        <PointsLedger playerId={player.id} showEmpty />
       </section>
     </main>
   );

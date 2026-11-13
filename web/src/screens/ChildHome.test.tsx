@@ -40,15 +40,17 @@ describe('ввод кода ребёнком', () => {
     type('ABCD2345');
     expect(await screen.findByText('К этому игроку уже привязан другой аккаунт.')).toBeInTheDocument();
   });
-  it('ребёнок видит свои баллы', async () => {
+  it('главная ребёнка без баллов и истории; журнал не читается', async () => {
     const row = (id: string, player_id: string, points: number) => ({ id, player_id, points, event_date: '2026-11-03', source_type: 'group_session', reason_code: 'attended', components: { class: 'regular', base: points }, status: 'active' });
-    fake.db.points_ledger = [row('l1', 'p1', 3), row('l2', 'p2', 9)];
-    fake.db.point_events = [{ player_id: 'p1', points: 40, explanation: 'Старое', occurred_on: '2026-10-01' }];
-    fake.db.match_players = [];
+    fake.db.points_ledger = [row('l1', 'p1', 3)];
+    fake.errors.points_ledger = 'журнал не должен читаться';
+    fake.db.match_players = [{ player_id: 'p1', played: true, goals: 1 }];
     render(<ChildHome player={{ id: 'p1', name: 'Иван', group: 'U9' }} />);
-    expect(await screen.findByText('Всего накоплено: 3 балла')).toBeInTheDocument();
-    expect(screen.queryByText('Старое')).toBeNull();
-    expect(screen.queryByText(/9 баллов/)).toBeNull();
+    expect(await screen.findByText('Иван')).toBeInTheDocument();
+    expect(screen.getByText('Матчей сыграно: 1 · голов: 1')).toBeInTheDocument();
+    expect(screen.queryByText(/Всего накоплено/)).toBeNull();
+    expect(screen.queryByText(/балл/)).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Мои баллы' })).toBeNull();
   });
 });
 
@@ -62,6 +64,6 @@ describe('ребёнок: свой профиль (#266, П1.2)', () => {
     expect(await screen.findByRole('tablist', { name: 'Разделы профиля' })).toBeInTheDocument();
     expect(fake.rpcCalls('player_training_history')[0].p).toBe('p1');
     fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
-    expect(await screen.findByRole('heading', { name: 'Мои баллы' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Мой профиль' })).toBeInTheDocument();
   });
 });
