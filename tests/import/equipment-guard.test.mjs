@@ -143,3 +143,15 @@ test('--accept-unmatched-payments передаётся шагам оплат к�
   const none = steps((await showOnly(['--mode', 'Daily', '--write'])).out).filter(x => x.script === 'run-payments.mjs');
   assert.ok(none.every(x => !/--accept-unmatched/.test(x.args)));
 });
+
+test('0188: у существующего заказа paid в запись не уходит (журнал оплат), у нового заказа paid пишется при вставке', async () => {
+  const x = files(row(1, 'Ivanov Ivan', 'KS-0001', 'ORD-0001', 200) + row(2, 'Petrov Petr', 'KS-0002', 'ORD-0002', 150));
+  const r = await run(x, { equipment_orders: [dbOrder({ paid: 100 })] }, ['--write', '--accept-warnings']);
+  assert.equal(r.code, 0, r.stderr + r.stdout);
+  const posts = r.writes.filter(c => c.method === 'POST' && c.table === 'equipment_orders');
+  const bodies = posts.flatMap(c => c.body);
+  const old = bodies.find(b => b.external_ord_id === 'ORD-0001');
+  const fresh = bodies.find(b => b.external_ord_id === 'ORD-0002');
+  assert.ok(old && !('paid' in old), 'paid существующего заказа не должен уходить в запись');
+  assert.equal(fresh.paid, 150);
+});

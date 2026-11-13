@@ -180,6 +180,7 @@ end $function$;
 grant select, insert, update, delete, truncate on service_payments to service_role;
 grant select, insert, update, delete on equipment_orders, equipment_order_lines, equipment_issues, equipment_order_status_history to authenticated;
 drop policy if exists equipment_issues_admin_read on equipment_issues;
+drop policy if exists service_payments_eq_local_admin_read on service_payments;
 drop policy if exists equipment_orders_admin on equipment_orders;
 create policy equipment_orders_admin on equipment_orders for all using (is_admin()) with check (is_admin());
 drop policy if exists equipment_lines_admin on equipment_order_lines;
