@@ -629,6 +629,20 @@ describe('Взносы за матч (администратор)', () => {
     expect(await screen.findByLabelText('Платит: Иванов Пётр')).toBeInTheDocument();
   });
 
+  it('игрока добавили в состав после назначения взноса: кнопка берёт уже назначенную сумму, поле можно не заполнять', async () => {
+    seed();
+    fake.rpc.match_fees_list = () => [{ player_id: 'p1', full_name: 'Иванов Пётр', group_name: 'U9', due: 25, paid: 0 }];
+    fake.rpc.match_payments_list = () => [];
+    fake.rpc.match_fee_add = () => 1;
+    render(<CoachMatches groups={groups} admin />);
+    fireEvent.click(await screen.findByText('Олимп'));
+    await screen.findByText('Взносы');
+    fireEvent.click(await screen.findByText(/Добавить игроков состава во взнос/));
+    await waitFor(() => expect(fake.rpcCalls('match_fee_add')).toHaveLength(1));
+    expect(fake.rpcCalls('match_fee_add')[0]).toMatchObject({ m: 'm1', amt: 25 });
+    expect(fake.rpcCalls('match_fee_add')[0].ids as string[]).not.toContain('p1');
+  });
+
   it('тренер принимает взносы за товарищеский матч, без скидки и отмены платежа', async () => {
     seed();
     fake.rpc.match_fees_list = () => [{ player_id: 'p1', full_name: 'Иванов Пётр', group_name: 'U9', due: 20, paid: 0 }];
