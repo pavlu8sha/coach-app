@@ -2,7 +2,7 @@
 
 Статус: **копий сейчас нет.** Supabase на бесплатном тарифе не делает автоматических бэкапов (`docs/LAUNCH_READINESS_2026-11.md`, `docs/LAUNCH_AUDIT.md`). Ошибочный `delete`, неудачная миграция или потеря доступа к проекту сейчас означают потерю данных. Этот документ и скрипты закрывают пробел без платного тарифа.
 
-Пошаговая инструкция для владельца под Mac (настройка с нуля, первая копия, расписание): [`docs/BACKUP_SETUP_GUIDE.md`](../../docs/BACKUP_SETUP_GUIDE.md).
+Пошаговая инструкция для владельца под Windows через WSL (настройка с нуля, первая копия, расписание): [`docs/BACKUP_SETUP_GUIDE.md`](../../docs/BACKUP_SETUP_GUIDE.md).
 
 Скрипты:
 
@@ -48,7 +48,7 @@
 ```
 cd ~/coach-app && db/ops/backup-pg-dump.sh
 ```
-Автоматически, ежедневно в 03:30 (cron на Mac/Linux):
+Автоматически, ежедневно в 03:30 (cron на Linux/Mac; на Windows через WSL и Планировщик заданий, см. `docs/BACKUP_SETUP_GUIDE.md`):
 ```
 30 3 * * * cd $HOME/coach-app && git pull -q && db/ops/backup-pg-dump.sh >> $HOME/kickstart-backups/backup.log 2>&1
 ```
