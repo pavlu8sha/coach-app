@@ -36,7 +36,7 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
   const { ask, dialog: confirmDialog } = useConfirm();
   const { askClosure, closureDialog } = useClosure();
   const [discs, setDiscs] = useState<Record<string, DiscRow>>({});
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string; top?: boolean } | null>(null);
   const [n, setN] = useState(0);
 
   useEffect(() => {
@@ -72,12 +72,14 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
   const toggle = (id: string) => setSel(s => { const c = new Set(s); if (c.has(id)) c.delete(id); else c.add(id); return c; });
   const missing = addable.filter(a => !fees.some(f => f.player_id === a.id));
   const addAll = () => {
-    if (feeInput === '' || !(Number(feeInput) >= 0)) return setMsg({ ok: false, text: 'Укажите взнос с игрока.' });
-    void run(supabase.rpc('match_fee_add', { m: eventId, ids: missing.map(a => a.id), amt: Number(feeInput) }), 'Игроки добавлены во взнос.');
+    // поле могло остаться пустым после перезагрузки экрана: берём сумму, уже назначенную другим игрокам
+    const amount = feeInput !== '' ? Number(feeInput) : fees.length ? fees[0].due : NaN;
+    if (!(amount >= 0)) return setMsg({ ok: false, top: true, text: 'Укажите взнос с игрока в поле выше.' });
+    void run(supabase.rpc('match_fee_add', { m: eventId, ids: missing.map(a => a.id), amt: amount }), 'Игроки добавлены во взнос.');
   };
   const saveFee = () => {
     const amount = Number(feeInput);
-    if (feeInput === '' || !(amount >= 0)) return setMsg({ ok: false, text: 'Укажите взнос с игрока.' });
+    if (feeInput === '' || !(amount >= 0)) return setMsg({ ok: false, top: true, text: 'Укажите взнос с игрока.' });
     if (!api.add) return void run(supabase.rpc(api.setFee, { [api.key]: eventId, amt: amount }), 'Взнос обновлён (у тех, кому не делали скидку и кто не платил).');
     // у матча взнос хранится у каждого игрока: сначала назначаем его тем, кого ещё нет, затем обновляем остальных
     if (fees.length === 0 && missing.length === 0) return setMsg({ ok: false, text: 'В составе матча нет игроков: взнос назначается игрокам состава.' });
@@ -127,6 +129,7 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
         <input id="ef-fee" className="ks-input" inputMode="decimal" value={feeInput} onChange={e => setFeeInput(e.target.value.replace(/[^\d.]/g, '').slice(0, 7))} placeholder="Сумма" />
         <button type="button" className="ks-btn secondary" style={{ width: 'auto' }} disabled={busy || feeInput === ''} onClick={saveFee}>Сохранить</button>
       </div>
+      {msg?.top && <p className={msg.ok ? 'ks-ok' : 'error'}>{msg.text}</p>}
       {api.add && missing.length > 0 && (
         <button type="button" className="ks-btn secondary" style={{ marginBottom: 8 }} disabled={busy} onClick={addAll}>Добавить игроков состава во взнос, в том числе до игры ({missing.length})</button>
       )}
@@ -175,7 +178,7 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
       <label className="ks-label" htmlFor="ef-note">Комментарий</label>
       <input id="ef-note" className="ks-input" value={note} onChange={e => setNote(e.target.value)} maxLength={120} />
       <button type="button" className="ks-btn" disabled={busy || sel.size === 0} onClick={pay}>Записать оплату{sel.size ? ` (${sel.size})` : ''}</button>
-      {msg && <p className={msg.ok ? 'ks-ok' : 'error'}>{msg.text}</p>}
+      {msg && !msg.top && <p className={msg.ok ? 'ks-ok' : 'error'}>{msg.text}</p>}
       {pays.length > 0 && (
         <>
           <h2 className="ks-sub">Платежи</h2>
