@@ -700,7 +700,7 @@ describe('«Матчи» тренера и матчи с подтвержден�
   const future = new Date(Date.now() + 5 * 86400_000).toISOString();
   const rsvp = (id: string, opponent: string, lifecycle_status: string, starts_at: string) => ({ id, team: 'U9', played_on: '2026-11-07', opponent, goals_for: null, goals_against: null, lifecycle_status, starts_at });
 
-  it('черновик, будущий и отменённый матчи в старом списке не видны, начавшийся виден для отметок', async () => {
+  it('опубликованный матч с подтверждением (будущий и начавшийся) виден в общем списке, черновик и отменённый нет', async () => {
     fake.db.matches = [
       rsvp('d1', 'Черновик-соперник', 'draft', future),
       rsvp('f1', 'Будущий-соперник', 'published', future),
@@ -712,8 +712,9 @@ describe('«Матчи» тренера и матчи с подтвержден�
     fake.db.match_players = [];
     render(<CoachMatches groups={groups} />);
     expect(await screen.findByText(/Начавшийся-соперник/)).toBeInTheDocument();
+    expect(screen.getByText(/Будущий-соперник/)).toBeInTheDocument(); // решение владельца 2026-11-13: опубликованный матч виден сразу
     expect(screen.getByText(/Старый-соперник/)).toBeInTheDocument();
-    for (const hidden of ['Черновик-соперник', 'Будущий-соперник', 'Отменённый-соперник']) expect(screen.queryByText(new RegExp(hidden))).toBeNull();
+    for (const hidden of ['Черновик-соперник', 'Отменённый-соперник']) expect(screen.queryByText(new RegExp(hidden))).toBeNull();
   });
 
   it('у начавшегося матча с подтверждением дата и соперник закрыты для правки', async () => {
