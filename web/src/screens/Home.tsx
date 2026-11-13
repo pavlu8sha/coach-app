@@ -9,6 +9,7 @@ import LinkOnboarding from './LinkOnboarding';
 import LinkStatus, { STATUS, type Req } from './LinkStatus';
 import { Failure, Loading } from './Message';
 import ParentCamps from './ParentCamps';
+import PlayerProfile from './PlayerProfile';
 import PointsLedger from './PointsLedger';
 
 interface Child {
@@ -26,7 +27,7 @@ const plural = (n: number) => {
 };
 
 // Карточка ребёнка: имя, группа, сумма баллов и история начислений по новому журналу. Других детей и голов здесь нет.
-function ChildCard({ c }: { c: Child }) {
+function ChildCard({ c, onProfile }: { c: Child; onProfile: () => void }) {
   return (
     <section className="ks-card ks-kid" aria-label={c.name}>
       <div className="ks-kid-head">
@@ -41,6 +42,9 @@ function ChildCard({ c }: { c: Child }) {
         </div>
       </div>
       <p className="muted ks-kid-stats">Матчей сыграно: {c.played} · голов: {c.goals}</p>
+      <button type="button" className="ks-btn secondary" onClick={onProfile} aria-label={`Профиль игрока: ${c.name}`}>
+        Профиль игрока
+      </button>
       <PointsLedger playerId={c.id} showEmpty />
     </section>
   );
@@ -58,6 +62,7 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
   const statusOpen = Boolean(useSubEntry('hm.status')); // статусы запросов — запись стека
   const campsEntry = useSubEntry('hm.camps'); // сборы родителя (#470, условие 49)
   const campsOpen = Boolean(campsEntry);
+  const profileEntry = useSubEntry('hm.profile'); // профиль выбранного ребёнка (#266, П1.1)
   const wasStatus = useRef(false);
   const retry = () => {
     setError(null);
@@ -118,6 +123,7 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
   if (error) return <Failure title="Не удалось загрузить данные" text={error} onRetry={retry} />;
   if (!children) return <Loading />;
   if (statusOpen) return <LinkStatus onBack={() => nav.back()} />;
+  if (profileEntry?.params.pid) return <PlayerProfile key={profileEntry.params.pid} playerId={profileEntry.params.pid} onBack={() => nav.back()} />;
   if (campsOpen) return <ParentCamps onBack={() => nav.back()} openSlug={campsEntry?.params.open ?? null} />;
 
   const waiting = reqs.filter(r => r.status === 'pending').length;
@@ -153,7 +159,7 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
       <HideWhen hide={policyOpen}>
         <h1>{children.length > 1 ? 'Мои дети' : 'Мой ребёнок'}</h1>
         {children.map(c => (
-          <ChildCard c={c} key={c.id} />
+          <ChildCard c={c} key={c.id} onProfile={() => nav.push('hm.profile', { pid: c.id })} />
         ))}
       </HideWhen>
       {addMore ? (

@@ -51,3 +51,17 @@ describe('ввод кода ребёнком', () => {
     expect(screen.queryByText(/9 баллов/)).toBeNull();
   });
 });
+
+describe('ребёнок: свой профиль (#266, П1.2)', () => {
+  it('кнопка «Мой профиль» открывает собственный профиль и возвращает назад', async () => {
+    fake.db.match_players = [];
+    fake.db.players = [{ id: 'p1', full_name: 'Иван', birth_date: null, groups: { name: 'U9' } }];
+    fake.rpc.player_training_history = () => [];
+    render(<ChildHome player={{ id: 'p1', name: 'Иван', group: 'U9' }} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Мой профиль' }));
+    expect(await screen.findByRole('tablist', { name: 'Разделы профиля' })).toBeInTheDocument();
+    expect(fake.rpcCalls('player_training_history')[0].p).toBe('p1');
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(await screen.findByRole('heading', { name: 'Мои баллы' })).toBeInTheDocument();
+  });
+});
