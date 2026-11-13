@@ -160,6 +160,8 @@ function CampView({ camp, campIndex, onBack, onEdit, onPatched }: { camp: Camp; 
   );
 }
 
+interface RepriceResult { old_price: number; new_price: number; updated: number; overpaid: number; manual: number }
+
 // Что требует действия администратора (условия 66-67): только показ, ничего не меняет и не уведомляет
 function Attention({ camp, parts, onOpen }: { camp: Camp; parts: Part[]; onOpen: (id: string) => void }) {
   const { refunds, noBooking, fee } = campAttention(camp, parts);
@@ -187,13 +189,41 @@ function Tariffs({ camp, tariffs, onChanged }: { camp: Camp; tariffs: Tariff[]; 
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const { ask, dialog } = useConfirm();
   const save = async (nm: string, pr: number, act: boolean) => {
+    if (busy) return;
     setMsg(null);
-    const r = await supabase.rpc('camp_tariff_save', { cid: camp.id, nm, pr, act });
-    if (r.error) return setMsg(errText(r.error.message));
-    setName('');
-    setPrice('');
-    onChanged();
+    setInfo(null);
+    setBusy(true);
+    try {
+      // Смена цены существующего тарифа пересчитывает записанных (условия 15-19, docs/CAMP_TARIFF_REPRICE_ACCEPTANCE.md): сначала предпросмотр.
+      const existing = tariffs.find(t => t.name === nm.trim());
+      if (existing && Number(existing.price) !== pr) {
+        const pv = await supabase.rpc('camp_tariff_reprice_preview', { cid: camp.id, nm, pr });
+        if (pv.error) return setMsg(errText(pv.error.message));
+        const c = pv.data as RepriceResult | null;
+        if (c && c.updated + c.overpaid + c.manual > 0) {
+          const ok = await ask({
+            title: 'Изменить цену тарифа?',
+            lines: [['Тариф', nm.trim()], ['Цена', `${gel(Number(existing.price))} → ${gel(pr)}`], ['Получат новую сумму', String(c.updated)], ['Внесено больше новой цены (нужен возврат)', String(c.overpaid)], ['Ручная сумма, не изменится', String(c.manual)]],
+            note: 'Платежи не меняются. Суммы записанных, равные старой цене, станут новой ценой.',
+            confirmLabel: 'Сохранить',
+          });
+          if (!ok) return;
+        }
+      }
+      const r = await supabase.rpc('camp_tariff_save', { cid: camp.id, nm, pr, act });
+      if (r.error) return setMsg(errText(r.error.message));
+      const c = r.data as RepriceResult | null;
+      if (c && Number(c.old_price) !== Number(c.new_price)) setInfo(`Пересчитано записей: ${c.updated}; нужен возврат: ${c.overpaid}; ручные суммы не менялись: ${c.manual}.`);
+      setName('');
+      setPrice('');
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <>
@@ -205,7 +235,9 @@ function Tariffs({ camp, tariffs, onChanged }: { camp: Camp; tariffs: Tariff[]; 
       <label className="field">Название<input value={name} maxLength={60} onChange={e => setName(e.target.value)} /></label>
       <label className="field">Цена, ₾<input inputMode="decimal" value={price} onChange={e => setPrice(e.target.value)} /></label>
       {msg && <p className="error">{msg}</p>}
-      <button type="button" className="ks-btn" disabled={!name.trim() || price.trim() === '' || Number.isNaN(num(price))} onClick={() => void save(name, num(price), true)}>Сохранить тариф</button>
+      {info && <p className="muted" role="status">{info}</p>}
+      <button type="button" className="ks-btn" disabled={busy || !name.trim() || price.trim() === '' || Number.isNaN(num(price))} onClick={() => void save(name, num(price), true)}>Сохранить тариф</button>
+      {dialog}
     </>
   );
 }
