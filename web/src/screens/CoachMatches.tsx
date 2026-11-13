@@ -3,7 +3,7 @@ import { coachError, compareGroups, fmtDate, matchTeam, playsMatches, today, typ
 import { supabase } from '../lib/supabase';
 import { useDirtySignature, useNav, useNavState } from '../nav';
 import { EmptyState, ListRow, Pill, NameDatalist, searchFocusProps } from '../ui/components';
-import { GroupPicker, Stepper } from '../ui/coach';
+import { Stepper } from '../ui/coach';
 import { BackNav, useMainButton } from '../ui/nav';
 import EventFees from './EventFees';
 import { EventForm, EventScreen, eventCounts, eventTitle, isFinished, type EventRow } from './Events';
@@ -197,7 +197,9 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
   // Уже сохранённые матчи не меняются: «U13» остаётся общим, «U13-B» остаётся группой.
   const hasLetter = (name?: string) => Boolean(name && /-[A-Z]$/.test(name));
   const groupName = groups.find(g => g.id === gid)?.name;
-  const groupOnly = match ? hasLetter(match.team) : hasLetter(groupName);
+  // «U9 (все группы)»: матч всей команды U9, состав из всех её групп (как раньше); по умолчанию, если команду выбрали в списке команд
+  const [wholeTeam, setWholeTeam] = useState(!match && Boolean(presetTeam) && hasLetter(groups.find(g => g.id === presetGid)?.name));
+  const groupOnly = match ? hasLetter(match.team) : hasLetter(groupName) && !wholeTeam;
   const [teamSet, setTeamSet] = useState(false);
   const rsvpLocked = Boolean(match && isRsvp(match)); // дату и соперника держит экран «Матчи с подтверждением»: иначе played_on разойдётся с временем начала
   const [date, setDate] = useState(match?.played_on ?? today());
@@ -334,7 +336,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
         : await supabase.rpc('save_match', { m: savedId, g: gid || null, d: date, opp, gf: score.gf, ga: score.ga, roster });
     setBusy(false);
     if (r.error) return setMsg({ ok: false, text: coachError(r.error.message) });
-    if (!match && !teamSet && gid && hasLetter(groupName)) {
+    if (!match && !teamSet && gid && groupOnly) {
       const sg = await supabase.rpc('set_match_team_group', { m: r.data as string, g: gid, exact: true });
       if (sg.error) {
         setSavedId(r.data as string);
@@ -389,7 +391,18 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
       <h1>{match ? 'Матч' : 'Новый матч'}</h1>
       {canPickGroup && presetMissing && !admin && <p className="error" style={{ marginBottom: 8 }}>В клубе нет группы «{presetTeam}», поэтому матч для неё не сохранить. Вернитесь и выберите другую команду.</p>}
       {canPickGroup && presetMissing && admin && <p className="muted" style={{ marginBottom: 8 }}>Команда «{presetTeam}» без группы: состав собирайте поиском по игрокам клуба.</p>}
-      {canPickGroup && !presetMissing && <GroupPicker groups={matchGroups} value={gid} onChange={setGid} />}
+      {canPickGroup && !presetMissing && matchGroups.length > 1 && (
+        <select className="ks-select" aria-label="Группа" value={(wholeTeam && hasLetter(groupName) ? 't:' : 'g:') + gid} onChange={e => { setWholeTeam(e.target.value.startsWith('t:')); setGid(e.target.value.slice(2)); }}>
+          {matchGroups.map((g, i) => {
+            const lettered = hasLetter(g.name);
+            const firstOfTeam = lettered && matchGroups.findIndex(x => matchTeam(x.name) === matchTeam(g.name)) === i;
+            return [
+              firstOfTeam && <option key={'t' + g.id} value={'t:' + g.id}>{matchTeam(g.name)} (все группы)</option>,
+              <option key={g.id} value={'g:' + g.id}>{g.name}</option>,
+            ];
+          })}
+        </select>
+      )}
       {match && admin && <p className="muted" style={{ marginBottom: 8 }}>Команда: {match.team}</p>}
       <label className="ks-label" htmlFor="m-date">Дата</label>
       <input id="m-date" className="ks-input" type="date" value={date} disabled={rsvpLocked} onChange={e => { setDate(e.target.value); setMsg(null); }} />
