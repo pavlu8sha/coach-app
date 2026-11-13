@@ -16,8 +16,9 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub', uid, 'role', 'authenticated')::text, true);
 end $$;
 
+select as_user('00000000-0000-0000-0000-0000000000a1');
+select lives_ok($$select event_create('championship', 'U9', 'Ч1', '2026-11-01', 0, null)$$, 'админ создаёт событие');
 select as_user('00000000-0000-0000-0000-0000000000c1');
-select lives_ok($$select event_create('championship', 'U9', 'Ч1', '2026-11-01', 0, null)$$, 'тренер создаёт событие');
 select is((select status from event_list() limit 1), 'active', 'новое событие идёт');
 select throws_ok($$select event_set_status((select id from event_list() limit 1), 'finished')$$, '42501', null, 'тренер не меняет статус');
 

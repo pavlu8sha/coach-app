@@ -452,17 +452,45 @@ describe('«Новое событие»', () => {
     expect(screen.queryByText('играл в матче')).toBeNull();
   });
 
-  it('создание события уходит в базу без взноса от тренера', async () => {
+  it('тренеру кнопка «Новое событие» не показывается, подсказка отправляет к администратору (0194)', async () => {
     fake.db.matches = [];
     fake.rpc.event_list = () => [];
     fake.rpc.event_create = () => 'e-new';
     render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText('Добавить матч'));
+    expect(screen.queryByText('Новое событие')).toBeNull();
+    expect(screen.getByText(/Чемпионаты и фестивали создаёт администратор/)).toBeInTheDocument();
+    expect(fake.rpcCalls('event_create')).toHaveLength(0);
+  });
+
+  it('администратору кнопка «Новое событие» показывается, создание уходит в базу', async () => {
+    fake.db.matches = [];
+    fake.rpc.event_list = () => [];
+    fake.rpc.event_create = () => 'e-new';
+    render(<CoachMatches groups={groups} allTeams admin />);
     fireEvent.click(await screen.findByText('Новое событие'));
     fireEvent.change(await screen.findByLabelText('Название'), { target: { value: 'Чемпионат 2' } });
-    expect(screen.queryByLabelText(/Взнос/)).toBeNull();
     fireEvent.click(screen.getByText('Создать событие'));
     await waitFor(() => expect(fake.rpcCalls('event_create')).toHaveLength(1));
-    expect(fake.rpcCalls('event_create')[0]).toMatchObject({ k: 'championship', tm: 'U9', nm: 'Чемпионат 2', fee: null });
+    expect(fake.rpcCalls('event_create')[0]).toMatchObject({ k: 'championship', tm: 'U9', nm: 'Чемпионат 2' });
+  });
+
+  it('администратор: взнос за чемпионат подставляется из настроек клуба (свой у команды или общий), введённый вручную важнее (#339)', async () => {
+    fake.db.matches = [];
+    fake.db.clubs = [{ id: 'c1' }];
+    fake.db.club_settings = [
+      { club_id: 'c1', key: 'matches.champFee', scope: '', value: '200' },
+      { club_id: 'c1', key: 'matches.champFee', scope: 'U9', value: '300' },
+    ];
+    fake.rpc.event_list = () => [];
+    fake.rpc.event_create = () => 'e-new';
+    render(<CoachMatches groups={groups} allTeams admin />);
+    fireEvent.click(await screen.findByText('Новое событие'));
+    fireEvent.change(await screen.findByLabelText('Название'), { target: { value: 'Чемпионат 2' } });
+    await waitFor(() => expect(screen.getByLabelText(/Взнос/)).toHaveAttribute('placeholder', '300'));
+    fireEvent.click(screen.getByText('Создать событие'));
+    await waitFor(() => expect(fake.rpcCalls('event_create')).toHaveLength(1));
+    expect(fake.rpcCalls('event_create')[0]).toMatchObject({ tm: 'U9', fee: 300 });
   });
 
   it('администратор: взнос за чемпионат подставляется из настроек клуба (свой у команды или общий), введённый вручную важнее (#339)', async () => {
@@ -487,7 +515,7 @@ describe('«Новое событие»', () => {
     fake.db.matches = [];
     fake.rpc.event_list = () => [{ id: 'e1', team: 'U9', kind: 'championship', name: 'Ч1', starts_on: '2026-11-01', players: 2, games: 0 }];
     fake.rpc.event_create = () => 'e-new';
-    render(<CoachMatches groups={groups} />);
+    render(<CoachMatches groups={groups} admin />);
     fireEvent.click(await screen.findByText('Новое событие'));
     fireEvent.change(await screen.findByLabelText('Название'), { target: { value: 'Ч2' } });
     fireEvent.click(screen.getByText('Создать событие'));
