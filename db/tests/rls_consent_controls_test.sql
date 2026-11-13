@@ -21,9 +21,10 @@ insert into link_requests (user_id, player_id, status, consent_version) values
   ('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000d001', 'approved', 'v1'),
   ('00000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-00000000d002', 'approved', 'v1');
 insert into rules (id, club_id, code, points, explanation, active_from) values ('00000000-0000-0000-0000-0000000000f0', '00000000-0000-0000-0000-00000000c001', 'x', 1, 'x', '2026-01-01');
-insert into point_events (player_id, rule_id, points, source_type, occurred_on, explanation) values
-  ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000000f0', 3, 'coach', '2026-10-20', 'Отлично'),
-  ('00000000-0000-0000-0000-00000000d002', '00000000-0000-0000-0000-0000000000f0', 9, 'coach', '2026-10-20', 'Чужой балл');
+-- баллы из нового журнала (0186: выгрузка берёт points_ledger)
+insert into points_ledger (club_id, player_id, event_date, source_type, source_id, reason_code, points, components) values
+  ('00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-00000000d001', '2026-10-20', 'manual', gen_random_uuid(), 'manual', 3, '{"note":"Отлично"}'),
+  ('00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-00000000d002', '2026-10-20', 'manual', gen_random_uuid(), 'manual', 9, '{"note":"Чужой балл"}');
 insert into payments (player_id, amount, paid_on) values
   ('00000000-0000-0000-0000-00000000d001', 100, '2026-10-01'),
   ('00000000-0000-0000-0000-00000000d002', 200, '2026-10-01');
@@ -38,7 +39,7 @@ end $$;
 select as_user('00000000-0000-0000-0000-0000000000b1');
 select is((select export_my_data()->'account'->>'display_name'), 'Родитель А', 'в выгрузке — аккаунт родителя');
 select is((select jsonb_array_length(export_my_data()->'children')), 1, 'в выгрузке один ребёнок');
-select is((select export_my_data()->'points'->0->>'explanation'), 'Отлично', 'баллы своего ребёнка в выгрузке');
+select is((select export_my_data()->'points'->0->>'explanation'), 'От тренера: Отлично', 'баллы своего ребёнка в выгрузке');
 select is((select jsonb_array_length(export_my_data()->'points')), 1, 'чужие баллы в выгрузку не попадают');
 select is((select (export_my_data()->'payments'->0->>'amount')::numeric), 100::numeric, 'платежи только своего ребёнка');
 select is((select jsonb_array_length(export_my_data()->'payments')), 1, 'чужие платежи не попадают');
@@ -49,7 +50,7 @@ select throws_ok($$select revoke_consent('00000000-0000-0000-0000-00000000d001')
 select as_user('00000000-0000-0000-0000-0000000000b1');
 select lives_ok($$select revoke_consent('00000000-0000-0000-0000-00000000d001')$$, 'родитель отзывает согласие по своему ребёнку');
 select is((select count(*)::int from players), 0, 'после отзыва ребёнок и его данные родителю недоступны');
-select is((select count(*)::int from point_events), 0, 'баллы ребёнка после отзыва недоступны');
+select is((select count(*)::int from points_ledger), 0, 'баллы ребёнка после отзыва недоступны');
 select is((select count(*)::int from link_requests), 0, 'прежний запрос на связь удалён (можно подать новый)');
 select throws_ok($$select revoke_consent('00000000-0000-0000-0000-00000000d001')$$, null, 'link not found', 'повторный отзыв отклоняется');
 select is((select jsonb_array_length(export_my_data()->'points')), 0, 'после отзыва данные ребёнка в выгрузку не попадают');

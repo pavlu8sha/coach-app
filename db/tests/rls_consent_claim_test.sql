@@ -222,7 +222,7 @@ select is(cl(), '{}'::text[], 'пустой player_ids трактуется ка
 delete from notifications;
 
 -- ===== Структура, права, совместимость =====
-select is(pg_get_function_result('claim_notifications(integer)'::regprocedure), 'TABLE(id uuid, telegram_id bigint, text text, buttons jsonb)', 'У14: возвращаемые поля claim_notifications не изменились');
+select is(pg_get_function_result('claim_notifications(integer)'::regprocedure), 'TABLE(id uuid, telegram_id bigint, text text, buttons jsonb, claim_token uuid)', 'У14: возвращаемые поля claim_notifications прежние; 0184 добавила последним полем claim_token');
 select is(has_function_privilege('service_role', 'claim_notifications(integer)', 'execute'), true, 'У14: service_role выполняет claim_notifications');
 select is(has_function_privilege('authenticated', 'claim_notifications(integer)', 'execute') or has_function_privilege('anon', 'claim_notifications(integer)', 'execute'), false, 'У14: authenticated и anon не выполняют claim_notifications');
 select is(has_function_privilege('authenticated', 'enqueue_notification(uuid,text,text,uuid[])', 'execute') or has_function_privilege('anon', 'enqueue_direction_notification(uuid,text,text,text,uuid[])', 'execute') or has_function_privilege('authenticated', 'camp_broadcast_player_ids(uuid,uuid)', 'execute'), false, 'У14: новые служебные функции закрыты');

@@ -1,4 +1,4 @@
--- Состояние миграций 0001–0178 в текущей базе. Только чтение, ничего не меняет.
+-- Состояние миграций 0001–0186 в текущей базе. Только чтение, ничего не меняет.
 -- Статусы:
 --   APPLIED     — текущее состояние миграции подтверждено, применять не нужно.
 --   SUPERSEDED  — миграция заменена последующей, повторно применять не нужно.
@@ -73,7 +73,7 @@ with m(migration, applied) as (values
   ('0064_parent_calendar',         coalesce((to_regprocedure('public.parent_calendar(uuid,date,date)') is not null), false)),
   ('0065_link_search_rate_limit',  coalesce((pg_get_functiondef(to_regprocedure('public.search_players_for_link(text)')) like '%link_search%'), false)),
   ('0066_link_flood_limits',       coalesce((to_regclass('public.link_notify_log') is not null), false)),
-  ('0067_export_points_start',     coalesce((pg_get_functiondef(to_regprocedure('public.export_my_data()')) like '%points_start%'), false)),
+  ('0067_export_points_start',     coalesce((pg_get_functiondef(to_regprocedure('public.export_my_data()')) like '%points_start%' or pg_get_functiondef(to_regprocedure('public.export_my_data()')) like '%points_ledger%'), false)),
   ('0068_notify_bonus_points_start', coalesce((pg_get_functiondef(to_regprocedure('public.notify_bonus()')) like '%points_start%'), false)),
   ('0069_booking_cancel_started',  coalesce((pg_get_functiondef(to_regprocedure('public.booking_cancel(text,uuid,uuid)')) like '%session already started%'), false)),
   ('0076_event_roster_remove_paid', coalesce((pg_get_functiondef(to_regprocedure('public.event_roster_remove(uuid,uuid)')) like '%tournament_fees where tournament_id = t and player_id = pid and paid%'), false)),
@@ -183,7 +183,35 @@ with m(migration, applied) as (values
   ('0172_camp_broadcast_audience', coalesce((to_regproc('public.camp_broadcast_audience') is not null and to_regproc('public.camp_broadcast_recipients') is not null), false)),
   ('0174_booking_cancel_notice', coalesce((pg_get_functiondef(to_regprocedure('public.booking_cancel(text,uuid,uuid)')) like '%Отмена записи на занятие%' and pg_get_functiondef(to_regprocedure('public.booking_signup(text,uuid,uuid)')) not like '%Индивидуальные / Дополнительные%'), false)),
   ('0176_consent_claim_check', (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'notifications' and column_name = 'player_ids') and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'notifications' and column_name = 'consent_check_attempts') and exists (select 1 from pg_proc where oid = to_regprocedure('public.claim_notifications(integer)') and position('parent_access_ok' in prosrc) > 0) and to_regprocedure('public.camp_broadcast_player_ids(uuid,uuid)') is not null)),
-  ('0177_ind_autocreate_topic_offset', coalesce((position($$/ 7 + 2) % array_length$$ in pg_get_functiondef(to_regprocedure('public.ind_autocreate(date)'))) > 0), false))),
+  ('0177_ind_autocreate_topic_offset', coalesce((position($$/ 7 + 2) % array_length$$ in pg_get_functiondef(to_regprocedure('public.ind_autocreate(date)'))) > 0), false)),
+  ('0179_payment_history_guard', coalesce((
+    (select count(*) = 16 from pg_trigger where not tgisinternal and tgenabled = 'O' and tgname in (
+      'payments_history_guard', 'payments_history_no_truncate', 'payments_history_audit',
+      'match_payments_history_guard', 'match_payments_history_no_truncate', 'match_payments_history_audit',
+      'tournament_payments_history_guard', 'tournament_payments_history_no_truncate', 'tournament_payments_history_audit',
+      'service_payments_history_guard', 'service_payments_history_no_truncate', 'service_payments_history_audit',
+      'subscriptions_closed_no_delete', 'players_delete_audit', 'match_fees_player_cascade_guard', 'tournament_fees_player_cascade_guard'))
+    and to_regprocedure('public.payment_history_guard()') is not null
+    and to_regprocedure('public.payment_history_audit()') is not null
+    and to_regprocedure('public.subscription_closure_guard()') is not null
+    and to_regprocedure('public.player_delete_audit()') is not null
+    and to_regprocedure('public.fee_player_cascade_guard()') is not null
+    and not has_table_privilege('authenticated', 'public.players', 'delete')
+  ), false)),
+  ('0180_function_acl', coalesce((
+    select bool_and(case when to_regprocedure('public.' || s) is null then false
+                         else not has_function_privilege('anon', to_regprocedure('public.' || s), 'execute') end)
+    from unnest(array['apply_match_points(uuid)', 'award_bonus(uuid,integer,text)', 'cancel_link(uuid)', 'debt_start()', 'debtors(date)', 'decide_link(uuid,boolean)', 'delete_match(uuid)', 'erase_parent(uuid)', 'export_my_data()', 'group_parents(uuid)', 'mark_attendance(uuid,jsonb)', 'open_session(uuid,date)', 'parent_debts()', 'recalc_match_points(uuid)', 'reject_data_request(uuid,text)', 'request_data_deletion()', 'request_link(uuid,text)', 'retry_link(uuid)', 'revoke_bonus(uuid)', 'revoke_consent(uuid)', 'rule_for(uuid,text,date)', 'save_match(uuid,uuid,date,text,integer,integer,jsonb)', 'search_players_for_link(text)', 'tariff_for(uuid,uuid,date)', 'tbilisi_day(timestamptz)']) s
+  ) and (
+    select bool_and(case when to_regprocedure('public.' || s) is null then false
+                         else not has_function_privilege('authenticated', to_regprocedure('public.' || s), 'execute') end)
+    from unnest(array['apply_match_points(uuid)', 'debt_start()', 'points_rules_for(uuid,date)', 'rule_for(uuid,text,date)', 'tariff_for(uuid,uuid,date)']) s
+  ), false)),
+  ('0181_roster_on_date', coalesce((to_regprocedure('public.points_player_on_roster(uuid,date)') is not null and position('points_player_on_roster' in pg_get_functiondef(to_regprocedure('public.mark_attendance(uuid,jsonb)'))) > 0), false)),
+  ('0184_notifications_queue_stall', coalesce((to_regprocedure('public.release_notifications(uuid[],uuid)') is not null and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'notifications' and column_name = 'claim_token') and exists (select 1 from pg_proc where oid = to_regprocedure('public.claim_notifications(integer)') and position('stalled' in prosrc) > 0 and position('parent_access_ok' in prosrc) > 0)), false)),
+  ('0185_equipment_order_foundation', coalesce((to_regclass('public.equipment_order_events') is not null and to_regprocedure('public.eq_cancel_order(uuid,text)') is not null and to_regprocedure('public.eq_restore_order(uuid,text)') is not null and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'equipment_orders' and column_name = 'status_before_cancel') and (select count(*) = 5 from pg_trigger where not tgisinternal and tgenabled = 'O' and tgname in ('equipment_orders_guard', 'equipment_lines_cancelled_freeze', 'equipment_issues_cancelled_freeze', 'equipment_order_events_immutable', 'equipment_order_events_no_truncate'))), false)),
+  ('0186_points_legacy_off', coalesce((exists (select 1 from pg_trigger where tgrelid = 'public.point_events'::regclass and tgname = 'point_events_archive_freeze' and not tgisinternal) and not exists (select 1 from pg_trigger where tgrelid = 'public.point_events'::regclass and tgname = 'point_events_notify') and to_regprocedure('public.save_match_tech(uuid,uuid,text,date,text,integer,integer,jsonb,boolean)') is not null and not has_function_privilege('authenticated', 'public.award_bonus(uuid,integer,text)', 'execute') and position('points_ledger' in pg_get_functiondef(to_regprocedure('public.export_my_data()'))) > 0), false))
+),
 overrides(migration, status) as (
   select '0047_ind_no_autobook', case
     when not coalesce((select applied from m where migration = '0047_ind_no_autobook'), false) then 'NOT_APPLIED'

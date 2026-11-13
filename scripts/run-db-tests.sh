@@ -6,6 +6,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 DB="${DB_NAME:-kickstart_test}"
 PSQL="${PSQL:-psql}"
+# shellcheck source=lib/local-db-guard.sh
+. scripts/lib/local-db-guard.sh
+local_db_guard "$PSQL" || exit 2
 
 $PSQL -q -d postgres -c "drop database if exists $DB" -c "create database $DB"
 run() { $PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f "$1"; }
@@ -54,5 +57,7 @@ echo "== db/tests/concurrency_consent_record.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_consent_record.sh || fail=1
 echo "== db/tests/concurrency_consent_claim.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_consent_claim.sh || fail=1
+echo "== db/tests/concurrency_notifications_release.sh"
+DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_notifications_release.sh || fail=1
 $PSQL -q -d postgres -c "drop database if exists $DB"
 [ "$fail" = 0 ] && echo "Все тесты доступа прошли" || { echo "ЕСТЬ ПАДЕНИЯ"; exit 1; }

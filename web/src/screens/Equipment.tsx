@@ -11,15 +11,15 @@ import { settingNumberError, useClubSettings } from '../lib/clubSettings';
 import { bundleDiscount, priorAmount } from '../lib/equipmentDiscount';
 import { CSV_BOM, csvFileName, equipmentCsv } from '../lib/equipmentExport';
 import { initData } from '../lib/telegram';
-import { allKitsIssued, EQUIPMENT_REQUIRED_KEY, EQUIPMENT_REQUIRED_TEXT, issueStateLabel, kitIssued, lastStatusDate, orderMatchesIssue, nextStatus, orderStatusLabel, prevStatus, type StatusEvent } from '../lib/equipment';
+import { allKitsIssued, EQUIPMENT_REQUIRED_KEY, EQUIPMENT_REQUIRED_TEXT, isCancelled, issueStateLabel, kitIssued, lastStatusDate, orderDue, orderMatchesIssue, nextStatus, orderStatusLabel, prevStatus, type StatusEvent } from '../lib/equipment';
 
 interface Line { id?: string; kit: string; size: string | null; quantity: number; unit_price?: number | string | null }
 interface Order {
   id: string; player_id: string | null; ordered_on: string | null; total: number; paid: number; installment: boolean; number: string | null; inscription: string | null; location: string | null;
-  status: string; equipment_order_status_history: StatusEvent[];
+  status: string; cancel_reason?: string | null; cancelled_at?: string | null; equipment_order_status_history: StatusEvent[];
   players: { full_name: string; groups?: { name: string } | null } | null; equipment_order_lines: Line[]; equipment_issues: { kit: string; issued_on: string; issued_by: string | null }[];
 }
-const ORDER_COLS = 'id, player_id, ordered_on, total, paid, installment, number, inscription, location, status, equipment_order_status_history(status, changed_at, changed_by_name), equipment_order_lines(id, kit, size, quantity, unit_price), equipment_issues(kit, issued_on, issued_by)';
+const ORDER_COLS = 'id, player_id, ordered_on, total, paid, installment, number, inscription, location, status, cancel_reason, cancelled_at, equipment_order_status_history(status, changed_at, changed_by_name), equipment_order_lines(id, kit, size, quantity, unit_price), equipment_issues(kit, issued_on, issued_by)';
 interface Kit { kit: string; price: number }
 
 const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
@@ -27,6 +27,8 @@ const num = (s: string) => Number(s.replace(',', '.'));
 const errText = (m: string) =>
   m.includes('paid above total') ? 'Оплата больше суммы заказа.' : m.includes('paid below zero') ? 'Оплачено не может быть меньше нуля.' : m.includes('total below paid') ? 'Сумма заказа меньше уже оплаченного.' :
   m.includes('order has payments') ? 'У заказа есть оплата: сначала верните её записью с минусом.' : m.includes('order has issues') ? 'У заказа есть выданные вещи: сначала снимите выдачу.' : m.includes('item issued') ? 'Вещь уже выдана: сначала снимите выдачу (размер менять можно).' : m.includes('last line') ? 'Это последняя вещь в заказе: удалите весь заказ.' : m.includes('bad quantity') ? 'Количество от 1 до 10.' : m.includes('bad date') ? 'Дата не может быть в будущем.' : m.includes('kit not in catalog') ? 'Позиции нет в каталоге.' : m.includes('no items') ? 'Выберите хотя бы одну вещь.' : m.includes('bad amount') ? 'Сумма указана неверно.' :
+  m.includes('order cancelled') ? 'Заказ отменён: менять его нельзя. Сначала восстановите заказ.' : m.includes('already cancelled') ? 'Заказ уже отменён.' : m.includes('not cancelled') ? 'Заказ не отменён.' : m.includes('reason required') ? 'Укажите причину отмены.' :
+  m.includes('parent order') ? 'Заказ оформил родитель: удалить его нельзя, можно только отменить.' : m.includes('order has events') ? 'У заказа есть история отмены: удалить его нельзя.' :
   m.includes('bad transition') ? 'Статус можно менять только на один шаг вперёд (назад — администратору).' : m.includes('bad status') ? 'Такого статуса нет.' : m.includes('not all issued') ? 'Статус «Выдан» можно поставить, только когда выданы все вещи заказа.' :
   m.includes('Could not find the function') || m.includes('equipment_issues') ? 'Модуль ещё не установлен в базе (миграция 0036).' : coachError(m);
 const issueState = (o: Order) => issueStateLabel(o.equipment_order_lines, o.equipment_issues);
@@ -110,7 +112,8 @@ export default function Equipment() {
   const matches = useCallback((o: Order) => {
     const t = q.trim().toLowerCase();
     return (!t || (o.players?.full_name ?? '').toLowerCase().includes(t))
-      && (tab === 'unpaid' ? o.paid < o.total : tab === 'noissue' ? orderMatchesIssue(o.equipment_order_lines, o.equipment_issues, false, fKit) : tab === 'incomplete' ? missingOf(o).length > 0 : true)
+      && (tab === 'all' || !isCancelled(o)) // отменённые заказы видны только во «Все»
+      && (tab === 'unpaid' ? orderDue(o) > 0 : tab === 'noissue' ? orderMatchesIssue(o.equipment_order_lines, o.equipment_issues, false, fKit) : tab === 'incomplete' ? missingOf(o).length > 0 : true)
       && (!fGroup || o.players?.groups?.name === fGroup)
       && (!fKit || o.equipment_order_lines.some(l => l.kit === fKit))
       && (!fLoc || (o.location ?? '') === fLoc)
@@ -132,7 +135,8 @@ export default function Equipment() {
   }, [orders]);
   const numbers = useMemo(() => knownNumbers(orders ?? []), [orders]);
   const sums = useMemo(() => {
-    const total = shown.reduce((s, o) => s + o.total, 0), paid = shown.reduce((s, o) => s + Math.min(o.paid, o.total), 0);
+    const live = shown.filter(o => !isCancelled(o)); // отменённые не входят ни в заказано, ни в долг
+    const total = live.reduce((s, o) => s + o.total, 0), paid = live.reduce((s, o) => s + Math.min(o.paid, o.total), 0);
     return { players: new Set(shown.map(o => o.players?.full_name ?? o.id)).size, total, paid, debt: total - paid };
   }, [shown]);
 
@@ -166,7 +170,7 @@ export default function Equipment() {
     try {
       const all = await loadAll();
       if (!all) return;
-      const csv = equipmentCsv(all.filter(matches), fKit, lineOk);
+      const csv = equipmentCsv(all.filter(o => !isCancelled(o) && matches(o)), fKit, lineOk); // отменённые в выгрузку не попадают
       if (!csv) return setExportMsg({ ok: false, text: 'Нет заказов по выбранным фильтрам.' });
       if (kind === 'copy') {
         try {
@@ -261,7 +265,9 @@ export default function Equipment() {
                 avatar={o.players?.full_name ?? '—'}
                 title={o.players?.full_name ?? 'Игрок'}
                 sub={[[...new Set(o.equipment_order_lines.map(l => l.kit))].join(' + ') || 'без позиций', `${o.ordered_on ? fmtDate(o.ordered_on) : 'без даты'} · ${orderStatusLabel(o.status)} · выдано: ${issueState(o)}${missingOf(o).length ? ` · не заполнено: ${missingOf(o).join(', ')}${missingOf(o).includes('номер') && o.player_id && numbers.has(o.player_id) ? ` (номер ${numbers.get(o.player_id)} есть в другом заказе)` : ''}` : ''}`]}
-                end={<Pill tone={o.paid >= o.total ? 'success' : 'danger'} dot>{o.paid >= o.total ? 'Оплачен' : `${o.paid} из ${gel(o.total)}`}</Pill>}
+                end={isCancelled(o)
+                  ? <Pill tone="neutral" dot>{o.paid > 0 ? `Отменён, оплачено ${gel(o.paid)}` : 'Отменён'}</Pill>
+                  : <Pill tone={o.paid >= o.total ? 'success' : 'danger'} dot>{o.paid >= o.total ? 'Оплачен' : `${o.paid} из ${gel(o.total)}`}</Pill>}
                 onClick={() => nav.push('order', { id: o.id })}
               />
             ))}
@@ -384,7 +390,7 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
   useEffect(() => {
     if (!player) return setPast([]);
     let alive = true;
-    void supabase.from('equipment_orders').select('total, equipment_order_lines(kit, quantity, unit_price)').eq('player_id', player.id).then(r => {
+    void supabase.from('equipment_orders').select('total, equipment_order_lines(kit, quantity, unit_price)').eq('player_id', player.id).neq('status', 'cancelled').then(r => {
       if (!alive || r.error) return;
       setPast(((r.data ?? []) as unknown as { total: number | string | null; equipment_order_lines: { kit: string; quantity: number; unit_price: number | null }[] | null }[]).map(o => ({ total: Number(o.total ?? 0), lines: o.equipment_order_lines ?? [] })));
     });
@@ -516,6 +522,7 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
   const [addKit, setAddKit] = useState('');
   const [addSize, setAddSize] = useState('');
   const [orderedOn, setOrderedOn] = useState(order.ordered_on ?? '');
+  const [cancelReason, setCancelReason] = useState('');
   // Кнопки внизу экрана, сообщение вверху: показываем его, чтобы ошибка сохранения не оставалась за кадром.
   useEffect(() => { msg && msgRef.current?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }); }, [msg]);
   useEffect(() => { if (gone) onBack(); }, [gone]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -538,7 +545,7 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
     const skip = (text: string) => { if (manual) setMsg({ ok: true, text }); };
     if (fresh.installment) return skip('Заказ в рассрочку: скидки на комплект нет.');
     if (!fresh.player_id) return skip('Скидку посчитать нельзя: у заказа нет игрока.');
-    const r = await supabase.from('equipment_orders').select('id, total, equipment_order_lines(kit, quantity, unit_price)').eq('player_id', fresh.player_id);
+    const r = await supabase.from('equipment_orders').select('id, total, equipment_order_lines(kit, quantity, unit_price)').eq('player_id', fresh.player_id).neq('status', 'cancelled');
     if (r.error) return skip('Не удалось загрузить заказы игрока.');
     const past = ((r.data ?? []) as unknown as { id: string; total: number | string | null; equipment_order_lines: { kit: string }[] | null }[])
       .filter(x => x.id !== fresh.id).map(x => ({ total: Number(x.total ?? 0), lines: x.equipment_order_lines ?? [] }));
@@ -580,6 +587,17 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
     if (!(await ask({ title: 'Убрать вещь из заказа?', lines: [['Игрок', o.players?.full_name ?? 'Игрок'], ['Вещь', `${l.kit}${l.size ? ` (${l.size})` : ''} × ${l.quantity}`]], note: 'Сумма заказа уменьшится на стоимость вещи.', confirmLabel: 'Убрать', danger: true }))) return;
     await run(`rm-${l.id}`, () => supabase.rpc('eq_delete_line', { l: l.id }), 'Вещь убрана.');
   };
+  // Отмена и восстановление (#471, 0185): только администратор; платежи и суммы не меняются.
+  const cancelOrder = async () => {
+    const why = cancelReason.trim();
+    if (!why) return setMsg({ ok: false, text: 'Укажите причину отмены.' });
+    if (!(await ask({ title: 'Отменить заказ?', lines: [['Игрок', o.players?.full_name ?? 'Игрок'], ['Сумма', gel(o.total)], ['Оплачено', gel(o.paid)], ['Причина', why]], note: o.paid > 0 ? 'Оплата останется на заказе. Возврат денег решает администратор отдельно.' : 'Заказ можно будет восстановить.', confirmLabel: 'Отменить заказ', danger: true }))) return;
+    if (await run('cancel', () => supabase.rpc('eq_cancel_order', { o: o.id, reason: why }), 'Заказ отменён.')) setCancelReason('');
+  };
+  const restoreOrder = async () => {
+    if (!(await ask({ title: 'Восстановить заказ?', lines: [['Игрок', o.players?.full_name ?? 'Игрок'], ['Сумма', gel(o.total)]], note: 'Заказ вернётся в статус, который был до отмены.', confirmLabel: 'Восстановить' }))) return;
+    await run('restore', () => supabase.rpc('eq_restore_order', { o: o.id, note: null }), 'Заказ восстановлен.');
+  };
   const deleteOrder = async () => {
     if (!(await ask({ title: 'Удалить заказ?', lines: [['Игрок', o.players?.full_name ?? 'Игрок'], ['Сумма', gel(o.total)]], note: 'Заказ будет удалён. Отменить нельзя.', confirmLabel: 'Удалить', danger: true }))) return;
     if (await run('del', () => supabase.rpc('eq_delete_order', { o: o.id }))) setGone(true);
@@ -591,6 +609,21 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
       <p className="muted">{o.ordered_on ? fmtDate(o.ordered_on) : 'Дата не указана'} · оплачено {gel(o.paid)} из {gel(o.total)}{o.installment ? ' · рассрочка' : ''}</p>
       {msg && <p ref={msgRef} role={msg.ok ? 'status' : 'alert'} className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}
 
+      {isCancelled(o) ? (
+        <>
+          <h3>Заказ отменён</h3>
+          <div className="ks-card">
+            <div className="ks-line"><b>Отменён</b>{o.cancelled_at && <span className="muted">{fmtDate(o.cancelled_at.slice(0, 10))}</span>}</div>
+            {o.cancel_reason && <p className="muted" style={{ marginTop: 8, overflowWrap: 'anywhere' }}>Причина: {o.cancel_reason}</p>}
+            <p className="muted" style={{ marginTop: 8 }}>{o.paid > 0 ? `Оплачено ${gel(o.paid)}: к возврату, решает администратор.` : 'Оплат по заказу нет.'} Вещи, оплату и данные отменённого заказа менять нельзя.</p>
+            <div className="ks-muted" style={{ fontSize: 13, marginTop: 8 }}>
+              {o.equipment_order_lines.map((l, i) => <div key={i}>{l.kit}{l.size ? ` (${l.size})` : ''} × {l.quantity}{issued.has(l.kit) ? ' · выдано' : ''}</div>)}
+            </div>
+            <button type="button" className="ks-btn" style={{ marginTop: 8 }} disabled={busy === 'restore'} onClick={() => void restoreOrder()}>Восстановить заказ</button>
+          </div>
+          {confirmDialog}
+        </>
+      ) : <>
       <h3>Статус заказа</h3>
       <div className="ks-card">
         <div className="ks-line"><b>{orderStatusLabel(o.status)}</b>{lastStatusDate(hist) && <span className="muted">с {fmtDate(lastStatusDate(hist) as string)}</span>}</div>
@@ -664,8 +697,13 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
       <div style={{ marginTop: 12 }}><SwitchRow id="inst" label="Рассрочка" checked={inst} onChange={setInst} /></div>
       <button type="button" className="ks-btn" style={{ marginTop: 16 }} disabled={busy === 'edit' || Number.isNaN(num(total))} onClick={() => void run('edit', () => supabase.rpc('eq_edit_order', { o: o.id, insc, num: number, inst, loc, new_total: num(total) }), 'Сохранено.')}>Сохранить</button>
       <div style={{ height: 8 }} />
+      <h3>Отмена заказа</h3>
+      <label className="field">Причина отмены<input value={cancelReason} maxLength={200} onChange={e => setCancelReason(e.target.value)} /></label>
+      <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy === 'cancel' || !cancelReason.trim()} onClick={() => void cancelOrder()}>Отменить заказ</button>
+      <div style={{ height: 8 }} />
       <button type="button" className="ks-btn secondary" disabled={busy === 'del'} onClick={() => void deleteOrder()}>Удалить заказ</button>
       {confirmDialog}
+      </>}
     </main>
   );
 }

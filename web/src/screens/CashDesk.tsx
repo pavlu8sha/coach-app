@@ -34,7 +34,7 @@ async function loadDues(p: Pl): Promise<Due[]> {
     supabase.from('prices').select('group_id, amount, valid_from, valid_to').eq('kind', 'subscription'),
     supabase.from('payments').select('amount, paid_on, pay_month').eq('player_id', p.id).limit(1000),
     supabase.from('subscriptions').select('month, group_id, discount, written_off').eq('player_id', p.id),
-    supabase.from('equipment_orders').select('id, ordered_on, total, paid, equipment_order_lines(kit)').eq('player_id', p.id),
+    supabase.from('equipment_orders').select('id, ordered_on, total, paid, equipment_order_lines(kit)').eq('player_id', p.id).neq('status', 'cancelled'), // отменённый заказ к оплате не предлагается (0185)
     supabase.from('individual_bookings').select('session_id, amount, paid, individual_sessions(starts_at, goalkeepers)').eq('player_id', p.id).eq('paid', false),
     supabase.from('extra_bookings').select('session_id, paid, extra_sessions(starts_on, amount)').eq('player_id', p.id).eq('paid', false),
     supabase.from('camp_participants').select('id, amount, status, camps(name), camp_payments(amount)').eq('player_id', p.id).eq('status', 'registered'),

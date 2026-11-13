@@ -437,6 +437,17 @@ describe('Экипировка: выгрузка в CSV (docs/acceptance/eq-expo
     expect(new Set(copied().split('\r\n').slice(1).map(l => l.split(';')[8])).size).toBe(1100);
   });
 
+  it('#471 Ф9: отменённый заказ в выгрузку не попадает', async () => {
+    seedExport(); mockClipboard();
+    (fake.db.equipment_orders as ReturnType<typeof ord>[]).push(ord('o3', 'Отменов Лев', '2026-09-12', [{ kit: 'Форма', size: 'S' }], { status: 'cancelled' }));
+    render(<Equipment />);
+    await screen.findByText('Отменов Лев');
+    fireEvent.click(screen.getByRole('button', { name: 'Скопировать' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    expect(copied()).not.toContain('Отменов Лев');
+    expect(copied().split('\r\n')).toHaveLength(4); // заголовок + 3 вещи двух действующих заказов
+  });
+
   it('условие 2: выгрузка следует за поиском экрана', async () => {
     seedExport(); mockClipboard();
     render(<Equipment />);
@@ -543,5 +554,69 @@ describe('Экипировка: выгрузка в CSV (docs/acceptance/eq-expo
       fireEvent.click(screen.getByRole('button', { name: 'Скачать CSV' }));
       expect(await screen.findByText(/нажмите «Скачать CSV» ещё раз/)).toBeInTheDocument();
     });
+  });
+});
+
+// #471 PR-1 (0185): docs/acceptance/eq-471-pr1-foundation-2026-11-12.md, Ф5, Ф6, Ф9
+describe('Экипировка: отмена и восстановление заказа', () => {
+  const seedCancelled = () => {
+    seed();
+    const o = fake.db.equipment_orders as (ReturnType<typeof order> & Record<string, unknown>)[];
+    o.push({ ...order('o9', 'Отменов Лев', 300, 100), status: 'cancelled', cancel_reason: 'семья переехала', cancelled_at: '2026-11-12T10:00:00+04:00' });
+  };
+
+  it('Ф9: отменённый заказ виден только во «Все», с подписью; в «Не оплачены» и сводку долга не входит', async () => {
+    seedCancelled();
+    render(<Equipment />);
+    expect(await screen.findByText('Отменов Лев')).toBeInTheDocument();
+    expect(screen.getByText('Отменён, оплачено 100 ₾')).toBeInTheDocument();
+    expect(screen.getByText(/Отменён · выдано/)).toBeInTheDocument();
+    expect(screen.getByText('480 ₾').closest('.ks-tile')).toHaveTextContent('заказано'); // 160 × 3, отменённые 300 не входят
+    expect(screen.getByText('100 ₾').closest('.ks-tile')).toHaveTextContent('долг');
+    fireEvent.click(screen.getByRole('tab', { name: 'Не оплачены' }));
+    expect(screen.queryByText('Отменов Лев')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Не выданы' }));
+    expect(screen.queryByText('Отменов Лев')).not.toBeInTheDocument();
+  });
+
+  it('Ф5: отмена с причиной вызывает eq_cancel_order; без причины кнопка недоступна', async () => {
+    seed();
+    fake.rpc.eq_cancel_order = () => null;
+    render(<Equipment />);
+    fireEvent.click(await screen.findByText('Сидоров Ян'));
+    const btn = await screen.findByRole('button', { name: 'Отменить заказ' });
+    expect(btn).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Причина отмены'), { target: { value: ' передумали ' } });
+    fireEvent.click(btn);
+    const dlg = await screen.findByRole('dialog');
+    expect(dlg).toHaveTextContent('Оплата останется на заказе');
+    fireEvent.click(within(dlg).getByRole('button', { name: 'Отменить заказ' }));
+    await waitFor(() => expect(fake.rpcCalls('eq_cancel_order')).toEqual([{ o: 'o2', reason: 'передумали' }]));
+  });
+
+  it('Ф6: отменённый заказ: причина, нет правок и оплаты, есть «Восстановить заказ» (eq_restore_order)', async () => {
+    seedCancelled();
+    fake.rpc.eq_restore_order = () => null;
+    render(<Equipment />);
+    fireEvent.click(await screen.findByText('Отменов Лев'));
+    expect(await screen.findByText('Причина: семья переехала')).toBeInTheDocument();
+    expect(screen.getByText(/Оплачено 100 ₾: к возврату, решает администратор/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Записать платёж' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Отметить выдачу' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Удалить заказ' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Перевести/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Восстановить заказ' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Восстановить' }));
+    await waitFor(() => expect(fake.rpcCalls('eq_restore_order')).toEqual([{ o: 'o9', note: null }]));
+  });
+
+  it('Ф7: понятная ошибка, если заказ родителя пытаются удалить', async () => {
+    seed();
+    fake.rpc.eq_delete_order = () => ({ error: { message: 'parent order' } });
+    render(<Equipment />);
+    fireEvent.click(await screen.findByText('Сидоров Ян'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Удалить заказ' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Удалить' }));
+    expect(await screen.findByText(/удалить его нельзя, можно только отменить/)).toBeInTheDocument();
   });
 });
