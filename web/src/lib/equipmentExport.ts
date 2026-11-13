@@ -1,3 +1,4 @@
+import { compareGroups } from './coach';
 // Выгрузка заказов экипировки в CSV (docs/acceptance/eq-export-csv-2026-11-09.md).
 // Колонки и порядок строк совпадают с эталонным запросом db/ops/readonly-raincoats-2026-11-09.sql.
 // Только форматирование уже загруженных заказов: в базу не пишем и RPC не вызываем.
@@ -54,7 +55,15 @@ export function notOrderedPlayers(players: RosterPlayer[], orders: NotOrderedOrd
 
 export function notOrderedCsv(players: RosterPlayer[]): string {
   if (!players.length) return '';
-  return CSV_BOM + ['игрок;группа;id игрока', ...players.map(p => [cell(p.full_name), cell(p.groups?.name), cell(p.id, false)].join(';'))].join('\r\n');
+  const g = (p: RosterPlayer) => p.groups?.name ?? '';
+  const sorted = [...players].sort((a, b) => (!g(a) ? 1 : 0) - (!g(b) ? 1 : 0) || compareGroups(g(a), g(b)) || a.full_name.localeCompare(b.full_name, 'ru'));
+  // Блоки: название группы, под ней игроки, между группами пустая строка.
+  const out: string[] = [];
+  sorted.forEach((p, i) => {
+    if (i === 0 || g(p) !== g(sorted[i - 1])) { if (i > 0) out.push(''); out.push(cell(g(p) || 'Без группы')); }
+    out.push(cell(p.full_name));
+  });
+  return CSV_BOM + out.join('\r\n');
 }
 
 export const notOrderedFileName = (isoDate: string) => `equipment-not-ordered-${isoDate}.csv`;

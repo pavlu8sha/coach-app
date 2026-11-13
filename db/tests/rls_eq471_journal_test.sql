@@ -1,7 +1,7 @@
 -- pgTAP: #471 PR-2a (0188), журнал оплат экипировки и защита. Условия: docs/acceptance/eq-471-pr2a-payment-journal-2026-11-13.md (Ж1–Ж10).
 begin;
 create extension if not exists pgtap;
-select plan(57);
+select plan(61);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-0000004721c1', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -129,6 +129,16 @@ select is((select count(*)::int from equipment_issues), 0, 'Ж9: админ чи
 select ok(has_function_privilege('authenticated', 'eq_reverse_payment(uuid,text,uuid)', 'execute') and has_function_privilege('authenticated', 'eq_refund(uuid,numeric,date,text,text,uuid)', 'execute'), 'Ж10: authenticated вызывает сторно и возврат');
 select ok(not has_function_privilege('anon', 'eq_reverse_payment(uuid,text,uuid)', 'execute') and not has_function_privilege('anon', 'eq_refund(uuid,numeric,date,text,text,uuid)', 'execute') and not has_function_privilege('anon', 'eq_add_payment(uuid,numeric,date,text,uuid)', 'execute'), 'Ж10: anon не вызывает');
 select ok(not has_function_privilege('authenticated', 'service_payments_insert_guard()', 'execute') and not has_function_privilege('authenticated', 'eq_paid_sync()', 'execute'), 'Ж10: триггерные функции закрыты');
+
+-- Журнал для локального администратора: только его локации, без записи
+reset role;
+select as_user('00000000-0000-0000-0000-0000004721b1');
+select ok((select count(*) > 0 from service_payments where ref_id = (select id from ids where k = 'o1')), 'журнал: локальный администратор видит оплаты заказа своей локации');
+select is((select count(*)::int from service_payments where ref_id = (select id from ids where k = 'o2')), 0, 'журнал: оплаты заказа чужой локации не видны');
+select throws_ok($$insert into service_payments (kind, ref_id, player_id, amount, paid_on) values ('equipment', (select id from ids where k = 'o1'), '00000000-0000-0000-0000-0000004721d1', 1, current_date)$$, '42501', null, 'журнал: прямая запись локальному администратору закрыта');
+select as_user('00000000-0000-0000-0000-0000004721a1');
+select ok((select count(*) >= 2 from service_payments where kind = 'equipment' and ref_id in (select id from ids)), 'журнал: глобальный администратор видит все локации');
+reset role;
 
 select * from finish();
 rollback;

@@ -243,7 +243,7 @@ describe('Админ: рассылки (условие 47)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Предпросмотр' }));
     expect(await screen.findByText('Получателей: 12')).toBeInTheDocument();
     expect(screen.getByText(/Выезд в 9:00/, { selector: 'pre' })).toBeInTheDocument();
-    expect(fake.rpcCalls('camp_broadcast_preview')[0]).toEqual({ cid: 'c1', k: 'info', b: 'Выезд в 9:00' });
+    expect(fake.rpcCalls('camp_broadcast_preview')[0]).toEqual({ cid: 'c1', k: 'participants', b: 'Выезд в 9:00' });
     expect(screen.getByRole('button', { name: 'Отправить 12 получателям' })).toBeInTheDocument();
   });
   it('правка текста или вида сбрасывает предпросмотр', async () => {
@@ -276,7 +276,7 @@ describe('Админ: рассылки (условие 47)', () => {
     expect(fake.rpcCalls('camp_broadcast_send')).toHaveLength(0);
     fireEvent.click(within(dialog).getByRole('button', { name: 'Отправить' }));
     await waitFor(() => expect(fake.rpcCalls('camp_broadcast_send')).toHaveLength(1));
-    expect(fake.rpcCalls('camp_broadcast_send')[0]).toEqual({ cid: 'c1', k: 'info', b: 'Выезд в 9:00', expected: 12, tok: 'tok1' });
+    expect(fake.rpcCalls('camp_broadcast_send')[0]).toEqual({ cid: 'c1', k: 'participants', b: 'Выезд в 9:00', expected: 12, tok: 'tok1' });
     expect(await screen.findByText('Рассылка поставлена в очередь: 12.')).toBeInTheDocument();
     expect(screen.queryByText('Получателей: 12')).toBeNull();
   });
@@ -398,7 +398,9 @@ describe('Админ: рассылки (условие 47)', () => {
 describe('Админ: возврат и замена (условие 48)', () => {
   async function openPart(name: string) {
     await openCamp();
-    fireEvent.click(await screen.findByText(name));
+    // отменённая запись с деньгами есть и в блоке «Требует внимания» (условие 66), открываем строку общего списка
+    const rows = await screen.findAllByText(name);
+    fireEvent.click(rows[rows.length - 1]);
   }
   it('возврат: сумма, дата, комментарий, подтверждение, camp_refund', async () => {
     seed();
@@ -451,5 +453,32 @@ describe('Админ: возврат и замена (условие 48)', () =>
     await openPart('Иванов Пётр');
     await screen.findByRole('heading', { name: 'Иванов Пётр' });
     expect(screen.queryByLabelText('Кто занял место')).toBeNull();
+  });
+});
+
+describe('Админ: рассылка записанным на сбор (условия 69-71)', () => {
+  const preview = { recipients: 3, messages: 3, list: [{ name: 'Мама Анна' }], blocked: [] as { name: string; reason: string }[], sample: 'Сбор «Зимний лагерь»:\nВыезд', token: 't', unreachable: 2, enabled: true };
+  it('три вида, по умолчанию «Записанным на сбор»; «Всем родителям клуба» уходит прежним видом info', async () => {
+    seed();
+    fake.rpc.camp_broadcast_list = () => [];
+    fake.rpc.camp_broadcast_preview = () => preview;
+    await openCamp('Рассылки');
+    expect(await screen.findByRole('tab', { name: 'Записанным на сбор', selected: true })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Всем родителям клуба' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Напоминание об оплате' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Предпросмотр' })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Текст рассылки'), { target: { value: 'Выезд' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Предпросмотр' }));
+    expect(await screen.findByText('Записанных участников, до семьи которых рассылка не дойдёт: 2')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Всем родителям клуба' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Предпросмотр' }));
+    await waitFor(() => expect(fake.rpcCalls('camp_broadcast_preview')).toHaveLength(2));
+    expect(fake.rpcCalls('camp_broadcast_preview').map(c => (c as { k: string }).k)).toEqual(['participants', 'info']);
+  });
+  it('журнал подписывает вид записанным', async () => {
+    seed();
+    fake.rpc.camp_broadcast_list = () => [{ id: 'b1', kind: 'participants', body: 'Выезд', recipients: 3, author_name: 'Админ', created_at: '2026-11-12T10:00:00Z', pending: 0, sent: 3, failed: 0, skipped: 0, cleared: 0 }];
+    await openCamp('Рассылки');
+    expect(await screen.findByText('Записанным на сбор', { selector: 'b' })).toBeInTheDocument();
   });
 });

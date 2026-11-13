@@ -5,7 +5,7 @@
 
 ## Состав
 - `db/migrations/0188_equipment_payment_journal.sql`, строка в `db/ops/preflight.sql`, откат `db/ops/rollback-0188-equipment-payment-journal.sql`.
-- `db/tests/rls_eq471_journal_test.sql`, `db/tests/rls_eq471_idempotency_test.sh` (параллельные соединения); правки существующих тестов, которые писали в таблицы напрямую.
+- `db/tests/rls_eq471_journal_test.sql`, `db/tests/concurrency_eq_payments.sh` (параллельные соединения), `db/tests/atomic_0188.sh` (атомарность миграции); правки существующих тестов, которые писали в таблицы напрямую.
 - Веб: экран заказа (оплата только положительная, сторно и возврат), тесты.
 
 ## Условия

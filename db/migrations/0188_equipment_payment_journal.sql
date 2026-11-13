@@ -8,6 +8,9 @@
 --  * прямая запись в таблицы заказа закрыта у authenticated, политики for all заменены чтением.
 -- Тела cash_report и cash_day_service пересобраны из определений текущего master (0110/0156 и позднее).
 
+-- Вся миграция одной транзакцией: ошибка в любом месте откатывает всё, в том числе отключение триггеров защиты журнала.
+begin;
+
 -- 1. Поля журнала. Метка op старых строк ставится при временно отключённых триггерах 0179 (UPDATE метки иначе запрещён);
 -- отключение и включение в одной транзакции, в конце проверка, что триггеры включены.
 alter table service_payments
@@ -17,7 +20,15 @@ alter table service_payments
 
 alter table service_payments disable trigger service_payments_history_guard;
 alter table service_payments disable trigger service_payments_history_audit;
-update service_payments set op = case when amount > 0 then 'payment' else 'reversal' end where op is null;
+do $$
+declare n integer;
+begin
+  update service_payments set op = case when amount > 0 then 'payment' else 'reversal' end where op is null;
+  get diagnostics n = row_count;
+  -- одна сводная запись аудита о массовой классификации старых строк (по строке на платёж не пишем)
+  insert into audit_log (actor_id, action, entity, entity_id, before, after)
+  values (null, 'payment_op_backfill', 'service_payments', null, null, jsonb_build_object('migration', '0188', 'rows', n));
+end $$;
 alter table service_payments enable trigger service_payments_history_guard;
 alter table service_payments enable trigger service_payments_history_audit;
 do $$
@@ -206,6 +217,10 @@ drop policy if exists equipment_lines_admin on equipment_order_lines;
 drop policy if exists equipment_issues_admin on equipment_issues;
 drop policy if exists equipment_issues_admin_read on equipment_issues;
 create policy equipment_issues_admin_read on equipment_issues for select using (is_admin());
+-- Журнал оплат экипировки: локальный администратор читает только заказы своих локаций (прямой записи у него нет, как и у остальных).
+drop policy if exists service_payments_eq_local_admin_read on service_payments;
+create policy service_payments_eq_local_admin_read on service_payments for select to authenticated
+  using (kind = 'equipment' and exists (select 1 from equipment_orders o where o.id = service_payments.ref_id and is_location_admin(o.location)));
 
 -- 8. Кассовые отчёты без opening_balance (тела из текущего master).
 CREATE OR REPLACE FUNCTION public.cash_report(p_from date, p_to date, p_location text DEFAULT NULL::text, p_staff uuid DEFAULT NULL::uuid, p_method text DEFAULT NULL::text)
@@ -305,3 +320,5 @@ begin
      where is_admin() or x.loc in (select la.location from location_admins la where la.user_id = current_user_id())
   ), '[]'::jsonb);
 end $function$;
+
+commit;

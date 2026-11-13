@@ -27,9 +27,9 @@ insert into payments (player_id, amount, paid_on, method) values
 insert into camps (id, club_id, name, location, starts_on, ends_on) values
   ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-00000000c001', 'Сбор Исани', 'Исани', '2026-10-01', '2026-10-31'),
   ('00000000-0000-0000-0000-0000000000c3', '00000000-0000-0000-0000-00000000c001', 'Сбор Квартал', 'Квартал', '2026-10-01', '2026-10-31');
-insert into camp_participants (camp_id, player_id) values
-  ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-00000000d001'),
-  ('00000000-0000-0000-0000-0000000000c3', '00000000-0000-0000-0000-00000000d003');
+insert into camp_participants (camp_id, player_id, amount) values
+  ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-00000000d001', 1000),
+  ('00000000-0000-0000-0000-0000000000c3', '00000000-0000-0000-0000-00000000d003', 1000);
 
 create or replace function as_user(uid uuid) returns void language plpgsql as $$
 begin

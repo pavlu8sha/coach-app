@@ -31,9 +31,9 @@ select is((select recorded_by from payments where id = '00000000-0000-0000-0000-
 select isnt((select recorded_at from payments where id = '00000000-0000-0000-0000-0000000000f1'), null::timestamptz, 'время записи проставлено сервером');
 
 -- сбор: автор и время тоже ставит сервер
-insert into camps (id, club_id, name, starts_on, ends_on) values ('00000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-00000000c001', 'Сбор', '2026-10-01', '2026-10-31');
 reset role;
-insert into camp_participants (camp_id, player_id) values ('00000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-00000000d001');
+insert into camps (id, club_id, name, starts_on, ends_on) values ('00000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-00000000c001', 'Сбор', '2026-10-01', '2026-10-31');
+insert into camp_participants (camp_id, player_id, amount) values ('00000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-00000000d001', 1000);
 select as_user('00000000-0000-0000-0000-0000000000a2');
 select camp_pay((select id from camp_participants where camp_id = '00000000-0000-0000-0000-0000000000c2'), 30, 'payment', '2026-10-06', 'Наличные', 'c3');
 select is((select recorded_by from camp_payments where comment = 'c3'), '00000000-0000-0000-0000-0000000000a2'::uuid, 'сбор: автор — вошедший пользователь');

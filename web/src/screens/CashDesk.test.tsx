@@ -107,6 +107,29 @@ describe('«Приём оплат»', () => {
     expect(screen.queryByText('Дождевик')).not.toBeInTheDocument();
   });
 
+  it('экипировка: платёж уходит с ключом запроса; повтор после ошибки с теми же данными шлёт тот же ключ (#471, 0188)', async () => {
+    seed();
+    let n = 0;
+    fake.rpc.eq_add_payment = () => (++n === 1 ? { error: { message: 'network' } } : 160);
+    await openPlayer();
+    await screen.findByText(/к оплате:/);
+    const c = card('Форма + Куртка');
+    const send = async () => {
+      await waitFor(() => expect(within(c).getByRole('button', { name: /Принять оплату|Записать платёж/ })).toBeEnabled());
+      const open = within(c).queryByRole('button', { name: 'Принять оплату' });
+      if (open) fireEvent.click(open);
+      fireEvent.click(within(c).getByRole('button', { name: 'Записать платёж' }));
+      fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
+    };
+    await send();
+    await waitFor(() => expect(fake.rpcCalls('eq_add_payment')).toHaveLength(1));
+    await send();
+    await waitFor(() => expect(fake.rpcCalls('eq_add_payment')).toHaveLength(2));
+    const [a, b] = fake.rpcCalls('eq_add_payment') as { req: string }[];
+    expect(typeof a.req).toBe('string');
+    expect(a.req).toBe(b.req);
+  });
+
   it('экипировка, индивидуальные, доп. тренировки и сборы платятся через свои функции', async () => {
     seed();
     fake.rpc.eq_add_payment = () => 160;

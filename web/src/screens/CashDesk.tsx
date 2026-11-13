@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { coachError, fmtDate, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput } from '../ui/components';
@@ -11,7 +11,7 @@ import { gel, monthIso, monthName, nextMonth, tariffFor } from './MonthPayments'
 import { useNavState } from '../nav';
 
 interface Pl { id: string; full_name: string; group_id: string | null; groups: { name: string } | null; external_id?: string | null; birth_date?: string | null; status?: string }
-interface Due { key: string; kind: 'sub' | 'eq' | 'ind' | 'extra' | 'visit' | 'camp' | 'match' | 'event'; section: string; title: string; sub?: string; due: number; paid: number; month?: string; advance?: boolean; pay: (amount: number, method: string, date: string) => PromiseLike<{ error: { message: string } | null }>; discount?: () => PromiseLike<{ error: { message: string } | null }> }
+interface Due { key: string; kind: 'sub' | 'eq' | 'ind' | 'extra' | 'visit' | 'camp' | 'match' | 'event'; section: string; title: string; sub?: string; due: number; paid: number; month?: string; advance?: boolean; pay: (amount: number, method: string, date: string, req?: string) => PromiseLike<{ error: { message: string } | null }>; discount?: () => PromiseLike<{ error: { message: string } | null }> }
 
 const METHODS = ['Наличные', 'Перевод'];
 const PAY_METHODS = ['Наличные', 'Перевод'];
@@ -79,7 +79,7 @@ async function loadDues(p: Pl): Promise<Due[]> {
   }
   ((orders.data ?? []) as unknown as { id: string; ordered_on: string | null; total: number; paid: number; equipment_order_lines: { kit: string }[] }[]).forEach(o => {
     if (Number(o.paid) >= Number(o.total)) return;
-    out.push({ key: 'eq' + o.id, kind: 'eq', section: SECTIONS[1], title: [...new Set(o.equipment_order_lines.map(l => l.kit))].join(' + ') || 'Заказ', sub: o.ordered_on ? fmtDate(o.ordered_on) : undefined, due: Number(o.total), paid: Number(o.paid), pay: (amount, method, date) => supabase.rpc('eq_add_payment', { o: o.id, amt: r2(amount), d: date, mth: method }) });
+    out.push({ key: 'eq' + o.id, kind: 'eq', section: SECTIONS[1], title: [...new Set(o.equipment_order_lines.map(l => l.kit))].join(' + ') || 'Заказ', sub: o.ordered_on ? fmtDate(o.ordered_on) : undefined, due: Number(o.total), paid: Number(o.paid), pay: (amount, method, date, req) => supabase.rpc('eq_add_payment', { o: o.id, amt: r2(amount), d: date, mth: method, req: req ?? null }) });
   });
   const nowLocal = `${today()}T${new Date().toTimeString().slice(0, 5)}`;
   ((ind.data ?? []) as unknown as { session_id: string; amount: number; individual_sessions: { starts_at: string; goalkeepers: boolean } | null }[]).forEach(b => {
@@ -380,6 +380,13 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false 
   const { ask, dialog } = useConfirm();
   const fixedAmount = due.kind === 'ind'; // индивидуальное занятие отмечается оплаченным целиком
   const num = Number(amount.replace(',', '.'));
+  // Ключ запроса (#471, 0188): одно действие кассира = один ключ. Повтор после обрыва связи с теми же данными не создаёт вторую оплату;
+  // другие данные получают новый ключ. После успешной записи ключ сбрасывается.
+  const reqRef = useRef<{ sig: string; key: string } | null>(null);
+  const reqFor = (sig: string) => {
+    if (!reqRef.current || reqRef.current.sig !== sig) reqRef.current = { sig, key: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}` };
+    return reqRef.current.key;
+  };
   const save = async () => {
     if (!method) return setErr(sharedMethod !== undefined ? 'Выберите способ оплаты вверху экрана: «Наличные» или «Перевод».' : 'Выберите способ оплаты.');
     if (!fixedAmount && (!Number.isFinite(num) || num <= 0 || num > 100000)) return setErr('Введите сумму больше нуля.');
@@ -394,9 +401,10 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false 
     if (!ok) return;
     setBusy(true);
     setErr(null);
-    const r = await due.pay(fixedAmount ? left : num, method, date);
+    const r = await due.pay(fixedAmount ? left : num, method, date, reqFor(`${fixedAmount ? left : num}|${method}|${date}`));
     setBusy(false);
     if (r.error) return setErr(errText(r.error.message));
+    reqRef.current = null;
     onPaid();
   };
   // «Оплатить со скидкой»: то же, что внести меньшую сумму и затем применить скидку месяца, одним действием
@@ -413,8 +421,9 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false 
     if (!ok) return;
     setBusy(true);
     setErr(null);
-    const p = await due.pay(num, method, date);
+    const p = await due.pay(num, method, date, reqFor(`${num}|${method}|${date}`));
     if (p.error) { setBusy(false); return setErr(errText(p.error.message)); }
+    reqRef.current = null;
     const d = await due.discount!();
     setBusy(false);
     // платёж уже записан: повторно его не отправляем, только сообщаем об ошибке скидки
