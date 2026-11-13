@@ -193,13 +193,12 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
   const presetMissing = !match && Boolean(presetTeam) && !presetGid;
   const initialGid = match ? matched ?? (admin ? '' : groups[0]?.id ?? '') : presetTeam ? presetGid ?? '' : matchGroups[0]?.id ?? '';
   const [gid, setGid] = useState(initialGid);
-  // матч именно группы (U13-B), а не всей команды U13: по явному выбору (миграция 0193); у сохранённого матча — если команда равна названию группы
+  // выбор группы в списке значит «матч этой группы» (U13-B, не всей команды U13): команда матча получает название группы (миграция 0193), состав только её игроки.
+  // Уже сохранённые матчи не меняются: «U13» остаётся общим, «U13-B» остаётся группой.
   const hasLetter = (name?: string) => Boolean(name && /-[A-Z]$/.test(name));
   const groupName = groups.find(g => g.id === gid)?.name;
-  const [exact, setExact] = useState(Boolean(match && hasLetter(match.team) && match.team === groupName));
-  const [savedExact, setSavedExact] = useState(exact);
-  // состав грузится по галочке, выбранной до первого сохранения; после сохранения и при правке сохранённого матча состав не перезагружается и не расширяется до всей команды
-  const [rosterExact, setRosterExact] = useState(exact);
+  const groupOnly = match ? hasLetter(match.team) : hasLetter(groupName);
+  const [teamSet, setTeamSet] = useState(false);
   const rsvpLocked = Boolean(match && isRsvp(match)); // дату и соперника держит экран «Матчи с подтверждением»: иначе played_on разойдётся с временем начала
   const [date, setDate] = useState(match?.played_on ?? today());
   const [opp, setOpp] = useState(match?.opponent ?? '');
@@ -243,7 +242,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
         // команда «U10» объединяет группы U10-A и U10-B: в составе игроки всех её групп
         const sel = groups.find(g => g.id === gid)?.name;
         let ids = [gid];
-        if (sel && !rosterExact) {
+        if (sel && !groupOnly) {
           const gr = await supabase.from('groups').select('id, name');
           if (!gr.error) ids = [...new Set([gid, ...((gr.data ?? []) as CoachGroup[]).filter(g => playsMatches(g.name) && matchTeam(g.name) === matchTeam(sel)).map(g => g.id)])];
         }
@@ -279,7 +278,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     })();
     // состав подгружается при смене группы и при повторной попытке; сохранённый матч не перезагружаем из-за savedId
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gid, reload, rosterExact]);
+  }, [gid, reload]);
 
   // Найти любого игрока клуба и добавить в состав (тренеры и администратор)
   useEffect(() => {
@@ -335,13 +334,13 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
         : await supabase.rpc('save_match', { m: savedId, g: gid || null, d: date, opp, gf: score.gf, ga: score.ga, roster });
     setBusy(false);
     if (r.error) return setMsg({ ok: false, text: coachError(r.error.message) });
-    if (gid && hasLetter(groupName) && exact !== savedExact) {
-      const sg = await supabase.rpc('set_match_team_group', { m: r.data as string, g: gid, exact });
+    if (!match && !teamSet && gid && hasLetter(groupName)) {
+      const sg = await supabase.rpc('set_match_team_group', { m: r.data as string, g: gid, exact: true });
       if (sg.error) {
         setSavedId(r.data as string);
         return setMsg({ ok: false, text: 'Матч сохранён, но группу матча записать не удалось: ' + coachError(sg.error.message) });
       }
-      setSavedExact(exact);
+      setTeamSet(true);
     }
     setSavedId(r.data as string);
     if (techChanged) setSavedTech(technical);
@@ -390,13 +389,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
       <h1>{match ? 'Матч' : 'Новый матч'}</h1>
       {canPickGroup && presetMissing && !admin && <p className="error" style={{ marginBottom: 8 }}>В клубе нет группы «{presetTeam}», поэтому матч для неё не сохранить. Вернитесь и выберите другую команду.</p>}
       {canPickGroup && presetMissing && admin && <p className="muted" style={{ marginBottom: 8 }}>Команда «{presetTeam}» без группы: состав собирайте поиском по игрокам клуба.</p>}
-      {canPickGroup && !presetMissing && <GroupPicker groups={matchGroups} value={gid} onChange={g => { setGid(g); setExact(false); setRosterExact(false); }} />}
-      {gid && hasLetter(groupName) && !presetMissing && (
-        <label className="ks-check" style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-          <input type="checkbox" checked={exact} onChange={e => { setExact(e.target.checked); if (!savedId) setRosterExact(e.target.checked); setMsg(null); }} />
-          Матч только этой группы ({groupName})
-        </label>
-      )}
+      {canPickGroup && !presetMissing && <GroupPicker groups={matchGroups} value={gid} onChange={setGid} />}
       {match && admin && <p className="muted" style={{ marginBottom: 8 }}>Команда: {match.team}</p>}
       <label className="ks-label" htmlFor="m-date">Дата</label>
       <input id="m-date" className="ks-input" type="date" value={date} disabled={rsvpLocked} onChange={e => { setDate(e.target.value); setMsg(null); }} />
