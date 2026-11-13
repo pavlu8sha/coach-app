@@ -247,8 +247,9 @@ select as_anon();
 select throws_ok($$select camp_seats('00000000-0000-0000-0000-0000000000ca')$$, '42501', null, 'аноним camp_seats не вызывает');
 
 -- ===== Круг 3: прямое изменение лимита и чтение сборов/тарифов =====
-select as_user('00000000-0000-0000-0000-0000000000a1');
-select throws_ok($$update camps set capacity = 2 where id = '00000000-0000-0000-0000-0000000000ca'$$, '22023', 'capacity below registered', 'прямой update лимита ниже подтверждённых (3) запрещён администратору');
+-- с 0191 вошедшие пользователи не пишут в camps напрямую; триггер лимита проверяется владельцем базы
+reset role;
+select throws_ok($$update camps set capacity = 2 where id = '00000000-0000-0000-0000-0000000000ca'$$, '22023', 'capacity below registered', 'прямой update лимита ниже подтверждённых (3) запрещён триггером');
 select lives_ok($$update camps set capacity = 3 where id = '00000000-0000-0000-0000-0000000000ca'$$, 'прямой update лимита, равного числу подтверждённых, разрешён');
 select lives_ok($$update camps set capacity = null where id = '00000000-0000-0000-0000-0000000000ca'$$, 'прямой update: пустой лимит разрешён');
 reset role;
