@@ -327,6 +327,12 @@ describe('«Новое событие»', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить матч' }));
     await waitFor(() => expect(fake.rpcCalls('set_match_team_group')).toHaveLength(1));
     expect(fake.rpcCalls('set_match_team_group')[0]).toEqual({ m: 'm-b', g: 'g2', exact: true });
+    // после сохранения состав остаётся только группы U13-B, не расширяется до всей команды U13
+    await screen.findByText(/Матч сохранён/);
+    expect(screen.queryByText('Алиев Анар')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Беридзе Бека').length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Править состав' }));
+    expect(screen.queryByText('Алиев Анар')).not.toBeInTheDocument();
   });
 
   it('«Добавить матч»: без галочки set_match_team_group не вызывается', async () => {
