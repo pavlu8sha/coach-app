@@ -298,7 +298,7 @@ describe('«Новое событие»', () => {
     fireEvent.click(await screen.findByText('Добавить матч'));
     fireEvent.click(within(screen.getByLabelText('Добавить матч')).getByText('U11'));
     expect(await screen.findByRole('heading', { name: 'Новый матч' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Группа')).toHaveValue('g2');
+    expect(screen.getByLabelText('Группа')).toHaveValue('g:g2');
   });
 
   it('«Добавить матч»: выбор группы U13-B оставляет в составе детей группы и записывает команду матча U13-B', async () => {
@@ -317,7 +317,7 @@ describe('«Новое событие»', () => {
     fireEvent.click(within(screen.getByLabelText('Добавить матч')).getByText('U13'));
     expect(await screen.findByRole('heading', { name: 'Новый матч' })).toBeInTheDocument();
     expect(screen.queryByRole('checkbox', { name: /Матч только этой группы/ })).not.toBeInTheDocument(); // отдельной галочки нет
-    fireEvent.change(screen.getByLabelText('Группа'), { target: { value: 'g2' } });
+    fireEvent.change(screen.getByLabelText('Группа'), { target: { value: 'g:g2' } });
     expect(await screen.findByText('Беридзе Бека')).toBeInTheDocument();
     expect(screen.queryByText('Алиев Анар')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить матч' }));
@@ -328,6 +328,30 @@ describe('«Новое событие»', () => {
     expect(screen.queryByText('Алиев Анар')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Править состав' }));
     expect(screen.queryByText('Алиев Анар')).not.toBeInTheDocument();
+  });
+
+  it('«Добавить матч»: выбор команды U13 открывает «U13 (все группы)»: состав всех групп, команда матча не меняется; можно переключиться на группу и обратно', async () => {
+    seed();
+    const ab = [{ id: 'g1', name: 'U13-A' }, { id: 'g2', name: 'U13-B' }];
+    fake.db.matches = [];
+    fake.db.groups = ab;
+    fake.db.players = [
+      { id: 'pa', full_name: 'Алиев Анар', group_id: 'g1', status: 'active' },
+      { id: 'pb', full_name: 'Беридзе Бека', group_id: 'g2', status: 'active' },
+    ];
+    fake.rpc.save_match = () => 'm-all';
+    fake.rpc.set_match_team_group = () => null;
+    render(<CoachMatches groups={ab} allTeams />);
+    fireEvent.click(await screen.findByText('Добавить матч'));
+    fireEvent.click(within(screen.getByLabelText('Добавить матч')).getByText('U13'));
+    expect(await screen.findByRole('heading', { name: 'Новый матч' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'U13 (все группы)' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Группа')).toHaveValue('t:g1');
+    expect(await screen.findByText('Алиев Анар')).toBeInTheDocument();
+    expect(await screen.findByText('Беридзе Бека')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить матч' }));
+    await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
+    expect(fake.rpcCalls('set_match_team_group')).toHaveLength(0);
   });
 
   it('«Добавить матч»: группа без буквы (U11) команду матча не меняет', async () => {
