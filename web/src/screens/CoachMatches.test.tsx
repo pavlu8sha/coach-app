@@ -667,6 +667,26 @@ describe('Взносы за матч (администратор)', () => {
     expect(fake.rpcCalls('match_fee_add')[0].ids as string[]).not.toContain('p1');
   });
 
+  it('после сохранения матча взнос неигравших снимается: вызывается match_fees_sync_played, показано число; до игры (никто не «Играл») не вызывается', async () => {
+    seed();
+    fake.rpc.save_match = () => 'm-sync';
+    fake.rpc.match_fees_list = () => [];
+    fake.rpc.match_payments_list = () => [];
+    fake.rpc.match_fees_sync_played = () => 2;
+    render(<CoachMatches groups={allGroups} allTeams />);
+    fireEvent.click(await screen.findByText('Добавить матч'));
+    fireEvent.click(within(screen.getByLabelText('Добавить матч')).getByText('U11'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Сохранить матч' }));
+    await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
+    await screen.findByText(/Матч сохранён/);
+    expect(fake.rpcCalls('match_fees_sync_played')).toHaveLength(0); // никто не отмечен «Играл»
+    fireEvent.click((await screen.findAllByRole('checkbox'))[1]); // [0] это «Технический результат»
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить матч' }));
+    await waitFor(() => expect(fake.rpcCalls('match_fees_sync_played')).toHaveLength(1));
+    expect(fake.rpcCalls('match_fees_sync_played')[0]).toEqual({ m: 'm-sync' });
+    expect(await screen.findByText(/Убрано из взноса неигравших: 2/)).toBeInTheDocument();
+  });
+
   it('админ убирает из взноса матча неоплаченного игрока; у оплатившего и у тренера кнопки нет', async () => {
     seed();
     let fees = [

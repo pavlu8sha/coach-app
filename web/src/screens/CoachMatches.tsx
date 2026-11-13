@@ -349,7 +349,15 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     const playedNow = Object.entries(lines).filter(([, l]) => l.played).map(([id]) => id);
     setShownIds(playedNow.length ? playedNow : null);
     setShowAll(false);
-    setMsg({ ok: true, text: 'Матч сохранён. Баллы за матч начислены автоматически.' });
+    let saved = 'Матч сохранён. Баллы за матч начислены автоматически.';
+    // взнос неигравших без оплаты снимается сам (0197); пока никто не отмечен «Играл», взносы остаются
+    if (feeMode && playedNow.length > 0) {
+      const sy = await supabase.rpc('match_fees_sync_played', { m: r.data as string });
+      if (sy.error) saved += ' Взносы неигравших убрать не удалось: ' + coachError(sy.error.message);
+      else if (Number(sy.data) > 0) saved += ` Убрано из взноса неигравших: ${Number(sy.data)}.`;
+      setReload(n => n + 1);
+    }
+    setMsg({ ok: true, text: saved });
     markClean();
     // список матчей перечитывается сразу, чтобы счёт был виден без выхода из матча
     onSaved?.();
