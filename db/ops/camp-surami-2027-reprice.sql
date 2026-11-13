@@ -6,7 +6,8 @@
 -- Если внесено больше новой цены, запись НЕ меняется (сумма не может быть ниже оплаченного): нужен возврат разницы
 -- вручную, затем повторный запуск. Платежи не трогаются. Изменения пишутся в историю записи (триггер camp_participants_log),
 -- уведомлений не вызывают.
--- Запускать ПОСЛЕ db/ops/camp-surami-2027-update.sql. НЕ ЗАПУСКАТЬ без слова владельца. Повторный запуск безопасен.
+-- Цены тарифов должны быть уже новыми (1350 и 3100); переименование «Ребенок + 2 родителя» → «Футболист + 2 родителя» скрипт делает сам.
+-- Отключённые тарифы («Ребенок + родитель» и т.п.) тоже переводятся: записи на них станут «Футболист + 2 родителя». НЕ ЗАПУСКАТЬ без слова владельца. Повторный запуск безопасен.
 
 -- Названия тарифов сравниваются без учёта регистра, «е»/«ё» и лишних пробелов (как в update.sql из PR #622).
 
@@ -17,7 +18,7 @@ select t.id, t.name, t.price, t.active from camp_tariffs t join camps c on c.id 
 -- Что изменится: новая сумма, внесено, переплата (> 0 — запись будет пропущена, нужен возврат):
 with c as (select id from camps where name ilike '%winter%camp%2027%'),
      f  as (select t.id, t.price from camp_tariffs t, c where t.camp_id = c.id and regexp_replace(replace(lower(btrim(t.name)),'ё','е'),'\s+',' ','g') = 'футболист'),
-     f2 as (select t.id, t.name, t.price from camp_tariffs t, c where t.camp_id = c.id and regexp_replace(replace(lower(btrim(t.name)),'ё','е'),'\s+',' ','g') = 'футболист + 2 родителя')
+     f2 as (select t.id, 'Футболист + 2 родителя'::text as name, t.price from camp_tariffs t, c where t.camp_id = c.id and t.active and regexp_replace(replace(lower(btrim(t.name)),'ё','е'),'\s+',' ','g') in ('футболист + 2 родителя', 'ребенок + 2 родителя'))
 select p.id, p.player_id, p.guest_name, p.tariff_id as tariff_id_now, t.name as tariff_now, p.amount as amount_now,
        case when p.tariff_id = f.id then 'Футболист' else f2.name end as tariff_new,
        case when p.tariff_id = f.id then f.price else f2.price end as amount_new,
@@ -43,8 +44,10 @@ begin
   if n <> 1 then raise exception 'ожидался ровно один сбор Winter Camp 2027, найдено %', n; end if;
   select id into cid from camps where name ilike '%winter%camp%2027%';
   select id, price into f, fp from camp_tariffs where camp_id = cid and regexp_replace(replace(lower(btrim(name)),'ё','е'),'\s+',' ','g') = 'футболист' and active;
-  select id, price into f2, f2p from camp_tariffs where camp_id = cid and regexp_replace(replace(lower(btrim(name)),'ё','е'),'\s+',' ','g') = 'футболист + 2 родителя' and active;
-  if f is null or f2 is null then raise exception 'нет активных тарифов «Футболист» и «Футболист + 2 родителя»: сначала camp-surami-2027-update.sql'; end if;
+  -- «Футболист + 2 родителя» — это бывший «Ребенок + 2 родителя» (тот же тариф, id тот же); если ещё не переименован, переименовываем здесь
+  select id, price into f2, f2p from camp_tariffs where camp_id = cid and active and regexp_replace(replace(lower(btrim(name)),'ё','е'),'\s+',' ','g') in ('футболист + 2 родителя', 'ребенок + 2 родителя');
+  update camp_tariffs set name = 'Футболист + 2 родителя' where id = f2 and name <> 'Футболист + 2 родителя';
+  if f is null or f2 is null then raise exception 'нет активных тарифов «Футболист» и «Футболист + 2 родителя» / «Ребенок + 2 родителя»: проверьте названия в ПРОВЕРКЕ'; end if;
 
   -- «Футболист»: тариф тот же, новая цена
   update camp_participants p set amount = fp
