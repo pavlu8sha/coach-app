@@ -57,7 +57,13 @@ export function notOrderedCsv(players: RosterPlayer[]): string {
   if (!players.length) return '';
   const g = (p: RosterPlayer) => p.groups?.name ?? '';
   const sorted = [...players].sort((a, b) => (!g(a) ? 1 : 0) - (!g(b) ? 1 : 0) || compareGroups(g(a), g(b)) || a.full_name.localeCompare(b.full_name, 'ru'));
-  return CSV_BOM + ['группа;игрок', ...sorted.map(p => [cell(g(p)), cell(p.full_name)].join(';'))].join('\r\n');
+  // Блоки: название группы, под ней игроки, между группами пустая строка.
+  const out: string[] = [];
+  sorted.forEach((p, i) => {
+    if (i === 0 || g(p) !== g(sorted[i - 1])) { if (i > 0) out.push(''); out.push(cell(g(p) || 'Без группы')); }
+    out.push(cell(p.full_name));
+  });
+  return CSV_BOM + out.join('\r\n');
 }
 
 export const notOrderedFileName = (isoDate: string) => `equipment-not-ordered-${isoDate}.csv`;

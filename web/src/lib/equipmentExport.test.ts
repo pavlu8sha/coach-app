@@ -117,12 +117,12 @@ describe('notOrderedCsv', () => {
   it('условие 9: колонки, пустая группа, BOM, защита от формул', () => {
     const csv = notOrderedCsv([pl('a', 'Иванов Иван'), pl('b', '=Хитрый', { groups: null })]);
     expect(csv.startsWith(BOM)).toBe(true);
-    expect(lines(csv)).toEqual(['группа;игрок', 'U10-A;Иванов Иван', ";'=Хитрый"]);
-    expect(csv).not.toMatch(/id игрока/);
+    expect(lines(csv)).toEqual(['U10-A', 'Иванов Иван', '', 'Без группы', "'=Хитрый"]);
+    expect(csv).not.toMatch(/id игрока|;/);
   });
   it('условие 9: по группам, внутри группы по имени, без группы в конце', () => {
     const csv = notOrderedCsv([pl('1', 'Яковлев', { groups: { name: 'U12' } }), pl('2', 'Без', { groups: null }), pl('3', 'Петров', { groups: { name: 'U10-A' } }), pl('4', 'Арутюнов', { groups: { name: 'U12' } })]);
-    expect(lines(csv)).toEqual(['группа;игрок', 'U10-A;Петров', 'U12;Арутюнов', 'U12;Яковлев', ';Без']);
+    expect(lines(csv)).toEqual(['U10-A', 'Петров', '', 'U12', 'Арутюнов', 'Яковлев', '', 'Без группы', 'Без']);
   });
   it('условие 9: пустой список даёт пустую строку', () => { expect(notOrderedCsv([])).toBe(''); });
   it('условие 10: имя файла', () => { expect(notOrderedFileName('2026-11-13')).toBe('equipment-not-ordered-2026-11-13.csv'); });
