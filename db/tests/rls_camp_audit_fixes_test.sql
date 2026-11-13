@@ -1,7 +1,7 @@
 -- pgTAP: исправления по аудиту сборов (0190; C-03, C-04, C-05, C-09), docs/CAMP_SELF_SIGNUP_ACCEPTANCE.md, условия 72-76.
 begin;
 create extension if not exists pgtap;
-select plan(27);
+select plan(25);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -74,7 +74,6 @@ select lives_ok($$select camp_update_participant((select id from ids where k = '
 
 -- ===== 74. C-05: оплата =====
 select throws_ok($$select camp_pay((select id from ids where k = 'borya'), 0, 'payment', null, 'cash', null)$$, '22023', 'bad amount', 'нулевая сумма: отказ как раньше');
-select throws_ok($$select camp_pay((select id from ids where k = 'borya'), 1000.01, 'payment', null, 'cash', null)$$, '22023', 'overpay', 'платёж больше суммы участника: отказ');
 select lives_ok($$select camp_pay((select id from ids where k = 'borya'), 400, 'payment', null, 'cash', null)$$, 'частичный платёж проходит');
 select throws_ok($$select camp_pay((select id from ids where k = 'borya'), 400, 'payment', null, 'cash', null)$$, '22023', 'duplicate payment', 'такой же платёж сразу повторно: отказ');
 select lives_ok($$select camp_pay((select id from ids where k = 'borya'), 400, 'payment', null, 'card', null)$$, 'другой способ оплаты не блокируется');
@@ -82,8 +81,8 @@ select lives_ok($$select camp_pay((select id from ids where k = 'borya'), 400, '
 select as_user('00000000-0000-0000-0000-0000000000d1');
 select lives_ok($$select camp_pay((select id from ids where k = 'borya'), 100, 'payment', null, 'cash', null)$$, 'локальный админ своего сбора вносит платёж');
 select as_user('00000000-0000-0000-0000-0000000000a1');
-select throws_ok($$select camp_pay((select id from ids where k = 'borya'), 101, 'payment', null, 'cash', null)$$, '22023', 'overpay', 'остаток 100, платёж 101: переплата');
 select lives_ok($$select camp_pay((select id from ids where k = 'borya'), 100, 'payment', null, 'transfer', null)$$, 'точное доведение до суммы принимается');
+select lives_ok($$select camp_pay((select id from ids where k = 'borya'), 50, 'payment', null, 'cash', null)$$, 'оплата сверх суммы участника допускается (решение владельца 13.11)');
 select is((select (now() at time zone 'Asia/Tbilisi')::date = min(paid_on) from camp_payments where participant_id = (select id from ids where k = 'borya')), true, 'дата платежа без даты: сегодня по Тбилиси');
 -- Вася отказан админом, Аня отменила позже
 select camp_update_participant((select id from ids where k = 'vasya'), null, 1000, null, null, 'declined');

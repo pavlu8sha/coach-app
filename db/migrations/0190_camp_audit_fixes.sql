@@ -1,7 +1,7 @@
 -- 0190 (Issue #470, аудит 11.11 C-03, C-04, C-05, C-09): три исправления без смены подписей функций. Условия приёмки: docs/CAMP_SELF_SIGNUP_ACCEPTANCE.md (72-76).
 --  * camp_broadcast_send (тело из 0187): защита от повтора сравнивает с текстом, как он записан в журнале (у напоминания есть префикс).
 --  * camp_update_participant (тело из 0160): запись, отменённую родителем, нельзя вывести из cancelled устаревшей карточкой.
---  * camp_pay (тело из 0085): блокировка сбора, только статус registered, без переплаты, защита от двойного нажатия, дата по Тбилиси.
+--  * camp_pay (тело из 0085): блокировка сбора, только статус registered, защита от двойного нажатия, дата по Тбилиси.
 -- Требует 0187 (иначе её применение позже вернёт прежнее тело camp_broadcast_send). Данные не меняет, ничего не отправляет.
 -- Откат: db/ops/rollback-0190-camp-audit-fixes.sql.
 begin;
@@ -68,7 +68,7 @@ end $$;
 
 create or replace function camp_pay(pid uuid, amt numeric, k text, d date, mth text, cmt text) returns uuid
 language plpgsql security definer set search_path = public as $$
-declare cp camp_participants; r uuid; paid numeric;
+declare cp camp_participants; r uuid;
 begin
   if not (is_admin() or has_location_admin()) then raise exception 'forbidden' using errcode = '42501'; end if;
   select * into cp from camp_participants where id = pid;
@@ -80,8 +80,7 @@ begin
   perform 1 from camps where id = cp.camp_id for update;
   select * into cp from camp_participants where id = pid;
   if cp.status <> 'registered' then raise exception 'not registered' using errcode = '22023'; end if;
-  select coalesce(sum(amount), 0) into paid from camp_payments where participant_id = pid;
-  if paid + amt > cp.amount then raise exception 'overpay' using errcode = '22023'; end if;
+  -- оплата сверх суммы участника допускается (решение владельца 13.11)
   if exists (select 1 from camp_payments where participant_id = pid and amount = amt and kind = k
                 and method is not distinct from nullif(trim(mth), '') and paid_on = coalesce(d, (now() at time zone 'Asia/Tbilisi')::date)
                 and created_at > now() - interval '60 seconds') then
