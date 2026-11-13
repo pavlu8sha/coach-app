@@ -457,8 +457,9 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
       </div>
       </>
       {msg && <p className={msg.ok ? 'ks-ok' : 'error'}>{msg.text}</p>}
+      {/* взнос можно назначить и отметить оплаты до игры: добавляются все игроки из состава формы, а не только отмеченные «Играл» */}
       {feeMode && savedId && (
-        <EventFees mode="match" coach={!admin} eventId={savedId} reloadKey={reload} onChanged={() => undefined} addable={players.filter(p => line(p.id).played).map(p => ({ id: p.id, name: p.full_name }))} />
+        <EventFees mode="match" coach={!admin} eventId={savedId} reloadKey={reload} onChanged={() => undefined} addable={players.map(p => ({ id: p.id, name: p.full_name }))} />
       )}
       {/* гости чемпионата или фестиваля (играли, но не в заявке события): при сохранении матча им автоматически назначается разовый взнос за матч */}
       {!feeMode && admin && savedId && guests.length > 0 && (

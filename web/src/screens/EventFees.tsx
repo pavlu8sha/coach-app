@@ -80,7 +80,7 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
     if (feeInput === '' || !(amount >= 0)) return setMsg({ ok: false, text: 'Укажите взнос с игрока.' });
     if (!api.add) return void run(supabase.rpc(api.setFee, { [api.key]: eventId, amt: amount }), 'Взнос обновлён (у тех, кому не делали скидку и кто не платил).');
     // у матча взнос хранится у каждого игрока: сначала назначаем его тем, кого ещё нет, затем обновляем остальных
-    if (fees.length === 0 && missing.length === 0) return setMsg({ ok: false, text: 'Сначала отметьте в составе игроков «Играл» и сохраните матч: взнос назначается им.' });
+    if (fees.length === 0 && missing.length === 0) return setMsg({ ok: false, text: 'В составе матча нет игроков: взнос назначается игрокам состава.' });
     void (async () => {
       setBusy(true);
       setMsg(null);
@@ -128,7 +128,7 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
         <button type="button" className="ks-btn secondary" style={{ width: 'auto' }} disabled={busy || feeInput === ''} onClick={saveFee}>Сохранить</button>
       </div>
       {api.add && missing.length > 0 && (
-        <button type="button" className="ks-btn secondary" style={{ marginBottom: 8 }} disabled={busy} onClick={addAll}>Добавить игроков состава во взнос ({missing.length})</button>
+        <button type="button" className="ks-btn secondary" style={{ marginBottom: 8 }} disabled={busy} onClick={addAll}>Добавить игроков состава во взнос, в том числе до игры ({missing.length})</button>
       )}
       {fees.length === 0 && api.add && <p className="muted">Взнос за этот матч пока никому не назначен. Укажите сумму и добавьте игроков состава.</p>}
       {fees.map(f => {
