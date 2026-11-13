@@ -335,6 +335,37 @@ describe('«Новое событие»', () => {
     expect(screen.queryByText('Алиев Анар')).not.toBeInTheDocument();
   });
 
+  it('галочка «Матч только этой группы» не показывается у матча чемпионата и у матча, уже записанного как U9-B', async () => {
+    seed();
+    const ab = [{ id: 'g1', name: 'U9-A' }, { id: 'g2', name: 'U9-B' }];
+    fake.db.matches = [
+      { id: 'mt', team: 'U9', played_on: '2026-10-10', opponent: 'Чемпионатный', goals_for: 1, goals_against: 0 },
+      { id: 'mb', team: 'U9-B', played_on: '2026-10-11', opponent: 'Группа Б', goals_for: 1, goals_against: 0 },
+      { id: 'mp', team: 'U9', played_on: '2026-10-12', opponent: 'Общий', goals_for: 1, goals_against: 0 },
+    ];
+    fake.rpc.match_tournaments = () => [
+      { match_id: 'mt', tournament_id: 't1', tournament_name: 'Championship 1', tournament_kind: 'championship', match_kind: 'game' },
+      { match_id: 'mb', tournament_id: null, tournament_name: null, tournament_kind: null, match_kind: 'friendly' },
+      { match_id: 'mp', tournament_id: null, tournament_name: null, tournament_kind: null, match_kind: 'friendly' },
+    ];
+    fake.rpc.event_roster = () => [];
+    const label = 'Матч только этой группы (U9-B)';
+    const open = async (opp: string) => { fireEvent.click(await screen.findByText(opp)); await screen.findByText('Сохранить матч'); };
+    const first = render(<CoachMatches groups={ab} allTeams />);
+    await open('Группа Б');
+    expect(screen.queryByRole('checkbox', { name: label })).not.toBeInTheDocument();
+    first.unmount();
+    resetDetachedNav();
+    const second = render(<CoachMatches groups={ab} allTeams />);
+    await open('Общий');
+    expect(screen.getByRole('checkbox', { name: 'Матч только этой группы (U9-A)' })).toBeInTheDocument(); // общий матч можно перевести в группу
+    second.unmount();
+    resetDetachedNav();
+    render(<CoachMatches groups={ab} allTeams />);
+    await open('Чемпионатный');
+    expect(screen.queryByRole('checkbox', { name: /Матч только этой группы/ })).not.toBeInTheDocument(); // база не меняет команду матча турнира
+  });
+
   it('«Добавить матч»: без галочки set_match_team_group не вызывается', async () => {
     seed();
     const ab = [{ id: 'g1', name: 'U13-A' }, { id: 'g2', name: 'U13-B' }];

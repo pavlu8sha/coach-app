@@ -82,7 +82,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
     return <EventForm teams={allTeams2} events={events} admin={admin} onBack={back} onCreated={id => void openCreated(id)} />;
   }
   const formMatch = screen === 'form' ? (matches ?? []).find(m => m.id === topId) ?? null : null;
-  if (screen === 'form' && (formMatch || !topId)) return <MatchForm groups={groups} match={formMatch} admin={admin} rosterOf={formMatch && !(!tours.get(formMatch.id)?.tournament_id || tours.get(formMatch.id)?.match_kind === 'friendly' || tours.get(formMatch.id)?.tournament_kind === 'cup') ? tours.get(formMatch.id)?.tournament_id ?? null : null} feeMode={!formMatch || !tours.get(formMatch.id)?.tournament_id || tours.get(formMatch.id)?.match_kind === 'friendly' || tours.get(formMatch.id)?.tournament_kind === 'cup'} presetTeam={addTeam} onBack={back} onSaved={() => setReload(n => n + 1)} />;
+  if (screen === 'form' && (formMatch || !topId)) return <MatchForm groups={groups} match={formMatch} groupTeamOk={!formMatch || !tours.get(formMatch.id)?.tournament_id} admin={admin} rosterOf={formMatch && !(!tours.get(formMatch.id)?.tournament_id || tours.get(formMatch.id)?.match_kind === 'friendly' || tours.get(formMatch.id)?.tournament_kind === 'cup') ? tours.get(formMatch.id)?.tournament_id ?? null : null} feeMode={!formMatch || !tours.get(formMatch.id)?.tournament_id || tours.get(formMatch.id)?.match_kind === 'friendly' || tours.get(formMatch.id)?.tournament_kind === 'cup'} presetTeam={addTeam} onBack={back} onSaved={() => setReload(n => n + 1)} />;
   if (!matches) return <Loading />;
 
   const teams = [...new Set(matches.map(m => m.team))].sort(compareGroups);
@@ -182,7 +182,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
 }
 
 // feeMode: у товарищеских и кубковых матчей взнос свой (на матч); у чемпионатов и фестивалей он на событие
-function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack, onSaved }: { groups: CoachGroup[]; match: Match | null; admin: boolean; feeMode: boolean; rosterOf: string | null; presetTeam?: string; onBack: () => void; onSaved?: () => void }) {
+function MatchForm({ groups, match, groupTeamOk, admin, feeMode, rosterOf, presetTeam, onBack, onSaved }: { groups: CoachGroup[]; match: Match | null; groupTeamOk: boolean; admin: boolean; feeMode: boolean; rosterOf: string | null; presetTeam?: string; onBack: () => void; onSaved?: () => void }) {
   const { ask, dialog: confirmDialog } = useConfirm();
   const matchGroups = groups.filter(g => playsMatches(g.name));
   const matched = match ? (groups.find(g => g.name === match.team) ?? groups.find(g => matchTeam(g.name) === match.team))?.id : undefined;
@@ -391,7 +391,8 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
       {canPickGroup && presetMissing && !admin && <p className="error" style={{ marginBottom: 8 }}>В клубе нет группы «{presetTeam}», поэтому матч для неё не сохранить. Вернитесь и выберите другую команду.</p>}
       {canPickGroup && presetMissing && admin && <p className="muted" style={{ marginBottom: 8 }}>Команда «{presetTeam}» без группы: состав собирайте поиском по игрокам клуба.</p>}
       {canPickGroup && !presetMissing && <GroupPicker groups={matchGroups} value={gid} onChange={g => { setGid(g); setExact(false); setRosterExact(false); }} />}
-      {gid && hasLetter(groupName) && !presetMissing && (
+      {/* галочка нужна новому матчу и сохранённому с общей командой; матч турнира (база не меняет его команду) и уже записанный как «U9-B» её не видят */}
+      {gid && hasLetter(groupName) && !presetMissing && groupTeamOk && !(match && hasLetter(match.team)) && (
         <label className="ks-check" style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
           <input type="checkbox" checked={exact} onChange={e => { setExact(e.target.checked); if (!savedId) setRosterExact(e.target.checked); setMsg(null); }} />
           Матч только этой группы ({groupName})
