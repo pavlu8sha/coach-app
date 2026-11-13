@@ -341,25 +341,16 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     if (r.error) return setMsg({ ok: false, text: coachError(r.error.message) });
     onBack();
   };
-  // Убрать игрока из матча совсем (администратор): снять отметку и очки сохранением, затем удалить строку состава.
-  // Нужно для ушедших игроков: снятая отметка «играл» оставляла их в составе матча. Тренерам удаление недоступно (запись match_players только у администратора).
+  // Убрать игрока из матча совсем (администратор и тренер): функция remove_match_player (0192) снимает отметку, голы и баллы
+  // и удаляет строку состава. Нужно для ушедших игроков: снятая отметка «играл» оставляла их в составе матча.
   const removeFromMatch = async (p: Player) => {
     if (!savedId) return;
-    if (!(await ask({ title: 'Убрать игрока из матча?', note: `${p.full_name}: пропадут его отметка, голы и баллы за этот матч. Из чемпионата и команды он не удаляется.`, confirmLabel: 'Убрать', danger: true }))) return;
-    const rest = { ...lines, [p.id]: { played: false, goals: 0 } };
-    const g = Object.entries(rest).reduce((s, [, l]) => s + (l.played ? l.goals : 0), 0);
-    if (gf !== '' && g > Number(gf)) return setMsg({ ok: false, text: 'Голов у игроков больше, чем забила команда.' });
+    if (!(await ask({ title: 'Убрать игрока из матча?', note: `${p.full_name}: пропадут его отметка и баллы за этот матч. Из чемпионата и команды он не удаляется.`, confirmLabel: 'Убрать', danger: true }))) return;
     setBusy(true);
     setMsg(null);
-    const roster = (players ?? []).map(pl => {
-      const l = rest[pl.id] ?? { played: false, goals: 0 };
-      return { player_id: pl.id, played: l.played, goals: l.played ? l.goals : 0, best: bestId === pl.id && pl.id !== p.id && l.played };
-    });
-    const r = await supabase.rpc('save_match', { m: savedId, g: gid || null, d: date, opp, gf: gf === '' ? null : Number(gf), ga: ga === '' ? null : Number(ga), roster });
-    if (r.error) { setBusy(false); return setMsg({ ok: false, text: coachError(r.error.message) }); }
-    const del = await supabase.from('match_players').delete().eq('match_id', savedId).eq('player_id', p.id);
+    const r = await supabase.rpc('remove_match_player', { m: savedId, p: p.id });
     setBusy(false);
-    if (del.error) return setMsg({ ok: false, text: coachError(del.error.message) });
+    if (r.error) return setMsg({ ok: false, text: coachError(r.error.message) });
     setPlayers(list => (list ?? []).filter(x => x.id !== p.id));
     setLines(s => { const n = { ...s }; delete n[p.id]; return n; });
     setShownIds(ids => (ids ? ids.filter(id => id !== p.id) : ids));
@@ -401,7 +392,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
       <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>
         Баллы начисляются автоматически, когда внесён счёт, только тем, кто играл: поражение или ничья +1, победа +2, каждый гол +1, лучший игрок +2, всего не больше 5 за матч. За технический результат баллов нет.
       </p>
-      {admin && savedId && players.length > 0 && (
+      {savedId && players.length > 0 && (
         <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 36, marginBottom: 8 }} aria-pressed={editLineup} onClick={() => setEditLineup(v => !v)}>
           {editLineup ? 'Готово' : 'Править состав'}
         </button>
@@ -426,7 +417,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
                 </button>
               </>
             )}
-            {admin && savedId && editLineup && (
+            {savedId && editLineup && (
               <button type="button" className="ks-btn secondary" style={{ marginTop: 8, minHeight: 40 }} disabled={busy} aria-label={`Убрать из матча: ${p.full_name}`} onClick={() => void removeFromMatch(p)}>
                 Убрать из матча
               </button>
