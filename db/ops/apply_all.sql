@@ -1,5 +1,5 @@
--- Миграции 0082–0082 одной транзакцией. Сгенерировано scripts/make-apply-bundle.sh 0082.
--- Перед запуском выполните db/ops/preflight.sql: все номера от 0082 должны быть applied = false. После: db/ops/postcheck.sql.
+-- Миграции 0082–0082 одной транзакцией. Исторический bundle; текущее состояние смотрите в db/ops/preflight.sql.
+-- Перед запуском сверьтесь с db/ops/preflight.sql: NOT_APPLIED нельзя применять вслепую. После: db/ops/postcheck.sql.
 begin;
 
 -- ===== 0082_match_stats_category_coach.sql =====
