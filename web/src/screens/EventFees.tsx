@@ -115,6 +115,12 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
     void run(supabase.rpc(api.discount, { [api.key]: eventId, pid: f.player_id, due: Number(discount), why: a.reason }), 'Сумма к оплате изменена.', () => setDiscountFor(null));
   };
 
+  // Убрать из взноса матча неоплаченного игрока (например, не сыграл): только администратор, пока по игроку нет ни одной оплаты (match_fee_remove)
+  const removeFee = async (f: FeeRow) => {
+    if (!(await ask({ title: 'Убрать из взноса?', lines: [['Игрок', f.full_name], ['К оплате', money(f.due)]], note: 'Игрок больше не будет должен взнос за этот матч. Оплат по нему нет.', confirmLabel: 'Убрать', danger: true }))) return;
+    void run(supabase.rpc('match_fee_remove', { m: eventId, pid: f.player_id }), 'Игрок убран из взноса.');
+  };
+
   const cancelPay = async (p: PayRow) => {
     if (!(await ask({ title: 'Отменить оплату?', lines: [['Игрок', p.full_name], ['Сумма', money(p.amount)], ['Дата', fmtDate(p.paid_on)]], note: 'Оплата будет отменена. Запись останется в истории.', confirmLabel: 'Отменить оплату', danger: true }))) return;
     void run(supabase.rpc(api.cancel, { payid: p.id }), 'Оплата отменена.');
@@ -149,6 +155,7 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
                 <input type="checkbox" checked={sel.has(f.player_id)} onChange={() => toggle(f.player_id)} aria-label={`Платит: ${f.full_name}`} />
                 <span>Платит</span>
               </label>
+              {!coach && api.add && f.paid === 0 && !pays.some(x => x.player_id === f.player_id) && <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 36 }} aria-label={`Убрать из взноса: ${f.full_name}`} onClick={() => void removeFee(f)}>Убрать</button>}
               {!coach && <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 36 }} aria-label={`Скидка: ${f.full_name}`} onClick={() => { setDiscountFor(discountFor === f.player_id ? null : f.player_id); setDiscount(String(f.due)); }}>Скидка</button>}
             </div>}
             {!coach && discountFor === f.player_id && (

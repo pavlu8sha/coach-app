@@ -667,6 +667,25 @@ describe('Взносы за матч (администратор)', () => {
     expect(fake.rpcCalls('match_fee_add')[0].ids as string[]).not.toContain('p1');
   });
 
+  it('админ убирает из взноса матча неоплаченного игрока; у оплатившего и у тренера кнопки нет', async () => {
+    seed();
+    let fees = [
+      { player_id: 'p1', full_name: 'Иванов Пётр', group_name: 'U9', due: 25, paid: 0 },
+      { player_id: 'p2', full_name: 'Сидоров Ян', group_name: 'U9', due: 25, paid: 25 },
+    ];
+    fake.rpc.match_fees_list = () => fees;
+    fake.rpc.match_payments_list = () => [{ id: 'x1', player_id: 'p2', full_name: 'Сидоров Ян', amount: 25, paid_on: '2026-10-10', method: 'Наличные', comment: null, cancelled: false }];
+    fake.rpc.match_fee_remove = () => { fees = fees.filter(f => f.player_id !== 'p1'); return null; };
+    render(<CoachMatches groups={groups} admin />);
+    fireEvent.click(await screen.findByText('Олимп'));
+    await screen.findByText('Взносы');
+    expect(screen.queryByRole('button', { name: 'Убрать из взноса: Сидоров Ян' })).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Убрать из взноса: Иванов Пётр' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Убрать' }));
+    await waitFor(() => expect(fake.rpcCalls('match_fee_remove')).toHaveLength(1));
+    expect(fake.rpcCalls('match_fee_remove')[0]).toEqual({ m: 'm1', pid: 'p1' });
+  });
+
   it('тренер принимает взносы за товарищеский матч, без скидки и отмены платежа', async () => {
     seed();
     fake.rpc.match_fees_list = () => [{ player_id: 'p1', full_name: 'Иванов Пётр', group_name: 'U9', due: 20, paid: 0 }];
