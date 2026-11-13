@@ -13,6 +13,10 @@ describe('старт подсчёта баллов', () => {
     fireEvent.change(screen.getByLabelText('Дата старта'), { target: { value: '2026-11-01' } });
     fireEvent.click(screen.getByRole('button', { name: 'Задать дату старта' }));
     expect(fake.rpcCalls('set_points_start')).toHaveLength(0);
+    // подтверждение честно говорит, что будет с журналом (#504)
+    const dlg = await screen.findByRole('dialog');
+    expect(within(dlg).getByText(/серии начнутся заново/)).toBeInTheDocument();
+    expect(within(dlg).getByText(/ручные баллы/)).toBeInTheDocument();
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Задать дату' }));
     expect(await screen.findByText('Баллы считаются с 01.11.2026.')).toBeInTheDocument();
     expect(fake.rpcCalls('set_points_start')[0]).toEqual({ d: '2026-11-01' });

@@ -68,20 +68,32 @@ describe('«Матчи» тренера', () => {
     ]);
   });
 
-  it('технический результат: признак уходит отдельным запросом после сохранения, без изменений не вызывается', async () => {
+  it('технический результат: смена признака сохраняется вместе с матчем одним запросом, без изменений обычное сохранение (#504)', async () => {
     seed();
+    fake.rpc.save_match_tech = () => 'm1';
     fake.rpc.set_match_technical = () => null;
     render(<CoachMatches groups={groups} />);
     fireEvent.click(await screen.findByText('Олимп'));
     await screen.findByText('Иванов Пётр');
     fireEvent.click(screen.getByText('Сохранить матч'));
     await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
-    expect(fake.rpcCalls('set_match_technical')).toHaveLength(0);
+    expect(fake.rpcCalls('save_match_tech')).toHaveLength(0);
     fireEvent.click(screen.getByLabelText('Технический результат (матч не играли)'));
     expect(screen.getByText(/баллы игрокам не начисляются/)).toBeInTheDocument();
     fireEvent.click(screen.getByText('Сохранить матч'));
-    await waitFor(() => expect(fake.rpcCalls('set_match_technical')).toHaveLength(1));
-    expect(fake.rpcCalls('set_match_technical')[0]).toEqual({ m: 'm1', tech: true });
+    await waitFor(() => expect(fake.rpcCalls('save_match_tech')).toHaveLength(1));
+    expect(fake.rpcCalls('save_match_tech')[0]).toMatchObject({ m: 'm1', g: 'g1', tm: null, d: '2026-10-10', opp: 'Олимп', tech: true });
+    expect(fake.rpcCalls('save_match')).toHaveLength(1);
+    expect(fake.rpcCalls('set_match_technical')).toHaveLength(0);
+  });
+
+  it('в форме матча нет текста о старых правилах баллов (#504)', async () => {
+    seed();
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText('Олимп'));
+    await screen.findByText('Иванов Пётр');
+    expect(screen.queryByText(/лучшему игроку — 3/)).toBeNull();
+    expect(screen.getByText(/не больше 5 за матч/)).toBeInTheDocument();
   });
 
   it('у тренера есть поиск игроков клуба, но нет удаления матча', async () => {
