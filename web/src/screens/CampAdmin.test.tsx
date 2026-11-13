@@ -398,7 +398,9 @@ describe('Админ: рассылки (условие 47)', () => {
 describe('Админ: возврат и замена (условие 48)', () => {
   async function openPart(name: string) {
     await openCamp();
-    fireEvent.click(await screen.findByText(name));
+    // отменённая запись с деньгами есть и в блоке «Требует внимания» (условие 66), открываем строку общего списка
+    const rows = await screen.findAllByText(name);
+    fireEvent.click(rows[rows.length - 1]);
   }
   it('возврат: сумма, дата, комментарий, подтверждение, camp_refund', async () => {
     seed();
