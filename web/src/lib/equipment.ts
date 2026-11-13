@@ -1,21 +1,36 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './supabase';
 
-// Статусы заказа экипировки (#240, миграция 0098): порядок задаёт допустимые шаги.
+// Статусы заказа экипировки (#240, миграция 0098; «Новый» и «Отменён» — #471, 0185): порядок задаёт допустимые шаги.
+// «Отменён» не шаг: его ставит и снимает только администратор отдельными действиями (eq_cancel_order / eq_restore_order).
 export const ORDER_STATUSES = [
+  { value: 'new', label: 'Новый' },
   { value: 'accepted', label: 'Принят в заказ' },
   { value: 'sewing', label: 'Начался пошив' },
   { value: 'ready', label: 'Готов к выдаче' },
   { value: 'issued', label: 'Выдан' },
 ] as const;
-export type OrderStatus = (typeof ORDER_STATUSES)[number]['value'];
+export type OrderStatus = (typeof ORDER_STATUSES)[number]['value'] | 'cancelled';
+export const CANCELLED = 'cancelled';
+export const isCancelled = (o: { status?: string | null }) => o.status === CANCELLED;
 
-export const orderStatusLabel = (s: string | null | undefined) => ORDER_STATUSES.find(x => x.value === s)?.label ?? ORDER_STATUSES[0].label;
-export const nextStatus = (s: string) => ORDER_STATUSES[ORDER_STATUSES.findIndex(x => x.value === s) + 1]?.value;
+// Неизвестный статус (например, появившийся в базе раньше, чем обновилось приложение) показывается как «Принят в заказ».
+export const orderStatusLabel = (s: string | null | undefined) =>
+  s === CANCELLED ? 'Отменён' : ORDER_STATUSES.find(x => x.value === s)?.label ?? 'Принят в заказ';
+const stepOf = (s: string) => ORDER_STATUSES.findIndex(x => x.value === s);
+export const nextStatus = (s: string) => (stepOf(s) < 0 ? undefined : ORDER_STATUSES[stepOf(s) + 1]?.value);
 // «Выдан» ставится, только когда по каждой вещи заказа есть отметка выдачи (0133).
 export const allKitsIssued = (lines: { kit: string }[], issues: { kit: string }[]) =>
   lines.length > 0 && lines.every(l => issues.some(i => i.kit === l.kit));
-export const prevStatus = (s: string) => ORDER_STATUSES[ORDER_STATUSES.findIndex(x => x.value === s) - 1]?.value;
+// Назад на шаг (только администратор); в «Новый» не возвращается (0185).
+export const prevStatus = (s: string) => (stepOf(s) < 2 ? undefined : ORDER_STATUSES[stepOf(s) - 1]?.value);
+
+/** К оплате по заказу: у отменённого 0, иначе остаток (как eq_order_due в базе). */
+export const orderDue = (o: { status?: string | null; total: number | string; paid: number | string }) =>
+  isCancelled(o) ? 0 : Math.max(Number(o.total) - Number(o.paid), 0);
+/** Переплата: у отменённого всё оплаченное (возврат решает администратор), иначе оплачено сверх итога (как eq_order_overpaid). */
+export const orderOverpaid = (o: { status?: string | null; total: number | string; paid: number | string }) =>
+  isCancelled(o) ? Number(o.paid) : Math.max(Number(o.paid) - Number(o.total), 0);
 
 export interface StatusEvent { status: string; changed_at: string; changed_by_name: string | null }
 

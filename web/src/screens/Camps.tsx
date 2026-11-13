@@ -2,6 +2,7 @@ import { ExpandableTextarea } from '../ui/ExpandableTextarea';
 import { useEffect, useState } from 'react';
 import { useDirtyGuard, useDirtySignature } from '../nav';
 import { coachError, fmtDate, groupByGroupName, today } from '../lib/coach';
+import { campAttention, netPaid } from '../lib/campAttention';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput, Segmented, SwitchRow } from '../ui/components';
 import { useConfirm } from '../ui/ConfirmSheet';
@@ -25,6 +26,7 @@ const KIND: Record<Pay['kind'], string> = { booking: 'Бронь', payment: 'О�
 const errText = (m: string) =>
   m.includes('camp full') ? 'На сборе нет свободных мест.' : m.includes('capacity below registered') ? 'Лимит не может быть меньше числа подтверждённых участников.' : m.includes('already registered') ? 'Уже записан на этот сбор.' : m.includes('not a guest') ? 'Имя и контакт правятся только у гостя.' : m.includes('already cancelled') ? 'Этот платёж уже отменён.' : m.includes('not cancellable') ? 'Этот платёж отменить нельзя.' : m.includes('paid below zero') ? 'Отмена увела бы оплату ниже нуля.' :
   m.includes('bad dates') ? 'Дата конца раньше даты начала.' : m.includes('bad amount') ? 'Сумма указана неверно.' : m.includes('amount below paid') ? 'Сумма участника не может быть меньше уже оплаченного.' : m.includes('name required') ? 'Введите название.' : m.includes('tariff not found') ? 'Выберите действующий тариф.' :
+  m.includes('not registered') ? 'Запись не активна: платёж не принимается.' : m.includes('duplicate payment') ? 'Такой платёж только что внесён.' : m.includes('cancelled by parent') ? 'Участник отменил запись. Откройте список заново.' :
   m.includes('Could not find the function') || m.includes('camp_') ? 'Модуль ещё не установлен в базе (миграция 0037).' : campErr(m);
 const nameOf = (p: Pick<Part, 'players' | 'guest_name'>) => p.players?.full_name ?? p.guest_name ?? 'Участник';
 const groupOf = (p: Pick<Part, 'players' | 'player_id'>) => (p.player_id ? p.players?.groups?.name ?? 'Без группы' : 'Гости');
@@ -142,12 +144,13 @@ function CampView({ camp, campIndex, onBack, onEdit, onPatched }: { camp: Camp; 
         <>
           <p className="muted" style={{ margin: '10px 0' }}>Записано: {reg.length} · оплачено {gel(paid)} из {gel(owed)}</p>
           <button type="button" className="ks-btn" onClick={() => nav.push('camp.add')} disabled={tariffs.filter(t => t.active).length === 0}>{tariffs.some(t => t.active) ? 'Записать игрока' : 'Сначала добавьте тариф'}</button>
+          <Attention camp={camp} parts={parts} onOpen={id => nav.push('camp.part', { id })} />
           {parts.length === 0 ? <EmptyState icon="users" title="Пока никого" /> : groupByGroupName(parts, groupOf).map(([group, items]) => (
             <details className="ks-group" key={group}>
               <summary><div className="ks-line"><b>{group}</b><span className="muted">{items.length} уч.</span></div></summary>
               {items.map(p => (
                 <ListRow key={p.id} avatar={nameOf(p)} title={nameOf(p)} sub={[p.camp_tariffs?.name ?? 'без тарифа', p.status === 'declined' ? 'отказ' : p.status === 'cancelled' ? 'отменил родитель' : p.player_id ? p.players?.groups?.name ?? 'без группы' : 'гость']}
-                  end={p.status === 'declined' ? <Pill>Отказ</Pill> : p.status === 'cancelled' ? <Pill>Отмена</Pill> : <Pill tone={paidOf(p) >= p.amount ? 'success' : 'danger'} dot>{paidOf(p) >= p.amount ? 'Оплачен' : `${gel(paidOf(p))} из ${gel(p.amount)}`}</Pill>} onClick={() => nav.push('camp.part', { id: p.id })} />
+                  end={p.status !== 'registered' && netPaid(p) > 0 ? <Pill tone="danger" dot>{`Возврат ${gel(netPaid(p))}`}</Pill> : p.status === 'declined' ? <Pill>Отказ</Pill> : p.status === 'cancelled' ? <Pill>Отмена</Pill> : <Pill tone={paidOf(p) >= p.amount ? 'success' : 'danger'} dot>{paidOf(p) >= p.amount ? 'Оплачен' : `${gel(paidOf(p))} из ${gel(p.amount)}`}</Pill>} onClick={() => nav.push('camp.part', { id: p.id })} />
               ))}
             </details>
           ))}
@@ -158,6 +161,29 @@ function CampView({ camp, campIndex, onBack, onEdit, onPatched }: { camp: Camp; 
 }
 
 interface RepriceResult { old_price: number; new_price: number; updated: number; overpaid: number; manual: number }
+
+// Что требует действия администратора (условия 66-67): только показ, ничего не меняет и не уведомляет
+function Attention({ camp, parts, onOpen }: { camp: Camp; parts: Part[]; onOpen: (id: string) => void }) {
+  const { refunds, noBooking, fee } = campAttention(camp, parts);
+  if (refunds.length === 0 && noBooking.length === 0) return null;
+  return (
+    <section aria-label="Требует внимания" className="ks-card" style={{ margin: '10px 0' }}>
+      <b>Требует внимания</b>
+      {refunds.length > 0 && (
+        <>
+          <p className="muted" style={{ margin: '8px 0 0' }}>Возврат не оформлен</p>
+          {refunds.map(p => <ListRow key={p.id} title={nameOf(p)} sub={[`${p.status === 'cancelled' ? 'отменил родитель' : 'отказ'} · внесено ${gel(p.paid)}`]} onClick={() => onOpen(p.id)} />)}
+        </>
+      )}
+      {noBooking.length > 0 && (
+        <>
+          <p className="muted" style={{ margin: '8px 0 0' }}>Нет брони после срока</p>
+          {noBooking.map(p => <ListRow key={p.id} title={nameOf(p)} sub={[`внесено ${gel(p.paid)} из ${gel(fee)} · срок брони ${fmtDate(camp.booking_deadline as string)}`]} onClick={() => onOpen(p.id)} />)}
+        </>
+      )}
+    </section>
+  );
+}
 
 function Tariffs({ camp, tariffs, onChanged }: { camp: Camp; tariffs: Tariff[]; onChanged: () => void }) {
   const [name, setName] = useState('');

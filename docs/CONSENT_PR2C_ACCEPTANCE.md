@@ -24,11 +24,12 @@
 - **У11.** Подавленные строки считаются в дневных лимитах рассылок (`camp_broadcast_targets`, `camp_document`). Слоты `match_reminder_log` и `booking_notice_log` при подавлении не освобождаются.
 - **У12.** `camp_broadcast_list` возвращает колонку `skipped`; `pending + sent + failed + skipped + cleared = recipients`. `camp_broadcast_results` отдаёт состояние `skipped`. Экран показывает «не отправлено: нет согласия» и сумму без расхождения.
 - **У13.** Конкуренция: отзыв, зафиксированный до проверки в claim, не позволяет выдать строку; claim не пропускает строку, отзыв которой уже подтверждён (сценарий с двумя сессиями).
-- **У14.** Права: `claim_notifications` выполняет только `service_role`; прав у `public/anon/authenticated` нет; сигнатура и возвращаемые поля `(id, telegram_id, text, buttons)` не меняются; новые столбцы недоступны `anon/authenticated`.
+- **У14.** Права: `claim_notifications` выполняет только `service_role`; прав у `public/anon/authenticated` нет; сигнатура и возвращаемые поля `(id, telegram_id, text, buttons)` не меняются (0184, REL-02, добавила последним полем `claim_token`: токен выдачи для `release_notifications`; прежние поля и их порядок те же, `tg-notify` прежней версии лишнее поле не читает); новые столбцы недоступны `anon/authenticated`.
 - **У15.** `notifications_pending` и порядок выдачи (рассылки после обычных, лимит 50) сохраняются.
 - **У16.** Существующие тесты записи на тренировки, RSVP, ожидания, кэмпов и уведомлений проходят без изменений ожиданий.
 - **У17.** Preflight содержит строку 0176 и предусловия 0173, 0175; откат `db/ops/rollback-0176-consent-claim.sql` возвращает определения 0170/0173/0175 и убирает новые объекты; проверка отката в тестовой БД.
-- **У18.** Тест-страж: прямой `insert into notifications` с адресным видом без `player_ids` в известных функциях не допускается (по `pg_proc`).
+- **У18.** Тест-страж: прямой `insert into notifications` с адресным видом без `player_ids` в известных функциях не допускается (по `pg_proc`). Реализован в `db/tests/notifications_addressed_guard_test.sql` (follow-up к #616): классификация прямых, косвенных и общих функций, проверка определений в `public`, регрессия на дефектных версиях.
+- **У17а (follow-up).** `preflight.sql` показывает у строки 0176 колонку `note`: `applied` / `ready` / `blocked` (нет 0173 и/или 0175) / `inconsistent` (0176 есть, предусловий нет) / `ambiguous` (0176 применена частично) / `unknown` (NULL). Тест: `db/tests/preflight_0176_test.sql`; `scripts/run-db-tests.sh` требует `applied` на полной базе.
 
 ## Принятые ограничения
 - Окно между успешным claim и ответом Telegram (секунды) не проверяется; Edge Function не меняется.

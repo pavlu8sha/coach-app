@@ -84,3 +84,41 @@ describe('equipmentCsv: выдача по вещи (условие 5)', () => {
 describe('csvFileName (условие 11)', () => {
   it('equipment-ГГГГ-ММ-ДД.csv', () => expect(csvFileName('2026-11-09')).toBe('equipment-2026-11-09.csv'));
 });
+
+import { notOrderedCsv, notOrderedFileName, notOrderedPlayers, type NotOrderedOrder, type RosterPlayer } from './equipmentExport';
+
+const pl = (id: string, name: string, over: Partial<RosterPlayer> = {}): RosterPlayer => ({ id, full_name: name, status: 'active', groups: { name: 'U10-A' }, ...over });
+const ord = (player_id: string, kits: string[], status = 'new'): NotOrderedOrder => ({ player_id, status, equipment_order_lines: kits.map(kit => ({ kit })) });
+const KIT = 'Тренировочный комплект';
+
+describe('notOrderedPlayers (docs/acceptance/eq-not-ordered-filter-2026-11-13.md)', () => {
+  it('условие 3: игрок без заказов и игрок с заказом без этой вещи попадают, с вещью нет', () => {
+    const r = notOrderedPlayers([pl('a', 'Без заказов'), pl('b', 'Другая вещь'), pl('c', 'Есть комплект')], [ord('b', ['Дождевик']), ord('c', [KIT, 'Дождевик'])], KIT, '', '');
+    expect(r.map(p => p.id)).toEqual(['a', 'b']);
+  });
+  it('условие 4: отменённый заказ не считается, неотменённый (любой статус) считается', () => {
+    const r = notOrderedPlayers([pl('a', 'Я'), pl('b', 'Ты')], [ord('a', [KIT], 'cancelled'), ord('b', [KIT], 'issued')], KIT, '', '');
+    expect(r.map(p => p.id)).toEqual(['a']);
+  });
+  it('условие 5: неактивные не входят', () => {
+    expect(notOrderedPlayers([pl('a', 'Я', { status: 'inactive' })], [], KIT, '', '')).toEqual([]);
+  });
+  it('условие 6: поиск по имени и группа', () => {
+    const ps = [pl('a', 'Иванов Иван'), pl('b', 'Петров Пётр', { groups: { name: 'U12' } }), pl('c', 'Без группы', { groups: null })];
+    expect(notOrderedPlayers(ps, [], KIT, 'иван', '').map(p => p.id)).toEqual(['a']);
+    expect(notOrderedPlayers(ps, [], KIT, '', 'U12').map(p => p.id)).toEqual(['b']);
+  });
+  it('условие 9: порядок по имени', () => {
+    expect(notOrderedPlayers([pl('a', 'Яковлев'), pl('b', 'Арутюнов')], [], KIT, '', '').map(p => p.id)).toEqual(['b', 'a']);
+  });
+});
+
+describe('notOrderedCsv', () => {
+  it('условие 9: колонки, пустая группа, BOM, защита от формул', () => {
+    const csv = notOrderedCsv([pl('a', 'Иванов Иван'), pl('b', '=Хитрый', { groups: null })]);
+    expect(csv.startsWith(BOM)).toBe(true);
+    expect(lines(csv)).toEqual(['игрок;группа;id игрока', 'Иванов Иван;U10-A;a', "'=Хитрый;;b"]);
+  });
+  it('условие 9: пустой список даёт пустую строку', () => { expect(notOrderedCsv([])).toBe(''); });
+  it('условие 10: имя файла', () => { expect(notOrderedFileName('2026-11-13')).toBe('equipment-not-ordered-2026-11-13.csv'); });
+});

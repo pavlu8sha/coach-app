@@ -75,7 +75,7 @@ reset role;
 update notifications set attempts = 3, claimed_at = null where state = 'pending';
 select set_config('role', 'service_role', true);
 select is((select count(*)::int from claim_notifications(10)), 0, 'после трёх попыток сообщение больше не выдаётся');
-select is((select count(*)::int from notifications where state = 'pending' and attempts >= 3), 1, 'оно остаётся в очереди для разбора администратором базы');
+select is((select count(*)::int from notifications where state = 'failed' and last_error like 'stalled%'), 1, 'оно закрывается как failed с причиной stalled (0184, REL-02), а не висит в pending');
 
 select * from finish();
 rollback;

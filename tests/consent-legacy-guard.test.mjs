@@ -9,11 +9,15 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
+// Исключения: поле выводится как данные, а не как условие доступа (файл: число вхождений, только точное совпадение).
+// 0186 пересоздаёт export_my_data (тело 0173): поле отзыва показывается родителю в разделе children выгрузки, доступ по parent_access_ok.
+const MIGRATION_DATA_ONLY = { '0186_points_legacy_off.sql': 3 };
+
 test('миграции после 0173 не содержат consent_revoked_at', () => {
   const dir = path.join(ROOT, 'db/migrations');
   const bad = fs.readdirSync(dir)
     .filter(f => /^\d{4}_.*\.sql$/.test(f) && Number(f.slice(0, 4)) > 173)
-    .filter(f => fs.readFileSync(path.join(dir, f), 'utf8').includes('consent_revoked_at'));
+    .filter(f => (fs.readFileSync(path.join(dir, f), 'utf8').match(/consent_revoked_at/g) ?? []).length !== (MIGRATION_DATA_ONLY[f] ?? 0));
   assert.deepEqual(bad, [], `используйте parent_access_ok(user_id, player_id) вместо consent_revoked_at: ${bad.join(', ')}`);
 });
 

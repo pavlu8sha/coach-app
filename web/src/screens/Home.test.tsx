@@ -135,3 +135,19 @@ describe('вход по ссылке на сбор', () => {
   });
 });
 
+describe('главная родителя: вход в профиль игрока (#266, П1.1, П1.3)', () => {
+  it('у каждого ребёнка своя кнопка; профиль открывается для выбранного, «Назад» возвращает к детям', async () => {
+    fake.db.player_guardians = [kid('p1', 'Алексей Петров', 'U10-A'), kid('p2', 'Мария Петрова', 'U8')];
+    fake.db.players = [{ id: 'p1', full_name: 'Алексей Петров', birth_date: null, groups: { name: 'U10-A' } }, { id: 'p2', full_name: 'Мария Петрова', birth_date: '2018-01-01', groups: { name: 'U8' } }];
+    fake.rpc.player_training_history = () => [];
+    render(<Home />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Профиль игрока: Мария Петрова' }));
+    expect(await screen.findByRole('heading', { name: 'Мария Петрова' })).toBeInTheDocument();
+    expect(screen.getByText('Год рождения: 2018')).toBeInTheDocument();
+    expect(screen.queryByText('Алексей Петров')).toBeNull();
+    expect(fake.rpcCalls('player_training_history')[0].p).toBe('p2');
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(await screen.findByRole('heading', { name: 'Мои дети' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Профиль игрока: Алексей Петров' })).toBeInTheDocument();
+  });
+});

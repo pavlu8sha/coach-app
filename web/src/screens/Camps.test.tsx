@@ -56,6 +56,23 @@ describe('«Сборы»', () => {
     expect(fake.rpcCalls('camp_pay')[0]).toMatchObject({ pid: 'cp2', amt: 250.5, k: 'payment', mth: 'Наличные' });
   });
 
+  it.each([
+    ['not registered', 'Запись не активна: платёж не принимается.'],
+    ['duplicate payment', 'Такой платёж только что внесён.'],
+  ])('платёж: ошибка %s показывается понятным текстом (аудит C-05)', async (code, text) => {
+    seed();
+    fake.rpc.camp_pay = () => ({ error: { message: code } });
+    render(<Camps />);
+    fireEvent.click(await screen.findByText('Зимний лагерь'));
+    fireEvent.click(await screen.findByText('Сидоров Ян'));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Оплата' }));
+    fireEvent.change(screen.getAllByLabelText('Сумма, ₾')[0], { target: { value: '100' } });
+    fireEvent.change(screen.getByLabelText(/^Способ/), { target: { value: 'Наличные' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Записать платёж' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
+    expect(await screen.findByText(text)).toBeInTheDocument();
+  });
+
   it('отмена платежа и повторная отмена с понятным сообщением', async () => {
     seed();
     fake.rpc.camp_cancel_payment = () => ({ error: { message: 'already cancelled' } });
@@ -191,5 +208,60 @@ describe('«Сборы»', () => {
       expect(await screen.findByText("Недостаточно прав.")).toBeInTheDocument();
       expect(fake.rpcCalls('camp_tariff_save')).toHaveLength(0);
     });
+  });
+});
+
+describe('«Сборы»: требует внимания (условия 66-67)', () => {
+  function seedAttention(deadline: string | null) {
+    seed();
+    fake.db.camps[0].booking_deadline = deadline;
+    fake.db.camp_participants.push(
+      {
+        id: 'cp4', camp_id: 'c1', player_id: 'p4', tariff_id: 't1', amount: 850, tshirt_size: null, comment: null, status: 'cancelled',
+        players: { full_name: 'Отменил Олег', groups: { name: 'U10' } }, camp_tariffs: { name: 'Футболист' },
+        camp_payments: [{ id: 'pay4', amount: 300, paid_on: '2026-11-01', kind: 'booking', method: 'Наличные', comment: null }],
+      },
+      {
+        id: 'cp5', camp_id: 'c1', player_id: 'p5', tariff_id: 't1', amount: 850, tshirt_size: null, comment: null, status: 'cancelled',
+        players: { full_name: 'Вернули Веня', groups: { name: 'U10' } }, camp_tariffs: { name: 'Футболист' },
+        camp_payments: [{ id: 'pay5', amount: 300, paid_on: '2026-11-01', kind: 'booking', method: 'Наличные', comment: null }, { id: 'pay6', amount: -300, paid_on: '2026-11-02', kind: 'refund', method: null, comment: null }],
+      },
+    );
+  }
+
+  it('отмена с внесёнными деньгами попадает в «Возврат не оформлен», полностью возвращённая нет; база не вызывается', async () => {
+    seedAttention(null);
+    render(<Camps />);
+    fireEvent.click(await screen.findByText('Зимний лагерь'));
+    const box = await screen.findByRole('region', { name: 'Требует внимания' });
+    expect(within(box).getByText('Возврат не оформлен')).toBeInTheDocument();
+    expect(within(box).getByText('Отменил Олег')).toBeInTheDocument();
+    expect(within(box).getByText('отменил родитель · внесено 300 ₾')).toBeInTheDocument();
+    expect(within(box).queryByText('Вернули Веня')).toBeNull();
+    expect(within(box).queryByText('Нет брони после срока')).toBeNull();
+    expect(screen.getByText('Возврат 300 ₾', { selector: 'span' })).toBeInTheDocument();
+    expect(fake.rpcCalls('camp_update_participant')).toHaveLength(0);
+    expect(fake.rpcCalls('camp_refund')).toHaveLength(0);
+  });
+
+  it('после срока брони записанный без брони в «Нет брони после срока»; внёсший бронь нет; строка открывает карточку', async () => {
+    seedAttention('2020-01-01');
+    render(<Camps />);
+    fireEvent.click(await screen.findByText('Зимний лагерь'));
+    const box = await screen.findByRole('region', { name: 'Требует внимания' });
+    expect(within(box).getByText('Нет брони после срока')).toBeInTheDocument();
+    expect(within(box).getByText('внесено 0 ₾ из 100 ₾ · срок брони 01.01.2020')).toBeInTheDocument();
+    expect(within(box).queryByText('Иванов Пётр')).toBeNull();
+    fireEvent.click(within(box).getByText('Сидоров Ян'));
+    expect(await screen.findByRole('tab', { name: 'Оплата' })).toBeInTheDocument();
+  });
+
+  it('срок брони не прошёл и отмен с деньгами нет: блока нет', async () => {
+    seed();
+    fake.db.camps[0].booking_deadline = '2099-01-01';
+    render(<Camps />);
+    fireEvent.click(await screen.findByText('Зимний лагерь'));
+    await screen.findByText('Записано: 2 · оплачено 100 ₾ из 1700 ₾');
+    expect(screen.queryByRole('region', { name: 'Требует внимания' })).toBeNull();
   });
 });
