@@ -311,17 +311,18 @@ export function CampDocuments({ camp }: { camp: CampLite }) {
 }
 
 // ===== Рассылки (47) =====
-type Kind = 'info' | 'reminder';
+type Kind = 'participants' | 'info' | 'reminder';
 interface Preview { recipients: number; messages: number; list: { name: string }[]; blocked: { name: string; reason: string }[]; sample: string | null; token: string; unreachable: number | null; enabled: boolean }
 interface Entry { id: string; kind: Kind; body: string | null; recipients: number; author_name: string | null; created_at: string; pending: number; sent: number; failed: number; skipped?: number; cleared: number }
 interface Result { name: string; state: 'pending' | 'sent' | 'failed' | 'skipped' | 'cleared'; error: string | null }
-const KIND: Record<Kind, string> = { info: 'Информационная', reminder: 'Напоминание об оплате' };
+// participants (0187) по умолчанию: сообщение по сбору не уходит всему клубу случайно (условия 69-71)
+const KIND: Record<Kind, string> = { participants: 'Записанным на сбор', info: 'Всем родителям клуба', reminder: 'Напоминание об оплате' };
 const BLOCKED: Record<string, string> = { notifications_off: 'выключены уведомления бота', daily_limit: 'уже три сообщения рассылок за сутки' };
 const plural = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'получателю' : 'получателям');
 const resultText = (r: Result) => (r.state === 'sent' ? 'отправлено' : r.state === 'failed' ? `не доставлено${r.error ? ` (${r.error})` : ''}` : r.state === 'pending' ? 'ждёт отправки' : r.state === 'skipped' ? 'не отправлено: нет согласия' : 'очищено из очереди');
 
 export function CampBroadcasts({ camp }: { camp: CampLite }) {
-  const [kind, setKind] = useState<Kind>('info');
+  const [kind, setKind] = useState<Kind>('participants');
   const [text, setText] = useState('');
   const [preview, setPreview] = useState<Preview | null>(null);
   const [journal, setJournal] = useState<Entry[] | null>(null);
@@ -378,10 +379,10 @@ export function CampBroadcasts({ camp }: { camp: CampLite }) {
     <>
       {dialog}
       <p className="muted" style={{ margin: '10px 0' }}>Рассылка уходит только после предпросмотра и вашего подтверждения. Каждый родитель получает своё сообщение, недоступного родителя другим членом семьи не заменяют.</p>
-      <Segmented label="Вид рассылки" value={kind} onChange={v => edit(() => setKind(v))} items={[{ value: 'info', label: KIND.info }, { value: 'reminder', label: KIND.reminder }]} />
-      <ExpandableTextarea label="Текст рассылки" rows={4} maxLength={1000} value={text} placeholder={kind === 'reminder' ? 'Необязательно: добавится к напоминанию' : 'Сообщение родителям клуба'} onChange={v => edit(() => setText(v))} />
+      <Segmented label="Вид рассылки" value={kind} onChange={v => edit(() => setKind(v))} items={[{ value: 'participants', label: KIND.participants }, { value: 'info', label: KIND.info }, { value: 'reminder', label: KIND.reminder }]} />
+      <ExpandableTextarea label="Текст рассылки" rows={4} maxLength={1000} value={text} placeholder={kind === 'reminder' ? 'Необязательно: добавится к напоминанию' : kind === 'participants' ? 'Сообщение семьям записанных участников' : 'Сообщение родителям клуба'} onChange={v => edit(() => setText(v))} />
       {msg && <p className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}
-      <button type="button" className="ks-btn secondary" disabled={busy || (kind === 'info' && !text.trim())} onClick={() => void doPreview()}>Предпросмотр</button>
+      <button type="button" className="ks-btn secondary" disabled={busy || (kind !== 'reminder' && !text.trim())} onClick={() => void doPreview()}>Предпросмотр</button>
       {preview && (
         <div className="ks-card" style={{ marginTop: 10 }}>
           <b>{`Получателей: ${preview.recipients}`}</b>
@@ -398,7 +399,7 @@ export function CampBroadcasts({ camp }: { camp: CampLite }) {
               <ul aria-label="Не получат сообщение" style={{ margin: 0, paddingLeft: 18 }}>{preview.blocked.map((p, i) => <li key={i}>{`${p.name}: ${BLOCKED[p.reason] ?? p.reason}`}</li>)}</ul>
             </>
           )}
-          {preview.unreachable !== null && preview.unreachable > 0 && <p className="muted">{`Должников, до которых рассылка не дойдёт: ${preview.unreachable}`}</p>}
+          {preview.unreachable !== null && preview.unreachable > 0 && <p className="muted">{kind === 'participants' ? `Записанных участников, до семьи которых рассылка не дойдёт: ${preview.unreachable}` : `Должников, до которых рассылка не дойдёт: ${preview.unreachable}`}</p>}
           {!preview.enabled && <p className="error">Уведомления по сборам выключены. Отправка недоступна, пока их не включит владелец.</p>}
           {preview.enabled && preview.recipients === 0 && <p className="muted">Получателей нет, отправлять некому.</p>}
           {preview.enabled && preview.recipients > 0 && (
