@@ -32,6 +32,8 @@ export function coachError(m: string): string {
     ['goals without playing', 'Гол записан игроку, который не играл.'],
     ['player not in group', 'Игрок не из этой группы.'],
     ['roster incomplete', 'Отметьте всех игроков группы, затем сохраните.'],
+    ['player not in match', 'Игрока уже нет в составе этого матча.'],
+    ['match not found', 'Матч не найден.'],
     ['player not in club', 'Игрок не из этого клуба.'],
     ['only one best player', 'Лучший игрок может быть только один.'],
     ['best player must have played', 'Лучшим может быть только тот, кто играл.'],
