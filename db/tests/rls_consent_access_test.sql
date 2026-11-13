@@ -247,7 +247,7 @@ select is((select position('consent_revoked_at is null' in prosrc) from pg_proc 
 -- 0175: рассылки по сборам после 0172 и 0173: один источник получателей и условие доступа parent_access_ok
 select ok(pg_get_functiondef('camp_broadcast_targets(uuid,text,text)'::regprocedure) like '%from camp_broadcast_audience(%',
   '0175: camp_broadcast_targets берёт получателей из camp_broadcast_audience (как в 0172)');
-select is((select count(*)::int from regexp_matches(pg_get_functiondef('camp_broadcast_audience(uuid,text,text)'::regprocedure), 'parent_access_ok\(g\.user_id, g\.player_id\)', 'g')), 2,
-  '0175: camp_broadcast_audience проверяет доступ через parent_access_ok в info и reminder');
+select is((select count(*)::int from regexp_matches(pg_get_functiondef('camp_broadcast_audience(uuid,text,text)'::regprocedure), 'parent_access_ok\(g\.user_id, g\.player_id\)', 'g')), 3,
+  '0175: camp_broadcast_audience проверяет доступ через parent_access_ok в info, participants (0187) и reminder');
 select * from finish();
 rollback;
