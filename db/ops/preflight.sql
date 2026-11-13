@@ -220,7 +220,8 @@ with m(migration, applied) as (values
   ('0191_camp_change_log', coalesce(to_regclass('public.camp_change_log') is not null and (select count(*) = 2 from pg_trigger where not tgisinternal and tgenabled = 'O' and tgname in ('camps_change_log', 'camp_tariffs_change_log')) and coalesce((select not has_table_privilege('authenticated', c.oid, 'update') and not has_table_privilege('authenticated', c.oid, 'delete') and not has_table_privilege('authenticated', c.oid, 'insert') from pg_class c where c.oid = to_regclass('public.camps')), false), false)),
   ('0192_coach_remove_match_player', coalesce(to_regprocedure('public.remove_match_player(uuid,uuid)') is not null and has_function_privilege('authenticated', to_regprocedure('public.remove_match_player(uuid,uuid)'), 'execute'), false)),
   ('0193_match_group_team', coalesce(to_regprocedure('public.set_match_team_group(uuid,uuid,boolean)') is not null and has_function_privilege('authenticated', to_regprocedure('public.set_match_team_group(uuid,uuid,boolean)'), 'execute') and not has_function_privilege('anon', to_regprocedure('public.set_match_team_group(uuid,uuid,boolean)'), 'execute'), false)),
-  ('0194_parent_calendar_history_lifecycle', coalesce((select p.prosrc like '%lifecycle_status%' and p.prosrc like '%points_group_at%' from pg_proc p where p.oid = to_regprocedure('public.parent_calendar(uuid,date,date)')), false))
+  ('0194_parent_calendar_history_lifecycle', coalesce((select p.prosrc like '%lifecycle_status%' and p.prosrc like '%points_group_at%' from pg_proc p where p.oid = to_regprocedure('public.parent_calendar(uuid,date,date)')), false)),
+  ('0195_event_create_admin_only', coalesce(exists (select 1 from pg_proc where oid = to_regprocedure('public.event_create(text,text,text,date,numeric,uuid)') and position('event_assert_staff' in prosrc) = 0 and position('is_admin()' in prosrc) > 0), false))
 ),
 overrides(migration, status) as (
   select '0047_ind_no_autobook', case

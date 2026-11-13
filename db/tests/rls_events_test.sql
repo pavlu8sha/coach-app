@@ -1,7 +1,7 @@
 -- pgTAP: события — тренер и админ создают и ведут состав, родитель закрыт, суммы тренеру не видны.
 begin;
 create extension if not exists pgtap;
-select plan(11);
+select plan(15);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -25,7 +25,15 @@ select throws_ok($$select event_create('championship', 'U9', 'Ч1', '2026-11-01'
 select throws_ok($$select * from event_list()$$, '42501', null, 'родитель не видит список событий');
 
 select as_user('00000000-0000-0000-0000-0000000000c1');
-select lives_ok($$select event_create('championship', 'U9', 'Ч1', '2026-11-01', 999, null)$$, 'тренер создаёт событие');
+select throws_ok($$select event_create('championship', 'U9', 'Ч0', '2026-11-01', 999, null)$$, '42501', 'forbidden', 'тренер не создаёт событие (0195)');
+select throws_ok($$insert into tournaments (club_id, team, kind, name, fee) values ('00000000-0000-0000-0000-00000000c001', 'U9', 'championship', 'Ч0', 0)$$, '42501', null, 'тренер не вставляет событие напрямую');
+select is((select count(*)::int from event_list()), 0, 'отказ не оставил события');
+select is(has_function_privilege('anon', 'event_create(text,text,text,date,numeric,uuid)', 'execute'), false, 'anon не вызывает event_create');
+
+select as_user('00000000-0000-0000-0000-0000000000a1');
+select lives_ok($$select event_create('championship', 'U9', 'Ч1', '2026-11-01', 999, null)$$, 'админ создаёт событие');
+
+select as_user('00000000-0000-0000-0000-0000000000c1');
 select lives_ok($$select event_roster_add((select id from event_list() limit 1), array['00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-00000000d002']::uuid[])$$, 'тренер добавляет состав');
 select is((select players from event_list() limit 1), 2, 'счётчик игроков');
 select is((select count(*)::int from event_roster((select id from event_list() limit 1))), 2, 'состав читается');
@@ -35,7 +43,7 @@ select is((select games from event_list() limit 1), 1, 'счётчик игр');
 select lives_ok($$select event_roster_remove((select id from event_list() limit 1), '00000000-0000-0000-0000-00000000d002')$$, 'игрок убран из состава');
 
 select as_user('00000000-0000-0000-0000-0000000000a1');
-select is((select fee from tournaments limit 1), 0::numeric, 'взнос, указанный тренером, игнорируется');
+select is((select fee from tournaments limit 1), 999::numeric, 'взнос, указанный администратором, сохраняется');
 
 select * from finish();
 rollback;
