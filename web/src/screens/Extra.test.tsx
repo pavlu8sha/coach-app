@@ -140,6 +140,16 @@ describe('«Дополнительные»', () => {
     await waitFor(() => expect(fake.rpcCalls('extra_cancel_session')).toEqual([{ s: 'e1', p_reason: 'Дождь' }]));
   });
 
+  it('отмена отклонена из-за отметки «Был(а)»: понятное сообщение, экран остаётся (#630)', async () => {
+    seed();
+    fake.rpc.extra_cancel_session = () => ({ error: { message: 'attendance marked' } });
+    render(<Extra />);
+    fireEvent.click(await screen.findByText('10.01.2099 · 20 ₾'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Отменить тренировку' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Отменить тренировку' }).slice(-1)[0]);
+    expect(await screen.findByText(/Сначала снимите отметки/)).toBeInTheDocument();
+  });
+
   it('отменённая тренировка: пометка в списке, в карточке нет управления записями', async () => {
     seed();
     fake.db.extra_sessions[0].cancelled_at = '2099-01-01T00:00:00Z';
