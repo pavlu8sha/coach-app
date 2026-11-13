@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import { useNav, useSubEntry } from '../nav';
 import { fetchLedgerTotals } from '../lib/pointsLedger';
 import { supabase } from '../lib/supabase';
 import { Failure, Loading } from './Message';
+import PlayerProfile from './PlayerProfile';
 import PointsLedger from './PointsLedger';
 
 export interface ChildPlayer { id: string; name: string; group: string | null }
@@ -55,6 +57,8 @@ export default function ChildHome({ player }: { player: ChildPlayer }) {
   const [t, setT] = useState<Totals | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const nav = useNav();
+  const profileOpen = Boolean(useSubEntry('ch.profile')); // свой профиль (#266, П1.2)
 
   useEffect(() => {
     void (async () => {
@@ -67,6 +71,7 @@ export default function ChildHome({ player }: { player: ChildPlayer }) {
     })();
   }, [player.id, reload]);
 
+  if (profileOpen) return <PlayerProfile playerId={player.id} onBack={() => nav.back()} />;
   if (error) return <Failure title="Не удалось загрузить баллы" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   if (!t) return <Loading />;
   return (
@@ -84,6 +89,9 @@ export default function ChildHome({ player }: { player: ChildPlayer }) {
           </div>
         </div>
         <p className="muted">Матчей сыграно: {t.played} · голов: {t.goals}</p>
+        <button type="button" className="ks-btn secondary" onClick={() => nav.push('ch.profile')}>
+          Мой профиль
+        </button>
         <PointsLedger playerId={player.id} showEmpty />
       </section>
     </main>
