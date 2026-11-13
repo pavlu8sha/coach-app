@@ -9,7 +9,7 @@ import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { settingNumberError, useClubSettings } from '../lib/clubSettings';
 import { bundleDiscount, priorAmount } from '../lib/equipmentDiscount';
-import { CSV_BOM, csvFileName, equipmentCsv } from '../lib/equipmentExport';
+import { CSV_BOM, csvFileName, equipmentCsv, notOrderedCsv, notOrderedFileName, notOrderedPlayers, type RosterPlayer } from '../lib/equipmentExport';
 import { initData } from '../lib/telegram';
 import { allKitsIssued, EQUIPMENT_REQUIRED_KEY, EQUIPMENT_REQUIRED_TEXT, isCancelled, issueStateLabel, kitIssued, lastStatusDate, orderDue, orderMatchesIssue, nextStatus, orderStatusLabel, prevStatus, type StatusEvent } from '../lib/equipment';
 
@@ -93,6 +93,7 @@ export default function Equipment() {
   const [fKit, setFKit] = useNavState('eq.kit', '', { entry: 0 });
   const [fLoc, setFLoc] = useNavState('eq.loc', '', { entry: 0 });
   const [fIssue, setFIssue] = useNavState<'' | 'yes' | 'no'>('eq.issue', '', { entry: 0, persist: { kind: 'enum', values: ['', 'yes', 'no'] } });
+  const [fOrd, setFOrd] = useNavState<'' | 'no'>('eq.ord', '', { entry: 0, persist: { kind: 'enum', values: ['', 'no'] } });
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [exportMsg, setExportMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -125,14 +126,15 @@ export default function Equipment() {
     return (tab !== 'noissue' || !done) && (!fIssue || done === (fIssue === 'yes'));
   }, [tab, fIssue]);
   const shown = useMemo(() => (orders ?? []).filter(matches), [orders, matches]);
+  const { kits: catalogKits } = useCatalog();
   const options = useMemo(() => {
     const uniq = (xs: (string | null | undefined)[]) => [...new Set(xs.filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'ru'));
     return {
       groups: uniq((orders ?? []).map(o => o.players?.groups?.name)).sort(compareGroups),
-      kits: uniq((orders ?? []).flatMap(o => o.equipment_order_lines.map(l => l.kit))),
+      kits: uniq([...(orders ?? []).flatMap(o => o.equipment_order_lines.map(l => l.kit)), ...(catalogKits ?? []).map(k => k.kit)]),
       locs: uniq((orders ?? []).map(o => o.location)),
     };
-  }, [orders]);
+  }, [orders, catalogKits]);
   const numbers = useMemo(() => knownNumbers(orders ?? []), [orders]);
   const sums = useMemo(() => {
     const live = shown.filter(o => !isCancelled(o)); // отменённые не входят ни в заказано, ни в долг
@@ -145,6 +147,31 @@ export default function Equipment() {
   // Загруженные заказы запоминаются до следующего обновления списка: повторное нажатие не ждёт сети
   // (копирование в буфер сразу после долгого запроса некоторые браузеры отклоняют, тогда хватит нажать ещё раз).
   const [exporting, setExporting] = useState(false);
+  // Режим «Не заказан» (docs/acceptance/eq-not-ordered-filter-2026-11-13.md): от активных игроков, заказы берём все, не 500 экрана.
+  const notMode = fOrd === 'no' && !!fKit;
+  const [roster, setRoster] = useState<RosterPlayer[] | null>(null);
+  const [rosterOrders, setRosterOrders] = useState<Order[] | null>(null);
+  useEffect(() => {
+    if (!notMode) return;
+    let alive = true;
+    void (async () => {
+      setRoster(null); setRosterOrders(null);
+      const ps: RosterPlayer[] = [];
+      for (let from = 0; ; from += 1000) {
+        const r = await supabase.from('players').select('id, full_name, status, groups(name)').eq('status', 'active').order('full_name').order('id').range(from, from + 999);
+        if (r.error) { if (alive) setError(errText(r.error.message)); return; }
+        const page = (r.data ?? []) as unknown as RosterPlayer[];
+        ps.push(...page);
+        if (page.length < 1000) break;
+      }
+      const all = await loadAll();
+      if (!alive || !all) return;
+      setRoster(ps); setRosterOrders(all);
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notMode, reload]);
+  const notOrdered = useMemo(() => (notMode && roster && rosterOrders ? notOrderedPlayers(roster, rosterOrders, fKit, q, fGroup) : null), [notMode, roster, rosterOrders, fKit, q, fGroup]);
   const allOrders = useRef<Order[] | null>(null);
   useEffect(() => { allOrders.current = null; }, [reload]);
   const loadAll = async (): Promise<Order[] | null> => {
@@ -170,8 +197,10 @@ export default function Equipment() {
     try {
       const all = await loadAll();
       if (!all) return;
-      const csv = equipmentCsv(all.filter(o => !isCancelled(o) && matches(o)), fKit, lineOk); // отменённые в выгрузку не попадают
-      if (!csv) return setExportMsg({ ok: false, text: 'Нет заказов по выбранным фильтрам.' });
+      if (notMode && !notOrdered) return setExportMsg({ ok: false, text: 'Список игроков ещё загружается: нажмите ещё раз через секунду.' });
+      const csv = notMode ? notOrderedCsv(notOrdered ?? []) : equipmentCsv(all.filter(o => !isCancelled(o) && matches(o)), fKit, lineOk); // отменённые в выгрузку не попадают
+      const fileName = notMode ? notOrderedFileName(today()) : csvFileName(today());
+      if (!csv) return setExportMsg({ ok: false, text: notMode ? 'Нет игроков по выбранным фильтрам.' : 'Нет заказов по выбранным фильтрам.' });
       if (kind === 'copy') {
         try {
           await navigator.clipboard.writeText(csv.replace(CSV_BOM, ''));
@@ -183,7 +212,7 @@ export default function Equipment() {
       }
       if (initData()) {
         // В Mini App переход по blob-ссылке уводит окно со страницы приложения (и ломает «Назад»): отдаём файл через системное меню «Поделиться».
-        const file = new File([csv], csvFileName(today()), { type: 'text/csv' });
+        const file = new File([csv], fileName, { type: 'text/csv' });
         if (typeof navigator.canShare !== 'function' || typeof navigator.share !== 'function' || !navigator.canShare({ files: [file] })) {
           return setExportMsg({ ok: false, text: 'В Telegram файл скачать нельзя: нажмите «Скопировать» и вставьте список в таблицу или откройте приложение в браузере.' });
         }
@@ -199,7 +228,7 @@ export default function Equipment() {
         const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
         const a = document.createElement('a');
         a.href = url;
-        a.download = csvFileName(today());
+        a.download = fileName;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -237,10 +266,13 @@ export default function Equipment() {
         <select className="ks-select" aria-label="Товар" value={fKit} onChange={e => setFKit(e.target.value)}><option value="">Все товары</option>{options.kits.map(k => <option key={k}>{k}</option>)}</select>
       </div>
       <div className="ks-pair">
-        <select className="ks-select" aria-label="Локация" value={fLoc} onChange={e => setFLoc(e.target.value)}><option value="">Все локации</option>{options.locs.map(l => <option key={l}>{l}</option>)}</select>
-        <select className="ks-select" aria-label="Выдача" value={fIssue} onChange={e => setFIssue(e.target.value as '' | 'yes' | 'no')}><option value="">Выдача: любая</option><option value="yes">Выдано</option><option value="no">Не выдано</option></select>
+        <select className="ks-select" aria-label="Локация" disabled={notMode} value={fLoc} onChange={e => setFLoc(e.target.value)}><option value="">Все локации</option>{options.locs.map(l => <option key={l}>{l}</option>)}</select>
+        <select className="ks-select" aria-label="Выдача" disabled={notMode} value={fIssue} onChange={e => setFIssue(e.target.value as '' | 'yes' | 'no')}><option value="">Выдача: любая</option><option value="yes">Выдано</option><option value="no">Не выдано</option></select>
       </div>
-      {orders && (
+      <div className="ks-pair">
+        <select className="ks-select" aria-label="Заказ" disabled={!fKit} value={fKit ? fOrd : ''} onChange={e => setFOrd(e.target.value as '' | 'no')}><option value="">Заказ: любой</option><option value="no">Не заказан</option></select>
+      </div>
+      {orders && !notMode && (
         <div className="ks-tiles" style={{ marginBottom: 12, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
           <div className="ks-tile"><b>{sums.players}</b>игроков в списке</div>
           <div className="ks-tile"><b>{gel(sums.total)}</b>заказано</div>
@@ -253,7 +285,21 @@ export default function Equipment() {
         <button type="button" className="ks-btn secondary" disabled={exporting || !orders} onClick={() => void exportCsv('copy')}>Скопировать</button>
       </div>
       {exportMsg && <div role="status" className={exportMsg.ok ? 'ks-muted' : 'ks-error'} style={{ marginBottom: 12, fontSize: 13 }}>{exportMsg.text}</div>}
-      {!orders ? <Loading /> : shown.length === 0 ? (
+      {notMode ? (
+        !notOrdered ? <Loading /> : notOrdered.length === 0 ? (
+          <EmptyState icon="box" title="Все заказали" text={`Нет активных игроков без заказа: ${fKit}.`} />
+        ) : (
+          <>
+            <div className="ks-tile" style={{ marginBottom: 12 }}><b>{notOrdered.length}</b>игроков без заказа: {fKit}</div>
+            {groupByGroupName(notOrdered, p => p.groups?.name ?? 'Без группы').map(([group, items]) => (
+              <details className="ks-group" key={group} open={!!fGroup || !!q.trim()}>
+                <summary><div className="ks-line"><b>{group}</b><span className="muted">{items.length} игр.</span></div></summary>
+                {items.map(p => <ListRow key={p.id} avatar={p.full_name} title={p.full_name} sub={[`не заказано: ${fKit}`]} />)}
+              </details>
+            ))}
+          </>
+        )
+      ) : !orders ? <Loading /> : shown.length === 0 ? (
         <EmptyState icon="box" title="Заказов нет" text="Измените фильтр или создайте заказ." />
       ) : (
         groupByGroupName(shown, o => o.players?.groups?.name ?? 'Без группы').map(([group, items]) => (
