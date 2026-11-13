@@ -1,4 +1,4 @@
--- Откат 0188 (исправления по аудиту сборов). Возвращает тела camp_broadcast_send (0187), camp_update_participant (0160), camp_pay (0085).
+-- Откат 0190 (исправления по аудиту сборов). Возвращает тела camp_broadcast_send (0187), camp_update_participant (0160), camp_pay (0085).
 -- Данных не меняет. Запускает только владелец в SQL Editor.
 begin;
 

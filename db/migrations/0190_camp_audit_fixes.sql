@@ -1,9 +1,9 @@
--- 0188 (Issue #470, аудит 11.11 C-03, C-04, C-05, C-09): три исправления без смены подписей функций. Условия приёмки: docs/CAMP_SELF_SIGNUP_ACCEPTANCE.md (72-76).
+-- 0190 (Issue #470, аудит 11.11 C-03, C-04, C-05, C-09): три исправления без смены подписей функций. Условия приёмки: docs/CAMP_SELF_SIGNUP_ACCEPTANCE.md (72-76).
 --  * camp_broadcast_send (тело из 0187): защита от повтора сравнивает с текстом, как он записан в журнале (у напоминания есть префикс).
 --  * camp_update_participant (тело из 0160): запись, отменённую родителем, нельзя вывести из cancelled устаревшей карточкой.
 --  * camp_pay (тело из 0085): блокировка сбора, только статус registered, без переплаты, защита от двойного нажатия, дата по Тбилиси.
 -- Требует 0187 (иначе её применение позже вернёт прежнее тело camp_broadcast_send). Данные не меняет, ничего не отправляет.
--- Откат: db/ops/rollback-0188-camp-audit-fixes.sql.
+-- Откат: db/ops/rollback-0190-camp-audit-fixes.sql.
 begin;
 
 CREATE OR REPLACE FUNCTION public.camp_broadcast_send(cid uuid, k text, b text, expected integer, tok text)

@@ -266,7 +266,7 @@ select as_user('00000000-0000-0000-0000-0000000000a1');
 select is((select count(*)::int from camps), 3, 'администратор читает все сборы');
 
 -- ===== История родителя после окончания сбора (решение владельца 09.11) =====
--- платёж по уже отменённой записи через camp_pay теперь отклоняется (0188, C-05), поэтому исторический платёж вносится владельцем базы
+-- платёж по уже отменённой записи через camp_pay теперь отклоняется (0190, C-05), поэтому исторический платёж вносится владельцем базы
 reset role;
 insert into camp_payments (camp_id, participant_id, player_id, amount, paid_on, kind, method) select camp_id, id, player_id, 300, current_date, 'payment', 'Наличные' from camp_participants where id = (select id from ids where k = 'd1');
 select as_user('00000000-0000-0000-0000-0000000000a1');

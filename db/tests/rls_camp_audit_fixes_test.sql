@@ -1,4 +1,4 @@
--- pgTAP: исправления по аудиту сборов (0188; C-03, C-04, C-05, C-09), docs/CAMP_SELF_SIGNUP_ACCEPTANCE.md, условия 72-76.
+-- pgTAP: исправления по аудиту сборов (0190; C-03, C-04, C-05, C-09), docs/CAMP_SELF_SIGNUP_ACCEPTANCE.md, условия 72-76.
 begin;
 create extension if not exists pgtap;
 select plan(27);
