@@ -170,7 +170,13 @@ select is((club_event_participant_restore(t_pt('Без групп', '00000000-00
 reset role;
 
 -- ===== PT11. удаление игрока с записью отклоняется =====
-select throws_ok($$delete from players where id = '00000000-0000-0000-0000-000000000d01'$$, '23503', null, 'PT11 игрок с записью мероприятия не удаляется');
+-- on delete restrict: PostgreSQL 18 отдаёт 23001 (restrict_violation), прежние версии 23503; важно, что удаление отклонено
+do $$ begin
+  delete from players where id = '00000000-0000-0000-0000-000000000d01';
+  raise exception 'игрок с записью мероприятия удалён';
+exception when restrict_violation or foreign_key_violation then null;
+end $$;
+select pass('PT11 игрок с записью мероприятия не удаляется');
 select lives_ok($$delete from players where id = '00000000-0000-0000-0000-000000000d08'$$, 'PT11 игрок без записей удаляется как раньше');
 insert into players (id, club_id, group_id, full_name, status) values ('00000000-0000-0000-0000-000000000d08', '00000000-0000-0000-0000-00000000c001', null, 'Зина без группы', 'active');
 
