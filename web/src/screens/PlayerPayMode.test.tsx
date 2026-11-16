@@ -31,6 +31,20 @@ describe('«Тип оплаты» в карточке игрока', () => {
     await waitFor(() => expect(fake.rpcCalls('player_set_pay_mode')).toEqual([{ p: 'p1', mode: 'subscription', from_d: null }]));
   });
 
+  // Условия приёмки: docs/PAY_PER_VISIT_VISITS_ACCEPTANCE.md, п. 8 (доп. посещения входят в число визитов)
+  it('доп. посещения входят в число визитов и названы в скобках; без них строка прежняя', async () => {
+    fake.db.players = [{ id: 'p1', pay_mode: 'per_visit', pay_mode_from: '2026-11-01' }];
+    fake.rpc.player_visit_month = () => ({ visits: 2, guest_visits: 1, accrued: 40, paid: 20, subscription_price: 165 });
+    const { unmount } = render(<PlayerPayMode playerId="p1" />);
+    expect(await screen.findByText(/визитов 2 \(из них доп\. посещений 1\), начислено 40 ₾, оплачено 20 ₾\. Абонемент в этом месяце: 165 ₾\./)).toBeInTheDocument();
+    expect(screen.queryByText(/выгод|переплат|экономи/i)).not.toBeInTheDocument();
+    unmount();
+    fake.rpc.player_visit_month = () => ({ visits: 1, guest_visits: 0, accrued: 20, paid: 20, subscription_price: null });
+    render(<PlayerPayMode playerId="p1" />);
+    expect(await screen.findByText(/визитов 1, начислено 20 ₾, оплачено 20 ₾\./)).toBeInTheDocument();
+    expect(screen.queryByText(/из них доп/)).not.toBeInTheDocument();
+  });
+
   it('без миграции (нет колонок) панель не показывается', async () => {
     fake.db.players = [];
     const { container } = render(<PlayerPayMode playerId="p1" />);
