@@ -1,7 +1,7 @@
 -- pgTAP: игрок «за визит» на тренировке чужой группы платит 20 ₾ (миграция 0201). Условия: docs/PAY_PER_VISIT_GUEST_ACCEPTANCE.md. Фикстуры вымышленные.
 begin;
 create extension if not exists pgtap;
-select plan(20);
+select plan(23);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -16,13 +16,15 @@ insert into players (id, club_id, group_id, full_name, status, pay_mode, pay_mod
   ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-0000000000e2', 'Fedorov Lev', 'active', 'per_visit', '2026-11-01'),
   ('00000000-0000-0000-0000-00000000d002', '00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-0000000000e2', 'Fedorov Matvey', 'active', 'per_visit', '2026-11-01'),
   ('00000000-0000-0000-0000-00000000d003', '00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-0000000000e2', 'Borya Abonement', 'active', 'subscription', null),
-  ('00000000-0000-0000-0000-00000000d004', '00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-0000000000e2', 'Pozdnyaya Data', 'active', 'per_visit', '2026-12-01');
+  ('00000000-0000-0000-0000-00000000d004', '00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-0000000000e2', 'Pozdnyaya Data', 'active', 'per_visit', '2026-12-01'),
+  ('00000000-0000-0000-0000-00000000d005', '00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-0000000000e2', 'Polosin Kirill', 'active', 'per_visit', '2026-11-01');
 insert into player_guardians (player_id, user_id, consent_version, consent_given_at) values
   ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000000b1', 'test', now());
 insert into club_settings (club_id, key, value) values ('00000000-0000-0000-0000-00000000c001', 'parent_debt_enabled', 'true');
 insert into sessions (id, group_id, starts_at, kind, source_key, class) values
   ('00000000-0000-0000-0000-0000000005a1', '00000000-0000-0000-0000-0000000000e1', '2026-11-15 12:00+04', 'training', 'ATT|2026-11-15', 'regular'),
   ('00000000-0000-0000-0000-0000000005a2', '00000000-0000-0000-0000-0000000000e1', '2026-11-14 12:00+04', 'training', 'ATT|2026-11-14', 'regular'),
+  ('00000000-0000-0000-0000-0000000005a3', '00000000-0000-0000-0000-0000000000e1', '2026-11-16 12:00+04', 'training', 'ATT|2026-11-16', 'regular'),
   ('00000000-0000-0000-0000-0000000005a0', '00000000-0000-0000-0000-0000000000e1', '2026-10-20 12:00+04', 'training', 'ATT|2026-10-20', 'regular');
 
 create or replace function as_user(uid uuid) returns void language plpgsql as $$
@@ -77,11 +79,19 @@ reset role;
 update session_guests set amount = 15 where session_id = '00000000-0000-0000-0000-0000000005a1' and player_id = '00000000-0000-0000-0000-00000000d001';
 select session_guest_add('00000000-0000-0000-0000-0000000005a1', '00000000-0000-0000-0000-00000000d002');
 update session_guests set amount = 15 where session_id = '00000000-0000-0000-0000-0000000005a1' and player_id = '00000000-0000-0000-0000-00000000d002';
+-- Kirill: посещение 16.11 оплачено частично (15 из 20, перевод)
+select as_user('00000000-0000-0000-0000-0000000000c1');
+select session_guest_add('00000000-0000-0000-0000-0000000005a3', '00000000-0000-0000-0000-00000000d005');
+reset role;
+update session_guests set amount = 15, paid = true, paid_amount = 15, method = 'Перевод' where session_id = '00000000-0000-0000-0000-0000000005a3' and player_id = '00000000-0000-0000-0000-00000000d005';
 \i db/ops/guest-visit-fedorov-20-2026-11-16.sql
 select is((select amount from session_guests where session_id = '00000000-0000-0000-0000-0000000005a1' and player_id = '00000000-0000-0000-0000-00000000d002'), 20.00::numeric, 'У5: скрипт поставил 20 неоплаченному посещению Матвея');
 select is((select amount from session_guests where session_id = '00000000-0000-0000-0000-0000000005a1' and player_id = '00000000-0000-0000-0000-00000000d001'), 15.00::numeric, 'У5: скрипт не трогает оплаченное посещение Льва');
 \i db/ops/guest-visit-fedorov-20-2026-11-16.sql
 select is((select amount from session_guests where session_id = '00000000-0000-0000-0000-0000000005a1' and player_id = '00000000-0000-0000-0000-00000000d002'), 20.00::numeric, 'У5: повторный запуск скрипта ничего не меняет');
+select is((select amount from session_guests where session_id = '00000000-0000-0000-0000-0000000005a3' and player_id = '00000000-0000-0000-0000-00000000d005'), 20.00::numeric, 'У5: скрипт поднял сумму Kirill до 20');
+select is((select paid_amount from session_guests where session_id = '00000000-0000-0000-0000-0000000005a3' and player_id = '00000000-0000-0000-0000-00000000d005'), 15.00::numeric, 'У5: оплата Kirill осталась 15, доплатить 5');
+select is((select count(*)::int from session_guests where session_id = '00000000-0000-0000-0000-0000000005a3'), 1, 'У5: у Kirill одна строка гостя');
 select is((select count(*)::int from service_payments), 1, 'У5: платежи скриптом не создаются и не меняются');
 
 select * from finish();
