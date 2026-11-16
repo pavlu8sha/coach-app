@@ -612,3 +612,20 @@ describe('«К оплате»: взносы матчей и событий', () 
     expect(screen.queryByRole('heading', { name: 'Взносы матчей' })).not.toBeInTheDocument();
   });
 });
+
+// Условия приёмки: docs/PAY_PER_VISIT_ACCEPTANCE.md, п. 14 (игрок «за визит»: абонемент не предлагается)
+describe('«Приём оплат»: игрок «Платит за визит»', () => {
+  it('месяцы с месяца начала не предлагаются; визиты остаются; игрок с абонементом как раньше', async () => {
+    seed();
+    fake.db.payments = [];
+    fake.db.subscriptions = [{ player_id: 'p1', month: DEBT_START, group_id: null, discount: false, written_off: false }];
+    fake.db.players = [{ id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', groups: { name: 'U9-A' }, pay_mode: 'per_visit', pay_mode_from: '2026-10-05' }];
+    fake.db.own_visits = [{ session_id: 's7', player_id: 'p1', paid: false, amount: 20, sessions: { starts_at: '2026-10-14T12:00:00+04:00', groups: { name: 'U9-A' } } }];
+    await openPlayer();
+    expect(await screen.findByText(/Оплата за визит 14.10.2026/)).toBeInTheDocument();
+    expect(screen.queryByText(/Октябрь 2026/)).toBeNull();
+    expect(screen.queryByText(/\(вперёд\)/)).toBeNull();
+    expect(screen.queryByRole('button', { name: /Закрыть без оплаты|Оплатить со скидкой/ })).toBeNull();
+    expect(screen.getByText(/Сентябрь 2026/)).toBeInTheDocument(); // месяц до начала: как раньше
+  });
+});

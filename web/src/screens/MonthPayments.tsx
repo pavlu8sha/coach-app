@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { hasSubscription, sortGroups, today } from '../lib/coach';
 import { settingNumber, settingNumberError, useClubSettings } from '../lib/clubSettings';
+import { perVisitMonth, type PayMode } from '../lib/payMode';
 import { DEBT_START } from '../lib/debtSeason';
 import { supabase } from '../lib/supabase';
 import { EmptyState, Pill, SearchInput, SwitchRow } from '../ui/components';
@@ -111,7 +112,10 @@ export default function MonthPayments() {
       const past = month < monthIso(new Date());
       const subGroup = new Map(((sb.data ?? []) as (Sub & { group_id: string | null })[]).filter(x => past && x.group_id).map(x => [x.player_id, x.group_id as string]));
       const inGroup = (x: Pl): Pl => ({ ...x, group_id: subGroup.get(x.id) ?? x.group_id });
-      const active = ((pl.data ?? []) as Pl[]).map(inGroup).filter(x => ok.has(x.group_id));
+      // 0200: игрок «Платит за визит» в этом месяце не в списке абонементов (оплата по визитам), если за месяц у него нет платежей; ошибка чтения колонок (нет миграции) = как раньше
+      const pmq = await supabase.from('players').select('id, pay_mode, pay_mode_from').eq('pay_mode', 'per_visit').limit(1000);
+      const perVisit = new Set(pmq.error ? [] : ((pmq.data ?? []) as (PayMode & { id: string })[]).filter(x => perVisitMonth(x, month) && (m.get(x.id) ?? 0) <= 0).map(x => x.id));
+      const active = ((pl.data ?? []) as Pl[]).map(inGroup).filter(x => ok.has(x.group_id) && !perVisit.has(x.id));
       const have = new Set((pl.data ?? []).map((x: Pl) => x.id));
       const gone = [...withPay].filter(id => !have.has(id));
       let extra: Pl[] = [];
