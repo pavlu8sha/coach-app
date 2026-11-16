@@ -29,7 +29,7 @@ const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
 const num = (s: string) => Number(s.replace(',', '.'));
 const errText = (m: string) =>
   m.includes('request id reused') ? 'Этот заказ уже был отправлен с другим составом. Закройте форму и создайте заказ заново: прежний мог сохраниться.' : m.includes('bad quantity') ? 'Количество вещи: целое число от 1 до 10.' :
-  m.includes('paid above total') ? 'Оплата больше суммы заказа.' : m.includes('paid below zero') ? 'Оплачено не может быть меньше нуля.' : m.includes('total below paid') ? 'Сумма заказа меньше уже оплаченного.' :
+  m.includes('paid above total') ? 'Оплата больше суммы заказа.' : m.includes('paid below zero') ? 'Оплачено не может быть меньше нуля.' :
   m.includes('order has payments') ? 'У заказа есть оплата: сначала верните её записью с минусом.' : m.includes('order has issues') ? 'У заказа есть выданные вещи: сначала снимите выдачу.' : m.includes('item issued') ? 'Вещь уже выдана: сначала снимите выдачу (размер менять можно).' : m.includes('last line') ? 'Это последняя вещь в заказе: удалите весь заказ.' : m.includes('bad quantity') ? 'Количество от 1 до 10.' : m.includes('bad date') ? 'Дата не может быть в будущем.' : m.includes('kit not in catalog') ? 'Позиции нет в каталоге.' : m.includes('no items') ? 'Выберите хотя бы одну вещь.' : m.includes('bad amount') ? 'Сумма указана неверно.' :
   m.includes('use reversal or refund') ? 'Сумма должна быть больше нуля. Ошибочную оплату отменяет «Сторно», деньги клиенту возвращает «Возврат».' : m.includes('already reversed') ? 'Эта оплата уже сторнирована.' : m.includes('not a payment') ? 'Сторнировать можно только оплату.' : m.includes('note required') ? 'Укажите причину.' : m.includes('refund above paid') ? 'Возврат больше оплаченной суммы.' : m.includes('request id reused') ? 'Эта отправка уже была с другими данными. Обновите экран и повторите.' :
   m.includes('order cancelled') ? 'Заказ отменён: менять его нельзя. Сначала восстановите заказ.' : m.includes('already cancelled') ? 'Заказ уже отменён.' : m.includes('not cancelled') ? 'Заказ не отменён.' : m.includes('reason required') ? 'Укажите причину отмены.' :
@@ -615,8 +615,7 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
     });
     if (!disc.applies) return skip('Скидка на комплект к этому заказу не применяется (нужен полный набор).');
     if (Math.abs(disc.total - fresh.total) < 0.005) return skip(`Сумма уже верная: ${gel(fresh.total)}.`);
-    if (disc.total < fresh.paid) return skip(`По скидке вышло бы ${gel(disc.total)}, это меньше уже оплаченного.`);
-    const yes = await ask({ title: 'Пересчитать сумму по скидке на комплект?', lines: [['Игрок', fresh.players?.full_name ?? 'Игрок'], ['Сейчас', gel(fresh.total)], ['Со скидкой', gel(disc.total)]], note: `Скидка ${disc.pct}% на набор. Сумма заказа изменится.`, confirmLabel: 'Применить' });
+    const yes = await ask({ title: 'Пересчитать сумму по скидке на комплект?', lines: [['Игрок', fresh.players?.full_name ?? 'Игрок'], ['Сейчас', gel(fresh.total)], ['Со скидкой', gel(disc.total)]], note: `Скидка ${disc.pct}% на набор. Сумма заказа изменится.${disc.total < fresh.paid ? ` Оплачено ${gel(fresh.paid)}: переплата ${gel(fresh.paid - disc.total)} останется на этом заказе, платежи не меняются.` : ''}`, confirmLabel: 'Применить' });
     if (!yes) return;
     if (await run('edit', () => supabase.rpc('eq_edit_order', { o: fresh.id, insc: fresh.inscription ?? '', num: fresh.number ?? '', inst: fresh.installment, loc: fresh.location ?? '', new_total: disc.total }), 'Сумма пересчитана.')) setTotal(String(disc.total));
   };
