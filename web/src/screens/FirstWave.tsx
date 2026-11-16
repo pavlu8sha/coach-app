@@ -111,7 +111,7 @@ export default function FirstWave() {
       {mine.length === 0 ? <p className="muted">Пока никого.</p> : mine.map(r => (
         <ListRow key={r.player_id + r.direction} avatar={r.name} title={r.name}
           sub={[r.consent_missing ? 'уведомления не уходят: у родителей нет действующего согласия' : r.parents === 0 ? 'нет привязанных родителей' : `Родителей: ${r.parents}, получают: ${r.enabled}`]}
-          end={<span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>{r.consent_missing && r.parents === 0 ? <Pill tone="warning">Нет действующего согласия</Pill> : r.parents > 0 && r.enabled === 0 && <Pill tone="warning">Отключено</Pill>}<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} aria-label={`Убрать: ${r.name}`} disabled={busy === 'd' + r.player_id} onClick={() => void remove(r)}>Убрать</button></span>} />
+          end={<span style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8, alignItems: 'center' }}>{r.consent_missing && r.parents === 0 ? <Pill tone="warning">Нет действующего согласия</Pill> : r.parents > 0 && r.enabled === 0 && <Pill tone="warning">Отключено</Pill>}<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} aria-label={`Убрать: ${r.name}`} disabled={busy === 'd' + r.player_id} onClick={() => void remove(r)}>Убрать</button></span>} />
       ))}
       <h3>Добавить ребёнка</h3>
       <SearchInput label="Найти игрока" placeholder="Фамилия или имя (от 2 букв)" value={q} onChange={setQ} suggestions={found.map(f => f.full_name)} />
