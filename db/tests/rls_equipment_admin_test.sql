@@ -1,7 +1,7 @@
 -- pgTAP: экипировка для администратора (0036).
 begin;
 create extension if not exists pgtap;
-select plan(26);
+select plan(27);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -47,7 +47,9 @@ select throws_ok($$select eq_create_order('00000000-0000-0000-0000-00000000d002'
 select is(eq_add_payment((select id from oid_t), 100, null, 'Наличные'), 100::numeric, 'оплата 100');
 select throws_ok($$select eq_add_payment((select id from oid_t), 200, null, 'Наличные')$$, '22023', 'paid above total', 'переплата отклоняется');
 select throws_ok($$select eq_add_payment((select id from oid_t), -150, null, 'Наличные')$$, '22023', 'use reversal or refund', 'отрицательная оплата отклоняется: сторно и возврат отдельными функциями (0188)');
-select throws_ok($$select eq_edit_order((select id from oid_t), 'ANYA', '7', true, 'Зал', 50)$$, '22023', 'total below paid', 'сумма заказа не ниже оплаченного');
+select lives_ok($$select eq_edit_order((select id from oid_t), 'ANYA', '7', true, 'Зал', 50)$$, 'итог ниже оплаченного разрешён (#652, Q4): переплата показывается отдельно');
+select is((select eq_order_overpaid(e) from equipment_orders e where id = (select id from oid_t)), 50::numeric, 'переплата 100 - 50 показывается');
+select eq_edit_order((select id from oid_t), 'ANYA', '7', true, 'Зал', 260);
 
 select lives_ok($$select eq_set_issued((select id from oid_t), 'Форма', true, 'Павел')$$, 'отметка о выдаче');
 select throws_ok($$select eq_set_issued((select id from oid_t), 'Шапка', true)$$, 'P0002', 'item not in order', 'выдать можно только вещь из заказа');
