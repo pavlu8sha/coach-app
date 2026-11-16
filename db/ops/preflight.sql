@@ -223,7 +223,8 @@ with m(migration, applied) as (values
   ('0194_parent_calendar_history_lifecycle', coalesce((select p.prosrc like '%lifecycle_status%' and p.prosrc like '%points_group_at%' from pg_proc p where p.oid = to_regprocedure('public.parent_calendar(uuid,date,date)')), false)),
   ('0195_event_create_admin_only', coalesce(exists (select 1 from pg_proc where oid = to_regprocedure('public.event_create(text,text,text,date,numeric,uuid)') and position('event_assert_staff' in prosrc) = 0 and position('is_admin()' in prosrc) > 0), false)),
   ('0196_extra_cancel_attended', coalesce(exists (select 1 from pg_proc where oid = to_regprocedure('public.extra_cancel_session(uuid,text)') and position('attendance marked' in prosrc) > 0) and has_function_privilege('authenticated', to_regprocedure('public.extra_cancel_session(uuid,text)'), 'execute') and not has_function_privilege('anon', to_regprocedure('public.extra_cancel_session(uuid,text)'), 'execute'), false)),
-  ('0197_match_fees_sync_played', coalesce(to_regprocedure('public.match_fees_sync_played(uuid)') is not null and has_function_privilege('authenticated', to_regprocedure('public.match_fees_sync_played(uuid)'), 'execute') and not has_function_privilege('anon', to_regprocedure('public.match_fees_sync_played(uuid)'), 'execute'), false))
+  ('0197_match_fees_sync_played', coalesce(to_regprocedure('public.match_fees_sync_played(uuid)') is not null and has_function_privilege('authenticated', to_regprocedure('public.match_fees_sync_played(uuid)'), 'execute') and not has_function_privilege('anon', to_regprocedure('public.match_fees_sync_played(uuid)'), 'execute'), false)),
+  ('0198_link_search_words', coalesce(to_regprocedure('public.link_search_norm(text)') is not null and exists (select 1 from pg_proc where oid = to_regprocedure('public.search_players_for_link(text)') and position('link_search_norm' in prosrc) > 0), false))
 ),
 overrides(migration, status) as (
   select '0047_ind_no_autobook', case

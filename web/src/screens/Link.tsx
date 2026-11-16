@@ -99,7 +99,7 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
   return (
     <section className="ks-card">
       <h2>Добавить ребёнка</h2>
-      <p className="muted">Введите фамилию или имя ребёнка. Администратор клуба подтвердит, что это ваш ребёнок.</p>
+      <p className="muted">Введите фамилию и имя ребёнка латиницей, как в заявке клуба (например, Ivanov Max). Порядок слов не важен. Администратор клуба подтвердит, что это ваш ребёнок.</p>
       <form
         className="search"
         onSubmit={e => {
@@ -107,7 +107,7 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
           void search();
         }}
       >
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Фамилия Имя" autoComplete="off" {...searchFocusProps} aria-label="Фамилия или имя ребёнка" aria-describedby="link-hint" />
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Ivanov Max" autoComplete="off" {...searchFocusProps} aria-label="Фамилия или имя ребёнка" aria-describedby="link-hint" />
         <button className="ks-btn sm" disabled={busy || short}>
           Найти
         </button>
@@ -120,7 +120,7 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
         </button>
       )}
       {found && found.length === 0 && (
-        <EmptyState icon="search" title="Ничего не найдено" text="Проверьте написание. Ребёнка, на которого уже отправлен запрос, в поиске нет: смотрите «Статус запросов». Если не получается, напишите администратору клуба." />
+        <EmptyState icon="search" title="Ничего не найдено" text="Проверьте написание: имя и фамилию лучше вводить латиницей, порядок слов не важен. Ребёнка, на которого уже отправлен запрос, в поиске нет: смотрите «Статус запросов». Если не получается, напишите администратору клуба." />
       )}
       {found && found.length === 0 && (
         <p className="note">
