@@ -18,7 +18,7 @@ begin
       select club_id into pclub from players where id = req.player_id for update;
       select club_id into uclub from users where id = req.user_id;
       if uclub is not null and pclub is distinct from uclub then raise exception 'club mismatch' using errcode = '42501'; end if;
-      if (select count(*) from player_guardians where player_id = req.player_id and user_id <> req.user_id and consent_revoked_at is null) >= 4 then
+      if (select count(*) from player_guardians where player_id = req.player_id and user_id <> req.user_id and parent_access_ok(user_id, player_id)) >= 4 then
         raise exception 'guardian limit reached' using errcode = '54000';
       end if;
     end if;

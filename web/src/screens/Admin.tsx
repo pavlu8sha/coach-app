@@ -45,8 +45,8 @@ export default function Admin() {
     if (list.length) {
       const sel = 'player_id, user_id, users(display_name), players(full_name)';
       const [byPlayer, byUser] = await Promise.all([
-        supabase.from('player_guardians').select(sel).in('player_id', pids).is('consent_revoked_at', null),
-        supabase.from('player_guardians').select(sel).in('user_id', uids).is('consent_revoked_at', null),
+        supabase.from('player_guardians').select(sel).in('player_id', pids),
+        supabase.from('player_guardians').select(sel).in('user_id', uids),
       ]);
       const pg = (byPlayer.data ?? []) as unknown as GuardianRow[];
       const ug = (byUser.data ?? []) as unknown as GuardianRow[];
