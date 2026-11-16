@@ -7,6 +7,7 @@ import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 import { afterLeftMonthTest, pausedMonthTest, type StatusLogPoint } from '../lib/playerStatus';
 import { DEBT_START } from '../lib/debtSeason';
+import { perVisitMonth, type PayMode } from '../lib/payMode';
 import { gel, monthIso, monthName, nextMonth, tariffFor } from './MonthPayments';
 import { useNavState } from '../nav';
 
@@ -53,6 +54,9 @@ async function loadDues(p: Pl): Promise<Due[]> {
     endsOn = en.error ? null : ((en.data as { ends_on?: string | null } | null)?.ends_on ?? null);
   }
   const afterLeft = afterLeftMonthTest(p.status, logRows, endsOn);
+  // игрок «Платит за визит» (0200): абонемент с месяца начала не предлагается, его визиты ниже (раздел «Оплата за визит»); сбой чтения колонок (нет миграции) = обычный абонемент
+  const pmq = await supabase.from('players').select('pay_mode, pay_mode_from').eq('id', p.id).maybeSingle();
+  const payMode = pmq.error ? null : (pmq.data as PayMode | null);
   if (!noSub) {
     const pr = ((prices.data ?? []) as { group_id: string | null; amount: number; valid_from: string; valid_to: string | null }[]).map(x => ({ ...x, amount: Number(x.amount) }));
     const paidBy = new Map<string, number>();
@@ -61,6 +65,7 @@ async function loadDues(p: Pl): Promise<Due[]> {
     const cur = monthIso(new Date());
     for (let m = DEBT_START; m <= nextMonth(cur); m = nextMonth(m)) {
       const s = sb.get(m);
+      if (perVisitMonth(payMode, m)) continue;
       if ((isPausedMonth(m) || afterLeft(m)) && (paidBy.get(m) ?? 0) <= 0) continue;
       // ушедшему игроку текущий и будущий месяцы долгом не считаются, пока нет строки абонемента или платежа
       if ((m < cur || (p.status ?? 'active') !== 'active') && !s && (paidBy.get(m) ?? 0) <= 0) continue; // прошлый месяц без строки абонемента и без внесённых денег (платёж и его отмена дают 0) долгом не считается
