@@ -24,12 +24,12 @@ describe('Оплата у родителя: все виды', () => {
     fake.db.payments = [];
     fake.rpc.parent_debts = () => [];
     fake.rpc.parent_dues = () => [
-      { player_id: 'p1', kind: 'visit', title: 'Разовое посещение: U9-B', on_date: '2026-11-11', due: 15, paid: 0, debt: 15 },
+      { player_id: 'p1', kind: 'visit', title: 'Доп. посещение: U9-B', on_date: '2026-11-11', due: 15, paid: 0, debt: 15 },
     ];
     render(<Payments />);
     expect(await screen.findByText('К оплате: 15 ₾')).toBeInTheDocument();
-    expect(screen.getByText(/Разовое посещение: U9-B · 11.11.2026/)).toBeInTheDocument();
-    expect(screen.getByText(/Разовые посещения · внесено 0 ₾ из 15 ₾/)).toBeInTheDocument();
+    expect(screen.getByText(/Доп. посещение: U9-B · 11.11.2026/)).toBeInTheDocument();
+    expect(screen.getByText(/Доп. посещения · внесено 0 ₾ из 15 ₾/)).toBeInTheDocument();
   });
 
   it('#471 Ф9: отменённый заказ с оплатой показан с подписью «Отменён» и в «К оплате» не входит', async () => {

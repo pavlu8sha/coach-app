@@ -128,7 +128,7 @@ select ok(not exists (select 1 from anya_rows() where day = '2026-10-08'), 'за
 select ok(not exists (select 1 from anya_rows() where day = '2026-10-20'), 'занятие во время паузы не показано');
 select ok(not exists (select 1 from anya_rows() where day = '2026-11-02'), 'занятие после ухода (ends_on) не показано');
 select ok(not exists (select 1 from anya_rows() where day > tbilisi_day(now())), 'будущее не показывается, даже с отметкой');
-select is((select array[kind, status, title] from anya_rows() where day = '2026-10-22'), array['guest', 'present', 'Разовое посещение: U9'], 'разовое посещение другой группы');
+select is((select array[kind, status, title] from anya_rows() where day = '2026-10-22'), array['guest', 'present', 'Доп. посещение: U9'], 'разовое посещение другой группы');
 select is((select array[kind, status, title] from anya_rows() where day = '2026-10-09'), array['individual', 'present', 'Индивидуальная тренировка: Удар'], 'индивидуальное: был');
 select is((select array[kind, status] from anya_rows() where day = '2026-10-11'), array['goalkeeper', 'unmarked'], 'вратарское без отметки');
 select ok(not exists (select 1 from anya_rows() where day = '2026-10-13' and kind = 'individual'), 'чужая индивидуальная запись не попадает');

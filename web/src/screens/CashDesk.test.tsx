@@ -89,7 +89,7 @@ describe('«Приём оплат»', () => {
     fake.rpc.session_guest_set_paid = () => null;
     await openPlayer();
     await screen.findByText(/к оплате:/);
-    const title = /Разовое посещение 03.02.2020 · U9-B/;
+    const title = /Доп. посещение 03.02.2020 · U9-B/;
     await screen.findByText(title);
     const c = card(title);
     await waitFor(() => expect(within(c).getByRole('button', { name: 'Принять оплату' })).toBeEnabled());
@@ -97,6 +97,22 @@ describe('«Приём оплат»', () => {
     fireEvent.click(within(c).getByRole('button', { name: 'Записать платёж' }));
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
     await waitFor(() => expect(fake.rpcCalls('session_guest_set_paid')[0]).toMatchObject({ s: 's9', p: 'p1', is_paid: true, mth: 'Наличные', amt: 15 }));
+  });
+
+  it('оплата за визит показана отдельным разделом и платится через own_visit_set_paid', async () => {
+    seed();
+    fake.db.own_visits = [{ session_id: 's9', player_id: 'p1', paid: false, amount: 20, sessions: { starts_at: '2020-02-03T15:00:00+04:00', groups: { name: 'U9-B' } } }];
+    fake.rpc.own_visit_set_paid = () => null;
+    await openPlayer();
+    await screen.findByText(/к оплате:/);
+    const title = /Оплата за визит 03.02.2020 · U9-B/;
+    await screen.findByText(title);
+    const c = card(title);
+    await waitFor(() => expect(within(c).getByRole('button', { name: 'Принять оплату' })).toBeEnabled());
+    fireEvent.click(within(c).getByRole('button', { name: 'Принять оплату' }));
+    fireEvent.click(within(c).getByRole('button', { name: 'Записать платёж' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
+    await waitFor(() => expect(fake.rpcCalls('own_visit_set_paid')[0]).toMatchObject({ s: 's9', p: 'p1', is_paid: true, mth: 'Наличные', amt: 20 }));
   });
 
   it('#471 Ф9: отменённый заказ экипировки к оплате не предлагается', async () => {
