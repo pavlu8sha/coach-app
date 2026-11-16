@@ -17,7 +17,7 @@ const teamsOf = (name: string) => [...new Set([name, name.replace(/-[ABC]$/, '')
 const today = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD по местному времени телефона
 
 // Расписание и матчи групп, в которых играют дети текущего пользователя.
-export default function Schedule({ all = false, editable = all }: { all?: boolean; editable?: boolean }) {
+export default function Schedule({ all = false, editable = all, results = true }: { all?: boolean; editable?: boolean; results?: boolean }) {
   const [groups, setGroups] = useState<GroupView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -133,7 +133,7 @@ export default function Schedule({ all = false, editable = all }: { all?: boolea
             </>
           )}
 
-          {g.results.length > 0 && (
+          {results && g.results.length > 0 && (
             <>
               <h3>Последние результаты</h3>
               <div>

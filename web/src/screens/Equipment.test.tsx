@@ -638,6 +638,20 @@ describe('Экипировка: отмена и восстановление з�
     expect(screen.getAllByRole('button', { name: 'Сторно' })).toHaveLength(1);
   });
 
+  it('правка 6: входящий остаток — одна строка «Внесено до начала учёта», без даты 01.01.2000 и без дубля', async () => {
+    seed();
+    fake.db.service_payments = [
+      { id: 'sp9', kind: 'equipment', ref_id: 'o2', amount: 100, paid_on: '2000-01-01', method: null, op: 'opening_balance', cancels: null, note: 'Внесено до начала учёта в приложении' },
+    ];
+    render(<Equipment />);
+    fireEvent.click(await screen.findByText('Сидоров Ян'));
+    await screen.findByText('Журнал оплат');
+    const row = screen.getByText(/Внесено до начала учёта/);
+    expect(row.textContent).toBe('Внесено до начала учёта');
+    expect(document.body.textContent).not.toContain('01.01');
+    expect(document.body.textContent).not.toContain('в приложении');
+  });
+
   it('Ж11: сторно требует причину и вызывает eq_reverse_payment с ключом', async () => {
     seedPays();
     fake.rpc.eq_reverse_payment = () => 0;

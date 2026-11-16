@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ExpandableTextarea } from '../ui/ExpandableTextarea';
-import { today } from '../lib/coach';
+import { hasSubscription, today } from '../lib/coach';
 import { DEBT_START } from '../lib/debtSeason';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill } from '../ui/components';
@@ -15,7 +15,6 @@ interface Disc { id: string; player_id: string; players: { full_name: string } |
 const METHODS = ['Наличные', 'Перевод'];
 const DEFAULT_TPL = 'Добрый день\nУ вас не оплачен абонемент за {месяц}';
 const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
-const IND_GROUP = 'индивидуальные / вратарские';
 const monthIso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
 const monthName = (iso: string) => {
   const [y, m] = iso.split('-').map(Number);
@@ -76,7 +75,7 @@ export default function Debtors() {
         const pl = await supabase.from('players').select('id, group_id').eq('status', 'active').limit(1000);
         if (g.error) return setError(g.error.message);
         if (pl.error) return setError(pl.error.message);
-        const ind = new Set(((g.data ?? []) as { id: string; name: string }[]).filter(x => x.name.trim().toLowerCase() === IND_GROUP).map(x => x.id));
+        const ind = new Set(((g.data ?? []) as { id: string; name: string }[]).filter(x => !hasSubscription(x.name)).map(x => x.id));
         moved = new Set(((pl.data ?? []) as { id: string; group_id: string | null }[]).filter(x => x.group_id && ind.has(x.group_id)).map(x => x.id));
       }
       setRows(((d.data ?? []) as Row[]).filter(r => !moved.has(r.player_id)).map(r => ({ ...r, tariff: Number(r.tariff), paid: Number(r.paid), debt: Number(r.debt) })));

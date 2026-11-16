@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fmtDate, groupByGroupName, sortGroups, today } from '../lib/coach';
+import { fmtDate, groupByGroupName, hasSubscription, sortGroups, today } from '../lib/coach';
 import { statusLabel, statusTone, type PlayerStatus } from '../lib/playerStatus';
 import { supabase } from '../lib/supabase';
 import { useNav, useNavState } from '../nav';
@@ -77,7 +77,7 @@ export default function Players() {
   const hasNoDate = (players ?? []).some(p => !p.birth_date);
 
   // игроки индивидуальных и вратарских платят за занятия, абонемента у них нет
-  const noSub = (p: Row) => (groupName.get(p.group_id ?? '') ?? '').trim().toLowerCase() === 'индивидуальные / вратарские';
+  const noSub = (p: Row) => !hasSubscription(groupName.get(p.group_id ?? ''));
   const state = (p: Row) => noSub(p) ? { tone: 'neutral' as Tone, label: 'Без абонемента' } : payState(paid.get(p.id) ?? 0, p.group_id ? tariffFor(prices, p.group_id, monthStart()) : null, subs.get(p.id));
   const list = useMemo(() => {
     const needle = q.trim().toLowerCase();

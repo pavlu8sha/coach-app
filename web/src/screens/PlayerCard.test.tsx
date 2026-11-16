@@ -108,6 +108,23 @@ describe('карточка игрока: вкладки', () => {
   });
 });
 
+describe('правка 7: группа без абонемента', () => {
+  it('«Индивидуальные / Вратарские»: вкладка «Абонемент» без долга и кнопок оплаты, с пояснением', async () => {
+    seed();
+    render(<PlayerCard player={{ ...player, group_name: ' Индивидуальные / вратарские ' }} onBack={() => {}} onEdit={() => {}} />);
+    expect(await screen.findByText(/У этой группы нет абонемента/)).toBeInTheDocument();
+    expect(screen.queryByText(/Сентябрь 2026/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Внести платёж' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Закрыть без оплаты' })).toBeNull();
+  });
+  it('обычная группа: абонемент как раньше', async () => {
+    seed();
+    render(<PlayerCard player={player} onBack={() => {}} onEdit={() => {}} />);
+    expect(await screen.findByText(/Сентябрь 2026/)).toBeInTheDocument();
+    expect(screen.queryByText(/У этой группы нет абонемента/)).toBeNull();
+  });
+});
+
 describe('visibleMonths', () => {
   it('история начинается с месяца прихода игрока', async () => {
     const { visibleMonths } = await import('./PlayerCard');

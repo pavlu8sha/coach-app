@@ -256,7 +256,7 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
     return (
       <>
         <NavRoot root={tab === 'schedule' ? 'schedule' : 'about'}>
-          {tab === 'schedule' ? <Schedule all editable={false} /> : <About role={role} onChangeRole={() => (preview ? exitPreview() : setChangingRole(true))} />}
+          {tab === 'schedule' ? <Schedule all editable={false} results={false} /> : <About role={role} onChangeRole={() => (preview ? exitPreview() : setChangingRole(true))} />}
         </NavRoot>
         <BottomNav
           label="Разделы"
@@ -279,7 +279,7 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
     : coach && tab === 'group' ? <Group groups={coachGroups} notify />
     : coach && tab === 'attendance' ? <Stats own />
     : coach && tab === 'ledger' ? <TrainerLog readOnly />
-    : tab === 'schedule' ? (admin || coach || !hasKids ? <Schedule all={admin} /> : <ParentSchedule />)
+    : tab === 'schedule' ? (admin || coach || !hasKids ? <Schedule all={admin} results={!guestOnly} /> : <ParentSchedule />)
     : !admin && !coach && tab === 'matches' ? <Matches />
     : !admin && !coach && tab === 'profile' ? <Profile />
     : !admin && !coach && tab === 'payments' ? <Payments />

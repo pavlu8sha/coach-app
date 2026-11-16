@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { coachError, fmtDate, today } from '../lib/coach';
+import { coachError, fmtDate, hasSubscription, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput } from '../ui/components';
 import { useConfirm } from '../ui/ConfirmSheet';
@@ -29,7 +29,7 @@ const errText = (m: string) => (m.includes('paid above total') ? 'Оплата �
 /** Всё, что игрок должен: абонемент по месяцам, заказы экипировки, занятия, сборы, взносы матчей и событий. Платёж по строке идёт в нужный раздел. */
 async function loadDues(p: Pl): Promise<Due[]> {
   const out: Due[] = [];
-  const noSub = (p.groups?.name ?? '').trim().toLowerCase() === 'индивидуальные / вратарские';
+  const noSub = !hasSubscription(p.groups?.name);
   const [prices, pays, subs, orders, ind, extra, camps] = await Promise.all([
     supabase.from('prices').select('group_id, amount, valid_from, valid_to').eq('kind', 'subscription'),
     supabase.from('payments').select('amount, paid_on, pay_month').eq('player_id', p.id).limit(1000),
