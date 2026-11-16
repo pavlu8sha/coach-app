@@ -61,6 +61,20 @@ describe('привязка ребёнка', () => {
     expect(screen.queryByRole('checkbox')).toBeNull();
   });
 
+  it('подсказка: имя вводится латиницей, порядок слов не важен, плейсхолдер — пример', () => {
+    render(<Link />);
+    expect(screen.getByText(/латиницей, как в заявке клуба/)).toBeInTheDocument();
+    expect(screen.getByText(/Порядок слов не важен/)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Ivanov Max')).toBeInTheDocument();
+  });
+
+  it('ничего не найдено: напоминает про латиницу и порядок слов', async () => {
+    fake.rpc.search_players_for_link = () => [];
+    render(<Link />);
+    search('Иванов');
+    expect(await screen.findByText(/имя и фамилию лучше вводить латиницей, порядок слов не важен/)).toBeInTheDocument();
+  });
+
   it('ничего не найдено: понятное пустое состояние', async () => {
     fake.rpc.search_players_for_link = () => [];
     render(<Link />);
