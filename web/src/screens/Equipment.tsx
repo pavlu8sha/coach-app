@@ -23,9 +23,12 @@ const ORDER_COLS = 'id, player_id, ordered_on, total, paid, installment, number,
 interface Pay { id: string; amount: number | string; paid_on: string; method: string | null; op: string; note: string | null; cancels: string | null }
 interface Kit { kit: string; price: number }
 
+// Ключ запроса для идемпотентных вызовов: UUID (сервер принимает только его).
+const newReqKey = () => globalThis.crypto?.randomUUID?.() ?? 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.floor(Math.random() * 16); return (c === 'x' ? r : (r & 3) | 8).toString(16); });
 const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
 const num = (s: string) => Number(s.replace(',', '.'));
 const errText = (m: string) =>
+  m.includes('request id reused') ? 'Этот заказ уже был отправлен с другим составом. Закройте форму и создайте заказ заново: прежний мог сохраниться.' : m.includes('bad quantity') ? 'Количество вещи: целое число от 1 до 10.' :
   m.includes('paid above total') ? 'Оплата больше суммы заказа.' : m.includes('paid below zero') ? 'Оплачено не может быть меньше нуля.' : m.includes('total below paid') ? 'Сумма заказа меньше уже оплаченного.' :
   m.includes('order has payments') ? 'У заказа есть оплата: сначала верните её записью с минусом.' : m.includes('order has issues') ? 'У заказа есть выданные вещи: сначала снимите выдачу.' : m.includes('item issued') ? 'Вещь уже выдана: сначала снимите выдачу (размер менять можно).' : m.includes('last line') ? 'Это последняя вещь в заказе: удалите весь заказ.' : m.includes('bad quantity') ? 'Количество от 1 до 10.' : m.includes('bad date') ? 'Дата не может быть в будущем.' : m.includes('kit not in catalog') ? 'Позиции нет в каталоге.' : m.includes('no items') ? 'Выберите хотя бы одну вещь.' : m.includes('bad amount') ? 'Сумма указана неверно.' :
   m.includes('use reversal or refund') ? 'Сумма должна быть больше нуля. Ошибочную оплату отменяет «Сторно», деньги клиенту возвращает «Возврат».' : m.includes('already reversed') ? 'Эта оплата уже сторнирована.' : m.includes('not a payment') ? 'Сторнировать можно только оплату.' : m.includes('note required') ? 'Укажите причину.' : m.includes('refund above paid') ? 'Возврат больше оплаченной суммы.' : m.includes('request id reused') ? 'Эта отправка уже была с другими данными. Обновите экран и повторите.' :
@@ -429,6 +432,8 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
   const [custom, setCustom] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Ключ идемпотентности (#652, 0202): живёт, пока заказ не создан. Повтор после обрыва связи вернёт тот же заказ, а не второй.
+  const orderKey = useRef(newReqKey());
   const settings = useClubSettings();
   useDirtyGuard(player !== null || Object.keys(pick).length > 0 || insc.trim() !== '' || number.trim() !== '' || custom.trim() !== '');
   const numberNote = useNumberNote(player?.id, number);
@@ -474,7 +479,7 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
     setBusy(true);
     setErr(null);
     const lines = Object.entries(pick).map(([kit, v]) => ({ kit, size: v.size, quantity: v.quantity }));
-    const r = await supabase.rpc('eq_create_order', { p: player.id, lines, insc, num: number, inst, loc, custom_total: custom.trim() !== '' ? num(custom) : disc.applies ? disc.total : null });
+    const r = await supabase.rpc('eq_create_order', { p: player.id, lines, insc, num: number, inst, loc, custom_total: custom.trim() !== '' ? num(custom) : disc.applies ? disc.total : null, req: orderKey.current });
     setBusy(false);
     if (r.error) return setErr(errText(r.error.message));
     onDone();

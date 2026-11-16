@@ -169,6 +169,24 @@ describe('«Экипировка»', () => {
     await waitFor(() => expect(fake.rpcCalls('eq_create_order')[0]).toMatchObject({ p: 'p1', custom_total: 325 }));
   });
 
+  it('новый заказ: ключ идемпотентности сохраняется при ошибке и повторе (#652, 0202)', async () => {
+    seed();
+    let n = 0;
+    fake.rpc.eq_create_order = () => (++n === 1 ? { error: { message: 'network error' } } : 'new-order');
+    render(<Equipment />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Новый заказ' }));
+    fireEvent.change(screen.getByLabelText('Найти игрока'), { target: { value: 'Иванов' } });
+    fireEvent.click(await screen.findByText('Иванов Пётр'));
+    fireEvent.click(await screen.findByLabelText(/Форма/));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать заказ' }));
+    await waitFor(() => expect(fake.rpcCalls('eq_create_order')).toHaveLength(1));
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать заказ' }));
+    await waitFor(() => expect(fake.rpcCalls('eq_create_order')).toHaveLength(2));
+    const [a, b] = fake.rpcCalls('eq_create_order');
+    expect(a.req).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(b.req).toBe(a.req);
+  });
+
   it('номер занят: подсказка называет только игрока из той же возрастной группы и не мешает создать заказ', async () => {
     seed();
     const ord = (id: string, pid: string, name: string, grp: string, number: string) => ({ id, player_id: pid, number, players: { full_name: name, groups: { name: grp } }, equipment_order_lines: [], equipment_issues: [], equipment_order_status_history: [] });
