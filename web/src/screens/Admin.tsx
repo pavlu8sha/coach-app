@@ -9,9 +9,15 @@ import ParentsRoster from './ParentsRoster';
 interface Pending {
   id: string;
   created_at: string;
+  player_id: string;
+  user_id: string;
   users: { display_name: string | null; telegram_id: number } | null;
   players: { full_name: string; groups: { name: string } | null } | null;
 }
+
+// Подсказка админу: кто уже привязан к этому ребёнку и сколько детей уже у этого родителя.
+interface Hint { guardians: string[]; childCount: number }
+interface GuardianRow { player_id: string; user_id: string; users: { display_name: string | null } | null; players: { full_name: string } | null }
 
 interface Del { id: string; created_at: string; users: { display_name: string | null; telegram_id: number } | null }
 
@@ -21,16 +27,38 @@ export default function Admin() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [dels, setDels] = useState<Del[]>([]);
+  const [hints, setHints] = useState<Record<string, Hint>>({});
   const [tab, setTab] = useNavState<'requests' | 'parents'>('ad.tab', 'requests', { persist: { kind: 'enum', values: ['requests', 'parents'] } });
 
   const load = useCallback(async () => {
     const r = await supabase
       .from('link_requests')
-      .select('id, created_at, users!link_requests_user_id_fkey(display_name, telegram_id), players(full_name, groups(name))')
+      .select('id, created_at, player_id, user_id, users!link_requests_user_id_fkey(display_name, telegram_id), players(full_name, groups(name))')
       .eq('status', 'pending')
       .order('created_at');
     if (r.error) return setError(r.error.message);
-    setRows((r.data ?? []) as unknown as Pending[]);
+    const list = (r.data ?? []) as unknown as Pending[];
+    setRows(list);
+    // подсказки не критичны: при ошибке просто не показываем
+    const pids = [...new Set(list.map(x => x.player_id))];
+    const uids = [...new Set(list.map(x => x.user_id))];
+    if (list.length) {
+      const sel = 'player_id, user_id, users(display_name), players(full_name)';
+      const [byPlayer, byUser] = await Promise.all([
+        supabase.from('player_guardians').select(sel).in('player_id', pids),
+        supabase.from('player_guardians').select(sel).in('user_id', uids),
+      ]);
+      const pg = (byPlayer.data ?? []) as unknown as GuardianRow[];
+      const ug = (byUser.data ?? []) as unknown as GuardianRow[];
+      const h: Record<string, Hint> = {};
+      for (const x of list) {
+        h[x.id] = {
+          guardians: pg.filter(g => g.player_id === x.player_id && g.user_id !== x.user_id).map(g => g.users?.display_name ?? 'без имени'),
+          childCount: new Set(ug.filter(g => g.user_id === x.user_id).map(g => g.player_id)).size,
+        };
+      }
+      setHints(byPlayer.error || byUser.error ? {} : h);
+    }
     // запросы на удаление данных (миграция 0025); если таблицы ещё нет, блок просто пуст
     const d = await supabase.from('data_requests').select('id, created_at, users!data_requests_user_id_fkey(display_name, telegram_id)').eq('status', 'open').order('created_at');
     setDels(d.error ? [] : ((d.data ?? []) as unknown as Del[]));
@@ -93,6 +121,12 @@ export default function Admin() {
           <p>
             Запрашивает: <strong>{r.users?.display_name ?? 'без имени'}</strong> <span className="muted">(Telegram ID {r.users?.telegram_id})</span>
           </p>
+          {hints[r.id] && (
+            <p className="muted">
+              {hints[r.id].guardians.length ? `У ребёнка уже привязаны: ${hints[r.id].guardians.join(', ')}.` : 'У ребёнка пока нет привязанных родителей.'}{' '}
+              {hints[r.id].childCount ? `У этого родителя уже привязано детей: ${hints[r.id].childCount}.` : 'Это первая привязка родителя.'}
+            </p>
+          )}
           <div className="ks-btns">
             <button className="ks-btn" disabled={busy === r.id} onClick={() => void decide(r, true)}>
               Подтвердить

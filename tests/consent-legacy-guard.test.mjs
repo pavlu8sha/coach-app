@@ -11,7 +11,8 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // Исключения: поле выводится как данные, а не как условие доступа (файл: число вхождений, только точное совпадение).
 // 0186 пересоздаёт export_my_data (тело 0173): поле отзыва показывается родителю в разделе children выгрузки, доступ по parent_access_ok.
-const MIGRATION_DATA_ONLY = { '0186_points_legacy_off.sql': 3 };
+// 0199 пересоздаёт decide_link (тело 0173): два вхождения в ветке «on conflict do update» — прежнее поведение для родителей вне новой модели; потолок опекунов считается через parent_access_ok.
+const MIGRATION_DATA_ONLY = { '0186_points_legacy_off.sql': 3, '0199_link_guardian_cap.sql': 2 };
 
 test('миграции после 0173 не содержат consent_revoked_at', () => {
   const dir = path.join(ROOT, 'db/migrations');
