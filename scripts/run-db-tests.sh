@@ -35,6 +35,32 @@ else
   echo "$pf" | grep -qxF '0176_consent_claim_check|t|APPLIED|applied' || { echo "$pf" | grep '^0176'; echo "not ok - preflight.sql: 0176 не в состоянии APPLIED/applied"; fail=1; }
 fi
 [ "$fail" = 0 ] && echo "ok - preflight.sql выполняется, статусы APPLIED/SUPERSEDED ($(printf '%s\n' "$pf" | grep -cE '\|APPLIED\|'))"
+# preflight.sql на базе БЕЗ новых миграций не должен падать: строка неприменённой миграции даёт NOT_APPLIED (урок 2026-11-16: ::regclass падал на отсутствующей таблице).
+# Случай 1: нет миграций мероприятий (0202, 0204); случай 2: нет только 0204 (0202 применена).
+preflight_partial() {  # $1 метка, $2 шаблон пропускаемых файлов (egrep), остальные аргументы: ожидаемые NOT_APPLIED строки
+  local label=$1 skip=$2; shift 2
+  local pdb="${DB}_pre"
+  $PSQL -q -d postgres -c "drop database if exists $pdb" -c "create database $pdb"
+  $PSQL -q -v ON_ERROR_STOP=1 -d "$pdb" -f db/tests/setup_local.sql
+  for f in db/migrations/*.sql; do
+    if echo "$f" | grep -Eq "$skip"; then continue; fi
+    $PSQL -q -v ON_ERROR_STOP=1 -d "$pdb" -f "$f" >/dev/null 2>&1 || { echo "not ok - preflight ($label): миграция $f не применилась"; fail=1; }
+  done
+  local out
+  if ! out=$($PSQL -q -At -v ON_ERROR_STOP=1 -d "$pdb" -f db/ops/preflight.sql 2>&1); then
+    echo "$out"; echo "not ok - preflight.sql падает на базе без новых миграций ($label)"; fail=1
+  else
+    local m st bad=0
+    for m in "$@"; do
+      st=$(printf '%s\n' "$out" | awk -F'|' -v m="$m" '$1 == m {print $3}')
+      [ "$st" = "NOT_APPLIED" ] || { echo "not ok - preflight ($label): $m ожидался NOT_APPLIED, получено '$st'"; bad=1; fail=1; }
+    done
+    [ "$bad" = 0 ] && echo "ok - preflight.sql на базе без новых миграций ($label) выполняется, неприменённые строки NOT_APPLIED"
+  fi
+  $PSQL -q -d postgres -c "drop database if exists $pdb"
+}
+preflight_partial "без 0202 и 0204" '0202_club_events|0204_club_event_participants' 0202_club_events 0204_club_event_participants
+preflight_partial "без 0204" '0204_club_event_participants' 0204_club_event_participants
 for t in db/tests/*_test.sql; do
   echo "== $t"
   out=$($PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f "$t" 2>&1) || { echo "$out"; fail=1; continue; }
