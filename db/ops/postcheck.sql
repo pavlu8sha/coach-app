@@ -6,7 +6,7 @@ with expected(fn, for_app) as (values
   ('attendance_stats(date,date)', true), ('match_stats(date,date,text)', true),
   ('ind_create_session(date,time,boolean,text)', true), ('ind_set_paid(uuid,uuid,boolean)', true), ('ind_set_attended(uuid,uuid,boolean)', true), ('ind_book(uuid,uuid)', false),
   ('extra_create_session(date,numeric,text)', true), ('extra_set_paid(uuid,uuid,boolean,text,numeric)', true), ('extra_set_attended(uuid,uuid,boolean)', true),
-  ('eq_create_order(uuid,jsonb,text,text,boolean,text,numeric)', true), ('eq_add_payment(uuid,numeric)', true), ('eq_set_issued(uuid,text,boolean,text,date)', true), ('eq_catalog_save(text,numeric,date)', true),
+  ('eq_create_order(uuid,jsonb,text,text,boolean,text,numeric,uuid)', true), ('eq_add_payment(uuid,numeric)', true), ('eq_set_issued(uuid,text,boolean,text,date)', true), ('eq_catalog_save(text,numeric,date)', true),
   ('camp_save(uuid,text,text,date,date,numeric,date,date,boolean)', true), ('camp_pay(uuid,numeric,text,date,text,text)', true), ('camp_cancel_payment(uuid)', true),
   ('tl_add(date,text,text,text,time,time,text,boolean)', true), ('tl_confirm(date,text,text,time,time,text,text[])', true),
   ('parent_calendar(uuid,date,date)', true),

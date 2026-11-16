@@ -59,6 +59,8 @@ echo "== db/tests/concurrency_consent_claim.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_consent_claim.sh || fail=1
 echo "== db/tests/concurrency_eq_payments.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_eq_payments.sh || fail=1
+echo "== db/tests/concurrency_eq_create_order.sh"
+DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_eq_create_order.sh || fail=1
 echo "== db/tests/atomic_0188.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/atomic_0188.sh || fail=1
 echo "== db/tests/concurrency_club_event_seats.sh"
