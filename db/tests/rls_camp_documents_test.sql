@@ -249,7 +249,13 @@ select throws_ok($$select camp_document_begin('00000000-0000-0000-0000-000000000
 select as_user('00000000-0000-0000-0000-0000000000a1');
 select throws_ok($$delete from camps where id = '00000000-0000-0000-0000-0000000000cb'$$, '42501', null, 'администратор не удаляет сбор прямым запросом (права сняты в 0191)');
 reset role;
-select throws_ok($$delete from camps where id = '00000000-0000-0000-0000-0000000000cb'$$, '23503', null, 'сбор с документами не удаляется и владельцем базы');
+-- on delete restrict: PostgreSQL 18 отдаёт 23001 (restrict_violation), прежние версии 23503; важно, что удаление отклонено
+do $$ begin
+  delete from camps where id = '00000000-0000-0000-0000-0000000000cb';
+  raise exception 'сбор с документами удалён';
+exception when restrict_violation or foreign_key_violation then null;
+end $$;
+select pass('сбор с документами не удаляется и владельцем базы');
 select is((select count(*)::int from camp_documents where camp_id = '00000000-0000-0000-0000-0000000000cb'), 20, 'строки документов сбора на месте');
 -- 2. брошенная загрузка не публикуется и без новой загрузки
 update club_settings set value = 'on' where key = 'camps.notify';
