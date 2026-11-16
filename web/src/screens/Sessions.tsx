@@ -8,6 +8,7 @@ import { useNav, useNavState } from '../nav';
 import IndMarks, { indDay, indTitle, type IndSession } from './IndMarks';
 import { Failure, Loading } from './Message';
 import GuestVisits from './GuestVisits';
+import OwnVisits, { ATTENDANCE_SAVED } from './OwnVisits';
 import { wasActiveOn, type StatusLogPoint } from '../lib/playerStatus';
 
 type Status = 'present' | 'absent' | 'excused';
@@ -109,6 +110,7 @@ export default function Sessions({ groups, admin = false }: { groups: CoachGroup
           ) : (
             <>
               <Roster key={`${gid}|${date}`} gid={gid} date={date} />
+              <OwnVisits key={`own|${gid}|${date}`} gid={gid} date={date} admin={admin} />
               <GuestVisits key={`guest|${gid}|${date}`} gid={gid} date={date} admin={admin} />
             </>
           )}
@@ -175,6 +177,7 @@ function Roster({ gid, date }: { gid: string; date: string }) {
     setBusy(false);
     if (m.error) return setMsg({ ok: false, text: coachError(m.error.message) });
     setDirty(false);
+    window.dispatchEvent(new Event(ATTENDANCE_SAVED));
     setMsg({ ok: true, text: 'Отметки сохранены. Баллы за посещаемость начислены автоматически.' });
   };
   const left = players ? players.filter(p => !marks[p.id]).length : 1; // сохранить можно, когда отмечены все (как в старом приложении)

@@ -118,7 +118,7 @@ select is(
         -- 0170: рассылки по сбору (только администратор, проверка внутри)
         'camp_broadcast_preview', 'camp_broadcast_send', 'camp_broadcast_list', 'camp_broadcast_recipients',
         -- 0178: разовые посещения тренировок другой группы (админ или тренер, проверка внутри; снятие оплаты только админ)
-        'session_guest_add', 'session_guest_remove', 'session_guest_set_paid',
+        'session_guest_add', 'session_guest_remove', 'session_guest_set_paid', 'own_visit_set_paid', 'player_set_pay_mode', 'player_visit_month',
         -- 0185 (#471 PR-1): отмена и восстановление заказа экипировки (только глобальный администратор, проверка внутри)
         'eq_cancel_order', 'eq_restore_order',
         -- 0188 (#471 PR-2a): сторно и возврат оплаты экипировки (только глобальный администратор, проверка внутри)

@@ -20,7 +20,7 @@ beforeEach(() => {
   fake.rpc.session_guest_remove = () => null;
 });
 
-describe('«Разовые посещения»', () => {
+describe('«Доп. посещения»', () => {
   it('поиск находит игрока только другой группы и только занимающегося; добавление идёт через функцию базы', async () => {
     render(<GuestVisits gid="g1" date={today()} />);
     fireEvent.change(await screen.findByLabelText('Добавить гостя'), { target: { value: 'смирнов' } });

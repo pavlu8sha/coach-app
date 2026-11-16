@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { SearchInput } from '../ui/components';
 
-// Разовые посещения (миграция 0178): игрок другой группы пришёл на эту тренировку. Не отметка группы и не абонемент:
+// Доп. посещения (миграция 0178, раньше «Разовые посещения»): игрок другой группы пришёл на эту тренировку. Не отметка группы и не абонемент:
 // баллы начисляются автоматически, оплата идёт отдельной строкой кассы и в долг по абонементу не входит.
 interface Guest { player_id: string; amount: number; paid: boolean; paid_amount: number | null; method: string | null; players: { full_name: string; groups: { name: string } | null } | null }
 interface Found { id: string; full_name: string; groups: { name: string } | null }
@@ -97,11 +97,11 @@ export default function GuestVisits({ gid, date, admin = false }: { gid: string;
     await run(g.player_id + 'rm', () => supabase.rpc('session_guest_remove', { s: sessionId, p: g.player_id }));
   };
 
-  if (error) return <p className="error">Не удалось загрузить разовые посещения: {error}</p>;
+  if (error) return <p className="error">Не удалось загрузить доп. посещения: {error}</p>;
   const have = new Set((guests ?? []).map(g => g.player_id));
   return (
-    <section aria-label="Разовые посещения" style={{ marginTop: 20 }}>
-      <h2>Разовые посещения</h2>
+    <section aria-label="Доп. посещения" style={{ marginTop: 20 }}>
+      <h2>Доп. посещения</h2>
       <p className="muted">Игрок из другой группы пришёл на эту тренировку. Баллы начисляются как за обычную тренировку, оплата записывается отдельно и в долг по абонементу не входит.</p>
       {guests === null ? <p className="muted">Загрузка…</p> : guests.map(g => (
         <div className="ks-mark" key={g.player_id} role="group" aria-label={`Гость: ${g.players?.full_name ?? ''}`} style={{ flexWrap: 'wrap' }}>
