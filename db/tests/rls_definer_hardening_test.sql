@@ -127,7 +127,7 @@ select is(
         'player_training_history',
         -- 0192: тренер или администратор убирает игрока из матча (проверка внутри функции)
         'remove_match_player', 'set_match_team_group', 'match_fees_sync_played',
-        -- 0201 (#677): раздел «Мероприятия» (только администратор своего клуба, проверка внутри; club_event_current_club нужна политикам RLS и отдаёт только клуб вызывающего)
+        -- 0202 (#677): раздел «Мероприятия» (только администратор своего клуба, проверка внутри; club_event_current_club нужна политикам RLS и отдаёт только клуб вызывающего)
         'club_event_create', 'club_event_update', 'club_event_set_status', 'club_event_list', 'club_event_get', 'club_event_history', 'club_event_current_club')),
   '', 'список функций, доступных вошедшим пользователям, не расширился без решения');
 

@@ -1,4 +1,4 @@
--- pgTAP: раздел «Мероприятия», этап 1 (0201, Issue #677, docs/CLUB_EVENTS_ACCEPTANCE.md v6): мероприятие, группы, статусы,
+-- pgTAP: раздел «Мероприятия», этап 1 (0202, Issue #677, docs/CLUB_EVENTS_ACCEPTANCE.md v6): мероприятие, группы, статусы,
 -- базовая цена с историей, права, один клуб. Тесты написаны до миграции: на master они красные.
 -- Права проверяются на базе с привилегиями по умолчанию Supabase: объекты раздела пересоздаются при выключенных умолчаниях и включённых.
 begin;
@@ -9,7 +9,7 @@ select plan(156);
 drop table if exists club_event_price_log, club_event_log, club_event_groups, club_events cascade;
 alter default privileges in schema public grant select, insert, update, delete on tables to anon, authenticated, service_role;
 alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
-\i db/migrations/0201_club_events.sql
+\i db/migrations/0202_club_events.sql
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
