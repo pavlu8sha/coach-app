@@ -169,7 +169,7 @@ describe('«Экипировка»', () => {
     await waitFor(() => expect(fake.rpcCalls('eq_create_order')[0]).toMatchObject({ p: 'p1', custom_total: 325 }));
   });
 
-  it('новый заказ: ключ идемпотентности сохраняется при ошибке и повторе (#652, 0202)', async () => {
+  it('новый заказ: ключ идемпотентности сохраняется при ошибке и повторе (#652, 0203)', async () => {
     seed();
     let n = 0;
     fake.rpc.eq_create_order = () => (++n === 1 ? { error: { message: 'network error' } } : 'new-order');

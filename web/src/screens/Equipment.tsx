@@ -432,7 +432,7 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
   const [custom, setCustom] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  // Ключ идемпотентности (#652, 0202): живёт, пока заказ не создан. Повтор после обрыва связи вернёт тот же заказ, а не второй.
+  // Ключ идемпотентности (#652, 0203): живёт, пока заказ не создан. Повтор после обрыва связи вернёт тот же заказ, а не второй.
   const orderKey = useRef(newReqKey());
   const settings = useClubSettings();
   useDirtyGuard(player !== null || Object.keys(pick).length > 0 || insc.trim() !== '' || number.trim() !== '' || custom.trim() !== '');

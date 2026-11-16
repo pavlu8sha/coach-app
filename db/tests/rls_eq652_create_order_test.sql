@@ -1,4 +1,4 @@
--- pgTAP: #652 этап 1 (0202), идемпотентный eq_create_order. Условия: docs/acceptance/eq-652-stage1-create-order-2026-11-16.md (Ч1–Ч9, Ч12 в файле отката).
+-- pgTAP: #652 этап 1 (0203), идемпотентный eq_create_order. Условия: docs/acceptance/eq-652-stage1-create-order-2026-11-16.md (Ч1–Ч9, Ч12 в файле отката).
 begin;
 create extension if not exists pgtap;
 select plan(32);
@@ -6,7 +6,7 @@ select plan(32);
 -- Права проверяются на базе с привилегиями по умолчанию Supabase: функция создаётся заново и получает их автоматически.
 alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
 drop function eq_create_order(uuid, jsonb, text, text, boolean, text, numeric, uuid);
-\i db/migrations/0202_eq_create_order_idempotent.sql
+\i db/migrations/0203_eq_create_order_idempotent.sql
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-0000006521c1', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
