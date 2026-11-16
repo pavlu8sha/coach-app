@@ -212,3 +212,20 @@ describe('закрытие без оплаты показывает вид и п
     expect(screen.queryByText(/до 02\.11\.2026/)).not.toBeInTheDocument();
   });
 });
+
+// Условия приёмки: docs/PAY_PER_VISIT_ACCEPTANCE.md, п. 14
+describe('«Оплаты за месяц»: игрок «Платит за визит»', () => {
+  it('в месяцах с месяца начала в списке абонементов не показывается; с платежом за месяц остаётся', async () => {
+    seed();
+    fake.db.players = [
+      { id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'active', pay_mode: 'per_visit', pay_mode_from: monthIso() },
+      { id: 'p2', full_name: 'Сидоров Ян', group_id: 'g1', status: 'active' },
+      { id: 'p3', full_name: 'Со Скидкой', group_id: 'g1', status: 'active', pay_mode: 'per_visit', pay_mode_from: monthIso() },
+    ];
+    fake.db.payments = [{ player_id: 'p3', amount: 50, paid_on: monthIso() }];
+    render(<MonthPayments />);
+    expect(await screen.findByText('Сидоров Ян')).toBeInTheDocument();
+    expect(screen.queryByText('Иванов Пётр')).toBeNull(); // за визит, платежей за месяц нет
+    expect(screen.getByText('Со Скидкой')).toBeInTheDocument(); // за визит, но за месяц есть платёж: деньги не прячем
+  });
+});

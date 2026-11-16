@@ -178,3 +178,17 @@ describe('firstMonth', () => {
     expect(firstMonth([], [], null, DEBT_START)).toBe(DEBT_START);
   });
 });
+
+// Условия приёмки: docs/PAY_PER_VISIT_ACCEPTANCE.md, п. 14
+describe('карточка игрока «Платит за визит»', () => {
+  it('вкладка «Абонемент»: месяцы с месяца начала скрыты, есть пояснение; месяцы до начала остаются', async () => {
+    seed();
+    fake.db.players = [{ id: 'p1', pay_mode: 'per_visit', pay_mode_from: '2026-10-05' }];
+    render(<PlayerCard player={player} onBack={() => {}} onEdit={() => {}} />);
+    expect(await screen.findByText(/Сентябрь 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/игрок платит за визит: абонемент не начисляется/)).toBeInTheDocument();
+    expect(screen.queryByText(/Октябрь 2026/)).toBeNull();
+    expect(screen.queryByText(/Декабрь 2026/)).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Закрыть без оплаты' })).toHaveLength(1); // только сентябрь (до начала)
+  });
+});
