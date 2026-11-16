@@ -9,13 +9,13 @@
 
 /* Карточка и строка списка */
 .ks-card { background: var(--ks-surface); border: 1px solid var(--ks-border); border-radius: var(--ks-radius-card); box-shadow: var(--ks-shadow); padding: 12px 14px; margin-bottom: 8px; }
-.ks-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; font: inherit; color: inherit; background: var(--ks-surface); border: 1px solid var(--ks-border); border-radius: var(--ks-radius-card); box-shadow: var(--ks-shadow); padding: 10px 12px; margin-bottom: 8px; min-height: var(--ks-tap); }
+.ks-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; width: 100%; text-align: left; font: inherit; color: inherit; background: var(--ks-surface); border: 1px solid var(--ks-border); border-radius: var(--ks-radius-card); box-shadow: var(--ks-shadow); padding: 10px 12px; margin-bottom: 8px; min-height: var(--ks-tap); }
 button.ks-row { cursor: pointer; }
 button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offset: 1px; }
-.ks-row-main { flex: 1; min-width: 0; }
+.ks-row-main { flex: 1 1 8rem; min-width: 0; }
 .ks-row-title { display: block; font-weight: 700; overflow-wrap: anywhere; }
 .ks-row-sub { display: block; font-size: 13px; color: var(--ks-text-muted); margin-top: 2px; overflow-wrap: anywhere; }
-.ks-row-end { flex: none; display: flex; align-items: center; gap: 6px; }
+.ks-row-end { flex: 0 1 auto; max-width: 100%; margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px; }
 .ks-chev { flex: none; width: 8px; height: 8px; border-right: 2px solid var(--ks-text-muted); border-top: 2px solid var(--ks-text-muted); transform: rotate(45deg); margin: 0 4px 0 2px; }
 
 /* Аватар с инициалами */
