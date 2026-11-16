@@ -81,27 +81,31 @@ describe('«О клубе» для гостя', () => {
     expect(screen.getByText(/Полная оплата — до 20 декабря/)).toBeInTheDocument();
     expect(screen.getByText('проведённых сборов')).toBeInTheDocument();
     expect(screen.getByText('участников')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Запись открыта/ })).toHaveAttribute('href', expect.stringContaining('fc_kickstart_tbs_admin'));
+    // правка 5: внизу не кнопка, а ссылка для вопросов
+    const ask = screen.getByRole('link', { name: 'Остались вопросы? Написать администратору' });
+    expect(ask).toHaveAttribute('href', expect.stringContaining('fc_kickstart_tbs_admin'));
+    expect(ask.className).not.toContain('ks-btn');
+    expect(screen.queryByText(/Запись открыта/)).toBeNull();
     // старых сборов нет нигде на странице
     const text = document.body.textContent ?? '';
     for (const bad of ['Уреки', 'Kolkhida', '3–10 января', '1 500 GEL', '2 500 GEL', 'футболка', 'Сауна']) expect(text).not.toContain(bad);
     for (const img of Array.from(document.querySelectorAll('img'))) expect(img.getAttribute('src') ?? '').not.toMatch(/camp-(resort|garden|sunset|play|room[123]|class|fields|shirt)\b/);
   });
 
-  it('родитель: из карточки Winter Camp кнопка «Записаться / мои сборы» открывает сборы родителя', async () => {
+  it('родитель: из карточки Winter Camp кнопка «Записаться» открывает сборы родителя', async () => {
     fake.db.player_guardians = [{ player_id: 'p1', user_id: 'u', consent_revoked_at: null, players: { id: 'p1', full_name: 'Алексей Петров', club_id: 'club1', status: 'active', groups: { name: 'U10-A' } } }];
     fake.db.camps = [{ id: 'c1', club_id: 'club1', name: 'Зимний лагерь', location: null, starts_on: '2027-01-02', ends_on: '2027-01-09', booking_fee: 0, booking_deadline: null, full_payment_deadline: null, active: true }];
     render(<About role="parent" cabinet onChangeRole={() => undefined} />);
     open(/Winter Camp 2027/);
-    fireEvent.click(screen.getByRole('button', { name: 'Записаться / мои сборы' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Записаться' }));
     expect(await screen.findByText('Зимний лагерь')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Сборы' })).toBeInTheDocument();
   });
 
-  it('гость: в карточке Winter Camp кнопки «мои сборы» нет, запись через чат администратора', () => {
+  it('гость: в карточке Winter Camp кнопки «Записаться» нет, запись через чат администратора', () => {
     render(<About role="guest" onChangeRole={() => undefined} />);
     open(/Winter Camp 2027/);
-    expect(screen.queryByRole('button', { name: 'Записаться / мои сборы' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Записаться' })).toBeNull();
   });
 
   it('экипировка: карточки товаров, размерная таблица костюма и возврат к списку', () => {

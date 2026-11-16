@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fmtDate } from '../lib/coach';
+import { fmtDate, hasSubscription } from '../lib/coach';
 import { afterLeftMonthTest, pausedMonthTest, type PlayerStatus, type StatusLogPoint } from '../lib/playerStatus';
 import { supabase } from '../lib/supabase';
 import { Avatar, Segmented } from '../ui/components';
@@ -113,7 +113,13 @@ export default function PlayerCard({ player, onBack, onEdit, onStatus, managed }
       {tab === 'equip' && <EquipmentTab playerId={player.id} staff />}
       {tab === 'matches' && <MatchesTab playerId={player.id} />}
       {tab === 'points' && <PointsTab playerId={player.id} />}
-      {tab === 'sub' && (pays === null ? <Loading /> : visibleMonths(months, firstMonth([...subs.keys()], payMonths, created, DEBT_START), status !== 'active' ? lastMonth([...subs.keys()], payMonths, firstMonth([...subs.keys()], payMonths, created, DEBT_START)) : null).filter(m => !((isPausedMonth(m) || afterLeft(m)) && gotIn(m) <= 0)).map(m => {
+      {tab === 'sub' && !hasSubscription(player.group_name) && (
+        <div className="ks-card">
+          <p>У этой группы нет абонемента: оплата идёт за занятия.</p>
+          <button type="button" className="ks-btn secondary" onClick={() => setTab('dues')}>Открыть «К оплате»</button>
+        </div>
+      )}
+      {tab === 'sub' && hasSubscription(player.group_name) && (pays === null ? <Loading /> : visibleMonths(months, firstMonth([...subs.keys()], payMonths, created, DEBT_START), status !== 'active' ? lastMonth([...subs.keys()], payMonths, firstMonth([...subs.keys()], payMonths, created, DEBT_START)) : null).filter(m => !((isPausedMonth(m) || afterLeft(m)) && gotIn(m) <= 0)).map(m => {
         const tariff = player.group_id ? tariffFor(prices, player.group_id, m) : null;
         const got = gotIn(m);
         const sub = subs.get(m);

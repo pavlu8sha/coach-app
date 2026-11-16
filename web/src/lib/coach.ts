@@ -6,6 +6,9 @@ export const matchTeam = (groupName: string) => groupName.replace(/-[A-Z]$/, '')
 /** Группы, которые не играют матчи: индивидуальные, вратарские, выходного дня, Isani. */
 export const playsMatches = (groupName: string) => !/индивидуальн|вратарск|weekends|isani/i.test(groupName);
 
+/** Есть ли у группы абонемент. У «Индивидуальные / Вратарские» его нет: платят за занятия. Регистр, пробелы и опечатка во второй половине названия не важны. */
+export const hasSubscription = (groupName: string | null | undefined) => !/^индивидуальн/i.test((groupName ?? '').trim());
+
 export const DAYS = ['', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 export const fmtDate = (iso: string) => iso.split('-').reverse().join('.');
 export const fmtShort = (iso: string) => iso.split('-').reverse().slice(0, 2).join('.');

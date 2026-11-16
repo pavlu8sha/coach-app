@@ -73,7 +73,7 @@ describe('Админ: настройки и условия отмены (усл�
     seed();
     await openCamp('Настройки');
     expect(await screen.findByLabelText('Лимит мест')).toHaveValue(20);
-    expect(screen.getByLabelText('Имя ссылки')).toHaveValue('zima');
+    expect(screen.getByLabelText('Адрес публичной ссылки')).toHaveValue('zima');
     expect(screen.getByText('https://t.me/kicksapp?startapp=camp_zima')).toBeInTheDocument();
     expect(await screen.findByText('Свободно мест: 18')).toBeInTheDocument();
     expect(fake.rpcCalls('camp_seats')[0]).toEqual({ cid: 'c1' });
@@ -83,7 +83,7 @@ describe('Админ: настройки и условия отмены (усл�
     fake.rpc.camp_set_public = () => null;
     await openCamp('Настройки');
     fireEvent.change(await screen.findByLabelText('Лимит мест'), { target: { value: '' } });
-    fireEvent.change(screen.getByLabelText('Имя ссылки'), { target: { value: ' Zima-2027 ' } });
+    fireEvent.change(screen.getByLabelText('Адрес публичной ссылки'), { target: { value: ' Zima-2027 ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить настройки' }));
     await waitFor(() => expect(fake.rpcCalls('camp_set_public')).toHaveLength(1));
     expect(fake.rpcCalls('camp_set_public')[0]).toEqual({ cid: 'c1', sl: 'zima-2027', cap: null });
@@ -92,7 +92,7 @@ describe('Админ: настройки и условия отмены (усл�
     seed();
     fake.rpc.camp_set_public = () => null;
     await openCamp('Настройки');
-    fireEvent.change(await screen.findByLabelText('Имя ссылки'), { target: { value: '' } });
+    fireEvent.change(await screen.findByLabelText('Адрес публичной ссылки'), { target: { value: '' } });
     expect(screen.queryByText(/startapp=camp_/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить настройки' }));
     await waitFor(() => expect(fake.rpcCalls('camp_set_public')[0]).toEqual({ cid: 'c1', sl: '', cap: 20 }));

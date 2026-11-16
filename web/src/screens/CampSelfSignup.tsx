@@ -16,7 +16,7 @@ const MESSAGES: [string, string][] = [
   ['camp full', 'На сборе нет свободных мест.'],
   ['capacity below registered', 'Лимит не может быть меньше числа подтверждённых участников.'],
   ['bad capacity', 'Лимит указан неверно.'],
-  ['bad slug', 'Имя ссылки: от 3 до 60 латинских букв, цифр и дефисов.'],
+  ['bad slug', 'Адрес ссылки: от 3 до 60 латинских букв, цифр и дефисов.'],
   ['bad terms', 'Условия указаны неверно: у каждого периода нужен текст, дата конца не раньше даты начала.'],
   ['already decided', 'Заявка уже решена.'],
   ['already registered', 'Этот ребёнок уже записан на сбор.'],
@@ -195,7 +195,8 @@ export function CampSettings({ camp, onPatched }: { camp: CampLite; onPatched: (
       <label className="field">Лимит мест<input type="number" inputMode="numeric" min={1} step={1} value={cap} onChange={e => setCap(e.target.value)} /></label>
       <p className="muted" style={{ margin: '4px 0' }}>Пусто: без лимита.</p>
       {seats !== null && capNum !== null && <p className="muted" style={{ margin: '4px 0' }}>{`Свободно мест: ${seats}`}</p>}
-      <label className="field">Имя ссылки<input value={slug} maxLength={60} placeholder="например, zima-2027" onChange={e => setSlug(e.target.value)} /></label>
+      <label className="field">Адрес публичной ссылки<input value={slug} maxLength={60} placeholder="например, zima-2027" onChange={e => setSlug(e.target.value)} /></label>
+      <p className="muted" style={{ margin: '4px 0' }}>Короткое имя в конце ссылки на сбор: из zima-2027 получится ссылка ниже. Пусто: публичной ссылки нет.</p>
       {slugClean && <p className="muted" style={{ overflowWrap: 'anywhere' }}>Публичная ссылка:<br /><span>{`https://t.me/kicksapp?startapp=camp_${slugClean}`}</span></p>}
       {msg && <p className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}
       <button type="button" className="ks-btn" disabled={busy || !capOk} onClick={() => void save()}>Сохранить настройки</button>

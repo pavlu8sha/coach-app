@@ -1,3 +1,4 @@
+import { BackNav } from '../ui/nav';
 import { ExpandableTextarea } from '../ui/ExpandableTextarea';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fmtDate } from '../lib/coach';
@@ -94,7 +95,7 @@ export default function ParentCamps({ onBack, openSlug }: { onBack?: () => void;
   if (camp) return <CampCard camp={camp} onBack={() => nav.back()} />;
   return (
     <main className="page">
-      {onBack && <button type="button" className="ks-btn secondary sm" style={{ width: 'auto', marginBottom: 12 }} onClick={onBack}>← Назад</button>}
+      {onBack && <BackNav onBack={onBack} managed />}
       <h1>Сборы</h1>
       {data.camps.length === 0 ? (
         <EmptyState icon="calendar" title="Сборов пока нет" text="Когда клуб объявит сбор, он появится здесь." />
@@ -155,7 +156,7 @@ function CampCard({ camp, onBack }: { camp: Camp; onBack: () => void }) {
 
   return (
     <main className="page">
-      <button type="button" className="ks-btn secondary sm" style={{ width: 'auto', marginBottom: 12 }} onClick={onBack}>← Сборы</button>
+      <BackNav onBack={onBack} managed />
       <h1>{camp.name}</h1>
       <p className="muted">{fmtDate(camp.starts_on)} — {fmtDate(camp.ends_on)}{camp.location ? ` · ${camp.location}` : ''}</p>
       {seats !== null && <p>Свободно мест: {seats}</p>}

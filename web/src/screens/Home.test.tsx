@@ -95,8 +95,9 @@ describe('вход по ссылке на сбор', () => {
     seedCamps();
     start('camp_Zima');
     render(<Home />);
-    const back = await screen.findByRole('button', { name: '← Сборы' }); // кнопка есть только у загруженной карточки сбора
-    expect(screen.getByRole('heading', { name: 'Зимний лагерь' })).toBeInTheDocument();
+    // «Назад» есть и у списка, поэтому ждём загруженную карточку (экран перерисовывается при загрузке)
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Зимний лагерь' })).toBeInTheDocument());
+    const back = screen.getByRole('button', { name: 'Назад' });
     fireEvent.click(back);
     expect(await screen.findByText('Зимний лагерь', { selector: '.ks-row-title' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Сборы' })).toBeInTheDocument();

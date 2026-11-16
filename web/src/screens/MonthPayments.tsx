@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { sortGroups, today } from '../lib/coach';
+import { hasSubscription, sortGroups, today } from '../lib/coach';
 import { settingNumber, settingNumberError, useClubSettings } from '../lib/clubSettings';
 import { DEBT_START } from '../lib/debtSeason';
 import { supabase } from '../lib/supabase';
@@ -83,7 +83,7 @@ export default function MonthPayments() {
       const p = await supabase.from('prices').select('group_id, amount, valid_from, valid_to').eq('kind', 'subscription');
       if (g.error || p.error) return setError((g.error ?? p.error)!.message);
       // игроки индивидуальных и вратарских платят за занятия, а не абонементом
-      const gs = ((g.data ?? []) as Group[]).filter(x => x.name.trim().toLowerCase() !== 'индивидуальные / вратарские');
+      const gs = ((g.data ?? []) as Group[]).filter(x => hasSubscription(x.name));
       setGroups(sortGroups(gs));
       setPrices(((p.data ?? []) as Price[]).map(x => ({ ...x, amount: Number(x.amount) })));
     })();

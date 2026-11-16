@@ -279,3 +279,34 @@ describe('Родитель: ошибки загрузки (условие 56)', 
     expect(await screen.findByText('Зимний лагерь')).toBeInTheDocument();
   });
 });
+
+describe('Родитель: кнопка «Назад» (правка 1, docs/UI_FIXES_2026-11-16_ACCEPTANCE.md)', () => {
+  const tg = (on: boolean) => {
+    const w = window as unknown as { Telegram?: unknown };
+    if (on) w.Telegram = { WebApp: { initData: 'query_id=1', BackButton: { show() {}, hide() {}, onClick() {}, offClick() {} }, themeParams: {} } };
+    else delete w.Telegram;
+  };
+  it('в Telegram своих кнопок «Назад» нет ни в списке, ни в карточке', async () => {
+    seed();
+    tg(true);
+    try {
+      render(<ParentCamps onBack={() => undefined} />);
+      expect(await screen.findByText('Зимний лагерь')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Назад|Сборы/ })).toBeNull();
+      fireEvent.click(screen.getByText('Зимний лагерь'));
+      await screen.findByRole('heading', { name: 'Зимний лагерь' });
+      expect(screen.queryByRole('button', { name: /Назад|← Сборы/ })).toBeNull();
+    } finally { tg(false); }
+  });
+  it('в браузере одна кнопка «Назад» и в списке, и в карточке', async () => {
+    seed();
+    tg(false);
+    render(<ParentCamps onBack={() => undefined} />);
+    expect(await screen.findByText('Зимний лагерь')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Назад' })).toHaveLength(1);
+    fireEvent.click(screen.getByText('Зимний лагерь'));
+    await screen.findByRole('heading', { name: 'Зимний лагерь' });
+    expect(screen.getAllByRole('button', { name: 'Назад' })).toHaveLength(1);
+    expect(screen.queryByText('← Сборы')).toBeNull();
+  });
+});

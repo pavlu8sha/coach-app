@@ -180,7 +180,7 @@ function Camp({ cabinet }: { cabinet?: boolean }) {
       <CoverBanner id="camp" title={C.title} sub={`${C.short} · ${C.groups}`} photo="camp-hero" />
       {cabinet && (
         <button type="button" className="ks-btn" style={{ marginBottom: 12 }} onClick={() => nav.push('ab.camps')}>
-          Записаться / мои сборы
+          Записаться
         </button>
       )}
       <Card>
@@ -246,8 +246,8 @@ function Camp({ cabinet }: { cabinet?: boolean }) {
         {photo('camp-team', 'Участники Winter Camp')}
         <h2 className="ks-h">{C.cta.title}</h2>
         <p className="ks-lead">{C.short}</p>
-        <a className="ks-btn" href={ADMIN_CHAT} target="_blank" rel="noreferrer">{C.cta.open} · {C.chat}</a>
         <p className="ks-hint">{C.cta.note}</p>
+        <p className="ks-hint"><a href={ADMIN_CHAT} target="_blank" rel="noreferrer">Остались вопросы? Написать администратору</a></p>
       </Card>
     </>
   );
