@@ -172,17 +172,17 @@ select is((select count(*)::int from points_ledger where source_id = '00000000-0
 select as_user('00000000-0000-0000-0000-0000000000a1');
 select session_guest_add('00000000-0000-0000-0000-0000000005a1', '00000000-0000-0000-0000-00000000d002');
 select session_guest_set_paid('00000000-0000-0000-0000-0000000005a1', '00000000-0000-0000-0000-00000000d002', true, 'Перевод', null, '2026-11-02');
-select is((select count(*)::int from jsonb_array_elements(cash_report('2026-11-02', '2026-11-02') -> 'rows') r where r ->> 'kind' = 'Разовое посещение'), 3, 'У8: в кассовом отчёте три строки (оплата, минус, новая оплата)');
+select is((select count(*)::int from jsonb_array_elements(cash_report('2026-11-02', '2026-11-02') -> 'rows') r where r ->> 'kind' = 'Доп. посещение'), 3, 'У8: в кассовом отчёте три строки (оплата, минус, новая оплата)');
 select is((cash_report('2026-11-02', '2026-11-02', 'Чиовани') ->> 'total')::numeric, 15.00::numeric, 'У8: итог за день: 15 − 15 + 15 = 15, локация из группы занятия');
-select is((select r ->> 'location' from jsonb_array_elements(cash_report('2026-11-02', '2026-11-02') -> 'rows') r where r ->> 'kind' = 'Разовое посещение' limit 1), 'Чиовани', 'У8: локация посещения — локация группы занятия');
-select is((select count(*)::int from jsonb_array_elements(cash_day_service('2026-11-02')) r where r ->> 'what' = 'Разовое посещение'), 3, 'У8: «Внесено за день» показывает разовое посещение');
+select is((select r ->> 'location' from jsonb_array_elements(cash_report('2026-11-02', '2026-11-02') -> 'rows') r where r ->> 'kind' = 'Доп. посещение' limit 1), 'Чиовани', 'У8: локация посещения — локация группы занятия');
+select is((select count(*)::int from jsonb_array_elements(cash_day_service('2026-11-02')) r where r ->> 'what' = 'Доп. посещение'), 3, 'У8: «Внесено за день» показывает разовое посещение');
 select as_user('00000000-0000-0000-0000-0000000000a2');
-select is((select count(*)::int from jsonb_array_elements(cash_report('2026-11-02', '2026-11-02') -> 'rows') r where r ->> 'kind' = 'Разовое посещение'), 0, 'У8: локальный админ чужие (не им принятые) оплаты не видит');
+select is((select count(*)::int from jsonb_array_elements(cash_report('2026-11-02', '2026-11-02') -> 'rows') r where r ->> 'kind' = 'Доп. посещение'), 0, 'У8: локальный админ чужие (не им принятые) оплаты не видит');
 reset role;
 
 -- У9: родитель
 select as_user('00000000-0000-0000-0000-0000000000b1');
-select is((select title from parent_calendar('00000000-0000-0000-0000-00000000d002', '2026-11-01', '2026-11-10') where event_id = 'guest:00000000-0000-0000-0000-0000000005a1'), 'Разовое посещение: U9-B', 'У9: календарь гостя показывает разовое посещение с группой');
+select is((select title from parent_calendar('00000000-0000-0000-0000-00000000d002', '2026-11-01', '2026-11-10') where event_id = 'guest:00000000-0000-0000-0000-0000000005a1'), 'Доп. посещение: U9-B', 'У9: календарь гостя показывает разовое посещение с группой');
 select is((select attendance_status from parent_calendar('00000000-0000-0000-0000-00000000d002', '2026-11-01', '2026-11-10') where event_id = 'guest:00000000-0000-0000-0000-0000000005a1'), 'present', 'У9: отметка «был»');
 select ok(exists (select 1 from parent_dues() where kind = 'visit' and on_date = '2026-11-02' and due = 15 and paid = 15 and debt = 0 and player_id = '00000000-0000-0000-0000-00000000d002'), 'У9: в оплатах родителя строка visit: к оплате 15, внесено 15, долга нет');
 select ok(exists (select 1 from parent_dues() where kind = 'visit' and on_date = '2026-11-05' and due = 20 and paid = 0 and debt = 20), 'У9: неоплаченное посещение — долг 20');

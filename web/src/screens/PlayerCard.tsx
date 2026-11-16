@@ -7,6 +7,7 @@ import { BackNav } from '../ui/nav';
 import { useNavState } from '../nav';
 import { PlayerDues } from './CashDesk';
 import PlayerStatusPanel from './PlayerStatusPanel';
+import PlayerPayMode from './PlayerPayMode';
 import { Failure, Loading } from './Message';
 import { EquipmentTab, MatchesTab, PointsTab, SessionsTab } from './PlayerCardTabs';
 import { DEBT_START } from '../lib/debtSeason';
@@ -101,6 +102,7 @@ export default function PlayerCard({ player, onBack, onEdit, onStatus, managed }
         </div>
       </div>
       <PlayerStatusPanel playerId={player.id} status={status} externalId={player.external_id} onChanged={st => { setStatus(st); onStatus?.(st); }} />
+      <PlayerPayMode playerId={player.id} />
       <button type="button" className="ks-btn secondary" onClick={onEdit}>Изменить данные</button>
 
       <Segmented label="Раздел карточки" value={tab} onChange={setTab} items={[
