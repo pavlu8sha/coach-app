@@ -34,6 +34,7 @@ function query(table: string): any {
   const orders: { c: string; asc: boolean }[] = [];
   let op: Call['kind'] | 'select' = 'select';
   let payload: any;
+  let returning = false;
   let lim = Infinity, from = 0, to = Infinity, single = false;
 
   const run = () => {
@@ -45,8 +46,9 @@ function query(table: string): any {
     const rowsOf = (p: any) => (Array.isArray(p) ? p : [p]);
     if (op === 'insert') {
       fake.calls.push({ kind: 'insert', name: table, args: payload });
-      fake.db[table] = [...rows, ...rowsOf(payload)];
-      return { data: null, error: null };
+      const inserted = rowsOf(payload).map((r: any) => ({ id: r.id ?? `fake-${Math.random().toString(36).slice(2)}`, ...r }));
+      fake.db[table] = [...rows, ...inserted];
+      return { data: returning ? (single ? inserted[0] ?? null : inserted) : null, error: null };
     }
     if (op === 'upsert') {
       fake.calls.push({ kind: 'upsert', name: table, args: payload });
@@ -68,7 +70,7 @@ function query(table: string): any {
   };
 
   const q: any = { then: (res: any, rej: any) => Promise.resolve(run()).then(res, rej) };
-  q.select = () => q;
+  q.select = () => { if (op === 'insert' || op === 'update' || op === 'upsert') returning = true; return q; };
   q.insert = (p: any) => ((op = 'insert'), (payload = p), q);
   q.upsert = (p: any) => ((op = 'upsert'), (payload = p), q);
   q.update = (p: any) => ((op = 'update'), (payload = p), q);

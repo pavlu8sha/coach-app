@@ -4,7 +4,7 @@ import { DEBT_START } from '../lib/debtSeason';
 import { fake } from '../test/fakeSupabase';
 import PlayerCard from './PlayerCard';
 
-const player = { id: 'p1', full_name: 'Иванов Пётр', birth_date: '2017-03-10', group_id: 'g1', status: 'active' as const, external_id: 'KS-001', group_name: 'U9-A' };
+const player = { id: 'p1', full_name: 'Иванов Пётр', first_name: null, last_name: null, primary_position: null, jersey_number: null, jersey_team: null, jersey_season_start: null, birth_date: '2017-03-10', group_id: 'g1', status: 'active' as const, external_id: 'KS-001', group_name: 'U9-A' };
 function seed() {
   fake.db.prices = [{ group_id: null, kind: 'subscription', amount: 165, valid_from: '2026-09-01', valid_to: null }];
   fake.db.payments = [];
