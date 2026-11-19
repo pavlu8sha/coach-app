@@ -5,6 +5,7 @@ import AdminArticles from './AdminArticles';
 import AdminPrices from './AdminPrices';
 import Admin from './Admin';
 import Camps from './Camps';
+import ClubEvents from './ClubEvents';
 import ClubSettings from './ClubSettings';
 import Coaches from './Coaches';
 import CoachMatches from './CoachMatches';
@@ -31,6 +32,7 @@ export default function AdminSection({ id, groups, onMenuChanged }: { id: Sectio
     case 'players': return <Players />;
     case 'money': return <Money />;
     case 'cmatches': return <CoachMatches groups={groups} admin />;
+    case 'clubevents': return <ClubEvents />;
     case 'requests': return <Admin />;
     case 'ind': return <Individual />;
     case 'extra': return <Extra />;
