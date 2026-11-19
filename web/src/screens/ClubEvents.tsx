@@ -16,27 +16,32 @@ type Group = { id: string; name: string };
 
 // «Мероприятия» (Issue #677, этап 4): платные мероприятия клуба. Отдельный раздел, с разделом «События» (матчи, взносы) ничего общего нет.
 // Деньги, статусы и ограничения считает и проверяет база; экран показывает ответ и не доверяет собственным расчётам при записи платежа.
+// Данные открытых экранов хранятся здесь: при переходе вперёд и назад экран сразу показывает прежние данные и тихо обновляет их (без мигания «Загрузка»).
+interface Cache { rows: ClubEvent[] | null; ev: Map<string, { ev: ClubEvent; parts: Participant[] }> }
+
 export default function ClubEvents() {
   const nav = useNav();
+  const cache = useRef<Cache>({ rows: null, ev: new Map() }).current;
   const [ver, setVer] = useState(0);
   const bump = () => setVer(v => v + 1);
-  if (nav.top.screen === 'ce.form') return <EventForm id={nav.top.params.id ?? null} onBack={() => nav.back()} onDone={() => { nav.back(); bump(); }} />;
+  if (nav.top.screen === 'ce.form') return <EventForm id={nav.top.params.id ?? null} cache={cache} onBack={() => nav.back()} onDone={() => { nav.back(); bump(); }} />;
   const index = nav.entries.findIndex(e => e.screen === 'ce.event');
-  if (index >= 0) return <EventView key={nav.entries[index].params.id} id={nav.entries[index].params.id} index={index} ver={ver} onBack={() => { nav.back(); bump(); }} />;
-  return <EventList ver={ver} />;
+  if (index >= 0) return <EventView key={nav.entries[index].params.id} id={nav.entries[index].params.id} index={index} ver={ver} cache={cache} onBack={() => { nav.back(); bump(); }} />;
+  return <EventList ver={ver} cache={cache} />;
 }
 
-function EventList({ ver }: { ver: number }) {
+function EventList({ ver, cache }: { ver: number; cache: Cache }) {
   const nav = useNav();
-  const [rows, setRows] = useState<ClubEvent[] | null>(null);
+  const [rows, setRows] = useState<ClubEvent[] | null>(cache.rows);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   useEffect(() => {
     void supabase.rpc('club_event_list').then((r: { data: unknown; error: { message: string } | null }) => {
       if (r.error) return setError(clubEventErr(r.error.message));
-      setRows((r.data ?? []) as ClubEvent[]);
+      cache.rows = (r.data ?? []) as ClubEvent[];
+      setRows(cache.rows);
     });
-  }, [ver, reload]);
+  }, [ver, reload, cache]);
   if (error) return <Failure title="Не удалось загрузить мероприятия" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   return (
     <main className="page">
@@ -62,8 +67,8 @@ function EventList({ ver }: { ver: number }) {
 
 interface FormState { name: string; description: string; date: string; time: string; place: string; price: string; deadline: string; capacity: string; groups: string[]; status: 'draft' | 'active'; reason: string }
 
-function EventForm({ id, onBack, onDone }: { id: string | null; onBack: () => void; onDone: () => void }) {
-  const [ev, setEv] = useState<ClubEvent | null>(null);
+function EventForm({ id, cache, onBack, onDone }: { id: string | null; cache: Cache; onBack: () => void; onDone: () => void }) {
+  const [ev, setEv] = useState<ClubEvent | null>(id ? cache.ev.get(id)?.ev ?? null : null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     if (!id) return;
@@ -146,8 +151,9 @@ function EventFormBody({ ev, onBack, onDone }: { ev: ClubEvent | null; onBack: (
       <fieldset style={{ border: 0, padding: 0, margin: '12px 0 0' }}>
         <legend className="muted" style={{ fontSize: 13 }}>Для групп (пусто — весь клуб)</legend>
         {groups.map(g => (
-          <label key={g.id} style={{ display: 'flex', gap: 8, alignItems: 'center', minHeight: 44 }}>
-            <input type="checkbox" checked={f.groups.includes(g.id)} onChange={() => toggle(g.id)} /> {g.name}
+          <label key={g.id} className="ks-check">
+            <input type="checkbox" checked={f.groups.includes(g.id)} onChange={() => toggle(g.id)} />
+            <span>{g.name}</span>
           </label>
         ))}
       </fieldset>
@@ -161,12 +167,12 @@ function EventFormBody({ ev, onBack, onDone }: { ev: ClubEvent | null; onBack: (
 
 type Tab = 'people' | 'finance';
 
-function EventView({ id, index, ver, onBack }: { id: string; index: number; ver: number; onBack: () => void }) {
+function EventView({ id, index, ver, cache, onBack }: { id: string; index: number; ver: number; cache: Cache; onBack: () => void }) {
   const nav = useNav();
   const [tab, setTab] = useNavState<Tab>('ce.tab', 'people', { entry: index, persist: { kind: 'enum', values: ['people', 'finance'] } });
   const [rec, setRec] = useState<'active' | 'cancelled'>('active');
-  const [ev, setEv] = useState<ClubEvent | null>(null);
-  const [parts, setParts] = useState<Participant[] | null>(null);
+  const [ev, setEv] = useState<ClubEvent | null>(cache.ev.get(id)?.ev ?? null);
+  const [parts, setParts] = useState<Participant[] | null>(cache.ev.get(id)?.parts ?? null);
   const [error, setError] = useState<string | null>(null);
   const [actErr, setActErr] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -175,10 +181,12 @@ function EventView({ id, index, ver, onBack }: { id: string; index: number; ver:
   useEffect(() => {
     void Promise.all([supabase.rpc('club_event_get', { p_id: id }), supabase.rpc('club_event_participants_list', { p_event: id })]).then(([e, p]: { data: unknown; error: { message: string } | null }[]) => {
       if (e.error || p.error) return setError(clubEventErr((e.error ?? p.error)!.message));
-      setEv(e.data as ClubEvent);
-      setParts((p.data ?? []) as Participant[]);
+      const entry = { ev: e.data as ClubEvent, parts: (p.data ?? []) as Participant[] };
+      cache.ev.set(id, entry);
+      setEv(entry.ev);
+      setParts(entry.parts);
     });
-  }, [id, ver, reload]);
+  }, [id, ver, reload, cache]);
   const refresh = () => setReload(n => n + 1);
 
   if (error) return <Failure title="Не удалось загрузить мероприятие" text={error} onRetry={() => { setError(null); refresh(); }} back={<BackNav onBack={onBack} managed />} />;
@@ -203,6 +211,18 @@ function EventView({ id, index, ver, onBack }: { id: string; index: number; ver:
     refresh();
   };
 
+  // Черновик без участников можно скрыть (миграция 0211, UI20): строка и журнал в базе остаются
+  const canDelete = ev.status === 'draft' && parts.length === 0;
+  const deleteDraft = async () => {
+    if (!(await ask({ title: 'Удалить черновик?', lines: [['Мероприятие', ev.name]], note: 'Мероприятие исчезнет из списка. История изменений сохранится.', confirmLabel: 'Удалить', danger: true }))) return;
+    setActErr(null);
+    const r = await supabase.rpc('club_event_delete_draft', { p_id: ev.id });
+    if (r.error) return setActErr(clubEventErr(r.error.message));
+    cache.rows = cache.rows?.filter(x => x.id !== ev.id) ?? null;
+    cache.ev.delete(ev.id);
+    onBack();
+  };
+
   const shown = parts.filter(p => p.status === rec);
   const debtors = parts.filter(p => num(p.debt) > 0);
   const fin = ev.finance;
@@ -221,6 +241,7 @@ function EventView({ id, index, ver, onBack }: { id: string; index: number; ver:
         {ev.status === 'active' && <button type="button" className="ks-btn secondary" onClick={() => void setStatus('cancelled')}>Отменить</button>}
         {ev.status === 'cancelled' && <button type="button" className="ks-btn" onClick={() => void setStatus('active')}>Активировать снова</button>}
         <button type="button" className="ks-btn secondary" onClick={() => nav.push('ce.form', { id: ev.id })}>Редактировать</button>
+        {canDelete && <button type="button" className="ks-btn secondary" onClick={() => void deleteDraft()}>Удалить черновик</button>}
       </div>
       {actErr && <p className="error">{actErr}</p>}
       {dialog}
