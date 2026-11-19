@@ -175,5 +175,29 @@ describe('«Игроки»', () => {
       fireEvent.change(sel, { target: { value: 'g1' } });
       expect(document.activeElement).toBe(sel);
     });
+
+    it('Tab и Shift+Tab не выходят из окна; после закрытия фокус возвращается на «Фильтры»', async () => {
+      seed();
+      render(<Players />);
+      await screen.findByText('Amodeo Nolan');
+      const opener = screen.getByRole('button', { name: 'Фильтры' });
+      opener.focus();
+      fireEvent.click(opener);
+      const dlg = screen.getByRole('dialog');
+      const show = within(dlg).getByRole('button', { name: /^Показать/ });
+      const reset = within(dlg).getByRole('button', { name: 'Сбросить' });
+      expect(document.activeElement).toBe(show);
+      expect(fireEvent.keyDown(show, { key: 'Tab' })).toBe(false); // последний элемент: уходит на первый
+      expect(document.activeElement).toBe(reset);
+      expect(fireEvent.keyDown(reset, { key: 'Tab', shiftKey: true })).toBe(false); // первый: уходит на последний
+      expect(document.activeElement).toBe(show);
+      fireEvent.click(show);
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(document.activeElement).toBe(opener);
+      opener.focus();
+      fireEvent.click(opener);
+      fireEvent.keyDown(window, { key: 'Escape' });
+      expect(document.activeElement).toBe(opener);
+    });
   });
 });
