@@ -350,6 +350,10 @@ declare pid uuid;
 begin
   perform eq_assert_admin();
   pid := eq_lock_player_of_order(o);
+  -- Порядок блокировок «игрок, затем заказ». Заказ блокируем до проверок: параллельная оплата (eq_add_payment) держит блокировку заказа,
+  -- и после её завершения проверки ниже видят уже оплаченный заказ, а не устаревшее состояние.
+  perform 1 from equipment_orders where id = o for update;
+  if not found then raise exception 'order not found' using errcode = 'P0002'; end if;
   if exists (select 1 from equipment_orders where id = o and source = 'parent') then raise exception 'parent order' using errcode = '22023'; end if;
   if exists (select 1 from equipment_order_events where order_id = o) then raise exception 'order has events' using errcode = '22023'; end if;
   if exists (select 1 from equipment_orders where id = o and paid > 0) then raise exception 'order has payments' using errcode = '22023'; end if;
