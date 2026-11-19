@@ -65,8 +65,10 @@ preflight_partial "без 0204, 0210 и 0211" '0204_club_event_participants|0210
 preflight_partial "без 0210 и 0211" '0210_club_event_payments|0211_club_event_delete_draft' 0210_club_event_payments 0211_club_event_delete_draft
 preflight_partial "без 0211" '0211_club_event_delete_draft' 0211_club_event_delete_draft
 # 0207 (шаг 2c) проверяет отметку freeze_2c в таблице equipment_bundle_steps: на базе без 0205 таблицы нет, preflight не должен падать.
-preflight_partial "без 0207" '0207_eq_freeze_2c' 0207_eq_freeze_2c
-preflight_partial "без 0205 и 0207" '0205_eq_bundle_model|0207_eq_freeze_2c' 0205_eq_bundle_model 0207_eq_freeze_2c
+# 0208 требует 0205 и 0207 (отметка freeze_2c), поэтому в «без 0207» и «без 0205 и 0207» её тоже пропускаем.
+preflight_partial "без 0207 и 0208" '0207_eq_freeze_2c|0208_eq_auto_recalc' 0207_eq_freeze_2c 0208_eq_auto_recalc
+preflight_partial "без 0205, 0207 и 0208" '0205_eq_bundle_model|0207_eq_freeze_2c|0208_eq_auto_recalc' 0205_eq_bundle_model 0207_eq_freeze_2c 0208_eq_auto_recalc
+preflight_partial "без 0208" '0208_eq_auto_recalc' 0208_eq_auto_recalc
 for t in db/tests/*_test.sql; do
   echo "== $t"
   out=$($PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f "$t" 2>&1) || { echo "$out"; fail=1; continue; }
@@ -89,14 +91,17 @@ echo "== db/tests/concurrency_consent_record.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_consent_record.sh || fail=1
 echo "== db/tests/concurrency_consent_claim.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_consent_claim.sh || fail=1
+# Цикл 2c проверяет откат 0207 «до пересчётов»: идёт до скриптов, создающих заказы (с 0208 их создание оставляет запуски расчёта).
+echo "== db/tests/eq_freeze_2c_cycle.sh"
+DB_NAME="$DB" PSQL="$PSQL" db/tests/eq_freeze_2c_cycle.sh || fail=1
 echo "== db/tests/concurrency_eq_payments.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_eq_payments.sh || fail=1
 echo "== db/tests/concurrency_eq_create_order.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_eq_create_order.sh || fail=1
-echo "== db/tests/eq_freeze_2c_cycle.sh"
-DB_NAME="$DB" PSQL="$PSQL" db/tests/eq_freeze_2c_cycle.sh || fail=1
 echo "== db/tests/concurrency_eq_bundle_recalc.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_eq_bundle_recalc.sh || fail=1
+echo "== db/tests/concurrency_eq_auto_recalc.sh"
+DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_eq_auto_recalc.sh || fail=1
 echo "== db/tests/atomic_0188.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/atomic_0188.sh || fail=1
 echo "== db/tests/concurrency_club_event_seats.sh"

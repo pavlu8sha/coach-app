@@ -1,7 +1,7 @@
 -- pgTAP: экипировка для администратора (0036).
 begin;
 create extension if not exists pgtap;
-select plan(27);
+select plan(28);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -56,9 +56,15 @@ select throws_ok($$select eq_set_issued((select id from oid_t), 'Шапка', tr
 select throws_ok($$select eq_delete_order((select id from oid_t))$$, '22023', 'order has payments', 'заказ с оплатой удалить нельзя');
 
 select eq_reverse_payment((select id from service_payments where kind = 'equipment' and amount = 100 and ref_id = (select id from oid_t)), 'исправление', null);
-select throws_ok($$select eq_delete_order((select id from oid_t))$$, '22023', 'order has issues', 'заказ с выдачей удалить нельзя');
+select throws_ok($$select eq_delete_order((select id from oid_t))$$, '22023', 'order has payments', 'заказ с полностью сторнированной оплатой не удаляется: журнал сохраняет связь с заказом (0208)');
 select eq_set_issued((select id from oid_t), 'Форма', false);
-select lives_ok($$select eq_delete_order((select id from oid_t))$$, 'без оплат и выдач заказ удаляется');
+create temp table oid3_t (id uuid);
+grant all on oid3_t to authenticated;
+insert into oid3_t select eq_create_order('00000000-0000-0000-0000-00000000d001', '[{"kit":"Форма","size":"128"}]'::jsonb, null, null, false, null);
+select eq_set_issued((select id from oid3_t), 'Форма', true, 'Павел');
+select throws_ok($$select eq_delete_order((select id from oid3_t))$$, '22023', 'order has issues', 'заказ с выдачей удалить нельзя');
+select eq_set_issued((select id from oid3_t), 'Форма', false);
+select lives_ok($$select eq_delete_order((select id from oid3_t))$$, 'без оплат и выдач заказ удаляется');
 
 -- 0125: правка строк заказа
 insert into oid2_t select eq_create_order('00000000-0000-0000-0000-00000000d001', '[{"kit":"Форма","size":"128"},{"kit":"Куртка","size":"128"}]'::jsonb, null, null, false, null);
