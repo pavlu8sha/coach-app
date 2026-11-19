@@ -60,4 +60,28 @@ if [ "$exists_o" = 0 ] && [ "$pays" != 0 ]; then bad "заказ удалён, �
 elif [ "$exists_o" = 1 ] && grep -q "order has payments" "$T/del.out"; then ok "удаление отклонено после записи оплаты, заказ и оплата на месте"
 elif [ "$exists_o" = 0 ] && [ "$pays" = 0 ]; then ok "заказ удалён до оплаты, оплата отклонена"
 else bad "неожиданный исход: заказ $exists_o, оплат $pays"; cat "$T/del.out" "$T/pay.out"; fi
+
+# Порядок блокировок оплаты и удаления (повторное замечание ревью PR #738): оплата и удаление одного заказа стартуют почти одновременно,
+# со сдвигом 0..3 мс; deadlock быть не должно, оплата без заказа не остаётся. Двадцать заказов, у каждого свой сдвиг.
+DL=0; OXS=""
+for i in $(seq 1 20); do
+  k=$(printf '%02d' "$i")
+  OX=$( { as; echo "select eq_create_order('$PL', '[{\"kit\":\"Дождевик\"}]'::jsonb, null, null, false, null, null, '00000000-0000-0000-0000-00000652d1$k');"; } | $PSQL -q -t -A -d "$DB" | tail -1)
+  OXS="$OXS $OX"
+  at=$(python3 -c "import time; print(time.time() + 0.6)")
+  off=$(python3 -c "print(($i % 4) * 0.001)")
+  { as; echo "select pg_sleep(greatest(0, $at - extract(epoch from clock_timestamp()))); select eq_add_payment('$OX', 5, null, 'Наличные');"; } > "$T/lp$i.sql"
+  { as; echo "select pg_sleep(greatest(0, $at + $off - extract(epoch from clock_timestamp()))); select eq_delete_order('$OX');"; } > "$T/ld$i.sql"
+  $PSQL -q -t -A -d "$DB" -f "$T/lp$i.sql" > "$T/lp$i.out" 2>&1 &
+  $PSQL -q -t -A -d "$DB" -f "$T/ld$i.sql" > "$T/ld$i.out" 2>&1 &
+  wait
+  grep -qi "deadlock" "$T/lp$i.out" "$T/ld$i.out" && DL=$((DL + 1))
+done
+[ "$DL" = 0 ] && ok "оплата и удаление одного заказа (20 пар со сдвигом): взаимных блокировок нет" || bad "взаимных блокировок: $DL"
+orph=0
+for o in $OXS; do
+  e=$(q -c "select count(*) from equipment_orders where id = '$o'"); pc=$(q -c "select count(*) from service_payments where kind = 'equipment' and ref_id = '$o'")
+  [ "$e" = 0 ] && [ "$pc" != 0 ] && orph=$((orph + 1))
+done
+[ "$orph" = 0 ] && ok "нет удалённых заказов с записью оплаты" || bad "заказов удалено с оплатой: $orph"
 exit $fail

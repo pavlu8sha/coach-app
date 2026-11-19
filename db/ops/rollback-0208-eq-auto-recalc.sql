@@ -326,4 +326,80 @@ revoke execute on function eq_create_order(uuid, jsonb, text, text, boolean, tex
 grant execute on function eq_create_order(uuid, jsonb, text, text, boolean, text, numeric, uuid), eq_edit_order(uuid, text, text, boolean, text, numeric),
   eq_edit_line(uuid, text, int), eq_add_line(uuid, text, text, int), eq_delete_line(uuid), eq_set_order_date(uuid, date), eq_delete_order(uuid),
   eq_cancel_order(uuid, text), eq_restore_order(uuid, text) to authenticated;
+-- Порядок блокировок оплат возвращается к телу 0188.
+create or replace function eq_add_payment(o uuid, amt numeric, d date default null, mth text default null, req uuid default null) returns numeric
+language plpgsql security definer set search_path = public as $$
+declare eo equipment_orders; ex service_payments; uid uuid := current_user_id();
+begin
+  if not (is_admin() or has_location_admin()) then raise exception 'forbidden' using errcode = '42501'; end if;
+  select * into eo from equipment_orders where id = o for update;
+  if not found then raise exception 'order not found' using errcode = 'P0002'; end if;
+  if not is_admin() and not is_location_admin(eo.location) then raise exception 'forbidden' using errcode = '42501'; end if;
+  if amt is null or amt = 0 then raise exception 'bad amount' using errcode = '22023'; end if;
+  if amt < 0 then raise exception 'use reversal or refund' using errcode = '22023'; end if;
+  if req is not null then
+    select * into ex from service_payments where recorded_by = uid and request_id = req;
+    if found then
+      if ex.kind = 'equipment' and ex.ref_id = o and ex.amount = amt and ex.op = 'payment' then return eo.paid; end if;
+      raise exception 'request id reused' using errcode = '22023';
+    end if;
+  end if;
+  if eo.status = 'cancelled' then raise exception 'order cancelled' using errcode = '22023'; end if;
+  if d is not null and d > tbilisi_day(now()) then raise exception 'bad date' using errcode = '22023'; end if;
+  perform service_method_ok(mth);
+  if eo.paid + amt > eo.total then raise exception 'paid above total' using errcode = '22023'; end if;
+  insert into service_payments (kind, ref_id, player_id, amount, paid_on, method, op, request_id)
+  values ('equipment', o, eo.player_id, amt, coalesce(d, tbilisi_day(now())), trim(mth), 'payment', req);
+  return (select paid from equipment_orders where id = o);
+end $$;
+
+create or replace function eq_reverse_payment(pid uuid, note text, req uuid default null) returns numeric
+language plpgsql security definer set search_path = public as $$
+declare orig service_payments; eo equipment_orders; ex service_payments; uid uuid := current_user_id();
+begin
+  perform eq_assert_admin();
+  select * into orig from service_payments where id = pid;
+  if not found then raise exception 'payment not found' using errcode = 'P0002'; end if;
+  if orig.kind <> 'equipment' or orig.op <> 'payment' then raise exception 'not a payment' using errcode = '22023'; end if;
+  select * into eo from equipment_orders where id = orig.ref_id for update;
+  if not found then raise exception 'order not found' using errcode = 'P0002'; end if;
+  if req is not null then
+    select * into ex from service_payments where recorded_by = uid and request_id = req;
+    if found then
+      if ex.cancels = pid then return eo.paid; end if;
+      raise exception 'request id reused' using errcode = '22023';
+    end if;
+  end if;
+  if nullif(trim(note), '') is null then raise exception 'note required' using errcode = '22023'; end if;
+  if exists (select 1 from service_payments where cancels = pid) then raise exception 'already reversed' using errcode = '22023'; end if;
+  if eo.paid - orig.amount < 0 then raise exception 'paid below zero' using errcode = '22023'; end if;
+  insert into service_payments (kind, ref_id, player_id, amount, paid_on, method, cancels, op, note, request_id)
+  values ('equipment', orig.ref_id, orig.player_id, -orig.amount, tbilisi_day(now()), orig.method, pid, 'reversal', trim(note), req);
+  return (select paid from equipment_orders where id = orig.ref_id);
+end $$;
+
+create or replace function eq_refund(o uuid, amt numeric, d date default null, mth text default null, note text default null, req uuid default null) returns numeric
+language plpgsql security definer set search_path = public as $$
+declare eo equipment_orders; ex service_payments; uid uuid := current_user_id();
+begin
+  perform eq_assert_admin();
+  select * into eo from equipment_orders where id = o for update;
+  if not found then raise exception 'order not found' using errcode = 'P0002'; end if;
+  if amt is null or amt <= 0 then raise exception 'bad amount' using errcode = '22023'; end if;
+  if req is not null then
+    select * into ex from service_payments where recorded_by = uid and request_id = req;
+    if found then
+      if ex.kind = 'equipment' and ex.ref_id = o and ex.amount = -amt and ex.op = 'refund' then return eo.paid; end if;
+      raise exception 'request id reused' using errcode = '22023';
+    end if;
+  end if;
+  if nullif(trim(note), '') is null then raise exception 'note required' using errcode = '22023'; end if;
+  if d is not null and d > tbilisi_day(now()) then raise exception 'bad date' using errcode = '22023'; end if;
+  perform service_method_ok(mth);
+  if amt > eo.paid then raise exception 'refund above paid' using errcode = '22023'; end if;
+  insert into service_payments (kind, ref_id, player_id, amount, paid_on, method, op, note, request_id)
+  values ('equipment', o, eo.player_id, -amt, coalesce(d, tbilisi_day(now())), trim(mth), 'refund', trim(note), req);
+  return (select paid from equipment_orders where id = o);
+end $$;
+
 commit;
