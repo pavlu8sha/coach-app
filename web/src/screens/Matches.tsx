@@ -50,6 +50,7 @@ export default function Matches() {
   const [myTours, setMyTours] = useState<MyTour[]>([]); // турниры ребёнка, в том числе без матчей
   const [tour, setTour] = useNavState('pm.tour', ''); // название турнира на диск не пишем
   const [reload, setReload] = useState(0);
+  const [rsvpFailed, setRsvpFailed] = useState(false); // загрузка подтверждений не удалась (#737): это не «подтверждений нет»
   const [rsvp, setRsvp] = useState<MyRsvp[]>([]); // матчи с подтверждением участия (миграция 0134); без неё список пуст
   const [rsvpScored, setRsvpScored] = useState<Set<string>>(new Set()); // матчи с подтверждением, у которых внесён счёт
   const [durations, setDurations] = useState<{ values: SettingValues; scoped: ScopedValues }>({ values: {}, scoped: {} }); // длительность матча из настроек клуба (0168)
@@ -75,6 +76,7 @@ export default function Matches() {
       for (const r of (mp.data ?? []) as { match_id: string; player_id: string; played: boolean; goals: number }[]) map.set(`${r.match_id}|${r.player_id}`, { played: r.played, goals: r.goals });
       setParts(map);
       const rs = await supabase.rpc('match_rsvp_my_matches');
+      setRsvpFailed(Boolean(rs.error)); // ошибку не выдаём за пустой список: ниже показывается блок с повтором
       const rsRows = rs.error ? [] : ((rs.data ?? []) as MyRsvp[]);
       setRsvp(rsRows);
       // счёт прошедших матчей с подтверждением: без него статус «Прошёл» не определить
@@ -157,6 +159,15 @@ export default function Matches() {
           Группа ещё не назначена: {nameList}. Матчи появятся после назначения группы.
         </p>
       )}
+      {rsvpFailed && (
+        <div className="ks-card" role="alert">
+          <b>Не удалось загрузить подтверждения участия</b>
+          <p className="muted note">Матчи ниже показаны без запросов на подтверждение. Это не значит, что отвечать не нужно: повторите загрузку.</p>
+          <button type="button" className="ks-btn secondary" onClick={() => setReload(n => n + 1)}>
+            Повторить
+          </button>
+        </div>
+      )}
       <Segmented
         label="Фильтр матчей"
         value={filter}
@@ -205,7 +216,7 @@ export default function Matches() {
           {upcoming.map(m => (
             <ListRow key={m.id} title={m.opponent ?? 'Соперник уточняется'} sub={[sub(m), ...lines(m)]} end={<Pill tone="primary">Предстоит</Pill>} />
           ))}
-          {filter === 'upcoming' && upcoming.length === 0 && !hasRsvpUpcoming && <EmptyState icon="trophy" title="Нет ближайших матчей" text="Когда матч появится в расписании группы, он будет здесь." />}
+          {filter === 'upcoming' && upcoming.length === 0 && !hasRsvpUpcoming && !rsvpFailed && <EmptyState icon="trophy" title="Нет ближайших матчей" text="Когда матч появится в расписании группы, он будет здесь." />}
         </>
       )}
 
@@ -240,11 +251,11 @@ export default function Matches() {
               })}
             </details>
           ))}
-          {filter === 'past' && played.length === 0 && !hasRsvpPast && <EmptyState icon="trophy" title="Нет результатов" text="Сыгранных матчей пока нет." />}
+          {filter === 'past' && played.length === 0 && !hasRsvpPast && !rsvpFailed && <EmptyState icon="trophy" title="Нет результатов" text="Сыгранных матчей пока нет." />}
         </>
       )}
 
-      {filter === 'all' && upcoming.length === 0 && played.length === 0 && eventCards.length === 0 && !rsvp.length && <EmptyState icon="trophy" title="Матчей пока нет" text="Ближайшие матчи и результаты появятся здесь." />}
+      {filter === 'all' && upcoming.length === 0 && played.length === 0 && eventCards.length === 0 && !rsvp.length && !rsvpFailed && <EmptyState icon="trophy" title="Матчей пока нет" text="Ближайшие матчи и результаты появятся здесь." />}
     </main>
   );
 }
