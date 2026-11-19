@@ -59,10 +59,11 @@ preflight_partial() {  # $1 метка, $2 шаблон пропускаемых
   fi
   $PSQL -q -d postgres -c "drop database if exists $pdb"
 }
-# 0210 (платежи мероприятий) зависит от 0204 и 0202, поэтому при их пропуске пропускается и она.
-preflight_partial "без 0202, 0204 и 0210" '0202_club_events|0204_club_event_participants|0210_club_event_payments' 0202_club_events 0204_club_event_participants 0210_club_event_payments
-preflight_partial "без 0204 и 0210" '0204_club_event_participants|0210_club_event_payments' 0204_club_event_participants 0210_club_event_payments
-preflight_partial "без 0210" '0210_club_event_payments' 0210_club_event_payments
+# 0210 (платежи мероприятий) зависит от 0204 и 0202, 0211 (скрытие черновика) от 0210: при пропуске зависимости пропускается и зависимая миграция.
+preflight_partial "без 0202, 0204, 0210 и 0211" '0202_club_events|0204_club_event_participants|0210_club_event_payments|0211_club_event_delete_draft' 0202_club_events 0204_club_event_participants 0210_club_event_payments 0211_club_event_delete_draft
+preflight_partial "без 0204, 0210 и 0211" '0204_club_event_participants|0210_club_event_payments|0211_club_event_delete_draft' 0204_club_event_participants 0210_club_event_payments 0211_club_event_delete_draft
+preflight_partial "без 0210 и 0211" '0210_club_event_payments|0211_club_event_delete_draft' 0210_club_event_payments 0211_club_event_delete_draft
+preflight_partial "без 0211" '0211_club_event_delete_draft' 0211_club_event_delete_draft
 # 0207 (шаг 2c) проверяет отметку freeze_2c в таблице equipment_bundle_steps: на базе без 0205 таблицы нет, preflight не должен падать.
 preflight_partial "без 0207" '0207_eq_freeze_2c' 0207_eq_freeze_2c
 preflight_partial "без 0205 и 0207" '0205_eq_bundle_model|0207_eq_freeze_2c' 0205_eq_bundle_model 0207_eq_freeze_2c

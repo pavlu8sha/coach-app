@@ -211,6 +211,18 @@ function EventView({ id, index, ver, cache, onBack }: { id: string; index: numbe
     refresh();
   };
 
+  // Черновик без участников можно скрыть (миграция 0211, UI20): строка и журнал в базе остаются
+  const canDelete = ev.status === 'draft' && parts.length === 0;
+  const deleteDraft = async () => {
+    if (!(await ask({ title: 'Удалить черновик?', lines: [['Мероприятие', ev.name]], note: 'Мероприятие исчезнет из списка. История изменений сохранится.', confirmLabel: 'Удалить', danger: true }))) return;
+    setActErr(null);
+    const r = await supabase.rpc('club_event_delete_draft', { p_id: ev.id });
+    if (r.error) return setActErr(clubEventErr(r.error.message));
+    cache.rows = cache.rows?.filter(x => x.id !== ev.id) ?? null;
+    cache.ev.delete(ev.id);
+    onBack();
+  };
+
   const shown = parts.filter(p => p.status === rec);
   const debtors = parts.filter(p => num(p.debt) > 0);
   const fin = ev.finance;
@@ -229,6 +241,7 @@ function EventView({ id, index, ver, cache, onBack }: { id: string; index: numbe
         {ev.status === 'active' && <button type="button" className="ks-btn secondary" onClick={() => void setStatus('cancelled')}>Отменить</button>}
         {ev.status === 'cancelled' && <button type="button" className="ks-btn" onClick={() => void setStatus('active')}>Активировать снова</button>}
         <button type="button" className="ks-btn secondary" onClick={() => nav.push('ce.form', { id: ev.id })}>Редактировать</button>
+        {canDelete && <button type="button" className="ks-btn secondary" onClick={() => void deleteDraft()}>Удалить черновик</button>}
       </div>
       {actErr && <p className="error">{actErr}</p>}
       {dialog}
