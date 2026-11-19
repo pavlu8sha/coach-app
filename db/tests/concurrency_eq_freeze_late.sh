@@ -36,6 +36,7 @@ CL=00000000-0000-0000-0000-0000ee7721c1
 PL=00000000-0000-0000-0000-0000ee77d101
 O1=00000000-0000-0000-0000-0000ee77e101
 O2=00000000-0000-0000-0000-0000ee77e102
+BX=00000000-0000-0000-0000-0000ee77b101
 q <<SQL
 insert into clubs (id, name) values ('$CL', 'Конкурентность позднего окна');
 insert into players (id, club_id, full_name, status) values ('$PL', '$CL', 'Игрок', 'active');
@@ -51,8 +52,8 @@ SQL
 # Расчётов нет, заказ O2 — единственный кандидат (скидка 95 в итоге)
 cnt=$(q -c "select count(*) from equipment_orders where legacy_bundle_id is null and manual_adjustment < 0 and player_id = '$PL'")
 [ "$cnt" = 1 ] && ok "подготовка: один кандидат" || bad "кандидатов $cnt"
-sed -e "s/b8fbdf08-c24d-4df2-97de-da206c0a8dc3/$O2/" db/ops/eq-freeze-2c-late.sql > "$T/apply.sql"
-sed -e "s/be1e9ce5-4472-4248-a686-04027d0c200c/$PL/" -e "s/array\['b8fbdf08-c24d-4df2-97de-da206c0a8dc3'\]/array['$O1','$O2']/" db/ops/rollback-eq-freeze-2c-late.sql > "$T/rollback.sql"
+sed -e "s/b8fbdf08-c24d-4df2-97de-da206c0a8dc3/$O2/" -e "s/627b9bee-5472-4061-8fd5-9c0d5af54042/$BX/" db/ops/eq-freeze-2c-late.sql > "$T/apply.sql"
+sed -e "s/627b9bee-5472-4061-8fd5-9c0d5af54042/$BX/" -e "s/be1e9ce5-4472-4248-a686-04027d0c200c/$PL/" -e "s/array\['b8fbdf08-c24d-4df2-97de-da206c0a8dc3'\]/array['$O1','$O2']/" db/ops/rollback-eq-freeze-2c-late.sql > "$T/rollback.sql"
 # Только заказы текущего теста: остальные кандидаты в базе из шаблона учитываются скриптом, поэтому проверяем, что их нет
 other=$(q -c "select count(*) from equipment_orders where legacy_bundle_id is null and status <> 'cancelled' and manual_adjustment < 0 and id <> '$O2'")
 [ "$other" = 0 ] || { bad "в шаблонной базе есть посторонние кандидаты ($other)"; exit 1; }

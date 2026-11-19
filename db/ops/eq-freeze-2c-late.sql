@@ -9,12 +9,16 @@
 --   * заморозка 2c применена; расчётов после неё не было (нет запусков и комплектов): значит 0208 ещё не работала;
 --   * набор заказов-кандидатов (не заморожены, не отменены, manual_adjustment < 0) в точности равен списку expect_ids ниже;
 --   * каждый кандидат — замыкающий заказ полного комплекта, не в рассрочку, скидка расчёта равна его корректировке (иначе остановка, решает владелец);
+--   * идентификаторы записей комплекта заданы заранее (bundle_ids), откат ищет именно их;
 --   * у ребёнка ещё нет записи комплекта; нет заказов в рассрочку без отказа;
 --   * отпечатки заказов, строк и журнала до и после равны; итог = строки + корректировки у всех заказов.
 -- Откат: db/ops/rollback-eq-freeze-2c-late.sql.
 do $do$
 declare
   expect_ids uuid[] := array['b8fbdf08-c24d-4df2-97de-da206c0a8dc3']::uuid[];  -- заказы, найденные в проде 19.11.2026 (readonly-eq-2b-window.sql)
+  -- Заранее заданные идентификаторы записей комплекта (по одному на ребёнка, по возрастанию player_id). Откат ищет именно их: запись другого происхождения
+  -- с тем же текстом откат не тронет. Занятый идентификатор (повторный запуск) останавливает скрипт.
+  bundle_ids uuid[] := array['627b9bee-5472-4061-8fd5-9c0d5af54042']::uuid[];
   fp0 jsonb; fp1 jsonb; found_ids uuid[]; pl record; o record; inp jsonb; res jsonb; probe jsonb;
   st text; rsn text; closing uuid; disc numeric; parts uuid[]; lb uuid; bad int; n_frozen0 int; n_frozen1 int; n_new int := 0;
 begin
@@ -46,6 +50,9 @@ begin
     raise exception 'unexpected state: cancelled unfrozen order with a discount exists' using errcode = '55000';
   end if;
 
+  if array_length(bundle_ids, 1) is distinct from (select count(distinct player_id) from equipment_orders where id = any (found_ids)) then
+    raise exception 'bundle_ids must have one entry per player of the candidate orders' using errcode = '55000';
+  end if;
   fp0 := eq_freeze_2c_fp();
   select count(*) into n_frozen0 from equipment_orders where legacy_bundle_id is not null;
 
@@ -73,8 +80,8 @@ begin
         raise exception 'order %: not a closing order of a full bundle with a matching discount (delta %, discount %): manual review needed', o.id, o.delta, disc using errcode = '55000';
       end if;
     end loop;
-    insert into equipment_legacy_bundles (player_id, kind, reason, calc_discount)
-    values (pl.pid, 'confirmed', 'исторический комплект: скидка уже в итоге заказа (позднее окно 2c, db/ops)', disc) returning id into lb;
+    insert into equipment_legacy_bundles (id, player_id, kind, reason, calc_discount)
+    values (bundle_ids[n_new + 1], pl.pid, 'confirmed', 'исторический комплект: скидка уже в итоге заказа (позднее окно 2c, db/ops)', disc) returning id into lb;
     n_new := n_new + 1;
     perform set_config('eq.op', 'recalc', true);
     update equipment_orders e set legacy_bundle_id = lb

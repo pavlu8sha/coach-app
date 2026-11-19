@@ -1,14 +1,15 @@
 -- pgTAP: #652 этап 2b, подготовка: db/ops/eq-freeze-2c-late.sql (заморозка заказов окна между 2c и 2b), проверка и откат.
 -- Условия: docs/acceptance/eq-652-stage2c-late-freeze-2026-11-19.md (Л1–Л9).
-\set late_all `sed -e 's/b8fbdf08-c24d-4df2-97de-da206c0a8dc3/00000000-0000-0000-0000-000000770012/' db/ops/eq-freeze-2c-late.sql`
-\set late_two `sed -e "s/array\['b8fbdf08-c24d-4df2-97de-da206c0a8dc3'\]/array['00000000-0000-0000-0000-000000770012','00000000-0000-0000-0000-000000770022']/" db/ops/eq-freeze-2c-late.sql`
-\set late_one `sed -e 's/b8fbdf08-c24d-4df2-97de-da206c0a8dc3/00000000-0000-0000-0000-000000770012/' db/ops/eq-freeze-2c-late.sql`
-\set late_none `sed -e 's/b8fbdf08-c24d-4df2-97de-da206c0a8dc3/00000000-0000-0000-0000-000000779999/' db/ops/eq-freeze-2c-late.sql`
+\set late_all `sed -e 's/627b9bee-5472-4061-8fd5-9c0d5af54042/00000000-0000-0000-0000-00000077b001/' -e 's/b8fbdf08-c24d-4df2-97de-da206c0a8dc3/00000000-0000-0000-0000-000000770012/' db/ops/eq-freeze-2c-late.sql`
+\set late_two `sed -e "s/627b9bee-5472-4061-8fd5-9c0d5af54042/00000000-0000-0000-0000-00000077b001','00000000-0000-0000-0000-00000077b003/" -e "s/array\['b8fbdf08-c24d-4df2-97de-da206c0a8dc3'\]/array['00000000-0000-0000-0000-000000770012','00000000-0000-0000-0000-000000770022']/" db/ops/eq-freeze-2c-late.sql`
+\set late_one `sed -e 's/627b9bee-5472-4061-8fd5-9c0d5af54042/00000000-0000-0000-0000-00000077b001/' -e 's/b8fbdf08-c24d-4df2-97de-da206c0a8dc3/00000000-0000-0000-0000-000000770012/' db/ops/eq-freeze-2c-late.sql`
+\set late_none `sed -e 's/627b9bee-5472-4061-8fd5-9c0d5af54042/00000000-0000-0000-0000-00000077b001/' -e 's/b8fbdf08-c24d-4df2-97de-da206c0a8dc3/00000000-0000-0000-0000-000000779999/' db/ops/eq-freeze-2c-late.sql`
 \set verify `sed -e '/^[[:space:]]*--/d' -e 's/;[[:space:]]*$//' db/ops/verify-eq-freeze-2c-late.sql`
-\set rollback `sed -e 's/be1e9ce5-4472-4248-a686-04027d0c200c/00000000-0000-0000-0000-000000772301/' -e "s/array\['b8fbdf08-c24d-4df2-97de-da206c0a8dc3'\]/array['00000000-0000-0000-0000-000000770011','00000000-0000-0000-0000-000000770012']/" db/ops/rollback-eq-freeze-2c-late.sql`
+\set rollback_wrong `sed -e 's/627b9bee-5472-4061-8fd5-9c0d5af54042/00000000-0000-0000-0000-00000077b002/' -e 's/be1e9ce5-4472-4248-a686-04027d0c200c/00000000-0000-0000-0000-000000772301/' -e "s/array\['b8fbdf08-c24d-4df2-97de-da206c0a8dc3'\]/array['00000000-0000-0000-0000-000000770011','00000000-0000-0000-0000-000000770012']/" db/ops/rollback-eq-freeze-2c-late.sql`
+\set rollback `sed -e 's/627b9bee-5472-4061-8fd5-9c0d5af54042/00000000-0000-0000-0000-00000077b001/' -e 's/be1e9ce5-4472-4248-a686-04027d0c200c/00000000-0000-0000-0000-000000772301/' -e "s/array\['b8fbdf08-c24d-4df2-97de-da206c0a8dc3'\]/array['00000000-0000-0000-0000-000000770011','00000000-0000-0000-0000-000000770012']/" db/ops/rollback-eq-freeze-2c-late.sql`
 begin;
 create extension if not exists pgtap;
-select plan(29);
+select plan(30);
 
 create or replace function u(n int) returns uuid language sql immutable as $$ select ('00000000-0000-0000-0000-00000077' || lpad(n::text, 4, '0'))::uuid $$;
 create or replace function pu(n int) returns uuid language sql immutable as $$ select ('00000000-0000-0000-0000-0000007723' || lpad(n::text, 2, '0'))::uuid $$;
@@ -94,14 +95,12 @@ select is((select count(*)::int from equipment_legacy_bundles), 1, 'Л9: зап�
 create temp table v as :verify;
 select is((select unfrozen_with_discount::int from v), 0, 'Л9: verify: незамороженных заказов со скидкой нет');
 select is((select late_bundles::int from v), 1, 'Л9: verify: одна запись позднего окна');
--- Откат не должен затрагивать чужую запись с тем же текстом (идентификация по точным наборам, не по reason)
+-- Л12: запись комплекта того же ребёнка и с теми же заказами, но другого происхождения (идентификатор не тот, что вставил apply): откат её не принимает
+select throws_ok(:'rollback_wrong', '55000', null, 'Л12: откат ищет запись по заранее заданному идентификатору, а не по тексту reason: другая запись не принимается');
+select is((select count(*)::int from equipment_orders where legacy_bundle_id is not null), 2, 'Л12: после остановки заказы остались замороженными');
+-- Л10: чужая запись другого ребёнка с тем же текстом reason: откат её не трогает (идентификация по заранее заданному идентификатору)
 alter table equipment_legacy_bundles disable trigger equipment_legacy_bundles_guard;
 insert into equipment_legacy_bundles (id, player_id, kind, reason) values ('00000000-0000-0000-0000-00000077f001', pu(3), 'confirmed', 'ручная запись (позднее окно 2c, db/ops)');
-alter table equipment_legacy_bundles enable trigger equipment_legacy_bundles_guard;
-select throws_ok(:'rollback', '55000', null, 'Л10: чужая запись с тем же текстом reason: откат останавливается');
-select is((select count(*)::int from equipment_orders where legacy_bundle_id is not null), 2, 'Л10: после остановки заказы остались замороженными');
-alter table equipment_legacy_bundles disable trigger equipment_legacy_bundles_guard;
-delete from equipment_legacy_bundles where id = '00000000-0000-0000-0000-00000077f001';
 alter table equipment_legacy_bundles enable trigger equipment_legacy_bundles_guard;
 -- Заказ, замороженный той же записью, но не из ожидаемого набора: остановка
 select mk(u(41), pu(4), '2026-10-02', false, 0, '[{"kit":"Игровая форма","price":150}]');
@@ -114,7 +113,8 @@ update equipment_orders set legacy_bundle_id = null where id = u(41);
 alter table equipment_orders enable trigger user;
 -- Откат
 select lives_ok(:'rollback', 'Л9: откат отработал');
-select is((select count(*)::int from equipment_orders where legacy_bundle_id is not null) + (select count(*)::int from equipment_legacy_bundles), 0, 'Л9: после отката заморозки и записей комплекта нет');
+select is((select count(*)::int from equipment_orders where legacy_bundle_id is not null) + (select count(*)::int from equipment_legacy_bundles where id <> '00000000-0000-0000-0000-00000077f001'), 0, 'Л9: после отката заморозки и записей комплекта скрипта нет');
+select is((select count(*)::int from equipment_legacy_bundles where id = '00000000-0000-0000-0000-00000077f001'), 1, 'Л10: чужая запись с тем же текстом reason осталась нетронутой');
 
 select * from finish();
 rollback;

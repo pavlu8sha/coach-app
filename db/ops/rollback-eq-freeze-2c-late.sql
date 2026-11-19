@@ -1,12 +1,13 @@
 -- Откат db/ops/eq-freeze-2c-late.sql: снимает заморозку у заказов, замороженных этим скриптом, и удаляет его записи комплектов.
 -- Остальное (заморозка 0207, итоги, оплаты, журнал) не трогает. Отказывается работать, если после скрипта уже были расчёты (запуски или комплекты).
--- Принадлежность записей определяется не текстом reason, а точными наборами ниже: записи комплектов должны быть ровно у ожидаемых детей
--- (по одной, kind confirmed, не освобождены, автор не задан, текст позднего окна), а замороженные ими заказы должны быть ровно ожидаемыми.
+-- Принадлежность записей определяется не текстом reason, а заранее заданными идентификаторами записей (expect_bundles; тот же UUID вставляет apply)
+-- плюс ожидаемые дети (kind confirmed, не освобождены, автор не задан) и точный набор замороженных ими заказов.
 -- При любом расхождении остановка без изменений. Блокировки берутся до проверок.
 -- SQL Editor целиком, один блок do (без begin/commit).
 do $do$
 declare
   expect_players uuid[] := array['be1e9ce5-4472-4248-a686-04027d0c200c']::uuid[];   -- ребёнок, замороженный скриптом 19.11.2026
+  expect_bundles uuid[] := array['627b9bee-5472-4061-8fd5-9c0d5af54042']::uuid[];   -- идентификаторы записей комплекта, заданные в eq-freeze-2c-late.sql (bundle_ids)
   expect_orders uuid[] := array['b8fbdf08-c24d-4df2-97de-da206c0a8dc3']::uuid[];    -- заказы, замороженные скриптом (кандидат и участники комплекта)
   fp0 jsonb; fp1 jsonb; bundle_ids uuid[]; got_players uuid[]; got_orders uuid[]; n int;
 begin
@@ -18,9 +19,11 @@ begin
   end if;
   select coalesce(array_agg(b.id order by b.id), '{}'), coalesce(array_agg(b.player_id order by b.player_id), '{}') into bundle_ids, got_players
     from equipment_legacy_bundles b
-   where b.reason like '%(позднее окно 2c, db/ops)%' and b.created_by is null and b.kind = 'confirmed' and b.released_at is null;
-  if got_players is distinct from (select coalesce(array_agg(x order by x), '{}') from unnest(expect_players) x) then
-    raise exception 'unexpected late bundles: expected players %, found %', expect_players, got_players using errcode = '55000';
+   where b.id = any (expect_bundles) and b.player_id = any (expect_players) and b.reason like '%(позднее окно 2c, db/ops)%'
+     and b.created_by is null and b.kind = 'confirmed' and b.released_at is null;
+  if bundle_ids is distinct from (select coalesce(array_agg(x order by x), '{}') from unnest(expect_bundles) x)
+     or got_players is distinct from (select coalesce(array_agg(x order by x), '{}') from unnest(expect_players) x) then
+    raise exception 'unexpected late bundles: expected %, found %', expect_bundles, bundle_ids using errcode = '55000';
   end if;
   select coalesce(array_agg(e.id order by e.id), '{}') into got_orders from equipment_orders e where e.legacy_bundle_id = any (bundle_ids);
   if got_orders is distinct from (select coalesce(array_agg(x order by x), '{}') from unnest(expect_orders) x) then
