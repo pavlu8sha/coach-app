@@ -133,7 +133,9 @@ select is(
         'club_event_participant_add', 'club_event_group_preview', 'club_event_group_add', 'club_event_participant_cancel', 'club_event_participant_restore',
         'club_event_participant_set_price', 'club_event_participants_list', 'club_event_participant_history',
         -- 0210 (#677, этап 3): приём платежа мероприятия (только администратор своего клуба, проверка внутри); функция триггера authenticated недоступна
-        'club_event_pay')),
+        'club_event_pay',
+        -- 0211 (#677): скрытие черновика мероприятия (только администратор своего клуба, проверка внутри)
+        'club_event_delete_draft')),
   '', 'список функций, доступных вошедшим пользователям, не расширился без решения');
 
 select is(
