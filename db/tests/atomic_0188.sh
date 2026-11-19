@@ -14,7 +14,8 @@ $PSQL -q -d postgres -c "drop database if exists $DB" -c "create database $DB"
 trap '$PSQL -q -d postgres -c "drop database if exists $DB" >/dev/null 2>&1 || true' EXIT
 $PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f db/tests/setup_local.sql >/dev/null
 for f in db/migrations/*.sql; do
-  case "$f" in *0188_*|*0189_*) continue ;; esac
+  # База как до 0188: миграции после 0187 пропускаются (поздние, например 0210, зависят от столбцов op и note из 0188).
+  case "$(basename "$f")" in 018[89]_*|019[0-9]_*|02[0-9][0-9]_*) continue ;; esac
   $PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f "$f" >/dev/null 2>&1
 done
 CL=00000000-0000-0000-0000-0000ee0188c1; PL=00000000-0000-0000-0000-0000ee0188d1
