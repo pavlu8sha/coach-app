@@ -65,12 +65,24 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
   const refresh = useCallback(() => setReload(n => n + 1), []);
   // Ссылка t.me/kicksapp?startapp=camp_<имя> (условие 62): родителю с детьми один раз за запуск открываем сборы с этим именем
   const hasKids = Boolean(children && children.length > 0);
-  // первый ребёнок подтверждён, пока открыт поиск онбординга: закрываем запись, как раньше исчезал локальный поиск
-  const hadKids = useRef(false);
+  // закрыть запись поиска вместе со всем, что открыто поверх неё (политика): снимается именно hm.link, а не верхний экран
+  const closeSearch = useCallback(() => {
+    const i = nav.entries.findIndex(e => e.screen === 'hm.link');
+    if (i < 0) return;
+    for (let n = nav.entries.length - i; n > 0; n--) nav.back();
+  }, [nav]);
+  // первый ребёнок подтверждён (Link увидел одобрение), пока открыт поиск онбординга: закрываем запись, как раньше исчезал локальный поиск
+  const hadKids = useRef<boolean | null>(null); // null: данные ещё не загружены
   useEffect(() => {
-    if (hasKids && !hadKids.current && addMore) nav.back();
+    if (hasKids && hadKids.current === false && addMore) closeSearch();
     if (children) hadKids.current = hasKids;
-  }, [hasKids, children, addMore, nav]);
+  }, [hasKids, children, addMore, closeSearch]);
+  // после выхода из поиска (и «Назад», и системной) подтянуть новых детей и запросы, как после статусов
+  const wasLink = useRef(false);
+  useEffect(() => {
+    if (wasLink.current && !addMore) setReload(n => n + 1);
+    wasLink.current = addMore;
+  }, [addMore]);
   useEffect(() => {
     if (!hasKids || !peekCampSlug()) return;
     const slug = takeCampSlug();

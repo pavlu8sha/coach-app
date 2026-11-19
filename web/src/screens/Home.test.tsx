@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useNavStore } from '../nav';
 import { afterEach, describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import { resetStartParam } from '../lib/startParam';
@@ -78,6 +79,42 @@ describe('главная родителя', () => {
     expect(await screen.findByRole('heading', { name: 'Мой ребёнок' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Фамилия или имя ребёнка')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Назад' })).toBeNull();
+  });
+
+  it('одобрение пришло, пока открыт поиск: после «Назад» главная обновляется и показывает ребёнка (#732)', async () => {
+    fake.db.link_requests = [{ id: 'r1', user_id: 'u', status: 'pending', players: { full_name: 'Алексей Петров' } }];
+    render(<Home />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Добавить другого ребёнка' }));
+    expect(await screen.findByLabelText('Фамилия или имя ребёнка')).toBeInTheDocument();
+    // администратор одобряет уже после открытия поиска
+    fake.db.link_requests = [{ id: 'r1', user_id: 'u', status: 'approved', players: { full_name: 'Алексей Петров' } }];
+    fake.db.player_guardians = [kid('p1', 'Алексей Петров', 'U10-A')];
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(await screen.findByText('Алексей Петров')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Мой ребёнок' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Фамилия или имя ребёнка')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Запрос отправлен' })).toBeNull();
+  });
+
+  it('первый ребёнок появился при открытой политике поверх поиска: закрывается вся запись поиска, а не только политика (#732)', async () => {
+    let store!: ReturnType<typeof useNavStore>;
+    const Probe = () => {
+      store = useNavStore();
+      return null;
+    };
+    fake.db.link_requests = [{ id: 'r1', user_id: 'u', status: 'pending', players: { full_name: 'Алексей Петров' } }];
+    render(<><Probe /><Home /></>);
+    await screen.findByRole('heading', { name: 'Запрос отправлен' });
+    act(() => {
+      store.push('detached', { screen: 'hm.link' });
+      store.push('detached', { screen: 'policy' });
+      store.push('detached', { screen: 'hm.status' });
+    });
+    expect(store.entries('detached').map(e => e.screen)).toEqual(['detached', 'hm.link', 'policy', 'hm.status']);
+    fake.db.player_guardians = [kid('p1', 'Алексей Петров', 'U10-A')];
+    act(() => void store.back('detached')); // закрыли статусы: главная перезагружается и видит ребёнка
+    expect(await screen.findByRole('heading', { name: 'Мой ребёнок' })).toBeInTheDocument();
+    await waitFor(() => expect(store.entries('detached')).toHaveLength(1)); // сняты и политика, и поиск
   });
 
   it('нет детей, запрос ждёт подтверждения: поясняет и ведёт к статусу', async () => {
