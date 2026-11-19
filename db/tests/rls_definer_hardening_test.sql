@@ -38,7 +38,7 @@ select is(
         -- функции администратора из следующих миграций (0032–0039): внутри каждой проверяется is_admin()
         'create_subscription_month', 'subscription_month_missing', 'ind_create_session', 'ind_add_player', 'ind_set_paid', 'ind_remove_player', 'ind_edit_session', 'ind_delete_session',
         'ind_set_regular', 'ind_autocreate_now', 'ind_slot_member_set', 'ind_regulars_overflow', 'ind_set_attended', 'extra_create_session', 'extra_edit_session', 'extra_delete_session', 'extra_add_player', 'extra_remove_player',
-        'extra_set_paid', 'extra_set_attended', 'extra_set_capacity', 'extra_cancel_session', 'eq_create_order', 'eq_edit_order', 'eq_add_payment', 'eq_set_issued', 'eq_delete_order', 'eq_catalog_save', 'eq_set_order_status', 'eq_edit_line', 'eq_add_line', 'eq_delete_line', 'eq_set_order_date', 'eq_bundle_preview', 'eq_bundle_recalc', 'eq_forfeit_reset', 'equipment_requirement', 'payment_info_save', 'camp_register_guest', 'camp_update_guest',
+        'extra_set_paid', 'extra_set_attended', 'extra_set_capacity', 'extra_cancel_session', 'eq_create_order', 'eq_edit_order', 'eq_add_payment', 'eq_set_issued', 'eq_delete_order', 'eq_catalog_save', 'eq_set_order_status', 'eq_edit_line', 'eq_add_line', 'eq_delete_line', 'eq_set_order_date', 'eq_bundle_preview', 'eq_bundle_recalc', 'eq_forfeit_reset', 'eq_restore_preview', 'equipment_requirement', 'payment_info_save', 'camp_register_guest', 'camp_update_guest',
         'camp_save', 'camp_tariff_save', 'camp_tariff_reprice_preview', 'camp_register', 'camp_update_participant', 'camp_pay', 'camp_cancel_payment', 'tl_add', 'tl_confirm',
         'tl_set_held', 'tl_replace_coach', 'tl_edit_session', 'lead_set_status', 'ind_roster_list', 'extra_roster_list',
         -- 0058: родителю долги и оплаты по всем видам
@@ -133,7 +133,9 @@ select is(
         'club_event_participant_add', 'club_event_group_preview', 'club_event_group_add', 'club_event_participant_cancel', 'club_event_participant_restore',
         'club_event_participant_set_price', 'club_event_participants_list', 'club_event_participant_history',
         -- 0210 (#677, этап 3): приём платежа мероприятия (только администратор своего клуба, проверка внутри); функция триггера authenticated недоступна
-        'club_event_pay')),
+        'club_event_pay',
+        -- 0211 (#677): скрытие черновика мероприятия (только администратор своего клуба, проверка внутри)
+        'club_event_delete_draft')),
   '', 'список функций, доступных вошедшим пользователям, не расширился без решения');
 
 select is(

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 0207 (#652 этап 2c), на закоммиченных данных: параллельные запуски eq_freeze_2c, цикл «применить -> откат -> применить повторно»,
 # параллельное создание заказа во время заморозки, отказ отката после запуска расчёта.
-# Запуск из scripts/run-db-tests.sh после миграций и до concurrency_eq_bundle_recalc.sh (тот оставляет скидки и запуски расчёта).
+# Запуск из scripts/run-db-tests.sh после миграций и до скриптов, создающих заказы через eq_create_order, и до concurrency_eq_bundle_recalc.sh (они оставляют запуски расчёта).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 DB="${DB_NAME:-kickstart_test}"
@@ -37,8 +37,8 @@ update equipment_orders set total = 225 where id = '$O2';
 update equipment_orders set total = 20 where id in ('$O3', '$O4');
 SQL
 as_admin() { printf "select set_config('role','authenticated',false), set_config('request.jwt.claims', json_build_object('sub','%s','role','authenticated')::text, false);\n%s\n" "$AD" "$1"; }
-as_admin "select eq_cancel_order('$O4', 'тест отмены 2c')" > "$T/cancel.sql"
-$PSQL -q -t -A -v ON_ERROR_STOP=1 -d "$DB" -f "$T/cancel.sql" > /dev/null
+# Отмена напрямую: eq_cancel_order с 0208 запускает автопересчёт и оставляет записи запусков, а тест 2c проверяет состояние «до пересчётов».
+q -c "begin; select set_config('eq.op', 'cancel', true); update equipment_orders set status = 'cancelled', status_before_cancel = status, cancelled_at = now() where id = '$O4'; commit"
 drop_step
 S0=$(snap)
 
@@ -101,8 +101,8 @@ nowc=$(q -c "select count(*) from equipment_orders")
 [ -n "$oc" ] && [ "$oc" = "$((nowc - 1))" ] && ok "новый заказ не попал в снимок заморозки" || bad "orders_count $oc, заказов сейчас $nowc"
 [ "$(q -c "select legacy_bundle_id is null and not discount_forfeited from equipment_orders where id = '$ON'")" = t ] && ok "новый заказ не заморожен" || bad "новый заказ заморожен"
 
-# 5. После запуска расчёта откат отказывает
-printf "select set_config('role','authenticated',false), set_config('request.jwt.claims', json_build_object('sub','%s','role','authenticated')::text, false);\nselect eq_bundle_recalc('%s');\n" "$AD" "$P1" > "$T/rc.sql"
+# 5. После запуска расчёта откат отказывает (пересчёт с отпечатком предпросмотра)
+printf "select set_config('role','authenticated',false), set_config('request.jwt.claims', json_build_object('sub','%s','role','authenticated')::text, false);\nselect eq_bundle_recalc('%s', 'manual', (eq_bundle_preview('%s'))->>'fingerprint');\n" "$AD" "$P1" "$P1" > "$T/rc.sql"
 $PSQL -q -t -A -v ON_ERROR_STOP=1 -d "$DB" -f "$T/rc.sql" > "$T/rc.out" 2>&1 || { bad "ручной пересчёт упал"; cat "$T/rc.out"; }
 S2=$(snap)
 if $PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f db/ops/rollback-0207-eq-freeze-2c.sql > "$T/rb2.out" 2>&1; then bad "откат после пересчёта не должен выполняться"; else grep -q "rollback stopped" "$T/rb2.out" && ok "откат после запуска расчёта остановлен" || { bad "откат упал не по защите"; cat "$T/rb2.out"; }; fi

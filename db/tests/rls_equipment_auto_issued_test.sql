@@ -51,7 +51,7 @@ select is((select status from equipment_orders where id = (select id from ids wh
 select eq_cancel_order((select id from ids where k = 'o1'), 'проверка');
 select is((select status from equipment_orders where id = (select id from ids where k = 'o1')), 'cancelled', '0185: отменённый заказ остаётся «Отменён», хотя выдано всё');
 select throws_ok($$select eq_set_issued((select id from ids where k = 'o1'), 'Костюм', false)$$, '22023', 'order cancelled', '0185: выдачу отменённого не снять, автостатус не сработает');
-select eq_restore_order((select id from ids where k = 'o1'), null);
+select eq_restore_order((select id from ids where k = 'o1'), null, eq_restore_preview((select id from ids where k = 'o1'))->>'fingerprint');
 select is((select status from equipment_orders where id = (select id from ids where k = 'o1')), 'issued', '0185: после восстановления снова «Выдан»');
 
 select * from finish();
