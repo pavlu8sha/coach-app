@@ -5,6 +5,7 @@
 -- Условия: docs/acceptance/eq-652-stage2c-late-freeze-2026-11-19.md. Применяет только Павел: SQL Editor, целиком, один блок do (без begin/commit).
 -- Порядок: свежий preflight -> readonly-eq-2b-window.sql (список ожидаемых заказов) -> этот скрипт -> db/ops/verify-eq-freeze-2c-late.sql -> 0208.
 -- Защиты (при любой ошибке не меняется ничего, одна транзакция):
+--   * блокировки берутся до проверок (проверки видят конкурентный расчёт);
 --   * заморозка 2c применена; расчётов после неё не было (нет запусков и комплектов): значит 0208 ещё не работала;
 --   * набор заказов-кандидатов (не заморожены, не отменены, manual_adjustment < 0) в точности равен списку expect_ids ниже;
 --   * каждый кандидат — замыкающий заказ полного комплекта, не в рассрочку, скидка расчёта равна его корректировке (иначе остановка, решает владелец);
@@ -17,14 +18,18 @@ declare
   fp0 jsonb; fp1 jsonb; found_ids uuid[]; pl record; o record; inp jsonb; res jsonb; probe jsonb;
   st text; rsn text; closing uuid; disc numeric; parts uuid[]; lb uuid; bad int; n_frozen0 int; n_frozen1 int; n_new int := 0;
 begin
+  -- Сначала блокировки, потом все проверки: проверка «расчётов не было» должна видеть результат конкурентного расчёта, завершившегося до получения блокировки.
+  -- Расчёт пишет в заказы (строка заказа, затем запись запуска), поэтому блокировка таблицы заказов дожидается его конца. Ожидание ограничено 15 с:
+  -- при взаимной блокировке или долгой транзакции скрипт останавливается и ничего не меняет (повторить позже).
+  perform set_config('lock_timeout', '15s', true);
   perform pg_advisory_xact_lock(hashtext('eq_freeze_2c'));
+  lock table equipment_orders, equipment_order_lines, service_payments in share row exclusive mode;
   if not exists (select 1 from equipment_bundle_steps where step = 'freeze_2c') then
     raise exception 'freeze_2c is not applied' using errcode = '55000';
   end if;
   if exists (select 1 from equipment_bundle_runs) or exists (select 1 from equipment_bundles) then
     raise exception 'recalculation was already run after 2c: script stopped' using errcode = '55000';
   end if;
-  lock table equipment_orders, equipment_order_lines, service_payments in share row exclusive mode;
 
   select count(*) into bad from equipment_orders q where q.total <> eq_order_lines_sum(q.id) + q.manual_adjustment + q.bundle_adjustment or q.bundle_adjustment <> 0;
   if bad > 0 then raise exception 'unexpected state: % orders break total = lines + adjustments', bad using errcode = '55000'; end if;

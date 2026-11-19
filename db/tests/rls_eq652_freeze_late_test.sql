@@ -5,10 +5,10 @@
 \set late_one `sed -e 's/b8fbdf08-c24d-4df2-97de-da206c0a8dc3/00000000-0000-0000-0000-000000770012/' db/ops/eq-freeze-2c-late.sql`
 \set late_none `sed -e 's/b8fbdf08-c24d-4df2-97de-da206c0a8dc3/00000000-0000-0000-0000-000000779999/' db/ops/eq-freeze-2c-late.sql`
 \set verify `sed -e '/^[[:space:]]*--/d' -e 's/;[[:space:]]*$//' db/ops/verify-eq-freeze-2c-late.sql`
-\set rollback `cat db/ops/rollback-eq-freeze-2c-late.sql`
+\set rollback `sed -e 's/be1e9ce5-4472-4248-a686-04027d0c200c/00000000-0000-0000-0000-000000772301/' -e "s/array\['b8fbdf08-c24d-4df2-97de-da206c0a8dc3'\]/array['00000000-0000-0000-0000-000000770011','00000000-0000-0000-0000-000000770012']/" db/ops/rollback-eq-freeze-2c-late.sql`
 begin;
 create extension if not exists pgtap;
-select plan(26);
+select plan(29);
 
 create or replace function u(n int) returns uuid language sql immutable as $$ select ('00000000-0000-0000-0000-00000077' || lpad(n::text, 4, '0'))::uuid $$;
 create or replace function pu(n int) returns uuid language sql immutable as $$ select ('00000000-0000-0000-0000-0000007723' || lpad(n::text, 2, '0'))::uuid $$;
@@ -94,6 +94,24 @@ select is((select count(*)::int from equipment_legacy_bundles), 1, 'Л9: зап�
 create temp table v as :verify;
 select is((select unfrozen_with_discount::int from v), 0, 'Л9: verify: незамороженных заказов со скидкой нет');
 select is((select late_bundles::int from v), 1, 'Л9: verify: одна запись позднего окна');
+-- Откат не должен затрагивать чужую запись с тем же текстом (идентификация по точным наборам, не по reason)
+alter table equipment_legacy_bundles disable trigger equipment_legacy_bundles_guard;
+insert into equipment_legacy_bundles (id, player_id, kind, reason) values ('00000000-0000-0000-0000-00000077f001', pu(3), 'confirmed', 'ручная запись (позднее окно 2c, db/ops)');
+alter table equipment_legacy_bundles enable trigger equipment_legacy_bundles_guard;
+select throws_ok(:'rollback', '55000', null, 'Л10: чужая запись с тем же текстом reason: откат останавливается');
+select is((select count(*)::int from equipment_orders where legacy_bundle_id is not null), 2, 'Л10: после остановки заказы остались замороженными');
+alter table equipment_legacy_bundles disable trigger equipment_legacy_bundles_guard;
+delete from equipment_legacy_bundles where id = '00000000-0000-0000-0000-00000077f001';
+alter table equipment_legacy_bundles enable trigger equipment_legacy_bundles_guard;
+-- Заказ, замороженный той же записью, но не из ожидаемого набора: остановка
+select mk(u(41), pu(4), '2026-10-02', false, 0, '[{"kit":"Игровая форма","price":150}]');
+alter table equipment_orders disable trigger user;
+update equipment_orders set legacy_bundle_id = lb(u(12)) where id = u(41);
+alter table equipment_orders enable trigger user;
+select throws_ok(:'rollback', '55000', null, 'Л10: в записи комплекта лишний замороженный заказ: откат останавливается');
+alter table equipment_orders disable trigger user;
+update equipment_orders set legacy_bundle_id = null where id = u(41);
+alter table equipment_orders enable trigger user;
 -- Откат
 select lives_ok(:'rollback', 'Л9: откат отработал');
 select is((select count(*)::int from equipment_orders where legacy_bundle_id is not null) + (select count(*)::int from equipment_legacy_bundles), 0, 'Л9: после отката заморозки и записей комплекта нет');
