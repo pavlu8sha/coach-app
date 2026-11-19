@@ -266,7 +266,7 @@ select as_pg();
 
 -- S17, А11: восстановление, затем новый расчёт даёт новую запись
 select as_user('00000000-0000-0000-0000-0000006521a1');
-select eq_restore_order(u(112), 'ошибка отмены', true);
+select eq_restore_order(u(112), 'ошибка отмены', eq_restore_preview(u(112))->>'fingerprint');
 select as_pg();
 select is(tot(u(112)), 225::numeric, 'А11 (с 0208 восстановление пересчитывает само): скидка вернулась');
 select as_user('00000000-0000-0000-0000-0000006521a1');
@@ -285,7 +285,7 @@ select eq_bundle_recalc(pu(12));
 select as_pg();
 select is(tt(u(123)) || '/' || tt(u(122)), '205/320', 'S19: до восстановления скидка на О3');
 select as_user('00000000-0000-0000-0000-0000006521a1');
-select eq_restore_order(u(121), 'тест', true);
+select eq_restore_order(u(121), 'тест', eq_restore_preview(u(121))->>'fingerprint');
 select eq_bundle_recalc(pu(12));
 select as_pg();
 select is(tt(u(123)) || '/' || tt(u(122)) || '/' || tt(u(121)), '300/225/300', 'S19: скидка переехала на О2, итог О3 вернулся к 300');

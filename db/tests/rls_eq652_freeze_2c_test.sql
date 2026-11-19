@@ -216,7 +216,7 @@ select is(snap_state(), (select v from fp where k = 'state2'), 'С7: состо�
 
 -- В2: отмена -> восстановление -> пересчёт: отказ у заказа в рассрочку сохраняется, итог не меняется
 select as_user('00000000-0000-0000-0000-0000006621a1');
-select eq_restore_order(u(71), 'тест восстановления', true);
+select eq_restore_order(u(71), 'тест восстановления', eq_restore_preview(u(71))->>'fingerprint');
 select as_pg();
 select ok((select discount_forfeited from equipment_orders where id = u(71)) and (select status from equipment_orders where id = u(71)) <> 'cancelled', 'В2: после восстановления заказ действует и отказ сохранён');
 select as_user('00000000-0000-0000-0000-0000006621a1');

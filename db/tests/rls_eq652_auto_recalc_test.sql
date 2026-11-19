@@ -2,7 +2,7 @@
 -- Условия: docs/acceptance/eq-652-stage2b-auto-recalc-0208-2026-11-19.md (Н1–Н12).
 begin;
 create extension if not exists pgtap;
-select plan(49);
+select plan(58);
 
 alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
 \i db/migrations/0208_eq_auto_recalc.sql
@@ -153,7 +153,7 @@ select is(tt(oid_('p6o2')) || '/' || stz(pu(6)), '320/none/not_complete', 'Н4/S
 select as_pg();
 insert into fp values ('snap_cf', snap());
 select as_user('00000000-0000-0000-0000-0000006721a1');
-select throws_ok($$select eq_restore_order(oid_('p6o1'), 'вернуть', false)$$, '22023', 'confirm required', 'Н5: без подтверждения confirm required');
+select throws_ok($$select eq_restore_order(oid_('p6o1'), 'вернуть', null::text)$$, '22023', 'confirm required', 'Н5: без подтверждения confirm required');
 select throws_ok($$select eq_restore_order(oid_('p6o1'), 'вернуть')$$, '22023', 'confirm required', 'Н5: двухаргументная форма тоже требует подтверждения');
 select as_pg();
 select is(snap(), (select v from fp where k = 'snap_cf'), 'Н5: отказ ничего не изменил');
@@ -166,7 +166,7 @@ select as_user('00000000-0000-0000-0000-0000006721b1');
 select throws_ok($$select eq_restore_preview(oid_('p6o1'))$$, '42501', 'forbidden', 'Н5: предпросмотр не для локального администратора');
 select as_user('00000000-0000-0000-0000-0000006721a1');
 select throws_ok($$select eq_restore_preview(oid_('p4o2'))$$, '22023', 'not cancelled', 'Н5: предпросмотр только для отменённого заказа');
-select eq_restore_order(oid_('p6o1'), 'вернуть', true);
+select eq_restore_order(oid_('p6o1'), 'вернуть', eq_restore_preview(oid_('p6o1'))->>'fingerprint');
 select as_pg();
 select is(tt(oid_('p6o2')) || '/' || stz(pu(6)), '225/active/ok', 'Н5/S17: после подтверждения скидка вернулась');
 
@@ -175,7 +175,7 @@ select as_user('00000000-0000-0000-0000-0000006721a1');
 select mkc('p7o1', pu(7), array['Игровая форма', 'Тренировочная форма'], 3, true);
 select mkc('p7o2', pu(7), array['Спортивный костюм', 'Дождевик'], 2);
 select eq_cancel_order(oid_('p7o1'), 'тест');
-select eq_restore_order(oid_('p7o1'), 'вернуть', true);
+select eq_restore_order(oid_('p7o1'), 'вернуть', eq_restore_preview(oid_('p7o1'))->>'fingerprint');
 select as_pg();
 select is((select discount_forfeited from equipment_orders where id = oid_('p7o1')) and tt(oid_('p7o2')) = '320', true, 'Н5/S18: восстановленный заказ в рассрочку сохраняет отказ, скидки нет');
 
@@ -195,7 +195,7 @@ select as_pg();
 select is((select (j->>'closing_order_id') from pv8), oid_('p8o2')::text, 'S19: предпросмотр: замыкающим станет О2, скидка переезжает');
 select is((select (j->>'overpaid')::numeric from pv8), 95::numeric, 'S23: предпросмотр показывает переплату 95');
 select as_user('00000000-0000-0000-0000-0000006721a1');
-select eq_restore_order(oid_('p8o1'), 'вернуть', true);
+select eq_restore_order(oid_('p8o1'), 'вернуть', eq_restore_preview(oid_('p8o1'))->>'fingerprint');
 select as_pg();
 select is(tt(oid_('p8o3')) || '/' || tt(oid_('p8o2')) || '/' || (select paid::text from equipment_orders where id = oid_('p8o2')), '300/225/320.00', 'S19/S23: итог О3 300, О2 225, оплачено 320 осталось на О2');
 select is(fp_pay(), (select v from fp where k = 'pay8'), 'S23/И1: платежи не перемещаются');
@@ -258,11 +258,46 @@ select as_pg();
 select is(tt(oid_('frz1')) || '/' || tt(oid_('frz2')) || '/' || aa(oid_('frz2')) || '/' || tt(oid_('p11o3')), '300/225/0/110', 'Н9/В5: замороженный комплект: вторая скидка не добавлена, новый заказ 110');
 select is((select count(*)::int from equipment_bundles where player_id = pu(11)), 0, 'Н9: комплект у замороженного ребёнка не создаётся');
 
+-- Н13: подтверждение привязано к показанному предпросмотру (отпечаток); устаревший предпросмотр отклоняется без изменений
+select as_user('00000000-0000-0000-0000-0000006721a1');
+select mkc('p16o1', pu(16), array['Игровая форма', 'Тренировочная форма'], 4);
+select eq_cancel_order(oid_('p16o1'), 'тест');
+select mkc('p16o2', pu(16), array['Спортивный костюм', 'Дождевик'], 3);
+create temp table pv16 as select eq_restore_preview(oid_('p16o1'))->>'fingerprint' as f;
+select mkc('p16o3', pu(16), array['Носки'], 1);  -- состав ребёнка изменился между предпросмотром и подтверждением
+select as_pg();
+insert into fp values ('snap16', snap());
+select as_user('00000000-0000-0000-0000-0000006721a1');
+select throws_ok($$select eq_restore_order(oid_('p16o1'), 'вернуть', (select f from pv16))$$, '40001', 'preview changed', 'Н13: восстановление со старым предпросмотром отклонено');
+select throws_ok($$select eq_restore_order(oid_('p16o1'), 'вернуть', 'abc')$$, '40001', 'preview changed', 'Н13: произвольный отпечаток отклонён');
+select as_pg();
+select is(snap(), (select v from fp where k = 'snap16'), 'Н13: отказ ничего не изменил (заказ остался отменённым, суммы те же)');
+select as_user('00000000-0000-0000-0000-0000006721a1');
+select lives_ok($$select eq_restore_order(oid_('p16o1'), 'вернуть', eq_restore_preview(oid_('p16o1'))->>'fingerprint')$$, 'Н13: со свежим предпросмотром восстановление проходит');
+select as_pg();
+select ok((select status <> 'cancelled' from equipment_orders where id = oid_('p16o1')), 'Н13: заказ восстановлен');
+
+select as_user('00000000-0000-0000-0000-0000006721a1');
+select mkc('p17o1', pu(17), array['Игровая форма', 'Тренировочная форма'], 3);
+select mkc('p17o2', pu(17), array['Спортивный костюм', 'Дождевик'], 2);
+create temp table pv17 as select eq_bundle_preview(pu(17))->>'fingerprint' as f;
+select eq_add_payment(oid_('p17o2'), 50, null, 'Наличные');  -- оплата изменилась между предпросмотром и подтверждением
+select as_pg();
+insert into fp values ('snap17', snap());
+select as_user('00000000-0000-0000-0000-0000006721a1');
+select throws_ok($$select eq_bundle_recalc(pu(17), 'manual', (select f from pv17))$$, '40001', 'preview changed', 'Н13: ручной пересчёт со старым предпросмотром отклонён');
+select throws_ok($$select eq_bundle_recalc(pu(17), 'manual', null)$$, '22023', 'confirm required', 'Н13: пересчёт без отпечатка требует подтверждения');
+select as_pg();
+select is(snap(), (select v from fp where k = 'snap17'), 'Н13: отказ пересчёта ничего не изменил');
+select as_user('00000000-0000-0000-0000-0000006721a1');
+select lives_ok($$select eq_bundle_recalc(pu(17), 'manual', eq_bundle_preview(pu(17))->>'fingerprint')$$, 'Н13: со свежим отпечатком пересчёт проходит');
+select as_pg();
+
 -- Н10: права при привилегиях Supabase по умолчанию
 select ok(not has_function_privilege('anon', 'eq_restore_preview(uuid)', 'execute') and has_function_privilege('authenticated', 'eq_restore_preview(uuid)', 'execute')
-  and not has_function_privilege('anon', 'eq_restore_order(uuid,text,boolean)', 'execute') and has_function_privilege('authenticated', 'eq_restore_order(uuid,text,boolean)', 'execute'), 'Н10: публичные функции: authenticated да, anon нет');
+  and not has_function_privilege('anon', 'eq_restore_order(uuid,text,text)', 'execute') and has_function_privilege('authenticated', 'eq_restore_order(uuid,text,text)', 'execute') and has_function_privilege('authenticated', 'eq_bundle_recalc(uuid,text,text)', 'execute') and not has_function_privilege('anon', 'eq_bundle_recalc(uuid,text,text)', 'execute'), 'Н10: публичные функции: authenticated да, anon нет');
 select ok(not has_function_privilege('authenticated', 'eq_bundle_auto(uuid,text)', 'execute') and not has_function_privilege('anon', 'eq_bundle_auto(uuid,text)', 'execute')
-  and not has_function_privilege('authenticated', 'eq_bundle_run(uuid,text,boolean,text,uuid)', 'execute') and not has_function_privilege('authenticated', 'eq_bundle_run(uuid,text,boolean,text)', 'execute')
+  and not has_function_privilege('authenticated', 'eq_bundle_run(uuid,text,boolean,text,uuid)', 'execute') and not has_function_privilege('authenticated', 'eq_bundle_run(uuid,text,boolean,text,uuid,text)', 'execute') and not has_function_privilege('authenticated', 'eq_bundle_run(uuid,text,boolean,text)', 'execute')
   and not has_function_privilege('authenticated', 'eq_lock_player_of_order(uuid)', 'execute') and not has_function_privilege('authenticated', 'eq_forfeit_mark(uuid,text)', 'execute'), 'Н10: внутренние функции закрыты');
 select ok(not has_function_privilege('anon', 'eq_create_order(uuid,jsonb,text,text,boolean,text,numeric,uuid)', 'execute') and not has_function_privilege('anon', 'eq_cancel_order(uuid,text)', 'execute')
   and not has_function_privilege('anon', 'eq_edit_line(uuid,text,integer)', 'execute') and not has_function_privilege('anon', 'eq_delete_order(uuid)', 'execute'), 'Н10: пересозданные функции для anon закрыты');

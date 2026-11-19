@@ -34,10 +34,10 @@ const errText = (m: string) =>
   m.includes('order cancelled') ? 'Заказ отменён: менять его нельзя. Сначала восстановите заказ.' : m.includes('already cancelled') ? 'Заказ уже отменён.' : m.includes('not cancelled') ? 'Заказ не отменён.' : m.includes('reason required') ? 'Укажите причину отмены.' :
   m.includes('parent order') ? 'Заказ оформил родитель: удалить его нельзя, можно только отменить.' : m.includes('order has events') ? 'У заказа есть история отмены: удалить его нельзя.' :
   m.includes('bad transition') ? 'Статус можно менять только на один шаг вперёд (назад — администратору).' : m.includes('bad status') ? 'Такого статуса нет.' : m.includes('not all issued') ? 'Статус «Выдан» можно поставить, только когда выданы все вещи заказа.' :
-  m.includes('bundle freeze not applied') ? 'Скидка на комплект ещё не включена в базе (нужна заморозка прежних скидок, шаг 2c). Обратитесь к администратору.' : m.includes('confirm required') ? 'Нужно подтверждение: обновите экран и повторите.' : m.includes('discount fields are managed') ? 'Скидка на комплект считается системой: править её вручную нельзя.' :
+  m.includes('bundle freeze not applied') ? 'Скидка на комплект ещё не включена в базе (нужна заморозка прежних скидок, шаг 2c). Обратитесь к администратору.' : m.includes('preview changed') ? 'Данные заказов игрока изменились после расчёта. Ничего не применено: нажмите кнопку ещё раз, проверьте новые суммы и подтвердите.' : m.includes('confirm required') ? 'Нужно подтверждение: обновите экран и повторите.' : m.includes('discount fields are managed') ? 'Скидка на комплект считается системой: править её вручную нельзя.' :
   m.includes('Could not find the function') || m.includes('equipment_issues') ? 'Модуль ещё не установлен в базе (миграция 0036).' : coachError(m);
 // Предпросмотр расчёта скидки (eq_bundle_preview / eq_restore_preview): суммы заказов игрока до и после, переплата.
-interface BundlePreview { state?: string; changed?: boolean; overpaid?: number | string; orders?: { order_id: string; frozen?: boolean; total_before: number | string; total_after: number | string; paid?: number | string }[] }
+interface BundlePreview { fingerprint?: string; state?: string; changed?: boolean; overpaid?: number | string; orders?: { order_id: string; frozen?: boolean; total_before: number | string; total_after: number | string; paid?: number | string }[] }
 const bundleAsk = (title: string, who: string, pv: BundlePreview, confirmLabel: string, intro?: string) => {
   const rows = (pv.orders ?? []).filter(x => !x.frozen && Number(x.total_before) !== Number(x.total_after));
   const over = Number(pv.overpaid ?? 0);
@@ -595,7 +595,7 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
     if (!pv.changed) return setMsg({ ok: true, text: 'Суммы заказов игрока уже верные.' });
     const yes = await ask(bundleAsk('Пересчитать суммы по скидке на комплект?', fresh.players?.full_name ?? 'Игрок', pv, 'Применить'));
     if (!yes) return;
-    await run('edit', () => supabase.rpc('eq_bundle_recalc', { p: fresh.player_id, mode: 'manual' }), 'Суммы пересчитаны.');
+    await run('edit', () => supabase.rpc('eq_bundle_recalc', { p: fresh.player_id, mode: 'manual', expect: pv.fingerprint ?? null }), 'Суммы пересчитаны.');
   };
   const run = async (key: string, f: () => PromiseLike<{ error: { message: string } | null }>, ok?: string) => {
     setBusy(key);
@@ -644,7 +644,7 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
     const pv = (r.data ?? {}) as BundlePreview;
     const yes = await ask(bundleAsk('Восстановить заказ?', o.players?.full_name ?? 'Игрок', pv, 'Восстановить', 'Заказ вернётся в статус, который был до отмены.'));
     if (!yes) return;
-    await run('restore', () => supabase.rpc('eq_restore_order', { o: o.id, note: null, confirm: true }), 'Заказ восстановлен.');
+    await run('restore', () => supabase.rpc('eq_restore_order', { o: o.id, note: null, expect: pv.fingerprint ?? null }), 'Заказ восстановлен.');
   };
   // Сторно оплаты и возврат денег (#471, 0188): только администратор, причина обязательна.
   const reversePayment = async (p: Pay) => {

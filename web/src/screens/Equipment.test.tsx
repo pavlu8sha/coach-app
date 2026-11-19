@@ -294,7 +294,7 @@ describe('«Экипировка»', () => {
 
   it('кнопка «Пересчитать по скидке на комплект»: предпросмотр сервера, подтверждение, eq_bundle_recalc', async () => {
     bundleSeed();
-    fake.rpc.eq_bundle_preview = () => ({ state: 'active', changed: true, overpaid: 0, orders: [{ order_id: 'k1', total_before: 545, total_after: 525, paid: 300 }] });
+    fake.rpc.eq_bundle_preview = () => ({ fingerprint: 'fp-1', state: 'active', changed: true, overpaid: 0, orders: [{ order_id: 'k1', total_before: 545, total_after: 525, paid: 300 }] });
     fake.rpc.eq_bundle_recalc = () => ({ state: 'active', changed: true });
     render(<Equipment />);
     fireEvent.click(await screen.findByText('Котов Родион'));
@@ -303,8 +303,19 @@ describe('«Экипировка»', () => {
     expect(within(dlg).getByText('545 ₾ → 525 ₾')).toBeInTheDocument();
     expect(fake.rpcCalls('eq_bundle_recalc')).toHaveLength(0);
     fireEvent.click(within(dlg).getByRole('button', { name: 'Применить' }));
-    await waitFor(() => expect(fake.rpcCalls('eq_bundle_recalc')).toEqual([{ p: 'p7', mode: 'manual' }]));
+    await waitFor(() => expect(fake.rpcCalls('eq_bundle_recalc')).toEqual([{ p: 'p7', mode: 'manual', expect: 'fp-1' }]));
     expect(fake.rpcCalls('eq_edit_order')).toHaveLength(0);
+  });
+
+  it('«Пересчитать»: если данные изменились после предпросмотра, сервер отказывает и сообщение просит подтвердить заново', async () => {
+    bundleSeed();
+    fake.rpc.eq_bundle_preview = () => ({ fingerprint: 'fp-old', state: 'active', changed: true, overpaid: 0, orders: [{ order_id: 'k1', total_before: 545, total_after: 525, paid: 300 }] });
+    fake.rpc.eq_bundle_recalc = () => ({ error: { message: 'preview changed' } });
+    render(<Equipment />);
+    fireEvent.click(await screen.findByText('Котов Родион'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Пересчитать по скидке на комплект' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Применить' }));
+    expect(await screen.findByText(/Ничего не применено: нажмите кнопку ещё раз/)).toBeInTheDocument();
   });
 
   it('«Пересчитать»: если суммы уже верные, подтверждения нет', async () => {
@@ -613,7 +624,7 @@ describe('Экипировка: отмена и восстановление з�
   it('Ф6: отменённый заказ: причина, нет правок и оплаты, есть «Восстановить заказ» (eq_restore_order)', async () => {
     seedCancelled();
     fake.rpc.eq_restore_order = () => null;
-    fake.rpc.eq_restore_preview = () => ({ state: 'active', changed: true, overpaid: 30, orders: [{ order_id: 'o9', total_before: 160, total_after: 130, paid: 160 }] });
+    fake.rpc.eq_restore_preview = () => ({ fingerprint: 'fp-r', state: 'active', changed: true, overpaid: 30, orders: [{ order_id: 'o9', total_before: 160, total_after: 130, paid: 160 }] });
     render(<Equipment />);
     fireEvent.click(await screen.findByText('Отменов Лев'));
     expect(await screen.findByText('Причина: семья переехала')).toBeInTheDocument();
@@ -628,7 +639,7 @@ describe('Экипировка: отмена и восстановление з�
     expect(within(dlg).getByText(/Переплата 30 ₾/)).toBeInTheDocument();
     expect(fake.rpcCalls('eq_restore_order')).toHaveLength(0);
     fireEvent.click(within(dlg).getByRole('button', { name: 'Восстановить' }));
-    await waitFor(() => expect(fake.rpcCalls('eq_restore_order')).toEqual([{ o: 'o9', note: null, confirm: true }]));
+    await waitFor(() => expect(fake.rpcCalls('eq_restore_order')).toEqual([{ o: 'o9', note: null, expect: 'fp-r' }]));
   });
 
   it('Ф7: понятная ошибка, если заказ родителя пытаются удалить', async () => {

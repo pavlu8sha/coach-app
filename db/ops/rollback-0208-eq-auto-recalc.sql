@@ -4,10 +4,12 @@
 -- После отката итог заказа при правках снова меняется только на разницу, пересчёт возможен вручную (eq_bundle_recalc).
 begin;
 drop function if exists eq_restore_order(uuid, text);
-drop function if exists eq_restore_order(uuid, text, boolean);
+drop function if exists eq_restore_order(uuid, text, text);
+drop function if exists eq_bundle_recalc(uuid, text, text);
 drop function if exists eq_restore_preview(uuid);
 drop function if exists eq_bundle_run(uuid, text, boolean, text);
 drop function if exists eq_bundle_run(uuid, text, boolean, text, uuid);
+drop function if exists eq_bundle_run(uuid, text, boolean, text, uuid, text);
 drop function if exists eq_bundle_auto(uuid, text);
 drop function if exists eq_forfeit_mark(uuid, text);
 drop function if exists eq_lock_player_of_order(uuid);

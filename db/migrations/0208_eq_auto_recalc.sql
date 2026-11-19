@@ -19,10 +19,10 @@ begin
 end $$;
 
 -- 1. Запуск расчёта: пятый параметр restore_o нужен предпросмотру восстановления (заказ считается действующим, ничего не пишется).
-create or replace function eq_bundle_run(p uuid, mode text, do_apply boolean, why text, restore_o uuid) returns jsonb
+create or replace function eq_bundle_run(p uuid, mode text, do_apply boolean, why text, restore_o uuid, expect text) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare
-  c uuid; uid uuid := current_user_id();
+  fp text; c uuid; uid uuid := current_user_id();
   who text := (select display_name from users where id = current_user_id());
   inp jsonb; out jsonb; run_id bigint;
   st equipment_bundle_status; ab equipment_bundles; nb uuid;
@@ -54,6 +54,14 @@ begin
     'lines', coalesce((select jsonb_agg(jsonb_build_object('id', l.id, 'order_id', l.order_id, 'kit', l.kit, 'quantity', l.quantity, 'unit_price', l.unit_price) order by l.id)
         from equipment_order_lines l join equipment_orders e on e.id = l.order_id where e.player_id = p), '[]'::jsonb));
   out := eq_bundle_calc(inp);
+  -- Отпечаток предпросмотра: входные данные расчёта, суммы и оплаты заказов и результат. Подтверждение привязано к нему (expect):
+  -- если между предпросмотром и применением что-то изменилось, применение отклоняется, не меняя ничего.
+  fp := md5(inp::text || '|' || coalesce(restore_o::text, '') || '|' || out::text || '|' ||
+    (select coalesce(string_agg(concat_ws(',', e.id, e.total, e.paid, e.manual_adjustment, e.bundle_adjustment, coalesce(e.discount_state, ''), e.status,
+       coalesce(e.status_before_cancel, ''), e.discount_forfeited::text, coalesce(e.legacy_bundle_id::text, '')), ';' order by e.id), '') from equipment_orders e where e.player_id = p));
+  if do_apply and expect is not null and fp is distinct from expect then
+    raise exception 'preview changed' using errcode = '40001';
+  end if;
   tie := coalesce((out->>'tie_break_id')::boolean, false);
   closing := nullif(out->>'closing_order_id', '')::uuid;
   new_state := case when out->>'state' = 'unchecked' then 'unchecked' else 'ok' end;
@@ -129,8 +137,13 @@ begin
 
   return jsonb_build_object('state', out->>'state', 'reason', out->>'reason', 'detail', out->>'detail', 'closing_order_id', closing,
     'discount', coalesce((out->>'discount')::numeric, 0), 'changed', changed, 'overpaid', over, 'tie_break_id', tie, 'orders', rows,
-    'run_id', run_id, 'blocking', out->'blocking');
+    'run_id', run_id, 'blocking', out->'blocking', 'fingerprint', fp);
 end $$;
+revoke execute on function eq_bundle_run(uuid, text, boolean, text, uuid, text) from public, anon, authenticated;
+
+-- Пятиаргументная форма (без отпечатка) сохранена: на неё ссылается preflight и автоматика.
+create or replace function eq_bundle_run(p uuid, mode text, do_apply boolean, why text, restore_o uuid) returns jsonb
+language sql security definer set search_path = public as $$ select eq_bundle_run(p, mode, do_apply, why, restore_o, null::text) $$;
 revoke execute on function eq_bundle_run(uuid, text, boolean, text, uuid) from public, anon, authenticated;
 
 -- Четырёхаргументная форма сохранена (проверка preflight 0205 и ручной пересчёт 2a).
@@ -373,6 +386,23 @@ begin
   perform eq_bundle_auto(pid, 'cancel');
 end $$;
 
+-- Ручной пересчёт с подтверждением предпросмотра: третий параметр — fingerprint из eq_bundle_preview. Без него или при расхождении ничего не меняется.
+create or replace function eq_bundle_recalc(p uuid, mode text, expect text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare pv jsonb;
+begin
+  perform eq_assert_admin();
+  if mode is distinct from 'manual' then raise exception 'bad mode' using errcode = '22023'; end if;
+  perform eq_bundle_assert_ready();
+  if expect is null then
+    pv := eq_bundle_run(p, 'manual', false, 'manual');
+    raise exception 'confirm required' using errcode = '22023', detail = pv::text;
+  end if;
+  return eq_bundle_run(p, 'manual', true, 'manual', null::uuid, expect);
+end $$;
+revoke execute on function eq_bundle_recalc(uuid, text, text) from public, anon;
+grant execute on function eq_bundle_recalc(uuid, text, text) to authenticated;
+
 -- 7. Восстановление (Q6): только с подтверждением; предпросмотр отдельной функцией.
 create or replace function eq_restore_preview(o uuid) returns jsonb
 language plpgsql security definer set search_path = public as $$
@@ -383,11 +413,11 @@ begin
   if not found then raise exception 'order not found' using errcode = 'P0002'; end if;
   if st <> 'cancelled' then raise exception 'not cancelled' using errcode = '22023'; end if;
   perform eq_bundle_assert_ready();
-  if pid is null then return jsonb_build_object('state', 'none', 'reason', 'not_complete', 'changed', false, 'orders', '[]'::jsonb, 'overpaid', 0); end if;
+  if pid is null then return jsonb_build_object('state', 'none', 'reason', 'not_complete', 'changed', false, 'orders', '[]'::jsonb, 'overpaid', 0, 'fingerprint', 'none'); end if;
   return eq_bundle_run(pid, 'manual', false, 'restore', o);
 end $$;
 
-create or replace function eq_restore_order(o uuid, note text, confirm boolean) returns void
+create or replace function eq_restore_order(o uuid, note text, expect text) returns void
 language plpgsql security definer set search_path = public as $$
 declare
   eo equipment_orders; pid uuid; pv jsonb;
@@ -395,14 +425,22 @@ declare
   who text := (select display_name from users where id = current_user_id());
 begin
   perform eq_assert_admin();
-  if not coalesce(confirm, false) then
+  if expect is null then
     pv := eq_restore_preview(o);
     raise exception 'confirm required' using errcode = '22023', detail = pv::text;
   end if;
   pid := eq_lock_player_of_order(o);
   select * into eo from equipment_orders where id = o for update;
   if eo.status <> 'cancelled' then raise exception 'not cancelled' using errcode = '22023'; end if;
-  if pid is not null then perform eq_bundle_assert_ready(); end if;
+  if pid is not null then
+    perform eq_bundle_assert_ready();
+    -- подтверждение привязано к показанному предпросмотру: под теми же блокировками считаем отпечаток заново
+    if expect is distinct from (eq_bundle_run(pid, 'manual', false, 'restore', o, null::text))->>'fingerprint' then
+      raise exception 'preview changed' using errcode = '40001';
+    end if;
+  elsif expect is distinct from 'none' then
+    raise exception 'preview changed' using errcode = '40001';
+  end if;
   perform set_config('eq.op', 'restore', true);
   update equipment_orders
      set status = eo.status_before_cancel, status_before_cancel = null, cancelled_at = null, cancelled_by = null, cancel_reason = null,
@@ -419,10 +457,10 @@ end $$;
 
 -- Прежняя форма без подтверждения: всегда отвечает «confirm required» с предпросмотром (проверка preflight 0185 и защита старых клиентов).
 create or replace function eq_restore_order(o uuid, note text) returns void
-language sql security definer set search_path = public as $$ select eq_restore_order(o, note, false) $$;
+language sql security definer set search_path = public as $$ select eq_restore_order(o, note, null::text) $$;
 
-revoke execute on function eq_restore_order(uuid, text), eq_restore_order(uuid, text, boolean), eq_restore_preview(uuid) from public, anon;
-grant execute on function eq_restore_order(uuid, text), eq_restore_order(uuid, text, boolean), eq_restore_preview(uuid) to authenticated;
+revoke execute on function eq_restore_order(uuid, text), eq_restore_order(uuid, text, text), eq_restore_preview(uuid) from public, anon;
+grant execute on function eq_restore_order(uuid, text), eq_restore_order(uuid, text, text), eq_restore_preview(uuid) to authenticated;
 revoke execute on function eq_edit_line(uuid, text, int), eq_add_line(uuid, text, text, int), eq_delete_line(uuid), eq_set_order_date(uuid, date),
   eq_delete_order(uuid), eq_cancel_order(uuid, text) from public, anon;
 grant execute on function eq_edit_line(uuid, text, int), eq_add_line(uuid, text, text, int), eq_delete_line(uuid), eq_set_order_date(uuid, date),
