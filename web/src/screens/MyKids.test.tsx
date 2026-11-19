@@ -1,4 +1,4 @@
-import { StrictMode } from 'react';
+import { Profiler, StrictMode } from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fake, supabase } from '../test/fakeSupabase';
@@ -124,6 +124,29 @@ describe('«Мои дети»: статус привязки ребёнка (#73
     await act(async () => first.resolve(false)); // устаревший ответ «не привязан» приходит последним
     expect(within(row('Иван Петров')).getByRole('button', { name: UNLINK })).toBeInTheDocument();
     expect(within(row('Иван Петров')).queryByRole('button', { name: CODE })).toBeNull();
+  });
+
+  it('начало перезагрузки списка: уже в первом коммите после запуска старых действий нет (окно до эффекта закрыто)', async () => {
+    fake.db.player_guardians = [kid('p1', 'Иван Петров'), kid('p2', 'Мария Иванова')];
+    fake.rpc.child_linked = ({ p }: { p: string }) => p === 'p1';
+    let recording = false;
+    const commits: string[][] = []; // кнопки действий в каждом коммите после ответа revoke_consent (там же запускается перезагрузка)
+    fake.rpc.revoke_consent = () => { recording = true; return null; };
+    render(
+      <Profiler id="kids" onRender={() => { if (recording) commits.push([...document.querySelectorAll('button')].map(b => b.textContent ?? '').filter(t => t === CODE || t === UNLINK)); }}>
+        <MyKids onBack={() => {}} />
+      </Profiler>,
+    );
+    await within(await findRow('Иван Петров')).findByRole('button', { name: UNLINK });
+    await within(row('Мария Иванова')).findByRole('button', { name: CODE });
+    const gate = deferred<void>(); // новая загрузка списка не завершается: статусы не должны вернуться
+    supabase.auth.getUser = async () => { await gate.promise; return realGetUser(); };
+    fireEvent.click(within(row('Иван Петров')).getByRole('button', { name: 'Отозвать согласие' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отозвать согласие' }));
+    await waitFor(() => expect(commits.length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByRole('status')).toHaveLength(2));
+    expect(commits.flat(), 'в коммитах после запуска перезагрузки не должно быть кнопок действий').toEqual([]);
+    await act(async () => gate.resolve());
   });
 
   it('StrictMode (повторный запуск эффектов): проверка доходит до linked и free', async () => {
