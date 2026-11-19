@@ -216,12 +216,12 @@ begin
 end $$;
 revoke execute on function eq_freeze_2c(jsonb) from public, anon, authenticated, service_role;
 
--- Применение. Ожидания прода (baseline 16.11.2026, прислан Павлом): 149 заказов, итог 38015, оплачено 32135,
--- exact 135, legacy_confirmed 14, manual_up 0, manual_down 0, legacy_review 0, заказов в рассрочку 9.
+-- Применение. Ожидания прода (свежий baseline 19.11.2026, прислан Павлом): 154 заказов, итог 38685, оплачено 32435,
+-- exact 140, legacy_confirmed 14, manual_up 0, manual_down 0, legacy_review 0, заказов в рассрочку 9.
 -- Если заказов в базе нет (чистая тестовая база), ожидания не применяются.
 do $$
 begin
   perform eq_freeze_2c(case when exists (select 1 from equipment_orders) then jsonb_build_object(
-    'orders', 149, 'total', 38015, 'paid', 32135, 'exact', 135, 'manual_up', 0, 'manual_down', 0,
+    'orders', 154, 'total', 38685, 'paid', 32435, 'exact', 140, 'manual_up', 0, 'manual_down', 0,
     'legacy_confirmed', 14, 'legacy_review', 0, 'installment', 9) else '{}'::jsonb end);
 end $$;
