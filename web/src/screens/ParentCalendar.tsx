@@ -23,6 +23,19 @@ interface CalendarEvent {
   attendance_status: 'present' | 'absent' | 'excused' | 'played' | 'not_played' | null;
 }
 
+// Маркеры событий (#734): цвет из токенов (контраст ≥ 3:1 на выбранном и обычном дне в обеих темах), тип ещё и формой: матч ромб, тренировка круг
+const MARKER = 8;
+type EventType = CalendarEvent['event_type'];
+const MARKER_LABEL: Record<EventType, [string, string, string]> = { match: ['матч', 'матча', 'матчей'], training: ['тренировка', 'тренировки', 'тренировок'] };
+const pluralForm = (n: number, forms: [string, string, string]) => (n % 10 === 1 && n % 100 !== 11 ? forms[0] : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? forms[1] : forms[2]);
+// типы, которые есть в дне: матчи, затем тренировки
+const markerTypes = (events: CalendarEvent[]): EventType[] => (['match', 'training'] as const).filter(type => events.some(e => e.event_type === type));
+// «, 1 матч, 1 тренировка»; день без событий — пустая строка
+const typesLabel = (events: CalendarEvent[]) => markerTypes(events).map(type => { const n = events.filter(e => e.event_type === type).length; return `, ${n} ${pluralForm(n, MARKER_LABEL[type])}`; }).join('');
+function Marker({ type }: { type: EventType }) {
+  const match = type === 'match';
+  return <i data-marker={type} aria-hidden="true" style={{ display: 'block', flexShrink: 0, width: MARKER, height: MARKER, background: match ? 'var(--ks-primary)' : 'var(--ks-success)', borderRadius: match ? 1 : '50%', transform: match ? 'rotate(45deg)' : undefined }} />;
+}
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 const pad = (n: number) => String(n).padStart(2, '0');
 const keyOf = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
@@ -237,7 +250,7 @@ export default function ParentCalendar() {
             <button
               key={date}
               type="button"
-              aria-label={`${formatDate(date)}${eventDays.has(date) ? `, событий: ${eventDays.get(date)?.length}` : ''}`}
+              aria-label={`${formatDate(date)}${typesLabel(eventDays.get(date) ?? [])}`}
               aria-pressed={date === selectedDate}
               onClick={() => setSelectedDate(date)}
               style={{
@@ -249,14 +262,15 @@ export default function ParentCalendar() {
               }}
             >
               <span>{dateFromKey(date).getDate()}</span>
-              <span aria-hidden="true" style={{ display: 'flex', gap: 3, height: 5 }}>
-                {(eventDays.get(date) ?? []).slice(0, 3).map(event => <i key={event.event_id} style={{ display: 'block', width: 5, height: 5, borderRadius: '50%', background: event.event_type === 'match' ? '#2d6cdf' : '#23845a' }} />)}
+              <span aria-hidden="true" style={{ display: 'flex', gap: 4, height: MARKER }}>
+                {markerTypes(eventDays.get(date) ?? []).map(type => <Marker key={type} type={type} />)}
               </span>
             </button>
           ) : <span key={`empty-${index}`} aria-hidden="true" />)}
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 12, color: 'var(--ks-text-muted, #5a6584)', margin: '10px 0 20px' }}>
-          <span>🔵 Матчи</span><span>🟢 Тренировки</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Marker type="match" />Матчи</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Marker type="training" />Тренировки</span>
         </div>
       </section>
 
