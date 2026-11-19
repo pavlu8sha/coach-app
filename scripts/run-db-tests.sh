@@ -59,8 +59,10 @@ preflight_partial() {  # $1 метка, $2 шаблон пропускаемых
   fi
   $PSQL -q -d postgres -c "drop database if exists $pdb"
 }
-preflight_partial "без 0202 и 0204" '0202_club_events|0204_club_event_participants' 0202_club_events 0204_club_event_participants
-preflight_partial "без 0204" '0204_club_event_participants' 0204_club_event_participants
+# 0210 (платежи мероприятий) зависит от 0204 и 0202, поэтому при их пропуске пропускается и она.
+preflight_partial "без 0202, 0204 и 0210" '0202_club_events|0204_club_event_participants|0210_club_event_payments' 0202_club_events 0204_club_event_participants 0210_club_event_payments
+preflight_partial "без 0204 и 0210" '0204_club_event_participants|0210_club_event_payments' 0204_club_event_participants 0210_club_event_payments
+preflight_partial "без 0210" '0210_club_event_payments' 0210_club_event_payments
 # 0207 (шаг 2c) проверяет отметку freeze_2c в таблице equipment_bundle_steps: на базе без 0205 таблицы нет, preflight не должен падать.
 preflight_partial "без 0207" '0207_eq_freeze_2c' 0207_eq_freeze_2c
 preflight_partial "без 0205 и 0207" '0205_eq_bundle_model|0207_eq_freeze_2c' 0205_eq_bundle_model 0207_eq_freeze_2c
@@ -98,6 +100,8 @@ echo "== db/tests/atomic_0188.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/atomic_0188.sh || fail=1
 echo "== db/tests/concurrency_club_event_seats.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_club_event_seats.sh || fail=1
+echo "== db/tests/concurrency_club_event_pay.sh"
+DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_club_event_pay.sh || fail=1
 echo "== db/tests/concurrency_notifications_release.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_notifications_release.sh || fail=1
 $PSQL -q -d postgres -c "drop database if exists $DB"
