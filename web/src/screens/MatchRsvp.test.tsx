@@ -92,6 +92,40 @@ describe('«Матчи» родителя: ошибка загрузки под�
     expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось загрузить подтверждения участия');
   });
 
+  it('на время повторной загрузки кнопка отключена и показывает выполнение', async () => {
+    seedParent([]);
+    let release: (v: unknown) => void = () => {};
+    let n = 0;
+    fake.rpc.match_rsvp_my_matches = () => (++n === 1 ? failing() : new Promise(r => { release = r; }));
+    render(<Matches />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Повторить' }));
+    const busy = await screen.findByRole('button', { name: 'Загружаю…' });
+    expect(busy).toBeDisabled();
+    fireEvent.click(busy);
+    expect(fake.rpcCalls('match_rsvp_my_matches')).toHaveLength(2);
+    release([row()]);
+    expect(await screen.findByRole('button', { name: 'Иванов Пётр: Будет' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('два перекрывающихся запроса, завершённых в обратном порядке: итог соответствует последнему запущенному', async () => {
+    seedParent([row()]);
+    const pending: ((v: unknown) => void)[] = [];
+    let n = 0;
+    fake.rpc.match_rsvp_my_matches = () => (++n === 1 ? [row()] : new Promise(r => { pending.push(r); }));
+    render(<Matches />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Иванов Пётр: Будет' }));
+    await waitFor(() => expect(pending).toHaveLength(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Иванов Пётр: Не будет' }));
+    await waitFor(() => expect(pending).toHaveLength(2));
+    pending[1]([row({ response: 'no' })]); // новый запрос отвечает успешно
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Иванов Пётр: Не будет' })).toBeInTheDocument());
+    pending[0]({ error: { message: 'stale boom' } }); // старый запрос заканчивается позже ошибкой
+    await new Promise(r => setTimeout(r, 50));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Иванов Пётр: Не будет' })).toBeInTheDocument();
+  });
+
   it('успешная загрузка: блока ошибки нет', async () => {
     seedParent([row()]);
     render(<Matches />);

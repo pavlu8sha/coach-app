@@ -50,16 +50,22 @@ export default function Matches() {
   const [myTours, setMyTours] = useState<MyTour[]>([]); // турниры ребёнка, в том числе без матчей
   const [tour, setTour] = useNavState('pm.tour', ''); // название турнира на диск не пишем
   const [reload, setReload] = useState(0);
+  const [loading, setLoading] = useState(false); // идёт загрузка: «Повторить» на это время отключена
   const [rsvpFailed, setRsvpFailed] = useState(false); // загрузка подтверждений не удалась (#737): это не «подтверждений нет»
   const [rsvp, setRsvp] = useState<MyRsvp[]>([]); // матчи с подтверждением участия (миграция 0134); без неё список пуст
   const [rsvpScored, setRsvpScored] = useState<Set<string>>(new Set()); // матчи с подтверждением, у которых внесён счёт
   const [durations, setDurations] = useState<{ values: SettingValues; scoped: ScopedValues }>({ values: {}, scoped: {} }); // длительность матча из настроек клуба (0168)
 
   useEffect(() => {
-    void (async () => {
+    // устаревший ответ (перекрывающиеся перезагрузки, #737) не применяется: после каждого ожидания проверяем, что эта загрузка последняя
+    let cancelled = false;
+    setLoading(true);
+    const load = async () => {
       const me = (await supabase.auth.getUser()).data.user?.id;
+      if (cancelled) return;
       if (!me) return setError('Нет сессии');
       const links = await supabase.from('player_guardians').select('players(id, full_name, groups(name))').eq('user_id', me).is('consent_revoked_at', null);
+      if (cancelled) return;
       if (links.error) return setError(links.error.message);
       const ps = ((links.data ?? []) as any[]).map(l => l.players).filter(Boolean);
       const names = [...new Set(ps.map(p => p.groups?.name as string | undefined).filter((n): n is string => Boolean(n)))];
@@ -71,19 +77,23 @@ export default function Matches() {
       if (!names.length) return setMatches([]);
       // участие своих детей: база отдаёт родителю только записи его ребёнка (без чужих голов)
       const mp = await supabase.from('match_players').select('match_id, player_id, played, goals').in('player_id', myKids.map(k => k.id));
+      if (cancelled) return;
       if (mp.error) return setError(mp.error.message);
       const map = new Map<string, Part>();
       for (const r of (mp.data ?? []) as { match_id: string; player_id: string; played: boolean; goals: number }[]) map.set(`${r.match_id}|${r.player_id}`, { played: r.played, goals: r.goals });
       setParts(map);
       const rs = await supabase.rpc('match_rsvp_my_matches');
+      if (cancelled) return;
       setRsvpFailed(Boolean(rs.error)); // ошибку не выдаём за пустой список: ниже показывается блок с повтором
       const rsRows = rs.error ? [] : ((rs.data ?? []) as MyRsvp[]);
       setRsvp(rsRows);
       // счёт прошедших матчей с подтверждением: без него статус «Прошёл» не определить
       const rsIds = [...new Set(rsRows.map(r => r.match_id))];
       const sc = rsIds.length ? await supabase.from('matches').select('id, goals_for, goals_against').in('id', rsIds) : null;
+      if (cancelled) return;
       // длительность матча по командам; без миграции 0168 или при ошибке действует 90 минут
       const du = rsIds.length ? await supabase.rpc('match_duration_minutes') : null;
+      if (cancelled) return;
       const dv: SettingValues = {};
       const dt: Record<string, string> = {};
       for (const x of ((du && !du.error ? du.data : null) ?? []) as { team: string | null; value: string | null }[]) {
@@ -93,26 +103,32 @@ export default function Matches() {
       setDurations({ values: dv, scoped: { [MATCH_DURATION_KEY]: dt } });
       setRsvpScored(new Set(((sc?.data ?? []) as { id: string; goals_for: number | null; goals_against: number | null }[]).filter(x => x.goals_for !== null && x.goals_against !== null).map(x => x.id)));
       const m = await supabase.from('matches').select('id, team, played_on, opponent, goals_for, goals_against').in('team', teamNames(names)).order('played_on', { ascending: false }).limit(100);
+      if (cancelled) return;
       if (m.error) return setError(m.error.message);
       const rows = (m.data ?? []) as Match[];
       // матчи другой команды, в которых играл ребёнок (например, гостем)
       const extraIds = [...new Set([...map.entries()].filter(([, v]) => v.played).map(([k]) => k.split('|')[0]))].filter(id => !rows.some(r => r.id === id));
       if (extraIds.length) {
         const ex = await supabase.from('matches').select('id, team, played_on, opponent, goals_for, goals_against').in('id', extraIds);
+        if (cancelled) return;
         if (ex.error) return setError(ex.error.message);
         rows.push(...((ex.data ?? []) as Match[]));
         rows.sort((a, b) => (a.played_on < b.played_on ? 1 : -1));
       }
       // турнир нужен только для фильтра: при ошибке просто не показываем фильтр
       const tr = await supabase.rpc('match_tournaments');
+      if (cancelled) return;
       const tm = new Map<string, string>();
       for (const t of (tr.data ?? []) as Tour[]) { const l = tourLabel(t); if (l) tm.set(t.match_id, l); }
       setTours(tm);
       // турниры ребёнка без матчей: в источнике могут быть только состав и взносы
       const mt = await supabase.rpc('my_tournaments');
+      if (cancelled) return;
       setMyTours(((mt.data ?? []) as MyTour[]).filter(t => t.games === 0));
       setMatches(rows);
-    })();
+    };
+    void load().finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [reload]);
 
   if (error) return <Failure title="Не удалось загрузить матчи" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
@@ -163,8 +179,8 @@ export default function Matches() {
         <div className="ks-card" role="alert">
           <b>Не удалось загрузить подтверждения участия</b>
           <p className="muted note">Матчи ниже показаны без запросов на подтверждение. Это не значит, что отвечать не нужно: повторите загрузку.</p>
-          <button type="button" className="ks-btn secondary" onClick={() => setReload(n => n + 1)}>
-            Повторить
+          <button type="button" className="ks-btn secondary" disabled={loading} onClick={() => setReload(n => n + 1)}>
+            {loading ? 'Загружаю…' : 'Повторить'}
           </button>
         </div>
       )}
