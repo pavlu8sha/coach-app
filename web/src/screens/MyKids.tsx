@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNav, useSubEntry } from '../nav';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow } from '../ui/components';
@@ -9,6 +9,8 @@ import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
 
 interface Kid { id: string; name: string; group: string | null }
+// Статус привязки аккаунта ребёнка (#735): пока он неизвестен или не удалось проверить, действий над кодом нет
+type LinkState = 'loading' | 'linked' | 'free' | 'error';
 
 // «Мои дети»: привязанные дети текущего пользователя, добавление ребёнка и статус запросов.
 export default function MyKids({ onBack }: { onBack: () => void }) {
@@ -27,7 +29,13 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [codes, setCodes] = useState<Record<string, string>>({}); // выданные в этой сессии коды для ребёнка
-  const [linkedKids, setLinkedKids] = useState<Set<string>>(new Set());
+  const [linkStates, setLinkStates] = useState<Record<string, LinkState>>({});
+  const linkStateOf = (id: string): LinkState => linkStates[id] ?? 'loading';
+  const linkRef = useRef<Record<string, LinkState>>({}); // актуальный статус для обработчиков (защита от нажатия по устаревшему экрану)
+  linkRef.current = linkStates;
+  const seq = useRef<Record<string, number>>({}); // номер последней проверки ребёнка: ответ более ранней не применяется
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
 
   useEffect(() => {
     void (async () => {
@@ -43,15 +51,23 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
     })();
   }, [reload]);
 
+  const checkLinked = useCallback(async (id: string) => {
+    const n = (seq.current[id] = (seq.current[id] ?? 0) + 1);
+    setLinkStates(m => ({ ...m, [id]: 'loading' }));
+    const r = await supabase.rpc('child_linked', { p: id });
+    if (!alive.current || seq.current[id] !== n) return;
+    // ошибка и ответ не true/false не считаются «не привязан»
+    const next: LinkState = r.error ? 'error' : r.data === true ? 'linked' : r.data === false ? 'free' : 'error';
+    setLinkStates(m => ({ ...m, [id]: next }));
+  }, []);
+
   useEffect(() => {
     if (!kids) return;
-    void (async () => {
-      const res = await Promise.all(kids.map(async k => ((await supabase.rpc('child_linked', { p: k.id })).data === true ? k.id : null)));
-      setLinkedKids(new Set(res.filter((x): x is string => x !== null)));
-    })();
-  }, [kids]);
+    kids.forEach(k => void checkLinked(k.id));
+  }, [kids, checkLinked]);
 
   const makeCode = async (id: string) => {
+    if (linkRef.current[id] !== 'free') return;
     setBusy(true);
     setMsg(null);
     const r = await supabase.rpc('create_child_code', { p: id });
@@ -61,6 +77,7 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
   };
 
   const unlinkChild = async (id: string) => {
+    if (linkRef.current[id] !== 'linked') return;
     setBusy(true);
     setMsg(null);
     const r = await supabase.rpc('unlink_child', { p: id });
@@ -103,7 +120,14 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
                   <p className="muted">Код для ребёнка (действует 3 дня): ребёнок выбирает роль «Ребёнок» и вводит его при входе.</p>
                   <p style={{ fontSize: 24, letterSpacing: 4, fontWeight: 600 }}>{codes[k.id]}</p>
                 </div>
-              ) : linkedKids.has(k.id) ? (
+              ) : linkStateOf(k.id) === 'loading' ? (
+                <p className="muted" role="status" style={{ marginBottom: 8 }}>Проверяю привязку аккаунта…</p>
+              ) : linkStateOf(k.id) === 'error' ? (
+                <div style={{ marginBottom: 8 }}>
+                  <p className="error" role="alert">Не удалось проверить привязку аккаунта ребёнка. Действия с кодом скрыты, пока проверка не пройдёт.</p>
+                  <button type="button" className="ks-back" onClick={() => void checkLinked(k.id)}>Повторить проверку</button>
+                </div>
+              ) : linkStateOf(k.id) === 'linked' ? (
                 <button type="button" className="ks-back" style={{ marginBottom: 8 }} disabled={busy} onClick={() => void unlinkChild(k.id)}>Отвязать аккаунт ребёнка</button>
               ) : (
                 <button type="button" className="ks-back" style={{ marginBottom: 8 }} disabled={busy} onClick={() => void makeCode(k.id)}>Код для ребёнка</button>
