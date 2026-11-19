@@ -1,8 +1,9 @@
 -- pgTAP: #652 этап 2c (0207), заморозка исторических комплектов и отказ у заказов в рассрочку.
 -- Условия: docs/acceptance/eq-652-stage2c-freeze-0207-2026-11-19.md (С1–С12), часть 2c в eq-652-stage2-bundle-discount-2026-11-16.md (В1–В7, И1–И7).
+\set dq `sed -e '/^[[:space:]]*--/d' -e 's/;[[:space:]]*$//' db/ops/readonly-eq-freeze-2c-dryrun.sql`
 begin;
 create extension if not exists pgtap;
-select plan(69);
+select plan(73);
 
 -- На тестовой базе 0207 уже поставила отметку freeze_2c (заказов не было). Для проверки состояния «только 0205» снимаем отметку
 -- на время теста (откатывается вместе с транзакцией) и заново применяем миграцию с привилегиями по умолчанию Supabase (И7).
@@ -142,6 +143,10 @@ select as_user('00000000-0000-0000-0000-0000006621a1');
 select throws_ok($$select eq_bundle_recalc(pu(1))$$, '55000', 'bundle freeze not applied', 'С12/А13: до 2c пересчёт отказывает');
 select as_pg();
 
+-- Пробный прогон db/ops/readonly-eq-freeze-2c-dryrun.sql до применения: потом сверяем его с фактическим результатом 0207 по каждому заказу
+create temp table dry as :dq;
+grant select on dry to public;
+
 -- Успешное применение. Ожидания по фикстуре: 13 заказов (P1..P9: 2+2+1+1+1+2+1+2+2 = 14), проверяем фактические числа
 insert into res select eq_freeze_2c(jsonb_build_object('orders', 17, 'legacy_confirmed', 3, 'legacy_review', 3, 'manual_up', 1, 'manual_down', 3, 'exact', 7, 'installment', 3));
 select is((select j->'classes'->>'legacy_confirmed' from res), '3', 'С1: legacy_confirmed: P1, P8, P9');
@@ -152,6 +157,16 @@ select is((select j->'classes'->>'exact' from res), '7', 'С1: exact: остал
 select is((select (j->>'bundles_confirmed')::int from res), 3, 'С2: три записи confirmed (по одной на ребёнка)');
 select is((select (j->>'bundles_review')::int from res), 3, 'С2: три записи review (P2, P6, P11)');
 select is((select (j->>'forfeited')::int from res), 3, 'С3/В2: отказ у трёх заказов в рассрочку (О22, О51 и отменённый О71)');
+-- Пробный прогон совпадает с фактом 0207 (порядок и правила те же, что в eq_bundle_calc)
+select is((select coalesce(jsonb_object_agg(substr(d."ключ", 7), d."значение"::int), '{}'::jsonb) from dry d where d."раздел" = 1 and d."ключ" like 'класс %'), (select j->'classes' from res),
+  'пробный прогон: число заказов по классам равно результату 0207');
+select is((select coalesce(array_agg(d."ключ"::uuid order by d."ключ"), '{}') from dry d where d."раздел" = 2),
+  (select coalesce(array_agg(e.id order by e.id), '{}') from equipment_orders e where e.legacy_bundle_id is not null),
+  'пробный прогон: список заказов к заморозке совпадает с фактически замороженными по каждому id');
+select is((select d."значение"::int from dry d where d."раздел" = 1 and d."ключ" = 'заказов к заморозке'), (select (j->>'frozen_orders')::int from res), 'пробный прогон: число замороженных заказов равно результату 0207');
+select is((select coalesce(array_agg(d."ключ"::uuid order by d."ключ"), '{}') from dry d where d."раздел" = 3),
+  (select coalesce(array_agg(e.id order by e.id), '{}') from equipment_orders e where e.legacy_bundle_id is null and e.total <> eq_order_lines_sum(e.id)),
+  'пробный прогон: раздел 3 = все незамороженные заказы с ненулевой delta');
 
 -- С2: заморозка целиком
 select ok(lb(u(11)) is not null and lb(u(11)) = lb(u(12)), 'С2: О11 и О12 в одном замороженном комплекте (целиком)');
