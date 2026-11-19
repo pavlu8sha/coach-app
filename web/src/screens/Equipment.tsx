@@ -8,7 +8,6 @@ import { useDirtyGuard, useNav, useNavState } from '../nav';
 import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { settingNumberError, useClubSettings } from '../lib/clubSettings';
-import { bundleDiscount, priorAmount } from '../lib/equipmentDiscount';
 import { CSV_BOM, csvFileName, equipmentCsv, notOrderedCsv, notOrderedFileName, notOrderedPlayers, type RosterPlayer } from '../lib/equipmentExport';
 import { initData } from '../lib/telegram';
 import { allKitsIssued, EQUIPMENT_REQUIRED_KEY, EQUIPMENT_REQUIRED_TEXT, isCancelled, issueStateLabel, kitIssued, lastStatusDate, orderDue, orderMatchesIssue, nextStatus, orderStatusLabel, prevStatus, type StatusEvent } from '../lib/equipment';
@@ -35,7 +34,17 @@ const errText = (m: string) =>
   m.includes('order cancelled') ? 'Заказ отменён: менять его нельзя. Сначала восстановите заказ.' : m.includes('already cancelled') ? 'Заказ уже отменён.' : m.includes('not cancelled') ? 'Заказ не отменён.' : m.includes('reason required') ? 'Укажите причину отмены.' :
   m.includes('parent order') ? 'Заказ оформил родитель: удалить его нельзя, можно только отменить.' : m.includes('order has events') ? 'У заказа есть история отмены: удалить его нельзя.' :
   m.includes('bad transition') ? 'Статус можно менять только на один шаг вперёд (назад — администратору).' : m.includes('bad status') ? 'Такого статуса нет.' : m.includes('not all issued') ? 'Статус «Выдан» можно поставить, только когда выданы все вещи заказа.' :
+  m.includes('bundle freeze not applied') ? 'Скидка на комплект ещё не включена в базе (нужна заморозка прежних скидок, шаг 2c). Обратитесь к администратору.' : m.includes('confirm required') ? 'Нужно подтверждение: обновите экран и повторите.' : m.includes('discount fields are managed') ? 'Скидка на комплект считается системой: править её вручную нельзя.' :
   m.includes('Could not find the function') || m.includes('equipment_issues') ? 'Модуль ещё не установлен в базе (миграция 0036).' : coachError(m);
+// Предпросмотр расчёта скидки (eq_bundle_preview / eq_restore_preview): суммы заказов игрока до и после, переплата.
+interface BundlePreview { state?: string; changed?: boolean; overpaid?: number | string; orders?: { order_id: string; frozen?: boolean; total_before: number | string; total_after: number | string; paid?: number | string }[] }
+const bundleAsk = (title: string, who: string, pv: BundlePreview, confirmLabel: string, intro?: string) => {
+  const rows = (pv.orders ?? []).filter(x => !x.frozen && Number(x.total_before) !== Number(x.total_after));
+  const over = Number(pv.overpaid ?? 0);
+  const lines: [string, string][] = [['Игрок', who], ...rows.map((x, i): [string, string] => [`Заказ ${i + 1}`, `${gel(Number(x.total_before))} → ${gel(Number(x.total_after))}`])];
+  const note = [intro, rows.length > 0 ? 'Суммы заказов изменятся по скидке на комплект.' : 'Суммы заказов не изменятся.', over > 0 ? `Переплата ${gel(over)} останется на заказе, платежи не меняются.` : ''].filter(Boolean).join(' ');
+  return { title, lines, note, confirmLabel };
+};
 const issueState = (o: Order) => issueStateLabel(o.equipment_order_lines, o.equipment_issues);
 
 // Чего не хватает в заказе: позиции, размера, номера (для гетр и носков номер не нужен).
@@ -437,18 +446,6 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
   const settings = useClubSettings();
   useDirtyGuard(player !== null || Object.keys(pick).length > 0 || insc.trim() !== '' || number.trim() !== '' || custom.trim() !== '');
   const numberNote = useNumberNote(player?.id, number);
-  const [past, setPast] = useState<{ total: number; lines: { kit: string; quantity: number; unit_price: number | null }[] }[]>([]);
-
-  // Что игрок заказывал раньше и на какую сумму: нужно, чтобы посчитать скидку на весь набор.
-  useEffect(() => {
-    if (!player) return setPast([]);
-    let alive = true;
-    void supabase.from('equipment_orders').select('total, equipment_order_lines(kit, quantity, unit_price)').eq('player_id', player.id).neq('status', 'cancelled').then(r => {
-      if (!alive || r.error) return;
-      setPast(((r.data ?? []) as unknown as { total: number | string | null; equipment_order_lines: { kit: string; quantity: number; unit_price: number | null }[] | null }[]).map(o => ({ total: Number(o.total ?? 0), lines: o.equipment_order_lines ?? [] })));
-    });
-    return () => { alive = false; };
-  }, [player]);
 
   useEffect(() => {
     if (q.trim().length < 2) return setFound([]);
@@ -468,18 +465,13 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
     if (n) setNumber(cur => (cur.trim() ? cur : n));
   };
   const total = (kits ?? []).reduce((s, k) => s + (pick[k.kit] ? k.price * pick[k.kit].quantity : 0), 0);
-  const pastAmount = priorAmount(past, settings.values);
-  const disc = bundleDiscount({
-    lines: (kits ?? []).filter(k => pick[k.kit]).map(k => ({ kit: k.kit, amount: k.price * pick[k.kit].quantity })),
-    pastKits: past.flatMap(o => o.lines.map(l => l.kit)), pastAmount, installment: inst, settings: settings.values,
-  });
   const discError = settingNumberError(settings.values, 'equip.discPct') ?? settingNumberError(settings.values, 'equip.discRound');
   const save = async () => {
     if (!player) return;
     setBusy(true);
     setErr(null);
     const lines = Object.entries(pick).map(([kit, v]) => ({ kit, size: v.size, quantity: v.quantity }));
-    const r = await supabase.rpc('eq_create_order', { p: player.id, lines, insc, num: number, inst, loc, custom_total: custom.trim() !== '' ? num(custom) : disc.applies ? disc.total : null, req: orderKey.current });
+    const r = await supabase.rpc('eq_create_order', { p: player.id, lines, insc, num: number, inst, loc, custom_total: custom.trim() !== '' ? num(custom) : null, req: orderKey.current });
     setBusy(false);
     if (r.error) return setErr(errText(r.error.message));
     onDone();
@@ -519,16 +511,10 @@ function NewOrder({ onBack, onDone }: { onBack: () => void; onDone: () => void }
       {numberNote && <p className="ks-callout" role="status">{numberNote}</p>}
       <label className="field">Локация<input value={loc} maxLength={40} onChange={e => setLoc(e.target.value)} /></label>
       <div style={{ marginTop: 12 }}><SwitchRow id="inst" label="Рассрочка" checked={inst} onChange={setInst} /></div>
-      <label className="field">Своя сумма, ₾ (если со скидкой; иначе пусто)<input inputMode="decimal" value={custom} onChange={e => setCustom(e.target.value)} /></label>
+      <label className="field">Своя сумма, ₾ (только если нужна не каталожная цена; иначе пусто)<input inputMode="decimal" value={custom} onChange={e => setCustom(e.target.value)} /></label>
       {discError && <p className="error">Скидка не рассчитана: исправьте настройку в «Настройках клуба». {discError}</p>}
-      {disc.applies && custom.trim() === '' ? (
-        <div className="ks-callout">
-          <div>По каталогу: {gel(disc.base)}</div>
-          <div>Скидка на комплект {disc.pct}%: −{gel(disc.discount)}</div>
-          <div><b>К оплате: {gel(disc.total)}</b></div>
-          {disc.pastAmount > 0 && <div className="muted">Считается от всего набора: {gel(disc.allBase)} с прошлыми заказами, со скидкой {gel(disc.allTotal)}, минус прошлые {gel(disc.pastAmount)}. Другую сумму можно вписать выше.</div>}
-        </div>
-      ) : <p className="muted">По каталогу: {gel(total)}</p>}
+      <p className="muted">По каталогу: {gel(total)}</p>
+      {custom.trim() === '' && <p className="muted">Скидку на комплект, если она положена, система посчитает сама после создания заказа.</p>}
       {err && <p className="error" style={{ marginBottom: 12 }}>{err}</p>}
       <button type="button" className="ks-btn" style={{ marginTop: 16 }} disabled={busy || !player || Object.keys(pick).length === 0 || (custom.trim() !== '' && Number.isNaN(num(custom)))} onClick={() => void save()}>Создать заказ</button>
     </main>
@@ -587,7 +573,6 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
   useEffect(() => { msg && msgRef.current?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }); }, [msg]);
   useEffect(() => { if (gone) onBack(); }, [gone]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const settings = useClubSettings();
   const refresh = async (): Promise<Order | null> => {
     const r = await supabase.from('equipment_orders').select(`${ORDER_COLS}, players(full_name)`).eq('id', order.id).maybeSingle();
     if (!r.error && r.data) {
@@ -599,25 +584,18 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
     }
     return null;
   };
-  // После добавления вещи сумма сдвигается на цену по каталогу без скидки. Если теперь набор полный, предлагаем пересчитать
-  // сумму по скидке на комплект (как в «Новом заказе»). Не меняем молча: сумма могла быть вписана вручную.
-  const offerBundle = async (fresh: Order, manual = false) => {
-    const skip = (text: string) => { if (manual) setMsg({ ok: true, text }); };
-    if (fresh.installment) return skip('Заказ в рассрочку: скидки на комплект нет.');
-    if (!fresh.player_id) return skip('Скидку посчитать нельзя: у заказа нет игрока.');
-    const r = await supabase.from('equipment_orders').select('id, total, equipment_order_lines(kit, quantity, unit_price)').eq('player_id', fresh.player_id).neq('status', 'cancelled');
-    if (r.error) return skip('Не удалось загрузить заказы игрока.');
-    const past = ((r.data ?? []) as unknown as { id: string; total: number | string | null; equipment_order_lines: { kit: string }[] | null }[])
-      .filter(x => x.id !== fresh.id).map(x => ({ total: Number(x.total ?? 0), lines: x.equipment_order_lines ?? [] }));
-    const disc = bundleDiscount({
-      lines: fresh.equipment_order_lines.map(l => ({ kit: l.kit, amount: (Number(l.unit_price) || (catalog ?? []).find(k => k.kit === l.kit)?.price || 0) * l.quantity })), // нет цены строки: берём цену каталога
-      pastKits: past.flatMap(x => x.lines.map(l => l.kit)), pastAmount: priorAmount(past, settings.values), installment: false, settings: settings.values,
-    });
-    if (!disc.applies) return skip('Скидка на комплект к этому заказу не применяется (нужен полный набор).');
-    if (Math.abs(disc.total - fresh.total) < 0.005) return skip(`Сумма уже верная: ${gel(fresh.total)}.`);
-    const yes = await ask({ title: 'Пересчитать сумму по скидке на комплект?', lines: [['Игрок', fresh.players?.full_name ?? 'Игрок'], ['Сейчас', gel(fresh.total)], ['Со скидкой', gel(disc.total)]], note: `Скидка ${disc.pct}% на набор. Сумма заказа изменится.${disc.total < fresh.paid ? ` Оплачено ${gel(fresh.paid)}: переплата ${gel(fresh.paid - disc.total)} останется на этом заказе, платежи не меняются.` : ''}`, confirmLabel: 'Применить' });
+  // Скидка на комплект считается в базе (0208) при создании, правке, отмене и восстановлении заказа. Кнопка «Пересчитать» нужна после
+  // исправления настроек или для проверки: показываем предпросмотр сервера и применяем его же расчёт после подтверждения.
+  const offerBundle = async (fresh: Order) => {
+    if (!fresh.player_id) return setMsg({ ok: true, text: 'Скидку посчитать нельзя: у заказа нет игрока.' });
+    const r = await supabase.rpc('eq_bundle_preview', { p: fresh.player_id });
+    if (r.error) return setMsg({ ok: false, text: errText(r.error.message) });
+    const pv = (r.data ?? {}) as BundlePreview;
+    if (pv.state === 'unchecked') return setMsg({ ok: false, text: 'Скидка не рассчитана: исправьте настройки скидки в «Настройках клуба».' });
+    if (!pv.changed) return setMsg({ ok: true, text: 'Суммы заказов игрока уже верные.' });
+    const yes = await ask(bundleAsk('Пересчитать суммы по скидке на комплект?', fresh.players?.full_name ?? 'Игрок', pv, 'Применить'));
     if (!yes) return;
-    if (await run('edit', () => supabase.rpc('eq_edit_order', { o: fresh.id, insc: fresh.inscription ?? '', num: fresh.number ?? '', inst: fresh.installment, loc: fresh.location ?? '', new_total: disc.total }), 'Сумма пересчитана.')) setTotal(String(disc.total));
+    await run('edit', () => supabase.rpc('eq_bundle_recalc', { p: fresh.player_id, mode: 'manual' }), 'Суммы пересчитаны.');
   };
   const run = async (key: string, f: () => PromiseLike<{ error: { message: string } | null }>, ok?: string) => {
     setBusy(key);
@@ -659,9 +637,14 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
     if (!(await ask({ title: 'Отменить заказ?', lines: [['Игрок', o.players?.full_name ?? 'Игрок'], ['Сумма', gel(o.total)], ['Оплачено', gel(o.paid)], ['Причина', why]], note: o.paid > 0 ? 'Оплата останется на заказе. Возврат денег решает администратор отдельно.' : 'Заказ можно будет восстановить.', confirmLabel: 'Отменить заказ', danger: true }))) return;
     if (await run('cancel', () => supabase.rpc('eq_cancel_order', { o: o.id, reason: why }), 'Заказ отменён.')) setCancelReason('');
   };
+  // Восстановление меняет скидку на комплект: сначала предпросмотр сервера, подтверждение с суммами до и после, потом вызов с confirm = true.
   const restoreOrder = async () => {
-    if (!(await ask({ title: 'Восстановить заказ?', lines: [['Игрок', o.players?.full_name ?? 'Игрок'], ['Сумма', gel(o.total)]], note: 'Заказ вернётся в статус, который был до отмены.', confirmLabel: 'Восстановить' }))) return;
-    await run('restore', () => supabase.rpc('eq_restore_order', { o: o.id, note: null }), 'Заказ восстановлен.');
+    const r = await supabase.rpc('eq_restore_preview', { o: o.id });
+    if (r.error) return setMsg({ ok: false, text: errText(r.error.message) });
+    const pv = (r.data ?? {}) as BundlePreview;
+    const yes = await ask(bundleAsk('Восстановить заказ?', o.players?.full_name ?? 'Игрок', pv, 'Восстановить', 'Заказ вернётся в статус, который был до отмены.'));
+    if (!yes) return;
+    await run('restore', () => supabase.rpc('eq_restore_order', { o: o.id, note: null, confirm: true }), 'Заказ восстановлен.');
   };
   // Сторно оплаты и возврат денег (#471, 0188): только администратор, причина обязательна.
   const reversePayment = async (p: Pay) => {
@@ -746,7 +729,7 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
       <div className="ks-card">
         <label className="field">Вещь<select value={addKit} onChange={e => setAddKit(e.target.value)}><option value="">Выберите вещь</option>{(catalog ?? []).filter(k => !issued.has(k.kit)).map(k => <option key={k.kit} value={k.kit}>{k.kit} — {gel(k.price)}</option>)}</select></label>
         <label className="field">Размер новой вещи<input value={addSize} maxLength={40} onChange={e => setAddSize(e.target.value)} /></label>
-        <button type="button" className="ks-btn secondary" disabled={busy === 'add' || !addKit} onClick={() => void run('add', () => supabase.rpc('eq_add_line', { o: o.id, k: addKit, sz: addSize, qty: 1 }), 'Вещь добавлена.').then(ok => { if (ok) { setAddKit(''); setAddSize(''); if (lastFresh.current) void offerBundle(lastFresh.current); } })}>Добавить в заказ</button>
+        <button type="button" className="ks-btn secondary" disabled={busy === 'add' || !addKit} onClick={() => void run('add', () => supabase.rpc('eq_add_line', { o: o.id, k: addKit, sz: addSize, qty: 1 }), 'Вещь добавлена.').then(ok => { if (ok) { setAddKit(''); setAddSize(''); } })}>Добавить в заказ</button>
       </div>
 
       <h3>Оплата</h3>
@@ -791,7 +774,7 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
       <label className="field">Дата заказа<input type="date" max={today()} value={orderedOn} onChange={e => setOrderedOn(e.target.value)} /></label>
       <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy === 'date' || !orderedOn || orderedOn === (o.ordered_on ?? '')} onClick={() => void run('date', () => supabase.rpc('eq_set_order_date', { o: o.id, d: orderedOn }), 'Дата сохранена.')}>Сохранить дату</button>
       <label className="field">Локация<input value={loc} maxLength={40} onChange={e => setLoc(e.target.value)} /></label>
-      <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy === 'edit'} onClick={() => void offerBundle(o, true)}>Пересчитать по скидке на комплект</button>
+      <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy === 'edit'} onClick={() => void offerBundle(o)}>Пересчитать по скидке на комплект</button>
       <label className="field">Сумма заказа, ₾<input inputMode="decimal" value={total} onChange={e => setTotal(e.target.value)} /></label>
       <div style={{ marginTop: 12 }}><SwitchRow id="inst" label="Рассрочка" checked={inst} onChange={setInst} /></div>
       <button type="button" className="ks-btn" style={{ marginTop: 16 }} disabled={busy === 'edit' || Number.isNaN(num(total))} onClick={() => void run('edit', () => supabase.rpc('eq_edit_order', { o: o.id, insc, num: number, inst, loc, new_total: num(total) }), 'Сохранено.')}>Сохранить</button>

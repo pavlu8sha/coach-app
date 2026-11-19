@@ -82,7 +82,7 @@ select is((select status from o1), 'cancelled', 'Ф3: статус осталс�
 select as_user('00000000-0000-0000-0000-0000004712b1');
 select throws_ok($$select eq_restore_order((select id from ids where k = 'o1'), null)$$, '42501', 'forbidden', 'Ф6: локальный админ не восстанавливает (F1)');
 select as_user('00000000-0000-0000-0000-0000004712a1');
-select lives_ok($$select eq_restore_order((select id from ids where k = 'o1'), 'вернулись')$$, 'Ф6: администратор восстанавливает');
+select lives_ok($$select eq_restore_order((select id from ids where k = 'o1'), 'вернулись', true)$$, 'Ф6: администратор восстанавливает');
 select is((select status from o1), 'sewing', 'Ф6: статус вернулся к прежнему (F1)');
 select ok((select cancelled_at is null and status_before_cancel is null and cancel_reason is null and restored_by = '00000000-0000-0000-0000-0000004712a1' from o1), 'Ф6: поля отмены очищены, кто восстановил записано');
 select is((select total || '/' || paid from o1), '450.00/200.00', 'Ф6: суммы не меняются');

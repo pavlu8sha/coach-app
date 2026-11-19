@@ -144,7 +144,7 @@ describe('«Экипировка»', () => {
     expect(call.custom_total).toBeNull();
   });
 
-  it('новый заказ: скидка на комплект считается с учётом прошлых заказов игрока (#339)', async () => {
+  it('новый заказ: клиент не считает скидку и не шлёт сумму, скидку посчитает база (#652, 0208)', async () => {
     seed();
     fake.db.equipment_catalog = [
       { kit: 'Тренировочная форма', price: 160, valid_from: '2026-01-01' },
@@ -162,11 +162,11 @@ describe('«Экипировка»', () => {
     fireEvent.click(await screen.findByLabelText(/Тренировочная форма/));
     fireEvent.click(screen.getByLabelText(/Спортивный костюм/));
     fireEvent.click(screen.getByLabelText(/Дождевик/));
-    expect(await screen.findByText('К оплате: 325 ₾')).toBeInTheDocument();
     expect(screen.getByText('По каталогу: 420 ₾')).toBeInTheDocument();
-    expect(screen.getByText('Скидка на комплект 15%: −95 ₾')).toBeInTheDocument();
+    expect(screen.queryByText(/К оплате/)).not.toBeInTheDocument();
+    expect(screen.getByText(/система посчитает сама/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Создать заказ' }));
-    await waitFor(() => expect(fake.rpcCalls('eq_create_order')[0]).toMatchObject({ p: 'p1', custom_total: 325 }));
+    await waitFor(() => expect(fake.rpcCalls('eq_create_order')[0]).toMatchObject({ p: 'p1', custom_total: null }));
   });
 
   it('новый заказ: ключ идемпотентности сохраняется при ошибке и повторе (#652, 0203)', async () => {
@@ -270,53 +270,51 @@ describe('«Экипировка»', () => {
     expect(await screen.findByLabelText('Размер: Дождевик')).toBeInTheDocument();
   });
 
-  it('после добавления вещи предлагает пересчитать сумму по скидке на комплект (полный набор: 525 ₾)', async () => {
+  const bundleSeed = () => {
     seed();
-    fake.db.equipment_catalog = [
-      { kit: 'Игровая форма', price: 200, valid_from: '2026-01-01' }, { kit: 'Тренировочная форма', price: 160, valid_from: '2026-01-01' },
-      { kit: 'Спортивный костюм', price: 150, valid_from: '2026-01-01' }, { kit: 'Дождевик', price: 110, valid_from: '2026-01-01' },
-    ];
+    fake.db.equipment_catalog = [{ kit: 'Игровая форма', price: 200, valid_from: '2026-01-01' }, { kit: 'Дождевик', price: 110, valid_from: '2026-01-01' }];
     fake.db.clubs = [{ id: 'c1' }];
     fake.db.club_settings = [];
-    const ln = (id: string, kit: string, price: number) => ({ id, kit, size: '152', quantity: 1, unit_price: price });
-    fake.db.equipment_orders = [{ id: 'k1', player_id: 'p7', ordered_on: '2026-10-01', total: 435, paid: 300, installment: false, number: '7', inscription: null, location: null, status: 'accepted', equipment_order_status_history: [], players: { full_name: 'Котов Родион' },
-      equipment_order_lines: [ln('k1-a', 'Игровая форма', 200), ln('k1-b', 'Тренировочная форма', 160), ln('k1-c', 'Спортивный костюм', 150)], equipment_issues: [] }];
-    fake.rpc.eq_add_line = (a: { o: string; k: string; sz: string; qty: number }) => {
-      const o = (fake.db.equipment_orders as { id: string; total: number; equipment_order_lines: object[] }[]).find(x => x.id === a.o)!;
-      o.equipment_order_lines = [...o.equipment_order_lines, ln('k1-d', a.k, 110)];
-      o.total += 110; // как eq_add_line: цена по каталогу, без скидки
-      return 'k1-d';
-    };
-    fake.rpc.eq_edit_order = () => null;
+    fake.db.equipment_orders = [{ id: 'k1', player_id: 'p7', ordered_on: '2026-10-01', total: 545, paid: 300, installment: false, number: '7', inscription: null, location: null, status: 'accepted', equipment_order_status_history: [], players: { full_name: 'Котов Родион' },
+      equipment_order_lines: [{ id: 'k1-a', kit: 'Игровая форма', size: '152', quantity: 1, unit_price: 200 }], equipment_issues: [] }];
+  };
+
+  it('после добавления вещи клиент не предлагает пересчёт и не пишет сумму: скидку считает база (0208)', async () => {
+    bundleSeed();
+    fake.rpc.eq_add_line = () => 'k1-d';
     render(<Equipment />);
     fireEvent.click(await screen.findByText('Котов Родион'));
     fireEvent.change(await screen.findByLabelText('Вещь'), { target: { value: 'Дождевик' } });
     fireEvent.click(screen.getByRole('button', { name: 'Добавить в заказ' }));
-    const dlg = await screen.findByRole('dialog');
-    expect(within(dlg).getByText('525 ₾')).toBeInTheDocument();
-    fireEvent.click(within(dlg).getByRole('button', { name: 'Применить' }));
-    await waitFor(() => expect(fake.rpcCalls('eq_edit_order')).toEqual([{ o: 'k1', insc: '', num: '7', inst: false, loc: '', new_total: 525 }]));
+    await waitFor(() => expect(fake.rpcCalls('eq_add_line')).toHaveLength(1));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(fake.rpcCalls('eq_edit_order')).toHaveLength(0);
+    expect(fake.rpcCalls('eq_bundle_preview')).toHaveLength(0);
   });
 
-  it('кнопка «Пересчитать по скидке на комплект»: строка без цены берёт цену каталога, сумма 525 ₾', async () => {
-    seed();
-    fake.db.equipment_catalog = [
-      { kit: 'Игровая форма', price: 200, valid_from: '2026-01-01' }, { kit: 'Тренировочная форма', price: 160, valid_from: '2026-01-01' },
-      { kit: 'Спортивный костюм', price: 150, valid_from: '2026-01-01' }, { kit: 'Дождевик', price: 110, valid_from: '2026-01-01' },
-    ];
-    fake.db.clubs = [{ id: 'c1' }];
-    fake.db.club_settings = [];
-    const ln = (id: string, kit: string, price: number) => ({ id, kit, size: '152', quantity: 1, unit_price: price });
-    fake.db.equipment_orders = [{ id: 'k1', player_id: 'p7', ordered_on: '2026-10-01', total: 470, paid: 300, installment: false, number: '7', inscription: null, location: null, status: 'accepted', equipment_order_status_history: [], players: { full_name: 'Котов Родион' },
-      equipment_order_lines: [ln('k1-a', 'Игровая форма', 200), ln('k1-b', 'Тренировочная форма', 160), ln('k1-c', 'Спортивный костюм', 150), ln('k1-d', 'Дождевик', 0)], equipment_issues: [] }];
-    fake.rpc.eq_edit_order = () => null;
+  it('кнопка «Пересчитать по скидке на комплект»: предпросмотр сервера, подтверждение, eq_bundle_recalc', async () => {
+    bundleSeed();
+    fake.rpc.eq_bundle_preview = () => ({ state: 'active', changed: true, overpaid: 0, orders: [{ order_id: 'k1', total_before: 545, total_after: 525, paid: 300 }] });
+    fake.rpc.eq_bundle_recalc = () => ({ state: 'active', changed: true });
     render(<Equipment />);
     fireEvent.click(await screen.findByText('Котов Родион'));
     fireEvent.click(await screen.findByRole('button', { name: 'Пересчитать по скидке на комплект' }));
     const dlg = await screen.findByRole('dialog');
-    expect(within(dlg).getByText('525 ₾')).toBeInTheDocument();
+    expect(within(dlg).getByText('545 ₾ → 525 ₾')).toBeInTheDocument();
+    expect(fake.rpcCalls('eq_bundle_recalc')).toHaveLength(0);
     fireEvent.click(within(dlg).getByRole('button', { name: 'Применить' }));
-    await waitFor(() => expect(fake.rpcCalls('eq_edit_order')).toEqual([{ o: 'k1', insc: '', num: '7', inst: false, loc: '', new_total: 525 }]));
+    await waitFor(() => expect(fake.rpcCalls('eq_bundle_recalc')).toEqual([{ p: 'p7', mode: 'manual' }]));
+    expect(fake.rpcCalls('eq_edit_order')).toHaveLength(0);
+  });
+
+  it('«Пересчитать»: если суммы уже верные, подтверждения нет', async () => {
+    bundleSeed();
+    fake.rpc.eq_bundle_preview = () => ({ state: 'none', changed: false, overpaid: 0, orders: [] });
+    render(<Equipment />);
+    fireEvent.click(await screen.findByText('Котов Родион'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Пересчитать по скидке на комплект' }));
+    expect(await screen.findByText('Суммы заказов игрока уже верные.')).toBeInTheDocument();
+    expect(fake.rpcCalls('eq_bundle_recalc')).toHaveLength(0);
   });
 
   it('дата заказа сохраняется (eq_set_order_date)', async () => {
@@ -615,6 +613,7 @@ describe('Экипировка: отмена и восстановление з�
   it('Ф6: отменённый заказ: причина, нет правок и оплаты, есть «Восстановить заказ» (eq_restore_order)', async () => {
     seedCancelled();
     fake.rpc.eq_restore_order = () => null;
+    fake.rpc.eq_restore_preview = () => ({ state: 'active', changed: true, overpaid: 30, orders: [{ order_id: 'o9', total_before: 160, total_after: 130, paid: 160 }] });
     render(<Equipment />);
     fireEvent.click(await screen.findByText('Отменов Лев'));
     expect(await screen.findByText('Причина: семья переехала')).toBeInTheDocument();
@@ -624,8 +623,12 @@ describe('Экипировка: отмена и восстановление з�
     expect(screen.queryByRole('button', { name: 'Удалить заказ' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Перевести/ })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Восстановить заказ' }));
-    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Восстановить' }));
-    await waitFor(() => expect(fake.rpcCalls('eq_restore_order')).toEqual([{ o: 'o9', note: null }]));
+    const dlg = await screen.findByRole('dialog');
+    expect(within(dlg).getByText('160 ₾ → 130 ₾')).toBeInTheDocument();
+    expect(within(dlg).getByText(/Переплата 30 ₾/)).toBeInTheDocument();
+    expect(fake.rpcCalls('eq_restore_order')).toHaveLength(0);
+    fireEvent.click(within(dlg).getByRole('button', { name: 'Восстановить' }));
+    await waitFor(() => expect(fake.rpcCalls('eq_restore_order')).toEqual([{ o: 'o9', note: null, confirm: true }]));
   });
 
   it('Ф7: понятная ошибка, если заказ родителя пытаются удалить', async () => {

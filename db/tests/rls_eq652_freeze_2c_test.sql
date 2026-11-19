@@ -113,8 +113,11 @@ select mk(u(112), pu(11), '2026-10-05', false, -95, '[{"kit":"Спортивны
 select as_user('00000000-0000-0000-0000-0000006621a1');
 select eq_add_payment(u(11), 300, null, 'Наличные');
 select eq_add_payment(u(22), 100, null, 'Наличные');
-select eq_cancel_order(u(71), 'тест отмены');
 select as_pg();
+-- Отмена напрямую: до отметки freeze_2c функции eq_* с автопересчётом (0208) не работают, поэтому «старая» отмена задаётся данными.
+select set_config('eq.op', 'cancel', true);
+update equipment_orders set status = 'cancelled', status_before_cancel = status, cancelled_at = now() where id = u(71);
+select set_config('eq.op', '', true);
 
 select is(inv4(), 0, 'И4 до 2c: итог = строки + корректировка + скидка у всех заказов');
 select is(ma(u(12)), '-95', 'В1: корректировка О12 = −95 (записана 0205), 2c её не меняет');
@@ -213,7 +216,7 @@ select is(snap_state(), (select v from fp where k = 'state2'), 'С7: состо�
 
 -- В2: отмена -> восстановление -> пересчёт: отказ у заказа в рассрочку сохраняется, итог не меняется
 select as_user('00000000-0000-0000-0000-0000006621a1');
-select eq_restore_order(u(71), 'тест восстановления');
+select eq_restore_order(u(71), 'тест восстановления', true);
 select as_pg();
 select ok((select discount_forfeited from equipment_orders where id = u(71)) and (select status from equipment_orders where id = u(71)) <> 'cancelled', 'В2: после восстановления заказ действует и отказ сохранён');
 select as_user('00000000-0000-0000-0000-0000006621a1');
