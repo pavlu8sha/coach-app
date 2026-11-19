@@ -2,7 +2,7 @@
 -- Условия: docs/acceptance/eq-652-stage2c-freeze-0207-2026-11-19.md (С1–С12), часть 2c в eq-652-stage2-bundle-discount-2026-11-16.md (В1–В7, И1–И7).
 begin;
 create extension if not exists pgtap;
-select plan(62);
+select plan(69);
 
 -- На тестовой базе 0207 уже поставила отметку freeze_2c (заказов не было). Для проверки состояния «только 0205» снимаем отметку
 -- на время теста (откатывается вместе с транзакцией) и заново применяем миграцию с привилегиями по умолчанию Supabase (И7).
@@ -22,12 +22,13 @@ alter table equipment_bundle_steps enable trigger equipment_bundle_steps_guard;
 create or replace function u(n int) returns uuid language sql immutable as $$ select ('00000000-0000-0000-0000-00000066' || lpad(n::text, 4, '0'))::uuid $$;
 create or replace function pu(n int) returns uuid language sql immutable as $$ select ('00000000-0000-0000-0000-0000006623' || lpad(n::text, 2, '0'))::uuid $$;
 
-insert into clubs (id, name) values ('00000000-0000-0000-0000-0000006621c1', 'Клуб'), ('00000000-0000-0000-0000-0000006621c2', 'Другой клуб');
+insert into clubs (id, name) values ('00000000-0000-0000-0000-0000006621c1', 'Клуб'), ('00000000-0000-0000-0000-0000006621c2', 'Другой клуб'), ('00000000-0000-0000-0000-0000006621c3', 'Клуб с процентом 0');
+insert into club_settings (club_id, key, value) values ('00000000-0000-0000-0000-0000006621c3', 'equip.discPct', '0');
 insert into users (id, telegram_id, display_name, is_admin) values
   ('00000000-0000-0000-0000-0000006621a1', 966211, 'Админ', true),
   ('00000000-0000-0000-0000-0000006621b2', 966213, 'Родитель', false);
 insert into players (id, club_id, full_name, status)
-  select pu(n), case when n = 9 then '00000000-0000-0000-0000-0000006621c2'::uuid else '00000000-0000-0000-0000-0000006621c1'::uuid end, 'Игрок ' || n, 'active' from generate_series(1, 12) n;
+  select pu(n), case when n = 9 then '00000000-0000-0000-0000-0000006621c2'::uuid when n in (10, 11) then '00000000-0000-0000-0000-0000006621c3'::uuid else '00000000-0000-0000-0000-0000006621c1'::uuid end, 'Игрок ' || n, 'active' from generate_series(1, 12) n;
 
 create or replace function as_user(uid uuid) returns void language plpgsql as $$
 begin
@@ -103,6 +104,11 @@ select mk(u(82), pu(8), '2026-10-05', false, -95, '[{"kit":"Спортивный
 -- P9: другой клуб, свой полный комплект: классифицируется независимо (И2)
 select mk(u(91), pu(9), '2026-10-01', false, 0, '[{"kit":"Игровая форма","price":150},{"kit":"Тренировочная форма","price":150}]');
 select mk(u(92), pu(9), '2026-10-05', false, -95, '[{"kit":"Спортивный костюм","price":210},{"kit":"Дождевик","price":110}]');
+-- P10 (процент скидки 0): неполный комплект и отрицательная разница: не комплект, не заморожен (manual_down)
+select mk(u(101), pu(10), '2026-10-02', false, -40, '[{"kit":"Игровая форма","price":150}]');
+-- P11 (процент скидки 0): полный комплект и отрицательная разница у замыкающего: на разбор (confirmed при нулевой скидке невозможен)
+select mk(u(111), pu(11), '2026-10-01', false, 0, '[{"kit":"Игровая форма","price":150},{"kit":"Тренировочная форма","price":150}]');
+select mk(u(112), pu(11), '2026-10-05', false, -95, '[{"kit":"Спортивный костюм","price":210},{"kit":"Дождевик","price":110}]');
 select as_user('00000000-0000-0000-0000-0000006621a1');
 select eq_add_payment(u(11), 300, null, 'Наличные');
 select eq_add_payment(u(22), 100, null, 'Наличные');
@@ -137,15 +143,15 @@ select throws_ok($$select eq_bundle_recalc(pu(1))$$, '55000', 'bundle freeze not
 select as_pg();
 
 -- Успешное применение. Ожидания по фикстуре: 13 заказов (P1..P9: 2+2+1+1+1+2+1+2+2 = 14), проверяем фактические числа
-insert into res select eq_freeze_2c(jsonb_build_object('orders', 14, 'legacy_confirmed', 3, 'legacy_review', 2, 'manual_up', 1, 'manual_down', 2, 'exact', 6, 'installment', 2));
+insert into res select eq_freeze_2c(jsonb_build_object('orders', 17, 'legacy_confirmed', 3, 'legacy_review', 3, 'manual_up', 1, 'manual_down', 3, 'exact', 7, 'installment', 3));
 select is((select j->'classes'->>'legacy_confirmed' from res), '3', 'С1: legacy_confirmed: P1, P8, P9');
-select is((select j->'classes'->>'legacy_review' from res), '2', 'С1: legacy_review: P2 (замыкающий в рассрочке), P6 (скидка не 95)');
+select is((select j->'classes'->>'legacy_review' from res), '3', 'С1: legacy_review: P2 (замыкающий в рассрочке), P6 (скидка не 95), P11 (процент 0, полный комплект)');
 select is((select j->'classes'->>'manual_up' from res), '1', 'С1: manual_up: P4');
-select is((select j->'classes'->>'manual_down' from res), '2', 'С1: manual_down: P3 (нет комплекта), P7 (отменён)');
-select is((select j->'classes'->>'exact' from res), '6', 'С1: exact: остальные');
+select is((select j->'classes'->>'manual_down' from res), '3', 'С1: manual_down: P3 (нет комплекта), P7 (отменён), P10 (процент 0, неполный комплект)');
+select is((select j->'classes'->>'exact' from res), '7', 'С1: exact: остальные');
 select is((select (j->>'bundles_confirmed')::int from res), 3, 'С2: три записи confirmed (по одной на ребёнка)');
-select is((select (j->>'bundles_review')::int from res), 2, 'С2: две записи review');
-select is((select (j->>'forfeited')::int from res), 2, 'С3: отказ у двух заказов в рассрочку (О22, О51); отменённый О71 пропущен');
+select is((select (j->>'bundles_review')::int from res), 3, 'С2: три записи review (P2, P6, P11)');
+select is((select (j->>'forfeited')::int from res), 3, 'С3/В2: отказ у трёх заказов в рассрочку (О22, О51 и отменённый О71)');
 
 -- С2: заморозка целиком
 select ok(lb(u(11)) is not null and lb(u(11)) = lb(u(12)), 'С2: О11 и О12 в одном замороженном комплекте (целиком)');
@@ -158,12 +164,16 @@ select is((select kind from equipment_legacy_bundles where id = lb(u(22))), 'rev
 select ok(lb(u(21)) = lb(u(22)), 'С1: на разбор заморожен и заказ-участник О21');
 select is((select kind from equipment_legacy_bundles where id = lb(u(62))), 'review', 'С1: скидка не 95: на разбор');
 select ok(lb(u(31)) is null and lb(u(41)) is null and lb(u(51)) is null and lb(u(71)) is null, 'С1: manual_up, manual_down, exact и отменённый не заморожены');
+select ok(lb(u(101)) is null, 'pct=0: неполный комплект с отрицательной разницей (P10) не заморожен и не комплект');
+select is((select kind from equipment_legacy_bundles where id = lb(u(112))), 'review', 'pct=0: полный комплект (P11) определён пробным расчётом, замыкающий на разбор');
+select ok(lb(u(111)) = lb(u(112)), 'pct=0: участник P11 заморожен вместе с замыкающим');
 
 -- С3: отказ
 select ok((select discount_forfeited from equipment_orders where id = u(22)) and (select discount_forfeited from equipment_orders where id = u(51)), 'С3: рассрочка: отказ у О22 и О51');
-select ok(not (select discount_forfeited from equipment_orders where id = u(71)), 'С3: отменённый заказ в рассрочку отказ не получает');
+select ok((select discount_forfeited from equipment_orders where id = u(71)) and (select status from equipment_orders where id = u(71)) = 'cancelled', 'С3/В2: отменённый заказ в рассрочку получил отказ и остался отменённым');
 select ok(not exists (select 1 from equipment_orders where discount_forfeited and not installment), 'С3: без рассрочки отказа нет');
-select is((select count(*)::int from equipment_order_events where event = 'forfeit'), 2, 'С3: два события forfeit (О22, О51)');
+select is((select count(*)::int from equipment_orders where installment and not discount_forfeited), 0, 'В2: у всех заказов с installment = true есть отказ');
+select is((select count(*)::int from equipment_order_events where event = 'forfeit'), 3, 'С3: три события forfeit (О22, О51, О71)');
 select ok((select installment from equipment_orders where id = u(22)) and (select installment from equipment_orders where id = u(71)), 'С3: installment не менялся');
 select is((select data->>'step' from equipment_order_events where order_id = u(22) and event = 'forfeit'), '2c', 'С3: событие помечено этапом 2c');
 
@@ -186,6 +196,17 @@ insert into fp values ('state2', snap_state());
 select is(eq_freeze_2c('{"orders": 3}')->>'skipped', 'already applied', 'С7: повторный запуск пропущен (даже с неверными ожиданиями)');
 select is(snap_state(), (select v from fp where k = 'state2'), 'С7: состояние после повтора идентично');
 
+-- В2: отмена -> восстановление -> пересчёт: отказ у заказа в рассрочку сохраняется, итог не меняется
+select as_user('00000000-0000-0000-0000-0000006621a1');
+select eq_restore_order(u(71), 'тест восстановления');
+select as_pg();
+select ok((select discount_forfeited from equipment_orders where id = u(71)) and (select status from equipment_orders where id = u(71)) <> 'cancelled', 'В2: после восстановления заказ действует и отказ сохранён');
+select as_user('00000000-0000-0000-0000-0000006621a1');
+select eq_bundle_recalc(pu(7));
+select eq_cancel_order(u(71), 'тест повторной отмены');
+select as_pg();
+select ok((select discount_forfeited from equipment_orders where id = u(71)) and (select installment from equipment_orders where id = u(71)), 'В2: после пересчёта и повторной отмены отказ сохранён, installment не менялся');
+select is(tt(u(71)), '140', 'В2: итог О71 не менялся (150 − 10)');
 -- С6 (В5): после заморозки пересчёт не даёт вторую скидку
 select as_user('00000000-0000-0000-0000-0000006621a1');
 select is(eq_bundle_preview(pu(1))->>'changed', 'false', 'С6: предпросмотр замороженному ребёнку не предлагает изменений');

@@ -4,7 +4,7 @@
 -- Что делает: всё внутри одного вызова eq_freeze_2c (одна транзакция, любая ошибка откатывает всё):
 --   1) снимает отпечатки до, классифицирует заказы (exact / manual_up / manual_down / legacy_confirmed / legacy_review) по правилам расчёта 2a;
 --   2) пишет equipment_legacy_bundles и ставит legacy_bundle_id заказам комплекта (заморожены целиком);
---   3) ставит discount_forfeited заказам с installment = true (F4) и событие forfeit;
+--   3) ставит discount_forfeited всем заказам с installment = true, включая отменённые (F4), и событие forfeit;
 --   4) сверяет отпечатки после (заказы, строки, журнал экипировки, суммы), И4, счётчики; ставит отметку freeze_2c.
 -- total, paid, manual_adjustment (её записала 0205), строки, журнал и статусы не меняются. Повторный запуск ничего не меняет.
 -- Ожидания прода (baseline 16.11.2026) заданы параметром в конце файла: при расхождении вызов останавливается и ничего не применяет.
@@ -23,10 +23,64 @@ language sql stable set search_path = public as $$
 $$;
 revoke execute on function eq_freeze_2c_fp() from public, anon, authenticated, service_role;
 
+-- Защита заказа (тело 0205). Новое: операция eq.op = 'forfeit_2c' разрешает менять только discount_forfeited, в том числе у отменённого заказа
+-- (В2: отказ получают все заказы в рассрочку). Используется только функцией eq_freeze_2c и откатом 0207; клиентам недоступна (функция запуска закрыта).
+create or replace function eq_orders_guard() returns trigger
+language plpgsql set search_path = public as $$
+declare
+  op text := coalesce(current_setting('eq.op', true), '');
+begin
+  if tg_op = 'INSERT' then
+    new.created_by := current_user_id();
+    if new.created_by is not null then new.created_at := now(); end if;
+    if new.external_ord_id is not null and new.source = 'admin' then new.source := 'import'; end if;
+    if new.status = 'cancelled' or new.cancelled_at is not null or new.status_before_cancel is not null then
+      raise exception 'use eq_cancel_order / eq_restore_order' using errcode = '42501';
+    end if;
+    if new.bundle_adjustment <> 0 or new.legacy_bundle_id is not null then
+      raise exception 'discount fields are managed by eq_bundle_recalc' using errcode = '42501';
+    end if;
+    return new;
+  end if;
+
+  if new.created_at is distinct from old.created_at or new.created_by is distinct from old.created_by
+     or new.source is distinct from old.source or new.request_id is distinct from old.request_id then
+    raise exception 'created fields are immutable' using errcode = '42501';
+  end if;
+  if op not in ('cancel', 'restore') and (
+       (new.status = 'cancelled') <> (old.status = 'cancelled')
+       or new.cancelled_at is distinct from old.cancelled_at or new.cancelled_by is distinct from old.cancelled_by
+       or new.cancel_reason is distinct from old.cancel_reason or new.status_before_cancel is distinct from old.status_before_cancel
+       or new.restored_at is distinct from old.restored_at or new.restored_by is distinct from old.restored_by) then
+    raise exception 'use eq_cancel_order / eq_restore_order' using errcode = '42501';
+  end if;
+  if op not in ('recalc', 'forfeit', 'forfeit_2c') and (
+       new.bundle_adjustment is distinct from old.bundle_adjustment or new.discount_forfeited is distinct from old.discount_forfeited
+       or new.legacy_bundle_id is distinct from old.legacy_bundle_id or new.discount_state is distinct from old.discount_state) then
+    raise exception 'discount fields are managed by eq_bundle_recalc' using errcode = '42501';
+  end if;
+  if old.status = 'cancelled' and new.status = 'cancelled' then
+    if new.paid > old.paid or
+       (to_jsonb(new) - 'paid' - case when op = 'recalc' then array['total', 'bundle_adjustment', 'discount_state'] when op = 'forfeit_2c' then array['discount_forfeited'] else array[]::text[] end)
+         is distinct from
+       (to_jsonb(old) - 'paid' - case when op = 'recalc' then array['total', 'bundle_adjustment', 'discount_state'] when op = 'forfeit_2c' then array['discount_forfeited'] else array[]::text[] end) then
+      raise exception 'order cancelled' using errcode = '22023';
+    end if;
+  end if;
+  if new.paid is distinct from old.paid then
+    if coalesce(current_setting('eq.paid_sync', true), '') <> 'on' then
+      raise exception 'paid is maintained by the journal' using errcode = '42501';
+    end if;
+    if new.paid < 0 then raise exception 'paid below zero' using errcode = '22023'; end if;
+  end if;
+  return new;
+end $$;
+revoke execute on function eq_orders_guard() from public, anon, authenticated;
+
 create or replace function eq_freeze_2c(exp jsonb default '{}'::jsonb) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare
-  fp0 jsonb; fp1 jsonb;
+  fp0 jsonb; fp1 jsonb; probe jsonb;
   pl record; o record; inp jsonb; res jsonb;
   st text; rsn text; closing uuid; disc numeric; parts uuid[]; full_set boolean; cls text;
   cnt jsonb; k text; want numeric; got numeric;
@@ -68,8 +122,16 @@ begin
     closing := nullif(res->>'closing_order_id', '')::uuid;
     disc := coalesce((res->>'discount')::numeric, 0);
     select coalesce(array_agg(x::uuid), '{}') into parts from jsonb_array_elements_text(coalesce(res->'participants', '[]'::jsonb)) x;
-    -- полный комплект: расчёт дошёл до замыкающего заказа (скидка есть или не прошла по discNeedAll / нулевая)
-    full_set := st = 'active' or rsn in ('need_all_failed', 'no_discount');
+    -- полный комплект: расчёт дошёл до замыкающего заказа (скидка есть, не прошла discNeedAll или после округления нулевая).
+    -- Ранний выход eq_bundle_calc при pct = 0 ('no_discount' без замыкающего заказа) полноту комплекта не доказывает:
+    -- участников определяем пробным расчётом с процентом 1 (только состав и замыкающий; скидка берётся из настоящего расчёта).
+    full_set := st = 'active' or (rsn in ('need_all_failed', 'no_discount') and closing is not null);
+    if rsn = 'no_discount' and closing is null then
+      probe := eq_bundle_calc(jsonb_set(inp, '{settings,pct}', '"1"'::jsonb));
+      closing := nullif(probe->>'closing_order_id', '')::uuid;
+      full_set := closing is not null;
+      select coalesce(array_agg(x::uuid), '{}') into parts from jsonb_array_elements_text(coalesce(probe->'participants', '[]'::jsonb)) x;
+    end if;
 
     for o in select e.id, e.status, e.installment, e.total - eq_order_lines_sum(e.id) as delta from equipment_orders e where e.player_id = pl.pid order by e.id loop
       cls := case
@@ -97,7 +159,7 @@ begin
         when 'orders' then (select count(*) from equipment_orders)
         when 'total' then (select coalesce(sum(total), 0) from equipment_orders)
         when 'paid' then (select coalesce(sum(paid), 0) from equipment_orders)
-        when 'installment' then (select count(*) from equipment_orders where installment and status <> 'cancelled' and not discount_forfeited)
+        when 'installment' then (select count(*) from equipment_orders where installment and not discount_forfeited)
         else coalesce((cnt->>k)::numeric, 0) end;
       want := (exp->>k)::numeric;
       if got is distinct from want then
@@ -127,10 +189,10 @@ begin
     end if;
   end loop;
 
-  -- 4. Отказ от скидки у заказов в рассрочку (F4); installment не меняется
-  select count(*) into n_forf from equipment_orders where installment and status <> 'cancelled' and not discount_forfeited;
-  perform set_config('eq.op', 'forfeit', true);
-  with f as (update equipment_orders set discount_forfeited = true where installment and status <> 'cancelled' and not discount_forfeited returning id, total, paid)
+  -- 4. Отказ от скидки у всех заказов в рассрочку, включая отменённые (В2, F4); installment не меняется.
+  select count(*) into n_forf from equipment_orders where installment and not discount_forfeited;
+  perform set_config('eq.op', 'forfeit_2c', true);
+  with f as (update equipment_orders set discount_forfeited = true where installment and not discount_forfeited returning id, total, paid)
   insert into equipment_order_events (order_id, event, reason, data, created_by_name)
   select f.id, 'forfeit', 'исторический заказ в рассрочку: отказ от скидки (F4, 0207, этап 2c)', jsonb_build_object('step', '2c', 'total', f.total, 'paid', f.paid), 'миграция 0207 (этап 2c)' from f;
   perform set_config('eq.op', '', true);

@@ -14,6 +14,8 @@ P2=00000000-0000-0000-0000-0000ee66d102
 O1=00000000-0000-0000-0000-0000ee66e101
 O2=00000000-0000-0000-0000-0000ee66e102
 O3=00000000-0000-0000-0000-0000ee66e103
+O4=00000000-0000-0000-0000-0000ee66e104
+FB=00000000-0000-0000-0000-0000ee66fb01
 ON=00000000-0000-0000-0000-0000ee66e1ff
 fail=0; ok() { echo "ok - $1"; }; bad() { echo "not ok - $1"; fail=1; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
@@ -26,14 +28,17 @@ insert into users (id, telegram_id, display_name, is_admin) values ('$AD', 99066
 insert into players (id, club_id, full_name, status) values ('$P1', '$CL', 'Игрок 1', 'active'), ('$P2', '$CL', 'Игрок 2', 'active');
 insert into equipment_orders (id, club_id, player_id, ordered_on, installment, total, paid, created_at) values
   ('$O1', '$CL', '$P1', '2026-10-01', false, 0, 0, '2026-10-01 00:00+04'), ('$O2', '$CL', '$P1', '2026-10-05', false, 0, 0, '2026-10-05 00:00+04'),
-  ('$O3', '$CL', '$P2', '2026-10-05', true, 0, 0, '2026-10-05 00:00+04');
+  ('$O3', '$CL', '$P2', '2026-10-05', true, 0, 0, '2026-10-05 00:00+04'), ('$O4', '$CL', '$P2', '2026-10-06', true, 0, 0, '2026-10-06 00:00+04');
 insert into equipment_order_lines (order_id, kit, size, quantity, unit_price) values
   ('$O1', 'Игровая форма', 'M', 1, 150), ('$O1', 'Тренировочная форма', 'M', 1, 150),
-  ('$O2', 'Спортивный костюм', 'M', 1, 210), ('$O2', 'Дождевик', 'M', 1, 110), ('$O3', 'Носки', 'M', 1, 20);
+  ('$O2', 'Спортивный костюм', 'M', 1, 210), ('$O2', 'Дождевик', 'M', 1, 110), ('$O3', 'Носки', 'M', 1, 20), ('$O4', 'Носки', 'M', 1, 20);
 update equipment_orders set total = 300 where id = '$O1';
 update equipment_orders set total = 225 where id = '$O2';
-update equipment_orders set total = 20 where id = '$O3';
+update equipment_orders set total = 20 where id in ('$O3', '$O4');
 SQL
+as_admin() { printf "select set_config('role','authenticated',false), set_config('request.jwt.claims', json_build_object('sub','%s','role','authenticated')::text, false);\n%s\n" "$AD" "$1"; }
+as_admin "select eq_cancel_order('$O4', 'тест отмены 2c')" > "$T/cancel.sql"
+$PSQL -q -t -A -v ON_ERROR_STOP=1 -d "$DB" -f "$T/cancel.sql" > /dev/null
 drop_step
 S0=$(snap)
 
@@ -50,12 +55,23 @@ frozen=$(q -c "select count(*) from equipment_orders where id in ('$O1', '$O2') 
 [ "$frozen" = 2 ] && ok "оба заказа комплекта заморожены" || bad "заморожено $frozen"
 forf=$(q -c "select discount_forfeited from equipment_orders where id = '$O3'")
 [ "$forf" = t ] && ok "заказ в рассрочку получил отказ от скидки" || bad "отказ у О3: $forf"
+forf4=$(q -c "select discount_forfeited and status = 'cancelled' and installment from equipment_orders where id = '$O4'")
+[ "$forf4" = t ] && ok "отменённый заказ в рассрочку получил отказ, остался отменённым и в рассрочке" || bad "отказ у отменённого О4: $forf4"
 tot=$(q -c "select total from equipment_orders where id = '$O2'")
 [ "$tot" = 225.00 ] && ok "итог О2 225.00 не изменился" || bad "итог $tot"
+
+# 1b. Чужая запись комплекта с reason NULL: откат останавливается и ничего не меняет (проверка не пропускает NULL)
+q -c "insert into equipment_legacy_bundles (id, player_id, kind, reason) values ('$FB', '$P2', 'review', null)"
+SF=$(snap)
+if $PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f db/ops/rollback-0207-eq-freeze-2c.sql > "$T/rbf.out" 2>&1; then bad "откат с чужой записью (reason NULL) не должен выполняться"; else grep -q "rollback stopped" "$T/rbf.out" && ok "откат остановлен из-за чужой записи с NULL reason" || { bad "откат упал не по защите"; cat "$T/rbf.out"; }; fi
+[ "$(snap)" = "$SF" ] && ok "остановленный откат ничего не изменил (чужая запись цела)" || bad "остановленный откат изменил состояние"
+q -c "alter table equipment_legacy_bundles disable trigger equipment_legacy_bundles_guard; delete from equipment_legacy_bundles where id = '$FB'; alter table equipment_legacy_bundles enable trigger equipment_legacy_bundles_guard"
 
 # 2. Откат возвращает состояние до 0207
 $PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f db/ops/rollback-0207-eq-freeze-2c.sql > "$T/rb1.out" 2>&1 && ok "откат выполнен" || { bad "откат упал"; cat "$T/rb1.out"; }
 [ "$(snap)" = "$S0" ] && ok "после отката состояние идентично исходному" || bad "состояние после отката отличается"
+g2c=$(q -c "select position('forfeit_2c' in prosrc) from pg_proc where proname = 'eq_orders_guard'")
+[ "$g2c" = 0 ] && ok "защита заказа возвращена к телу 0205 (без forfeit_2c)" || bad "в защите заказа осталась операция forfeit_2c"
 fn=$(q -c "select count(*) from pg_proc where proname in ('eq_freeze_2c', 'eq_freeze_2c_fp')")
 [ "$fn" = 0 ] && ok "функции 2c удалены откатом" || bad "функций осталось $fn"
 
