@@ -2,7 +2,7 @@
 -- Условия: docs/acceptance/eq-652-stage2b-auto-recalc-0208-2026-11-19.md (Н1–Н12).
 begin;
 create extension if not exists pgtap;
-select plan(60);
+select plan(65);
 
 alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
 \i db/migrations/0208_eq_auto_recalc.sql
@@ -296,6 +296,24 @@ select is(snap(), (select v from fp where k = 'snap17'), 'Н13: отказ пе�
 select as_user('00000000-0000-0000-0000-0000006721a1');
 select lives_ok($$select eq_bundle_recalc(pu(17), 'manual', eq_bundle_preview(pu(17))->>'fingerprint')$$, 'Н13: со свежим отпечатком пересчёт проходит');
 select as_pg();
+
+-- Н15: заказ с историей оплаты нельзя удалить, даже когда paid снова 0 (полное сторно или полный возврат)
+select as_user('00000000-0000-0000-0000-0000006721a1');
+select mkc('p18o1', pu(18), array['Дождевик'], 3);
+select mkc('p18o2', pu(18), array['Дождевик'], 2);
+select eq_add_payment(oid_('p18o1'), 20, null, 'Наличные');
+select eq_reverse_payment((select id from service_payments where ref_id = oid_('p18o1') and op = 'payment'), 'ошибка ввода');
+select eq_add_payment(oid_('p18o2'), 20, null, 'Наличные');
+select eq_refund(oid_('p18o2'), 20, null, 'Наличные', 'возврат клиенту');
+select as_pg();
+select is((select paid::text from equipment_orders where id = oid_('p18o1')) || '/' || (select paid::text from equipment_orders where id = oid_('p18o2')), '0.00/0.00', 'Н15: после полного сторно и полного возврата paid = 0');
+insert into fp values ('snap18', snap());
+select as_user('00000000-0000-0000-0000-0000006721a1');
+select throws_ok($$select eq_delete_order(oid_('p18o1'))$$, '22023', 'order has payments', 'Н15: заказ с полностью сторнированной оплатой не удаляется');
+select throws_ok($$select eq_delete_order(oid_('p18o2'))$$, '22023', 'order has payments', 'Н15: заказ с полным возвратом не удаляется');
+select as_pg();
+select is(snap(), (select v from fp where k = 'snap18'), 'Н15: отказ ничего не изменил');
+select is((select count(*)::int from service_payments where kind = 'equipment' and ref_id in (oid_('p18o1'), oid_('p18o2'))), 4, 'Н15: все четыре строки журнала на месте');
 
 -- Н10: права при привилегиях Supabase по умолчанию
 select ok(not has_function_privilege('anon', 'eq_restore_preview(uuid)', 'execute') and has_function_privilege('authenticated', 'eq_restore_preview(uuid)', 'execute')

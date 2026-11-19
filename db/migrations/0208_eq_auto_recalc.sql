@@ -356,7 +356,8 @@ begin
   if not found then raise exception 'order not found' using errcode = 'P0002'; end if;
   if exists (select 1 from equipment_orders where id = o and source = 'parent') then raise exception 'parent order' using errcode = '22023'; end if;
   if exists (select 1 from equipment_order_events where order_id = o) then raise exception 'order has events' using errcode = '22023'; end if;
-  if exists (select 1 from equipment_orders where id = o and paid > 0) then raise exception 'order has payments' using errcode = '22023'; end if;
+  -- Любая запись журнала по заказу (оплата, сторно, возврат) запрещает удаление, даже если paid снова 0: журнал append-only, связь с заказом терять нельзя; такой заказ отменяют.
+  if exists (select 1 from equipment_orders where id = o and paid > 0) or exists (select 1 from service_payments where kind = 'equipment' and ref_id = o) then raise exception 'order has payments' using errcode = '22023'; end if;
   if exists (select 1 from equipment_issues where order_id = o) then raise exception 'order has issues' using errcode = '22023'; end if;
   if pid is not null then perform eq_bundle_assert_ready(); end if;
   delete from equipment_orders where id = o;
