@@ -163,6 +163,34 @@ describe('«Отметки»: несохранённые отметки (UI-016)
     expect(dirtyGuard.isDirty()).toBe(false);
   });
 
+  it('смена группы при несохранённых отметках: «Отмена» оставляет группу и отметки, «Уйти» меняет группу', async () => {
+    seed();
+    const two = [{ id: 'g1', name: 'U9' }, { id: 'g2', name: 'U11' }];
+    fake.db.weekly_schedule = ['g1', 'g2'].flatMap(g => [1, 2, 3, 4, 5, 6, 7].map(w => ({ group_id: g, weekday: w, starts_at: '18:00:00', location: 'Стадион', kind: 'Групповая' })));
+    fake.db.players = [
+      { id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'active' },
+      { id: 'p2', full_name: 'Сидоров Ян', group_id: 'g1', status: 'active' },
+      { id: 'p3', full_name: 'Козлов Артём', group_id: 'g2', status: 'active' },
+    ];
+    render(<><Sessions groups={two} /><DirtyGuardHost /></>);
+    await screen.findByText('Иванов Пётр');
+    const picker = screen.getByRole('combobox', { name: 'Группа' }) as HTMLSelectElement;
+    expect(picker.value).toBe('g1');
+    markOf('Иванов Пётр', 'Был');
+    fireEvent.change(picker, { target: { value: 'g2' } });
+    expect(await screen.findByRole('dialog', { name: 'Уйти без сохранения?' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect((screen.getByRole('combobox', { name: 'Группа' }) as HTMLSelectElement).value).toBe('g1');
+    expect(within(screen.getByRole('group', { name: 'Посещаемость: Иванов Пётр' })).getByRole('button', { name: 'Был' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByText('Козлов Артём')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Группа' }), { target: { value: 'g2' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Уйти' }));
+    expect(await screen.findByText('Козлов Артём')).toBeInTheDocument();
+    expect(screen.queryByText('Иванов Пётр')).not.toBeInTheDocument();
+    expect(dirtyGuard.isDirty()).toBe(false);
+  });
+
   it('смена даты и режима «Другая группа» тоже спрашивают; без правок — без вопроса', async () => {
     seed();
     render(<><Sessions groups={groups} /><DirtyGuardHost /></>);
