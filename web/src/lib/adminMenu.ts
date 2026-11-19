@@ -1,7 +1,7 @@
 import type { NavIcon } from '../ui/components';
 
 export type SectionId =
-  | 'sessions' | 'players' | 'money' | 'cmatches' | 'requests' | 'ind' | 'extra' | 'schedule'
+  | 'sessions' | 'players' | 'money' | 'cmatches' | 'clubevents' | 'requests' | 'ind' | 'extra' | 'schedule'
   | 'equip' | 'camps' | 'photos' | 'content' | 'leads' | 'stats' | 'tlog' | 'points' | 'coaches'
   | 'prices' | 'payinfo' | 'club' | 'pstart' | 'pcheck' | 'menu';
 
@@ -13,6 +13,7 @@ export const SECTIONS: Section[] = [
   { id: 'players', title: 'Игроки', sub: 'Список, карточки, статус оплаты', icon: 'users', group: 'Основное' },
   { id: 'money', title: 'Оплаты', sub: 'Приём оплат, за месяц, платежи, должники', icon: 'wallet', group: 'Основное' },
   { id: 'cmatches', title: 'Матчи', sub: 'События, матчи, составы и взносы', icon: 'trophy', group: 'Основное' },
+  { id: 'clubevents', title: 'Мероприятия', sub: 'Платные мероприятия клуба: участники, цены, оплаты', icon: 'trophy', group: 'Основное' },
   { id: 'requests', title: 'Запросы', sub: 'Связи родителей с детьми, согласия, родители по группам', icon: 'inbox', group: 'Основное' },
   { id: 'ind', title: 'Индивидуальные', sub: 'Вратари и индивидуальные: запись, оплата, долги', icon: 'user', group: 'Занятия' },
   { id: 'extra', title: 'Дополнительные', sub: 'Доп. тренировки: запись, оплата, долги', icon: 'calendar', group: 'Занятия' },

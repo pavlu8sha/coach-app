@@ -35,11 +35,112 @@ describe('«Матчи» родителя: подтверждение участ
     expect(screen.queryByRole('button', { name: 'Иванов Пётр: Будет' })).toBeNull();
   });
 
-  it('если функция базы недоступна, экран работает как раньше', async () => {
+  it('пустой успешный результат: ошибки нет, пустое состояние как раньше (#737, условие 2)', async () => {
     seedParent([]);
-    fake.rpc.match_rsvp_my_matches = () => ({ error: { message: 'boom' } });
     render(<Matches />);
-    expect(await screen.findByText(/Матчей пока нет|Нет матчей|пока нет/i)).toBeInTheDocument();
+    expect(await screen.findByText('Матчей пока нет')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
+describe('«Матчи» родителя: ошибка загрузки подтверждений (#737)', () => {
+  const failing = () => ({ error: { message: 'boom: secret technical text' } });
+
+  it('ошибка RPC: понятное сообщение без технического текста, пустое состояние не выдаётся за «нет матчей»', async () => {
+    seedParent([]);
+    fake.rpc.match_rsvp_my_matches = failing;
+    render(<Matches />);
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Не удалось загрузить подтверждения участия');
+    expect(alert).not.toHaveTextContent('boom');
+    expect(screen.getByRole('button', { name: 'Повторить' })).toBeInTheDocument();
+    expect(screen.queryByText('Матчей пока нет')).toBeNull();
+    fireEvent.click(screen.getByRole('tab', { name: 'Предстоящие' }));
+    expect(screen.queryByText('Нет ближайших матчей')).toBeNull();
+    fireEvent.click(screen.getByRole('tab', { name: 'Прошедшие' }));
+    expect(screen.queryByText('Нет результатов')).toBeNull();
+  });
+
+  it('ошибка RSVP не скрывает независимо загруженный общий список матчей', async () => {
+    seedParent([]);
+    fake.db.matches = [{ id: 'm1', team: 'U9', played_on: '2026-10-01', opponent: 'Олимп', goals_for: 3, goals_against: 1 }];
+    fake.rpc.match_rsvp_my_matches = failing;
+    render(<Matches />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось загрузить подтверждения участия');
+    expect(screen.getByText('Олимп')).toBeInTheDocument();
+    expect(screen.getByLabelText('Итоги команды')).toBeInTheDocument();
+  });
+
+  it('повтор: второй вызов RPC, после успеха блока нет, карточка подтверждения показана', async () => {
+    seedParent([]);
+    let fail = true;
+    fake.rpc.match_rsvp_my_matches = () => (fail ? failing() : [row()]);
+    render(<Matches />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Повторить' }));
+    fail = false;
+    expect(await screen.findByRole('button', { name: 'Иванов Пётр: Будет' })).toBeInTheDocument();
+    expect(fake.rpcCalls('match_rsvp_my_matches').length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('повтор может снова не удаться: блок остаётся', async () => {
+    seedParent([]);
+    fake.rpc.match_rsvp_my_matches = failing;
+    render(<Matches />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Повторить' }));
+    await waitFor(() => expect(fake.rpcCalls('match_rsvp_my_matches').length).toBeGreaterThanOrEqual(2));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось загрузить подтверждения участия');
+  });
+
+  it('на время повторной загрузки кнопка отключена и показывает выполнение', async () => {
+    seedParent([]);
+    let release: (v: unknown) => void = () => {};
+    let n = 0;
+    fake.rpc.match_rsvp_my_matches = () => (++n === 1 ? failing() : new Promise(r => { release = r; }));
+    render(<Matches />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Повторить' }));
+    const busy = await screen.findByRole('button', { name: 'Загружаю…' });
+    expect(busy).toBeDisabled();
+    fireEvent.click(busy);
+    expect(fake.rpcCalls('match_rsvp_my_matches')).toHaveLength(2);
+    release([row()]);
+    expect(await screen.findByRole('button', { name: 'Иванов Пётр: Будет' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('два перекрывающихся запроса, завершённых в обратном порядке: итог соответствует последнему запущенному', async () => {
+    seedParent([row()]);
+    const pending: ((v: unknown) => void)[] = [];
+    let n = 0;
+    fake.rpc.match_rsvp_my_matches = () => (++n === 1 ? [row()] : new Promise(r => { pending.push(r); }));
+    render(<Matches />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Иванов Пётр: Будет' }));
+    await waitFor(() => expect(pending).toHaveLength(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Иванов Пётр: Не будет' }));
+    await waitFor(() => expect(pending).toHaveLength(2));
+    pending[1]([row({ response: 'no' })]); // новый запрос отвечает успешно
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Иванов Пётр: Не будет' })).toBeInTheDocument());
+    pending[0]({ error: { message: 'stale boom' } }); // старый запрос заканчивается позже ошибкой
+    await new Promise(r => setTimeout(r, 50));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Иванов Пётр: Не будет' })).toBeInTheDocument();
+  });
+
+  it('успешная загрузка: блока ошибки нет', async () => {
+    seedParent([row()]);
+    render(<Matches />);
+    expect(await screen.findByRole('button', { name: 'Иванов Пётр: Будет' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('ребёнок без группы: RPC не вызывается, блока ошибки нет', async () => {
+    seedParent([]);
+    fake.db.player_guardians = [{ user_id: 'u1', consent_revoked_at: null, players: { id: 'p1', full_name: 'Иванов Пётр', groups: null } }];
+    fake.rpc.match_rsvp_my_matches = failing;
+    render(<Matches />);
+    expect(await screen.findByText('Группа ещё не назначена')).toBeInTheDocument();
+    expect(fake.rpcCalls('match_rsvp_my_matches')).toHaveLength(0);
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });
 
