@@ -84,7 +84,11 @@ select ok((select count(*) = 5 from information_schema.columns where table_name 
 select is((select column_default from information_schema.columns where table_name = 'equipment_orders' and column_name = 'discount_forfeited'), 'false', 'А1: отказ по умолчанию false');
 select ok(exists (select 1 from pg_constraint where conrelid = 'equipment_orders'::regclass and conname = 'equipment_orders_bundle_adjustment_check'), 'А1: bundle_adjustment <= 0 (проверка есть)');
 
--- А13: пока нет отметки заморозки, предпросмотр и пересчёт отказывают
+-- А13: пока нет отметки заморозки, предпросмотр и пересчёт отказывают.
+-- Миграция 0207 на тестовой базе (заказов нет) ставит отметку freeze_2c: для состояния «только 0205» снимаем её на время теста.
+alter table equipment_bundle_steps disable trigger equipment_bundle_steps_guard;
+delete from equipment_bundle_steps where step = 'freeze_2c';
+alter table equipment_bundle_steps enable trigger equipment_bundle_steps_guard;
 select as_user('00000000-0000-0000-0000-0000006521a1');
 select throws_ok($$select eq_bundle_preview(pu(1))$$, '55000', 'bundle freeze not applied', 'А13: предпросмотр без отметки 2c');
 select throws_ok($$select eq_bundle_recalc(pu(1), 'manual')$$, '55000', 'bundle freeze not applied', 'А13: пересчёт без отметки 2c');
