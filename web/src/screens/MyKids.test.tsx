@@ -1,9 +1,11 @@
+import { StrictMode } from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
-import { fake } from '../test/fakeSupabase';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { fake, supabase } from '../test/fakeSupabase';
 import MyKids from './MyKids';
 
 const kid = (id: string, name: string) => ({ user_id: 'u', consent_revoked_at: null, players: { id, full_name: name, groups: { name: 'U9' } } });
+const realGetUser = supabase.auth.getUser;
 const row = (name: string) => screen.getByText(name).closest('div')!.parentElement!; // блок ребёнка: строка и действия под ней
 const CODE = 'Код для ребёнка';
 const UNLINK = 'Отвязать аккаунт ребёнка';
@@ -21,6 +23,7 @@ describe('«Мои дети»: статус привязки ребёнка (#73
     fake.reset();
     fake.db.player_guardians = [kid('p1', 'Иван Петров')];
   });
+  afterEach(() => { supabase.auth.getUser = realGetUser; });
 
   it('пока статус неизвестен: ни «Код для ребёнка», ни «Отвязать», есть «Проверяю…»; нажать нечего', async () => {
     const d = deferred<boolean>();
@@ -121,6 +124,38 @@ describe('«Мои дети»: статус привязки ребёнка (#73
     await act(async () => first.resolve(false)); // устаревший ответ «не привязан» приходит последним
     expect(within(row('Иван Петров')).getByRole('button', { name: UNLINK })).toBeInTheDocument();
     expect(within(row('Иван Петров')).queryByRole('button', { name: CODE })).toBeNull();
+  });
+
+  it('StrictMode (повторный запуск эффектов): проверка доходит до linked и free', async () => {
+    fake.db.player_guardians = [kid('p1', 'Иван Петров'), kid('p2', 'Мария Иванова')];
+    fake.rpc.child_linked = ({ p }: { p: string }) => p === 'p1';
+    render(<StrictMode><MyKids onBack={() => {}} /></StrictMode>);
+    await within(await findRow('Иван Петров')).findByRole('button', { name: UNLINK });
+    await within(row('Мария Иванова')).findByRole('button', { name: CODE });
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('повторная загрузка списка: прежние linked/free сразу недействительны, действий нет, RPC не вызывается', async () => {
+    fake.db.player_guardians = [kid('p1', 'Иван Петров'), kid('p2', 'Мария Иванова')];
+    fake.rpc.child_linked = ({ p }: { p: string }) => p === 'p1';
+    fake.rpc.revoke_consent = () => null;
+    render(<MyKids onBack={() => {}} />);
+    await within(await findRow('Иван Петров')).findByRole('button', { name: UNLINK });
+    await within(row('Мария Иванова')).findByRole('button', { name: CODE });
+    // перезагрузка списка «зависает» на получении пользователя: новая проверка ещё не началась
+    const gate = deferred<void>();
+    supabase.auth.getUser = async () => { await gate.promise; return realGetUser(); };
+    fireEvent.click(within(row('Иван Петров')).getByRole('button', { name: 'Отозвать согласие' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отозвать согласие' }));
+    await waitFor(() => expect(fake.rpcCalls('revoke_consent')).toHaveLength(1));
+    await waitFor(() => expect(screen.getAllByRole('status')).toHaveLength(2)); // у обоих снова «Проверяю…»
+    expect(screen.queryByRole('button', { name: UNLINK })).toBeNull();
+    expect(screen.queryByRole('button', { name: CODE })).toBeNull();
+    expect(fake.rpcCalls('create_child_code')).toHaveLength(0);
+    expect(fake.rpcCalls('unlink_child')).toHaveLength(0);
+    supabase.auth.getUser = realGetUser;
+    await act(async () => gate.resolve());
+    await within(await findRow('Мария Иванова')).findByRole('button', { name: CODE });
   });
 
   it('«Отозвать согласие» доступно всегда, в том числе пока статус неизвестен и при ошибке', async () => {

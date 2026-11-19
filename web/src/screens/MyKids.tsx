@@ -35,9 +35,22 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
   linkRef.current = linkStates;
   const seq = useRef<Record<string, number>>({}); // номер последней проверки ребёнка: ответ более ранней не применяется
   const alive = useRef(true);
-  useEffect(() => () => { alive.current = false; }, []);
+  useEffect(() => {
+    alive.current = true; // при повторном запуске эффекта (StrictMode) снова «жив»
+    return () => { alive.current = false; };
+  }, []);
+  const seqNext = useRef(0); // общий счётчик проверок: сброс не даёт старому номеру совпасть с новым
+
+  // Новая загрузка списка: статусы прежнего списка недействительны. Пока список и проверки не обновились,
+  // у детей «loading» (действий нет), а запоздавшие ответы прежних проверок не применяются.
+  const resetLinks = () => {
+    seq.current = {};
+    linkRef.current = {};
+    setLinkStates({});
+  };
 
   useEffect(() => {
+    resetLinks();
     void (async () => {
       const me = (await supabase.auth.getUser()).data.user?.id;
       if (!me) return setError('Нет сессии');
@@ -52,7 +65,7 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
   }, [reload]);
 
   const checkLinked = useCallback(async (id: string) => {
-    const n = (seq.current[id] = (seq.current[id] ?? 0) + 1);
+    const n = (seq.current[id] = ++seqNext.current);
     setLinkStates(m => ({ ...m, [id]: 'loading' }));
     const r = await supabase.rpc('child_linked', { p: id });
     if (!alive.current || seq.current[id] !== n) return;
