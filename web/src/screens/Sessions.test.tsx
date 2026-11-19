@@ -1,11 +1,12 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import { today } from '../lib/coach';
 import Sessions, { groupExtraRoster, groupRoster } from './Sessions';
+import { DirtyGuardHost, dirtyGuard } from '../nav';
 
 const groups = [{ id: 'g1', name: 'U9' }];
-beforeEach(() => localStorage.clear());
+beforeEach(() => { localStorage.clear(); dirtyGuard.reset(); });
 function seed() {
   fake.db.weekly_schedule = [1, 2, 3, 4, 5, 6, 7].map(w => ({ group_id: 'g1', weekday: w, starts_at: '18:00:00', location: 'Стадион', kind: 'Групповая' }));
   fake.db.players = [
@@ -63,7 +64,7 @@ describe('«Занятия»', () => {
     fake.db.attendance = [];
     render(<Sessions groups={groups} />);
     expect(await screen.findByText('Нет занятий в расписании')).toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText(/Показать все группы/));
+    fireEvent.click(screen.getByRole('button', { name: /Другая группа/ }));
     expect(await screen.findByText('Иванов Пётр')).toBeInTheDocument(); // доп. или перенесённая тренировка
   });
 
@@ -85,6 +86,126 @@ describe('«Занятия»', () => {
     fireEvent.click(await screen.findByText('Все были'));
     fireEvent.click(screen.getByText('Сохранить отметки'));
     expect(await screen.findByText('Игрок не из этой группы.')).toBeInTheDocument();
+  });
+});
+
+const markOf = (n: string, label: 'Был' | 'Не был') => fireEvent.click(within(screen.getByRole('group', { name: `Посещаемость: ${n}` })).getByRole('button', { name: label }));
+
+describe('«Отметки»: компактная сводка (UI-016)', () => {
+  it('полоса, счётчики и кнопки собраны в закреплённый блок', async () => {
+    seed();
+    render(<Sessions groups={groups} />);
+    await screen.findByText('Иванов Пётр');
+    const bar = screen.getByRole('button', { name: 'Все были' }).closest('.ks-sumbar') as HTMLElement;
+    expect(bar).not.toBeNull();
+    expect(within(bar).getByText('осталось')).toBeInTheDocument();
+    expect(bar.querySelector('.ks-progress')).not.toBeNull();
+    expect(within(bar).getByRole('button', { name: 'Сбросить' })).toBeDisabled();
+    markOf('Иванов Пётр', 'Был');
+    expect(within(bar).getByRole('button', { name: 'Сбросить' })).toBeEnabled();
+    expect(within(bar).getByText('были').querySelector('b')?.textContent).toBe('1');
+    fireEvent.click(within(bar).getByRole('button', { name: 'Сбросить' }));
+    expect(within(bar).getByText('осталось').querySelector('b')?.textContent).toBe('2');
+  });
+
+  it('«Другая группа» — кнопка с aria-pressed, доступна и со списком, и без занятий', async () => {
+    seed();
+    render(<Sessions groups={groups} />);
+    await screen.findByText('Иванов Пётр');
+    const b = screen.getByRole('button', { name: /Другая группа/ });
+    expect(b).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(b);
+    expect(await screen.findByRole('button', { name: 'Только группы по расписанию' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('пустое состояние ссылается на кнопку «Другая группа»', async () => {
+    fake.db.weekly_schedule = [];
+    fake.db.players = [];
+    render(<Sessions groups={groups} />);
+    const t = await screen.findByText(/Другая группа \(доп\. или перенос\)…/, { selector: 'p' });
+    expect(t).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Другая группа/ })).toBeInTheDocument();
+  });
+});
+
+describe('«Отметки»: несохранённые отметки (UI-016)', () => {
+  beforeEach(() => { vi.spyOn(window, 'scrollTo').mockImplementation(() => {}); }); // окно подтверждения возвращает прокрутку; в jsdom метода нет
+
+  it('после отметки включён guard, после сохранения снят', async () => {
+    seed();
+    render(<Sessions groups={groups} />);
+    await screen.findByText('Иванов Пётр');
+    expect(dirtyGuard.isDirty()).toBe(false);
+    markOf('Иванов Пётр', 'Был');
+    expect(dirtyGuard.isDirty()).toBe(true);
+    markOf('Сидоров Ян', 'Был');
+    fireEvent.click(screen.getByText('Сохранить отметки'));
+    await screen.findByText(/Отметки сохранены/);
+    expect(dirtyGuard.isDirty()).toBe(false);
+  });
+
+  it('смена вкладки при несохранённых отметках: «Отмена» оставляет всё, «Уйти» меняет', async () => {
+    seed();
+    fake.rpc.ind_roster_list = () => [];
+    fake.rpc.extra_roster_list = () => [];
+    render(<><Sessions groups={groups} /><DirtyGuardHost /></>);
+    await screen.findByText('Иванов Пётр');
+    markOf('Иванов Пётр', 'Был');
+    fireEvent.click(screen.getByRole('tab', { name: 'Индивидуальные' }));
+    expect(await screen.findByRole('dialog', { name: 'Уйти без сохранения?' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByRole('tab', { name: 'Группы' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(screen.getByRole('group', { name: 'Посещаемость: Иванов Пётр' })).getByRole('button', { name: 'Был' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('tab', { name: 'Индивидуальные' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Уйти' }));
+    expect(await screen.findByText('Индивидуальных занятий нет')).toBeInTheDocument();
+    expect(dirtyGuard.isDirty()).toBe(false);
+  });
+
+  it('смена группы при несохранённых отметках: «Отмена» оставляет группу и отметки, «Уйти» меняет группу', async () => {
+    seed();
+    const two = [{ id: 'g1', name: 'U9' }, { id: 'g2', name: 'U11' }];
+    fake.db.weekly_schedule = ['g1', 'g2'].flatMap(g => [1, 2, 3, 4, 5, 6, 7].map(w => ({ group_id: g, weekday: w, starts_at: '18:00:00', location: 'Стадион', kind: 'Групповая' })));
+    fake.db.players = [
+      { id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'active' },
+      { id: 'p2', full_name: 'Сидоров Ян', group_id: 'g1', status: 'active' },
+      { id: 'p3', full_name: 'Козлов Артём', group_id: 'g2', status: 'active' },
+    ];
+    render(<><Sessions groups={two} /><DirtyGuardHost /></>);
+    await screen.findByText('Иванов Пётр');
+    const picker = screen.getByRole('combobox', { name: 'Группа' }) as HTMLSelectElement;
+    expect(picker.value).toBe('g1');
+    markOf('Иванов Пётр', 'Был');
+    fireEvent.change(picker, { target: { value: 'g2' } });
+    expect(await screen.findByRole('dialog', { name: 'Уйти без сохранения?' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect((screen.getByRole('combobox', { name: 'Группа' }) as HTMLSelectElement).value).toBe('g1');
+    expect(within(screen.getByRole('group', { name: 'Посещаемость: Иванов Пётр' })).getByRole('button', { name: 'Был' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByText('Козлов Артём')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Группа' }), { target: { value: 'g2' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Уйти' }));
+    expect(await screen.findByText('Козлов Артём')).toBeInTheDocument();
+    expect(screen.queryByText('Иванов Пётр')).not.toBeInTheDocument();
+    expect(dirtyGuard.isDirty()).toBe(false);
+  });
+
+  it('смена даты и режима «Другая группа» тоже спрашивают; без правок — без вопроса', async () => {
+    seed();
+    render(<><Sessions groups={groups} /><DirtyGuardHost /></>);
+    await screen.findByText('Иванов Пётр');
+    fireEvent.click(screen.getByRole('button', { name: /Другая группа/ })); // без правок: сразу
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Только группы по расписанию' })).toBeInTheDocument();
+    markOf('Иванов Пётр', 'Был');
+    fireEvent.change(screen.getByLabelText('Дата'), { target: { value: '2026-01-05' } });
+    expect(await screen.findByRole('dialog', { name: 'Уйти без сохранения?' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect((screen.getByLabelText('Дата') as HTMLInputElement).value).toBe(today());
+    fireEvent.click(screen.getByRole('button', { name: 'Только группы по расписанию' }));
+    expect(await screen.findByRole('dialog', { name: 'Уйти без сохранения?' })).toBeInTheDocument();
   });
 });
 

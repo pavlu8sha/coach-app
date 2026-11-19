@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { fake } from '../test/fakeSupabase';
+import { fake, supabase } from '../test/fakeSupabase';
 import ClubArticles, { resetArticlesCache } from './ClubArticles';
 
 const article = (over: Record<string, unknown> = {}) => ({
@@ -94,5 +94,133 @@ describe('Чтение материалов клуба (#236)', () => {
     render(<ClubArticles role="parent" section="tournaments" onBack={() => undefined} />);
     expect(await screen.findByText('Про турниры')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Турниры и матчи' })).toBeInTheDocument();
+  });
+
+  describe('ошибка фонового обновления (#736)', () => {
+    const open = async (role: 'guest' | 'parent' = 'guest', section: 'article' | 'news' = 'article') => {
+      const view = render(<ClubArticles role={role} section={section} onBack={() => undefined} />);
+      return view;
+    };
+    // первое открытие раздела наполняет кэш, затем экран закрывается
+    const prime = async (rows: ReturnType<typeof article>[], section: 'article' | 'news' = 'article') => {
+      fake.db.club_articles = rows;
+      const v = await open('guest', section);
+      await screen.findByText(rows[0].title as string);
+      v.unmount();
+    };
+
+    it('кэш и успешное обновление: список сразу из кэша, затем свежий, без предупреждения', async () => {
+      await prime([article({ id: 'a1', title: 'Старая' })]);
+      fake.db.club_articles = [article({ id: 'a1', title: 'Старая' }), article({ id: 'a2', title: 'Новая' })];
+      await open();
+      expect(screen.getByText('Старая')).toBeInTheDocument(); // сразу, до ответа
+      expect(await screen.findByText('Новая')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('кэш и ошибка обновления: статьи остаются, неблокирующее предупреждение без техтекста, не «пусто»', async () => {
+      await prime([article({ id: 'a1', title: 'Из кэша' })]);
+      fake.errors.club_articles = 'JWT expired relation club_articles 42P01';
+      await open();
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent('Не удалось обновить материалы');
+      expect(alert).toHaveTextContent(/сохранённый список/);
+      expect(screen.getByText('Из кэша')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Повторить' })).toBeInTheDocument();
+      expect(document.body.textContent).not.toMatch(/JWT|42P01|club_articles/);
+      expect(screen.queryByText('Материалы скоро появятся')).toBeNull();
+      expect(screen.queryByText('Не удалось загрузить материалы')).toBeNull();
+    });
+
+    it('кэш и ошибка: статья из кэша открывается', async () => {
+      await prime([article({ id: 'a1', title: 'Из кэша', body: 'Текст из кэша.' })]);
+      fake.errors.club_articles = 'сбой';
+      await open();
+      await screen.findByRole('alert');
+      fireEvent.click(screen.getByText('Из кэша'));
+      expect(await screen.findByText('Текст из кэша.')).toBeInTheDocument();
+    });
+
+    it('повтор: один запрос, кнопка отключена на время запроса, успех убирает предупреждение и обновляет список', async () => {
+      await prime([article({ id: 'a1', title: 'Из кэша' })]);
+      fake.errors.club_articles = 'сбой';
+      await open();
+      await screen.findByRole('alert');
+      // следующий запрос «зависает»: тест решает, когда база ответит
+      let release!: () => void;
+      const gate = new Promise<void>(r => { release = r; });
+      const realFrom = supabase.from;
+      let requests = 0;
+      supabase.from = (t: string) => {
+        const q = realFrom(t);
+        if (t !== 'club_articles') return q;
+        requests++;
+        const then = q.then.bind(q);
+        q.then = (res: any, rej: any) => gate.then(() => then(res, rej));
+        return q;
+      };
+      delete fake.errors.club_articles;
+      fake.db.club_articles = [article({ id: 'a1', title: 'Из кэша' }), article({ id: 'a2', title: 'Свежая' })];
+      try {
+        fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+        const busy = screen.getByRole('button', { name: 'Обновляю…' });
+        expect(busy).toBeDisabled();
+        fireEvent.click(busy); // повторное нажатие во время запроса
+        expect(screen.getByRole('alert')).toBeInTheDocument(); // предупреждение остаётся до результата
+        expect(requests).toBe(1);
+        release();
+        expect(await screen.findByText('Свежая')).toBeInTheDocument();
+        expect(screen.queryByRole('alert')).toBeNull();
+        expect(requests).toBe(1);
+      } finally {
+        supabase.from = realFrom;
+      }
+    });
+
+    it('повтор и снова ошибка: предупреждение остаётся, кнопка снова активна', async () => {
+      await prime([article({ id: 'a1', title: 'Из кэша' })]);
+      fake.errors.club_articles = 'сбой';
+      await open();
+      fireEvent.click(await screen.findByRole('button', { name: 'Повторить' }));
+      expect(await screen.findByRole('button', { name: 'Повторить' })).toBeEnabled();
+      expect(screen.getByRole('alert')).toHaveTextContent('Не удалось обновить материалы');
+      expect(screen.getByText('Из кэша')).toBeInTheDocument();
+    });
+
+    it('в кэше пустой список и обновление не удалось: пустое состояние вместе с предупреждением, ошибка не скрыта', async () => {
+      fake.db.club_articles = [];
+      const v = await open();
+      await screen.findByText('Материалы скоро появятся');
+      v.unmount();
+      fake.errors.club_articles = 'сбой';
+      await open();
+      expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось обновить материалы');
+      expect(screen.getByText('Материалы скоро появятся')).toBeInTheDocument();
+    });
+
+    it('кэша нет и ошибка: полноценное состояние ошибки, повтор показывает список', async () => {
+      fake.errors.club_articles = 'сбой сети';
+      await open();
+      expect(await screen.findByText('Не удалось загрузить материалы')).toBeInTheDocument();
+      expect(screen.queryByText('Материалы скоро появятся')).toBeNull();
+      delete fake.errors.club_articles;
+      fake.db.club_articles = [article({ id: 'a1', title: 'После повтора' })];
+      fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+      expect(await screen.findByText('После повтора')).toBeInTheDocument();
+      expect(screen.queryByText('Не удалось загрузить материалы')).toBeNull();
+    });
+
+    it('ошибка раздела не показывается в другом разделе с кэшем', async () => {
+      await prime([article({ id: 'n1', title: 'Новость', section: 'news' })], 'news');
+      fake.errors.club_articles = 'сбой';
+      const v = await open('guest', 'article'); // у статей кэша нет: полноценная ошибка
+      expect(await screen.findByText('Не удалось загрузить материалы')).toBeInTheDocument();
+      v.unmount();
+      delete fake.errors.club_articles;
+      fake.db.club_articles = [article({ id: 'n1', title: 'Новость', section: 'news' })];
+      await open('guest', 'news');
+      expect(await screen.findByText('Новость')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
   });
 });
