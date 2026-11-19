@@ -317,6 +317,17 @@ a.ks-cover { text-decoration: none; display: block; }
 .ks-counts { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 12px; color: var(--ks-text-muted); }
 .ks-counts b { color: var(--ks-text); font-size: 20px; font-weight: 800; margin-right: 3px; }
 .ks-actions { display: flex; gap: 8px; margin-bottom: 8px; }
+/* Сводка «Отметок» (UI-016): полоса, счётчики и «Все были» в одном закреплённом блоке над списком */
+.ks-sumbar { position: sticky; top: 0; z-index: 4; background: var(--ks-bg); padding: 8px 0 6px; margin-bottom: 8px; }
+.ks-sumbar .ks-progress { margin: 0 0 6px; }
+.ks-sumbar .ks-counts { margin: 0; flex: 1 1 auto; min-width: 0; font-size: 14px; }
+.ks-sumbar .ks-counts b { font-size: 17px; }
+.ks-sumrow { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
+.ks-sumrow .ks-sumbtns { display: flex; align-items: center; gap: 4px; flex: none; }
+/* Кнопка-ссылка: обычная кнопка с видом ссылки, цель нажатия не меньше 44 px */
+.ks-link { min-height: var(--ks-tap); padding: 0 8px; background: none; border: 0; color: var(--ks-primary); font: 700 14px var(--ks-font); text-decoration: underline; cursor: pointer; }
+.ks-link:disabled { opacity: 0.5; cursor: default; text-decoration: none; }
+.ks-link:focus-visible { outline: 3px solid var(--ks-primary); outline-offset: 1px; border-radius: 6px; }
 .ks-actions .ks-btn { width: auto; flex: none; }
 .ks-mark { display: flex; align-items: center; gap: 6px; padding: 8px 10px; margin-bottom: 8px; background: var(--ks-surface); border: 1px solid var(--ks-border); border-radius: var(--ks-radius-card); }
 .ks-mark b { flex: 1; min-width: 0; overflow-wrap: anywhere; }
