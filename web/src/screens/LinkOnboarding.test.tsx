@@ -58,4 +58,26 @@ describe('родитель без привязанного ребёнка', () =
     expect(screen.queryByRole('button', { name: 'Найти ребёнка' })).toBeNull();
     expect(screen.getByRole('link', { name: /напишите администратору/ })).toBeInTheDocument();
   });
+
+  describe('поиск как запись стека (#732)', () => {
+    const back = () => screen.queryByRole('button', { name: 'Назад' });
+    const cases: [string, Req[], string][] = [
+      ['обзор шагов', [], 'Найти ребёнка'],
+      ['запрос отправлен', [req('pending')], 'Добавить другого ребёнка'],
+      ['ребёнок не отображается', [req('approved')], 'Найти другого ребёнка'],
+    ];
+    it.each(cases)('%s: «Назад» возвращает к шагу, поиск открывается снова', (_n, reqs, action) => {
+      show(reqs);
+      expect(back()).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: action }));
+      expect(screen.getByLabelText('Фамилия или имя ребёнка')).toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText('Фамилия или имя ребёнка'), { target: { value: 'Иван' } });
+      fireEvent.click(back()!);
+      expect(screen.queryByLabelText('Фамилия или имя ребёнка')).toBeNull();
+      expect(screen.getByRole('button', { name: action })).toBeInTheDocument();
+      expect(back()).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: action }));
+      expect(screen.getByLabelText('Фамилия или имя ребёнка')).toHaveValue('');
+    });
+  });
 });

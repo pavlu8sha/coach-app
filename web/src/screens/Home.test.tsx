@@ -54,6 +54,32 @@ describe('главная родителя', () => {
     expect(screen.getByText('Алексей Петров')).toBeVisible();
   });
 
+  it('«Добавить ещё одного ребёнка» — запись стека: «Назад» возвращает к карточкам, поиск открывается снова (#732)', async () => {
+    fake.db.player_guardians = [kid('p1', 'Алексей Петров', 'U10-A')];
+    render(<Home />);
+    const add = await screen.findByRole('button', { name: /Добавить ещё одного ребёнка/ });
+    expect(screen.queryByRole('button', { name: 'Назад' })).toBeNull();
+    fireEvent.click(add);
+    expect(await screen.findByLabelText('Фамилия или имя ребёнка')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(screen.queryByLabelText('Фамилия или имя ребёнка')).toBeNull();
+    expect(screen.getByText('Алексей Петров')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Назад' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Добавить ещё одного ребёнка/ }));
+    expect(await screen.findByLabelText('Фамилия или имя ребёнка')).toHaveValue('');
+  });
+
+  it('первый ребёнок подтверждён при открытом поиске: запись закрывается, видны карточки (#732)', async () => {
+    fake.db.link_requests = [{ id: 'r1', user_id: 'u', status: 'approved', players: { full_name: 'Алексей Петров' } }];
+    render(<Home />);
+    const open = await screen.findByRole('button', { name: 'Найти другого ребёнка' });
+    fake.db.player_guardians = [kid('p1', 'Алексей Петров', 'U10-A')]; // доступ появился, пока родитель в поиске
+    fireEvent.click(open);
+    expect(await screen.findByRole('heading', { name: 'Мой ребёнок' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Фамилия или имя ребёнка')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Назад' })).toBeNull();
+  });
+
   it('нет детей, запрос ждёт подтверждения: поясняет и ведёт к статусу', async () => {
     fake.db.link_requests = [{ id: 'r1', user_id: 'u', status: 'pending', players: { full_name: 'Алексей Петров' } }];
     render(<Home />);
