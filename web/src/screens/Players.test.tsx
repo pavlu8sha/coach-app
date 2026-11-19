@@ -159,5 +159,21 @@ describe('«Игроки»', () => {
       fireEvent.keyDown(window, { key: 'Escape' });
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
+
+    it('выбор в окне не уводит фокус с выбранного элемента', async () => {
+      seed();
+      render(<Players />);
+      await screen.findByText('Amodeo Nolan');
+      openFilters();
+      const dlg = screen.getByRole('dialog');
+      const chip = within(dlg).getByRole('button', { name: '2016' });
+      chip.focus();
+      fireEvent.click(chip);
+      expect(document.activeElement).toBe(chip);
+      const sel = within(dlg).getByLabelText('Группа');
+      sel.focus();
+      fireEvent.change(sel, { target: { value: 'g1' } });
+      expect(document.activeElement).toBe(sel);
+    });
   });
 });

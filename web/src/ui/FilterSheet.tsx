@@ -5,13 +5,15 @@ import { useBodyScrollLock } from './ConfirmSheet';
 /** Нижнее окно «Фильтры»: содержимое передаёт экран. Esc, фон и «Показать» закрывают, фильтры применяются сразу. */
 export function FilterSheet({ title = 'Фильтры', children, showLabel, onReset, onClose }: { title?: string; children: ReactNode; showLabel: string; onReset: () => void; onClose: () => void }) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
+  const closeNow = useRef(onClose);
+  closeNow.current = onClose; // Esc вызывает актуальный обработчик, не переподписываясь на каждый рендер
   useBodyScrollLock();
+  useEffect(() => { closeRef.current?.focus(); }, []); // начальный фокус один раз: правки фильтров его не сбрасывают
   useEffect(() => {
-    closeRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeNow.current(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, []);
   return createPortal(
     <div className="ks-sheet-back" role="dialog" aria-modal="true" aria-label={title} onClick={onClose}>
       <div className="ks-sheet" onClick={e => e.stopPropagation()}>
