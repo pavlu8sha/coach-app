@@ -68,6 +68,19 @@ describe('«Мои дети»: статус привязки ребёнка (#73
     expect(fake.rpcCalls('create_child_code')).toHaveLength(0);
   });
 
+  it('отклонённый запрос (rejection): безопасное сообщение и повтор, действий нет, исключение не уходит в unhandled', async () => {
+    let n = 0;
+    fake.rpc.child_linked = () => (++n === 1 ? Promise.reject(new Error('network failure 502 secret-host')) : false);
+    render(<MyKids onBack={() => {}} />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось проверить привязку аккаунта ребёнка');
+    expect(document.body.textContent).not.toMatch(/network failure|502|secret-host/);
+    expect(screen.queryByRole('button', { name: CODE })).toBeNull();
+    expect(screen.queryByRole('button', { name: UNLINK })).toBeNull();
+    expect(fake.rpcCalls('create_child_code')).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: RETRY }));
+    expect(await screen.findByRole('button', { name: CODE })).toBeInTheDocument();
+  });
+
   it('ответ без ошибки, но не true/false (null): тоже ошибка проверки, а не «не привязан»', async () => {
     fake.rpc.child_linked = () => null;
     render(<MyKids onBack={() => {}} />);

@@ -68,10 +68,15 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
   const checkLinked = useCallback(async (id: string, gen: number) => {
     const n = (seq.current[id] = ++seqNext.current);
     setLinkStates(m => ({ ...m, [id]: { gen, s: 'loading' } }));
-    const r = await supabase.rpc('child_linked', { p: id });
+    let next: LinkState;
+    try {
+      const r = await supabase.rpc('child_linked', { p: id });
+      // ошибка и ответ не true/false не считаются «не привязан»
+      next = r.error ? 'error' : r.data === true ? 'linked' : r.data === false ? 'free' : 'error';
+    } catch {
+      next = 'error'; // отклонённый запрос (сеть и т.п.): тот же безопасный error, текст исключения не показываем
+    }
     if (!alive.current || seq.current[id] !== n) return;
-    // ошибка и ответ не true/false не считаются «не привязан»
-    const next: LinkState = r.error ? 'error' : r.data === true ? 'linked' : r.data === false ? 'free' : 'error';
     setLinkStates(m => ({ ...m, [id]: { gen, s: next } }));
   }, []);
 
