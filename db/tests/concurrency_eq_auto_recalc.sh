@@ -30,7 +30,7 @@ LN=$(q -c "select id from equipment_order_lines where order_id = '$O2' and kit =
 # Параллельно: создание заказов (разные ключи), правка строки, дата, пересчёт, отмена нового заказа
 for i in 1 2 3; do { as; echo "select pg_sleep(0.1); select eq_create_order('$PL', '[{\"kit\":\"Дождевик\"}]'::jsonb, null, null, false, null, null, '00000000-0000-0000-0000-00000652e20$i');"; } > "$T/c$i.sql"; done
 for i in 1 2 3; do { as; echo "select pg_sleep(0.1); select eq_edit_line('$LN', 'M', $((i % 2 + 1)));"; } > "$T/e$i.sql"; done
-for i in 1 2; do { as; echo "select pg_sleep(0.1); select eq_bundle_recalc('$PL');"; } > "$T/m$i.sql"; done
+for i in 1 2; do { echo "select pg_sleep(0.1); select eq_bundle_run('$PL'::uuid, 'manual', true, 'manual');"; } > "$T/m$i.sql"; done
 { as; echo "select pg_sleep(0.1); select eq_set_order_date('$O1', current_date - 3);"; } > "$T/d1.sql"
 for f in c1 c2 c3 e1 e2 e3 m1 m2 d1; do $PSQL -q -t -A -d "$DB" -f "$T/$f.sql" > "$T/$f.out" 2>&1 & done; wait
 errs=$(cat "$T"/*.out | grep -c "ERROR" || true)

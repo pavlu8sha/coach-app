@@ -30,7 +30,7 @@ update equipment_orders set total = 320 where id = '$O2';
 SQL
 
 # 1. Шесть одновременных пересчётов
-for i in 1 2 3 4 5 6; do { as; echo "select pg_sleep(0.1); select eq_bundle_recalc('$PL');"; } > "$T/r$i.sql"; done
+for i in 1 2 3 4 5 6; do { echo "select pg_sleep(0.1); select eq_bundle_run('$PL'::uuid, 'manual', true, 'manual');"; } > "$T/r$i.sql"; done
 for i in 1 2 3 4 5 6; do $PSQL -q -t -A -d "$DB" -f "$T/r$i.sql" > "$T/r$i.out" 2>&1 & done; wait
 errs=$(cat "$T"/r*.out | grep -c "ERROR" || true)
 act=$(q -c "select count(*) from equipment_bundles where player_id = '$PL' and state = 'active'")
@@ -46,7 +46,7 @@ runs=$(q -c "select count(*) from equipment_bundle_runs where player_id = '$PL'"
 
 # 2. Параллельно: правка количества строки и пересчёт; после всего итог сохраняет равенство
 LN=$(q -c "select id from equipment_order_lines where order_id = '$O2' and kit = 'Дождевик'")
-for i in 1 2 3; do { as; echo "select pg_sleep(0.1); select eq_bundle_recalc('$PL');"; } > "$T/m$i.sql"; done
+for i in 1 2 3; do { echo "select pg_sleep(0.1); select eq_bundle_run('$PL'::uuid, 'manual', true, 'manual');"; } > "$T/m$i.sql"; done
 for i in 1 2 3; do { as; echo "select pg_sleep(0.1); select eq_edit_line('$LN', 'M', $((i % 2 + 1)));"; } > "$T/e$i.sql"; done
 for f in m1 m2 m3 e1 e2 e3; do $PSQL -q -t -A -d "$DB" -f "$T/$f.sql" > "$T/$f.out" 2>&1 & done; wait
 errs=$(cat "$T"/m*.out "$T"/e*.out | grep -c "ERROR" || true)

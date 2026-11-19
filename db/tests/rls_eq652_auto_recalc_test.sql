@@ -2,12 +2,14 @@
 -- Условия: docs/acceptance/eq-652-stage2b-auto-recalc-0208-2026-11-19.md (Н1–Н12).
 begin;
 create extension if not exists pgtap;
-select plan(58);
+select plan(60);
 
 alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
 \i db/migrations/0208_eq_auto_recalc.sql
 
 create or replace function pu(n int) returns uuid language sql immutable as $$ select ('00000000-0000-0000-0000-0000006723' || lpad(n::text, 2, '0'))::uuid $$;
+create or replace function rc(p uuid) returns jsonb language sql as $$ select eq_bundle_recalc(p, 'manual', (eq_bundle_preview(p))->>'fingerprint') $$;
+grant execute on function rc(uuid) to authenticated;
 insert into clubs (id, name) values ('00000000-0000-0000-0000-0000006721c1', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
   ('00000000-0000-0000-0000-0000006721a1', 967211, 'Админ', true),
@@ -223,7 +225,7 @@ select eq_edit_line((select id from equipment_order_lines where order_id = oid_(
 select as_pg();
 select is(stz(pu(10)) || '/' || tt(oid_('p10o2')), 'unchecked/settings_invalid/320', 'Н8: автопересчёт состояние unchecked не снимает');
 select as_user('00000000-0000-0000-0000-0000006721a1');
-select eq_bundle_recalc(pu(10));
+select rc(pu(10));
 select as_pg();
 select is(stz(pu(10)) || '/' || tt(oid_('p10o2')), 'active/ok/225', 'Н8: ручной пересчёт снимает после успешной проверки');
 delete from club_settings where key = 'equip.discPct';
@@ -287,6 +289,8 @@ insert into fp values ('snap17', snap());
 select as_user('00000000-0000-0000-0000-0000006721a1');
 select throws_ok($$select eq_bundle_recalc(pu(17), 'manual', (select f from pv17))$$, '40001', 'preview changed', 'Н13: ручной пересчёт со старым предпросмотром отклонён');
 select throws_ok($$select eq_bundle_recalc(pu(17), 'manual', null)$$, '22023', 'confirm required', 'Н13: пересчёт без отпечатка требует подтверждения');
+select throws_ok($$select eq_bundle_recalc(pu(17))$$, '22023', 'confirm required', 'Н13: старая двухаргументная форма не применяет пересчёт без отпечатка');
+select throws_ok($$select eq_bundle_recalc(pu(17), 'manual')$$, '22023', 'confirm required', 'Н13: то же с явным режимом');
 select as_pg();
 select is(snap(), (select v from fp where k = 'snap17'), 'Н13: отказ пересчёта ничего не изменил');
 select as_user('00000000-0000-0000-0000-0000006721a1');

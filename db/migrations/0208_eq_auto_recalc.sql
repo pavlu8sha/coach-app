@@ -403,6 +403,11 @@ end $$;
 revoke execute on function eq_bundle_recalc(uuid, text, text) from public, anon;
 grant execute on function eq_bundle_recalc(uuid, text, text) to authenticated;
 
+-- Двухаргументная форма из 0205 больше не применяет пересчёт: без отпечатка предпросмотра она только отвечает «confirm required» (или прежней ошибкой доступа и проверок).
+-- Права сохранены (на них опирается preflight 0205), обхода подтверждения у роли authenticated нет.
+create or replace function eq_bundle_recalc(p uuid, mode text default 'manual') returns jsonb
+language sql security definer set search_path = public as $$ select eq_bundle_recalc(p, mode, null::text) $$;
+
 -- 7. Восстановление (Q6): только с подтверждением; предпросмотр отдельной функцией.
 create or replace function eq_restore_preview(o uuid) returns jsonb
 language plpgsql security definer set search_path = public as $$

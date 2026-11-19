@@ -312,6 +312,14 @@ begin
 end $$;
 
 revoke execute on function eq_bundle_run(uuid, text, boolean, text) from public, anon, authenticated;
+create or replace function eq_bundle_recalc(p uuid, mode text default 'manual') returns jsonb
+language plpgsql security definer set search_path = public as $$
+begin
+  perform eq_assert_admin();
+  if mode is distinct from 'manual' then raise exception 'bad mode' using errcode = '22023'; end if;
+  perform eq_bundle_assert_ready();
+  return eq_bundle_run(p, 'manual', true, 'manual');
+end $$;
 revoke execute on function eq_create_order(uuid, jsonb, text, text, boolean, text, numeric, uuid), eq_edit_order(uuid, text, text, boolean, text, numeric),
   eq_edit_line(uuid, text, int), eq_add_line(uuid, text, text, int), eq_delete_line(uuid), eq_set_order_date(uuid, date), eq_delete_order(uuid),
   eq_cancel_order(uuid, text), eq_restore_order(uuid, text) from public, anon;

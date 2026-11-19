@@ -101,8 +101,8 @@ nowc=$(q -c "select count(*) from equipment_orders")
 [ -n "$oc" ] && [ "$oc" = "$((nowc - 1))" ] && ok "новый заказ не попал в снимок заморозки" || bad "orders_count $oc, заказов сейчас $nowc"
 [ "$(q -c "select legacy_bundle_id is null and not discount_forfeited from equipment_orders where id = '$ON'")" = t ] && ok "новый заказ не заморожен" || bad "новый заказ заморожен"
 
-# 5. После запуска расчёта откат отказывает
-printf "select set_config('role','authenticated',false), set_config('request.jwt.claims', json_build_object('sub','%s','role','authenticated')::text, false);\nselect eq_bundle_recalc('%s');\n" "$AD" "$P1" > "$T/rc.sql"
+# 5. После запуска расчёта откат отказывает (пересчёт с отпечатком предпросмотра)
+printf "select set_config('role','authenticated',false), set_config('request.jwt.claims', json_build_object('sub','%s','role','authenticated')::text, false);\nselect eq_bundle_recalc('%s', 'manual', (eq_bundle_preview('%s'))->>'fingerprint');\n" "$AD" "$P1" "$P1" > "$T/rc.sql"
 $PSQL -q -t -A -v ON_ERROR_STOP=1 -d "$DB" -f "$T/rc.sql" > "$T/rc.out" 2>&1 || { bad "ручной пересчёт упал"; cat "$T/rc.out"; }
 S2=$(snap)
 if $PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f db/ops/rollback-0207-eq-freeze-2c.sql > "$T/rb2.out" 2>&1; then bad "откат после пересчёта не должен выполняться"; else grep -q "rollback stopped" "$T/rb2.out" && ok "откат после запуска расчёта остановлен" || { bad "откат упал не по защите"; cat "$T/rb2.out"; }; fi
