@@ -468,3 +468,17 @@ ul.policy { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 8px
 .ks-expand-layer textarea { flex: 1 1 auto; min-height: 0; width: 100%; box-sizing: border-box; resize: none; overflow-y: auto; border: 0; background: transparent; color: inherit; font: inherit; font-size: 1.0625rem; line-height: 1.5; padding: 4px 0 12px; outline: none; }
 .ks-expand-layer .ks-expand-btn { position: absolute; top: 8px; right: 12px; background: var(--bg-2); }
 .ks-eyebrow { margin: 0 0 4px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ks-primary); }
+
+/* Нижнее окно «Фильтры» и пилюли выбранного (экраны «Игроки», далее «Матчи», «Оплаты») */
+.ks-sheet-back { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: flex-end; justify-content: center; background: rgba(0, 0, 0, 0.6); overscroll-behavior: contain; }
+.ks-sheet { width: 100%; max-width: 480px; max-height: 88vh; overflow-y: auto; overscroll-behavior: contain; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); border-radius: 20px 20px 0 0; background: var(--ks-surface, #fff); }
+.ks-sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.ks-sheet-head h3 { margin: 0; }
+.ks-sheet .ks-btn { margin-top: 8px; }
+.ks-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ks-head h1 { margin: 0; }
+.ks-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.ks-toolbar .ks-chip { flex: none; }
+.ks-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.ks-pill-x { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 0 6px 0 12px; border-radius: var(--ks-radius-pill); background: var(--ks-primary-subtle, var(--ks-surface)); border: 1px solid var(--ks-border-strong); color: var(--ks-text); font: 700 13px var(--ks-font); }
+.ks-pill-x button { min-width: 44px; min-height: 44px; margin: -6px -6px -6px 0; border: 0; background: none; color: var(--ks-text-muted); font: 700 14px var(--ks-font); cursor: pointer; }
