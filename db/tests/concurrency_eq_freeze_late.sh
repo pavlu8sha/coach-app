@@ -13,6 +13,25 @@ T=$(mktemp -d)
 cleanup() { $PSQL -q -d postgres -c "drop database if exists $CP" >/dev/null 2>&1 || true; rm -rf "$T"; }
 trap cleanup EXIT
 $PSQL -q -d postgres -c "drop database if exists $CP" -c "create database $CP template $DB"
+# Копия содержит следы прежних тестов (запуски расчёта, заказы): чистим данные экипировки, иначе проверка «расчётов не было» срабатывала бы сама по себе
+q <<'SQL'
+alter table equipment_order_events disable trigger user;
+alter table equipment_order_lines disable trigger user;
+alter table equipment_orders disable trigger user;
+alter table equipment_bundle_status disable trigger user;
+alter table equipment_bundle_runs disable trigger user;
+alter table equipment_bundles disable trigger user;
+alter table equipment_legacy_bundles disable trigger user;
+truncate equipment_bundle_status, equipment_bundle_runs, equipment_bundles, equipment_legacy_bundles, equipment_order_events, equipment_order_lines, equipment_orders cascade;
+delete from service_payments where kind = 'equipment';
+alter table equipment_order_events enable trigger user;
+alter table equipment_order_lines enable trigger user;
+alter table equipment_orders enable trigger user;
+alter table equipment_bundle_status enable trigger user;
+alter table equipment_bundle_runs enable trigger user;
+alter table equipment_bundles enable trigger user;
+alter table equipment_legacy_bundles enable trigger user;
+SQL
 CL=00000000-0000-0000-0000-0000ee7721c1
 PL=00000000-0000-0000-0000-0000ee77d101
 O1=00000000-0000-0000-0000-0000ee77e101
@@ -54,7 +73,7 @@ grep -q "recalculation was already run" "$T/b1.out" && ok "заморозка: �
 fz=$(q -c "select count(*) from equipment_orders where legacy_bundle_id is not null and player_id = '$PL'")
 [ "$fz" = 0 ] && ok "заморозка: ничего не заморожено" || bad "заморожено $fz"
 # Откат: сначала настоящая заморозка (чистим запись гонки), затем гонка с откатом
-q -c "alter table equipment_bundle_runs disable trigger user" -c "delete from equipment_bundle_runs" -c "alter table equipment_bundle_runs enable trigger user"
+q -c "alter table equipment_bundle_status disable trigger user" -c "alter table equipment_bundle_runs disable trigger user" -c "delete from equipment_bundle_status" -c "delete from equipment_bundle_runs" -c "alter table equipment_bundle_runs enable trigger user" -c "alter table equipment_bundle_status enable trigger user"
 $PSQL -q -v ON_ERROR_STOP=1 -t -A -d "$CP" -f "$T/apply.sql" > "$T/b2.out" 2>&1 && ok "заморозка без гонки отработала" || { bad "заморозка не отработала"; head -3 "$T/b2.out"; }
 race "$T/rollback.sql" "$T/b3.out"
 grep -q "recalculation was run after the late freeze" "$T/b3.out" && ok "откат: расчёт во время ожидания блокировки замечен (остановка)" || { bad "откат не остановился"; head -3 "$T/b3.out"; }
