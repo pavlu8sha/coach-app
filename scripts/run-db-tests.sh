@@ -94,6 +94,8 @@ DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_consent_claim.sh || fail=1
 # Цикл 2c проверяет откат 0207 «до пересчётов»: идёт до скриптов, создающих заказы (с 0208 их создание оставляет запуски расчёта).
 echo "== db/tests/eq_freeze_2c_cycle.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/eq_freeze_2c_cycle.sh || fail=1
+echo "== db/tests/concurrency_eq_freeze_late.sh"
+DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_eq_freeze_late.sh || fail=1
 echo "== db/tests/concurrency_eq_payments.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_eq_payments.sh || fail=1
 echo "== db/tests/concurrency_eq_create_order.sh"
