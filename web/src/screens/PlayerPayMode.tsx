@@ -4,8 +4,9 @@ import { supabase } from '../lib/supabase';
 
 // Тип оплаты игрока в карточке (миграция 0200): «Абонемент» или «Платит за визит» (20 ₾ за каждое посещение, без долга по абонементу).
 // Меняет администратор (player_set_pay_mode). Старые оплаты в абонемент остаются как есть. Итог за месяц: только факт, без сравнения «выгоды».
+// С 0206 в число визитов входят доп. посещения чужих групп (guest_visits, условия: docs/PAY_PER_VISIT_VISITS_ACCEPTANCE.md); без миграции поля нет и строка прежняя.
 interface Mode { pay_mode: 'subscription' | 'per_visit'; pay_mode_from: string | null }
-interface Month { visits: number; accrued: number; paid: number; subscription_price: number | null }
+interface Month { visits: number; guest_visits?: number; accrued: number; paid: number; subscription_price: number | null }
 const gel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)} ₾`;
 const MONTHS = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
 
@@ -54,7 +55,7 @@ export default function PlayerPayMode({ playerId }: { playerId: string }) {
       </p>
       {per && month && (
         <p className="muted" style={{ margin: '0 0 8px' }}>
-          {MONTHS[mi]}: визитов {month.visits}, начислено {gel(Number(month.accrued))}, оплачено {gel(Number(month.paid))}.
+          {MONTHS[mi]}: визитов {month.visits}{Number(month.guest_visits) > 0 ? ` (из них доп. посещений ${month.guest_visits})` : ''}, начислено {gel(Number(month.accrued))}, оплачено {gel(Number(month.paid))}.
           {month.subscription_price != null && ` Абонемент в этом месяце: ${gel(Number(month.subscription_price))}.`}
         </p>
       )}
