@@ -41,6 +41,7 @@ export default function Matches() {
   const [matches0, setMatches] = useState<Match[] | null>(null);
   const [multi, setMulti] = useState(false);
   const [noGroups, setNoGroups] = useState(false);
+  const [ungrouped, setUngrouped] = useState<string[]>([]); // привязанные дети без группы (#733): состояние отличается от «нет привязанных детей»
   const [kids, setKids] = useState<Kid[]>([]);
   const [parts, setParts] = useState<Map<string, Part>>(new Map()); // «матч|ребёнок» → участие
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +66,7 @@ export default function Matches() {
       setKids(myKids);
       setMulti(names.length > 1);
       setNoGroups(!names.length);
+      setUngrouped(ps.filter(p => !p.groups?.name).map(p => (p.full_name ?? '') as string).filter(Boolean));
       if (!names.length) return setMatches([]);
       // участие своих детей: база отдаёт родителю только записи его ребёнка (без чужих голов)
       const mp = await supabase.from('match_players').select('match_id, player_id, played, goals').in('player_id', myKids.map(k => k.id));
@@ -114,6 +116,11 @@ export default function Matches() {
   if (error) return <Failure title="Не удалось загрузить матчи" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   if (!matches0) return <Loading title="Матчи" card rows={3} />;
   let matches = matches0;
+  const nameList = ungrouped.join(', ');
+  if (noGroups && ungrouped.length) {
+    // ребёнок привязан, но группу ему ещё не назначили: это не «связь не подтверждена»
+    return <main className="page"><h1>Матчи</h1><EmptyState icon="trophy" title="Группа ещё не назначена" text={`Матчи появятся, когда администратор клуба назначит группу: ${nameList}.`} /></main>;
+  }
   if (noGroups) return <main className="page"><h1>Матчи</h1><EmptyState icon="box" title="Пока пусто" text="Матчи появятся, когда администратор подтвердит связь с ребёнком." /></main>;
 
   const t = today();
@@ -145,6 +152,11 @@ export default function Matches() {
   return (
     <main className="page">
       <h1>Матчи</h1>
+      {ungrouped.length > 0 && (
+        <p className="ks-card note" role="status">
+          Группа ещё не назначена: {nameList}. Матчи появятся после назначения группы.
+        </p>
+      )}
       <Segmented
         label="Фильтр матчей"
         value={filter}
