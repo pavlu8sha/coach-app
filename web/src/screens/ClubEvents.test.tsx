@@ -425,3 +425,24 @@ describe('замечания ревью #742', () => {
     expect(d.max).toBe('2026-12-06');
   });
 });
+
+describe('замечания Павла после слияния (19.11)', () => {
+  it('возврат из формы в список не показывает «Загрузка»: данные берутся из кэша и тихо обновляются', async () => {
+    seed();
+    render(<ClubEvents />);
+    await screen.findByText('Турнир Осень');
+    fireEvent.click(screen.getByRole('button', { name: 'Новое мероприятие' }));
+    await screen.findByRole('button', { name: 'Создать' });
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(screen.getByText('Турнир Осень')).toBeInTheDocument(); // сразу, без ожидания ответа базы
+    expect(screen.queryByRole('status', { name: 'Загрузка' })).toBeNull();
+  });
+
+  it('чек-боксы групп — как в остальном приложении (класс ks-check, крупная область нажатия)', async () => {
+    seed();
+    render(<ClubEvents />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Новое мероприятие' }));
+    const box = await screen.findByRole('checkbox', { name: 'U9-A' });
+    expect(box.closest('label')?.className).toContain('ks-check');
+  });
+});
