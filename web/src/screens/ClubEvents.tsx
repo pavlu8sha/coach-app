@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { ExpandableTextarea } from '../ui/ExpandableTextarea';
 import { useDirtySignature, useNav, useNavState } from '../nav';
-import { fmtDate, today } from '../lib/coach';
+import { fmtDate } from '../lib/coach';
+import { tbilisiToday } from '../lib/campAttention';
 import { RECORD_LABEL, RECORD_TONE, STATUS_LABEL, STATUS_TONE, clubEventErr, deadlineText, gel, moneyOk, num, parseMoney, seatsText, whenText, type ClubEvent, type EventStatus, type Participant } from '../lib/clubEvents';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, Segmented } from '../ui/components';
@@ -267,7 +268,8 @@ function AddPeople({ ev, parts, mode, onBack, onDone }: { ev: ClubEvent; parts: 
   const [found, setFound] = useState<{ id: string; full_name: string; groups?: { name: string } | null }[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [gid, setGid] = useState('');
-  const [pre, setPre] = useState<{ add_count: number; over_limit: boolean; to_add: { player_id: string; full_name: string }[]; skipped: { player_id: string; full_name: string; reason: string }[] } | null>(null);
+  const seq = useRef(0);
+  const [pre, setPre] = useState<{ group: string; add_count: number; over_limit: boolean; to_add: { player_id: string; full_name: string }[]; skipped: { player_id: string; full_name: string; reason: string }[] } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { ask, dialog } = useConfirm();
@@ -297,16 +299,18 @@ function AddPeople({ ev, parts, mode, onBack, onDone }: { ev: ClubEvent; parts: 
   };
 
   const choose = async (v: string) => {
+    const mine = ++seq.current; // устаревший ответ предпросмотра другой группы игнорируется
     setGid(v);
     setPre(null);
     setErr(null);
     if (!v) return;
     const r = await supabase.rpc('club_event_group_preview', { p_event: ev.id, p_group: v });
+    if (mine !== seq.current) return;
     if (r.error) return setErr(clubEventErr(r.error.message));
-    setPre(r.data);
+    setPre({ ...r.data, group: v });
   };
   const addGroup = async () => {
-    if (busy) return;
+    if (busy || !pre || pre.group !== gid) return;
     setBusy(true);
     const r = await supabase.rpc('club_event_group_add', { p_event: ev.id, p_group: gid });
     setBusy(false);
@@ -335,7 +339,7 @@ function AddPeople({ ev, parts, mode, onBack, onDone }: { ev: ClubEvent; parts: 
               {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
             </select>
           </label>
-          {pre && (
+          {pre && pre.group === gid && (
             <section className="ks-card">
               <h2>Будет добавлено: {pre.add_count}</h2>
               {pre.to_add.map(x => <p key={x.player_id}>{x.full_name}</p>)}
@@ -357,6 +361,7 @@ interface Bal { counted: number; debt: number; overpay: number }
 
 function PersonCard({ ev, p, onBack, onChanged }: { ev: ClubEvent; p: Participant; onBack: () => void; onChanged: () => void }) {
   const [pays, setPays] = useState<PayRow[] | null>(null);
+  const [paysErr, setPaysErr] = useState<string | null>(null);
   const [payVer, setPayVer] = useState(0);
   const [last, setLast] = useState<Bal | null>(null);
   const [priceOpen, setPriceOpen] = useState(false);
@@ -364,7 +369,7 @@ function PersonCard({ ev, p, onBack, onChanged }: { ev: ClubEvent; p: Participan
   const [reason, setReason] = useState('');
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('');
-  const [date, setDate] = useState(today());
+  const [date, setDate] = useState(tbilisiToday());
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -375,7 +380,11 @@ function PersonCard({ ev, p, onBack, onChanged }: { ev: ClubEvent; p: Participan
 
   useEffect(() => {
     void supabase.from('service_payments').select('id, amount, paid_on, method, op').eq('kind', 'event').eq('ref_id', ev.id).eq('player_id', p.player_id).eq('op', 'payment').order('paid_on', { ascending: true })
-      .then((r: { data: PayRow[] | null }) => setPays(r.data ?? []));
+      .then((r: { data: PayRow[] | null; error: { message: string } | null }) => {
+        if (r.error) return setPaysErr(clubEventErr(r.error.message));
+        setPaysErr(null);
+        setPays(r.data ?? []);
+      });
   }, [ev.id, p.player_id, payVer]);
 
   const bal: Bal = last ?? { counted: num(p.counted), debt: num(p.debt), overpay: num(p.overpay) };
@@ -413,7 +422,7 @@ function PersonCard({ ev, p, onBack, onChanged }: { ev: ClubEvent; p: Participan
 
   // Оплата в два шага: форма, затем окно подтверждения. Один request_id на одно действие: повтор после сбоя с теми же данными его не меняет.
   const amt = parseMoney(amount);
-  const payOk = payable && amount.trim() !== '' && Number.isFinite(amt) && amt > 0 && moneyOk(amt) && METHODS.includes(method) && Boolean(date) && date <= today();
+  const payOk = payable && amount.trim() !== '' && Number.isFinite(amt) && amt > 0 && moneyOk(amt) && METHODS.includes(method) && Boolean(date) && date <= tbilisiToday();
   const pay = async () => {
     if (busyRef.current || !payOk) return;
     const ok = await ask({
@@ -473,12 +482,12 @@ function PersonCard({ ev, p, onBack, onChanged }: { ev: ClubEvent; p: Participan
             {METHODS.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </label>
-        <label className="field">Дата платежа<input type="date" value={date} max={today()} onChange={e => setDate(e.target.value)} /></label>
+        <label className="field">Дата платежа<input type="date" value={date} max={tbilisiToday()} onChange={e => setDate(e.target.value)} /></label>
         {!payable && <p className="muted">{cancelled ? 'У отменённой записи оплата не принимается.' : 'Оплаты принимаются в активном и завершённом мероприятии.'}</p>}
         <button type="button" className="ks-btn" disabled={busy || !payOk} onClick={() => void pay()}>Проверить и записать</button>
       </section>
       <h2>Платежи</h2>
-      {!pays ? <Loading rows={1} /> : pays.length === 0 ? <p className="muted">Платежей пока нет.</p> : pays.map(x => <p key={x.id}>{`${fmtDate(x.paid_on)} · ${x.method ?? 'не указан'} · ${gel(x.amount)}`}</p>)}
+      {paysErr ? <><p className="error">Не удалось загрузить платежи: {paysErr}</p><button type="button" className="ks-btn secondary" onClick={() => { setPaysErr(null); setPayVer(n => n + 1); }}>Повторить</button></> : !pays ? <Loading rows={1} /> : pays.length === 0 ? <p className="muted">Платежей пока нет.</p> : pays.map(x => <p key={x.id}>{`${fmtDate(x.paid_on)} · ${x.method ?? 'не указан'} · ${gel(x.amount)}`}</p>)}
     </main>
   );
 }

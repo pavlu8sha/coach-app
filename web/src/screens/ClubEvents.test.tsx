@@ -1,6 +1,6 @@
 // «Мероприятия», этап 4 (Issue #677): тесты от условий UI1–UI19 из docs/CLUB_EVENTS_ACCEPTANCE.md.
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import { DEFAULT_BAR, SECTIONS, parseBar } from '../lib/adminMenu';
 import { restorableEntry } from '../nav/restore';
@@ -377,5 +377,51 @@ describe('карточка участника', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Проверить и записать' }));
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
     expect(await screen.findByText('Оплаты принимаются только в активном или завершённом мероприятии.')).toBeInTheDocument();
+  });
+});
+
+describe('замечания ревью #742', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('гонка предпросмотра: поздний ответ группы A не подменяет выбранную группу B', async () => {
+    seed(ev({}), []);
+    const done: Record<string, (v: unknown) => void> = {};
+    fake.rpc.club_event_group_preview = (a: { p_group: string }) => new Promise(res => { done[a.p_group] = res; });
+    fake.rpc.club_event_group_add = () => ({ applied: true, added: 1 });
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: 'Добавить группу' }));
+    const sel = await screen.findByLabelText('Группа');
+    fireEvent.change(sel, { target: { value: 'g1' } });
+    fireEvent.change(sel, { target: { value: 'g2' } });
+    const pv = (n: string, c: number) => ({ add_count: c, active: 0, capacity: 10, over_limit: false, to_add: [{ player_id: n, full_name: n }], skipped: [] });
+    await waitFor(() => expect(Object.keys(done)).toHaveLength(2));
+    done.g2(pv('Игрок группы B', 1)); // B отвечает первым
+    expect(await screen.findByText('Игрок группы B')).toBeInTheDocument();
+    done.g1(pv('Игрок группы A', 5)); // A приходит позже
+    await new Promise(r => setTimeout(r, 20));
+    expect(screen.queryByText('Игрок группы A')).toBeNull();
+    expect(screen.getByText('Будет добавлено: 1')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Добавить 1' }));
+    await waitFor(() => expect(fake.rpcCalls('club_event_group_add')).toEqual([{ p_event: 'e1', p_group: 'g2' }]));
+  });
+
+  it('ошибка чтения журнала платежей не выдаётся за «Платежей пока нет»; есть повтор', async () => {
+    seed(ev({}), PARTS);
+    fake.errors.service_payments = 'permission denied';
+    await openPerson('Иванов Пётр');
+    expect(await screen.findByText(/Не удалось загрузить платежи/)).toBeInTheDocument();
+    expect(screen.queryByText('Платежей пока нет.')).toBeNull();
+    delete fake.errors.service_payments;
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    expect(await screen.findByText('Платежей пока нет.')).toBeInTheDocument();
+  });
+
+  it('дата платежа по умолчанию и граница — по Тбилиси, а не по часовому поясу устройства', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-12-05T21:30:00Z') }); // в Тбилиси уже 06.12
+    seed(ev({}), PARTS);
+    await openPerson('Иванов Пётр');
+    const d = screen.getByLabelText('Дата платежа') as HTMLInputElement;
+    expect(d.value).toBe('2026-12-06');
+    expect(d.max).toBe('2026-12-06');
   });
 });
