@@ -152,7 +152,7 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
               end={f.due === 0 ? <Pill tone="neutral">Без взноса</Pill> : left <= 0 ? <Pill tone="success">Оплачен</Pill> : <Pill tone="danger">Долг {money(left)}</Pill>}
             />
             {/* «Скидка» нужна и у полностью оплаченного взноса (оплата из импорта, играл часть турнира): сумма к оплате меняется, оплаты нет */}
-            {(left > 0 || !coach) && <div className="ks-line" style={{ marginBottom: 8 }}>
+            {(left > 0 || (!coach && f.due > 0)) && <div className="ks-line" style={{ marginBottom: 8 }}>
               {left > 0 && (
                 <label className="ks-check">
                   <input type="checkbox" checked={sel.has(f.player_id)} onChange={() => toggle(f.player_id)} aria-label={`Платит: ${f.full_name}`} />
@@ -160,7 +160,7 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
                 </label>
               )}
               {left > 0 && !coach && api.add && f.paid === 0 && !pays.some(x => x.player_id === f.player_id) && <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 36 }} aria-label={`Убрать из взноса: ${f.full_name}`} onClick={() => void removeFee(f)}>Убрать</button>}
-              {!coach && <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 36 }} aria-label={`Скидка: ${f.full_name}`} onClick={() => { setDiscountFor(discountFor === f.player_id ? null : f.player_id); setDiscount(String(f.due)); }}>Скидка</button>}
+              {!coach && f.due > 0 && <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 36 }} aria-label={`Скидка: ${f.full_name}`} onClick={() => { setDiscountFor(discountFor === f.player_id ? null : f.player_id); setDiscount(String(f.due)); }}>Скидка</button>}
             </div>}
             {!coach && discountFor === f.player_id && (
               <div className="ks-line" style={{ marginBottom: 8 }}>

@@ -46,6 +46,32 @@ describe('взносы: скидка у оплаченного', () => {
   });
 });
 
+describe('взносы: скидка у оплаченного (матч и нулевой взнос)', () => {
+  it('матч: у оплаченного взноса «Скидка» есть, уходит match_discount; у «Без взноса» и у тренера кнопки нет', async () => {
+    fake.rpc.match_fees_list = () => [
+      { player_id: 'p2', full_name: 'Сидоров Ян', group_name: 'U9', due: 20, paid: 20 },
+      { player_id: 'p4', full_name: 'Орлов Глеб', group_name: 'U9', due: 0, paid: 0 },
+    ];
+    fake.rpc.match_payments_list = () => [];
+    fake.rpc.match_discount = () => null;
+    fake.rpc.fee_discounts = () => [];
+    const { unmount } = render(<EventFees eventId="m1" mode="match" reloadKey={0} onChanged={() => {}} />);
+    expect(await screen.findByText('Без взноса')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Скидка: Орлов Глеб' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Скидка: Сидоров Ян' }));
+    fireEvent.change(screen.getByLabelText('Сумма к оплате'), { target: { value: '10' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Применить' }));
+    fireEvent.change(await screen.findByLabelText(/Причина/), { target: { value: 'не доиграл матч' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Применить скидку' }));
+    await waitFor(() => expect(fake.rpcCalls('match_discount')).toHaveLength(1));
+    expect(fake.rpcCalls('match_discount')[0]).toMatchObject({ m: 'm1', pid: 'p2', due: 10, why: 'не доиграл матч' });
+    unmount();
+    render(<EventFees eventId="m1" mode="match" coach reloadKey={0} onChanged={() => {}} />);
+    await screen.findByText('Сидоров Ян');
+    expect(screen.queryByRole('button', { name: 'Скидка: Сидоров Ян' })).not.toBeInTheDocument();
+  });
+});
+
 describe('взносы матча: массовая оплата', () => {
   it('«Выбрать всех должников» отмечает только тех, у кого есть долг; оплата уходит всем выбранным', async () => {
     seed();
