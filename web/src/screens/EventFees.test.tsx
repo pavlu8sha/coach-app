@@ -13,6 +13,16 @@ function seed() {
   fake.rpc.match_pay = () => null;
 }
 
+describe('взносы: вид сумм', () => {
+  it('знак ₾ отделён от суммы неразрывным пробелом и не переносится отдельно', async () => {
+    seed();
+    render(<EventFees eventId="m1" mode="match" reloadKey={0} onChanged={() => {}} />);
+    await screen.findByText('Иванов Пётр');
+    expect(document.body.textContent).toContain('К оплате 20\u00A0₾ · оплачено 0\u00A0₾');
+    expect(document.body.textContent).not.toMatch(/\d ₾/);
+  });
+});
+
 describe('взносы матча: массовая оплата', () => {
   it('«Выбрать всех должников» отмечает только тех, у кого есть долг; оплата уходит всем выбранным', async () => {
     seed();

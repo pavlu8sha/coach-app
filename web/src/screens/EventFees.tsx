@@ -10,7 +10,8 @@ interface DiscRow { player_id: string; old_amount: number; new_amount: number; r
 interface PayRow { id: string; player_id: string; full_name: string; amount: number; paid_on: string; method: string | null; comment: string | null; cancelled: boolean }
 
 const METHODS = ['Наличные', 'Перевод'];
-const money = (n: number) => `${Number(n)} ₾`;
+// неразрывный пробел: знак ₾ не переносится на новую строку отдельно от суммы
+const money = (n: number) => `${Number(n)}\u00A0₾`;
 
 const API = {
   event: { key: 't', fees: 'event_fees', pays: 'event_payments', pay: 'event_pay', discount: 'event_discount', cancel: 'event_cancel_payment', setFee: 'event_set_fee', add: null },
