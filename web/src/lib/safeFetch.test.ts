@@ -38,6 +38,8 @@ describe('safeFetch', () => {
     const rpc = await client.rpc('any_function', { a: 1 });
     expect(errMsg(rpc.error)).toBe(ERR_NETWORK);
     expect(coachError(rpc.error!.message)).toBe(ERR_NETWORK);
+    const sel = await client.from('players').select('id').retry(false);
+    expect(errMsg(sel.error)).toBe(ERR_NETWORK);
     expect(fallbackError(ERR_NETWORK)).toBe(ERR_NETWORK);
     spy.mockRestore();
   });
