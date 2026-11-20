@@ -12,6 +12,8 @@ interface Row { id: string; kind: string; player: string; amount: number; paid_o
 interface Report { total: number; by_method: MethodSum[]; by_staff: StaffSum[]; rows: Row[] }
 
 type Preset = 'today' | 'day' | 'month' | 'custom';
+interface LocRes { data: Record<string, string | null>[] | null; error: { message: string } | null }
+const LOCATION_SOURCES = [{ table: 'groups', column: 'location' }, { table: 'camps', column: 'location' }, { table: 'equipment_orders', column: 'location' }, { table: 'extra_sessions', column: 'place' }];
 const METHOD_FILTERS = [{ value: '', label: 'Все' }, { value: 'Наличные', label: 'Наличные' }, { value: 'Перевод', label: 'Перевод' }, { value: 'не указан', label: 'Не указан' }];
 
 // Кассовый отчёт (#264): поступления за день, месяц или период. Суммы считает сервер (0078): по сотрудникам и способам они сходятся с итогом.
@@ -24,6 +26,7 @@ export default function CashReport() {
   const [method, setMethod] = useNavState('cr.method', '');
   const [report, setReport] = useState<Report | null>(null);
   const [locations, setLocations] = useState<string[]>([]);
+  const [locErr, setLocErr] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const choose = (p: Preset) => {
@@ -33,12 +36,18 @@ export default function CashReport() {
     if (p === 'month') { setFrom(today().slice(0, 8) + '01'); setTo(today()); }
   };
 
-  // список локаций для выбора: значения из тренировок, чтобы регистр и написание всегда совпадали с базой
+  // список локаций для выбора: те же источники, по которым cash_report (0210) определяет локацию платежа:
+  // groups.location (абонементы, доп. посещения, оплата за визит), camps.location (сборы), equipment_orders.location (экипировка), extra_sessions.place (доп. занятия)
   useEffect(() => {
-    void supabase.from('sessions').select('location').order('location').limit(5000).then((r: { data: { location: string | null }[] | null; error: unknown }) => {
-      if (r.error || !r.data) return;
-      setLocations([...new Set(r.data.map(x => (x.location ?? '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)));
-    });
+    let live = true;
+    void Promise.all(LOCATION_SOURCES.map(src => (supabase.from(src.table).select(src.column) as unknown) as PromiseLike<LocRes>)).then(res => {
+      if (!live) return;
+      const failed = res.find(r => r.error);
+      if (failed?.error) { setLocErr(coachError(failed.error.message)); return; }
+      const names = res.flatMap((r, i) => (r.data ?? []).map(x => (x[LOCATION_SOURCES[i].column] ?? '').trim()));
+      setLocations([...new Set(names.filter(Boolean))].sort((x, y) => x.localeCompare(y)));
+    }, () => { if (live) setLocErr('Нет связи, список локаций не загрузился'); });
+    return () => { live = false; };
   }, []);
 
   useEffect(() => {
@@ -74,6 +83,7 @@ export default function CashReport() {
           </select>
         </label>
       </div>
+      {locErr && <p role="status" className="ks-muted" style={{ margin: '4px 0 0' }}>Список локаций не загрузился: {locErr}. Отчёт по всем локациям работает.</p>}
       <div style={{ marginTop: 8 }}>
         <Segmented label="Способ оплаты" value={method} onChange={setMethod} items={METHOD_FILTERS} />
       </div>
