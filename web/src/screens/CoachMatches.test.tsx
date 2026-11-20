@@ -880,4 +880,21 @@ describe('«Матчи»: «+ Матч» в шапке и меню «⋯»', () 
     fireEvent.click(more);
     expect(screen.queryByRole('menu')).toBeNull();
   });
+
+  it('клик и касание вне меню закрывают его, фокус остаётся на нажатом элементе, а не уходит на «⋯»', async () => {
+    seed();
+    render(<CoachMatches groups={groups} />);
+    const more = await screen.findByRole('button', { name: 'Ещё' });
+    const add = screen.getByRole('button', { name: '+ Матч' });
+    fireEvent.click(more);
+    add.focus(); // клик по другому элементу переносит фокус на него
+    fireEvent.mouseDown(add);
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(document.activeElement).toBe(add);
+    fireEvent.click(more);
+    fireEvent.touchStart(document.body);
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(document.activeElement).not.toBe(more);
+  });
+
 });
