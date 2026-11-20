@@ -10,6 +10,7 @@ import { EventForm, EventScreen, eventCounts, eventTitle, isFinished, type Event
 import { Failure, Loading } from './Message';
 import CoachRsvp from './CoachRsvp';
 import { useConfirm } from '../ui/ConfirmSheet';
+import { MoreMenu } from '../ui/MoreMenu';
 
 interface Match { id: string; team: string; played_on: string; opponent: string | null; goals_for: number | null; goals_against: number | null; technical?: boolean; lifecycle_status?: string; starts_at?: string | null }
 // Матч с подтверждением участия (PR 2–4 по #274): до начала им управляют «Матчи с подтверждением», здесь он появляется после начала — для отметок игроков и счёта
@@ -113,18 +114,23 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   // команды для «Добавить матч»: свои группы тренера; у администратора и тренера со всеми командами — все команды клуба
   const addTeams = [...new Set((showAll ? [...groups.map(g => g.name), ...matches.map(m => m.team), ...events.map(e => e.team)] : groups.map(g => g.name)).filter(playsMatches).map(matchTeam))].sort(compareGroups);
   if (other.length) sections.push({ key: 'other', title: byTour.size ? 'Товарищеские и кубки' : 'Матчи', items: other });
+  // предстоящие опубликованные матчи с подтверждением: из уже загруженного списка, без нового запроса
+  const upcomingRsvp = matches.filter(m => isRsvp(m) && m.starts_at && new Date(m.starts_at).getTime() > Date.now()).length;
   return (
     <main className="page">
-      <h1>Матчи</h1>
-      <button type="button" className="ks-btn" onClick={() => setAddStep('pick')}>Добавить матч</button>
-      <div style={{ height: 8 }} />
-      {admin && (
-        <>
-          <button type="button" className="ks-btn secondary" onClick={() => nav.push('event')}>Новое событие</button>
-          <div style={{ height: 8 }} />
-        </>
-      )}
-      <button type="button" className="ks-btn secondary" onClick={() => nav.push('rsvp')}>Матчи с подтверждением</button>
+      <div className="ks-head">
+        <h1>Матчи</h1>
+        <div className="ks-head-actions">
+          <button type="button" className="ks-btn sm" onClick={() => setAddStep('pick')}>+ Матч</button>
+          <MoreMenu
+            badge={upcomingRsvp}
+            items={[
+              ...(admin ? [{ label: 'Новое событие', onSelect: () => nav.push('event') }] : []),
+              { label: upcomingRsvp > 0 ? `Матчи с подтверждением · ${upcomingRsvp}` : 'Матчи с подтверждением', onSelect: () => nav.push('rsvp') },
+            ]}
+          />
+        </div>
+      </div>
       {addStep === 'pick' && (
         <div className="ks-card" aria-label="Добавить матч">
           <p className="ks-label">Матч чемпионата или фестиваля</p>
