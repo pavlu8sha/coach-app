@@ -29,12 +29,18 @@ export function paymentKey(p: PaymentInput): string {
   return fresh.key;
 }
 
-export async function addPayment(p: PaymentInput): Promise<PaymentResult> {
+/** Сбросить ключ игрока: вызывается, когда вся операция (в том числе составная, как «оплатить со скидкой») закончена. */
+export function clearPaymentKey(playerId: string): void {
+  store(playerId, null);
+}
+
+/** keep: не сбрасывать ключ после успеха; вызывающий сам вызывает clearPaymentKey, когда составная операция завершена (повтор тех же данных тогда получит duplicate, а не второй платёж). */
+export async function addPayment(p: PaymentInput, opts: { keep?: boolean } = {}): Promise<PaymentResult> {
   const amount = Math.round(p.amount * 100) / 100;
   const input = { ...p, amount };
   const r = await supabase.rpc('payment_add', { req: paymentKey(input), pid: p.player_id, amt: amount, d: p.paid_on, mth: p.method, fm: p.for_month ?? null });
   if (r.error) return { error: r.error, duplicate: false };
-  store(p.player_id, null);
+  if (!opts.keep) store(p.player_id, null);
   return { error: null, duplicate: Boolean((r.data as { duplicate?: boolean } | null)?.duplicate) };
 }
 

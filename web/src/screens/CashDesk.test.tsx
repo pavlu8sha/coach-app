@@ -154,6 +154,31 @@ describe('«Приём оплат»', () => {
     expect(await screen.findByText('Этот платёж уже был записан ранее, второй не создан.')).toBeInTheDocument();
   });
 
+  it('абонемент: «Оплатить со скидкой», платёж записан, скидка упала, повтор: тот же ключ (duplicate), второй платёж не создаётся; повторяется только скидка (#724)', async () => {
+    seed();
+    let n = 0;
+    fake.rpc.payment_add = () => ({ data: { id: 'x1', duplicate: ++n > 1 } });
+    await openPlayer();
+    await screen.findByText(/Внесено 50 ₾ из 165 ₾/);
+    const sub = card(/Внесено 50 ₾ из 165 ₾/);
+    fireEvent.click(within(sub).getByRole('button', { name: 'Принять оплату' }));
+    fireEvent.change(within(sub).getByLabelText(/Сумма/), { target: { value: '60' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Перевод' }));
+    fireEvent.click(within(sub).getByRole('button', { name: 'Оплатить со скидкой' }));
+    fake.errors.subscriptions = 'boom'; // платёж пройдёт, скидка не запишется
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Оплатить' }));
+    expect(await screen.findByText(/Платёж записан, но скидку не применили/)).toBeInTheDocument();
+    delete fake.errors.subscriptions;
+    fireEvent.click(within(sub).getByRole('button', { name: 'Оплатить со скидкой' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Оплатить' }));
+    await waitFor(() => expect(fake.writes('subscriptions', 'upsert')).toHaveLength(1));
+    const keys = fake.paymentKeys();
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toBe(keys[1]);
+    expect(fake.writes('payments')).toHaveLength(0);
+    expect(await screen.findByText('Этот платёж уже был записан ранее, второй не создан.')).toBeInTheDocument();
+  });
+
   it('разовое посещение другой группы показано отдельным разделом и платится через session_guest_set_paid', async () => {
     seed();
     fake.db.session_guests = [{ session_id: 's9', player_id: 'p1', paid: false, amount: 15, sessions: { starts_at: '2020-02-03T15:00:00+04:00', groups: { name: 'U9-B' } } }];

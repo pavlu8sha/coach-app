@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { addDays, coachError, fmtDate, hasSubscription, today, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
-import { addPayment, paymentError, DUPLICATE_PAYMENT_NOTE } from '../lib/paymentAdd';
+import { addPayment, clearPaymentKey, paymentError, DUPLICATE_PAYMENT_NOTE } from '../lib/paymentAdd';
 import { EmptyState, ListRow, Pill, SearchInput } from '../ui/components';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { MoreMenu } from '../ui/MoreMenu';
@@ -14,7 +14,7 @@ import { gel, monthIso, monthName, nextMonth, tariffFor } from './MonthPayments'
 import { useNavState } from '../nav';
 
 interface Pl { id: string; full_name: string; group_id: string | null; groups: { name: string } | null; external_id?: string | null; birth_date?: string | null; status?: string }
-interface Due { key: string; kind: 'sub' | 'eq' | 'ind' | 'extra' | 'visit' | 'own_visit' | 'camp' | 'match' | 'event'; section: string; title: string; sub?: string; due: number; paid: number; month?: string; advance?: boolean; pay: (amount: number, method: string, date: string, req?: string) => PromiseLike<{ error: { message: string } | null; duplicate?: boolean }>; discount?: () => PromiseLike<{ error: { message: string } | null }> }
+interface Due { key: string; kind: 'sub' | 'eq' | 'ind' | 'extra' | 'visit' | 'own_visit' | 'camp' | 'match' | 'event'; section: string; title: string; sub?: string; due: number; paid: number; month?: string; advance?: boolean; pay: (amount: number, method: string, date: string, req?: string) => PromiseLike<{ error: { message: string } | null; duplicate?: boolean }>; discount?: () => PromiseLike<{ error: { message: string } | null }>; settle?: () => void }
 
 const METHODS = ['Наличные', 'Перевод'];
 const PAY_METHODS = ['Наличные', 'Перевод'];
@@ -79,7 +79,8 @@ async function loadDues(p: Pl): Promise<{ dues: Due[]; missing: string[] }> {
       if (got >= tariff) continue;
       out.push({
         key: 'sub' + m, kind: 'sub', section: SECTIONS[0], title: m > cur ? `${monthName(m)} (вперёд)` : monthName(m), sub: s?.discount ? 'скидка по договорённости: оплатите любую сумму' : m > cur ? 'оплата вперёд: дата — день, когда внесли деньги' : undefined, due: tariff, paid: got, month: m, advance: m > cur,
-        pay: (amount, method, date) => addPayment({ player_id: p.id, amount: r2(amount), paid_on: date, for_month: m, method }),
+        pay: (amount, method, date) => addPayment({ player_id: p.id, amount: r2(amount), paid_on: date, for_month: m, method }, { keep: true }),
+        settle: () => clearPaymentKey(p.id), // ключ платежа живёт, пока не закончена вся операция (платёж + скидка)
         discount: () => supabase.from('subscriptions').upsert({ player_id: p.id, month: m, discount: true, closed_kind: 'discount', closed_reason: 'скидка при приёме оплаты в кассе' }, { onConflict: 'player_id,month' }),
       });
     }
@@ -473,6 +474,7 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false 
     setBusy(false);
     if (r.error) return setErr(due.kind === 'sub' ? paymentError(r.error) : errText(r.error.message));
     reqRef.current = null;
+    due.settle?.();
     onPaid(r.duplicate);
   };
   // «Оплатить со скидкой»: то же, что внести меньшую сумму и затем применить скидку месяца, одним действием
@@ -491,11 +493,12 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false 
     setErr(null);
     const p = await due.pay(num, method, date, reqFor(`${num}|${method}|${date}`));
     if (p.error) { setBusy(false); return setErr(due.kind === 'sub' ? paymentError(p.error) : errText(p.error.message)); }
-    reqRef.current = null;
     const d = await due.discount!();
     setBusy(false);
     // платёж уже записан: повторно его не отправляем, только сообщаем об ошибке скидки
     if (d.error) return setErr(`${p.duplicate ? 'Платёж уже был записан ранее, второй не создан' : 'Платёж записан'}, но скидку не применили (${errMsg(d.error)}). Примените скидку в «Оплатах за месяц», платёж повторять не нужно.`);
+    reqRef.current = null;
+    due.settle?.();
     onPaid(p.duplicate);
   };
   return (
