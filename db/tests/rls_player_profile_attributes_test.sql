@@ -2,7 +2,7 @@
 -- Условия: docs/PLAYER_PROFILE_ATTRIBUTES_ACCEPTANCE.md.
 begin;
 create extension if not exists pgtap;
-select plan(49);
+select plan(51);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -135,6 +135,8 @@ update player_profiles set primary_position = null where player_id = '00000000-0
 select is((select count(*)::int from player_profile_history where player_id = '00000000-0000-0000-0000-00000000d003' and field = 'primary_position' and old_value = 'Нападающий' and new_value is null), 1, 'И1.9 позиция: очистка пишет значение → null');
 select is((select count(*)::int from player_profile_history where player_id = '00000000-0000-0000-0000-00000000d003' and field <> 'primary_position'), 0, 'И1.9 позиция: другие поля истории не затронуты');
 select throws_ok($$update player_profiles set primary_position = repeat('я', 41) where player_id = '00000000-0000-0000-0000-00000000d003'$$, '23514', null, 'И1.3 позиция длиннее 40 символов отклоняется и истории не пишет');
+select is((select primary_position from player_profiles where player_id = '00000000-0000-0000-0000-00000000d003'), null::text, 'И1.3 после отказа позиция осталась пустой');
+select is((select count(*)::int from player_profile_history where player_id = '00000000-0000-0000-0000-00000000d003' and field = 'primary_position'), 3, 'И1.3 после отказа история позиции не изменилась (3 записи)');
 
 select * from finish();
 rollback;
