@@ -4,6 +4,7 @@ import { champFeeFor, useClubSettings } from '../lib/clubSettings';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Segmented, NameDatalist, searchFocusProps } from '../ui/components';
 import { BackNav } from '../ui/nav';
+import { useConfirm } from '../ui/ConfirmSheet';
 import EventFees from './EventFees';
 import { Failure, Loading } from './Message';
 
@@ -78,6 +79,7 @@ export function EventForm({ teams, events, admin, onBack, onCreated }: { teams: 
 
 // Событие: состав участников (добавить группу или игрока, убрать) и добавление игры.
 export function EventScreen({ event, groups, admin = false, onBack }: { event: EventRow; groups: CoachGroup[]; admin?: boolean; onBack: () => void }) {
+  const { ask, dialog: confirmDialog } = useConfirm();
   const [roster, setRoster] = useState<RosterRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -120,11 +122,18 @@ export function EventScreen({ event, groups, admin = false, onBack }: { event: E
     setReload(n => n + 1);
   };
   const add = (ids: string[]) => run(supabase.rpc('event_roster_add', { t: event.id, ids }));
+  // Массовое добавление: сначала показываем, сколько игроков добавится (без уже стоящих в составе), и ждём подтверждения.
+  // Каждому добавленному ставится взнос события, поэтому случайное нажатие дорого стоит.
   const addGroup = async () => {
     if (teamGroups.length === 0) return;
+    setMsg(null);
     const p = await supabase.from('players').select('id').in('group_id', teamGroups.map(g => g.id)).eq('status', 'active');
     if (p.error) return setMsg(coachError(p.error.message));
-    await add(((p.data ?? []) as { id: string }[]).map(x => x.id));
+    const inRoster = new Set((roster ?? []).map(r => r.player_id));
+    const ids = ((p.data ?? []) as { id: string }[]).map(x => x.id).filter(id => !inRoster.has(id));
+    if (ids.length === 0) return setMsg('Вся команда уже в составе.');
+    if (!(await ask({ title: 'Добавить игроков в состав?', lines: [['Команда', event.team], ['Добавится игроков', String(ids.length)]], note: 'Каждому добавленному игроку будет назначен взнос события. Добавлять нужно только тех, кто играет в этом соревновании.', confirmLabel: 'Добавить в состав' }))) return;
+    await add(ids);
   };
   const addGame = async () => {
     setBusy(true);
@@ -182,6 +191,7 @@ export function EventScreen({ event, groups, admin = false, onBack }: { event: E
       <input id="g-opp" className="ks-input" value={opp} onChange={e => setOpp(e.target.value)} placeholder="Название команды" maxLength={80} />
       <button type="button" className="ks-btn" disabled={busy || !gameDate} onClick={() => void addGame()}>Добавить игру</button>
       {msg && <p className="error">{msg}</p>}
+      {confirmDialog}
     </main>
   );
 }

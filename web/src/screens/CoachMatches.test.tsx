@@ -281,8 +281,50 @@ describe('«Новое событие»', () => {
     fireEvent.click(screen.getByText('Состав и игры события'));
     await screen.findByText('Сидоров Ян');
     fireEvent.click(screen.getByText('Добавить всю команду U9'));
+    const dialog = await screen.findByRole('dialog', { name: 'Добавить игроков в состав?' });
+    expect(within(dialog).getByText('1')).toBeInTheDocument();
+    expect(within(dialog).getByText(/взнос события/)).toBeInTheDocument();
+    expect(fake.rpcCalls('event_roster_add')).toHaveLength(0);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Добавить в состав' }));
     await waitFor(() => expect(fake.rpcCalls('event_roster_add')).toHaveLength(1));
+    expect(fake.rpcCalls('event_roster_add')[0]).toMatchObject({ t: 'e1', ids: ['p1'] });
     expect(await screen.findByText('Иванов Пётр')).toBeInTheDocument();
+  });
+
+  it('«Добавить всю команду»: без подтверждения ничего не добавляется; уже добавленных окно не считает', async () => {
+    fake.db.matches = [];
+    fake.db.players = [
+      { id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'active' },
+      { id: 'p2', full_name: 'Сидоров Ян', group_id: 'g1', status: 'active' },
+    ];
+    fake.rpc.event_list = () => [{ id: 'e1', team: 'U9', kind: 'festival', name: 'Фестиваль осени', starts_on: '2026-11-01', players: 1, games: 0 }];
+    fake.rpc.event_roster = () => [{ player_id: 'p2', full_name: 'Сидоров Ян', group_name: 'U9' }];
+    fake.rpc.event_roster_add = () => null;
+    render(<CoachMatches groups={groups} allTeams />);
+    await screen.findByText('Фестиваль осени · U9');
+    fireEvent.click(screen.getByText('Состав и игры события'));
+    await screen.findByText('Сидоров Ян');
+    fireEvent.click(screen.getByText('Добавить всю команду U9'));
+    const dialog = await screen.findByRole('dialog', { name: 'Добавить игроков в состав?' });
+    expect(within(dialog).getByText('1')).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Отмена' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(fake.rpcCalls('event_roster_add')).toHaveLength(0);
+  });
+
+  it('«Добавить всю команду»: если все уже в составе, окно не открывается и запрос не уходит', async () => {
+    fake.db.matches = [];
+    fake.db.players = [{ id: 'p2', full_name: 'Сидоров Ян', group_id: 'g1', status: 'active' }];
+    fake.rpc.event_list = () => [{ id: 'e1', team: 'U9', kind: 'festival', name: 'Фестиваль осени', starts_on: '2026-11-01', players: 1, games: 0 }];
+    fake.rpc.event_roster = () => [{ player_id: 'p2', full_name: 'Сидоров Ян', group_name: 'U9' }];
+    render(<CoachMatches groups={groups} allTeams />);
+    await screen.findByText('Фестиваль осени · U9');
+    fireEvent.click(screen.getByText('Состав и игры события'));
+    await screen.findByText('Сидоров Ян');
+    fireEvent.click(screen.getByText('Добавить всю команду U9'));
+    expect(await screen.findByText('Вся команда уже в составе.')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(fake.rpcCalls('event_roster_add')).toHaveLength(0);
   });
 
   it('«Добавить матч»: одно окно; чемпионат открывает событие, где добавляется игра', async () => {
