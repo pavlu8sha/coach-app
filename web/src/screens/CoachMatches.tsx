@@ -86,7 +86,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   }
   const formMatch = screen === 'form' ? (matches ?? []).find(m => m.id === topId) ?? null : null;
   if (screen === 'form' && (formMatch || !topId)) return <MatchForm groups={groups} match={formMatch} admin={admin} rosterOf={formMatch && !(!tours.get(formMatch.id)?.tournament_id || tours.get(formMatch.id)?.match_kind === 'friendly' || tours.get(formMatch.id)?.tournament_kind === 'cup') ? tours.get(formMatch.id)?.tournament_id ?? null : null} feeMode={!formMatch || !tours.get(formMatch.id)?.tournament_id || tours.get(formMatch.id)?.match_kind === 'friendly' || tours.get(formMatch.id)?.tournament_kind === 'cup'} presetTeam={addTeam} onBack={back} onSaved={() => setReload(n => n + 1)} />;
-  if (!matches) return <Loading />;
+  if (!matches) return <Loading title="Матчи" />;
 
   const teams = [...new Set(matches.map(m => m.team))].sort(compareGroups);
   const shown = team ? matches.filter(m => m.team === team) : matches;

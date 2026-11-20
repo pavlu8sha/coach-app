@@ -61,7 +61,7 @@ export default function Coaches() {
   };
 
   if (error) return <Failure title="Не удалось загрузить тренеров" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={openId ? <BackNav onBack={() => nav.back()} managed /> : undefined} />;
-  if (!users) return <Loading />;
+  if (!users) return <Loading title="Тренеры" />;
 
   if (open) {
     return (

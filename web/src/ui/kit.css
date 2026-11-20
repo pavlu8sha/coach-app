@@ -85,6 +85,8 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 @keyframes ks-fade { from { opacity: 0; } }
 /* Контент после загрузки проявляется мягко, без сдвига: заглушка уже занимает то же место */
 .page > :not(h1):not(.ks-group):not([aria-hidden]) { animation: ks-fade 0.18s ease-out both; }
+/* каталог «Ещё» статичен: без проявления при каждом возврате из раздела (20.11.2026, мигание) */
+.page.ks-menu > * { animation: none; }
 @media (prefers-reduced-motion: reduce) { .ks-skel i, .ks-skel-bar { animation: none; } .page > :not(h1):not(.ks-group):not([aria-hidden]) { animation: none; } }
 .ks-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 28px 16px; color: var(--ks-text-muted); }
 .ks-empty b { color: var(--ks-text); font-size: 16px; }

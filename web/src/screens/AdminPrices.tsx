@@ -76,7 +76,7 @@ export default function AdminPrices() {
   };
 
   if (error) return <Failure title="Не удалось загрузить цены" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
-  if (!prices) return <Loading />;
+  if (!prices) return <Loading title="Цены" />;
 
   return (
     <main className="page">
