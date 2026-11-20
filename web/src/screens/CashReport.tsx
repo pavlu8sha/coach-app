@@ -23,6 +23,7 @@ export default function CashReport() {
   const [location, setLocation] = useNavState('cr.location', '');
   const [method, setMethod] = useNavState('cr.method', '');
   const [report, setReport] = useState<Report | null>(null);
+  const [locations, setLocations] = useState<string[]>([]);
   const [err, setErr] = useState<string | null>(null);
 
   const choose = (p: Preset) => {
@@ -31,6 +32,14 @@ export default function CashReport() {
     if (p === 'day') setTo(from);
     if (p === 'month') { setFrom(today().slice(0, 8) + '01'); setTo(today()); }
   };
+
+  // список локаций для выбора: значения из тренировок, чтобы регистр и написание всегда совпадали с базой
+  useEffect(() => {
+    void supabase.from('sessions').select('location').order('location').limit(5000).then((r: { data: { location: string | null }[] | null; error: unknown }) => {
+      if (r.error || !r.data) return;
+      setLocations([...new Set(r.data.map(x => (x.location ?? '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)));
+    });
+  }, []);
 
   useEffect(() => {
     if (!from || !to || to < from) return;
@@ -52,13 +61,18 @@ export default function CashReport() {
         </div>
       )}
       {preset === 'custom' && (
-        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+        <div className="ks-pair">
           <label className="field">С<input type="date" value={from} onChange={e => setFrom(e.target.value)} /></label>
           <label className="field">По<input type="date" value={to} onChange={e => setTo(e.target.value)} /></label>
         </div>
       )}
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-        <label className="field" style={{ flex: 1 }}>Локация<input value={location} placeholder="все" onChange={e => setLocation(e.target.value)} /></label>
+        <label className="field" style={{ flex: 1 }}>Локация
+          <select value={location} onChange={e => setLocation(e.target.value)}>
+            <option value="">Все локации</option>
+            {(location && !locations.includes(location) ? [location, ...locations] : locations).map(l => <option key={l} value={l}>{l}</option>)}
+          </select>
+        </label>
       </div>
       <div style={{ marginTop: 8 }}>
         <Segmented label="Способ оплаты" value={method} onChange={setMethod} items={METHOD_FILTERS} />

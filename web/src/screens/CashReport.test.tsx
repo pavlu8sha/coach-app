@@ -37,11 +37,43 @@ describe('Кассовый отчёт', () => {
 
   it('передаёт фильтры локации и способа в функцию базы', async () => {
     fake.rpc.cash_report = () => ({ data: report, error: null });
+    fake.db.sessions = [{ location: 'Исани' }];
     render(<CashReport />);
     await screen.findByText('По сотрудникам');
+    await waitFor(() => expect(screen.getByRole('option', { name: 'Исани' })).toBeInTheDocument());
     fireEvent.change(screen.getByLabelText('Локация'), { target: { value: 'Исани' } });
     fireEvent.click(screen.getByRole('tab', { name: 'Перевод' }));
     await waitFor(() => expect(fake.rpcCalls('cash_report').at(-1)).toMatchObject({ p_location: 'Исани', p_method: 'Перевод' }));
+  });
+
+  it('локация: выпадающий список без дублей, выбор передаёт точное значение, «Все локации» — null', async () => {
+    fake.db.sessions = [{ location: 'Ortachala' }, { location: 'Isani' }, { location: 'Ortachala' }, { location: null }, { location: ' ' }];
+    fake.rpc.cash_report = () => ({ data: report, error: null });
+    render(<CashReport />);
+    await screen.findByText('По сотрудникам');
+    const sel = screen.getByLabelText('Локация') as HTMLSelectElement;
+    expect(sel.tagName).toBe('SELECT');
+    await waitFor(() => expect(Array.from(sel.options).map(o => o.textContent)).toEqual(['Все локации', 'Isani', 'Ortachala']));
+    fireEvent.change(sel, { target: { value: 'Ortachala' } });
+    await waitFor(() => expect(fake.rpcCalls('cash_report').at(-1)).toMatchObject({ p_location: 'Ortachala' }));
+    fireEvent.change(sel, { target: { value: '' } });
+    await waitFor(() => expect(fake.rpcCalls('cash_report').at(-1)).toMatchObject({ p_location: null }));
+  });
+
+  it('локация: сбой списка не блокирует отчёт', async () => {
+    fake.errors.sessions = 'boom';
+    fake.rpc.cash_report = () => ({ data: report, error: null });
+    render(<CashReport />);
+    await screen.findByText('По сотрудникам');
+    expect(Array.from((screen.getByLabelText('Локация') as HTMLSelectElement).options).map(o => o.textContent)).toEqual(['Все локации']);
+  });
+
+  it('период: поля «С» и «По» стоят в паре равных колонок', async () => {
+    fake.rpc.cash_report = () => ({ data: report, error: null });
+    render(<CashReport />);
+    await screen.findByText('По сотрудникам');
+    fireEvent.click(screen.getByRole('tab', { name: 'Период' }));
+    expect(screen.getByLabelText('С').closest('.ks-pair')).toBe(screen.getByLabelText('По').closest('.ks-pair'));
   });
 
   it('показывает ошибку, если отчёт не открылся', async () => {
