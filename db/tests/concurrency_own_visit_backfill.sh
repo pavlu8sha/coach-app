@@ -4,6 +4,7 @@
 # визит терялся (отметка «Был») или оставался лишним (отметка «Был» -> «Не был»). Транзакции перекрываются намеренно (pg_sleep внутри открытой транзакции).
 # Запуск из scripts/run-db-tests.sh после миграций и pgTAP-тестов: DB_NAME и PSQL берутся оттуда.
 set -uo pipefail
+# Падения фоновых psql (ON_ERROR_STOP) и недостигнутый барьер считаются ошибкой теста, а не молча пропускаются.
 DB="${DB_NAME:-kickstart_test}"
 PSQL="${PSQL:-psql}"
 q() { $PSQL -q -v ON_ERROR_STOP=1 -t -A -d "$DB" "$@"; }
@@ -26,63 +27,63 @@ visits() { q -c "select count(*) from own_visits where player_id = '$1' and sess
 
 # Дозаполнение держит строку игрока 2 с (pg_sleep), отметка приходит во время этого окна или до него.
 # Каждый оператор на своей строке: pg_sleep виден в pg_stat_activity отдельным запросом, и вторая транзакция стартует, только когда первая держит блокировки.
-setmode() { { as "$AD"; printf "begin;\nselect player_set_pay_mode('%s', 'per_visit', '%s');\nselect pg_sleep(2);\ncommit;\n" "$1" "$FROM"; } | $PSQL -q -d "$DB" >"$T/$2.out" 2>&1; }
-mark() { printf "begin;\n%s\nselect pg_sleep(%s);\ncommit;\n" "$2" "${3:-0.1}" | $PSQL -q -d "$DB" >"$T/$1.out" 2>&1; }
+setmode() { { as "$AD"; printf "begin;\nselect player_set_pay_mode('%s', 'per_visit', '%s');\nselect pg_sleep(2);\ncommit;\n" "$1" "$FROM"; } | $PSQL -q -v ON_ERROR_STOP=1 -d "$DB" >"$T/$2.out" 2>&1; }
+mark() { printf "begin;\n%s\nselect pg_sleep(%s);\ncommit;\n" "$2" "${3:-0.1}" | $PSQL -q -v ON_ERROR_STOP=1 -d "$DB" >"$T/$1.out" 2>&1; }
 # ждать, пока первая транзакция дошла до паузы (то есть уже держит свои блокировки)
 sleeping() { for _ in $(seq 1 100); do [ "$(q -c "select count(*) from pg_stat_activity where datname = current_database() and state = 'active' and query like 'select pg_sleep(2)%'")" != 0 ] && return 0; sleep 0.1; done; return 1; }
 
 # 1. Отметка «Был» приходит во время смены режима: визит должен появиться
 P=$(pl 1)
-setmode "$P" s1a & A=$!; sleeping
+setmode "$P" s1a & A=$!; sleeping || { bad "барьер не достигнут: первая транзакция не дошла до паузы"; exit 1; }
 mark s1b "insert into attendance (session_id, player_id, status) values ('$SE', '$P', 'present');" & B=$!
-wait $A; wait $B
+wait $A || bad "транзакция А завершилась с ошибкой"; wait $B || bad "транзакция Б завершилась с ошибкой"
 [ "$(visits "$P")" = 1 ] && ok "отметка «Был» во время смены режима: визит создан" || { bad "отметка «Был» во время смены режима: визитов $(visits "$P")"; cat "$T/s1a.out" "$T/s1b.out"; }
 
 # 2. Отметка «Был» открыта (не закоммитена), смена режима приходит после: дозаполнение должно дождаться и увидеть отметку
 P=$(pl 2)
-mark s2b "insert into attendance (session_id, player_id, status) values ('$SE', '$P', 'present');" 2 & B=$!; sleeping
+mark s2b "insert into attendance (session_id, player_id, status) values ('$SE', '$P', 'present');" 2 & B=$!; sleeping || { bad "барьер не достигнут: первая транзакция не дошла до паузы"; exit 1; }
 setmode "$P" s2a & A=$!
-wait $A; wait $B
+wait $A || bad "транзакция А завершилась с ошибкой"; wait $B || bad "транзакция Б завершилась с ошибкой"
 [ "$(visits "$P")" = 1 ] && ok "смена режима после открытой отметки «Был»: ровно один визит" || { bad "смена режима после открытой отметки «Был»: визитов $(visits "$P")"; cat "$T/s2a.out" "$T/s2b.out"; }
 
 # 3. «Был» уже стоит, смена режима создаёт визит, одновременно отметку снимают («Не был»): лишнего визита остаться не должно
 P=$(pl 3)
 q -c "insert into attendance (session_id, player_id, status) values ('$SE', '$P', 'present')"
-setmode "$P" s3a & A=$!; sleeping
+setmode "$P" s3a & A=$!; sleeping || { bad "барьер не достигнут: первая транзакция не дошла до паузы"; exit 1; }
 mark s3b "update attendance set status = 'absent' where session_id = '$SE' and player_id = '$P';" & B=$!
-wait $A; wait $B
+wait $A || bad "транзакция А завершилась с ошибкой"; wait $B || bad "транзакция Б завершилась с ошибкой"
 [ "$(visits "$P")" = 0 ] && ok "снятие отметки во время смены режима: лишнего визита нет" || { bad "снятие отметки во время смены режима: визитов $(visits "$P")"; cat "$T/s3a.out" "$T/s3b.out"; }
 
 # 4. Отметку снимают (транзакция открыта), смена режима приходит после: визит за «Не был» не создаётся
 P=$(pl 4)
 q -c "insert into attendance (session_id, player_id, status) values ('$SE', '$P', 'present')"
-mark s4b "update attendance set status = 'absent' where session_id = '$SE' and player_id = '$P';" 2 & B=$!; sleeping
+mark s4b "update attendance set status = 'absent' where session_id = '$SE' and player_id = '$P';" 2 & B=$!; sleeping || { bad "барьер не достигнут: первая транзакция не дошла до паузы"; exit 1; }
 setmode "$P" s4a & A=$!
-wait $A; wait $B
+wait $A || bad "транзакция А завершилась с ошибкой"; wait $B || bad "транзакция Б завершилась с ошибкой"
 [ "$(visits "$P")" = 0 ] && ok "смена режима после открытого снятия отметки: визита нет" || { bad "смена режима после открытого снятия отметки: визитов $(visits "$P")"; cat "$T/s4a.out" "$T/s4b.out"; }
 
 # 5. Отметка «Не был» меняется на «Был» (UPDATE не берёт блокировку игрока через внешний ключ) во время смены режима: визит должен появиться
 P=$(pl 5)
 q -c "insert into attendance (session_id, player_id, status) values ('$SE', '$P', 'absent')"
-setmode "$P" s5a & A=$!; sleeping
+setmode "$P" s5a & A=$!; sleeping || { bad "барьер не достигнут: первая транзакция не дошла до паузы"; exit 1; }
 mark s5b "update attendance set status = 'present' where session_id = '$SE' and player_id = '$P';" & B=$!
-wait $A; wait $B
+wait $A || bad "транзакция А завершилась с ошибкой"; wait $B || bad "транзакция Б завершилась с ошибкой"
 [ "$(visits "$P")" = 1 ] && ok "исправление «Не был» на «Был» во время смены режима: визит создан" || { bad "исправление «Не был» на «Был» во время смены режима: визитов $(visits "$P")"; cat "$T/s5a.out" "$T/s5b.out"; }
 
 # 6. Исправление «Не был» на «Был» открыто, смена режима приходит после: ровно один визит
 P=$(pl 6)
 q -c "insert into attendance (session_id, player_id, status) values ('$SE', '$P', 'absent')"
-mark s6b "update attendance set status = 'present' where session_id = '$SE' and player_id = '$P';" 2 & B=$!; sleeping
+mark s6b "update attendance set status = 'present' where session_id = '$SE' and player_id = '$P';" 2 & B=$!; sleeping || { bad "барьер не достигнут: первая транзакция не дошла до паузы"; exit 1; }
 setmode "$P" s6a & A=$!
-wait $A; wait $B
+wait $A || bad "транзакция А завершилась с ошибкой"; wait $B || bad "транзакция Б завершилась с ошибкой"
 [ "$(visits "$P")" = 1 ] && ok "смена режима после открытого исправления на «Был»: ровно один визит" || { bad "смена режима после открытого исправления на «Был»: визитов $(visits "$P")"; cat "$T/s6a.out" "$T/s6b.out"; }
 
 # 7. Строку отметки «Был» удаляют во время смены режима: лишнего визита остаться не должно
 P=$(pl 7)
 q -c "insert into attendance (session_id, player_id, status) values ('$SE', '$P', 'present')"
-setmode "$P" s7a & A=$!; sleeping
+setmode "$P" s7a & A=$!; sleeping || { bad "барьер не достигнут: первая транзакция не дошла до паузы"; exit 1; }
 mark s7b "delete from attendance where session_id = '$SE' and player_id = '$P';" & B=$!
-wait $A; wait $B
+wait $A || bad "транзакция А завершилась с ошибкой"; wait $B || bad "транзакция Б завершилась с ошибкой"
 [ "$(visits "$P")" = 0 ] && ok "удаление отметки во время смены режима: лишнего визита нет" || { bad "удаление отметки во время смены режима: визитов $(visits "$P")"; cat "$T/s7a.out" "$T/s7b.out"; }
 
 dl=$(cat "$T"/*.out | grep -ci 'deadlock')
