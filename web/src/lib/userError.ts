@@ -10,7 +10,7 @@ const NETWORK = /fetch|network|failed to load|timeout|load failed/i;
  */
 export function fallbackError(raw: string): string {
   console.error('ошибка действия', raw);
-  return NETWORK.test(raw) ? ERR_NETWORK : ERR_GENERIC;
+  return raw === ERR_NETWORK || NETWORK.test(raw) ? ERR_NETWORK : ERR_GENERIC;
 }
 
 /** Общие ошибки, одинаковые для любого экрана (права, сессия, функция не установлена); доменные тексты задают мапперы экранов. */

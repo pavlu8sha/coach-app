@@ -1,7 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 import { safeFetch } from './safeFetch';
-import { ERR_NETWORK } from './userError';
+import { ERR_NETWORK, fallbackError } from './userError';
+import { coachError, errMsg } from './coach';
 
 // Условия приёмки: docs/acceptance/user-errors-everywhere-2026-11-20.md №4
 describe('safeFetch', () => {
@@ -28,6 +29,16 @@ describe('safeFetch', () => {
     const sel = await client.from('players').select('id').retry(false); // без повторов postgrest-js (GET по умолчанию повторяется с паузами)
     expect(sel.error?.message).toBe(ERR_NETWORK);
     expect(sel.data).toBeNull();
+    spy.mockRestore();
+  });
+  // Ревью #759 (повторное): русский ERR_NETWORK из safeFetch не должен превращаться в общий текст
+  it('полный путь: сбой сети → safeFetch → supabase error → errMsg/coachError/fallbackError даёт ERR_NETWORK', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const client = createClient('http://fake.supabase', 'key', { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: safeFetch(async () => { throw new TypeError('Failed to fetch'); }) } });
+    const rpc = await client.rpc('any_function', { a: 1 });
+    expect(errMsg(rpc.error)).toBe(ERR_NETWORK);
+    expect(coachError(rpc.error!.message)).toBe(ERR_NETWORK);
+    expect(fallbackError(ERR_NETWORK)).toBe(ERR_NETWORK);
     spy.mockRestore();
   });
   it('настоящий клиент: ответ сервера с ошибкой базы проходит без изменений', async () => {
