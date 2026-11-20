@@ -9,7 +9,7 @@ import Privacy from './Privacy';
 
 // Запрос подтверждён, но доступ к ребёнку открывается только после согласия родителя на обработку данных (новая модель согласий, #238).
 // Принять согласие может только сам родитель: accept_consent(ребёнок, тип, версия). Текст правил открывается по ссылке (экран Privacy).
-export default function ConsentAccept({ items, onDone }: { items: PendingConsent[]; onDone: () => void }) {
+export default function ConsentAccept({ items, onDone, embedded = false }: { items: PendingConsent[]; onDone: () => void; embedded?: boolean }) {
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,10 +37,12 @@ export default function ConsentAccept({ items, onDone }: { items: PendingConsent
   const native = useMainButton({ text: 'Принять согласие', visible: agreed && !policy, enabled: !busy, loading: busy, onClick: () => void accept() });
 
   if (policy) return <Privacy onBack={() => nav.back()} />;
+  const H = embedded ? 'h2' : 'h1';
+  const Wrap = embedded ? 'section' : 'main'; // embedded: блок над карточками уже подключённых детей
   return (
-    <main className="page">
+    <Wrap className={embedded ? 'ks-card' : 'page'}>
       <div className="ks-state">
-        <h1>Примите согласие</h1>
+        <H>Примите согласие</H>
         <p className="muted">Администратор подтвердил запрос. Чтобы {items.length > 1 ? 'детей' : 'ребёнка'} можно было увидеть в приложении, нужно ваше согласие на обработку данных.</p>
       </div>
       {items.map(i => (
@@ -69,6 +71,6 @@ export default function ConsentAccept({ items, onDone }: { items: PendingConsent
           </button>
         )}
       </div>
-    </main>
+    </Wrap>
   );
 }

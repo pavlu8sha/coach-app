@@ -112,8 +112,8 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
       // Запросы нужны только для строки «ждёт подтверждения»; сбой этой выборки не мешает показать детей
       const rq = await loadMyLinkRequests(me); // имя ребёнка из my_link_requests() (0217)
       setReqs(rq.error ? [] : ((rq.reqs ?? []) as Req[]));
-      // нужно только когда детей нет: «подтверждён, но не виден». Сбой проверки не выдаём за «согласий нет»: ошибка с повтором
-      const pc = kids.length ? { items: [] as PendingConsent[], error: null } : await loadPendingConsents();
+      // «подтверждён, но не виден»: и когда детей нет, и когда второй ребёнок ждёт согласия. Сбой проверки не выдаём за «согласий нет»: ошибка с повтором
+      const pc = await loadPendingConsents();
       if (pc.error) return setError(errMsg(pc.error));
       setPendingConsents(pc.items);
       setChildren(
@@ -162,6 +162,7 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
   }
   return (
     <main className="page">
+      {pendingConsents.length > 0 && !addMore && <ConsentAccept embedded items={pendingConsents} onDone={refresh} />}
       <HideWhen hide={policyOpen}>
         <h1>{children.length > 1 ? 'Мои дети' : 'Мой ребёнок'}</h1>
         {children.map(c => (

@@ -127,6 +127,30 @@ describe('С11: согласие после подтверждения', () => {
   });
 });
 
+describe('С16: второй ребёнок ждёт согласия при уже видимом первом', () => {
+  it('карточка первого ребёнка и блок «Примите согласие» для второго; после принятия блок исчезает', async () => {
+    fake.db.player_guardians = [kid('p1', 'Алексей Петров')];
+    let accepted = false;
+    fake.rpc.my_pending_consents = () => (accepted ? [] : [{ player_id: 'p2', full_name: 'Мария Петрова', group_name: null, version_id: 'v1', version: 'syn-v1' }]);
+    fake.rpc.accept_consent = () => { accepted = true; fake.db.player_guardians = [kid('p1', 'Алексей Петров'), kid('p2', 'Мария Петрова')]; return { changed: true }; };
+    render(<Home />);
+    expect(await screen.findByText('Алексей Петров')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Примите согласие' })).toBeInTheDocument();
+    expect(screen.getByText('Мария Петрова')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'Принять согласие' }));
+    expect(await screen.findByRole('heading', { name: 'Мои дети' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Примите согласие' })).toBeNull();
+    expect(fake.rpcCalls('accept_consent')).toEqual([{ p: 'p2', t: 'data_processing', ver: 'v1' }]);
+  });
+  it('сбой проверки при уже видимом ребёнке: ошибка загрузки с повтором, а не молчаливое отсутствие блока', async () => {
+    fake.db.player_guardians = [kid('p1', 'Алексей Петров')];
+    fake.rpc.my_pending_consents = () => ({ error: { message: 'boom', code: '500' } });
+    render(<Home />);
+    expect(await screen.findByText('Не удалось загрузить данные')).toBeInTheDocument();
+  });
+});
+
 describe('С12: поиск ребёнка', () => {
   const found = [{ player_id: 'p1', full_name: 'Starostenko Timofey', group_name: 'U10-A' }];
   const pick = async () => {
