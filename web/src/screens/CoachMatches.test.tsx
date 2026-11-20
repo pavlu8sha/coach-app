@@ -17,6 +17,10 @@ function seed() {
   fake.db.match_players = [{ match_id: 'm1', player_id: 'p1', played: true, goals: 2, best: false }, { match_id: 'm1', player_id: 'p9', played: true, goals: 0, best: false }];
   fake.rpc.save_match = a => a.m ?? 'm-new';
 }
+const openNewEvent = async () => {
+  fireEvent.click(await screen.findByRole('button', { name: /^Ещё/ }));
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Новое событие' }));
+};
 const stepper = (name: string, label: string) => within(screen.getByRole('group', { name })).getByRole('button', { name: label });
 
 describe('«Матчи» по категориям', () => {
@@ -109,7 +113,7 @@ describe('«Матчи» тренера', () => {
   it('новый матч: голов у игроков больше счёта — ошибка до обращения к базе', async () => {
     seed();
     render(<CoachMatches groups={groups} />);
-    fireEvent.click(await screen.findByText('Добавить матч'));
+    fireEvent.click(await screen.findByRole('button', { name: '+ Матч' }));
     fireEvent.click(within(screen.getByLabelText('Добавить матч')).getByText('U9'));
     await screen.findByText('Иванов Пётр');
     fireEvent.change(screen.getByLabelText('Забила наша команда'), { target: { value: '1' } });
@@ -125,7 +129,7 @@ describe('«Матчи» тренера', () => {
   it('счёт из одного числа отклоняется', async () => {
     seed();
     render(<CoachMatches groups={groups} />);
-    fireEvent.click(await screen.findByText('Добавить матч'));
+    fireEvent.click(await screen.findByRole('button', { name: '+ Матч' }));
     fireEvent.click(within(screen.getByLabelText('Добавить матч')).getByText('U9'));
     await screen.findByText('Иванов Пётр');
     fireEvent.change(screen.getByLabelText('Забила наша команда'), { target: { value: '2' } });
@@ -284,7 +288,7 @@ describe('«Новое событие»', () => {
     fake.rpc.event_list = () => [{ id: 'e1', team: 'U9', kind: 'championship', name: 'Чемпионат осени', starts_on: '2026-10-01', players: 0, games: 0 }];
     fake.rpc.event_roster = () => [];
     render(<CoachMatches groups={groups} />);
-    fireEvent.click(await screen.findByText('Добавить матч'));
+    fireEvent.click(await screen.findByRole('button', { name: '+ Матч' }));
     const card = screen.getByLabelText('Добавить матч');
     expect(within(card).getByText('Товарищеский или кубковый матч')).toBeInTheDocument();
     fireEvent.click(within(card).getByText('Чемпионат осени'));
@@ -295,7 +299,7 @@ describe('«Новое событие»', () => {
   it('«Добавить матч»: команда для товарищеского выбирается сразу, форма открывается с этой группой', async () => {
     seed();
     render(<CoachMatches groups={allGroups} allTeams />);
-    fireEvent.click(await screen.findByText('Добавить матч'));
+    fireEvent.click(await screen.findByRole('button', { name: '+ Матч' }));
     fireEvent.click(within(screen.getByLabelText('Добавить матч')).getByText('U11'));
     expect(await screen.findByRole('heading', { name: 'Новый матч' })).toBeInTheDocument();
     expect(screen.getByLabelText('Группа')).toHaveValue('g:g2');
@@ -313,7 +317,7 @@ describe('«Новое событие»', () => {
     fake.rpc.save_match = () => 'm-b';
     fake.rpc.set_match_team_group = () => null;
     render(<CoachMatches groups={ab} allTeams />);
-    fireEvent.click(await screen.findByText('Добавить матч'));
+    fireEvent.click(await screen.findByRole('button', { name: '+ Матч' }));
     fireEvent.click(within(screen.getByLabelText('Добавить матч')).getByText('U13'));
     expect(await screen.findByRole('heading', { name: 'Новый матч' })).toBeInTheDocument();
     expect(screen.queryByRole('checkbox', { name: /Матч только этой группы/ })).not.toBeInTheDocument(); // отдельной галочки нет
@@ -342,7 +346,7 @@ describe('«Новое событие»', () => {
     fake.rpc.save_match = () => 'm-all';
     fake.rpc.set_match_team_group = () => null;
     render(<CoachMatches groups={ab} allTeams />);
-    fireEvent.click(await screen.findByText('Добавить матч'));
+    fireEvent.click(await screen.findByRole('button', { name: '+ Матч' }));
     fireEvent.click(within(screen.getByLabelText('Добавить матч')).getByText('U13'));
     expect(await screen.findByRole('heading', { name: 'Новый матч' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'U13 (все группы)' })).toBeInTheDocument();
@@ -358,7 +362,7 @@ describe('«Новое событие»', () => {
     seed();
     fake.rpc.set_match_team_group = () => null;
     render(<CoachMatches groups={allGroups} allTeams />);
-    fireEvent.click(await screen.findByText('Добавить матч'));
+    fireEvent.click(await screen.findByRole('button', { name: '+ Матч' }));
     fireEvent.click(within(screen.getByLabelText('Добавить матч')).getByText('U11'));
     fireEvent.click(await screen.findByRole('button', { name: 'Сохранить матч' }));
     await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
@@ -369,7 +373,7 @@ describe('«Новое событие»', () => {
     seed();
     fake.rpc.event_list = () => [{ id: 'e5', team: 'U12', kind: 'cup', name: 'Newton cup', starts_on: '2026-06-14', players: 0, games: 0, status: 'finished' }];
     render(<CoachMatches groups={allGroups} allTeams />);
-    fireEvent.click(await screen.findByText('Добавить матч'));
+    fireEvent.click(await screen.findByRole('button', { name: '+ Матч' }));
     fireEvent.click(within(screen.getByLabelText('Добавить матч')).getByText('U12'));
     expect(await screen.findByRole('heading', { name: 'Новый матч' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Группа')).not.toBeInTheDocument();
@@ -383,7 +387,7 @@ describe('«Новое событие»', () => {
     fake.rpc.save_match_team = a => { calls.push({ name: 'save_match_team', args: a }); return 'm-u12'; };
     fake.rpc.save_match = a => { calls.push({ name: 'save_match', args: a }); return 'm-x'; };
     render(<CoachMatches groups={allGroups} admin />);
-    fireEvent.click(await screen.findByText('Добавить матч'));
+    fireEvent.click(await screen.findByRole('button', { name: '+ Матч' }));
     fireEvent.click(within(screen.getByLabelText('Добавить матч')).getByText('U12'));
     expect(await screen.findByText(/состав собирайте поиском/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить матч' }));
@@ -398,7 +402,7 @@ describe('«Новое событие»', () => {
       { id: 'e2', team: 'U9', kind: 'championship', name: 'Championship 1', starts_on: '2026-09-01', players: 0, games: 0, status: 'finished' },
     ];
     render(<CoachMatches groups={groups} />);
-    fireEvent.click(await screen.findByText('Добавить матч'));
+    fireEvent.click(await screen.findByRole('button', { name: '+ Матч' }));
     const card = screen.getByLabelText('Добавить матч');
     expect(within(card).getByText('Championship 2')).toBeInTheDocument();
     expect(within(card).queryByText('Championship 1')).not.toBeInTheDocument();
@@ -471,9 +475,10 @@ describe('«Новое событие»', () => {
     fake.rpc.event_list = () => [];
     fake.rpc.event_create = () => 'e-new';
     render(<CoachMatches groups={groups} />);
-    fireEvent.click(await screen.findByText('Добавить матч'));
-    expect(screen.queryByText('Новое событие')).toBeNull();
+    fireEvent.click(await screen.findByRole('button', { name: '+ Матч' }));
     expect(screen.getByText(/Чемпионаты и фестивали создаёт администратор/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^Ещё/ }));
+    expect(screen.queryByRole('menuitem', { name: 'Новое событие' })).toBeNull();
     expect(fake.rpcCalls('event_create')).toHaveLength(0);
   });
 
@@ -482,7 +487,7 @@ describe('«Новое событие»', () => {
     fake.rpc.event_list = () => [];
     fake.rpc.event_create = () => 'e-new';
     render(<CoachMatches groups={groups} allTeams admin />);
-    fireEvent.click(await screen.findByText('Новое событие'));
+    await openNewEvent();
     fireEvent.change(await screen.findByLabelText('Название'), { target: { value: 'Чемпионат 2' } });
     fireEvent.click(screen.getByText('Создать событие'));
     await waitFor(() => expect(fake.rpcCalls('event_create')).toHaveLength(1));
@@ -499,7 +504,7 @@ describe('«Новое событие»', () => {
     fake.rpc.event_list = () => [];
     fake.rpc.event_create = () => 'e-new';
     render(<CoachMatches groups={groups} allTeams admin />);
-    fireEvent.click(await screen.findByText('Новое событие'));
+    await openNewEvent();
     fireEvent.change(await screen.findByLabelText('Название'), { target: { value: 'Чемпионат 2' } });
     await waitFor(() => expect(screen.getByLabelText(/Взнос/)).toHaveAttribute('placeholder', '300'));
     fireEvent.click(screen.getByText('Создать событие'));
@@ -517,7 +522,7 @@ describe('«Новое событие»', () => {
     fake.rpc.event_list = () => [];
     fake.rpc.event_create = () => 'e-new';
     render(<CoachMatches groups={groups} allTeams admin />);
-    fireEvent.click(await screen.findByText('Новое событие'));
+    await openNewEvent();
     fireEvent.change(await screen.findByLabelText('Название'), { target: { value: 'Чемпионат 2' } });
     await waitFor(() => expect(screen.getByLabelText(/Взнос/)).toHaveAttribute('placeholder', '300'));
     fireEvent.click(screen.getByText('Создать событие'));
@@ -530,12 +535,12 @@ describe('«Новое событие»', () => {
     fake.rpc.event_list = () => [{ id: 'e1', team: 'U9', kind: 'championship', name: 'Ч1', starts_on: '2026-11-01', players: 2, games: 0 }];
     fake.rpc.event_create = () => 'e-new';
     render(<CoachMatches groups={groups} admin />);
-    fireEvent.click(await screen.findByText('Новое событие'));
+    await openNewEvent();
     fireEvent.change(await screen.findByLabelText('Название'), { target: { value: 'Ч2' } });
     fireEvent.click(screen.getByText('Создать событие'));
     await waitFor(() => expect(fake.rpcCalls('event_create')).toHaveLength(1));
     expect(fake.rpcCalls('event_create')[0]).toMatchObject({ copy_from: null });
-    fireEvent.click(await screen.findByText('Новое событие'));
+    await openNewEvent();
     fireEvent.change(await screen.findByLabelText('Название'), { target: { value: 'Ч3' } });
     fireEvent.change(screen.getByLabelText('Скопировать состав из события'), { target: { value: 'e1' } });
     fireEvent.click(screen.getByText('Создать событие'));
@@ -674,7 +679,7 @@ describe('Взносы за матч (администратор)', () => {
     fake.rpc.match_payments_list = () => [];
     fake.rpc.match_fees_sync_played = () => 2;
     render(<CoachMatches groups={allGroups} allTeams />);
-    fireEvent.click(await screen.findByText('Добавить матч'));
+    fireEvent.click(await screen.findByRole('button', { name: '+ Матч' }));
     fireEvent.click(within(screen.getByLabelText('Добавить матч')).getByText('U11'));
     fireEvent.click(await screen.findByRole('button', { name: 'Сохранить матч' }));
     await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
@@ -754,7 +759,7 @@ describe('Команды для матчей и событий', () => {
     fake.rpc.event_list = () => [];
     const all = ['Isani', 'Ortachala U9', 'U10-A', 'U10-B', 'U7-A', 'U7-B', 'U13-C', 'weekends', 'Индивидуальные / Вратарские'].map((name, i) => ({ id: `g${i}`, name }));
     render(<CoachMatches groups={all} admin />);
-    fireEvent.click(await screen.findByText('Новое событие'));
+    await openNewEvent();
     const opts = within(await screen.findByLabelText('Команда')).getAllByRole('option').map(o => o.textContent);
     expect(opts).toEqual(['U7', 'U10', 'U13', 'Ortachala U9']);
   });
@@ -803,5 +808,76 @@ describe('«Матчи» тренера и матчи с подтвержден�
     expect(await screen.findByLabelText('Дата')).toBeDisabled();
     expect(screen.getByPlaceholderText('Название команды')).toBeDisabled();
     expect(screen.getByText(/меняются в разделе «Матчи с подтверждением»/)).toBeInTheDocument();
+  });
+});
+
+describe('«Матчи»: «+ Матч» в шапке и меню «⋯»', () => {
+  const future = new Date(Date.now() + 5 * 86400000).toISOString();
+  const rsvp = (id: string, extra: Record<string, unknown> = {}) => ({ id, team: 'U9', played_on: '2099-01-01', opponent: 'Икс', goals_for: null, goals_against: null, lifecycle_status: 'published', starts_at: future, ...extra });
+
+  it('нет больших кнопок в теле; «+ Матч» открывает окно «Добавить матч»', async () => {
+    seed();
+    render(<CoachMatches groups={groups} admin />);
+    const add = await screen.findByRole('button', { name: '+ Матч' });
+    expect(screen.queryByRole('button', { name: 'Добавить матч' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Новое событие' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Матчи с подтверждением' })).toBeNull();
+    fireEvent.click(add);
+    expect(screen.getByLabelText('Добавить матч')).toBeInTheDocument();
+  });
+
+  it('меню «⋯»: администратор видит оба пункта, пункт открывает экран и закрывает меню', async () => {
+    seed();
+    render(<CoachMatches groups={groups} admin />);
+    const more = await screen.findByRole('button', { name: 'Ещё' });
+    expect(more).toHaveAttribute('aria-haspopup', 'menu');
+    expect(more).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(more);
+    expect(more).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('menuitem', { name: 'Новое событие' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Матчи с подтверждением' }));
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(screen.queryByRole('button', { name: '+ Матч' })).toBeNull(); // открылся экран подтверждения
+  });
+
+  it('тренер видит в меню только «Матчи с подтверждением»', async () => {
+    seed();
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Ещё' }));
+    expect(screen.queryByRole('menuitem', { name: 'Новое событие' })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: 'Матчи с подтверждением' })).toBeInTheDocument();
+  });
+
+  it('счётчик: предстоящие опубликованные матчи с подтверждением из загруженных данных', async () => {
+    seed();
+    fake.db.matches.push(rsvp('r1'), rsvp('r2'), rsvp('r3', { starts_at: '2020-01-01T10:00:00Z' }));
+    render(<CoachMatches groups={groups} />);
+    const more = await screen.findByRole('button', { name: 'Ещё, 2' });
+    fireEvent.click(more);
+    expect(screen.getByRole('menuitem', { name: 'Матчи с подтверждением · 2' })).toBeInTheDocument();
+  });
+
+  it('без предстоящих счётчика нет', async () => {
+    seed();
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Ещё' }));
+    expect(screen.getByRole('menuitem', { name: 'Матчи с подтверждением' })).toBeInTheDocument();
+  });
+
+  it('Esc, клик вне и повторный клик закрывают меню; фокус возвращается на «⋯»', async () => {
+    seed();
+    render(<CoachMatches groups={groups} />);
+    const more = await screen.findByRole('button', { name: 'Ещё' });
+    more.focus();
+    fireEvent.click(more);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(document.activeElement).toBe(more);
+    fireEvent.click(more);
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole('menu')).toBeNull();
+    fireEvent.click(more);
+    fireEvent.click(more);
+    expect(screen.queryByRole('menu')).toBeNull();
   });
 });
