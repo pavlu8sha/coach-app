@@ -239,11 +239,13 @@ describe('#765: загрузка связанных детей', () => {
     expect(fake.rpcCalls('booking_board')).toHaveLength(2);
   });
 
-  it('6: нет пользователя: ошибка, player_guardians не читается', async () => {
+  it('6: нет пользователя: как на сервере (booking_board → forbidden) полноэкранная ошибка, детей не читаем', async () => {
     fake.user = null;
-    fake.rpc.booking_board = () => board();
+    fake.rpc.booking_board = () => ({ error: { message: 'forbidden', code: '42501' } }); // контракт миграции 0045: без пользователя forbidden
     render(<Booking />);
-    expect(await screen.findByText('Не удалось загрузить список детей')).toBeInTheDocument();
+    expect(await screen.findByText('Не удалось загрузить занятия')).toBeInTheDocument();
+    expect(fake.rpcCalls('booking_board')).toHaveLength(0); // без пользователя запросы не уходят
+    expect(fake.calls.filter(c => c.name === 'player_guardians')).toHaveLength(0);
     noActions();
   });
 

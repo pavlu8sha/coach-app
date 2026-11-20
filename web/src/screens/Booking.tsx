@@ -65,10 +65,10 @@ export default function Booking() {
       try { me = (await supabase.auth.getUser()).data.user?.id; } catch { me = undefined; }
       if (!live()) return;
       user.current = me ?? null;
+      if (!me) return setError(errMsg({ message: 'not authenticated' })); // как сервер: без пользователя booking_board отвечает forbidden
       let kidsNext: Kid[] | null = null;
       let kidsErr: string | null = null;
-      if (!me) kidsErr = errMsg({ message: 'not authenticated' });
-      else {
+      {
         try {
           const g = await supabase.from('player_guardians').select('players(id, full_name)').eq('user_id', me).is('consent_revoked_at', null);
           if (g.error) kidsErr = errMsg(g.error);
