@@ -1,5 +1,5 @@
 import { useState, type ReactElement } from 'react';
-import { supabase } from '../lib/supabase';
+import { saveMyRole } from '../lib/role';
 
 export type Role = 'parent' | 'coach' | 'child' | 'guest';
 
@@ -56,12 +56,17 @@ export default function RoleSelect({ onDone, onCancel }: { onDone: (r: Role) => 
   const [error, setError] = useState<string | null>(null);
 
   const pick = async (r: Role) => {
+    if (busy !== null) return;
     setBusy(r);
     setError(null);
-    const res = await supabase.rpc('set_my_role', { r });
-    setBusy(null);
-    if (res.error) return setError(res.error.message);
-    onDone(r);
+    try {
+      // saveMyRole не бросает: отказ RPC и сетевой сбой возвращает как { ok: false, message } с понятным текстом (#705)
+      const res = await saveMyRole(r);
+      if (!res.ok) return setError(res.message);
+      onDone(r); // дальше только после подтверждённого сохранения (#704)
+    } finally {
+      setBusy(null);
+    }
   };
 
   return (
@@ -81,7 +86,7 @@ export default function RoleSelect({ onDone, onCancel }: { onDone: (r: Role) => 
           </span>
         </button>
       ))}
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
       {onCancel && (
         <button type="button" className="ks-btn secondary" onClick={onCancel}>
           Назад
