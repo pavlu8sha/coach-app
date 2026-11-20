@@ -54,6 +54,13 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 @media (max-width: 420px) { .ks-seg.quad { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow-x: visible; } }
 .ks-seg button { min-height: var(--ks-tap); border: 0; border-radius: 10px; background: none; color: var(--ks-text-muted); font: 700 14px var(--ks-font); cursor: pointer; padding: 6px 8px; }
 .ks-seg button { white-space: nowrap; }
+/* все вкладки в одном ряду; не помещаются — ряд прокручивается внутри себя */
+.ks-seg.row, .ks-seg.row.quad { grid-auto-flow: column; grid-template-columns: none; overflow-x: auto; }
+.ks-seg.row { gap: 2px; }
+.ks-seg.row button { font-size: 12px; padding: 6px 4px; }
+.ks-quickdates { display: flex; gap: 8px; margin: 0 0 8px; }
+.ks-quickdates .ks-btn { flex: 1 1 0; width: auto; }
+.ks-row .ks-more-menu { z-index: 40; }
 .ks-seg button[aria-selected='true'] { background: var(--ks-primary); color: var(--ks-on-primary); }
 
 /* Тумблер (role=switch) в строке с подписью */

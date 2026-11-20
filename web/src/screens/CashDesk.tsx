@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { coachError, fmtDate, hasSubscription, today } from '../lib/coach';
+import { addDays, coachError, fmtDate, hasSubscription, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput } from '../ui/components';
 import { useConfirm } from '../ui/ConfirmSheet';
+import { MoreMenu } from '../ui/MoreMenu';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 import { afterLeftMonthTest, pausedMonthTest, type StatusLogPoint } from '../lib/playerStatus';
@@ -310,6 +311,10 @@ export default function CashDesk() {
         </>
       )}
       <h2 className="ks-list-head"><span>{day === today() ? 'Внесено сегодня' : `Внесено ${fmtDate(day)}`}</span><span>{todayRows ? gel(total) : ''}</span></h2>
+      <div className="ks-quickdates" role="group" aria-label="Быстрый выбор даты">
+        <button type="button" className={day === today() ? 'ks-btn sm' : 'ks-btn sm secondary'} aria-pressed={day === today()} onClick={() => setDay(today())}>Сегодня</button>
+        <button type="button" className={day === addDays(today(), -1) ? 'ks-btn sm' : 'ks-btn sm secondary'} aria-pressed={day === addDays(today(), -1)} onClick={() => setDay(addDays(today(), -1))}>Вчера</button>
+      </div>
       <label className="field" style={{ marginBottom: 8 }}>Дата<input type="date" aria-label="Дата платежей" value={day} max={today()} onChange={e => e.target.value && setDay(e.target.value)} /></label>
       {todayRows && todayRows.length > 0 && (
         <div className="ks-tiles" style={{ marginBottom: 12, gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
@@ -319,18 +324,20 @@ export default function CashDesk() {
         </div>
       )}
       {!todayRows ? <Loading /> : todayRows.length === 0 ? <p className="muted">В этот день платежей нет.</p> : todayRows.map(x => {
-        const row = <ListRow title={x.players?.full_name ?? 'Игрок'} sub={[x.sub ?? [x.what, x.method].filter(Boolean).join(' · ')]} end={<Pill tone={Number(x.amount) < 0 ? 'danger' : 'success'}>{gel(Number(x.amount))}</Pill>} />;
-        if (!(x.what === 'Абонемент' && Number(x.amount) > 0 && !isCancelled(x))) return <div key={x.what + x.id}>{row}</div>;
-        // Отмена относится к этой оплате: это часть той же карточки, под разделителем.
-        return (
-          <div className="ks-pay-group" key={x.what + x.id}>
-            {row}
-            <button type="button" className="ks-pay-cancel" aria-label={`Отменить оплату: ${x.players?.full_name ?? 'игрок'}`} disabled={cancelling === x.id} onClick={() => void cancelPay(x)}>Отменить оплату</button>
-          </div>
-        );
+        const name = x.players?.full_name ?? 'Игрок';
+        const can = x.what === 'Абонемент' && Number(x.amount) > 0 && !isCancelled(x);
+        const pill = <Pill tone={Number(x.amount) < 0 ? 'danger' : 'success'}>{gel(Number(x.amount))}</Pill>;
+        // отмена оплаты абонемента — пункт меню «⋯» строки; окно подтверждения прежнее (cancelPay)
+        const end = can ? (
+          <>
+            {pill}
+            <MoreMenu label={`Действия: ${name}`} items={[{ label: 'Отменить оплату', onSelect: () => void cancelPay(x) }]} />
+          </>
+        ) : pill;
+        return <div key={x.what + x.id}><ListRow title={name} sub={[x.sub ?? [x.what, x.method].filter(Boolean).join(' · ')]} end={end} /></div>;
       })}
       {dialog}
-      <p className="ks-muted" style={{ fontSize: 13 }}>В списке оплаты за день: абонементы, сборы, экипировка и занятия. Отменить можно оплату абонемента кнопкой у строки; остальные оплаты отменяются в своих разделах.</p>
+      <p className="ks-muted" style={{ fontSize: 13 }}>В списке оплаты за день: абонементы, сборы, экипировка и занятия. Отменить можно оплату абонемента через «⋯» у строки; остальные оплаты отменяются в своих разделах.</p>
     </main>
   );
 }
