@@ -74,6 +74,8 @@ preflight_partial "без 0208" '0208_eq_auto_recalc' 0208_eq_auto_recalc
 # 0209 (профиль игрока, #654) самостоятельна: на базе без неё preflight не должен падать (to_regclass), строка 0209 даёт NOT_APPLIED.
 # 0214 (идемпотентность платежей, #724) самостоятельна: на базе без неё preflight не должен падать, строка 0214 даёт NOT_APPLIED.
 preflight_partial "без 0214" '0214_payment_idempotency' 0214_payment_idempotency
+# 0215 (my_children, серверный список детей) самостоятельна: на базе без неё preflight не падает (to_regprocedure), строка 0215 даёт NOT_APPLIED.
+preflight_partial "без 0215" '0215_my_children' 0215_my_children
 preflight_partial "без 0209" '0209_player_profile_attributes' 0209_player_profile_attributes
 for t in db/tests/*_test.sql; do
   echo "== $t"
