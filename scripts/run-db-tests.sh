@@ -72,6 +72,8 @@ preflight_partial "без 0207 и 0208" '0207_eq_freeze_2c|0208_eq_auto_recalc' 
 preflight_partial "без 0205, 0207 и 0208" '0205_eq_bundle_model|0207_eq_freeze_2c|0208_eq_auto_recalc' 0205_eq_bundle_model 0207_eq_freeze_2c 0208_eq_auto_recalc
 preflight_partial "без 0208" '0208_eq_auto_recalc' 0208_eq_auto_recalc
 # 0209 (профиль игрока, #654) самостоятельна: на базе без неё preflight не должен падать (to_regclass), строка 0209 даёт NOT_APPLIED.
+# 0214 (идемпотентность платежей, #724) самостоятельна: на базе без неё preflight не должен падать, строка 0214 даёт NOT_APPLIED.
+preflight_partial "без 0214" '0214_payment_idempotency' 0214_payment_idempotency
 preflight_partial "без 0209" '0209_player_profile_attributes' 0209_player_profile_attributes
 for t in db/tests/*_test.sql; do
   echo "== $t"
@@ -116,6 +118,8 @@ echo "== db/tests/concurrency_club_event_seats.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_club_event_seats.sh || fail=1
 echo "== db/tests/concurrency_club_event_pay.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_club_event_pay.sh || fail=1
+echo "== db/tests/concurrency_payment_add.sh"
+DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_payment_add.sh || fail=1
 echo "== db/tests/concurrency_player_save.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_player_save.sh || fail=1
 echo "== db/tests/concurrency_notifications_release.sh"

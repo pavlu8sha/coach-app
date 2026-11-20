@@ -24,6 +24,13 @@ export const fake = {
   rpcCalls(name: string) {
     return this.calls.filter(c => c.kind === 'rpc' && c.name === name).map(c => c.args);
   },
+  /** Платежи абонемента, записанные через payment_add (0214), в виде строки payments (без ключа); ключи: paymentKeys(). */
+  paymentAdds() {
+    return this.rpcCalls('payment_add').map((a: any) => ({ player_id: a.pid, amount: a.amt, paid_on: a.d, method: a.mth, ...(a.fm ? { for_month: a.fm } : {}) }));
+  },
+  paymentKeys() {
+    return this.rpcCalls('payment_add').map((a: any) => a.req);
+  },
   /** Записи в таблицу: insert/upsert/update/delete. */
   writes(table: string, kind?: Call['kind']) {
     return this.calls.filter(c => c.kind !== 'rpc' && c.name === table && (!kind || c.kind === kind)).map(c => c.args);

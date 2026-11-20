@@ -117,8 +117,8 @@ describe('«Должники»: оплата из строки, текст дл�
     fireEvent.change(within(ivan).getByLabelText(/Сумма/), { target: { value: '40' } });
     fireEvent.change(within(ivan).getByLabelText('Способ'), { target: { value: 'Перевод' } });
     fireEvent.click(within(ivan).getByRole('button', { name: 'Записать платёж' }));
-    await waitFor(() => expect(fake.writes('payments', 'insert')).toHaveLength(1));
-    expect(fake.writes('payments', 'insert')[0]).toMatchObject({ player_id: 'p1', amount: 40, method: 'Перевод' });
+    await waitFor(() => expect(fake.paymentAdds()).toHaveLength(1));
+    expect(fake.paymentAdds()[0]).toMatchObject({ player_id: 'p1', amount: 40, method: 'Перевод' });
   });
 
   it('текст для родителей: {имя} и {месяц} подставляются, шаблон запоминается', async () => {
