@@ -299,6 +299,29 @@ export default function CashDesk() {
     }
     setReload(n => n + 1);
   };
+  // Исправление способа оплаты абонемента: UPDATE только method (0179 разрешает и пишет в audit_log); суммы и даты не трогаем
+  const changeMethod = async (x: { id: string; amount: number; method?: string | null; players?: { full_name: string } | null }) => {
+    if (cancelling) return;
+    const from = x.method === 'Перевод' ? 'Перевод' : 'Наличные';
+    const to = from === 'Перевод' ? 'Наличные' : 'Перевод';
+    const ok = await ask({
+      title: 'Изменить способ оплаты?',
+      lines: [['Игрок', x.players?.full_name], ['Сумма', gel(Number(x.amount))], ['Был способ', from], ['Станет', to]],
+      note: 'Сумма и дата не меняются. Правка запишется в журнал.',
+      confirmLabel: 'Изменить способ',
+    });
+    if (!ok) return;
+    setCancelling(x.id);
+    setCancelErr(null);
+    const { data, error } = await supabase.from('payments').update({ method: to }).eq('id', x.id).eq('method', from).select('id');
+    setCancelling(null);
+    if (error || !data || data.length === 0) {
+      setCancelErr(`Способ не изменён: ${error ? errText(error.message) : 'оплата уже изменена или нет прав. Список обновлён.'}`);
+      setReload(n => n + 1);
+      return;
+    }
+    setReload(n => n + 1);
+  };
   const total = (todayRows ?? []).reduce((s, x) => s + Number(x.amount), 0);
   // платёж отменён, если на него есть запись cancels (0097). Старые отмены без ссылки ищем по игроку и сумме за этот день (повторная отмена удвоила бы минус)
   const isCancelled = (x: { id: string; amount: number; player_id?: string; what: string; cancelled?: boolean }) => {
@@ -366,13 +389,13 @@ export default function CashDesk() {
         const end = can ? (
           <>
             {pill}
-            <MoreMenu label={`Действия: ${name}`} items={[{ label: 'Отменить оплату', onSelect: () => void cancelPay(x) }]} />
+            <MoreMenu label={`Действия: ${name}`} items={[{ label: 'Изменить способ оплаты', onSelect: () => void changeMethod(x) }, { label: 'Отменить оплату', onSelect: () => void cancelPay(x) }]} />
           </>
         ) : pill;
         return <div key={x.what + x.id}><ListRow title={name} sub={[x.sub ?? [x.what, x.method].filter(Boolean).join(' · ')]} end={end} /></div>;
       })}
       {dialog}
-      <p className="ks-muted" style={{ fontSize: 13 }}>В списке оплаты за день: абонементы, сборы, экипировка и занятия. Отменить можно оплату абонемента через «⋯» у строки; остальные оплаты отменяются в своих разделах.</p>
+      <p className="ks-muted" style={{ fontSize: 13 }}>В списке оплаты за день: абонементы, сборы, экипировка и занятия. У оплаты абонемента через «⋯» можно изменить способ или отменить её; остальные оплаты отменяются в своих разделах.</p>
     </main>
   );
 }

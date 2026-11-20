@@ -440,6 +440,47 @@ describe('«Приём оплат»: платежи дня', () => {
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отменить оплату' }));
     await waitFor(() => expect(fake.writes('payments', 'insert')).toEqual([expect.objectContaining({ player_id: 'p1', amount: -50, paid_on: today(), method: 'Наличные' })]));
   });
+  describe('изменение способа оплаты', () => {
+    const pay = (extra: object = {}) => ({ id: 'x1', player_id: 'p1', amount: 50, paid_on: today(), method: 'Перевод', players: { full_name: 'Иванов Пётр' }, ...extra });
+    const changeViaMenu = () => { fireEvent.click(rowMenu()); fireEvent.click(screen.getByRole('menuitem', { name: 'Изменить способ оплаты' })); };
+    it('пункт есть у оплаты абонемента рядом с «Отменить оплату»', async () => {
+      seed(); fake.db.payments = [pay()];
+      render(<CashDesk />);
+      await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
+      fireEvent.click(rowMenu());
+      expect(screen.getByRole('menuitem', { name: 'Изменить способ оплаты' })).toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: 'Отменить оплату' })).toBeInTheDocument();
+    });
+    it('окно показывает способы, подтверждение даёт один UPDATE только способа с защитой от параллельной правки', async () => {
+      seed(); fake.db.payments = [pay()];
+      render(<CashDesk />);
+      await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
+      changeViaMenu();
+      const dlg = await screen.findByRole('dialog');
+      expect(dlg).toHaveTextContent('Перевод');
+      expect(dlg).toHaveTextContent('Наличные');
+      expect(dlg).toHaveTextContent('50 ₾');
+      fireEvent.click(within(dlg).getByRole('button', { name: 'Изменить способ' }));
+      await waitFor(() => expect(fake.writes('payments', 'update')).toHaveLength(1));
+      expect(fake.writes('payments', 'update')[0]).toEqual({ method: 'Наличные' });
+      expect(fake.writes('payments', 'insert')).toHaveLength(0);
+    });
+    it('у отменённой оплаты пункта нет', async () => {
+      seed(); fake.db.payments = [pay(), pay({ id: 'x2', amount: -50, cancels: 'x1' })];
+      render(<CashDesk />);
+      await screen.findByRole('heading', { name: /Внесено сегодня/ });
+      expect(screen.queryByRole('button', { name: 'Действия: Иванов Пётр' })).toBeNull();
+    });
+    it('если ни одна строка не обновилась или база вернула ошибку, показывается ошибка', async () => {
+      seed(); fake.db.payments = [pay()];
+      render(<CashDesk />);
+      await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
+      fake.errors.payments = 'boom';
+      changeViaMenu();
+      fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Изменить способ' }));
+      expect(await screen.findByRole('alert')).toHaveTextContent(/Способ не изменён/);
+    });
+  });
   it('если отмена не записалась, показывается ошибка', async () => {
     seed();
     fake.db.payments = [{ id: 'x1', player_id: 'p1', amount: 50, paid_on: today(), method: 'Наличные', players: { full_name: 'Иванов Пётр' } }];
