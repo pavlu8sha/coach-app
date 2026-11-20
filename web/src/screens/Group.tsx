@@ -24,10 +24,12 @@ export default function Group({ groups, notify = false }: { groups: CoachGroup[]
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [totals, setTotals] = useState<Record<string, number> | null>(null);
+  const [ranked, setRanked] = useState(false); // баллы загружены (или не загрузились): до этого список не показываем, чтобы он не мелькал по алфавиту, а потом по баллам
 
   useEffect(() => {
     setPlayers(null);
     setTotals(null);
+    setRanked(false);
     void (async () => {
       const p = await supabase.from('players').select('id, full_name').eq('group_id', gid).eq('status', 'active').order('full_name');
       if (p.error) return setError(p.error.message);
@@ -39,19 +41,20 @@ export default function Group({ groups, notify = false }: { groups: CoachGroup[]
       for (let i = 0; i < ids.length; i += 100) {
         for (let from = 0; ; from += 1000) {
           const e = await supabase.from('points_ledger').select('player_id, points').eq('status', 'active').in('player_id', ids.slice(i, i + 100)).order('id').range(from, from + 999);
-          if (e.error) return;
+          if (e.error) return setRanked(true);
           for (const r of (e.data ?? []) as { player_id: string; points: number }[]) sums[r.player_id] = (sums[r.player_id] ?? 0) + r.points;
           if ((e.data ?? []).length < 1000) break;
         }
       }
       setTotals(sums);
+      setRanked(true);
     })();
   }, [gid, reload, nav.top.screen]);
 
   if (error) return <Failure title="Не удалось загрузить группу" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   const open = nav.top.screen === 'player' ? (players ?? []).find(p => p.id === nav.top.params.id) : undefined;
   if (open) return <PlayerCard gid={gid} player={open} onBack={() => nav.back()} />;
-  if (!players) return <Loading />;
+  if (!players || !ranked) return <Loading />;
 
   return (
     <main className="page">

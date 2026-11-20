@@ -13,10 +13,11 @@ const mk = (withParams: boolean) => ({
 type W = { Telegram?: { WebApp?: unknown } };
 
 beforeEach(() => {
+  vi.useFakeTimers();
   document.documentElement.style.setProperty('--ks-primary', '#25335a');
   document.documentElement.style.setProperty('--ks-on-primary', '#ffffff');
 });
-afterEach(() => { delete (window as unknown as W).Telegram; document.documentElement.removeAttribute('style'); });
+afterEach(() => { vi.useRealTimers(); delete (window as unknown as W).Telegram; document.documentElement.removeAttribute('style'); });
 
 describe('useMainButton: цвет клуба', () => {
   it('при показе красит кнопку цветами клуба, при скрытии возвращает цвета Telegram', () => {
@@ -25,7 +26,21 @@ describe('useMainButton: цвет клуба', () => {
     const { unmount } = render(<Btn />);
     expect(app.MainButton.setParams).toHaveBeenCalledWith({ color: '#25335a', text_color: '#ffffff' });
     unmount();
+    // сразу после скрытия цвета не меняются: кнопка ещё уезжает с экрана и вспыхнула бы цветом Telegram
+    expect(app.MainButton.hide).toHaveBeenCalled();
+    expect(app.MainButton.setParams).toHaveBeenLastCalledWith({ color: '#25335a', text_color: '#ffffff' });
+    vi.advanceTimersByTime(700);
     expect(app.MainButton.setParams).toHaveBeenLastCalledWith({ color: '#2481cc', text_color: '#ffffff' });
+  });
+
+  it('если следующий экран сразу занял кнопку, цвета Telegram не возвращаются', () => {
+    const app = mk(true);
+    (window as unknown as W).Telegram = { WebApp: app };
+    const first = render(<Btn />);
+    first.unmount();
+    render(<Btn />);
+    vi.advanceTimersByTime(700);
+    expect(app.MainButton.setParams).not.toHaveBeenCalledWith({ color: '#2481cc', text_color: '#ffffff' });
   });
 
   it('старый клиент без setParams не ломает кнопку', () => {
