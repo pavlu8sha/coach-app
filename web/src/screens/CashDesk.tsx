@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { addDays, coachError, fmtDate, hasSubscription, today, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
-import { addPayment } from '../lib/paymentAdd';
+import { addPayment, paymentError, DUPLICATE_PAYMENT_NOTE } from '../lib/paymentAdd';
 import { EmptyState, ListRow, Pill, SearchInput } from '../ui/components';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { MoreMenu } from '../ui/MoreMenu';
@@ -14,7 +14,7 @@ import { gel, monthIso, monthName, nextMonth, tariffFor } from './MonthPayments'
 import { useNavState } from '../nav';
 
 interface Pl { id: string; full_name: string; group_id: string | null; groups: { name: string } | null; external_id?: string | null; birth_date?: string | null; status?: string }
-interface Due { key: string; kind: 'sub' | 'eq' | 'ind' | 'extra' | 'visit' | 'own_visit' | 'camp' | 'match' | 'event'; section: string; title: string; sub?: string; due: number; paid: number; month?: string; advance?: boolean; pay: (amount: number, method: string, date: string, req?: string) => PromiseLike<{ error: { message: string } | null }>; discount?: () => PromiseLike<{ error: { message: string } | null }> }
+interface Due { key: string; kind: 'sub' | 'eq' | 'ind' | 'extra' | 'visit' | 'own_visit' | 'camp' | 'match' | 'event'; section: string; title: string; sub?: string; due: number; paid: number; month?: string; advance?: boolean; pay: (amount: number, method: string, date: string, req?: string) => PromiseLike<{ error: { message: string } | null; duplicate?: boolean }>; discount?: () => PromiseLike<{ error: { message: string } | null }> }
 
 const METHODS = ['Наличные', 'Перевод'];
 const PAY_METHODS = ['Наличные', 'Перевод'];
@@ -428,7 +428,7 @@ export function PlayerDues({ player, onBack, embedded = false, sharedMethod, jum
           <section key={s} data-sec={s}>
             <h2 className="ks-sub">{s}</h2>
             {dues.filter(d => d.section === s).map(d => (
-              <DueCard key={d.key} due={d} who={player.full_name} sharedMethod={sharedMethod} open={openKey === d.key} onOpen={() => setOpenKey(openKey === d.key ? null : d.key)} locked={refreshing} onPaid={() => { setOpenKey(null); setMsg('Платёж записан.'); setRefreshing(true); setReload(n => n + 1); }} />
+              <DueCard key={d.key} due={d} who={player.full_name} sharedMethod={sharedMethod} open={openKey === d.key} onOpen={() => setOpenKey(openKey === d.key ? null : d.key)} locked={refreshing} onPaid={dup => { setOpenKey(null); setMsg(dup ? DUPLICATE_PAYMENT_NOTE : 'Платёж записан.'); setRefreshing(true); setReload(n => n + 1); }} />
             ))}
           </section>
         ))
@@ -437,7 +437,7 @@ export function PlayerDues({ player, onBack, embedded = false, sharedMethod, jum
   );
 }
 
-function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false }: { due: Due; open: boolean; onOpen: () => void; onPaid: () => void; sharedMethod?: string; who: string; locked?: boolean }) {
+function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false }: { due: Due; open: boolean; onOpen: () => void; onPaid: (duplicate?: boolean) => void; sharedMethod?: string; who: string; locked?: boolean }) {
   const left = r2(due.due - due.paid);
   const [amount, setAmount] = useState(String(left));
   const [ownMethod, setMethod] = useState('');
@@ -471,9 +471,9 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false 
     setErr(null);
     const r = await due.pay(fixedAmount ? left : num, method, date, reqFor(`${fixedAmount ? left : num}|${method}|${date}`));
     setBusy(false);
-    if (r.error) return setErr(errText(r.error.message));
+    if (r.error) return setErr(due.kind === 'sub' ? paymentError(r.error) : errText(r.error.message));
     reqRef.current = null;
-    onPaid();
+    onPaid(r.duplicate);
   };
   // «Оплатить со скидкой»: то же, что внести меньшую сумму и затем применить скидку месяца, одним действием
   const payWithDiscount = async () => {
@@ -490,13 +490,13 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false 
     setBusy(true);
     setErr(null);
     const p = await due.pay(num, method, date, reqFor(`${num}|${method}|${date}`));
-    if (p.error) { setBusy(false); return setErr(errText(p.error.message)); }
+    if (p.error) { setBusy(false); return setErr(due.kind === 'sub' ? paymentError(p.error) : errText(p.error.message)); }
     reqRef.current = null;
     const d = await due.discount!();
     setBusy(false);
     // платёж уже записан: повторно его не отправляем, только сообщаем об ошибке скидки
-    if (d.error) return setErr(`Платёж записан, но скидку не применили (${errMsg(d.error)}). Примените скидку в «Оплатах за месяц», платёж повторять не нужно.`);
-    onPaid();
+    if (d.error) return setErr(`${p.duplicate ? 'Платёж уже был записан ранее, второй не создан' : 'Платёж записан'}, но скидку не применили (${errMsg(d.error)}). Примените скидку в «Оплатах за месяц», платёж повторять не нужно.`);
+    onPaid(p.duplicate);
   };
   return (
     <div className="ks-card ks-due">

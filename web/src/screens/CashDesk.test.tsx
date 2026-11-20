@@ -111,6 +111,49 @@ describe('«Приём оплат»', () => {
     expect(fake.writes('subscriptions', 'upsert')[0]).toMatchObject({ player_id: 'p1', month: M, discount: true });
   });
 
+  it('абонемент: сервер ответил duplicate — сообщение «уже был записан», а не «Платёж записан» (#724)', async () => {
+    seed();
+    fake.rpc.payment_add = () => ({ data: { id: 'x1', duplicate: true } });
+    await openPlayer();
+    await screen.findByText(/Внесено 50 ₾ из 165 ₾/);
+    const sub = card(/Внесено 50 ₾ из 165 ₾/);
+    fireEvent.click(within(sub).getByRole('button', { name: 'Принять оплату' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Перевод' }));
+    fireEvent.click(within(sub).getByRole('button', { name: 'Записать платёж' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
+    expect(await screen.findByText('Этот платёж уже был записан ранее, второй не создан.')).toBeInTheDocument();
+    expect(screen.queryByText('Платёж записан.')).not.toBeInTheDocument();
+  });
+
+  it('абонемент: ключ, использованный с другими данными, показывается понятным текстом (#724)', async () => {
+    seed();
+    fake.rpc.payment_add = () => ({ error: { message: 'request id reused' } });
+    await openPlayer();
+    await screen.findByText(/Внесено 50 ₾ из 165 ₾/);
+    const sub = card(/Внесено 50 ₾ из 165 ₾/);
+    fireEvent.click(within(sub).getByRole('button', { name: 'Принять оплату' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Перевод' }));
+    fireEvent.click(within(sub).getByRole('button', { name: 'Записать платёж' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
+    expect(await screen.findByText(/уже записан с другими параметрами/)).toBeInTheDocument();
+    expect(screen.queryByText(/request id/)).not.toBeInTheDocument();
+  });
+
+  it('абонемент: «Оплатить со скидкой» при duplicate применяет скидку и сообщает, что платёж не создавался заново (#724)', async () => {
+    seed();
+    fake.rpc.payment_add = () => ({ data: { id: 'x1', duplicate: true } });
+    await openPlayer();
+    await screen.findByText(/Внесено 50 ₾ из 165 ₾/);
+    const sub = card(/Внесено 50 ₾ из 165 ₾/);
+    fireEvent.click(within(sub).getByRole('button', { name: 'Принять оплату' }));
+    fireEvent.change(within(sub).getByLabelText(/Сумма/), { target: { value: '60' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Перевод' }));
+    fireEvent.click(within(sub).getByRole('button', { name: 'Оплатить со скидкой' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Оплатить' }));
+    await waitFor(() => expect(fake.writes('subscriptions', 'upsert')).toHaveLength(1));
+    expect(await screen.findByText('Этот платёж уже был записан ранее, второй не создан.')).toBeInTheDocument();
+  });
+
   it('разовое посещение другой группы показано отдельным разделом и платится через session_guest_set_paid', async () => {
     seed();
     fake.db.session_guests = [{ session_id: 's9', player_id: 'p1', paid: false, amount: 15, sessions: { starts_at: '2020-02-03T15:00:00+04:00', groups: { name: 'U9-B' } } }];
