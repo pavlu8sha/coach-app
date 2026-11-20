@@ -299,7 +299,12 @@ export default function CashDesk() {
     }
     setReload(n => n + 1);
   };
-  // Исправление способа оплаты абонемента: UPDATE только method (0179 разрешает и пишет в audit_log); суммы и даты не трогаем
+  // Исправление способа оплаты абонемента через payment_set_method (0216): у authenticated нет права UPDATE на payments (0004), запись идёт функцией и попадает в audit_log
+  const methodError = (m: string) =>
+    /payment changed|payment cancelled|not a payment|payment not found/.test(m) ? 'оплата уже изменена или отменена. Список обновлён.'
+      : /forbidden/.test(m) ? 'нет прав на это действие.'
+      : /audit not installed|PGRST202|Could not find the function|does not exist/.test(m) ? 'правка способа ещё не установлена в базе (нужны миграции 0179 и 0216).'
+      : errText(m);
   const changeMethod = async (x: { id: string; amount: number; method?: string | null; players?: { full_name: string } | null }) => {
     if (cancelling) return;
     if (x.method !== 'Наличные' && x.method !== 'Перевод') return; // неизвестный способ не подменяем
@@ -315,10 +320,8 @@ export default function CashDesk() {
     setCancelling(x.id);
     setCancelErr(null);
     try {
-      const { data, error } = await supabase.from('payments').update({ method: to }).eq('id', x.id).eq('method', from).select('id');
-      if (error || !data || data.length === 0) {
-        setCancelErr(`Способ не изменён: ${error ? errText(error.message) : 'оплата уже изменена или нет прав. Список обновлён.'}`);
-      }
+      const { error } = await supabase.rpc('payment_set_method', { pid: x.id, new_method: to, old_method: from });
+      if (error) setCancelErr(`Способ не изменён: ${methodError(error.message)}`);
     } catch (e) {
       // сбой связи: запрос мог дойти до сервера, а ответ потеряться, поэтому список перечитываем для сверки
       setCancelErr(`Способ не изменён: ${errText(errMsg(e))} Проверьте список: правка могла примениться.`);
