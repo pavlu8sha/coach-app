@@ -272,6 +272,7 @@ language plpgsql security invoker set search_path = public as $$
 declare
   v_id uuid := p_id;
   v_old_group uuid;
+  v_club uuid := p_club;
   v_new_group uuid := nullif(p_row ->> 'group_id', '')::uuid;
 begin
   if not is_admin() then
@@ -281,13 +282,20 @@ begin
     if p_club is null then
       raise exception 'club required' using errcode = '22023';
     end if;
+    if v_new_group is not null and not exists (select 1 from groups g where g.id = v_new_group and g.club_id = v_club) then
+      raise exception 'group belongs to another club' using errcode = '42501';
+    end if;
     insert into players (club_id, full_name, birth_date, group_id, status)
     values (p_club, p_row ->> 'full_name', nullif(p_row ->> 'birth_date', '')::date, v_new_group, p_row ->> 'status')
     returning id into v_id;
   else
-    select group_id into v_old_group from players where id = v_id for update;
+    select group_id, club_id into v_old_group, v_club from players where id = v_id for update;
     if not found then
       raise exception 'player not found' using errcode = 'P0002';
+    end if;
+    -- Клубная изоляция: новая группа должна принадлежать клубу игрока (до любых изменений).
+    if v_new_group is not null and not exists (select 1 from groups g where g.id = v_new_group and g.club_id = v_club) then
+      raise exception 'group belongs to another club' using errcode = '42501';
     end if;
     update players
        set full_name = p_row ->> 'full_name',

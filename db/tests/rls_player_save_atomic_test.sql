@@ -2,13 +2,15 @@
 -- Условия: docs/PLAYER_PROFILE_ATTRIBUTES_ACCEPTANCE.md.
 begin;
 create extension if not exists pgtap;
-select plan(23);
+select plan(31);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
   ('00000000-0000-0000-0000-0000000000a1', 9501, 'Админ', true),
   ('00000000-0000-0000-0000-0000000000c1', 9502, 'Тренер', false);
+insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c002', 'Другой клуб');
 insert into groups (id, club_id, name) values
+  ('00000000-0000-0000-0000-0000000000f2', '00000000-0000-0000-0000-00000000c002', 'U7-A'),
   ('00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-00000000c001', 'U7-A'),
   ('00000000-0000-0000-0000-0000000000e2', '00000000-0000-0000-0000-00000000c001', 'U9');
 insert into players (id, club_id, group_id, full_name, status) values
@@ -91,6 +93,23 @@ select throws_ok($$select player_save('00000000-0000-0000-0000-00000000d002', nu
 reset role;
 select is((select group_id from players where id = '00000000-0000-0000-0000-00000000d002'), '00000000-0000-0000-0000-0000000000e2'::uuid, 'PS4 группа игрока не изменилась');
 select is((select last_name from player_profiles where player_id = '00000000-0000-0000-0000-00000000d002'), 'Редактируемый', 'PS4 профиль не изменился');
+
+-- 5. Клубная изоляция: группа должна принадлежать клубу игрока (создание и перевод).
+select as_user('00000000-0000-0000-0000-0000000000a1');
+select throws_ok($$select player_save(null, '00000000-0000-0000-0000-00000000c001',
+  '{"full_name":"Чужая Группа","group_id":"00000000-0000-0000-0000-0000000000f2","status":"active"}'::jsonb,
+  '{"first_name":"Группа","last_name":"Чужая"}'::jsonb)$$, '42501', 'group belongs to another club', 'ISO1 создание с группой другого клуба отклонено');
+select throws_ok($$select player_save('00000000-0000-0000-0000-00000000d002', null,
+  '{"full_name":"Перевод В Чужой Клуб","group_id":"00000000-0000-0000-0000-0000000000f2","status":"active"}'::jsonb,
+  '{"first_name":"Перевод","last_name":"Чужой","primary_position":"Защитник"}'::jsonb)$$, '42501', 'group belongs to another club', 'ISO2 перевод в группу другого клуба отклонён');
+select throws_ok($$select player_save(null, '00000000-0000-0000-0000-00000000c999',
+  '{"full_name":"Нет Клуба","status":"active"}'::jsonb, '{}'::jsonb)$$, '23503', null, 'ISO3 несуществующий клуб отклонён');
+reset role;
+select is((select count(*)::int from players where full_name in ('Чужая Группа', 'Нет Клуба')), 0, 'ISO1 игрок с чужой группой не создан');
+select is((select count(*)::int from player_profiles where last_name = 'Чужая'), 0, 'ISO1 профиль не создан');
+select is((select group_id from players where id = '00000000-0000-0000-0000-00000000d002'), '00000000-0000-0000-0000-0000000000e2'::uuid, 'ISO2 группа игрока не изменилась');
+select is((select group_id from subscriptions where player_id = '00000000-0000-0000-0000-00000000d002'), '00000000-0000-0000-0000-0000000000e2'::uuid, 'ISO2 абонемент не изменился');
+select is((select last_name from player_profiles where player_id = '00000000-0000-0000-0000-00000000d002'), 'Редактируемый', 'ISO2 профиль не изменился');
 
 select * from finish();
 rollback;
