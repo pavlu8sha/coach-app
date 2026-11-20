@@ -186,6 +186,7 @@ export default function CashDesk() {
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [cancelErr, setCancelErr] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const dayLoading = useRef(false); // загрузка дня идёт: «Повторить» не запускает вторую (#691)
   const { ask, dialog } = useConfirm();
 
   useEffect(() => {
@@ -208,6 +209,7 @@ export default function CashDesk() {
     setTodayFailed([]);
     // ответ устаревшей загрузки (дату сменили или нажали «Повторить») не применяется
     let alive = true;
+    dayLoading.current = true;
     void (async () => {
       const failed: string[] = [];
       const a = await supabase.from('payments').select('id, amount, method, player_id, pay_month, cancels, recorded_at, players(full_name)').eq('paid_on', day).limit(500);
@@ -250,6 +252,7 @@ export default function CashDesk() {
         }
       }
       if (!alive) return;
+      dayLoading.current = false;
       setTodayFailed(failed);
       setTodayRows(all.map(x => {
         const pid = x.player_id;
@@ -261,6 +264,7 @@ export default function CashDesk() {
     })().catch(e => {
       // непредвиденный сбой (например, обрыв связи): список не показываем как полный
       if (!alive) return;
+      dayLoading.current = false;
       console.error('касса за день', errMsg(e));
       setTodayFailed(['данные дня']);
       setTodayRows([]);
@@ -342,7 +346,7 @@ export default function CashDesk() {
           <b>Касса за день загружена не полностью</b>
           <p className="muted" style={{ margin: '4px 0' }}>Не удалось загрузить: {todayFailed.join(', ')}.</p>
           <p className="muted" style={{ margin: '4px 0 8px' }}>Список ниже неполный, итог за день не показан, пока данные не загрузятся.</p>
-          <button type="button" className="ks-btn secondary" onClick={() => setReload(n => n + 1)}>Повторить</button>
+          <button type="button" className="ks-btn secondary" onClick={() => { if (dayLoading.current) return; dayLoading.current = true; setReload(n => n + 1); }}>Повторить</button>
         </div>
       )}
       {todayRows && todayFailed.length === 0 && todayRows.length > 0 && (

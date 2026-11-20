@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { today } from '../lib/coach';
 import { DEBT_START } from '../lib/debtSeason';
@@ -949,6 +949,19 @@ describe('«Внесено за день»: сбой источников (#691)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.getByText('Всего', { selector: '.ks-tile b' })).toBeInTheDocument();
     expect(fake.calls.filter(c => c.kind !== 'rpc')).toHaveLength(0); // никаких записей
+  });
+
+  it('двойное быстрое нажатие «Повторить» запускает одну загрузку', async () => {
+    seedDay();
+    fake.errors.camp_payments = 'boom';
+    render(<CashDesk />);
+    await regAlert();
+    delete fake.errors.camp_payments;
+    const before = fake.rpcCalls('cash_day_service').length;
+    const btn = within(screen.getByRole('alert')).getByRole('button', { name: 'Повторить' });
+    act(() => { btn.click(); btn.click(); });
+    expect(await screen.findByRole('heading', { name: /Внесено сегодня.*390/ })).toBeInTheDocument();
+    expect(fake.rpcCalls('cash_day_service')).toHaveLength(before + 1);
   });
 
   it('повторный отказ оставляет предупреждение, итога нет', async () => {
