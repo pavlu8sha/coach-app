@@ -139,6 +139,8 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 .ks-head-badge > b { flex: 1 1 0; min-width: 0; overflow-wrap: break-word; }
 .ks-head-badge > span { flex: none; }
 @media (max-width: 359px) { .ks-head-badge { flex-direction: column; align-items: flex-start; gap: 6px; } .ks-head-badge > b { flex: none; } }
+/* Вариант «всегда в строку»: плашка справа и на 320 px, название переносится внутри себя (карточка шаблона) */
+@media (max-width: 359px) { .ks-head-badge.keep-row { flex-direction: row; gap: 8px; } .ks-head-badge.keep-row > b { flex: 1 1 0; } }
 .ks-ok { color: var(--ks-success); font-weight: 700; margin: 8px 0; }
 
 /* Экран первой загрузки */
