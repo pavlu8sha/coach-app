@@ -84,8 +84,8 @@ describe('взносы: подпись изменённой суммы', () => {
       { player_id: 'p1', old_amount: 200, new_amount: 150, reason: 'скидка семье', by_name: 'Админ', at: '2026-11-20T10:00:00Z' },
     ];
     render(<EventFees eventId="e1" reloadKey={0} onChanged={() => {}} />);
-    expect(await screen.findByText(/^Сумма изменена: было 200\u00A0₾, стало 100\u00A0₾ · половина чемпионата/)).toBeInTheDocument();
-    expect(screen.getByText(/^Скидка: было 200\u00A0₾, стало 150\u00A0₾ · скидка семье/)).toBeInTheDocument();
+    expect(await screen.findByText(/^Сумма изменена: было 200 ₾, стало 100 ₾ · половина чемпионата/)).toBeInTheDocument();
+    expect(screen.getByText(/^Скидка: было 200 ₾, стало 150 ₾ · скидка семье/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Скидка: Иванов Пётр' })).toBeInTheDocument();
   });
 });
