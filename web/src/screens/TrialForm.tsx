@@ -58,6 +58,14 @@ export default function TrialForm({ startOpen = false }: { startOpen?: boolean }
   }
   const y = Number(year);
   const valid = parent.trim().length > 1 && child.trim().length > 2 && y >= YEAR - 18 && y <= YEAR - 2 && /^\+?[0-9 ()-]{7,20}$/.test(phone.trim()) && agreed;
+  // чего не хватает для отправки: кнопка серая без причины сбивала с толку (год рождения вне диапазона)
+  const missing = [
+    ...(parent.trim().length > 1 ? [] : ['имя родителя']),
+    ...(child.trim().length > 2 ? [] : ['имя и фамилию ребёнка']),
+    ...(y >= YEAR - 18 && y <= YEAR - 2 ? [] : [`год рождения ребёнка от ${YEAR - 18} до ${YEAR - 2}`]),
+    ...(/^\+?[0-9 ()-]{7,20}$/.test(phone.trim()) ? [] : ['телефон: цифры, можно с «+»']),
+    ...(agreed ? [] : ['согласие на обработку данных']),
+  ];
   const submit = async () => {
     setBusy(true);
     setError(null);
@@ -88,6 +96,7 @@ export default function TrialForm({ startOpen = false }: { startOpen?: boolean }
           <span className="muted note">Я согласен(на) на обработку моих данных и данных ребёнка для записи в клуб, как описано в <button type="button" className="link-btn" onClick={() => nav.push('policy')}>Политике конфиденциальности</button>.</span>
         </label>
         {error && <p className="error" role="alert">{error}</p>}
+        {missing.length > 0 && <p className="muted note" style={{ marginTop: 12 }}>Чтобы отправить заявку, укажите: {missing.join('; ')}.</p>}
         <button className="ks-btn" style={{ marginTop: 12 }} disabled={!valid || busy}>Отправить заявку</button>
       </form>
     </section>

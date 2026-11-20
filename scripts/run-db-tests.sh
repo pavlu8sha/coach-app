@@ -78,6 +78,8 @@ preflight_partial "без 0214" '0214_payment_idempotency' 0214_payment_idempote
 preflight_partial "без 0215" '0215_my_children' 0215_my_children
 # 0216 (payment_set_method) самостоятельна: на базе без неё preflight не падает, строка 0216 даёт NOT_APPLIED.
 preflight_partial "без 0216" '0216_payment_set_method' 0216_payment_set_method
+# 0217 (my_link_requests, my_pending_consents) самостоятельна: на базе без неё preflight не падает, строка 0217 даёт NOT_APPLIED.
+preflight_partial "без 0217" '0217_link_screens' 0217_link_screens
 preflight_partial "без 0209" '0209_player_profile_attributes' 0209_player_profile_attributes
 for t in db/tests/*_test.sql; do
   echo "== $t"

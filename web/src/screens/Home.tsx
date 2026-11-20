@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNav, useSubEntry } from '../nav';
 import { peekCampSlug, takeCampSlug } from '../lib/startParam';
 import { loadMyChildren } from '../lib/myChildren';
+import { loadMyLinkRequests, loadPendingConsents, type PendingConsent } from '../lib/linkRequests';
+import ConsentAccept from './ConsentAccept';
 import { supabase } from '../lib/supabase';
 import { Avatar, EmptyState, ListRow, Pill } from '../ui/components';
 import { BackNav } from '../ui/nav';
@@ -43,6 +45,7 @@ function ChildCard({ c, onProfile }: { c: Child; onProfile: () => void }) {
 export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; onGuest?: () => void }) {
   const [children, setChildren] = useState<Child[] | null>(null);
   const [reqs, setReqs] = useState<Req[]>([]);
+  const [pendingConsents, setPendingConsents] = useState<PendingConsent[]>([]); // подтверждено, но не принято согласие (0217)
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [showLink, setShowLink] = useState(false);
@@ -107,8 +110,9 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
       if (mp.error) return setError(errMsg(mp.error));
       const parts = (mp.data ?? []) as { player_id: string; played: boolean; goals: number }[];
       // Запросы нужны только для строки «ждёт подтверждения»; сбой этой выборки не мешает показать детей
-      const rq = await supabase.from('link_requests').select('id, status, players(full_name)').eq('user_id', me).order('created_at', { ascending: false });
-      setReqs(rq.error ? [] : ((rq.data ?? []) as unknown as Req[]));
+      const rq = await loadMyLinkRequests(me); // имя ребёнка из my_link_requests() (0217)
+      setReqs(rq.error ? [] : ((rq.reqs ?? []) as Req[]));
+      setPendingConsents(kids.length ? [] : await loadPendingConsents()); // нужен только когда детей нет: «подтверждён, но не виден»
       setChildren(
         kids.map(k => {
           const played = parts.filter(p => p.player_id === k.id);
@@ -150,6 +154,7 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
         </main>
       );
     }
+    if (pendingConsents.length && !showLink) return <ConsentAccept items={pendingConsents} onDone={refresh} />;
     return <LinkOnboarding reqs={reqs} onApproved={refresh} onOpenStatus={openStatus} onGuest={onGuest} />;
   }
   return (

@@ -5,6 +5,7 @@ import { Avatar, EmptyState, Pill, type Tone } from '../ui/components';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
+import { loadMyLinkRequests } from '../lib/linkRequests';
 
 export interface Req { id: string; status: 'pending' | 'approved' | 'rejected'; players: { full_name: string } | null }
 
@@ -50,10 +51,9 @@ export default function LinkStatus({ onBack }: { onBack: () => void }) {
       try {
         const me = (await supabase.auth.getUser()).data.user?.id;
         if (!me) return setError('Нет сессии');
-        // только свои запросы: администратору RLS отдаёт чужие, они показываются во вкладке «Запросы»
-        const r = await supabase.from('link_requests').select('id, status, players(full_name)').eq('user_id', me).order('created_at', { ascending: false });
+        const r = await loadMyLinkRequests(me); // имя ребёнка из my_link_requests() (0217): до подтверждения родитель не видит строку players
         if (r.error) return setError(actionError(r.error));
-        setReqs((r.data ?? []) as unknown as Req[]);
+        setReqs(r.reqs ?? []);
       } catch (e) {
         setError(actionError(e)); // отказ загрузки не остаётся необработанным, «Повторить» доступна
       }
