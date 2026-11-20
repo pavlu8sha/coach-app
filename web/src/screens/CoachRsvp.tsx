@@ -18,6 +18,47 @@ type Note = { ok: boolean; text: string };
 const TONE: Record<Lifecycle, 'success' | 'warning' | 'danger' | 'neutral'> = { published: 'success', draft: 'warning', cancelled: 'danger', legacy: 'neutral' };
 const title = (m: RsvpMatch) => (m.opponent ? `${m.team} · ${m.opponent}` : `${m.team} · соперник не указан`);
 
+type Loaded<T> = { status: 'loading' } | { status: 'error'; text: string } | { status: 'ok'; data: T };
+/**
+ * Независимая загрузка одного блока карточки матча (#768): состояния loading / ok / error, ошибка Supabase и отклонённый Promise
+ * не превращаются в пустые данные. Ответ устаревшего запроса (смена матча, повторная загрузка, «Повторить») отбрасывается.
+ * При обновлении (`version`) прежние данные остаются до ответа, при ошибке нового запроса показывается ошибка, а не старые данные.
+ */
+function useLoad<T>(key: string, version: number, enabled: boolean, fetcher: () => PromiseLike<{ data: T | null; error: unknown }>): [Loaded<T>, () => void] {
+  const [st, setSt] = useState<{ key: string; res: Loaded<T> } | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    if (!enabled) return;
+    let alive = true;
+    void (async () => {
+      try {
+        const r = await fetcher();
+        if (!alive) return;
+        if (r.error) setSt({ key, res: { status: 'error', text: errMsg(r.error) } }); else setSt({ key, res: { status: 'ok', data: r.data as T } });
+      } catch (e) {
+        if (!alive) return;
+        setSt({ key, res: { status: 'error', text: errMsg(e) } });
+      }
+    })();
+    return () => { alive = false; };
+    // fetcher замыкает key и actions текущего рендера; перезапуск только по ключу, версии и повтору
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, version, attempt, enabled]);
+  const res: Loaded<T> = st && st.key === key ? st.res : { status: 'loading' };
+  return [res, () => { setSt(null); setAttempt(n => n + 1); }];
+}
+
+/** Ошибка отдельного блока с повтором (не пустое состояние). */
+function BlockError({ title, text, onRetry, label = 'Повторить' }: { title: string; text: string; onRetry: () => void; label?: string }) {
+  return (
+    <div role="alert" className="ks-card">
+      <p className="ks-error">{title}</p>
+      <p className="muted">{text}</p>
+      <button type="button" className="ks-btn secondary" onClick={onRetry}>{label}</button>
+    </div>
+  );
+}
+
 /**
  * «Матчи с подтверждением» для тренера и администратора: список, создание черновика, состав приглашённых, публикация,
  * напоминания, отмена и перенос. Все правила (кто может, сроки, лимит напоминаний) проверяет база; здесь только вызовы.
@@ -162,8 +203,6 @@ function RsvpCreate({ groups, all, onBack, onCreated }: { groups: CoachGroup[]; 
 function RsvpDetail({ id, groups, onBack, note }: { id: string; groups: CoachGroup[]; onBack: () => void; note?: Note }) {
   const { ask: confirm, dialog } = useConfirm();
   const [m, setM] = useState<RsvpMatch | null>(null);
-  const [sum, setSum] = useState<Summary | null>(null);
-  const [roster, setRoster] = useState<RosterRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<Note | null>(note ?? null);
   const [busy, setBusy] = useState(false);
@@ -172,41 +211,65 @@ function RsvpDetail({ id, groups, onBack, note }: { id: string; groups: CoachGro
   const [reason, setReason] = useState('');
   const [edit, setEdit] = useState<{ opponent: string; venue: string; address: string; notes: string; when: string } | null>(null);
   const [filter, setFilter] = useState<SummaryFilter>('all');
-  const [history, setHistory] = useState<{ id: number; action: string; created_at: string }[] | null>(null);
   const [showHistory, setShowHistory] = useState(false);
-  const [snapshot, setSnapshot] = useState<string | null>(null);
   const [q, setQ] = useState('');
-  const [found, setFound] = useState<{ id: string; full_name: string }[]>([]);
+  const query = q.trim();
+  // Поиск игроков (#769): результат или ошибка хранятся вместе с текстом запроса, показываются только для текущего
+  const [search, setSearch] = useState<{ q: string; rows: { id: string; full_name: string }[] | null; text?: string } | null>(null);
+  const [searchTry, setSearchTry] = useState(0);
   useEffect(() => {
-    if (q.trim().length < 2) return setFound([]);
+    if (query.length < 2) return;
+    let alive = true;
     const t = setTimeout(() => {
-      void supabase.from('players').select('id, full_name').ilike('full_name', `%${q.trim()}%`).order('full_name').limit(8).then(r => {
-        if (!r.error) setFound((r.data ?? []) as { id: string; full_name: string }[]);
-      });
+      void (async () => {
+        try {
+          const r = await supabase.from('players').select('id, full_name').ilike('full_name', `%${query}%`).order('full_name').limit(8);
+          if (!alive) return;
+          setSearch(r.error ? { q: query, rows: null, text: errMsg(r.error) } : { q: query, rows: (r.data ?? []) as { id: string; full_name: string }[] });
+        } catch (e) {
+          if (!alive) return;
+          setSearch({ q: query, rows: null, text: errMsg(e) });
+        }
+      })();
     }, 250);
-    return () => clearTimeout(t);
-  }, [q]);
+    return () => { alive = false; clearTimeout(t); };
+  }, [query, searchTry]);
+  const searchNow = query.length >= 2 && search?.q === query ? search : null;
   useEffect(() => {
+    let alive = true;
     void (async () => {
-      const r = await supabase.from('matches').select(COLS).eq('id', id).maybeSingle();
-      if (r.error) return setError(errMsg(r.error));
-      setM((r.data ?? null) as RsvpMatch | null);
-      const s = await supabase.rpc('match_rsvp_summary', { m: id });
-      setSum(s.error ? null : (((s.data ?? []) as Summary[])[0] ?? null));
-      const ro = await supabase.rpc('match_rsvp_roster', { m: id });
-      setRoster(ro.error ? [] : ((ro.data ?? []) as RosterRow[]));
-      // Последний неиспользованный снимок отметок (после переноса): даёт кнопку «Вернуть отметки»
-      const sn = await supabase.from('match_mark_snapshots').select('id').eq('match_id', id).is('restored_at', null).order('taken_at', { ascending: false }).limit(1);
-      setSnapshot(sn.error ? null : ((((sn.data ?? []) as { id: string }[])[0])?.id ?? null));
+      try {
+        const r = await supabase.from('matches').select(COLS).eq('id', id).maybeSingle();
+        if (!alive) return;
+        if (r.error) return setError(errMsg(r.error));
+        setM((r.data ?? null) as RsvpMatch | null);
+      } catch (e) {
+        if (alive) setError(errMsg(e));
+      }
     })();
+    return () => { alive = false; };
   }, [id, reload]);
-
-  useEffect(() => {
-    if (!showHistory) return;
-    void supabase.from('match_activity').select('id, action, created_at').eq('match_id', id).order('id', { ascending: false }).limit(50).then(r => {
-      setHistory(r.error ? [] : ((r.data ?? []) as { id: number; action: string; created_at: string }[]));
-    });
-  }, [showHistory, id, reload]);
+  // Сводка, состав, снимок отметок и история загружаются независимо друг от друга (#768)
+  const [sumL, retrySum] = useLoad<Summary | null>(id, reload, true, async () => {
+    const r = await supabase.rpc('match_rsvp_summary', { m: id });
+    return { data: ((r.data ?? []) as Summary[])[0] ?? null, error: r.error };
+  });
+  const [rosterL, retryRoster] = useLoad<RosterRow[]>(id, reload, true, async () => {
+    const r = await supabase.rpc('match_rsvp_roster', { m: id });
+    return { data: (r.data ?? []) as RosterRow[], error: r.error };
+  });
+  // Последний неиспользованный снимок отметок (после переноса): даёт кнопку «Вернуть отметки»; при ошибке кнопки нет, как раньше
+  const [snapL] = useLoad<string | null>(id, reload, true, async () => {
+    const r = await supabase.from('match_mark_snapshots').select('id').eq('match_id', id).is('restored_at', null).order('taken_at', { ascending: false }).limit(1);
+    return { data: (((r.data ?? []) as { id: string }[])[0])?.id ?? null, error: r.error };
+  });
+  const [histL, retryHist] = useLoad<{ id: number; action: string; created_at: string }[]>(id, reload, showHistory, async () => {
+    const r = await supabase.from('match_activity').select('id, action, created_at').eq('match_id', id).order('id', { ascending: false }).limit(50);
+    return { data: (r.data ?? []) as { id: number; action: string; created_at: string }[], error: r.error };
+  });
+  const sum = sumL.status === 'ok' ? sumL.data : null;
+  const roster = rosterL.status === 'ok' ? rosterL.data : [];
+  const snapshot = snapL.status === 'ok' ? snapL.data : null;
 
   // Один вызов базы: показываем ошибку по-русски или обновляем экран
   const run = async (name: string, args: Record<string, unknown>, ok: (data: unknown) => string) => {
@@ -297,7 +360,6 @@ function RsvpDetail({ id, groups, onBack, note }: { id: string; groups: CoachGro
   };
   const addPlayer = async (pl: { id: string; full_name: string }) => {
     setQ('');
-    setFound([]);
     await run('match_rsvp_invite', { m: id, p_players: [pl.id] }, () => (st === 'published' ? `${pl.full_name} приглашён, родителям отправлено сообщение` : `${pl.full_name} добавлен в состав`));
   };
   const removePlayer = async (p: RosterRow) => {
@@ -313,6 +375,7 @@ function RsvpDetail({ id, groups, onBack, note }: { id: string; groups: CoachGro
       <h1>{title(m)}</h1>
       <p><Pill tone={TONE[st]}>{LIFECYCLE_LABEL[st]}</Pill> {m.starts_at ? fmtWhen(m.starts_at) : ''}</p>
       {[m.venue, m.address, m.notes].filter(Boolean).map(t => <p key={t} className="muted">{t}</p>)}
+      {sumL.status === 'error' && <BlockError title="Не удалось загрузить сводку ответов" text={sumL.text} onRetry={retrySum} />}
       {sum && (
         <div className="ks-card" aria-label="Сводка ответов">
           <p>Приглашено: {sum.invited} · Будут: {sum.yes} · Не будут: {sum.no} · Не ответили: {sum.unanswered}</p>
@@ -325,13 +388,13 @@ function RsvpDetail({ id, groups, onBack, note }: { id: string; groups: CoachGro
         <>
           <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => void fillRoster()}>{m.tournament_id ? 'Заполнить состав из события' : 'Заполнить состав команды'}</button>
           <div style={{ height: 8 }} />
-          <button type="button" className="ks-btn" disabled={busy || invited.length === 0} onClick={() => void run('match_rsvp_publish', { m: id }, () => 'Матч опубликован, родители видят приглашение')}>Опубликовать</button>
+          <button type="button" className="ks-btn" disabled={busy || rosterL.status !== 'ok' || invited.length === 0} onClick={() => void run('match_rsvp_publish', { m: id }, () => 'Матч опубликован, родители видят приглашение')}>Опубликовать</button>
           <div style={{ height: 8 }} />
           <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => void del()}>Удалить черновик</button>
         </>
       )}
       {live && (
-        <button type="button" className="ks-btn" disabled={busy || (sum?.unanswered ?? 0) === 0} onClick={() => void remind()}>Напомнить не ответившим</button>
+        <button type="button" className="ks-btn" disabled={busy || sumL.status !== 'ok' || (sum?.unanswered ?? 0) === 0} onClick={() => void remind()}>Напомнить не ответившим</button>
       )}
       {st === 'published' && (
         <>
@@ -374,7 +437,9 @@ function RsvpDetail({ id, groups, onBack, note }: { id: string; groups: CoachGro
       )}
 
       <h2>Приглашённые</h2>
-      {invited.length === 0 && <p className="muted">Состав пока пуст.</p>}
+      {rosterL.status === 'loading' && <p className="muted">Загрузка состава…</p>}
+      {rosterL.status === 'error' && <BlockError title="Не удалось загрузить состав" text={rosterL.text} onRetry={retryRoster} />}
+      {rosterL.status === 'ok' && invited.length === 0 && <p className="muted">Состав пока пуст.</p>}
       {invited.length > 0 && (
         <div role="group" aria-label="Фильтр по ответам" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
           {(Object.keys(FILTER_LABEL) as SummaryFilter[]).map(f => (
@@ -403,7 +468,10 @@ function RsvpDetail({ id, groups, onBack, note }: { id: string; groups: CoachGro
         <div className="ks-card" aria-label="Добавить игрока">
           <label className="ks-label" htmlFor="add-q">Добавить игрока в состав</label>
           <input id="add-q" className="ks-input" placeholder="Фамилия или имя" value={q} onChange={e => setQ(e.target.value)} />
-          {found.filter(f => !invited.some(r => r.player_id === f.id)).map(f => (
+          {query.length >= 2 && !searchNow && <p className="muted" role="status">Поиск…</p>}
+          {searchNow && searchNow.rows === null && <BlockError title="Не удалось выполнить поиск" text={searchNow.text ?? ""} onRetry={() => { setSearch(null); setSearchTry(n => n + 1); }} label="Повторить поиск" />}
+          {searchNow?.rows && searchNow.rows.length === 0 && <p className="muted">Никого не найдено</p>}
+          {searchNow?.rows?.filter(f => !invited.some(r => r.player_id === f.id)).map(f => (
             <ListRow key={f.id} avatar={f.full_name} title={f.full_name} end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} disabled={busy} onClick={() => void addPlayer(f)}>Добавить</button>} />
           ))}
         </div>
@@ -411,9 +479,10 @@ function RsvpDetail({ id, groups, onBack, note }: { id: string; groups: CoachGro
 
       <h2>История</h2>
       {!showHistory && <button type="button" className="ks-btn secondary" onClick={() => setShowHistory(true)}>Показать историю действий</button>}
-      {showHistory && history === null && <p className="muted">Загрузка…</p>}
-      {showHistory && history?.length === 0 && <p className="muted">Записей пока нет.</p>}
-      {history?.map(a => <p key={a.id} className="muted">{activityLine(a)}</p>)}
+      {showHistory && histL.status === 'loading' && <p className="muted">Загрузка…</p>}
+      {showHistory && histL.status === 'error' && <BlockError title="Не удалось загрузить историю" text={histL.text} onRetry={retryHist} />}
+      {showHistory && histL.status === 'ok' && histL.data.length === 0 && <p className="muted">Записей пока нет.</p>}
+      {showHistory && histL.status === 'ok' && histL.data.map(a => <p key={a.id} className="muted">{activityLine(a)}</p>)}
     </main>
   );
 }

@@ -68,7 +68,8 @@ function query(table: string): any {
     }
     if (op === 'update') {
       fake.calls.push({ kind: 'update', name: table, args: payload });
-      return { data: null, error: null };
+      // с .select() возвращает строки под фильтром (без изменения базы), как PostgREST: пусто = ни одной строки не обновлено
+      return { data: returning ? rows.filter(r => filters.every(f => f(r))) : null, error: null };
     }
     if (op === 'delete') {
       fake.calls.push({ kind: 'delete', name: table, args: undefined });
