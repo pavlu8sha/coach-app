@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { coachError } from '../lib/coach';
+import { userError } from '../lib/userError';
 import { ADMIN_CHAT, BRANCHES } from '../lib/clubInfo';
 import { supabase } from '../lib/supabase';
 import { useDirtyGuard, useNav, useSubEntry } from '../nav';
 import Privacy from './Privacy';
 
 const YEAR = new Date().getFullYear();
-const err = (m: string) =>
+const known = (m: string): string | null =>
   m.includes('consent') ? 'Нужно согласие. Отметьте его ниже.'
   : m.includes('bad year') ? 'Проверьте год рождения ребёнка.'
   : m.includes('bad phone') ? 'Проверьте телефон: цифры, можно с «+».'
@@ -15,7 +16,8 @@ const err = (m: string) =>
   : m.includes('forbidden') ? 'Заявку отправляет родитель. Попросите его записаться.'
   : m.includes('not authenticated') ? 'Сессия закончилась. Закройте приложение и откройте снова.'
   : m.includes('Could not find the function') ? 'Заявки в приложении пока недоступны. Напишите администратору клуба.'
-  : coachError(m);
+  : ((t: string) => (t === m ? null : t))(coachError(m)); // coachError на неизвестном возвращает сырой текст: тогда общий
+const err = (e: unknown) => userError(e, known);
 
 // Заявка на пробную тренировку из приложения (миграция 0044): попадает администратору в «Ещё → Заявки».
 export default function TrialForm({ startOpen = false }: { startOpen?: boolean }) {
@@ -59,10 +61,15 @@ export default function TrialForm({ startOpen = false }: { startOpen?: boolean }
   const submit = async () => {
     setBusy(true);
     setError(null);
-    const r = await supabase.rpc('lead_submit_app', { parent: parent.trim(), child: child.trim(), byear: y, phone: phone.trim(), wish: branch ? `Филиал: ${branch}` : null, consent: agreed });
-    setBusy(false);
-    if (r.error) return setError(err(r.error.message));
-    setSent(true);
+    try {
+      const r = await supabase.rpc('lead_submit_app', { parent: parent.trim(), child: child.trim(), byear: y, phone: phone.trim(), wish: branch ? `Филиал: ${branch}` : null, consent: agreed });
+      if (r.error) return setError(err(r.error));
+      setSent(true);
+    } catch (e) {
+      setError(err(e));
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <section className="ks-card">

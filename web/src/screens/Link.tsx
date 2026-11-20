@@ -3,6 +3,7 @@ import { CONSENT, CONSENT_VERSION } from '../lib/consent';
 import { useNav, useSubEntry } from '../nav';
 import Privacy from './Privacy';
 import { supabase } from '../lib/supabase';
+import { userError } from '../lib/userError';
 import { preferredLang } from '../lib/telegram';
 import { EmptyState, ListRow, Pill, searchFocusProps } from '../ui/components';
 import { useMainButton } from '../ui/nav';
@@ -21,17 +22,17 @@ export const HideWhen = ({ hide, children }: { hide: boolean; children: React.Re
 const MIN = 3; // функция поиска в базе ищет от 3 букв
 const LIMIT = 5; // и отдаёт не больше 5 детей
 
-// Ошибки базы и сети — человеческим языком; технический текст родителю не показываем
-const linkError = (m: string) =>
+// Ожидаемые ошибки базы — человеческим языком; остальное (сеть, неизвестное) переводит userError, технический текст родителю не показываем
+const linkKnown = (m: string): string | null =>
   m.includes('consent') ? 'Нужно согласие. Отметьте его ниже.'
   : m.includes('search limit') ? 'Слишком много поисков. Подождите несколько минут и попробуйте снова.'
   : m.includes('link request limit') ? 'Слишком много запросов и отмен за час. Попробуйте позже.'
   : m.includes('too many') ? 'Слишком много неподтверждённых запросов. Дождитесь ответа администратора клуба.'
   : m.includes('player not found') ? 'Этого ребёнка больше нет в списке. Обновите поиск.'
   : m.includes('not authenticated') ? 'Сессия закончилась. Закройте приложение и откройте снова.'
-  : /fetch|network|failed to load|timeout/i.test(m) ? 'Нет связи. Проверьте интернет и попробуйте ещё раз.'
   : m.includes('Could not find the function') || m.includes('schema cache') ? 'Это действие пока недоступно.'
-  : m;
+  : null;
+const linkError = (e: unknown) => userError(e, linkKnown);
 
 // Родитель ищет ребёнка по имени, выбирает его, соглашается и отправляет запрос; связь создаёт администратор.
 export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => void; onOpenStatus?: () => void }) {
@@ -48,16 +49,20 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
   const c = CONSENT[preferredLang()];
 
   const loadReqs = useCallback(async () => {
-    const me = (await supabase.auth.getUser()).data.user?.id;
-    if (!me) return;
-    // только свои запросы: администратору RLS отдаёт чужие, они показываются во вкладке «Запросы»
-    const r = await supabase.from('link_requests').select('id, status, players(full_name)').eq('user_id', me).order('created_at', { ascending: false });
-    if (r.error) return setError(linkError(r.error.message));
-    const rows = (r.data ?? []) as unknown as Req[];
-    setReqs(rows);
-    if (!notified.current && rows.some(x => x.status === 'approved')) {
-      notified.current = true;
-      onApproved?.();
+    try {
+      const me = (await supabase.auth.getUser()).data.user?.id;
+      if (!me) return;
+      // только свои запросы: администратору RLS отдаёт чужие, они показываются во вкладке «Запросы»
+      const r = await supabase.from('link_requests').select('id, status, players(full_name)').eq('user_id', me).order('created_at', { ascending: false });
+      if (r.error) return setError(linkError(r.error));
+      const rows = (r.data ?? []) as unknown as Req[];
+      setReqs(rows);
+      if (!notified.current && rows.some(x => x.status === 'approved')) {
+        notified.current = true;
+        onApproved?.();
+      }
+    } catch (e) {
+      setError(linkError(e)); // отказ загрузки не остаётся необработанным
     }
   }, [onApproved]);
 
@@ -72,22 +77,32 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
     setError(null);
     setSelected(null);
     setBusy(true);
-    const r = await supabase.rpc('search_players_for_link', { q });
-    setBusy(false);
-    if (r.error) return setError(linkError(r.error.message));
-    setFound((r.data ?? []) as Found[]);
+    try {
+      const r = await supabase.rpc('search_players_for_link', { q });
+      if (r.error) return setError(linkError(r.error));
+      setFound((r.data ?? []) as Found[]);
+    } catch (e) {
+      setError(linkError(e));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const request = async (id: string) => {
     setError(null);
     setBusy(true);
-    const r = await supabase.rpc('request_link', { p: id, consent: CONSENT_VERSION });
-    setBusy(false);
-    if (r.error) return setError(linkError(r.error.message));
-    setFound(f => (f ?? []).filter(x => x.player_id !== id));
-    setSelected(null);
-    await loadReqs();
-    onOpenStatus?.(); // показать статус только что отправленного запроса
+    try {
+      const r = await supabase.rpc('request_link', { p: id, consent: CONSENT_VERSION });
+      if (r.error) return setError(linkError(r.error));
+      setFound(f => (f ?? []).filter(x => x.player_id !== id));
+      setSelected(null);
+      await loadReqs();
+      onOpenStatus?.(); // показать статус только что отправленного запроса
+    } catch (e) {
+      setError(linkError(e));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const chosen = found?.find(f => f.player_id === selected) ?? null;
