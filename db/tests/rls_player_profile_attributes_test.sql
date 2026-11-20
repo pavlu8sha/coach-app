@@ -2,7 +2,7 @@
 -- Условия: docs/PLAYER_PROFILE_ATTRIBUTES_ACCEPTANCE.md.
 begin;
 create extension if not exists pgtap;
-select plan(42);
+select plan(49);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -121,6 +121,20 @@ select as_user('00000000-0000-0000-0000-0000000000b1');
 select is((select count(*)::int from player_profile_history), 0, 'родитель не видит историю изменений');
 select as_user('00000000-0000-0000-0000-0000000000a1');
 select ok((select count(*) from player_profile_history) > 0, 'администратор видит историю изменений');
+
+-- И1.9: смена основной позиции пишет историю (раньше проверялись только имя и номер).
+select as_user('00000000-0000-0000-0000-0000000000a1');
+update player_profiles set primary_position = 'Защитник' where player_id = '00000000-0000-0000-0000-00000000d003';
+select is((select count(*)::int from player_profile_history where player_id = '00000000-0000-0000-0000-00000000d003' and field = 'primary_position' and old_value is null and new_value = 'Защитник'), 1, 'И1.9 позиция: первое назначение пишет null → значение');
+select is((select changed_by from player_profile_history where player_id = '00000000-0000-0000-0000-00000000d003' and field = 'primary_position'), '00000000-0000-0000-0000-0000000000a1'::uuid, 'И1.9 позиция: в истории автор изменения');
+update player_profiles set primary_position = 'Нападающий' where player_id = '00000000-0000-0000-0000-00000000d003';
+select is((select count(*)::int from player_profile_history where player_id = '00000000-0000-0000-0000-00000000d003' and field = 'primary_position' and old_value = 'Защитник' and new_value = 'Нападающий'), 1, 'И1.9 позиция: смена пишет старое и новое значение');
+update player_profiles set primary_position = 'Нападающий' where player_id = '00000000-0000-0000-0000-00000000d003';
+select is((select count(*)::int from player_profile_history where player_id = '00000000-0000-0000-0000-00000000d003' and field = 'primary_position'), 2, 'И1.9 позиция: запись того же значения историю не дописывает');
+update player_profiles set primary_position = null where player_id = '00000000-0000-0000-0000-00000000d003';
+select is((select count(*)::int from player_profile_history where player_id = '00000000-0000-0000-0000-00000000d003' and field = 'primary_position' and old_value = 'Нападающий' and new_value is null), 1, 'И1.9 позиция: очистка пишет значение → null');
+select is((select count(*)::int from player_profile_history where player_id = '00000000-0000-0000-0000-00000000d003' and field <> 'primary_position'), 0, 'И1.9 позиция: другие поля истории не затронуты');
+select throws_ok($$update player_profiles set primary_position = repeat('я', 41) where player_id = '00000000-0000-0000-0000-00000000d003'$$, '23514', null, 'И1.3 позиция длиннее 40 символов отклоняется и истории не пишет');
 
 select * from finish();
 rollback;

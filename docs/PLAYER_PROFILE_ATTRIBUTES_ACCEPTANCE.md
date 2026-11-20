@@ -77,7 +77,7 @@
 
 ## Тесты
 
-- `db/tests/rls_player_profile_attributes_test.sql`: И1.1–И1.9, И2.1–И2.6.
+- `db/tests/rls_player_profile_attributes_test.sql`: И1.1–И1.9 (в том числе история смены `primary_position`), И2.1–И2.6.
 - `db/tests/rls_player_save_atomic_test.sql` и `db/tests/concurrency_player_save.sh`: И2.4а (пп. 1, 2, 4 и 3).
 - `db/ops/preflight.sql`: строка `0209_player_profile_attributes`.
 - `web/src/screens/PlayerEdit.test.tsx`: И3.1–И3.4, И3.7, И3.9, И3.10, вызов `player_save` вместо прямых записей (И2.4а).
