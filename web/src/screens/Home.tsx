@@ -3,6 +3,7 @@ import { useNav, useSubEntry } from '../nav';
 import { peekCampSlug, takeCampSlug } from '../lib/startParam';
 import { supabase } from '../lib/supabase';
 import { Avatar, EmptyState, ListRow, Pill } from '../ui/components';
+import { BackNav } from '../ui/nav';
 import Link, { HideWhen, useLinkPolicyOpen } from './Link';
 import LinkOnboarding from './LinkOnboarding';
 import LinkStatus, { STATUS, type Req } from './LinkStatus';
@@ -43,9 +44,9 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [showLink, setShowLink] = useState(false);
-  const [addMore, setAddMore] = useState(false);
   const nav = useNav();
   const policyOpen = useLinkPolicyOpen();
+  const addMore = Boolean(useSubEntry('hm.link')); // «Добавить ещё одного ребёнка» — запись стека (#732)
   const statusOpen = Boolean(useSubEntry('hm.status')); // статусы запросов — запись стека
   const campsEntry = useSubEntry('hm.camps'); // сборы родителя (#470, условие 49)
   const campsOpen = Boolean(campsEntry);
@@ -64,6 +65,24 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
   const refresh = useCallback(() => setReload(n => n + 1), []);
   // Ссылка t.me/kicksapp?startapp=camp_<имя> (условие 62): родителю с детьми один раз за запуск открываем сборы с этим именем
   const hasKids = Boolean(children && children.length > 0);
+  // закрыть запись поиска вместе со всем, что открыто поверх неё (политика): снимается именно hm.link, а не верхний экран
+  const closeSearch = useCallback(() => {
+    const i = nav.entries.findIndex(e => e.screen === 'hm.link');
+    if (i < 0) return;
+    for (let n = nav.entries.length - i; n > 0; n--) nav.back();
+  }, [nav]);
+  // первый ребёнок подтверждён (Link увидел одобрение), пока открыт поиск онбординга: закрываем запись, как раньше исчезал локальный поиск
+  const hadKids = useRef<boolean | null>(null); // null: данные ещё не загружены
+  useEffect(() => {
+    if (hasKids && hadKids.current === false && addMore) closeSearch();
+    if (children) hadKids.current = hasKids;
+  }, [hasKids, children, addMore, closeSearch]);
+  // после выхода из поиска (и «Назад», и системной) подтянуть новых детей и запросы, как после статусов
+  const wasLink = useRef(false);
+  useEffect(() => {
+    if (wasLink.current && !addMore) setReload(n => n + 1);
+    wasLink.current = addMore;
+  }, [addMore]);
   useEffect(() => {
     if (!hasKids || !peekCampSlug()) return;
     const slug = takeCampSlug();
@@ -148,11 +167,14 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
         ))}
       </HideWhen>
       {addMore ? (
-        <Link onApproved={refresh} onOpenStatus={openStatus} />
+        <>
+          <HideWhen hide={policyOpen}><BackNav onBack={() => nav.back()} managed /></HideWhen>
+          <Link onApproved={refresh} onOpenStatus={openStatus} />
+        </>
       ) : (
         <>
           {statusRow}
-          <button className="ks-btn secondary" onClick={() => setAddMore(true)}>
+          <button className="ks-btn secondary" onClick={() => nav.push('hm.link')}>
             + Добавить ещё одного ребёнка
           </button>
         </>

@@ -19,6 +19,7 @@ const today = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD по �
 // Расписание и матчи групп, в которых играют дети текущего пользователя.
 export default function Schedule({ all = false, editable = all, results = true }: { all?: boolean; editable?: boolean; results?: boolean }) {
   const [groups, setGroups] = useState<GroupView[] | null>(null);
+  const [ungrouped, setUngrouped] = useState<string[]>([]); // привязанные дети без группы (#733): не прячем и не выдаём за «связь не подтверждена»
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [editing, setEditing] = useState<{ group: string; slot: SlotForm; key: string } | null>(null);
@@ -26,6 +27,7 @@ export default function Schedule({ all = false, editable = all, results = true }
   useEffect(() => {
     void (async () => {
       const byGroup = new Map<string, GroupView>();
+      const noGroup: string[] = [];
       if (all) {
         // администратор: расписание всех групп
         const gr = await supabase.from('groups').select('id, name').order('name');
@@ -42,7 +44,11 @@ export default function Schedule({ all = false, editable = all, results = true }
         if (links.error) return setError(links.error.message);
         for (const l of (links.data ?? []) as any[]) {
           const p = l.players;
-          if (!p?.group_id) continue;
+          if (!p) continue;
+          if (!p.group_id) {
+            noGroup.push((p.full_name ?? '') as string);
+            continue;
+          }
           const g: GroupView = byGroup.get(p.group_id) ?? { id: p.group_id, name: p.groups?.name ?? '', kids: [], slots: [], upcoming: [], results: [] };
           g.kids.push(p.full_name);
           byGroup.set(p.group_id, g);
@@ -63,12 +69,23 @@ export default function Schedule({ all = false, editable = all, results = true }
         }
       }
       // у администратора не показываем группы, о которых ничего нет (архивные, пустые)
+      setUngrouped(noGroup);
       setGroups(all ? list.filter(g => g.slots.length || g.upcoming.length || g.results.length || editable) : list);
     })();
   }, [all, reload]);
 
   if (error) return <Failure title="Не удалось загрузить расписание" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   if (!groups) return <Loading title="Расписание" />;
+  const nameList = ungrouped.filter(Boolean).join(', ');
+  if (!groups.length && ungrouped.length) {
+    // ребёнок привязан, но группу ему ещё не назначили: это не «связь не подтверждена»
+    return (
+      <main className="page">
+        <h1>Расписание</h1>
+        <EmptyState icon="calendar" title="Группа ещё не назначена" text={`Расписание появится, когда администратор клуба назначит группу${nameList ? `: ${nameList}` : ' ребёнку'}.`} />
+      </main>
+    );
+  }
   if (!groups.length) return <main className="page"><h1>Расписание</h1><EmptyState icon="box" title="Пока пусто" text="Расписание появится, когда администратор подтвердит связь с ребёнком." /></main>;
 
   const done = () => {
@@ -150,6 +167,13 @@ export default function Schedule({ all = false, editable = all, results = true }
           )}
         </section>
       ))}
+      {ungrouped.length > 0 && (
+        <section className="ks-card" aria-label="Дети без группы">
+          <h2>Группа ещё не назначена</h2>
+          {nameList && <p className="muted">{nameList}</p>}
+          <p className="muted">Расписание появится, когда администратор клуба назначит группу.</p>
+        </section>
+      )}
     </main>
   );
 }

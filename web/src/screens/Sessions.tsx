@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Segmented } from '../ui/components';
 import { GroupPicker } from '../ui/coach';
 import { useMainButton } from '../ui/nav';
-import { useNav, useNavState } from '../nav';
+import { dirtyGuard, useDirtyGuard, useNav, useNavState } from '../nav';
 import IndMarks, { indDay, indTitle, type IndSession } from './IndMarks';
 import { Failure, Loading } from './Message';
 import GuestVisits from './GuestVisits';
@@ -81,6 +81,13 @@ export default function Sessions({ groups, admin = false }: { groups: CoachGroup
     })();
   }, [tab, date, reload]);
 
+  // несохранённые отметки не теряем молча: смена вкладки, группы, даты и режима сначала спрашивает подтверждение
+  const guarded = <T,>(set: (v: T) => void) => (v: T) => dirtyGuard.leave(() => set(v));
+  const changeTab = guarded(setTab);
+  const changeGroup = guarded(setGidPick);
+  const changeDate = guarded(setDate);
+  const changeAll = guarded(setAll);
+
   if (error) return <Failure title="Не удалось загрузить расписание" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   const openInd = nav.top.screen === 'ind' ? indList?.find(x => x.id === nav.top.params.id) : undefined;
   if (openInd) return <IndMarks managed session={openInd} onBack={() => { nav.back(); setReload(n => n + 1); }} />;
@@ -94,19 +101,15 @@ export default function Sessions({ groups, admin = false }: { groups: CoachGroup
   return (
     <main className="page">
       <h1>Отметки</h1>
-      <Segmented label="Тип занятий" value={tab} onChange={setTab} items={[{ value: 'grp', label: 'Группы' }, { value: 'ind', label: 'Индивидуальные' }]} />
+      <Segmented label="Тип занятий" value={tab} onChange={changeTab} items={[{ value: 'grp', label: 'Группы' }, { value: 'ind', label: 'Индивидуальные' }]} />
       <div className={tab === 'grp' && shown.length > 0 ? 'ks-pair' : undefined} style={{ marginBottom: 12 }}>
-        {tab === 'grp' && shown.length > 0 && <GroupPicker groups={shown} value={gid} onChange={setGidPick} />}
-        <input className="ks-input" type="date" aria-label="Дата" value={date} onChange={e => e.target.value && setDate(e.target.value)} />
+        {tab === 'grp' && shown.length > 0 && <GroupPicker groups={shown} value={gid} onChange={changeGroup} />}
+        <input className="ks-input" type="date" aria-label="Дата" value={date} onChange={e => e.target.value && changeDate(e.target.value)} />
       </div>
       {tab === 'grp' && (
         <>
-          <label className="ks-check">
-            <input type="checkbox" checked={all} onChange={e => setAll(e.target.checked)} />
-            <span>Показать все группы (доп. или перенесённая тренировка)</span>
-          </label>
           {shown.length === 0 ? (
-            <EmptyState icon="box" title="Нет занятий в расписании" text="В этот день по расписанию тренировок нет. Для дополнительной или перенесённой включите «Показать все группы»." />
+            <EmptyState icon="box" title="Нет занятий в расписании" text="В этот день по расписанию тренировок нет. Для дополнительной или перенесённой нажмите «Другая группа (доп. или перенос)…»." />
           ) : (
             <>
               <Roster key={`${gid}|${date}`} gid={gid} date={date} />
@@ -114,6 +117,9 @@ export default function Sessions({ groups, admin = false }: { groups: CoachGroup
               <GuestVisits key={`guest|${gid}|${date}`} gid={gid} date={date} admin={admin} />
             </>
           )}
+          <button type="button" className="ks-link" aria-pressed={all} onClick={() => changeAll(!all)}>
+            {all ? 'Только группы по расписанию' : 'Другая группа (доп. или перенос)…'}
+          </button>
         </>
       )}
       {tab === 'ind' && (
@@ -135,6 +141,7 @@ function Roster({ gid, date }: { gid: string; date: string }) {
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  useDirtyGuard(dirty); // несохранённые отметки: уход спрашивает подтверждение, на диск ничего не пишется
 
   useEffect(() => {
     void (async () => {
@@ -202,18 +209,22 @@ function Roster({ gid, date }: { gid: string; date: string }) {
         <EmptyState icon="users" title="В группе нет игроков" text="Активных игроков в этой группе нет." />
       ) : (
         <>
-          <div className="ks-progress" aria-hidden="true">
-            {players.map(p => <span key={p.id} className={marks[p.id] ?? ''} />)}
-          </div>
-          <p className="ks-counts">
-            <span><b>{was}</b> были</span>
-            <span><b>{absent}</b> не были</span>
-            {excused > 0 && <span><b>{excused}</b> уваж.</span>}
-            <span><b>{left}</b> осталось</span>
-          </p>
-          <div className="ks-actions">
-            <button type="button" className="ks-btn secondary sm" onClick={() => setAll('present')}>Все были</button>
-            <button type="button" className="ks-btn secondary sm" disabled={Object.keys(marks).length === 0} onClick={() => setAll(null)}>Сбросить</button>
+          <div className="ks-sumbar">
+            <div className="ks-progress" aria-hidden="true">
+              {players.map(p => <span key={p.id} className={marks[p.id] ?? ''} />)}
+            </div>
+            <div className="ks-sumrow">
+              <p className="ks-counts">
+                <span><b>{was}</b> были</span>
+                <span><b>{absent}</b> не были</span>
+                {excused > 0 && <span><b>{excused}</b> уваж.</span>}
+                <span><b>{left}</b> осталось</span>
+              </p>
+              <span className="ks-sumbtns">
+                <button type="button" className="ks-link" onClick={() => setAll('present')}>Все были</button>
+                <button type="button" className="ks-link" disabled={Object.keys(marks).length === 0} onClick={() => setAll(null)}>Сбросить</button>
+              </span>
+            </div>
           </div>
           {players.map(p => (
             <div className="ks-mark" key={p.id} role="group" aria-label={`Посещаемость: ${p.full_name}`}>

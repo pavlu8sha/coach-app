@@ -378,7 +378,7 @@ select throws_ok($$update club_event_participant_log set to_status = 'active'$$,
 select throws_ok($$truncate club_event_participant_log$$, 'P0001', null, 'HIST2 TRUNCATE журнала отклонён');
 select throws_ok($$delete from club_event_price_log$$, 'P0001', null, 'HIST2 история цен (с индивидуальными) не удаляется');
 select is((select count(*)::int from pg_proc where proname in ('club_event_participant_delete', 'club_event_participant_remove', 'club_event_cancel_draft'))::int, 0, 'EV5/EV12 функций удаления записи и отмены черновика нет');
-select is((select count(*)::int from pg_proc where proname like 'club\_event\_%' and (prosrc like '%is_any_coach%' or prosrc like '%event_assert_staff%' or prosrc like '%service_payments%' or prosrc like '%tournaments%')), 0, 'ACL7/NOSIDE функции раздела не используют функции турниров и не трогают платежи (платежи в следующем этапе)');
+select is((select count(*)::int from pg_proc where proname like 'club\_event\_%' and (prosrc like '%is_any_coach%' or prosrc like '%event_assert_staff%' or (prosrc like '%service_payments%' and proname not in ('club_event_pay', 'club_event_participant_set_price', 'club_event_participants_list', 'club_event_get', 'club_event_delete_draft')) or prosrc like '%tournaments%')), 0, 'ACL7/NOSIDE функции раздела не используют функции турниров, а журнал платежей читают только платёж, цена, список участников, карточка и скрытие пустого черновика (этапы 3 и 0211)');
 
 -- ===== ISO. клубная изоляция участников =====
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c002', 'Другой клуб');

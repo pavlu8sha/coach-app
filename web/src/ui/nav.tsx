@@ -1,6 +1,24 @@
 // Нативные кнопки Telegram с запасным вариантом вне Telegram.
 import { useEffect, useRef } from 'react';
 import { inTelegram, tgApp } from '../lib/telegram';
+
+/** Цвета главной кнопки: клубные (--ks-primary), чтобы кнопка Telegram не выбивалась из приложения. На старом клиенте или при сбое молча остаётся как есть. */
+function paintMainButton(b: { setParams?: (p: { color?: string; text_color?: string }) => void }, club: boolean): void {
+  try {
+    if (!b.setParams) return;
+    if (club) {
+      const cs = getComputedStyle(document.documentElement);
+      const color = cs.getPropertyValue('--ks-primary').trim();
+      const text_color = cs.getPropertyValue('--ks-on-primary').trim();
+      if (color && text_color) b.setParams({ color, text_color });
+      return;
+    }
+    const p = tgApp()?.themeParams;
+    if (p?.button_color && p.button_text_color) b.setParams({ color: p.button_color, text_color: p.button_text_color });
+  } catch {
+    /* оформление необязательно */
+  }
+}
 import { backStack } from '../nav/backStack';
 import { dirtyGuard } from '../nav/dirtyGuard';
 import { BackButton } from './components';
@@ -27,9 +45,11 @@ export function useMainButton(o: { text: string; visible: boolean; enabled: bool
     if (!native || !b || !o.visible) return;
     const handler = () => click.current();
     b.setText(o.text);
+    paintMainButton(b, true);
     b.onClick(handler);
     b.show();
     return () => {
+      paintMainButton(b, false); // вернуть цвета Telegram, чтобы другие экраны не остались перекрашенными
       b.offClick(handler);
       b.hideProgress();
       b.hide();

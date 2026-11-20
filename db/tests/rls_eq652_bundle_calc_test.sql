@@ -84,7 +84,11 @@ select ok((select count(*) = 5 from information_schema.columns where table_name 
 select is((select column_default from information_schema.columns where table_name = 'equipment_orders' and column_name = 'discount_forfeited'), 'false', 'А1: отказ по умолчанию false');
 select ok(exists (select 1 from pg_constraint where conrelid = 'equipment_orders'::regclass and conname = 'equipment_orders_bundle_adjustment_check'), 'А1: bundle_adjustment <= 0 (проверка есть)');
 
--- А13: пока нет отметки заморозки, предпросмотр и пересчёт отказывают
+-- А13: пока нет отметки заморозки, предпросмотр и пересчёт отказывают.
+-- Миграция 0207 на тестовой базе (заказов нет) ставит отметку freeze_2c: для состояния «только 0205» снимаем её на время теста.
+alter table equipment_bundle_steps disable trigger equipment_bundle_steps_guard;
+delete from equipment_bundle_steps where step = 'freeze_2c';
+alter table equipment_bundle_steps enable trigger equipment_bundle_steps_guard;
 select as_user('00000000-0000-0000-0000-0000006521a1');
 select throws_ok($$select eq_bundle_preview(pu(1))$$, '55000', 'bundle freeze not applied', 'А13: предпросмотр без отметки 2c');
 select throws_ok($$select eq_bundle_recalc(pu(1), 'manual')$$, '55000', 'bundle freeze not applied', 'А13: пересчёт без отметки 2c');
@@ -241,7 +245,7 @@ select eq_bundle_recalc(pu(11));
 select eq_add_payment(u(112), 100, null, 'Наличные');
 select eq_cancel_order(u(112), 'дубль');
 select as_pg();
-select is(tot(u(112)), 225::numeric, 'А11: отмена сама не пересчитывает (до 2b)');
+select is(tot(u(112)), 320::numeric, 'А11 (с 0208 отмена пересчитывает сама): у отменённого замыкающего скидка снята');
 insert into fp values ('s14_before', fp_pay());
 select throws_ok($$update equipment_orders set inscription = 'x' where id = u(112)$$, '22023', 'order cancelled', 'А10: прочие поля отменённого заказа заморожены');
 select as_user('00000000-0000-0000-0000-0000006521a1');
@@ -262,9 +266,9 @@ select as_pg();
 
 -- S17, А11: восстановление, затем новый расчёт даёт новую запись
 select as_user('00000000-0000-0000-0000-0000006521a1');
-select eq_restore_order(u(112), 'ошибка отмены');
+select eq_restore_order(u(112), 'ошибка отмены', eq_restore_preview(u(112))->>'fingerprint');
 select as_pg();
-select is(tot(u(112)), 320::numeric, 'А11: восстановление само не пересчитывает (до 2b)');
+select is(tot(u(112)), 225::numeric, 'А11 (с 0208 восстановление пересчитывает само): скидка вернулась');
 select as_user('00000000-0000-0000-0000-0000006521a1');
 select eq_bundle_recalc(pu(11));
 select as_pg();
@@ -281,7 +285,7 @@ select eq_bundle_recalc(pu(12));
 select as_pg();
 select is(tt(u(123)) || '/' || tt(u(122)), '205/320', 'S19: до восстановления скидка на О3');
 select as_user('00000000-0000-0000-0000-0000006521a1');
-select eq_restore_order(u(121), 'тест');
+select eq_restore_order(u(121), 'тест', eq_restore_preview(u(121))->>'fingerprint');
 select eq_bundle_recalc(pu(12));
 select as_pg();
 select is(tt(u(123)) || '/' || tt(u(122)) || '/' || tt(u(121)), '300/225/300', 'S19: скидка переехала на О2, итог О3 вернулся к 300');

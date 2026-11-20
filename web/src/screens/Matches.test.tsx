@@ -111,3 +111,56 @@ describe('«Матчи» родителя: команда без суффикс�
     expect(teamNames(['U9-AB', 'A-B-x'])).toEqual(['U9-AB', 'A-B-x']);
   });
 });
+
+// #733: привязанный ребёнок без группы отличается от «нет привязанных детей»
+describe('«Матчи» родителя: ребёнок без группы (#733)', () => {
+  const kid = (id: string, name: string, group: string | null) => ({ user_id: 'u1', consent_revoked_at: null, players: { id, full_name: name, groups: group ? { name: group } : null } });
+  const noLink = /подтвердит связь/;
+  function seedKids(rows: ReturnType<typeof kid>[]) {
+    fake.reset();
+    fake.user = { id: 'u1' } as any;
+    fake.db.player_guardians = rows;
+    fake.db.match_players = [];
+    fake.db.matches = [{ id: 'm1', team: 'U10', played_on: '2026-10-01', opponent: 'Олимп', goals_for: 3, goals_against: 1 }];
+    fake.rpc.match_tournaments = () => [];
+    fake.rpc.my_tournaments = () => [];
+  }
+
+  it('нет привязанных детей: прежнее пустое состояние', async () => {
+    seedKids([]);
+    render(<Matches />);
+    expect(await screen.findByText('Пока пусто')).toBeInTheDocument();
+    expect(screen.getByText(noLink)).toBeInTheDocument();
+    expect(screen.queryByText('Группа ещё не назначена')).toBeNull();
+  });
+
+  it('один ребёнок без группы: «Группа ещё не назначена», без слов о неподтверждённой связи, без запросов матчей', async () => {
+    seedKids([kid('p1', 'Тимофей Иванов', null)]);
+    render(<Matches />);
+    expect(await screen.findByText('Группа ещё не назначена')).toBeInTheDocument();
+    expect(screen.getByText(/Тимофей Иванов/)).toBeInTheDocument();
+    expect(screen.queryByText(noLink)).toBeNull();
+    expect(screen.queryByText('Пока пусто')).toBeNull();
+    expect(fake.rpcCalls('match_rsvp_my_matches')).toHaveLength(0);
+  });
+
+  it('несколько детей, один без группы: матчи группы показаны, ребёнок без группы назван в заметке', async () => {
+    seedKids([kid('p1', 'Тимофей Иванов', 'U10-A'), kid('p2', 'Мария Иванова', null)]);
+    render(<Matches />);
+    await screen.findByLabelText('Итоги команды');
+    expect(screen.getAllByText('Олимп', { exact: false }).length).toBeGreaterThan(0);
+    const note = screen.getByRole('status');
+    expect(note).toHaveTextContent('Группа ещё не назначена');
+    expect(note).toHaveTextContent('Мария Иванова');
+    expect(note).not.toHaveTextContent('Тимофей Иванов');
+    expect(screen.queryByText(noLink)).toBeNull();
+  });
+
+  it('все дети с группами: матчи как раньше, заметки нет', async () => {
+    seedKids([kid('p1', 'Тимофей Иванов', 'U10-A')]);
+    render(<Matches />);
+    await screen.findByLabelText('Итоги команды');
+    expect(screen.queryByText('Группа ещё не назначена', { exact: false })).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+});

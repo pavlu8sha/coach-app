@@ -59,7 +59,7 @@
 ## Тесты
 
 - `db/tests/rls_player_profile_attributes_test.sql`: И1.1–И1.9, И2.1–И2.6.
-- `db/ops/preflight.sql`: строка `0207_player_profile_attributes`.
+- `db/ops/preflight.sql`: строка `0209_player_profile_attributes`.
 - `web/src/screens/PlayerEdit.test.tsx`: И3.1–И3.4, И3.7.
 - `web/src/screens/PlayerProfile.test.tsx`: И3.5–И3.6.
 - Полный прогон: `scripts/run-db-tests.sh`, `npm test` и `npm run build` в `web`.

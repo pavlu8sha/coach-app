@@ -1,4 +1,4 @@
--- pgTAP: имя, основная позиция и игровой номер (0207, #654 этап 1).
+-- pgTAP: имя, основная позиция и игровой номер (0209, #654 этап 1).
 -- Условия: docs/PLAYER_PROFILE_ATTRIBUTES_ACCEPTANCE.md.
 begin;
 create extension if not exists pgtap;
