@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { ERR_NETWORK } from './userError';
 
 export type SaveRoleResult = { ok: true } | { ok: false; text: string };
 
@@ -12,9 +13,10 @@ type Failure = { message?: unknown; code?: unknown } | null | undefined;
 export function roleErrorMessage(err: unknown): string {
   const e = (err ?? {}) as Failure;
   const code = String(e?.code ?? '');
-  const text = String(e?.message ?? err ?? '').toLowerCase();
+  const raw = String(e?.message ?? err ?? '');
+  const text = raw.toLowerCase();
   if (code === '42501' || code === 'P0002' || text.includes('forbidden') || text.includes('profile_missing') || text.includes('jwt')) return ROLE_ERR_PROFILE;
-  if (err instanceof TypeError || text.includes('fetch') || text.includes('network') || text.includes('timeout') || text.includes('failed to')) return ROLE_ERR_NETWORK;
+  if (err instanceof TypeError || raw === ERR_NETWORK || text.includes('fetch') || text.includes('network') || text.includes('timeout') || text.includes('failed to')) return ROLE_ERR_NETWORK;
   return ROLE_ERR_GENERIC;
 }
 
@@ -30,7 +32,11 @@ export async function saveMyRole(r: string): Promise<SaveRoleResult> {
       console.error('set_my_role', res.error);
       return { ok: false, text: roleErrorMessage(res.error) };
     }
-    const { data: auth } = await supabase.auth.getUser();
+    const { data: auth, error: authErr } = await supabase.auth.getUser();
+    if (authErr) {
+      console.error('set_my_role: getUser', authErr);
+      return { ok: false, text: roleErrorMessage(authErr) };
+    }
     if (!auth.user) return { ok: false, text: ROLE_ERR_PROFILE };
     const back = await supabase.from('users').select('chosen_role').eq('id', auth.user.id).maybeSingle();
     if (back.error) {
