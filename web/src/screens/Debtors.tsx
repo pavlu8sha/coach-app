@@ -3,6 +3,7 @@ import { ExpandableTextarea } from '../ui/ExpandableTextarea';
 import { hasSubscription, today, errMsg } from '../lib/coach';
 import { DEBT_START } from '../lib/debtSeason';
 import { supabase } from '../lib/supabase';
+import { addPayment, paymentError, DUPLICATE_PAYMENT_NOTE } from '../lib/paymentAdd';
 import { EmptyState, ListRow, Pill } from '../ui/components';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { closureFlags, useClosure, type ClosureKind } from '../ui/ClosureSheet';
@@ -172,7 +173,7 @@ export default function Debtors() {
         )}
         <button type="button" className="ks-btn secondary" disabled={busy === 'month'} onClick={() => void createMonth()}>Создать абонементы на месяц</button>
       </div>
-      {msg && <p className={/^(Создано|Скопировано|Платёж записан)/.test(msg) ? 'muted' : 'error'}>{msg}</p>}
+      {msg && <p className={/^(Создано|Скопировано|Платёж записан|Этот платёж уже был записан)/.test(msg) ? 'muted' : 'error'}>{msg}</p>}
       <div className="ks-card">
         <b>Текст сообщения родителям</b>
         <p className="ks-muted" style={{ margin: '6px 0' }}>{'{месяц}'} и {'{имя}'} подставятся сами. Шаблон запоминается на этом устройстве.</p>
@@ -201,7 +202,7 @@ export default function Debtors() {
                 </div>
                 <div className="ks-muted" style={{ fontSize: 13 }}>Внесено {gel(r.paid)} из {gel(r.tariff)}</div>
                 <button type="button" className="ks-btn" style={{ marginTop: 8 }} onClick={() => setPayKey(payKey === r.player_id ? null : r.player_id)}>{payKey === r.player_id ? 'Свернуть' : 'Принять оплату'}</button>
-                {payKey === r.player_id && <PayInline playerId={r.player_id} month={month} debt={r.debt} onSaved={() => { setPayKey(null); setMsg('Платёж записан.'); setRows(null); setReload(n => n + 1); }} />}
+                {payKey === r.player_id && <PayInline playerId={r.player_id} month={month} debt={r.debt} onSaved={dup => { setPayKey(null); setMsg(dup ? DUPLICATE_PAYMENT_NOTE : 'Платёж записан.'); setRows(null); setReload(n => n + 1); }} />}
                 <div className="ks-actions" style={{ flexWrap: 'wrap', marginTop: 8, marginBottom: 0 }}>
                 <button type="button" className="ks-btn secondary sm" onClick={() => void copy(textFor(r.full_name), `сообщение для ${r.full_name}`)}>Скопировать сообщение</button>
                 <button type="button" className="ks-btn secondary sm" disabled={busy === r.player_id} onClick={() => void closeDebt(r, 'discount')}>
@@ -239,7 +240,7 @@ export default function Debtors() {
 }
 
 // Платёж прямо из строки должника: сумма по умолчанию — долг (меньше — частичный, останется остаток); дата в выбранном месяце.
-function PayInline({ playerId, month, debt, onSaved }: { playerId: string; month: string; debt: number; onSaved: () => void }) {
+function PayInline({ playerId, month, debt, onSaved }: { playerId: string; month: string; debt: number; onSaved: (duplicate?: boolean) => void }) {
   const [amount, setAmount] = useState(String(debt));
   const [method, setMethod] = useState('');
   const [date, setDate] = useState(today());
@@ -253,10 +254,10 @@ function PayInline({ playerId, month, debt, onSaved }: { playerId: string; month
     if (date > today()) return setErr('Дата платежа не может быть в будущем.');
     setBusy(true);
     setErr(null);
-    const r = await supabase.from('payments').insert({ player_id: playerId, amount: Math.round(num * 100) / 100, paid_on: date, for_month: month, method });
+    const r = await addPayment({ player_id: playerId, amount: num, paid_on: date, for_month: month, method });
     setBusy(false);
-    if (r.error) return setErr(errMsg(r.error));
-    onSaved();
+    if (r.error) return setErr(paymentError(r.error));
+    onSaved(r.duplicate);
   };
   return (
     <div style={{ marginTop: 8 }}>

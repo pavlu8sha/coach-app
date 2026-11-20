@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { addDays, coachError, fmtDate, hasSubscription, today, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
+import { addPayment } from '../lib/paymentAdd';
 import { EmptyState, ListRow, Pill, SearchInput } from '../ui/components';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { MoreMenu } from '../ui/MoreMenu';
@@ -78,7 +79,7 @@ async function loadDues(p: Pl): Promise<{ dues: Due[]; missing: string[] }> {
       if (got >= tariff) continue;
       out.push({
         key: 'sub' + m, kind: 'sub', section: SECTIONS[0], title: m > cur ? `${monthName(m)} (вперёд)` : monthName(m), sub: s?.discount ? 'скидка по договорённости: оплатите любую сумму' : m > cur ? 'оплата вперёд: дата — день, когда внесли деньги' : undefined, due: tariff, paid: got, month: m, advance: m > cur,
-        pay: (amount, method, date) => supabase.from('payments').insert({ player_id: p.id, amount: r2(amount), paid_on: date, for_month: m, method }),
+        pay: (amount, method, date) => addPayment({ player_id: p.id, amount: r2(amount), paid_on: date, for_month: m, method }),
         discount: () => supabase.from('subscriptions').upsert({ player_id: p.id, month: m, discount: true, closed_kind: 'discount', closed_reason: 'скидка при приёме оплаты в кассе' }, { onConflict: 'player_id,month' }),
       });
     }

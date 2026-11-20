@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { today, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
+import { addPayment, paymentError, DUPLICATE_PAYMENT_NOTE } from '../lib/paymentAdd';
 import { EmptyState, ListRow, Pill, SearchInput } from '../ui/components';
 import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
@@ -81,13 +82,13 @@ function PlayerPayments({ player, onBack }: { player: Player; onBack: () => void
   const add = async (row: { amount: number; paid_on: string; method: string }) => {
     setBusy(true);
     setMsg(null);
-    const r = await supabase.from('payments').insert({ player_id: player.id, amount: Math.round(row.amount * 100) / 100, paid_on: row.paid_on, method: row.method });
+    const r = await addPayment({ player_id: player.id, amount: row.amount, paid_on: row.paid_on, method: row.method });
     setBusy(false);
    
     setUndo(null);
-    if (r.error) return setMsg({ ok: false, text: errMsg(r.error) });
+    if (r.error) return setMsg({ ok: false, text: paymentError(r.error) });
     setAmount('');
-    setMsg({ ok: true, text: 'Платёж записан.' });
+    setMsg({ ok: true, text: r.duplicate ? DUPLICATE_PAYMENT_NOTE : 'Платёж записан.' });
     setReload(n => n + 1);
   };
 

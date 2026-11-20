@@ -135,8 +135,8 @@ describe('«Оплаты за месяц»', () => {
     expect(screen.getByLabelText(/Сумма/)).toHaveValue('65');
     fireEvent.change(screen.getByLabelText(/^Способ/), { target: { value: 'Наличные' } });
     fireEvent.click(screen.getByRole('button', { name: 'Записать платёж' }));
-    await waitFor(() => expect(fake.writes('payments', 'insert')).toHaveLength(1));
-    expect(fake.writes('payments', 'insert')[0]).toMatchObject({ player_id: 'p1', amount: 65, method: 'Наличные' });
+    await waitFor(() => expect(fake.paymentAdds()).toHaveLength(1));
+    expect(fake.paymentAdds()[0]).toMatchObject({ player_id: 'p1', amount: 65, method: 'Наличные' });
   });
 
   it('нулевая сумма и будущая дата отклоняются без записи', async () => {
@@ -153,7 +153,7 @@ describe('«Оплаты за месяц»', () => {
     fireEvent.change(screen.getByLabelText(/^Способ/), { target: { value: 'Наличные' } });
     fireEvent.click(screen.getByRole('button', { name: 'Записать платёж' }));
     expect(await screen.findByText(/Дата платежа не может быть в будущем/)).toBeInTheDocument();
-    expect(fake.writes('payments', 'insert')).toHaveLength(0);
+    expect(fake.paymentAdds()).toHaveLength(0);
   });
 });
 
