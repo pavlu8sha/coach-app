@@ -8,18 +8,18 @@ DB="${DB_NAME:-kickstart_test}"
 PSQL="${PSQL:-psql}"
 q() { $PSQL -q -v ON_ERROR_STOP=1 -t -A -d "$DB" "$@"; }
 as() { printf "select set_config('role','authenticated',false), set_config('request.jwt.claims', json_build_object('sub','%s','role','authenticated')::text, false);\n" "$1"; }
-CL=00000000-0000-0000-0000-0000ee0000c1; AD=00000000-0000-0000-0000-0000ee0000a1; GR=00000000-0000-0000-0000-0000ee0000e1
-SE=00000000-0000-0000-0000-0000ee0005a1
+CL=00000000-0000-0000-0000-0000bf0000c1; AD=00000000-0000-0000-0000-0000bf0000a1; GR=00000000-0000-0000-0000-0000bf0000e1
+SE=00000000-0000-0000-0000-0000bf0005a1
 fail=0; ok() { echo "ok - $1"; }; bad() { echo "not ok - $1"; fail=1; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-pl() { printf '00000000-0000-0000-0000-0000ee00d%03d' "$1"; }
+pl() { printf '00000000-0000-0000-0000-0000bf00d%03d' "$1"; }
 
 q <<SQL
 insert into clubs (id, name) values ('$CL', 'Конкурентность визитов');
-insert into users (id, telegram_id, display_name, is_admin) values ('$AD', 990701, 'Админ', true);
+insert into users (id, telegram_id, display_name, is_admin) values ('$AD', 991701, 'Админ', true);
 insert into groups (id, club_id, name, location) values ('$GR', '$CL', 'U9-C', 'Чиовани');
 insert into sessions (id, group_id, starts_at, kind, source_key, class) values ('$SE', '$GR', (current_date - 3) + time '15:00', 'training', 'ATT|conc-visit', 'regular');
-insert into players (id, club_id, group_id, full_name, status) select ('00000000-0000-0000-0000-0000ee00d' || lpad(g::text, 3, '0'))::uuid, '$CL', '$GR', 'Игрок ' || g, 'active' from generate_series(1, 7) g;
+insert into players (id, club_id, group_id, full_name, status) select ('00000000-0000-0000-0000-0000bf00d' || lpad(g::text, 3, '0'))::uuid, '$CL', '$GR', 'Игрок ' || g, 'active' from generate_series(1, 7) g;
 SQL
 FROM=$(q -c "select current_date - 10")
 visits() { q -c "select count(*) from own_visits where player_id = '$1' and session_id = '$SE'"; }
