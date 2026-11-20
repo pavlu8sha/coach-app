@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { coachError, DAYS, fmtShort, isoDow, today, type CoachGroup } from '../lib/coach';
+import { coachError, DAYS, fmtShort, isoDow, today, type CoachGroup, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Segmented } from '../ui/components';
 import { GroupPicker } from '../ui/coach';
@@ -60,7 +60,7 @@ export default function Sessions({ groups, admin = false }: { groups: CoachGroup
   useEffect(() => {
     void (async () => {
       const r = await supabase.from('weekly_schedule').select('group_id, weekday, kind');
-      if (r.error) return setError(r.error.message);
+      if (r.error) return setError(errMsg(r.error));
       setSlots((r.data ?? []) as Slot[]);
     })();
   }, [reload]);
@@ -146,18 +146,18 @@ function Roster({ gid, date }: { gid: string; date: string }) {
   useEffect(() => {
     void (async () => {
       const p = await supabase.from('players').select('id, full_name, status').eq('group_id', gid).order('full_name');
-      if (p.error) return setError(p.error.message);
+      if (p.error) return setError(errMsg(p.error));
       const all = (p.data ?? []) as (Player & { status: string })[];
       const lg = await supabase.from('player_status_log').select('player_id, status, on_date, created_at').in('player_id', all.map(x => x.id)).limit(5000);
-      if (lg.error) return setError(lg.error.message);
+      if (lg.error) return setError(errMsg(lg.error));
       const logBy = new Map<string, StatusLogPoint[]>();
       for (const r of (lg.data ?? []) as (StatusLogPoint & { player_id: string })[]) logBy.set(r.player_id, [...(logBy.get(r.player_id) ?? []), r]);
       const s = await supabase.from('sessions').select('id').eq('group_id', gid).eq('source_key', 'ATT|' + date).maybeSingle();
-      if (s.error) return setError(s.error.message);
+      if (s.error) return setError(errMsg(s.error));
       const existing: Record<string, Status> = {};
       if (s.data) {
         const a = await supabase.from('attendance').select('player_id, status').eq('session_id', (s.data as { id: string }).id);
-        if (a.error) return setError(a.error.message);
+        if (a.error) return setError(errMsg(a.error));
         for (const r of (a.data ?? []) as { player_id: string; status: Status }[]) existing[r.player_id] = r.status;
       }
       setMarks(existing);

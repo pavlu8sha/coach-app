@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ExpandableTextarea } from '../ui/ExpandableTextarea';
-import { coachError, compareGroups, fmtDate, groupByGroupName, today } from '../lib/coach';
+import { coachError, compareGroups, fmtDate, groupByGroupName, today, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput, Segmented, SwitchRow } from '../ui/components';
 import { BackNav } from '../ui/nav';
@@ -392,12 +392,12 @@ function RequirementEditor({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     void (async () => {
       const c = await supabase.from('clubs').select('id').limit(1);
-      if (c.error) return setError(c.error.message);
+      if (c.error) return setError(errMsg(c.error));
       const cid = ((c.data ?? []) as { id: string }[])[0]?.id ?? null;
       if (!cid) return setError('Клуб не найден');
       setClubId(cid);
       const r = await supabase.from('club_settings').select('value').eq('club_id', cid).eq('key', EQUIPMENT_REQUIRED_KEY).eq('scope', '').maybeSingle();
-      if (r.error) return setError(r.error.message);
+      if (r.error) return setError(errMsg(r.error));
       setText(((r.data as { value: string } | null)?.value ?? '').trim() || EQUIPMENT_REQUIRED_TEXT);
     })();
   }, []);

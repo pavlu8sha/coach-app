@@ -1,8 +1,11 @@
 import { SUPABASE_URL, supabase } from './supabase';
 
 export class AuthError extends Error {
-  constructor(message: string, public code: string) {
+  /** message — понятный текст для пользователя; detail (коды сервера) только для журнала. */
+  readonly text: string; // то же, что message: явно «можно показать пользователю»
+  constructor(message: string, public code: string, public detail = '') {
     super(message);
+    this.text = message;
   }
 }
 
@@ -17,10 +20,10 @@ async function signInVia(fn: 'tg-auth' | 'tg-login', body: object): Promise<void
   const out = (await res.json().catch(() => ({}))) as { token_hash?: string; error?: string; reason?: string };
   if (res.status === 429) throw new AuthError('Слишком много попыток входа. Подождите несколько минут и откройте приложение снова.', 'rate_limited');
   if (!res.ok || !out.token_hash) {
-    throw new AuthError(`Не удалось войти (${out.error ?? res.status}${out.reason ? ': ' + out.reason : ''})`, out.error ?? 'http');
+    throw new AuthError('Не удалось войти. Закройте приложение и откройте его заново.', out.error ?? 'http', `${out.error ?? res.status}${out.reason ? ': ' + out.reason : ''}`);
   }
   const { error } = await supabase.auth.verifyOtp({ token_hash: out.token_hash, type: 'email' });
-  if (error) throw new AuthError(`Не удалось открыть сессию: ${error.message}`, 'verify');
+  if (error) throw new AuthError('Не удалось открыть сессию. Закройте приложение и откройте его заново.', 'verify', String(error));
 }
 
 /** Вход через Telegram Mini App: initData → Edge Function tg-auth → token_hash → сессия Supabase. */

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { coachError } from '../lib/coach';
+import { coachError, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { SearchInput } from '../ui/components';
@@ -34,14 +34,14 @@ export default function GuestVisits({ gid, date, admin = false }: { gid: string;
   useEffect(() => {
     void (async () => {
       const s = await supabase.from('sessions').select('id').eq('group_id', gid).eq('source_key', 'ATT|' + date).maybeSingle();
-      if (s.error) return setError(s.error.message);
+      if (s.error) return setError(errMsg(s.error));
       const id = (s.data as { id: string } | null)?.id ?? null;
       setSessionId(id);
       if (!id) return setGuests([]);
       const g = await supabase.from('session_guests')
         .select('player_id, amount, paid, paid_amount, method, players(full_name, groups(name))')
         .eq('session_id', id);
-      if (g.error) return setError(g.error.message);
+      if (g.error) return setError(errMsg(g.error));
       setGuests(((g.data ?? []) as unknown as Guest[]).sort((a, b) => (a.players?.full_name ?? '').localeCompare(b.players?.full_name ?? '', 'ru')));
     })();
   }, [gid, date, reload]);

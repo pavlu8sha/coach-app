@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ExpandableTextarea } from '../ui/ExpandableTextarea';
-import { hasSubscription, today } from '../lib/coach';
+import { hasSubscription, today, errMsg } from '../lib/coach';
 import { DEBT_START } from '../lib/debtSeason';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill } from '../ui/components';
@@ -51,21 +51,21 @@ export default function Debtors() {
   useEffect(() => {
     void (async () => {
       const d = await supabase.rpc('debtors', { m: month });
-      if (d.error) return setError(d.error.message.includes('Could not find the function') ? 'Функция расчёта долга ещё не установлена в базе (миграция 0023).' : d.error.message);
+      if (d.error) return setError(d.error.message.includes('Could not find the function') ? 'Функция расчёта долга ещё не установлена в базе (миграция 0023).' : errMsg(d.error));
       const s = await supabase.from('subscriptions').select('id, player_id, players(full_name)').eq('month', month).eq('discount', true);
-      if (s.error) return setError(s.error.message);
+      if (s.error) return setError(errMsg(s.error));
       const mi = await supabase.rpc('subscription_month_missing', { m: month });
       setMissing(mi.error ? null : Number(mi.data ?? 0)); // до миграции 0128 счётчик просто не показываем
       const c = await supabase.from('clubs').select('id').limit(1);
-      if (c.error) return setError(c.error.message);
+      if (c.error) return setError(errMsg(c.error));
       const cid = ((c.data ?? []) as { id: string }[])[0]?.id ?? null;
       if (cid) {
         const st = await supabase.from('club_settings').select('value').eq('club_id', cid).eq('key', 'parent_debt_enabled').maybeSingle();
-        if (st.error) return setError(st.error.message);
+        if (st.error) return setError(errMsg(st.error));
         setEnabled((st.data as { value: string } | null)?.value === 'true');
       }
       const w = await supabase.from('subscriptions').select('id, player_id, players(full_name)').eq('month', month).eq('written_off', true);
-      if (w.error) return setError(w.error.message.includes('written_off') ? 'Списание долга ещё не установлено в базе (миграция 0032).' : w.error.message);
+      if (w.error) return setError(w.error.message.includes('written_off') ? 'Списание долга ещё не установлено в базе (миграция 0032).' : errMsg(w.error));
       setOffs((w.data ?? []) as unknown as Disc[]);
       setClubId(cid);
       // как в «Оплатах за месяц»: в текущем и будущих месяцах группа берётся из карточки игрока; переведённый в индивидуальные абонементом не должен
@@ -73,8 +73,8 @@ export default function Debtors() {
       if (month >= monthIso(new Date())) {
         const g = await supabase.from('groups').select('id, name');
         const pl = await supabase.from('players').select('id, group_id').eq('status', 'active').limit(1000);
-        if (g.error) return setError(g.error.message);
-        if (pl.error) return setError(pl.error.message);
+        if (g.error) return setError(errMsg(g.error));
+        if (pl.error) return setError(errMsg(pl.error));
         const ind = new Set(((g.data ?? []) as { id: string; name: string }[]).filter(x => !hasSubscription(x.name)).map(x => x.id));
         moved = new Set(((pl.data ?? []) as { id: string; group_id: string | null }[]).filter(x => x.group_id && ind.has(x.group_id)).map(x => x.id));
       }
@@ -88,7 +88,7 @@ export default function Debtors() {
     setMsg(null);
     const r = await supabase.from('subscriptions').upsert({ player_id: playerId, month, [field]: on }, { onConflict: 'player_id,month' });
     setBusy(null);
-    if (r.error) return setMsg(r.error.message);
+    if (r.error) return setMsg(errMsg(r.error));
     setReload(n => n + 1);
   };
   const setDiscount = (playerId: string, on: boolean) => setFlag(playerId, 'discount', on);
@@ -100,7 +100,7 @@ export default function Debtors() {
     setMsg(null);
     const res = await supabase.from('subscriptions').upsert({ player_id: r.player_id, month, ...closureFlags(a.kind), closed_kind: a.kind, closed_reason: a.reason }, { onConflict: 'player_id,month' });
     setBusy(null);
-    if (res.error) return setMsg(res.error.message);
+    if (res.error) return setMsg(errMsg(res.error));
     setReload(n => n + 1);
   };
   const writeOff = (r: { player_id: string; full_name: string; debt: number }) => closeDebt(r, 'forgiven');
@@ -120,7 +120,7 @@ export default function Debtors() {
     setMsg(null);
     const r = await supabase.rpc('create_subscription_month', { m: month });
     setBusy(null);
-    if (r.error) return setMsg(r.error.message.includes('Could not find the function') ? 'Функция ещё не установлена в базе (миграция 0032).' : r.error.message.includes('out of range') ? 'Для этого месяца абонементы создать нельзя.' : r.error.message);
+    if (r.error) return setMsg(r.error.message.includes('Could not find the function') ? 'Функция ещё не установлена в базе (миграция 0032).' : r.error.message.includes('out of range') ? 'Для этого месяца абонементы создать нельзя.' : errMsg(r.error));
     setMsg(`Создано абонементов: ${r.data ?? 0}. Уже существующие не менялись.`);
     setReload(n => n + 1);
   };
@@ -130,7 +130,7 @@ export default function Debtors() {
     setMsg(null);
     const r = await supabase.from('club_settings').upsert({ club_id: clubId, key: 'parent_debt_enabled', scope: '', value: enabled ? 'false' : 'true' }, { onConflict: 'club_id,key,scope' });
     setBusy(null);
-    if (r.error) return setMsg(r.error.message);
+    if (r.error) return setMsg(errMsg(r.error));
     setEnabled(!enabled);
   };
 
@@ -255,7 +255,7 @@ function PayInline({ playerId, month, debt, onSaved }: { playerId: string; month
     setErr(null);
     const r = await supabase.from('payments').insert({ player_id: playerId, amount: Math.round(num * 100) / 100, paid_on: date, for_month: month, method });
     setBusy(false);
-    if (r.error) return setErr(r.error.message);
+    if (r.error) return setErr(errMsg(r.error));
     onSaved();
   };
   return (

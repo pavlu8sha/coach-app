@@ -1,3 +1,4 @@
+import { fallbackError } from './userError';
 // Подтверждение участия в матчах (миграции 0134, 0136): типы ответов функций базы и общие подписи.
 export type RsvpResponse = 'yes' | 'no';
 export type Lifecycle = 'legacy' | 'draft' | 'published' | 'cancelled';
@@ -57,7 +58,7 @@ const ERRORS: [string, string][] = [
 ];
 export function rsvpError(message: string): string {
   const hit = ERRORS.find(([k]) => message.includes(k));
-  return hit ? hit[1] : message;
+  return hit ? hit[1] : fallbackError(message);
 }
 
 export interface TextPart { text: string; href?: string }

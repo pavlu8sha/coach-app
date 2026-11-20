@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { coachError, fmtDate, plural, type CoachGroup } from '../lib/coach';
+import { coachError, fmtDate, plural, type CoachGroup, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { useNav, useNavState } from '../nav';
 import { EmptyState, ListRow, Pill, Segmented } from '../ui/components';
@@ -32,7 +32,7 @@ export default function Group({ groups, notify = false }: { groups: CoachGroup[]
     setRanked(false);
     void (async () => {
       const p = await supabase.from('players').select('id, full_name').eq('group_id', gid).eq('status', 'active').order('full_name');
-      if (p.error) return setError(p.error.message);
+      if (p.error) return setError(errMsg(p.error));
       const list = (p.data ?? []) as Player[];
       setPlayers(list);
       // Рейтинг по баллам: если баллы не загрузились, список остаётся по алфавиту
@@ -124,7 +124,7 @@ function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBa
       let count = 0;
       for (let from = 0; ; from += 1000) {
         const e = await supabase.from('points_ledger').select('id, points').eq('player_id', player.id).eq('status', 'active').order('id').range(from, from + 999);
-        if (e.error) return setError(e.error.message);
+        if (e.error) return setError(errMsg(e.error));
         for (const r of (e.data ?? []) as { points: number }[]) { total += r.points; count += 1; }
         if ((e.data ?? []).length < 1000) break;
       }

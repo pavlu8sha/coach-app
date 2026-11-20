@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useConfirm } from '../ui/ConfirmSheet';
+import { errMsg } from '../lib/coach';
 
 interface Drift { source_type: string; source_id: string; changes: number }
 interface Exc { kind: string; source_id: string; event_date: string; player_id?: string }
@@ -23,7 +24,7 @@ export default function PointsCheck() {
     const r = await supabase.rpc('points_consistency', { fix });
     setBusy(false);
     if (r.error) {
-      return setMsg({ ok: false, text: r.error.message.includes('Could not find the function') ? 'Сверка ещё не установлена в базе (миграция 0127).' : r.error.message.includes('forbidden') ? 'Нет прав: сверка доступна только администратору.' : r.error.message });
+      return setMsg({ ok: false, text: r.error.message.includes('Could not find the function') ? 'Сверка ещё не установлена в базе (миграция 0127).' : r.error.message.includes('forbidden') ? 'Нет прав: сверка доступна только администратору.' : errMsg(r.error) });
     }
     const data = r.data as Report;
     setRep(data);

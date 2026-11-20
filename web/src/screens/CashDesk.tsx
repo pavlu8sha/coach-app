@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { addDays, coachError, fmtDate, hasSubscription, today } from '../lib/coach';
+import { addDays, coachError, fmtDate, hasSubscription, today, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput } from '../ui/components';
 import { useConfirm } from '../ui/ConfirmSheet';
@@ -351,7 +351,7 @@ export function PlayerDues({ player, onBack, embedded = false, sharedMethod, jum
   // после записи платежа список обновляется на месте: старый список остаётся на экране, чтобы страница не сжималась и не прыгала к началу
   const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(() => { void loadDues(player).then(d => { setDues(d); setRefreshing(false); }).catch(e => { setError(e instanceof Error ? e.message : String(e)); setRefreshing(false); }); }, [player]);
+  const load = useCallback(() => { void loadDues(player).then(d => { setDues(d); setRefreshing(false); }).catch(e => { setError(errMsg(e)); setRefreshing(false); }); }, [player]);
   useEffect(() => { load(); }, [load, reload]);
 
   if (error) return <Failure title="Не удалось загрузить долги игрока" text={coachError(error)} embedded={embedded} onRetry={() => { setError(null); setDues(null); setReload(n => n + 1); }} />;
@@ -448,7 +448,7 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false 
     const d = await due.discount!();
     setBusy(false);
     // платёж уже записан: повторно его не отправляем, только сообщаем об ошибке скидки
-    if (d.error) return setErr(`Платёж записан, но скидку не применили (${d.error.message}). Примените скидку в «Оплатах за месяц», платёж повторять не нужно.`);
+    if (d.error) return setErr(`Платёж записан, но скидку не применили (${errMsg(d.error)}). Примените скидку в «Оплатах за месяц», платёж повторять не нужно.`);
     onPaid();
   };
   return (

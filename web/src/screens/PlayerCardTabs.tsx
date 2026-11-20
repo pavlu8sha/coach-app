@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { coachError, fmtDate, plural } from '../lib/coach';
+import { coachError, fmtDate, plural, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, Pill } from '../ui/components';
 import { Loading } from './Message';
@@ -14,7 +14,7 @@ function useRows<T>(load: () => PromiseLike<{ data: unknown; error: { message: s
   useEffect(() => {
     setRows(null);
     setError(null);
-    void load().then(r => (r.error ? setError(r.error.message) : setRows((r.data ?? []) as T[])));
+    void load().then(r => (r.error ? setError(errMsg(r.error)) : setRows((r.data ?? []) as T[])));
   }, deps); // eslint-disable-line react-hooks/exhaustive-deps
   return { rows, error };
 }

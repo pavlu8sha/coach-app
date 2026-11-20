@@ -5,6 +5,7 @@ import { EmptyState, Segmented } from '../ui/components';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { Failure, Loading } from './Message';
 import ParentsRoster from './ParentsRoster';
+import { errMsg } from '../lib/coach';
 
 interface Pending {
   id: string;
@@ -36,7 +37,7 @@ export default function Admin() {
       .select('id, created_at, player_id, user_id, users!link_requests_user_id_fkey(display_name, telegram_id), players(full_name, groups(name))')
       .eq('status', 'pending')
       .order('created_at');
-    if (r.error) return setError(r.error.message);
+    if (r.error) return setError(errMsg(r.error));
     const list = (r.data ?? []) as unknown as Pending[];
     setRows(list);
     // подсказки не критичны: при ошибке просто не показываем
@@ -83,7 +84,7 @@ export default function Admin() {
     setBusy(id);
     const r = await supabase.rpc('decide_link', { r: id, approve });
     setBusy(null);
-    if (r.error) return setError(r.error.message);
+    if (r.error) return setError(errMsg(r.error));
     await load();
   };
 
@@ -92,7 +93,7 @@ export default function Admin() {
     setBusy(d.id);
     const r = await supabase.rpc('erase_parent', { r: d.id });
     setBusy(null);
-    if (r.error) return setError(r.error.message.includes('admin or coach') ? 'Нельзя: это администратор или тренер, за ними числятся действия в журналах. Разберите вручную.' : r.error.message);
+    if (r.error) return setError(r.error.message.includes('admin or coach') ? 'Нельзя: это администратор или тренер, за ними числятся действия в журналах. Разберите вручную.' : errMsg(r.error));
     await load();
   };
   const rejectDel = async (d: Del) => {
@@ -101,7 +102,7 @@ export default function Admin() {
     setBusy(d.id);
     const r = await supabase.rpc('reject_data_request', { r: d.id, why });
     setBusy(null);
-    if (r.error) return setError(r.error.message);
+    if (r.error) return setError(errMsg(r.error));
     await load();
   };
 

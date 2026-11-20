@@ -1,3 +1,4 @@
+import { fallbackError } from './userError';
 import { useEffect, useState } from 'react';
 import { supabase } from './supabase';
 
@@ -74,7 +75,7 @@ const errText = (m: string) =>
   m.includes('42501') || m.includes('forbidden') ? 'Менять фото может только администратор.'
   : m.includes('too large') ? 'Файл слишком большой. Выберите другое фото.'
   : m.includes('Could not find the function') || m.includes('schema cache') ? 'Редактор фото ещё не включён в базе (нужна миграция 0046).'
-  : m;
+  : fallbackError(m);
 
 /** Сохраняет замену фото; возвращает текст ошибки или null. */
 export async function savePhoto(key: string, dataUrl: string): Promise<string | null> {
