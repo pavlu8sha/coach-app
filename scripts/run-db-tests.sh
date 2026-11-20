@@ -91,6 +91,8 @@ echo "== db/tests/concurrency_camp_seats.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_camp_seats.sh || fail=1
 echo "== db/tests/concurrency_camp_applications.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_camp_applications.sh || fail=1
+echo "== db/tests/concurrency_own_visit_backfill.sh"
+DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_own_visit_backfill.sh || fail=1
 echo "== db/tests/concurrency_camp_refund.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_camp_refund.sh || fail=1
 echo "== db/tests/concurrency_consent_record.sh"
