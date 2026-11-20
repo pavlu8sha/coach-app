@@ -3,6 +3,7 @@ import { DEFAULT_BAR, MAX_BAR, MENU_KEY, SECTIONS, parseBar, sectionById, type S
 import { supabase } from '../lib/supabase';
 import { ListRow } from '../ui/components';
 import { Failure, Loading } from './Message';
+import { errMsg } from '../lib/coach';
 
 // Администратор выбирает, какие разделы стоят на нижней панели и в каком порядке; остальные лежат в «Ещё»
 export default function MenuSettings({ onChanged }: { onChanged: () => void }) {
@@ -16,12 +17,12 @@ export default function MenuSettings({ onChanged }: { onChanged: () => void }) {
   useEffect(() => {
     void (async () => {
       const c = await supabase.from('clubs').select('id').limit(1);
-      if (c.error) return setError(c.error.message);
+      if (c.error) return setError(errMsg(c.error));
       const cid = ((c.data ?? []) as { id: string }[])[0]?.id ?? null;
       setClubId(cid);
       if (!cid) return setError('Клуб не найден');
       const st = await supabase.from('club_settings').select('value').eq('club_id', cid).eq('key', MENU_KEY).maybeSingle();
-      if (st.error) return setError(st.error.message);
+      if (st.error) return setError(errMsg(st.error));
       setBar(parseBar((st.data as { value: string } | null)?.value));
     })();
   }, [reload]);

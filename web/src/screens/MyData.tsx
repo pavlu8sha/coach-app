@@ -5,10 +5,11 @@ import { Pill } from '../ui/components';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
+import { coachError, errMsg } from '../lib/coach';
 
 interface Req { id: string; status: 'open' | 'done' | 'rejected'; created_at: string; note: string | null }
 
-const unavailable = (m: string) => (m.includes('Could not find the function') || m.includes('schema cache') ? 'Это действие пока недоступно.' : m);
+const unavailableErr = (m: string) => (m.includes('Could not find the function') || m.includes('schema cache') ? 'Это действие пока недоступно.' : coachError(m));
 const fmt = (iso: string) => iso.slice(0, 10).split('-').reverse().join('.');
 
 // «Мои данные»: выгрузка своих данных одним файлом и запрос на удаление данных (обрабатывает администратор клуба).
@@ -34,7 +35,7 @@ export default function MyData({ onBack }: { onBack: () => void }) {
     setMsg(null);
     const r = await supabase.rpc('export_my_data');
     setBusy(false);
-    if (r.error) return setMsg({ ok: false, text: unavailable(r.error.message) });
+    if (r.error) return setMsg({ ok: false, text: unavailableErr(r.error.message) });
     const text = JSON.stringify(r.data, null, 2);
     setDump(text);
     // скачивание файла; в некоторых версиях Telegram оно закрыто, поэтому ниже есть «Скопировать»
@@ -70,7 +71,7 @@ export default function MyData({ onBack }: { onBack: () => void }) {
     const r = await supabase.rpc('request_data_deletion');
     setBusy(false);
    
-    if (r.error) return setMsg({ ok: false, text: r.error.message.includes('already open') ? 'Запрос уже отправлен и ждёт обработки.' : unavailable(r.error.message) });
+    if (r.error) return setMsg({ ok: false, text: r.error.message.includes('already open') ? 'Запрос уже отправлен и ждёт обработки.' : unavailableErr(r.error.message) });
     setReload(n => n + 1);
   };
 

@@ -7,6 +7,7 @@ import Link, { HideWhen, useLinkPolicyOpen } from './Link';
 import LinkStatus from './LinkStatus';
 import { Failure, Loading } from './Message';
 import { useConfirm } from '../ui/ConfirmSheet';
+import { errMsg } from '../lib/coach';
 
 interface Kid { id: string; name: string; group: string | null }
 // Статус привязки аккаунта ребёнка (#735): пока он неизвестен или не удалось проверить, действий над кодом нет
@@ -54,7 +55,7 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
       if (!me) return setError('Нет сессии');
       const links = await supabase.from('player_guardians').select('players(id, full_name, groups(name))').eq('user_id', me).is('consent_revoked_at', null);
       if (cancelled) return;
-      if (links.error) return setError(links.error.message);
+      if (links.error) return setError(errMsg(links.error));
       kidsGen.current = gen;
       setKids(
         ((links.data ?? []) as any[])
@@ -91,7 +92,7 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
     setMsg(null);
     const r = await supabase.rpc('create_child_code', { p: id });
     setBusy(false);
-    if (r.error) return setMsg(r.error.message.includes('Could not find the function') ? 'Это действие пока недоступно.' : r.error.message);
+    if (r.error) return setMsg(r.error.message.includes('Could not find the function') ? 'Это действие пока недоступно.' : errMsg(r.error));
     setCodes(c => ({ ...c, [id]: r.data as string }));
   };
 
@@ -101,7 +102,7 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
     setMsg(null);
     const r = await supabase.rpc('unlink_child', { p: id });
     setBusy(false);
-    if (r.error) return setMsg(r.error.message);
+    if (r.error) return setMsg(errMsg(r.error));
     setCodes(c => { const n = { ...c }; delete n[id]; return n; });
     setReload(n => n + 1);
   };
@@ -115,7 +116,7 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
     setMsg(null);
     const r = await supabase.rpc('revoke_consent', { p: id });
     setBusy(false);
-    if (r.error) setMsg(r.error.message.includes('Could not find the function') ? 'Это действие пока недоступно.' : r.error.message);
+    if (r.error) setMsg(r.error.message.includes('Could not find the function') ? 'Это действие пока недоступно.' : errMsg(r.error));
     setReload(n => n + 1);
   };
 

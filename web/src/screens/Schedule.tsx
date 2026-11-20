@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { sortGroups } from '../lib/coach';
+import { sortGroups, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState } from '../ui/components';
 import { Failure, Loading } from './Message';
@@ -31,7 +31,7 @@ export default function Schedule({ all = false, editable = all, results = true }
       if (all) {
         // администратор: расписание всех групп
         const gr = await supabase.from('groups').select('id, name').order('name');
-        if (gr.error) return setError(gr.error.message);
+        if (gr.error) return setError(errMsg(gr.error));
         for (const x of sortGroups((gr.data ?? []) as { id: string; name: string }[])) byGroup.set(x.id, { id: x.id, name: x.name, kids: [], slots: [], upcoming: [], results: [] });
       } else {
         const me = (await supabase.auth.getUser()).data.user?.id;
@@ -41,7 +41,7 @@ export default function Schedule({ all = false, editable = all, results = true }
           .select('players(full_name, group_id, groups(name))')
           .eq('user_id', me)
           .is('consent_revoked_at', null);
-        if (links.error) return setError(links.error.message);
+        if (links.error) return setError(errMsg(links.error));
         for (const l of (links.data ?? []) as any[]) {
           const p = l.players;
           if (!p) continue;
@@ -57,11 +57,11 @@ export default function Schedule({ all = false, editable = all, results = true }
       const list = [...byGroup.values()];
       for (const g of list) {
         const sl = await supabase.from('weekly_schedule').select('id, weekday, starts_at, ends_at, location, kind, coaches').eq('group_id', g.id).order('weekday').order('starts_at');
-        if (sl.error) return setError(sl.error.message);
+        if (sl.error) return setError(errMsg(sl.error));
         g.slots = (sl.data ?? []) as Slot[];
         if (g.name) {
           const m = await supabase.from('matches').select('id, played_on, opponent, goals_for, goals_against').in('team', teamsOf(g.name)).order('played_on', { ascending: false }).limit(40);
-          if (m.error) return setError(m.error.message);
+          if (m.error) return setError(errMsg(m.error));
           const rows = (m.data ?? []) as Match[];
           const t = today();
           g.upcoming = rows.filter(r => r.played_on >= t && r.goals_for === null).reverse().slice(0, 5);

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fmtDate, groupByGroupName, hasSubscription, sortGroups, today } from '../lib/coach';
+import { errMsg, fmtDate, groupByGroupName, hasSubscription, sortGroups, today } from '../lib/coach';
 import { statusLabel, statusTone, type PlayerStatus } from '../lib/playerStatus';
 import { supabase } from '../lib/supabase';
 import { useNav, useNavState } from '../nav';
@@ -63,7 +63,7 @@ export default function Players() {
       const pay = await supabase.from('payments').select('player_id, amount').eq('pay_month', month).limit(1000);
       const sb = await supabase.from('subscriptions').select('player_id, discount, written_off').eq('month', month).limit(1000);
       const bad = g.error ?? p.error ?? pr.error ?? pay.error ?? sb.error;
-      if (bad) return setError(bad.message);
+      if (bad) return setError(errMsg(bad));
       const m = new Map<string, number>();
       ((pay.data ?? []) as { player_id: string; amount: number }[]).forEach(x => m.set(x.player_id, (m.get(x.player_id) ?? 0) + Number(x.amount)));
       setGroups(sortGroups((g.data ?? []) as GroupRow[]));

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { today } from '../lib/coach';
+import { today, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput } from '../ui/components';
 import { Failure, Loading } from './Message';
@@ -59,7 +59,7 @@ function PlayerPayments({ player, onBack }: { player: Player; onBack: () => void
   useEffect(() => {
     void (async () => {
       const r = await supabase.from('payments').select('id, amount, paid_on, method').eq('player_id', player.id).order('paid_on', { ascending: false }).limit(60);
-      if (r.error) return setError(r.error.message);
+      if (r.error) return setError(errMsg(r.error));
       setPays(((r.data ?? []) as Pay[]).map(p => ({ ...p, amount: Number(p.amount) })));
     })();
   }, [player.id, reload]);
@@ -85,7 +85,7 @@ function PlayerPayments({ player, onBack }: { player: Player; onBack: () => void
     setBusy(false);
    
     setUndo(null);
-    if (r.error) return setMsg({ ok: false, text: r.error.message });
+    if (r.error) return setMsg({ ok: false, text: errMsg(r.error) });
     setAmount('');
     setMsg({ ok: true, text: 'Платёж записан.' });
     setReload(n => n + 1);

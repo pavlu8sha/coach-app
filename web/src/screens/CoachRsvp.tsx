@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { compareGroups, matchTeam, playsMatches, type CoachGroup } from '../lib/coach';
+import { compareGroups, matchTeam, playsMatches, type CoachGroup, errMsg } from '../lib/coach';
 import { FILTER_LABEL, LIFECYCLE_LABEL, activityLine, fmtWhen, matchesFilter, fromTbilisiLocal, responseText, rsvpError, toTbilisiLocal, type Lifecycle, type RsvpResponse, type SummaryFilter } from '../lib/matchRsvp';
 import { supabase } from '../lib/supabase';
 import { Pill, ListRow } from '../ui/components';
@@ -33,7 +33,7 @@ export default function CoachRsvp({ groups, all = false, onBack }: { groups: Coa
   useEffect(() => {
     void (async () => {
       const r = await supabase.from('matches').select(COLS).neq('lifecycle_status', 'legacy').order('starts_at', { ascending: false });
-      if (r.error) return setError(r.error.message);
+      if (r.error) return setError(errMsg(r.error));
       setList((r.data ?? []) as RsvpMatch[]);
     })();
   }, [reload]);
@@ -189,7 +189,7 @@ function RsvpDetail({ id, groups, onBack, note }: { id: string; groups: CoachGro
   useEffect(() => {
     void (async () => {
       const r = await supabase.from('matches').select(COLS).eq('id', id).maybeSingle();
-      if (r.error) return setError(r.error.message);
+      if (r.error) return setError(errMsg(r.error));
       setM((r.data ?? null) as RsvpMatch | null);
       const s = await supabase.rpc('match_rsvp_summary', { m: id });
       setSum(s.error ? null : (((s.data ?? []) as Summary[])[0] ?? null));

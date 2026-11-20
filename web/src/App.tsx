@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from './lib/supabase';
 import { saveMyRole } from './lib/role';
-import { hasSession, signInWithTelegram, signInWithWidget } from './lib/auth';
+import { AuthError, hasSession, signInWithTelegram, signInWithWidget } from './lib/auth';
 import { configured } from './lib/supabase';
 import { initData, prepareTelegram } from './lib/telegram';
 import AdminSection from './screens/AdminSection';
@@ -25,7 +25,7 @@ import Group from './screens/Group';
 import Sessions from './screens/Sessions';
 import ChildHome, { ChildCode, type ChildPlayer } from './screens/ChildHome';
 import ChildMatches from './screens/ChildMatches';
-import { compareGroups, setGroupOrder, type CoachGroup } from './lib/coach';
+import { compareGroups, errMsg, setGroupOrder, type CoachGroup } from './lib/coach';
 import { BottomNav } from './ui/components';
 import { coachBar } from './lib/coachMenu';
 import Stats from './screens/Stats';
@@ -109,7 +109,7 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
     try {
       // saveMyRole не бросает: ошибка RPC и сетевой сбой приходят как { ok: false, message } (#705)
       const res = await saveMyRole('guest');
-      if (!res.ok) return setGuestError(res.message);
+      if (!res.ok) return setGuestError(res.text);
       setRole('guest');
       setTab('about');
     } finally {
@@ -352,6 +352,15 @@ function OutsideGate({ onUser }: { onUser: (u: Record<string, unknown>) => void 
   return <Welcome onLogin={browserLoginEnabled ? () => setLogin(true) : undefined} />;
 }
 
+/** Текст ошибки входа: AuthError уже написан для пользователя (коды в detail идут в журнал), всё остальное — по общим правилам. */
+const loginError = (e: unknown): string => {
+  if (e instanceof AuthError) {
+    console.error('вход', e.code, e.detail);
+    return e.text;
+  }
+  return errMsg(e);
+};
+
 export default function App() {
   const [state, setState] = useState<State>({ kind: 'loading' });
 
@@ -366,7 +375,7 @@ export default function App() {
       await signInWithTelegram(data);
       setState({ kind: 'ready' });
     } catch (e) {
-      setState({ kind: 'error', text: e instanceof Error ? e.message : 'Неизвестная ошибка' });
+      setState({ kind: 'error', text: loginError(e) });
     }
   }, []);
 
@@ -386,7 +395,7 @@ export default function App() {
             setState({ kind: 'loading' });
             signInWithWidget(u).then(
               () => setState({ kind: 'ready' }),
-              e => setState({ kind: 'error', text: e instanceof Error ? e.message : 'Неизвестная ошибка' }),
+              e => setState({ kind: 'error', text: loginError(e) }),
             );
           }}
         />

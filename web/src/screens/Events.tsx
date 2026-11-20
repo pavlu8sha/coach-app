@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { coachError, fmtDate, matchTeam, today, type CoachGroup } from '../lib/coach';
+import { coachError, fmtDate, matchTeam, today, type CoachGroup, errMsg } from '../lib/coach';
 import { champFeeFor, useClubSettings } from '../lib/clubSettings';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Segmented, NameDatalist, searchFocusProps } from '../ui/components';
@@ -95,7 +95,7 @@ export function EventScreen({ event, groups, admin = false, onBack }: { event: E
   useEffect(() => {
     void (async () => {
       const r = await supabase.rpc('event_roster', { t: event.id });
-      if (r.error) return setError(r.error.message);
+      if (r.error) return setError(errMsg(r.error));
       setRoster((r.data ?? []) as RosterRow[]);
     })();
   }, [event.id, reload]);

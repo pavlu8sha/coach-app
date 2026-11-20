@@ -1,3 +1,5 @@
+import { fallbackError, genericKnown, userError } from './userError';
+
 // Общее для экранов тренера и администратора.
 export interface CoachGroup { id: string; name: string }
 
@@ -32,7 +34,7 @@ export const isoDow = (iso: string) => ((new Date(iso + 'T12:00:00').getDay() + 
 export const hm = (t: string | null) => (t ? t.slice(0, 5) : '');
 export const plural = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'балл' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'балла' : 'баллов');
 
-/** Понятный текст по ошибке функций базы (миграции 0018–0020); неизвестную ошибку показываем как есть. */
+/** Понятный текст по ошибке функций базы (миграции 0018–0020); неизвестная ошибка — «Нет связи» или общий текст, сырое сообщение не показывается. */
 export function coachError(m: string): string {
   const map: [string, string][] = [
     ['forbidden', 'Нет прав на это действие для выбранной группы.'],
@@ -72,7 +74,7 @@ export function coachError(m: string): string {
     ['Could not find the function', 'Эта функция ещё не установлена в базе. Сообщите администратору.'],
     ['schema cache', 'Эта функция ещё не установлена в базе. Сообщите администратору.'],
   ];
-  return map.find(([k]) => m.includes(k))?.[1] ?? m;
+  return map.find(([k]) => m.includes(k))?.[1] ?? fallbackError(m);
 }
 
 // Единый порядок групп во всём приложении: сначала возрастные (U7-A, U7-B, U9-A … U13-C), затем
@@ -116,3 +118,9 @@ export function groupInOrder<T>(items: T[], key: (x: T) => string): [string, T[]
   items.forEach(x => { const k = key(x); map.set(k, [...(map.get(k) ?? []), x]); });
   return [...map.entries()];
 }
+
+/**
+ * Текст ошибки для пользователя по ответу { error } или исключению: единая точка вместо «r.error.message».
+ * Общие случаи (права, сессия, функция не установлена, сеть) переводит сама, остальное — общий текст; доменные тексты задают мапперы экранов.
+ */
+export const errMsg = (e: unknown): string => userError(e, genericKnown);

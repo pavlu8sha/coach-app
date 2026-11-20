@@ -318,7 +318,7 @@ describe('карточка участника', () => {
     fireEvent.change(screen.getByLabelText('Способ'), { target: { value: 'Перевод' } });
     await go();
     await waitFor(() => expect(fake.rpcCalls('club_event_pay')).toHaveLength(1));
-    await screen.findByText('Failed to fetch');
+    await screen.findByText(/Нет связи/);
     await go();
     await waitFor(() => expect(fake.rpcCalls('club_event_pay')).toHaveLength(2));
     const [a, b] = fake.rpcCalls('club_event_pay');

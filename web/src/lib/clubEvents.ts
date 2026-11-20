@@ -1,3 +1,4 @@
+import { fallbackError } from './userError';
 // «Мероприятия» (Issue #677, этап 4): общие подписи, цвета статусов, тексты ошибок базы. Деньги и правила считает база; здесь только показ.
 import type { Tone } from '../ui/components';
 
@@ -59,5 +60,5 @@ export function clubEventErr(m: string): string {
   if (m.includes('date required')) return 'Укажите дату.';
   if (m.includes('forbidden')) return 'Нет доступа.';
   if (m.includes('Could not find the function') || m.includes('club_event')) return 'Раздел ещё не установлен в базе (миграции 0202, 0204, 0210).';
-  return m;
+  return fallbackError(m);
 }

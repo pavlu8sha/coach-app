@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow } from '../ui/components';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
+import { errMsg } from '../lib/coach';
 
 // Список в памяти до закрытия приложения: повторное открытие раздела показывает его сразу и обновляет тихо, без мигания скелетона.
 const cache = new Map<string, ClubArticle[]>();
@@ -46,7 +47,7 @@ export default function ClubArticles({ role, onBack, section = 'article' }: { ro
         .order('published_at', { ascending: false });
       if (!alive) return;
       setRefreshing(false);
-      if (r.error) setFailure({ key, msg: r.error.message });
+      if (r.error) setFailure({ key, msg: errMsg(r.error) });
       else {
         const list = (r.data ?? []) as ClubArticle[];
         cache.set(key, list);

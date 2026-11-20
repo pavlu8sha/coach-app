@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { coachError } from '../lib/coach';
+import { coachError, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { useConfirm } from '../ui/ConfirmSheet';
 
@@ -35,12 +35,12 @@ export default function OwnVisits({ gid, date, admin = false }: { gid: string; d
   useEffect(() => {
     void (async () => {
       const s = await supabase.from('sessions').select('id').eq('group_id', gid).eq('source_key', 'ATT|' + date).maybeSingle();
-      if (s.error) return setError(s.error.message);
+      if (s.error) return setError(errMsg(s.error));
       const id = (s.data as { id: string } | null)?.id ?? null;
       setSessionId(id);
       if (!id) return setVisits([]);
       const v = await supabase.from('own_visits').select('player_id, amount, paid, paid_amount, method, players(full_name)').eq('session_id', id);
-      if (v.error) return setError(v.error.message);
+      if (v.error) return setError(errMsg(v.error));
       setVisits(((v.data ?? []) as unknown as Visit[]).sort((a, b) => (a.players?.full_name ?? '').localeCompare(b.players?.full_name ?? '', 'ru')));
     })();
   }, [gid, date, reload]);
