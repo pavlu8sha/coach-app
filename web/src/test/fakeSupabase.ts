@@ -8,12 +8,14 @@ export const fake = {
   calls: [] as Call[],
   rpc: {} as Record<string, (args: any) => any>, // имя функции → ответ (значение, либо { data, error })
   errors: {} as Record<string, string>,         // таблица → текст ошибки выборки
+  rejects: {} as Record<string, string>,        // таблица → запрос отклоняется исключением (сбой сети)
   user: { id: 'u' } as { id: string } | null,
   reset() {
     this.db = {};
     this.calls = [];
     this.rpc = {};
     this.errors = {};
+    this.rejects = {};
     this.user = { id: 'u' };
   },
   /** Вызовы функций базы по имени (аргументы). */
@@ -34,9 +36,11 @@ function query(table: string): any {
   const orders: { c: string; asc: boolean }[] = [];
   let op: Call['kind'] | 'select' = 'select';
   let payload: any;
+  let returning = false;
   let lim = Infinity, from = 0, to = Infinity, single = false;
 
   const run = () => {
+    if (fake.rejects[table]) throw new Error(fake.rejects[table]);
     if (fake.errors[table]) return { data: null, error: { message: fake.errors[table] } };
     // как в базе: pay_month — вычисляемый месяц платежа (for_month или месяц paid_on)
     const rows = op === 'select' && table === 'payments'
@@ -45,8 +49,9 @@ function query(table: string): any {
     const rowsOf = (p: any) => (Array.isArray(p) ? p : [p]);
     if (op === 'insert') {
       fake.calls.push({ kind: 'insert', name: table, args: payload });
-      fake.db[table] = [...rows, ...rowsOf(payload)];
-      return { data: null, error: null };
+      const inserted = rowsOf(payload).map((r: any) => ({ id: r.id ?? `fake-${Math.random().toString(36).slice(2)}`, ...r }));
+      fake.db[table] = [...rows, ...inserted];
+      return { data: returning ? (single ? inserted[0] ?? null : inserted) : null, error: null };
     }
     if (op === 'upsert') {
       fake.calls.push({ kind: 'upsert', name: table, args: payload });
@@ -67,8 +72,8 @@ function query(table: string): any {
     return { data: single ? out[0] ?? null : out, error: null, count: out.length };
   };
 
-  const q: any = { then: (res: any, rej: any) => Promise.resolve(run()).then(res, rej) };
-  q.select = () => q;
+  const q: any = { then: (res: any, rej: any) => new Promise(ok => ok(run())).then(res, rej) };
+  q.select = () => { if (op === 'insert' || op === 'update' || op === 'upsert') returning = true; return q; };
   q.insert = (p: any) => ((op = 'insert'), (payload = p), q);
   q.upsert = (p: any) => ((op = 'upsert'), (payload = p), q);
   q.update = (p: any) => ((op = 'update'), (payload = p), q);

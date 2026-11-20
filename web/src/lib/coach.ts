@@ -3,6 +3,15 @@ export interface CoachGroup { id: string; name: string }
 
 /** Команда матча: название группы без суффикса -A/-B/-C (U10-A → U10). */
 export const matchTeam = (groupName: string) => groupName.replace(/-[A-Z]$/, '');
+/** Команда игрока для номера: U7-A/U7-B → U7; U13-A отдельно; U13-B/U13-C вместе. */
+export const playerTeam = (groupName: string | null | undefined): string | null => {
+  const n = (groupName ?? '').trim().toUpperCase();
+  if (/^U13-[BC]$/.test(n)) return 'U13-B/C';
+  if (/^U13-A$/.test(n)) return 'U13-A';
+  if (/^U[0-9]+-[A-Z]$/.test(n)) return n.replace(/-[A-Z]$/, '');
+  if (/^U[0-9]+$/.test(n)) return n;
+  return null;
+};
 /** Группы, которые не играют матчи: индивидуальные, вратарские, выходного дня, Isani. */
 export const playsMatches = (groupName: string) => !/индивидуальн|вратарск|weekends|isani/i.test(groupName);
 

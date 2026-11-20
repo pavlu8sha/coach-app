@@ -71,6 +71,8 @@ preflight_partial "без 0212" '0212_set_my_role_confirm' 0212_set_my_role_conf
 preflight_partial "без 0207 и 0208" '0207_eq_freeze_2c|0208_eq_auto_recalc' 0207_eq_freeze_2c 0208_eq_auto_recalc
 preflight_partial "без 0205, 0207 и 0208" '0205_eq_bundle_model|0207_eq_freeze_2c|0208_eq_auto_recalc' 0205_eq_bundle_model 0207_eq_freeze_2c 0208_eq_auto_recalc
 preflight_partial "без 0208" '0208_eq_auto_recalc' 0208_eq_auto_recalc
+# 0209 (профиль игрока, #654) самостоятельна: на базе без неё preflight не должен падать (to_regclass), строка 0209 даёт NOT_APPLIED.
+preflight_partial "без 0209" '0209_player_profile_attributes' 0209_player_profile_attributes
 for t in db/tests/*_test.sql; do
   echo "== $t"
   out=$($PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f "$t" 2>&1) || { echo "$out"; fail=1; continue; }
@@ -112,6 +114,8 @@ echo "== db/tests/concurrency_club_event_seats.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_club_event_seats.sh || fail=1
 echo "== db/tests/concurrency_club_event_pay.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_club_event_pay.sh || fail=1
+echo "== db/tests/concurrency_player_save.sh"
+DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_player_save.sh || fail=1
 echo "== db/tests/concurrency_notifications_release.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_notifications_release.sh || fail=1
 $PSQL -q -d postgres -c "drop database if exists $DB"

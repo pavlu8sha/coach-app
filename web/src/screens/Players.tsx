@@ -10,7 +10,8 @@ import { tariffFor } from './MonthPayments';
 import PlayerCard, { type CardPlayer } from './PlayerCard';
 import PlayerEdit, { type PlayerForm } from './PlayerEdit';
 
-interface Row { id: string; full_name: string; group_id: string | null; birth_date: string | null; status: PlayerStatus; external_id: string | null }
+interface ProfileRow { first_name: string | null; last_name: string | null; primary_position: string | null; jersey_number: number | null; jersey_team: string | null; jersey_season_start: string | null }
+interface Row { id: string; full_name: string; group_id: string | null; birth_date: string | null; status: PlayerStatus; external_id: string | null; player_profiles: ProfileRow | ProfileRow[] | null }
 interface GroupRow { id: string; name: string; club_id: string }
 interface Price { group_id: string | null; amount: number; valid_from: string; valid_to: string | null }
 interface Sub { player_id: string; discount: boolean; written_off: boolean }
@@ -57,7 +58,7 @@ export default function Players() {
     void (async () => {
       const month = monthStart();
       const g = await supabase.from('groups').select('id, name, club_id').order('name');
-      const p = await supabase.from('players').select('id, full_name, group_id, birth_date, status, external_id').order('full_name').limit(1000);
+      const p = await supabase.from('players').select('id, full_name, group_id, birth_date, status, external_id, player_profiles(first_name, last_name, primary_position, jersey_number, jersey_team, jersey_season_start)').order('full_name').limit(1000);
       const pr = await supabase.from('prices').select('group_id, amount, valid_from, valid_to').eq('kind', 'subscription');
       const pay = await supabase.from('payments').select('player_id, amount').eq('pay_month', month).limit(1000);
       const sb = await supabase.from('subscriptions').select('player_id, discount, written_off').eq('month', month).limit(1000);
@@ -103,11 +104,14 @@ export default function Players() {
   // Карточка и правка — вложенные экраны стека; игрока берём из уже загруженного списка по id
   const topId = nav.top.params.id;
   const found = topId ? players.find(p => p.id === topId) : undefined;
-  const asCard = (p: Row): CardPlayer => ({ id: p.id, full_name: p.full_name, birth_date: p.birth_date, group_id: p.group_id, status: p.status, external_id: p.external_id, group_name: groupName.get(p.group_id ?? '') ?? null });
+  const profileOf = (p: Row): ProfileRow => (Array.isArray(p.player_profiles) ? p.player_profiles[0] : p.player_profiles) ?? { first_name: null, last_name: null, primary_position: null, jersey_number: null, jersey_team: null, jersey_season_start: null };
+  const asCard = (p: Row): CardPlayer => ({ ...profileOf(p), id: p.id, full_name: p.full_name, birth_date: p.birth_date, group_id: p.group_id, status: p.status, external_id: p.external_id, group_name: groupName.get(p.group_id ?? '') ?? null });
   const openCard = (p: Row) => nav.push('card', { id: p.id });
   if (nav.top.screen === 'edit') {
     if (topId && !found) return <Splash />; // игрока уже нет в списке: вернёмся к списку
-    const initial: PlayerForm = found ? { id: found.id, full_name: found.full_name, birth_date: found.birth_date, group_id: found.group_id, status: found.status } : { full_name: '', birth_date: null, group_id: null, status: 'active' };
+    const initial: PlayerForm = found
+      ? { ...profileOf(found), id: found.id, full_name: found.full_name, birth_date: found.birth_date, group_id: found.group_id, status: found.status }
+      : { full_name: '', first_name: null, last_name: null, primary_position: null, jersey_number: null, jersey_team: null, jersey_season_start: null, birth_date: null, group_id: null, status: 'active' };
     return <main className="page"><PlayerEdit initial={initial} groups={groups} clubId={groups[0]?.club_id ?? null} onDone={done} onCancel={() => nav.back()} /></main>;
   }
   if (nav.top.screen === 'card' && found) {

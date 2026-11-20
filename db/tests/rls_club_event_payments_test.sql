@@ -335,6 +335,8 @@ select throws_ok($$select cash_report(tbilisi_day(now()), tbilisi_day(now()))$$,
 select as_anon();
 select throws_ok($$select cash_report(tbilisi_day(now()), tbilisi_day(now()))$$, '42501', null, 'CASH4 anon: касса закрыта');
 reset role;
+-- as_anon оставляет claims = '': триггер профиля игрока (0209) зовёт current_user_id() при вставке игрока, поэтому как выше (стр. 111) сбрасываем на '{}'.
+select set_config('request.jwt.claims', '{}', true);
 
 -- ISO/CASH5. клубная изоляция платежей и кассы
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c002', 'Другой клуб');

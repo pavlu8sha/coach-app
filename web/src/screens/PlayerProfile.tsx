@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavState } from '../nav';
-import { fmtDate, plural } from '../lib/coach';
+import { fmtDate, playerTeam, plural } from '../lib/coach';
+import { seasonStart } from '../lib/seasonStats';
 import { fetchLedgerTotals } from '../lib/pointsLedger';
 import { supabase } from '../lib/supabase';
 import { Avatar, BackButton, EmptyState, Pill, Segmented, type Tone } from '../ui/components';
@@ -13,7 +14,8 @@ import PointsLedger from './PointsLedger';
 
 type Section = 'overview' | 'matches' | 'trainings' | 'points';
 
-interface Player { id: string; full_name: string; birth_date: string | null; groups: { name: string } | null }
+interface Profile { first_name: string | null; last_name: string | null; primary_position: string | null; jersey_number: number | null; jersey_team: string | null; jersey_season_start: string | null }
+interface Player { id: string; full_name: string; birth_date: string | null; groups: { name: string } | null; player_profiles: Profile | null }
 interface MatchRow { match_id: string; goals: number; matches: { played_on: string; team: string; opponent: string | null; goals_for: number | null; goals_against: number | null } | null }
 export interface TrainingRow { day: string; starts_at: string | null; kind: 'group' | 'guest' | 'individual' | 'goalkeeper' | 'extra'; title: string; group_name: string | null; status: 'present' | 'absent' | 'excused' | 'unmarked' }
 
@@ -109,7 +111,7 @@ export default function PlayerProfile({ playerId, onBack }: { playerId: string; 
     setTrain(null);
     setTrainFrom(null);
     void (async () => {
-      const pl = await supabase.from('players').select('id, full_name, birth_date, groups(name)').eq('id', playerId).maybeSingle();
+      const pl = await supabase.from('players').select('id, full_name, birth_date, groups(name), player_profiles(first_name, last_name, primary_position, jersey_number, jersey_team, jersey_season_start)').eq('id', playerId).maybeSingle();
       if (!live) return;
       if (pl.error) return setError(pl.error.message);
       if (!pl.data) return setPlayer(null);
@@ -152,6 +154,10 @@ export default function PlayerProfile({ playerId, onBack }: { playerId: string; 
   const goals = matches.reduce((s, m) => s + (m.goals ?? 0), 0);
   const lastPresent = train?.find(r => r.status === 'present');
   const canMore = trainFrom !== null && trainFrom > shiftDay(tbilisiToday(), -(MAX_BACK - 1));
+  const profile = player.player_profiles;
+  const currentJersey = profile && profile.jersey_number !== null
+    && profile.jersey_team === playerTeam(player.groups?.name)
+    && profile.jersey_season_start === seasonStart(tbilisiToday()) ? profile.jersey_number : null;
 
   return (
     <main className="page">
@@ -162,6 +168,8 @@ export default function PlayerProfile({ playerId, onBack }: { playerId: string; 
           <div className="ks-kid-who">
             <h1 style={{ margin: 0 }}>{player.full_name}</h1>
             {player.groups?.name && <p className="muted">{player.groups.name}</p>}
+            {profile?.primary_position && <p className="muted">Позиция: {profile.primary_position}</p>}
+            {currentJersey !== null && <p className="muted">Номер: {currentJersey}</p>}
             {player.birth_date && <p className="muted">Год рождения: {player.birth_date.slice(0, 4)}</p>}
           </div>
         </div>
