@@ -12,4 +12,6 @@
 7. `own_visits_backfill` недоступна ролям `authenticated`, `anon`, `public` (проверка на базе с привилегиями по умолчанию Supabase). `player_set_pay_mode` по-прежнему только для администратора.
 8. Данные: для уже переведённых игроков (Fedorov Matvey, Fedorov Lev) после применения миграции дозаполнение запускает админ повторным сохранением карточки или скриптом `db/ops/backfill-own-visits-2026-11-20.sql`.
 
+9. **Конкурентность.** Триггер `attendance_own_visit_sync` перед чтением режима берёт блокировку строки игрока (`for share`), смена режима держит её (`for update`): одновременная правка отметки (INSERT, UPDATE status, DELETE) и смена режима в любом порядке коммита не теряют визит за «Был» и не оставляют визит за «Не был»/удалённую отметку; взаимных блокировок нет. Проверка: `db/tests/concurrency_own_visit_backfill.sh` (7 сценариев).
+
 Откат: `db/ops/rollback-0213-own-visits-backfill.sql`. Применяет только Павел после `db/ops/preflight.sql`.

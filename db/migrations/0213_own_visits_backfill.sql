@@ -4,6 +4,10 @@
 -- Теперь: own_visits_backfill(p) создаёт неоплаченные визиты (сумма из own_visit.fee) за занятия с отметкой «Был», дата которых не раньше pay_mode_from и не позже сегодня,
 -- если строки визита ещё нет. Оплаченные и существующие строки не трогаются. Вызывается из player_set_pay_mode при переводе на per_visit и при повторном сохранении того же режима и даты (так дозаполняют уже переведённых); прямого доступа у ролей нет.
 -- Тело player_set_pay_mode взято из 0200 (единственное определение: grep -lEi "function +(public\.)?player_set_pay_mode *\(" db/migrations/*.sql), добавлен только вызов.
+-- Конкурентность (ревью #778): триггер attendance_own_visit_sync (0200) читал players без блокировки, а дозаполнение не видит незакоммиченную отметку,
+-- поэтому при одновременной правке отметки (UPDATE status или DELETE; INSERT уже сериализован внешним ключом на игрока) визит мог потеряться или остаться лишним.
+-- Теперь триггер перед чтением режима берёт блокировку строки игрока (for share): он ждёт смены режима (там for update) и после её коммита читает новый режим,
+-- а смена режима ждёт открытых отметок и после их коммита видит их. Тело триггера взято из 0200 (единственное определение), изменена одна строка чтения игрока.
 -- Откат: db/ops/rollback-0213-own-visits-backfill.sql. Условия приёмки: docs/PAY_PER_VISIT_BACKFILL_ACCEPTANCE.md.
 create or replace function own_visits_backfill(p uuid) returns int
 language plpgsql security definer set search_path = public as $$
@@ -23,6 +27,33 @@ begin
   return n;
 end $$;
 revoke execute on function own_visits_backfill(uuid) from public, anon, authenticated;
+
+create or replace function attendance_own_visit_sync() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare sid uuid; pid uuid; pl players; ses sessions; present boolean; ov own_visits; club uuid;
+begin
+  if tg_op = 'DELETE' then sid := old.session_id; pid := old.player_id; present := false;
+  else sid := new.session_id; pid := new.player_id; present := (new.status = 'present');
+  end if;
+  select * into pl from players where id = pid for share;
+  if not found or pl.pay_mode <> 'per_visit' or pl.pay_mode_from is null then return null; end if;
+  select * into ses from sessions where id = sid;
+  if not found or tbilisi_day(ses.starts_at) < pl.pay_mode_from then return null; end if;
+  if present then
+    if not exists (select 1 from own_visits where session_id = sid and player_id = pid) then
+      select g.club_id into club from groups g where g.id = ses.group_id;
+      insert into own_visits (session_id, player_id, amount) values (sid, pid, own_visit_fee(club)) on conflict do nothing;
+    end if;
+  else
+    select * into ov from own_visits where session_id = sid and player_id = pid for update;
+    if found then
+      if ov.paid then raise exception 'visit paid' using errcode = '22023'; end if;
+      delete from own_visits where session_id = sid and player_id = pid;
+    end if;
+  end if;
+  return null;
+end $$;
+revoke execute on function attendance_own_visit_sync() from public, anon, authenticated;
 
 create or replace function player_set_pay_mode(p uuid, mode text, from_d date default null) returns void
 language plpgsql security definer set search_path = public as $$

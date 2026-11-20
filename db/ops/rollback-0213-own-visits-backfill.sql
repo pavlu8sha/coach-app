@@ -1,5 +1,32 @@
--- Откат 0213: вернуть player_set_pay_mode без вызова дозаполнения и удалить own_visits_backfill. Созданные ею строки own_visits не удаляются (это визиты, по ним могут быть оплаты).
+-- Откат 0213: вернуть player_set_pay_mode без вызова дозаполнения, триггерную функцию attendance_own_visit_sync без блокировки игрока и удалить own_visits_backfill. Созданные ею строки own_visits не удаляются (это визиты, по ним могут быть оплаты).
 drop function if exists own_visits_backfill(uuid);
+-- Исходное тело триггерной функции из 0200 (без блокировки строки игрока):
+create or replace function attendance_own_visit_sync() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare sid uuid; pid uuid; pl players; ses sessions; present boolean; ov own_visits; club uuid;
+begin
+  if tg_op = 'DELETE' then sid := old.session_id; pid := old.player_id; present := false;
+  else sid := new.session_id; pid := new.player_id; present := (new.status = 'present');
+  end if;
+  select * into pl from players where id = pid;
+  if not found or pl.pay_mode <> 'per_visit' or pl.pay_mode_from is null then return null; end if;
+  select * into ses from sessions where id = sid;
+  if not found or tbilisi_day(ses.starts_at) < pl.pay_mode_from then return null; end if;
+  if present then
+    if not exists (select 1 from own_visits where session_id = sid and player_id = pid) then
+      select g.club_id into club from groups g where g.id = ses.group_id;
+      insert into own_visits (session_id, player_id, amount) values (sid, pid, own_visit_fee(club)) on conflict do nothing;
+    end if;
+  else
+    select * into ov from own_visits where session_id = sid and player_id = pid for update;
+    if found then
+      if ov.paid then raise exception 'visit paid' using errcode = '22023'; end if;
+      delete from own_visits where session_id = sid and player_id = pid;
+    end if;
+  end if;
+  return null;
+end $$;
+revoke execute on function attendance_own_visit_sync() from public, anon, authenticated;
 -- Исходное тело player_set_pay_mode из 0200:
 create or replace function player_set_pay_mode(p uuid, mode text, from_d date default null) returns void
 language plpgsql security definer set search_path = public as $$
