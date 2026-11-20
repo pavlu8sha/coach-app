@@ -198,7 +198,8 @@ describe('Матчи, группа, статистика, учёт', () => {
     fireEvent.click(await screen.findByText('Иванов Пётр'));
     await screen.findByText('Ручные баллы');
     fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
-    expect(await screen.findByRole('heading', { name: 'Группа' })).toBeInTheDocument();
+    await screen.findByText('Иванов Пётр'); // заголовок «Группа» виден уже в заглушке загрузки: ждём сам список
+    expect(screen.getByRole('heading', { name: 'Группа' })).toBeInTheDocument();
   });
 
   it('«Статистика»: вкладка и период остаются после ухода в другой раздел', async () => {

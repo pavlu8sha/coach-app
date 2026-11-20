@@ -54,7 +54,7 @@ export default function Group({ groups, notify = false }: { groups: CoachGroup[]
   if (error) return <Failure title="Не удалось загрузить группу" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   const open = nav.top.screen === 'player' ? (players ?? []).find(p => p.id === nav.top.params.id) : undefined;
   if (open) return <PlayerCard gid={gid} player={open} onBack={() => nav.back()} />;
-  if (!players || !ranked) return <Loading />;
+  if (!players || !ranked) return <Loading title="Группа" />;
 
   return (
     <main className="page">

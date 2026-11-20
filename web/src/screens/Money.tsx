@@ -14,7 +14,7 @@ export default function Money() {
   return (
     <>
       <header style={{ maxWidth: 560, margin: '0 auto', padding: '12px 16px 0' }}>
-        <Segmented label="Раздел оплат" value={sub} onChange={setSub} items={[{ value: 'cash', label: 'Приём оплат' }, { value: 'month', label: 'По месяцам' }, { value: 'debtors', label: 'Должники' }, { value: 'report', label: 'Отчёт' }]} />
+        <Segmented row label="Раздел оплат" value={sub} onChange={setSub} items={[{ value: 'cash', label: 'Приём оплат' }, { value: 'month', label: 'По месяцам' }, { value: 'debtors', label: 'Должники' }, { value: 'report', label: 'Отчёт' }]} />
       </header>
       {sub === 'cash' ? <CashDesk /> : sub === 'month' ? <MonthPayments /> : sub === 'report' ? <CashReport /> : <Debtors />}
     </>

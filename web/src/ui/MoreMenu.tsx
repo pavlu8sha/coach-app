@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 export interface MoreItem { label: string; onSelect: () => void }
 
 /** Меню «⋯» в шапке экрана. Esc, клик вне и повторный клик закрывают его, фокус возвращается на кнопку. */
-export function MoreMenu({ items, badge = 0 }: { items: MoreItem[]; badge?: number }) {
+export function MoreMenu({ items, badge = 0, label }: { items: MoreItem[]; badge?: number; label?: string }) {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement | null>(null);
   const btn = useRef<HTMLButtonElement | null>(null);
@@ -22,7 +22,7 @@ export function MoreMenu({ items, badge = 0 }: { items: MoreItem[]; badge?: numb
   }, [open]);
   return (
     <div className="ks-more" ref={wrap}>
-      <button type="button" ref={btn} className="ks-btn sm secondary" aria-label={badge > 0 ? `Ещё, ${badge}` : 'Ещё'} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(o => !o)}>
+      <button type="button" ref={btn} className="ks-btn sm secondary" aria-label={label ?? (badge > 0 ? `Ещё, ${badge}` : 'Ещё')} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(o => !o)}>
         ⋯{badge > 0 && <span className="ks-more-dot" aria-hidden="true">{badge}</span>}
       </button>
       {open && (
