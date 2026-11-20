@@ -310,8 +310,8 @@ describe('#765: загрузка связанных детей', () => {
     expect(fake.calls.filter(c => c.name === 'player_guardians')).toHaveLength(0); // таблицу связей экран не читает
   });
 
-  it('10: отозванное согласие: ребёнок в список не попадает (доступ не расширен)', async () => {
-    fake.db.player_guardians = [ANYA, { user_id: 'u', consent_revoked_at: '2026-11-01T00:00:00Z', players: { id: 'p2', full_name: 'Боря Второй' } }];
+  it('10: ребёнок, которого сервер не вернул (отзыв согласия), в список не попадает (доступ не расширен)', async () => {
+    fake.rpc.my_children = () => [{ player_id: 'p1', full_name: 'Аня Первая', group_id: null, group_name: null }]; // p2 сервер отфильтровал по parent_access_ok
     fake.rpc.booking_board = () => board();
     render(<Booking />);
     expect(await screen.findByRole('button', { name: signupBtn })).toBeInTheDocument();

@@ -117,12 +117,12 @@ export const supabase: any = {
     then: (res: any, rej: any) => {
       fake.calls.push({ kind: 'rpc', name, args });
       // поиск игрока в кассе (0154): по умолчанию ищет по данным fake.db.players, как админ; тест может подставить свой ответ
-      // список детей родителя (0215): по умолчанию строится из fake.db.player_guardians (вложенный players, как в прежних данных);
+      // список детей родителя (0215): по умолчанию строится из fake.db.player_guardians (вложенный players, как в прежних данных; решение о доступе принимает сервер, фильтра тут нет);
       // тест подставляет fake.rpc.my_children, чтобы проверить ответ сервера, ошибку или сбой сети
       const h = fake.rpc[name] ?? (name === 'my_children'
         ? () => {
             if (!fake.user) return { error: { message: 'forbidden', code: '42501' } };
-            return (fake.db.player_guardians ?? []).filter(g => g.user_id === fake.user!.id && g.consent_revoked_at == null && g.players)
+            return (fake.db.player_guardians ?? []).filter(g => g.user_id === fake.user!.id && g.players)
               .map(g => ({ player_id: g.players.id, full_name: g.players.full_name, group_id: g.players.group_id ?? null, group_name: g.players.groups?.name ?? null }));
           }
         : name === 'cash_find_players'
