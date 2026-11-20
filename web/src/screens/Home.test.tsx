@@ -133,11 +133,11 @@ describe('главная родителя', () => {
   });
 
   it('ошибка загрузки: «Повторить»', async () => {
-    fake.errors.player_guardians = 'TypeError: Failed to fetch';
+    fake.rpc.my_children = () => ({ error: { message: 'TypeError: Failed to fetch' } });
     render(<Home />);
     expect(await screen.findByText(/Нет связи/)).toBeInTheDocument();
     expect(document.body.textContent).not.toContain('Failed to fetch');
-    delete fake.errors.player_guardians;
+    delete fake.rpc.my_children;
     fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Найти ребёнка' })).toBeInTheDocument());
   });

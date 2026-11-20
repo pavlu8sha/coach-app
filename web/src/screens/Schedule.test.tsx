@@ -8,7 +8,7 @@ describe('расписание групп родителя', () => {
     fake.reset();
     fake.db.player_guardians = [{
       user_id: 'u',
-      players: { full_name: 'Тимофей', group_id: 'g1', groups: { name: 'U10-A' } },
+      players: { id: 'p1', full_name: 'Тимофей', group_id: 'g1', groups: { name: 'U10-A' } },
     }];
     fake.db.weekly_schedule = [{ id: 's1', group_id: 'g1', weekday: 2, starts_at: '17:00', ends_at: '18:30', location: 'Красный парк', kind: 'Групповая', coaches: null }];
   });
@@ -42,7 +42,7 @@ describe('расписание групп родителя: ребёнок бе�
   const kid = (name: string, group: string | null) => ({
     user_id: 'u',
     consent_revoked_at: null,
-    players: { full_name: name, group_id: group ? `g-${group}` : null, groups: group ? { name: group } : null },
+    players: { id: `k-${name}`, full_name: name, group_id: group ? `g-${group}` : null, groups: group ? { name: group } : null },
   });
   const noLink = /подтвердит связь/;
 
