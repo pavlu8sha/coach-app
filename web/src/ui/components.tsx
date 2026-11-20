@@ -61,7 +61,7 @@ export function ListRow(props: { title: string; sub?: ReactNode[]; avatar?: stri
 /** Сегментный переключатель (вкладки). */
 export function Segmented<T extends string>(props: { value: T; items: { value: T; label: string }[]; onChange: (v: T) => void; label: string; wrap?: boolean; row?: boolean }) {
   return (
-    <div className={props.row ? 'ks-seg row' : props.items.length > 4 || props.wrap ? 'ks-seg many' : props.items.length === 4 ? 'ks-seg quad' : 'ks-seg'} role="tablist" aria-label={props.label}>
+    <div className={props.row ? 'ks-seg row' : props.items.length > 4 || props.wrap ? 'ks-seg many' : props.items.length === 4 ? 'ks-seg quad' : props.items.length === 2 ? 'ks-seg pair' : 'ks-seg'} role="tablist" aria-label={props.label}>
       {props.items.map(it => (
         <button key={it.value} type="button" role="tab" aria-selected={it.value === props.value} onClick={() => props.onChange(it.value)}>
           {it.label}

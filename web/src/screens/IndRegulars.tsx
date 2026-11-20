@@ -105,7 +105,7 @@ export default function IndRegulars() {
         return (
           <section key={t.id}>
             <h3>{slotTitle(t)}</h3>
-            <div className="ks-line" style={{ gap: 8, alignItems: 'end' }}>
+            <div className="ks-line" style={{ gap: 8, alignItems: 'end', marginBottom: 12 }}>
               <label className="field" style={{ flex: 1 }}>Окончание слота<input type="time" value={ends[t.id] ?? ''} onChange={e => setEnds(cur => ({ ...cur, [t.id]: e.target.value }))} /></label>
               <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 44 }} aria-label={`Сохранить окончание: ${slotTitle(t)}`} disabled={busy === 'e' + t.id} onClick={() => void saveEnd(t)}>Сохранить</button>
             </div>
