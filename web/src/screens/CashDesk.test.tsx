@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { describe, expect, it, vi } from 'vitest';
 import { today } from '../lib/coach';
 import { DEBT_START } from '../lib/debtSeason';
-import { fake } from '../test/fakeSupabase';
+import { fake, supabase } from '../test/fakeSupabase';
 import CashDesk, { PlayerDues } from './CashDesk';
 import { monthIso, nextMonth } from './MonthPayments';
 
@@ -10,6 +10,28 @@ import { monthIso, nextMonth } from './MonthPayments';
 vi.useFakeTimers({ toFake: ['Date'] });
 vi.setSystemTime(new Date(2026, 9, 15, 12, 0, 0));
 const M = monthIso(new Date());
+
+/** Первый запрос к таблице отвечает только после release(): так проверяются ответы, пришедшие в обратном порядке. */
+function gateFirst(table: string) {
+  const real = supabase.from;
+  let first = true;
+  let release: () => void = () => {};
+  const gate = new Promise<void>(r => { release = r; });
+  const spy = vi.spyOn(supabase, 'from').mockImplementation(((t: string) => {
+    const q = real(t);
+    if (t !== table || !first) return q;
+    first = false;
+    const proxy: any = new Proxy(q, {
+      get(target, prop) {
+        if (prop === 'then') return (res: any, rej: any) => gate.then(() => target.then(res, rej));
+        const v = target[prop];
+        return typeof v === 'function' ? (...a: unknown[]) => { const r = v.apply(target, a); return r === target ? proxy : r; } : v;
+      },
+    });
+    return proxy;
+  }) as any);
+  return { release, restore: () => spy.mockRestore() };
+}
 function seed() {
   fake.db.players = [{ id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', groups: { name: 'U9-A' } }];
   fake.db.prices = [{ group_id: null, kind: 'subscription', amount: 165, valid_from: '2026-09-01', valid_to: null }];
@@ -609,13 +631,152 @@ describe('«К оплате»: взносы матчей и событий', () 
     for (const gone of ['Сборы', 'Экипировка', 'Индивидуальные', 'Дополнительные']) expect(screen.queryByRole('button', { name: gone })).not.toBeInTheDocument();
   });
 
-  it('сбой чтения взносов не ломает остальные разделы', async () => {
+  it('сбой чтения взносов не ломает остальные разделы, но показывает, что данные неполные (#692)', async () => {
     seedFees();
     fake.db.equipment_orders = [{ id: 'o1', player_id: 'p1', ordered_on: '2026-09-10', total: 160, paid: 60, equipment_order_lines: [{ kit: 'Форма' }] }];
     fake.errors.match_fees = 'boom';
     await openPlayer();
     expect(await screen.findByRole('heading', { name: 'Экипировка' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Взносы матчей' })).not.toBeInTheDocument();
+    expect(within(await screen.findByRole('alert')).getByText(/Не удалось загрузить: взносы матчей\./)).toBeInTheDocument();
+  });
+});
+
+// Условия: docs/acceptance/cashdesk-match-event-dues-errors-692-2026-11-20.md
+describe('«К оплате»: сбой чтения взносов матчей и событий (#692)', () => {
+  function seedDues() {
+    seed();
+    fake.db.payments = [];
+    fake.db.equipment_orders = [{ id: 'o1', player_id: 'p1', ordered_on: '2026-09-10', total: 160, paid: 60, equipment_order_lines: [{ kit: 'Форма' }] }];
+    fake.db.individual_bookings = [];
+    fake.db.extra_bookings = [];
+    fake.db.camp_participants = [];
+    fake.db.subscriptions = [{ player_id: 'p1', month: M, group_id: null, discount: true, written_off: false }];
+    fake.db.match_fees = [{ match_id: 'm1', player_id: 'p1', amount: 25, paid: false, matches: { played_on: '2026-10-10', team: 'U9-A', opponent: 'Динамо', kind: 'game' } }];
+    fake.db.match_payments = [];
+    fake.db.tournament_fees = [{ tournament_id: 't1', player_id: 'p1', amount: 80, paid: false, tournaments: { name: 'Championship 2', kind: 'championship', team: 'U9' } }];
+    fake.db.tournament_payments = [];
+  }
+  const alertText = async () => (await screen.findByRole('alert')).textContent ?? '';
+
+  it('успех: предупреждения нет, оба раздела на месте', async () => {
+    seedDues();
+    await openPlayer();
+    expect(await screen.findByRole('heading', { name: 'Взносы матчей' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Взносы событий' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText(/неполно/)).not.toBeInTheDocument();
+  });
+
+  it.each(['match_fees', 'match_payments'])('отказ %s: названы взносы матчей; события и экипировка доступны', async table => {
+    seedDues();
+    fake.errors[table] = 'boom';
+    await openPlayer();
+    const text = await alertText();
+    expect(text).toMatch(/Не удалось загрузить: взносы матчей\./);
+    expect(text).not.toMatch(/взносы событий/);
+    expect(text).not.toMatch(/boom/);
+    expect(screen.queryByRole('heading', { name: 'Взносы матчей' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Взносы событий' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Экипировка' })).toBeInTheDocument();
+    expect(screen.getByText(/к оплате: .*\(неполно\)/)).toBeInTheDocument();
+  });
+
+  it.each(['tournament_fees', 'tournament_payments'])('отказ %s: названы взносы событий; матчи доступны', async table => {
+    seedDues();
+    fake.errors[table] = 'boom';
+    await openPlayer();
+    const text = await alertText();
+    expect(text).toMatch(/Не удалось загрузить: взносы событий\./);
+    expect(text).not.toMatch(/взносы матчей/);
+    expect(text).not.toMatch(/boom/);
+    expect(screen.queryByRole('heading', { name: 'Взносы событий' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Взносы матчей' })).toBeInTheDocument();
+  });
+
+  it('отказ матчей и событий: названы оба раздела, остальное доступно', async () => {
+    seedDues();
+    fake.errors.match_fees = 'boom';
+    fake.errors.tournament_payments = 'boom';
+    await openPlayer();
+    expect(await alertText()).toMatch(/Не удалось загрузить: взносы матчей, взносы событий\./);
+    expect(screen.getByRole('heading', { name: 'Экипировка' })).toBeInTheDocument();
+  });
+
+  it('недоступные данные не выдаются за «долгов нет»', async () => {
+    seedDues();
+    fake.db.equipment_orders = [];
+    fake.errors.match_fees = 'boom';
+    await openPlayer();
+    await alertText();
+    expect(screen.queryByText('Долгов нет')).not.toBeInTheDocument();
+    expect(screen.queryByText(/всё оплачено/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Ниже можно принять оплату вперёд/)).not.toBeInTheDocument();
+  });
+
+  it('при предупреждении остальные разделы принимают оплату как раньше', async () => {
+    seedDues();
+    fake.rpc.eq_add_payment = () => null;
+    fake.errors.match_fees = 'boom';
+    await openPlayer();
+    await alertText();
+    const c = card(/Внесено 60 ₾ из 160 ₾/);
+    fireEvent.click(within(c).getByRole('button', { name: 'Принять оплату' }));
+    fireEvent.click(within(c).getByRole('button', { name: 'Записать платёж' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
+    await waitFor(() => expect(fake.rpcCalls('eq_add_payment')).toHaveLength(1));
+    expect(fake.rpcCalls('eq_add_payment')[0]).toMatchObject({ o: 'o1', amt: 100 });
+  });
+
+  it('«Повторить»: перечитывает карточку без записей, выбранный игрок и способ остаются, предупреждение снимается', async () => {
+    seedDues();
+    fake.errors.match_fees = 'boom';
+    fake.errors.tournament_fees = 'boom';
+    await openPlayer();
+    await alertText();
+    delete fake.errors.match_fees;
+    delete fake.errors.tournament_fees;
+    const writesBefore = fake.calls.filter(c => c.kind !== 'rpc').length;
+    const rpcBefore = fake.calls.filter(c => c.kind === 'rpc' && c.name !== 'cash_find_players').length;
+    fireEvent.click(within(screen.getByRole('alert')).getByRole('button', { name: 'Повторить' }));
+    expect(await screen.findByRole('heading', { name: 'Взносы матчей' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Взносы событий' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByText('Иванов Пётр')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Наличные' })).toHaveAttribute('aria-pressed', 'true');
+    expect(fake.calls.filter(c => c.kind !== 'rpc')).toHaveLength(writesBefore); // записей не добавилось
+    expect(fake.calls.filter(c => c.kind === 'rpc' && c.name !== 'cash_find_players')).toHaveLength(rpcBefore); // платёжных функций не вызывалось
+    expect(fake.rpcCalls('match_pay')).toHaveLength(0);
+    expect(fake.rpcCalls('event_pay')).toHaveLength(0);
+  });
+
+  it('повторный отказ оставляет предупреждение; потом успех снимает его', async () => {
+    seedDues();
+    fake.errors.match_payments = 'boom';
+    await openPlayer();
+    await alertText();
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Повторить' })).not.toBeDisabled());
+    expect(await alertText()).toMatch(/взносы матчей/);
+    expect(screen.queryByRole('heading', { name: 'Взносы матчей' })).not.toBeInTheDocument();
+    delete fake.errors.match_payments;
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    expect(await screen.findByRole('heading', { name: 'Взносы матчей' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('устаревший ответ не затирает данные: игрока сменили до ответа предыдущей загрузки', async () => {
+    seedDues();
+    const pl = (id: string, name: string) => ({ id, full_name: name, group_id: 'g1', groups: { name: 'U9-A' } });
+    const gated = gateFirst('prices'); // чтение долгов первого игрока отвечает позже, чем второго
+    const { rerender } = render(<PlayerDues player={pl('p1', 'Иванов Пётр')} />);
+    rerender(<PlayerDues player={pl('p2', 'Иванов Олег')} />);
+    expect(await screen.findByText(/к оплате:/)).toBeInTheDocument(); // загрузка p2 завершена
+    gated.release();
+    await new Promise(r => setTimeout(r, 30));
+    expect(screen.queryByText(/Динамо/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Взносы матчей' })).not.toBeInTheDocument();
+    gated.restore();
   });
 });
 
@@ -687,5 +848,146 @@ describe('«Приём оплат»: быстрые даты и отмена ч�
     render(<CashDesk />);
     await screen.findByRole('heading', { name: /Внесено сегодня/ });
     expect(screen.queryByRole('button', { name: 'Действия: Иванов Пётр' })).toBeNull();
+  });
+});
+
+// Условия: docs/acceptance/cashdesk-day-register-errors-691-2026-11-20.md
+describe('«Внесено за день»: сбой источников (#691)', () => {
+  function seedDay() {
+    seed();
+    fake.db.payments = [{ id: 'a1', player_id: 'p1', amount: 100, paid_on: today(), method: 'Наличные', recorded_at: '2026-10-15T08:00:00Z', players: { full_name: 'Иванов Пётр' } }];
+    fake.db.camp_payments = [{ id: 'c1', player_id: 'p1', amount: 250, paid_on: today(), method: 'Перевод', kind: 'payment', recorded_at: '2026-10-15T09:00:00Z', players: { full_name: 'Иванов Пётр' } }];
+    fake.rpc.cash_day_service = () => [{ id: 's1', amount: 40, method: 'Наличные', what: 'Экипировка', player_id: 'p1', full_name: 'Иванов Пётр', recorded_at: '2026-10-15T10:00:00Z' }];
+  }
+  const failSvc = () => { fake.rpc.cash_day_service = () => ({ data: null, error: { message: 'boom' } }); };
+  const regAlert = () => screen.findByRole('alert');
+  const noTotals = () => {
+    expect(screen.getByRole('heading', { name: /^Внесено сегодня$/ })).toBeInTheDocument(); // без суммы в заголовке
+    for (const t of ['Всего', 'Наличные', 'Перевод']) expect(screen.queryByText(t, { selector: '.ks-tile b' })).not.toBeInTheDocument();
+    expect(screen.queryByText('В этот день платежей нет.')).not.toBeInTheDocument();
+  };
+
+  it('успех: все строки, итог и плитки, блока ошибки нет', async () => {
+    seedDay();
+    render(<CashDesk />);
+    expect(await screen.findByRole('heading', { name: /Внесено сегодня.*390/ })).toBeInTheDocument();
+    expect(screen.getByText('Всего', { selector: '.ks-tile b' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('отказ payments: не бесконечная загрузка; сборы и занятия остаются; итога нет', async () => {
+    seedDay();
+    fake.errors.payments = 'boom';
+    render(<CashDesk />);
+    const a = await regAlert();
+    expect(a.textContent).toMatch(/Касса за день загружена не полностью/);
+    expect(a.textContent).toMatch(/Не удалось загрузить: оплаты абонементов\./);
+    expect(a.textContent).not.toMatch(/boom/);
+    expect(screen.queryByRole('status', { name: 'Загрузка' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Сбор, U9-A, Оплата, Перевод/)).toBeInTheDocument();
+    expect(screen.getByText(/Экипировка/)).toBeInTheDocument();
+    noTotals();
+  });
+
+  it('отказ camp_payments: названы оплаты сборов, строки абонемента остаются, итога нет', async () => {
+    seedDay();
+    fake.errors.camp_payments = 'boom';
+    render(<CashDesk />);
+    expect((await regAlert()).textContent).toMatch(/Не удалось загрузить: оплаты сборов\./);
+    expect(screen.getByText(/Абонемент 10.26/)).toBeInTheDocument();
+    expect(screen.queryByText(/Сбор, U9-A/)).not.toBeInTheDocument();
+    noTotals();
+  });
+
+  it('отказ cash_day_service: названы оплаты экипировки и занятий, итога нет', async () => {
+    seedDay();
+    failSvc();
+    render(<CashDesk />);
+    expect((await regAlert()).textContent).toMatch(/Не удалось загрузить: оплаты экипировки и занятий\./);
+    expect(screen.getByText(/Абонемент 10.26/)).toBeInTheDocument();
+    noTotals();
+  });
+
+  it('отказ проверки отмен: тоже неполные данные', async () => {
+    seedDay();
+    const real = supabase.from;
+    const spy = vi.spyOn(supabase, 'from').mockImplementation(((t: string) => {
+      const q = real(t);
+      if (t !== 'payments') return q;
+      const sel = q.select.bind(q);
+      q.select = (cols: string) => (cols === 'cancels' ? { in: () => ({ limit: () => Promise.resolve({ data: null, error: { message: 'boom' } }) }) } : sel(cols));
+      return q;
+    }) as any);
+    render(<CashDesk />);
+    expect((await regAlert()).textContent).toMatch(/Не удалось загрузить: отметки об отменах оплат\./);
+    noTotals();
+    spy.mockRestore();
+  });
+
+  it('все источники отказали: блок есть, строк и «платежей нет» нет, загрузки нет', async () => {
+    seedDay();
+    fake.errors.payments = 'boom';
+    fake.errors.camp_payments = 'boom';
+    failSvc();
+    render(<CashDesk />);
+    const a = await regAlert();
+    expect(a.textContent).toMatch(/оплаты абонементов.*оплаты сборов.*оплаты экипировки и занятий/);
+    expect(screen.queryByRole('status', { name: 'Загрузка' })).not.toBeInTheDocument();
+    noTotals();
+  });
+
+  it('«Повторить»: один новый запрос, после успеха полный список, итог и плитки, блока нет', async () => {
+    seedDay();
+    fake.errors.camp_payments = 'boom';
+    render(<CashDesk />);
+    await regAlert();
+    delete fake.errors.camp_payments;
+    const before = fake.rpcCalls('cash_day_service').length;
+    fireEvent.click(within(screen.getByRole('alert')).getByRole('button', { name: 'Повторить' }));
+    expect(await screen.findByRole('heading', { name: /Внесено сегодня.*390/ })).toBeInTheDocument();
+    expect(fake.rpcCalls('cash_day_service')).toHaveLength(before + 1);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByText('Всего', { selector: '.ks-tile b' })).toBeInTheDocument();
+    expect(fake.calls.filter(c => c.kind !== 'rpc')).toHaveLength(0); // никаких записей
+  });
+
+  it('повторный отказ оставляет предупреждение, итога нет', async () => {
+    seedDay();
+    fake.errors.camp_payments = 'boom';
+    render(<CashDesk />);
+    await regAlert();
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    expect((await regAlert()).textContent).toMatch(/оплаты сборов/);
+    noTotals();
+  });
+
+  it('устаревший ответ при смене даты не применяется (данные и ошибка прежней даты)', async () => {
+    seedDay();
+    fake.db.payments.push({ id: 'b1', player_id: 'p1', amount: 7, paid_on: '2026-10-05', method: 'Наличные', recorded_at: '2026-10-05T08:00:00Z', players: { full_name: 'Иванов Пётр' } });
+    const pending: Record<string, (v: unknown) => void> = {};
+    fake.rpc.cash_day_service = (a: { p_day: string }) => a.p_day === today() ? new Promise(r => { pending[a.p_day] = r; }) : [];
+    render(<CashDesk />);
+    await waitFor(() => expect(pending[today()]).toBeDefined());
+    fireEvent.change(screen.getByLabelText('Дата платежей'), { target: { value: '2026-10-05' } });
+    expect(await screen.findByRole('heading', { name: /Внесено 05.10.2026.*7/ })).toBeInTheDocument();
+    pending[today()]({ data: null, error: { message: 'boom' } }); // поздний отказ за прежнюю дату
+    await new Promise(r => setTimeout(r, 30));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Внесено 05.10.2026.*7/ })).toBeInTheDocument();
+  });
+
+  it('устаревший успех при смене даты не подмешивает строки прежнего дня', async () => {
+    seedDay();
+    fake.db.payments.push({ id: 'b1', player_id: 'p1', amount: 7, paid_on: '2026-10-05', method: 'Наличные', recorded_at: '2026-10-05T08:00:00Z', players: { full_name: 'Иванов Пётр' } });
+    const pending: Record<string, (v: unknown) => void> = {};
+    fake.rpc.cash_day_service = (a: { p_day: string }) => a.p_day === today() ? new Promise(r => { pending[a.p_day] = r; }) : [];
+    render(<CashDesk />);
+    await waitFor(() => expect(pending[today()]).toBeDefined());
+    fireEvent.change(screen.getByLabelText('Дата платежей'), { target: { value: '2026-10-05' } });
+    expect(await screen.findByRole('heading', { name: /Внесено 05.10.2026.*7/ })).toBeInTheDocument();
+    pending[today()]([{ id: 's9', amount: 999, method: 'Наличные', what: 'Экипировка', player_id: 'p1', full_name: 'Старый ответ' }]);
+    await new Promise(r => setTimeout(r, 30));
+    expect(screen.queryByText('Старый ответ')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Внесено 05.10.2026.*7/ })).toBeInTheDocument();
   });
 });
