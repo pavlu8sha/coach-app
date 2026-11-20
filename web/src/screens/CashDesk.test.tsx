@@ -495,7 +495,29 @@ describe('«Приём оплат»: платежи дня', () => {
       await screen.findByRole('heading', { name: /Внесено сегодня/ });
       expect(screen.queryByRole('button', { name: 'Действия: Иванов Пётр' })).toBeNull();
     });
-    it('если ни одна строка не обновилась или база вернула ошибку, показывается ошибка', async () => {
+    it('после успеха строка показывает новый способ, итоги «Наличные»/«Перевод» пересчитаны', async () => {
+      seed(); fake.db.payments = [pay()];
+      render(<CashDesk />);
+      await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
+      expect(screen.getByText('Перевод').nextSibling?.textContent).toBe('50 ₾');
+      expect(screen.getByText('Наличные').nextSibling?.textContent).toBe('0 ₾');
+      changeViaMenu();
+      fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Изменить способ' }));
+      await waitFor(() => expect(screen.getByText('Наличные').nextSibling?.textContent).toBe('50 ₾'));
+      expect(screen.getByText('Перевод').nextSibling?.textContent).toBe('0 ₾');
+      expect(fake.db.payments[0].method).toBe('Наличные');
+    });
+    it('нулевой результат (оплату уже изменили): ошибка, оплата не тронута, список перечитан', async () => {
+      seed(); fake.db.payments = [pay()];
+      render(<CashDesk />);
+      await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
+      fake.db.payments[0].method = 'Наличные'; // другой администратор уже поменял, экран ещё показывает «Перевод»
+      changeViaMenu();
+      fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Изменить способ' }));
+      expect(await screen.findByRole('alert')).toHaveTextContent(/Способ не изменён: оплата уже изменена или нет прав/);
+      expect(fake.db.payments[0].method).toBe('Наличные');
+    });
+    it('если база вернула ошибку, показывается ошибка', async () => {
       seed(); fake.db.payments = [pay()];
       render(<CashDesk />);
       await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
@@ -504,6 +526,22 @@ describe('«Приём оплат»: платежи дня', () => {
       fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Изменить способ' }));
       expect(await screen.findByRole('alert')).toHaveTextContent(/Способ не изменён/);
     });
+  });
+  it('сбой связи при отмене (rejected promise): ошибка, блокировка снята, список перечитан', async () => {
+    seed();
+    fake.db.payments = [{ id: 'x1', player_id: 'p1', amount: 50, paid_on: today(), method: 'Наличные', players: { full_name: 'Иванов Пётр' } }];
+    render(<CashDesk />);
+    await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
+    fake.rejects.payments = 'network down';
+    cancelViaMenu();
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отменить оплату' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Отмена не записана.*отмена могла примениться/);
+    delete fake.rejects.payments;
+    fireEvent.click(await screen.findByRole('button', { name: 'Повторить' }));
+    await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
+    cancelViaMenu();
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отменить оплату' }));
+    await waitFor(() => expect(fake.writes('payments', 'insert')).toHaveLength(1));
   });
   it('если отмена не записалась, показывается ошибка', async () => {
     seed();

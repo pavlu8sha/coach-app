@@ -68,8 +68,12 @@ function query(table: string): any {
     }
     if (op === 'update') {
       fake.calls.push({ kind: 'update', name: table, args: payload });
-      // с .select() возвращает строки под фильтром (без изменения базы), как PostgREST: пусто = ни одной строки не обновлено
-      return { data: returning ? rows.filter(r => filters.every(f => f(r))) : null, error: null };
+      // как PostgREST: применяет значения к строкам под фильтром; с .select() возвращает их (пусто = ни одной строки не обновлено)
+      const hit = rows.filter(r => filters.every(f => f(r)));
+      // без мутации исходных объектов: тесты делят константы-фикстуры между собой
+      const changed = hit.map(r => ({ ...r, ...payload }));
+      fake.db[table] = rows.map(r => { const i = hit.indexOf(r); return i < 0 ? r : changed[i]; });
+      return { data: returning ? changed : null, error: null };
     }
     if (op === 'delete') {
       fake.calls.push({ kind: 'delete', name: table, args: undefined });
