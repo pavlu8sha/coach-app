@@ -288,17 +288,22 @@ export default function CashDesk() {
     if (!ok) return;
     setCancelling(x.id);
     setCancelErr(null);
-    const { error } = await supabase.from('payments').insert({ player_id: x.player_id, amount: -Number(x.amount), paid_on: day, cancels: x.id, ...(x.pay_month ? { for_month: x.pay_month } : {}), method: x.method ?? 'Исправление' });
-    setCancelling(null);
-    if (error) {
-      // запись не сохранилась: не показываем отмену, которой нет в базе. Если платёж уже отменён (повтор или параллельный клик), обновляем список
-      const already = (error as { code?: string }).code === '23505' || /cancels/.test(error.message);
-      setCancelErr(already ? 'Этот платёж уже отменён.' : `Отмена не записана: ${errText(error.message)}`);
-      if (already) setReload(n => n + 1);
-      return;
+    try {
+      const { error } = await supabase.from('payments').insert({ player_id: x.player_id, amount: -Number(x.amount), paid_on: day, cancels: x.id, ...(x.pay_month ? { for_month: x.pay_month } : {}), method: x.method ?? 'Исправление' });
+      if (error) {
+        // запись не сохранилась: не показываем отмену, которой нет в базе. Если платёж уже отменён (повтор или параллельный клик), обновляем список
+        const already = (error as { code?: string }).code === '23505' || /cancels/.test(error.message);
+        setCancelErr(already ? 'Этот платёж уже отменён.' : `Отмена не записана: ${errText(error.message)}`);
+      }
+    } catch (e) {
+      // сбой связи: запись могла дойти до сервера, а ответ потеряться, поэтому список перечитываем для сверки
+      setCancelErr(`Отмена не записана: ${errText(errMsg(e))} Проверьте список: отмена могла примениться.`);
+    } finally {
+      setCancelling(null);
+      setReload(n => n + 1);
     }
-    setReload(n => n + 1);
   };
+
   // Исправление способа оплаты абонемента: UPDATE только method (0179 разрешает и пишет в audit_log); суммы и даты не трогаем
   const changeMethod = async (x: { id: string; amount: number; method?: string | null; players?: { full_name: string } | null }) => {
     if (cancelling) return;
