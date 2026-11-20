@@ -3,6 +3,7 @@ import { useNav, useSubEntry } from '../nav';
 import { supabase } from '../lib/supabase';
 import { Failure, Loading } from './Message';
 import PlayerProfile from './PlayerProfile';
+import { errMsg } from '../lib/coach';
 
 export interface ChildPlayer { id: string; name: string; group: string | null }
 
@@ -19,7 +20,7 @@ export function ChildCode({ onLinked }: { onLinked: () => void }) {
     setError(null);
     const r = await supabase.rpc('redeem_child_code', { c: code });
     setBusy(false);
-    if (r.error) return setError(r.error.message.includes('too many attempts') ? 'Слишком много попыток. Подождите 10 минут и попробуйте снова.' : r.error.message.includes('invalid code') ? 'Код не подошёл или устарел. Попросите родителя создать новый.' : r.error.message.includes('already linked') ? 'К этому игроку уже привязан другой аккаунт.' : r.error.message);
+    if (r.error) return setError(r.error.message.includes('too many attempts') ? 'Слишком много попыток. Подождите 10 минут и попробуйте снова.' : r.error.message.includes('invalid code') ? 'Код не подошёл или устарел. Попросите родителя создать новый.' : r.error.message.includes('already linked') ? 'К этому игроку уже привязан другой аккаунт.' : errMsg(r.error));
     if (!r.data) return setError('Код не подошёл или устарел. Попросите родителя создать новый.');
     onLinked();
   };
@@ -59,7 +60,7 @@ export default function ChildHome({ player }: { player: ChildPlayer }) {
   useEffect(() => {
     void (async () => {
       const mp = await supabase.from('match_players').select('played, goals').eq('player_id', player.id);
-      if (mp.error) return setError(mp.error.message);
+      if (mp.error) return setError(errMsg(mp.error));
       const parts = (mp.data ?? []) as { played: boolean; goals: number }[];
       setT({ played: parts.filter(p => p.played).length, goals: parts.reduce((s, p) => s + (p.goals ?? 0), 0) });
     })();

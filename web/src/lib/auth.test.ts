@@ -35,7 +35,8 @@ describe('вход через Edge Functions', () => {
     vi.stubGlobal('fetch', reply(401, { error: 'unauthorized', reason: 'bad_hash' }));
     const err = await signInWithWidget({ id: 1 }).catch(e => e);
     expect(err).toBeInstanceOf(AuthError);
-    expect(err.message).toContain('unauthorized: bad_hash');
+    expect(err.message).toBe('Не удалось войти. Закройте приложение и откройте его заново.'); // коды сервера пользователю не показываются
+    expect(err.detail).toBe('unauthorized: bad_hash');
     expect(fake.calls.some(c => c.name === 'auth.verifyOtp')).toBe(false);
   });
 

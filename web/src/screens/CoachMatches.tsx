@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { coachError, compareGroups, fmtDate, matchTeam, playsMatches, today, type CoachGroup } from '../lib/coach';
+import { coachError, compareGroups, fmtDate, matchTeam, playsMatches, today, type CoachGroup, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { useDirtySignature, useNav, useNavState } from '../nav';
 import { EmptyState, ListRow, Pill, NameDatalist, searchFocusProps } from '../ui/components';
@@ -49,7 +49,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
       let q = supabase.from('matches').select('id, team, played_on, opponent, goals_for, goals_against, technical, lifecycle_status, starts_at');
       if (!showAll) q = q.in('team', groups.map(g => g.name));
       const r = await q.order('played_on', { ascending: false }).limit(showAll ? 150 : 60);
-      if (r.error) return setError(r.error.message);
+      if (r.error) return setError(errMsg(r.error));
       // матч с подтверждением виден в общем списке сразу после публикации (решение владельца 2026-11-13), черновики и отменённые остаются только на своём экране
       const list = ((r.data ?? []) as Match[]).filter(m => !isRsvp(m) || m.lifecycle_status === 'published');
       setMatches(list);
@@ -256,7 +256,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
       if (rosterOf) {
         // матч чемпионата или фестиваля: в составе только заявленные на событие
         const r = await supabase.rpc('event_roster', { t: rosterOf });
-        if (r.error) return setError(r.error.message);
+        if (r.error) return setError(errMsg(r.error));
         list = ((r.data ?? []) as { player_id: string; full_name: string }[]).map(x => ({ id: x.player_id, full_name: x.full_name }));
         // ушедшие и игроки на паузе не попадают в новые матчи события (заявка на событие статус не проверяет); без ответа базы список остаётся прежним
         const st = list.length ? await supabase.from('players').select('id, status').in('id', list.map(p => p.id)) : null;
@@ -270,14 +270,14 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
           if (!gr.error) ids = [...new Set([gid, ...((gr.data ?? []) as CoachGroup[]).filter(g => playsMatches(g.name) && matchTeam(g.name) === matchTeam(sel)).map(g => g.id)])];
         }
         const p = await supabase.from('players').select('id, full_name').in('group_id', ids).eq('status', 'active').order('full_name');
-        if (p.error) return setError(p.error.message);
+        if (p.error) return setError(errMsg(p.error));
         list = (p.data ?? []) as Player[];
       }
       const init: Record<string, Line> = {};
       let best: string | null = null;
       if (savedId) {
         const mp = await supabase.from('match_players').select('player_id, played, goals, best').eq('match_id', savedId);
-        if (mp.error) return setError(mp.error.message);
+        if (mp.error) return setError(errMsg(mp.error));
         const rows = (mp.data ?? []) as { player_id: string; played: boolean; goals: number; best: boolean }[];
         for (const r of rows) {
           init[r.player_id] = { played: r.played, goals: r.goals };
@@ -287,7 +287,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
         const extra = rows.map(r => r.player_id).filter(id => !list.some(p => p.id === id));
         if (extra.length) {
           const ex = await supabase.from('players').select('id, full_name').in('id', extra);
-          if (ex.error) return setError(ex.error.message);
+          if (ex.error) return setError(errMsg(ex.error));
           list = [...list, ...((ex.data ?? []) as Player[])].sort((a, b) => a.full_name.localeCompare(b.full_name));
         }
       }

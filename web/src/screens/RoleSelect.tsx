@@ -62,7 +62,7 @@ export default function RoleSelect({ onDone, onCancel }: { onDone: (r: Role) => 
     try {
       // saveMyRole не бросает: отказ RPC и сетевой сбой возвращает как { ok: false, message } с понятным текстом (#705)
       const res = await saveMyRole(r);
-      if (!res.ok) return setError(res.message);
+      if (!res.ok) return setError(res.text);
       onDone(r); // дальше только после подтверждённого сохранения (#704)
     } finally {
       setBusy(null);

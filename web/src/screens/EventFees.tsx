@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { coachError, fmtDate, today } from '../lib/coach';
+import { coachError, fmtDate, today, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { ListRow, Pill } from '../ui/components';
 import { useClosure } from '../ui/ClosureSheet';
@@ -43,7 +43,7 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
   useEffect(() => {
     void (async () => {
       const [f, p] = await Promise.all([supabase.rpc(api.fees, { [api.key]: eventId }), supabase.rpc(api.pays, { [api.key]: eventId })]);
-      if (f.error) return setError(f.error.message);
+      if (f.error) return setError(errMsg(f.error));
       setFees(((f.data ?? []) as FeeRow[]).map(x => ({ ...x, due: Number(x.due), paid: Number(x.paid) })));
       setPays(p.error ? [] : ((p.data ?? []) as PayRow[]).map(x => ({ ...x, amount: Number(x.amount) })));
       // причина и автор последней скидки (#422): только администратору; сбой не мешает экрану взносов

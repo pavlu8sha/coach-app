@@ -10,6 +10,7 @@ import LinkStatus, { STATUS, type Req } from './LinkStatus';
 import { Failure, Loading } from './Message';
 import ParentCamps from './ParentCamps';
 import PlayerProfile from './PlayerProfile';
+import { errMsg } from '../lib/coach';
 
 interface Child {
   id: string;
@@ -99,7 +100,7 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
         .select('player_id, players(id, full_name, groups(name))')
         .eq('user_id', me)
         .is('consent_revoked_at', null);
-      if (links.error) return setError(links.error.message);
+      if (links.error) return setError(errMsg(links.error));
       const kids = (links.data ?? []).map((l: any) => ({
         id: l.players?.id as string,
         name: (l.players?.full_name ?? '') as string,
@@ -110,7 +111,7 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
       const mp = ids.length
         ? await supabase.from('match_players').select('player_id, played, goals').in('player_id', ids)
         : { data: [], error: null };
-      if (mp.error) return setError(mp.error.message);
+      if (mp.error) return setError(errMsg(mp.error));
       const parts = (mp.data ?? []) as { player_id: string; played: boolean; goals: number }[];
       // Запросы нужны только для строки «ждёт подтверждения»; сбой этой выборки не мешает показать детей
       const rq = await supabase.from('link_requests').select('id, status, players(full_name)').eq('user_id', me).order('created_at', { ascending: false });

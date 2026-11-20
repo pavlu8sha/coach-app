@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fmtDate, hasSubscription, playerTeam, today } from '../lib/coach';
+import { errMsg, fmtDate, hasSubscription, playerTeam, today } from '../lib/coach';
 import { seasonStart } from '../lib/seasonStats';
 import { afterLeftMonthTest, pausedMonthTest, type PlayerStatus, type StatusLogPoint } from '../lib/playerStatus';
 import { supabase } from '../lib/supabase';
@@ -75,7 +75,7 @@ export default function PlayerCard({ player, onBack, onEdit, onStatus, managed }
       const eq = await supabase.from('equipment_orders').select('number, ordered_on').eq('player_id', player.id);
       if (!eq.error) setShirt(((eq.data ?? []) as { number: string | null; ordered_on: string | null }[]).sort((a, b) => (b.ordered_on ?? '').localeCompare(a.ordered_on ?? '')).map(o => (o.number ?? '').trim()).find(Boolean) ?? null);
       const bad = pr.error ?? pay.error ?? sb.error;
-      if (bad) return setError(bad.message);
+      if (bad) return setError(errMsg(bad));
       setPrices(((pr.data ?? []) as Price[]).map(x => ({ ...x, amount: Number(x.amount) })));
       setPays(((pay.data ?? []) as Pay[]).map(x => ({ ...x, amount: Number(x.amount) })));
       setSubs(new Map(((sb.data ?? []) as (Sub & { month: string })[]).map(x => [x.month, x])));
