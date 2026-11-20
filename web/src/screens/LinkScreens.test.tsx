@@ -80,6 +80,42 @@ describe('С11: согласие после подтверждения', () => {
     expect(screen.queryByRole('heading', { name: 'Примите согласие' })).toBeNull();
   });
 
+  it('RPC вернул обычную ошибку (права, 500): ошибка загрузки с повтором, не онбординг', async () => {
+    fake.db.link_requests = [{ id: 'r1', user_id: 'u', status: 'approved', players: null }];
+    fake.rpc.my_pending_consents = () => ({ error: { message: 'permission denied for function my_pending_consents', code: '42501' } });
+    render(<Home />);
+    expect(await screen.findByText('Не удалось загрузить данные')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Повторить/ })).toBeInTheDocument();
+    expect(screen.queryByText('Ребёнок пока не отображается')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Подключите профиль ребёнка' })).toBeNull();
+    expect(document.body.textContent).not.toMatch(/permission denied|42501/);
+  });
+
+  it('RPC выбросил rejected Promise (сбой сети): ошибка загрузки, не пустой список', async () => {
+    fake.db.link_requests = [{ id: 'r1', user_id: 'u', status: 'approved', players: null }];
+    fake.rpc.my_pending_consents = () => Promise.reject(new Error('Failed to fetch'));
+    render(<Home />);
+    expect(await screen.findByText('Не удалось загрузить данные')).toBeInTheDocument();
+    expect(screen.queryByText('Ребёнок пока не отображается')).toBeNull();
+    expect(document.body.textContent).not.toMatch(/Failed to fetch/);
+  });
+
+  it('повтор после ошибки: при успешном ответе показывается экран согласия', async () => {
+    let fail = true;
+    fake.rpc.my_pending_consents = () => (fail ? { error: { message: 'boom', code: '500' } } : pending);
+    render(<Home />);
+    fireEvent.click(await screen.findByRole('button', { name: /Повторить/ }));
+    fail = false;
+    expect(await screen.findByRole('heading', { name: 'Примите согласие' })).toBeInTheDocument();
+  });
+
+  it('успешный пустой массив: обычный онбординг', async () => {
+    fake.rpc.my_pending_consents = () => [];
+    render(<Home />);
+    expect(await screen.findByRole('heading', { name: 'Подключите профиль ребёнка' })).toBeInTheDocument();
+    expect(screen.queryByText('Не удалось загрузить данные')).toBeNull();
+  });
+
   it('нативная кнопка Telegram «Принять согласие» показывается только после галочки', async () => {
     const app = tgApp();
     (window as unknown as W).Telegram = { WebApp: app };

@@ -112,7 +112,10 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
       // Запросы нужны только для строки «ждёт подтверждения»; сбой этой выборки не мешает показать детей
       const rq = await loadMyLinkRequests(me); // имя ребёнка из my_link_requests() (0217)
       setReqs(rq.error ? [] : ((rq.reqs ?? []) as Req[]));
-      setPendingConsents(kids.length ? [] : await loadPendingConsents()); // нужен только когда детей нет: «подтверждён, но не виден»
+      // нужно только когда детей нет: «подтверждён, но не виден». Сбой проверки не выдаём за «согласий нет»: ошибка с повтором
+      const pc = kids.length ? { items: [] as PendingConsent[], error: null } : await loadPendingConsents();
+      if (pc.error) return setError(errMsg(pc.error));
+      setPendingConsents(pc.items);
       setChildren(
         kids.map(k => {
           const played = parts.filter(p => p.player_id === k.id);

@@ -33,13 +33,16 @@ export async function loadMyLinkRequests(me: string): Promise<{ reqs: LinkReq[] 
   }
 }
 
-/** Дети, которым не хватает только принятия согласия родителем. Любой сбой (в том числе «функции нет») даёт пустой список: прежний экран остаётся. */
-export async function loadPendingConsents(): Promise<PendingConsent[]> {
+/** Дети, которым не хватает только принятия согласия родителем.
+ *  Пустой список: подтверждённо нечего принимать, либо функции в базе ещё нет (до применения 0217, прежний экран остаётся).
+ *  Любая другая ошибка (сеть, права, SQL, некорректный ответ) возвращается как error: экран показывает ошибку с повтором, а не вводящий в заблуждение онбординг. */
+export async function loadPendingConsents(): Promise<{ items: PendingConsent[]; error: unknown }> {
   try {
     const r = await supabase.rpc('my_pending_consents');
-    if (r.error || !Array.isArray(r.data)) return [];
-    return (r.data as PendingConsent[]).filter(x => x && x.player_id && x.version_id);
-  } catch {
-    return [];
+    if (r.error) return missing(r.error) ? { items: [], error: null } : { items: [], error: r.error };
+    if (!Array.isArray(r.data)) return { items: [], error: new Error('bad response') };
+    return { items: (r.data as PendingConsent[]).filter(x => x && x.player_id && x.version_id), error: null };
+  } catch (e) {
+    return { items: [], error: e ?? new Error('request failed') };
   }
 }
