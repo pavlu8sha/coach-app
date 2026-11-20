@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { sortGroups, errMsg } from '../lib/coach';
+import { loadMyChildren } from '../lib/myChildren';
 import { supabase } from '../lib/supabase';
 import { EmptyState } from '../ui/components';
 import { Failure, Loading } from './Message';
@@ -36,20 +37,14 @@ export default function Schedule({ all = false, editable = all, results = true }
       } else {
         const me = (await supabase.auth.getUser()).data.user?.id;
         if (!me) return setError('Нет сессии');
-        const links = await supabase
-          .from('player_guardians')
-          .select('players(full_name, group_id, groups(name))')
-          .eq('user_id', me)
-          .is('consent_revoked_at', null);
+        const links = await loadMyChildren(); // доступ решает сервер (my_children, 0215), как RLS
         if (links.error) return setError(errMsg(links.error));
-        for (const l of (links.data ?? []) as any[]) {
-          const p = l.players;
-          if (!p) continue;
+        for (const p of links.kids ?? []) {
           if (!p.group_id) {
             noGroup.push((p.full_name ?? '') as string);
             continue;
           }
-          const g: GroupView = byGroup.get(p.group_id) ?? { id: p.group_id, name: p.groups?.name ?? '', kids: [], slots: [], upcoming: [], results: [] };
+          const g: GroupView = byGroup.get(p.group_id) ?? { id: p.group_id, name: p.group_name ?? '', kids: [], slots: [], upcoming: [], results: [] };
           g.kids.push(p.full_name);
           byGroup.set(p.group_id, g);
         }

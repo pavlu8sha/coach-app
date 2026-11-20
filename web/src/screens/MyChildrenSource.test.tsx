@@ -2,6 +2,9 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import App from '../App';
+import Home from './Home';
+import ParentCalendar from './ParentCalendar';
+import Schedule from './Schedule';
 import { fake } from '../test/fakeSupabase';
 import Matches from './Matches';
 import MyKids from './MyKids';
@@ -146,3 +149,93 @@ describe('К3: отклонённый запрос (сбой сети) не ос
   });
 });
 
+// К7-К10: Home, Schedule, ParentCalendar (docs/acceptance/my-children-client-2-2026-11-20.md)
+describe('К7: Мой ребёнок, Расписание, Календарь берут детей из my_children()', () => {
+  it('Мой ребёнок: ребёнок сервера с группой виден, ребёнок только из таблицы нет', async () => {
+    fake.rpc.my_children = () => [KID];
+    render(<Home />);
+    expect(await screen.findByText('Аня Серверная')).toBeInTheDocument();
+    expect(screen.getByText('U9')).toBeInTheDocument();
+    expect(screen.queryByText('Только в таблице')).toBeNull();
+    noTableReads();
+  });
+
+  it('Расписание: группа ребёнка сервера (К8: без группы — отдельной строкой), таблица не читается', async () => {
+    fake.rpc.my_children = () => [KID, { player_id: 'p2', full_name: 'Боря Без Группы', group_id: null, group_name: null }];
+    render(<Schedule />);
+    expect(await screen.findByText(/Аня Серверная/)).toBeInTheDocument();
+    expect(screen.getByText(/Боря Без Группы/)).toBeInTheDocument();
+    expect(screen.queryByText(/Только в таблице/)).toBeNull();
+    noTableReads();
+  });
+
+  it('Календарь: ребёнок сервера выбран, таблица не читается', async () => {
+    fake.rpc.my_children = () => [KID];
+    fake.rpc.parent_calendar = () => [];
+    fake.rpc.match_tournaments = () => [];
+    render(<ParentCalendar />);
+    await waitFor(() => expect(fake.rpcCalls('parent_calendar').length).toBeGreaterThan(0));
+    expect(fake.rpcCalls('parent_calendar')[0]).toMatchObject({ p_player: 'p1' });
+    noTableReads();
+  });
+});
+
+describe('К9: пустой список сервера — прежнее «нет детей», не ошибка', () => {
+  it('Мой ребёнок', async () => {
+    fake.rpc.my_children = () => [];
+    render(<Home />);
+    expect(await screen.findByRole('heading', { name: 'Подключите профиль ребёнка' })).toBeInTheDocument();
+  });
+
+  it('Расписание', async () => {
+    fake.rpc.my_children = () => [];
+    render(<Schedule />);
+    await waitFor(() => expect(fake.rpcCalls('my_children')).toHaveLength(1));
+    expect(screen.queryByText('Не удалось загрузить расписание')).toBeNull();
+  });
+});
+
+describe('К10: ошибка и сбой сети в Мой ребёнок, Расписание, Календарь', () => {
+  const RAW = 'function public.my_children() does not exist (42883)';
+  const down = () => Promise.reject(new Error('Failed to fetch'));
+
+  it('Мой ребёнок: ошибка и сбой сети — «Нет связи», повтор восстанавливает', async () => {
+    fake.rpc.my_children = down;
+    const { container } = render(<Home />);
+    expect(await screen.findByText(/Нет связи/)).toBeInTheDocument();
+    expect(container.textContent).not.toContain('Failed to fetch');
+    fake.rpc.my_children = () => [KID];
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    expect(await screen.findByText('Аня Серверная')).toBeInTheDocument();
+  });
+
+  it('Мой ребёнок: ответ с ошибкой без сырого текста', async () => {
+    fake.rpc.my_children = () => ({ error: { message: RAW } });
+    const { container } = render(<Home />);
+    expect(await screen.findByRole('button', { name: 'Повторить' })).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/42883|my_children/);
+  });
+
+  it('Расписание: ошибка и сбой сети — «Не удалось загрузить расписание», без сырого текста', async () => {
+    fake.rpc.my_children = () => ({ error: { message: RAW } });
+    const a = render(<Schedule />);
+    expect(await screen.findByText('Не удалось загрузить расписание')).toBeInTheDocument();
+    expect(a.container.textContent).not.toMatch(/42883|my_children/);
+    a.unmount();
+    fake.rpc.my_children = down;
+    render(<Schedule />);
+    expect(await screen.findByText('Не удалось загрузить расписание')).toBeInTheDocument();
+    expect(screen.getByText(/Нет связи/)).toBeInTheDocument();
+  });
+
+  it('Календарь: ошибка и сбой сети — «Не удалось загрузить календарь», не вечная загрузка', async () => {
+    fake.rpc.my_children = () => ({ error: { message: RAW } });
+    const a = render(<ParentCalendar />);
+    expect(await screen.findByText('Не удалось загрузить календарь')).toBeInTheDocument();
+    expect(a.container.textContent).not.toMatch(/42883|my_children/);
+    a.unmount();
+    fake.rpc.my_children = down;
+    render(<ParentCalendar />);
+    expect(await screen.findByText('Не удалось загрузить календарь')).toBeInTheDocument();
+  });
+});

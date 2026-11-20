@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNav, useSubEntry } from '../nav';
 import { peekCampSlug, takeCampSlug } from '../lib/startParam';
+import { loadMyChildren } from '../lib/myChildren';
 import { supabase } from '../lib/supabase';
 import { Avatar, EmptyState, ListRow, Pill } from '../ui/components';
 import { BackNav } from '../ui/nav';
@@ -95,17 +96,9 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
       // Администратору RLS отдаёт все связи, поэтому берём только свои: «Мой ребёнок» — это дети текущего пользователя
       const me = (await supabase.auth.getUser()).data.user?.id;
       if (!me) return setError('Нет сессии');
-      const links = await supabase
-        .from('player_guardians')
-        .select('player_id, players(id, full_name, groups(name))')
-        .eq('user_id', me)
-        .is('consent_revoked_at', null);
+      const links = await loadMyChildren(); // доступ решает сервер (my_children, 0215), как RLS
       if (links.error) return setError(errMsg(links.error));
-      const kids = (links.data ?? []).map((l: any) => ({
-        id: l.players?.id as string,
-        name: (l.players?.full_name ?? '') as string,
-        group: (l.players?.groups?.name ?? null) as string | null,
-      })).filter(k => k.id);
+      const kids = (links.kids ?? []).map(k => ({ id: k.player_id, name: k.full_name ?? '', group: k.group_name })).filter(k => k.id);
       const ids = kids.map(k => k.id);
       // Голы и матчи видны только своему ребёнку: чужие карточки родитель не получает (RLS), других детей здесь нет
       const mp = ids.length
