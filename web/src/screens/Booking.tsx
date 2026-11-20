@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { coachError, errMsg } from '../lib/coach';
+import { loadMyChildren } from '../lib/myChildren';
 import { supabase } from '../lib/supabase';
 import { EmptyState, Pill } from '../ui/components';
 import { Failure, Loading } from './Message';
@@ -70,9 +71,9 @@ export default function Booking() {
       let kidsErr: string | null = null;
       {
         try {
-          const g = await supabase.from('player_guardians').select('players(id, full_name)').eq('user_id', me).is('consent_revoked_at', null);
+          const g = await loadMyChildren();
           if (g.error) kidsErr = errMsg(g.error);
-          else kidsNext = ((g.data ?? []) as unknown as { players: { id: string; full_name: string } | null }[]).filter(x => x.players).map(x => ({ id: x.players!.id, name: x.players!.full_name }));
+          else kidsNext = (g.kids ?? []).map(x => ({ id: x.player_id, name: x.full_name }));
         } catch (e) { kidsErr = errMsg(e); }
       }
       if (!live()) return;

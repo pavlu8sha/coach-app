@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { loadMyChildren } from '../lib/myChildren';
 import { supabase } from '../lib/supabase';
 import { EmptyState, Pill, SkeletonRows } from '../ui/components';
 import PaymentInfo from './PaymentInfo';
@@ -33,9 +34,9 @@ export default function Payments() {
     void (async () => {
       const me = (await supabase.auth.getUser()).data.user?.id;
       if (!me) return setError('Нет сессии');
-      const links = await supabase.from('player_guardians').select('players(id, full_name)').eq('user_id', me).is('consent_revoked_at', null);
+      const links = await loadMyChildren();
       if (links.error) return setError(errMsg(links.error));
-      const list: Kid[] = ((links.data ?? []) as any[]).filter(l => l.players).map(l => ({ id: l.players.id as string, name: l.players.full_name as string, months: [] }));
+      const list: Kid[] = (links.kids ?? []).map(k => ({ id: k.player_id, name: k.full_name, months: [] }));
       if (list.length) {
         const pay = await supabase.from('payments').select('player_id, amount, paid_on, pay_month').in('player_id', list.map(k => k.id)).order('paid_on', { ascending: false }).limit(1000);
         if (pay.error) return setError(errMsg(pay.error));

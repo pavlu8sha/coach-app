@@ -203,7 +203,7 @@ describe('#765: загрузка связанных детей', () => {
   });
 
   it('3: ошибка Supabase: ошибка видна, ложного «нет детей» нет, действий нет, занятия видны', async () => {
-    fake.errors.player_guardians = 'relation "player_guardians" does not exist (42P01)';
+    fake.rpc.my_children = () => ({ error: { message: 'relation "player_guardians" does not exist (42P01)' } });
     fake.rpc.booking_board = () => board([{ player_id: 'p1', name: 'Аня Первая', paid: false, amount: 50 }], ['Аня Первая']);
     render(<Booking />);
     const alert = await screen.findByRole('alert');
@@ -216,7 +216,7 @@ describe('#765: загрузка связанных детей', () => {
   });
 
   it('4: rejected promise: то же состояние, «Нет связи»', async () => {
-    fake.rejects.player_guardians = 'Failed to fetch';
+    fake.rpc.my_children = () => Promise.reject(new Error('Failed to fetch'));
     fake.rpc.booking_board = () => board();
     render(<Booking />);
     const alert = await screen.findByRole('alert');
@@ -227,11 +227,11 @@ describe('#765: загрузка связанных детей', () => {
   });
 
   it('5: повтор после ошибки восстанавливает экран', async () => {
-    fake.errors.player_guardians = 'boom';
+    fake.rpc.my_children = () => ({ error: { message: 'boom' } });
     fake.rpc.booking_board = () => board();
     render(<Booking />);
     const retry = within(await screen.findByRole('alert')).getByRole('button', { name: 'Повторить' });
-    delete fake.errors.player_guardians;
+    delete fake.rpc.my_children;
     fake.db.player_guardians = [ANYA];
     fireEvent.click(retry);
     expect(await screen.findByRole('button', { name: signupBtn })).toBeInTheDocument();
@@ -245,7 +245,7 @@ describe('#765: загрузка связанных детей', () => {
     render(<Booking />);
     expect(await screen.findByText('Не удалось загрузить занятия')).toBeInTheDocument();
     expect(fake.rpcCalls('booking_board')).toHaveLength(0); // без пользователя запросы не уходят
-    expect(fake.calls.filter(c => c.name === 'player_guardians')).toHaveLength(0);
+    expect(fake.rpcCalls('my_children')).toHaveLength(0);
     noActions();
   });
 
@@ -258,7 +258,7 @@ describe('#765: загрузка связанных детей', () => {
     await waitFor(() => expect(n).toBe(1));
     // вторая загрузка (смена пользователя) завершается ошибкой детей
     fake.user = { id: 'u2' };
-    fake.errors.player_guardians = 'boom';
+    fake.rpc.my_children = () => ({ error: { message: 'boom' } });
     captured.cb?.('SIGNED_IN', { user: { id: 'u2' } });
     expect(await screen.findByText('Не удалось загрузить список детей')).toBeInTheDocument();
     first.ok(board());
@@ -299,8 +299,19 @@ describe('#765: загрузка связанных детей', () => {
     expect(screen.getByText(/Нет связи/)).toBeInTheDocument();
   });
 
-  it('10: отозванное согласие: ребёнок в список не попадает (доступ не расширен)', async () => {
-    fake.db.player_guardians = [ANYA, { user_id: 'u', consent_revoked_at: '2026-11-01T00:00:00Z', players: { id: 'p2', full_name: 'Боря Второй' } }];
+  it('11: список детей берётся из my_children() сервера: режим all, consent_revoked_at не участвует', async () => {
+    // сервер (parent_access_ok) допускает ребёнка, хотя старое поле отзыва не пустое: прежний клиентский фильтр скрыл бы его
+    fake.db.player_guardians = [{ user_id: 'u', consent_revoked_at: '2026-11-01T00:00:00Z', players: { id: 'p9', full_name: 'Не из таблицы' } }];
+    fake.rpc.my_children = () => [{ player_id: 'p1', full_name: 'Аня Первая', group_id: null, group_name: null }];
+    fake.rpc.booking_board = () => board();
+    render(<Booking />);
+    expect(await screen.findByRole('button', { name: signupBtn })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Не из таблицы/ })).toBeNull();
+    expect(fake.calls.filter(c => c.name === 'player_guardians')).toHaveLength(0); // таблицу связей экран не читает
+  });
+
+  it('10: ребёнок, которого сервер не вернул (отзыв согласия), в список не попадает (доступ не расширен)', async () => {
+    fake.rpc.my_children = () => [{ player_id: 'p1', full_name: 'Аня Первая', group_id: null, group_name: null }]; // p2 сервер отфильтровал по parent_access_ok
     fake.rpc.booking_board = () => board();
     render(<Booking />);
     expect(await screen.findByRole('button', { name: signupBtn })).toBeInTheDocument();
