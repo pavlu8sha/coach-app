@@ -34,12 +34,11 @@ export default function PlayerEdit({ initial, groups, clubId, onDone, onCancel }
   const initialJerseyText = initialJersey === null ? '' : String(initialJersey);
   const [f, setF] = useState<PlayerForm>({ ...initial, jersey_number: initialJersey, jersey_team: initialTeam, jersey_season_start: currentSeason });
   const [jersey, setJersey] = useState(initialJerseyText);
-  const [createdId, setCreatedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dup, setDup] = useState<string | null>(null); // найден игрок с таким же именем: нужно подтверждение
   const [history, setHistory] = useState<{ fields: ProfileChange[]; jerseys: JerseyChange[] } | null>(null);
-  const playerId = initial.id ?? createdId;
+  const playerId = initial.id ?? null;
   const isNew = !playerId;
   const team = playerTeam(groupName(f.group_id));
   useDirtyGuard(JSON.stringify(f) !== JSON.stringify({ ...initial, jersey_number: initialJersey, jersey_team: initialTeam, jersey_season_start: currentSeason }) || jersey !== initialJerseyText);
@@ -110,47 +109,18 @@ export default function PlayerEdit({ initial, groups, clubId, onDone, onCancel }
         return setError('Этот номер уже занят в команде в этом сезоне.');
       }
     }
-    const row = { full_name: full, birth_date: f.birth_date || null, group_id: f.group_id || null, status: f.status };
-    let id = playerId;
-    if (!id) {
-      const r = await supabase.from('players').insert({ ...row, club_id: clubId }).select('id').single();
-      if (r.error) {
-        setBusy(false);
-        return setError(r.error.message);
-      }
-      id = (r.data as { id: string } | null)?.id ?? null;
-      if (!id) {
-        setBusy(false);
-        return setError('Не удалось создать игрока.');
-      }
-      setCreatedId(id);
-    } else {
-      const r = await supabase.from('players').update(row).eq('id', id);
-      if (r.error) {
-        setBusy(false);
-        return setError(r.error.message);
-      }
-    }
-    const pr = await supabase.from('player_profiles').upsert({
-      player_id: id,
-      first_name: first || null,
-      last_name: last || null,
-      primary_position: position || null,
-      jersey_number: number,
-    }, { onConflict: 'player_id' });
-    if (pr.error) {
+    // Одна серверная транзакция (0209, И2.4а): игрок, профиль и абонемент текущего месяца при смене группы.
+    // Любая ошибка откатывает всё; занятость номера окончательно решает уникальный индекс, проверка выше только подсказка.
+    const r = await supabase.rpc('player_save', {
+      p_id: playerId,
+      p_club: playerId ? null : clubId,
+      p_row: { full_name: full, birth_date: f.birth_date || null, group_id: f.group_id || null, status: f.status },
+      p_profile: { first_name: first || null, last_name: last || null, primary_position: position || null, jersey_number: number },
+    });
+    if (r.error) {
       setBusy(false);
-      const busyNumber = /duplicate key|unique|player_jersey_history_open/.test(pr.error.message);
-      return setError(busyNumber ? 'Этот номер уже занят в команде в этом сезоне.' : pr.error.message);
-    }
-    // Перевод в другую группу: тариф и группа месяца берутся из строки абонемента, поэтому меняем группу в строке текущего месяца
-    // (прошлые месяцы не трогаем: их группа и тариф остаются как были, #261)
-    if (initial.id && row.group_id && row.group_id !== (initial.group_id ?? null)) {
-      const sub = await supabase.from('subscriptions').update({ group_id: row.group_id }).eq('player_id', initial.id).eq('month', today().slice(0, 7) + '-01');
-      if (sub.error) {
-        setBusy(false);
-        return setError(`Группа игрока изменена, но группу в абонементе этого месяца обновить не удалось: ${sub.error.message}. Нажмите «Сохранить» ещё раз.`);
-      }
+      const busyNumber = /duplicate key|unique|player_jersey_history_open/.test(r.error.message);
+      return setError(busyNumber ? 'Этот номер уже занят в команде в этом сезоне.' : r.error.message);
     }
     setBusy(false);
     onDone();

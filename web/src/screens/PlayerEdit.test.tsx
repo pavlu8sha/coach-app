@@ -22,8 +22,10 @@ describe('Данные ребёнка: перевод в другую групп
     fireEvent.change(screen.getByLabelText('Группа'), { target: { value: 'g2' } });
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
     await waitFor(() => expect(onDone).toHaveBeenCalled());
-    expect(fake.writes('players', 'update')).toEqual([expect.objectContaining({ group_id: 'g2' })]);
-    expect(fake.writes('subscriptions', 'update')).toEqual([{ group_id: 'g2' }]);
+    expect(fake.rpcCalls('player_save')).toEqual([expect.objectContaining({ p_id: 'p1', p_row: expect.objectContaining({ group_id: 'g2' }) })]);
+    // абонемент и игрок меняются на сервере внутри player_save, клиент прямых записей не делает
+    expect(fake.writes('players')).toEqual([]);
+    expect(fake.writes('subscriptions')).toEqual([]);
   });
   it('без смены группы абонемент не трогаем', async () => {
     const onDone = open();
@@ -31,15 +33,17 @@ describe('Данные ребёнка: перевод в другую групп
     fireEvent.change(screen.getByLabelText('Фамилия'), { target: { value: 'Иванов' } });
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
     await waitFor(() => expect(onDone).toHaveBeenCalled());
-    expect(fake.writes('subscriptions', 'update')).toEqual([]);
+    expect(fake.rpcCalls('player_save')).toEqual([expect.objectContaining({ p_row: expect.objectContaining({ group_id: 'g1' }) })]);
+    expect(fake.writes('subscriptions')).toEqual([]);
   });
-  it('если абонемент обновить не удалось, показывается ошибка и форма остаётся', async () => {
+  it('если сервер отклонил сохранение (в том числе ошибка абонемента), показывается ошибка и форма остаётся', async () => {
     const onDone = open();
-    fake.errors.subscriptions = 'boom';
+    fake.rpc.player_save = () => ({ error: { message: 'boom' } });
     fireEvent.change(screen.getByLabelText('Группа'), { target: { value: 'g2' } });
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
-    expect(await screen.findByText(/обновить не удалось: boom/)).toBeInTheDocument();
+    expect(await screen.findByText('boom')).toBeInTheDocument();
     expect(onDone).not.toHaveBeenCalled();
+    expect(fake.writes('players')).toEqual([]);
   });
 });
 
@@ -64,10 +68,14 @@ describe('Профиль игрока: имя, позиция и номер (#65
     fireEvent.change(screen.getByLabelText('Игровой номер'), { target: { value: '10' } });
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
     await waitFor(() => expect(onDone).toHaveBeenCalled());
-    expect(fake.writes('players', 'update')).toEqual([expect.objectContaining({ full_name: 'Иванов Пётр Иванович' })]);
-    expect(fake.writes('player_profiles', 'upsert')).toEqual([expect.objectContaining({
-      player_id: 'p1', first_name: 'Пётр Иванович', last_name: 'Иванов', primary_position: 'Нападающий', jersey_number: 10,
-    })]);
+    expect(fake.rpcCalls('player_save')).toEqual([{
+      p_id: 'p1',
+      p_club: null,
+      p_row: expect.objectContaining({ full_name: 'Иванов Пётр Иванович' }),
+      p_profile: { first_name: 'Пётр Иванович', last_name: 'Иванов', primary_position: 'Нападающий', jersey_number: 10 },
+    }]);
+    expect(fake.writes('players')).toEqual([]);
+    expect(fake.writes('player_profiles')).toEqual([]);
   });
 
   it('номер недоступен для некомандной группы', () => {
@@ -78,7 +86,7 @@ describe('Профиль игрока: имя, позиция и номер (#65
 
   it('занятый номер показывается понятным сообщением', async () => {
     const onDone = open();
-    fake.errors.player_profiles = 'duplicate key value violates unique constraint "player_jersey_history_open_number"';
+    fake.rpc.player_save = () => ({ error: { message: 'duplicate key value violates unique constraint "player_jersey_history_open_number"' } });
     fireEvent.change(screen.getByLabelText('Игровой номер'), { target: { value: '10' } });
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
     expect(await screen.findByText('Этот номер уже занят в команде в этом сезоне.')).toBeInTheDocument();
@@ -93,6 +101,7 @@ describe('Профиль игрока: имя, позиция и номер (#65
     fireEvent.change(screen.getByLabelText('Игровой номер'), { target: { value: '10' } });
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
     expect(await screen.findByText('Этот номер уже занят в команде в этом сезоне.')).toBeInTheDocument();
+    expect(fake.rpcCalls('player_save')).toEqual([]);
     expect(fake.writes('players', 'insert')).toEqual([]);
     expect(onDone).not.toHaveBeenCalled();
   });
@@ -106,14 +115,28 @@ describe('Профиль игрока: имя, позиция и номер (#65
     expect(screen.getByText(/Номер 10: U13-B\/C, сезон с 01.09.2026 — действует/)).toBeInTheDocument();
   });
 
-  it('новый игрок: после вставки профиль пишется к созданному id', async () => {
+  it('новый игрок создаётся одним вызовом player_save с клубом, без прямых записей', async () => {
     const onDone = open(vi.fn(), blank);
     fireEvent.change(screen.getByLabelText('Фамилия'), { target: { value: 'Петров' } });
     fireEvent.change(screen.getByLabelText('Имя'), { target: { value: 'Пётр' } });
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
     await waitFor(() => expect(onDone).toHaveBeenCalled());
-    expect(fake.writes('players', 'insert')).toEqual([expect.objectContaining({ full_name: 'Петров Пётр' })]);
-    const created = fake.db.players.at(-1) as { id: string };
-    expect(fake.writes('player_profiles', 'upsert')).toEqual([expect.objectContaining({ player_id: created.id })]);
+    expect(fake.rpcCalls('player_save')).toEqual([expect.objectContaining({ p_id: null, p_club: 'c1', p_row: expect.objectContaining({ full_name: 'Петров Пётр' }) })]);
+    expect(fake.writes('players')).toEqual([]);
+    expect(fake.writes('player_profiles')).toEqual([]);
+  });
+
+  it('конфликт номера при создании: ошибка, форма остаётся, повтор не создаёт второго игрока', async () => {
+    const onDone = open(vi.fn(), blank);
+    fake.rpc.player_save = () => ({ error: { message: 'duplicate key value violates unique constraint "player_jersey_history_open_number"' } });
+    fireEvent.change(screen.getByLabelText('Фамилия'), { target: { value: 'Петров' } });
+    fireEvent.change(screen.getByLabelText('Имя'), { target: { value: 'Пётр' } });
+    fireEvent.change(screen.getByLabelText('Игровой номер'), { target: { value: '10' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    expect(await screen.findByText('Этот номер уже занят в команде в этом сезоне.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() => expect(fake.rpcCalls('player_save')).toHaveLength(2));
+    expect(fake.rpcCalls('player_save').every(a => a.p_id === null)).toBe(true);
+    expect(onDone).not.toHaveBeenCalled();
   });
 });

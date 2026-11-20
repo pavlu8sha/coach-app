@@ -263,6 +263,60 @@ revoke execute on function player_profiles_close_jersey() from public, anon, aut
 create trigger player_profiles_close_jersey after delete on player_profiles
   for each row execute function player_profiles_close_jersey();
 
+-- Атомарное сохранение карточки (И2.4а): игрок, профиль и абонемент текущего месяца при смене группы
+-- в одной транзакции. SECURITY INVOKER: действуют RLS и права администратора; любая ошибка
+-- (в том числе занятый номер, уникальный индекс player_jersey_history_open_number) откатывает всё.
+-- p_id = null создаёт игрока (нужен p_club). Возвращает id игрока.
+create or replace function player_save(p_id uuid, p_club uuid, p_row jsonb, p_profile jsonb) returns uuid
+language plpgsql security invoker set search_path = public as $$
+declare
+  v_id uuid := p_id;
+  v_old_group uuid;
+  v_new_group uuid := nullif(p_row ->> 'group_id', '')::uuid;
+begin
+  if not is_admin() then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  if v_id is null then
+    if p_club is null then
+      raise exception 'club required' using errcode = '22023';
+    end if;
+    insert into players (club_id, full_name, birth_date, group_id, status)
+    values (p_club, p_row ->> 'full_name', nullif(p_row ->> 'birth_date', '')::date, v_new_group, p_row ->> 'status')
+    returning id into v_id;
+  else
+    select group_id into v_old_group from players where id = v_id for update;
+    if not found then
+      raise exception 'player not found' using errcode = 'P0002';
+    end if;
+    update players
+       set full_name = p_row ->> 'full_name',
+           birth_date = nullif(p_row ->> 'birth_date', '')::date,
+           group_id = v_new_group,
+           status = p_row ->> 'status'
+     where id = v_id;
+  end if;
+
+  insert into player_profiles (player_id, first_name, last_name, primary_position, jersey_number)
+  values (v_id, nullif(p_profile ->> 'first_name', ''), nullif(p_profile ->> 'last_name', ''),
+          nullif(p_profile ->> 'primary_position', ''), nullif(p_profile ->> 'jersey_number', '')::integer)
+  on conflict (player_id) do update
+     set first_name = excluded.first_name,
+         last_name = excluded.last_name,
+         primary_position = excluded.primary_position,
+         jersey_number = excluded.jersey_number;
+
+  -- Перевод в другую группу: группа и тариф месяца берутся из строки абонемента, поэтому меняем строку
+  -- текущего месяца (прошлые месяцы не трогаем, #261).
+  if p_id is not null and v_new_group is not null and v_new_group is distinct from v_old_group then
+    update subscriptions set group_id = v_new_group
+     where player_id = v_id and month = date_trunc('month', tbilisi_day(now()))::date;
+  end if;
+  return v_id;
+end $$;
+revoke execute on function player_save(uuid, uuid, jsonb, jsonb) from public, anon;
+grant execute on function player_save(uuid, uuid, jsonb, jsonb) to authenticated;
+
 -- Профили для уже существующих игроков. Имена не разбираем: first_name/last_name остаются пустыми.
 insert into player_profiles (player_id)
 select p.id from players p
