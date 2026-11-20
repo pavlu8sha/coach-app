@@ -66,7 +66,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   const screen = nav.top.screen;
   const topId = nav.top.params.id;
   const back = () => { nav.back(); setReload(n => n + 1); };
-  if (screen.startsWith('rsvp')) return <CoachRsvp groups={groups} onBack={() => nav.back()} />;
+  if (screen.startsWith('rsvp')) return <CoachRsvp groups={groups} all={showAll} onBack={() => nav.back()} />;
   const openEvent = events.find(e => e.id === topId);
   // форму нового события открывает только администратор (миграция 0195); тренер ведёт состав и игры уже созданных событий
   if (screen === 'event' && (openEvent || (!topId && admin))) {

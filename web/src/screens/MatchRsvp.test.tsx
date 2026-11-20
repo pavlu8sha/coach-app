@@ -356,6 +356,61 @@ describe('Тренер: матчи с подтверждением', () => {
     await waitFor(() => expect(fake.rpcCalls('match_rsvp_seed')).toEqual([{ m: 'new3' }]));
   });
 
+  describe('матч чемпионата: события как в «Добавить матч»', () => {
+    const setup = (events: unknown[], g: unknown[]) => {
+      fake.db.matches = [matchRow({ id: 'newc', lifecycle_status: 'draft' })];
+      fake.db.clubs = [{ id: 'c1' }];
+      fake.rpc.event_list = () => events;
+      fake.rpc.match_rsvp_create_draft = () => 'newc';
+      fake.rpc.match_rsvp_seed = () => 5;
+      return render(<CoachRsvp groups={g as any} onBack={() => {}} />);
+    };
+    const pick = async (label: string) => {
+      fireEvent.click(await screen.findByRole('button', { name: 'Новый матч' }));
+      fireEvent.change(await screen.findByLabelText('Тип'), { target: { value: 'game' } });
+      await waitFor(() => expect(screen.getByLabelText('Чемпионат или фестиваль').querySelectorAll('option').length).toBeGreaterThan(1));
+      fireEvent.change(screen.getByLabelText('Чемпионат или фестиваль'), { target: { value: label } });
+      fireEvent.change(screen.getByLabelText('Дата и время (Тбилиси)'), { target: { value: '2026-11-20T11:00' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Создать черновик' }));
+    };
+
+    it('событие команды с буквой (U9-B) доступно, команда матча берётся из события', async () => {
+      setup([{ id: 'e2', team: 'U9-B', kind: 'championship', name: 'Championship 2', status: 'active' }], [{ id: 'g1', name: 'U9-A' }, { id: 'g2', name: 'U9-B' }]);
+      await pick('e2');
+      await waitFor(() => expect(fake.rpcCalls('match_rsvp_create_draft')).toHaveLength(1));
+      expect(fake.rpcCalls('match_rsvp_create_draft')[0]).toMatchObject({ p_kind: 'game', p_team: 'U9-B', p_tournament: 'e2' });
+      await waitFor(() => expect(fake.rpcCalls('match_rsvp_seed')).toEqual([{ m: 'newc' }]));
+    });
+
+    it('событие U13-A доступно тренеру группы U13-A', async () => {
+      setup([{ id: 'e3', team: 'U13-A', kind: 'championship', name: 'Championship 2', status: 'active' }], [{ id: 'g3', name: 'U13-A' }]);
+      await pick('e3');
+      await waitFor(() => expect(fake.rpcCalls('match_rsvp_create_draft')[0]).toMatchObject({ p_team: 'U13-A', p_tournament: 'e3' }));
+    });
+
+    it('события чужих команд и завершённые не предлагаются, название показывает команду', async () => {
+      setup([
+        { id: 'e1', team: 'U9', kind: 'championship', name: 'Чемпионат', status: 'active' },
+        { id: 'e5', team: 'U13-A', kind: 'championship', name: 'Чужой', status: 'active' },
+        { id: 'e6', team: 'U9', kind: 'festival', name: 'Старый', status: 'finished' },
+      ], [{ id: 'g1', name: 'U9' }]);
+      fireEvent.click(await screen.findByRole('button', { name: 'Новый матч' }));
+      fireEvent.change(await screen.findByLabelText('Тип'), { target: { value: 'game' } });
+      await waitFor(() => expect(screen.getByLabelText('Чемпионат или фестиваль').querySelectorAll('option').length).toBe(2));
+      expect(screen.getByRole('option', { name: 'Чемпионат · U9' })).toBeInTheDocument();
+    });
+
+    it('администратор и тренер всех команд видят события любых команд', async () => {
+      fake.db.matches = [];
+      fake.db.clubs = [{ id: 'c1' }];
+      fake.rpc.event_list = () => [{ id: 'e5', team: 'U13-A', kind: 'championship', name: 'Чужой', status: 'active' }];
+      render(<CoachRsvp groups={[{ id: 'g1', name: 'U9' }] as any} all onBack={() => {}} />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Новый матч' }));
+      fireEvent.change(await screen.findByLabelText('Тип'), { target: { value: 'game' } });
+      await waitFor(() => expect(screen.getByLabelText('Чемпионат или фестиваль').querySelectorAll('option').length).toBe(2));
+    });
+  });
+
   it('в карточке опубликованного матча видны сводка и состав, можно отметить за родителя', async () => {
     fake.db.matches = [{ id: 'm1', team: 'U9', opponent: 'Олимп', starts_at: future, lifecycle_status: 'published', kind: 'friendly', venue: null, address: null, notes: null, tournament_id: null }];
     fake.rpc.match_rsvp_summary = () => [{ invited: 2, yes: 1, no: 0, unanswered: 1, reminders: 0, last_reminder_at: null }];
