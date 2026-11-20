@@ -325,7 +325,7 @@ describe('Тренер: матчи с подтверждением', () => {
     expect(await screen.findByText('Черновик создан, в состав добавлено игроков: 12')).toBeInTheDocument();
   });
 
-  it('товарищеский матч: можно выбрать основную группу, состав берётся только из неё', async () => {
+  it('товарищеский матч: можно выбрать группу U9-B, команда матча «U9-B», состав только из неё', async () => {
     fake.db.matches = [matchRow({ id: 'new2', lifecycle_status: 'draft' })];
     fake.db.clubs = [{ id: 'c1' }];
     fake.rpc.event_list = () => [];
@@ -334,10 +334,28 @@ describe('Тренер: матчи с подтверждением', () => {
     const two = [{ id: 'g1', name: 'U9-A' }, { id: 'g2', name: 'U9-B' }] as any;
     render(<CoachRsvp groups={two} onBack={() => {}} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Новый матч' }));
-    fireEvent.change(await screen.findByLabelText('Основная группа'), { target: { value: 'g2' } });
+    const opts = [...screen.getByLabelText('Команда').querySelectorAll('option')].map(o => o.value);
+    expect(opts).toEqual(['U9', 'U9-A', 'U9-B']);
+    fireEvent.change(screen.getByLabelText('Команда'), { target: { value: 'U9-B' } });
     fireEvent.change(screen.getByLabelText('Дата и время (Тбилиси)'), { target: { value: '2026-11-20T11:00' } });
     fireEvent.click(screen.getByRole('button', { name: 'Создать черновик' }));
     await waitFor(() => expect(fake.rpcCalls('match_rsvp_seed')).toEqual([{ m: 'new2', p_group: 'g2' }]));
+    expect(fake.rpcCalls('match_rsvp_create_draft')[0]).toMatchObject({ p_team: 'U9-B' });
+  });
+
+  it('товарищеский матч команды «U9» целиком: команда без буквы, состав из всех групп', async () => {
+    fake.db.matches = [matchRow({ id: 'new2', lifecycle_status: 'draft' })];
+    fake.db.clubs = [{ id: 'c1' }];
+    fake.rpc.event_list = () => [];
+    fake.rpc.match_rsvp_create_draft = () => 'new2';
+    fake.rpc.match_rsvp_seed = () => 3;
+    const two = [{ id: 'g1', name: 'U9-A' }, { id: 'g2', name: 'U9-B' }] as any;
+    render(<CoachRsvp groups={two} onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Новый матч' }));
+    fireEvent.change(screen.getByLabelText('Дата и время (Тбилиси)'), { target: { value: '2026-11-20T11:00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Создать черновик' }));
+    await waitFor(() => expect(fake.rpcCalls('match_rsvp_seed')).toEqual([{ m: 'new2', p_group: 'g1' }, { m: 'new2', p_group: 'g2' }]));
+    expect(fake.rpcCalls('match_rsvp_create_draft')[0]).toMatchObject({ p_team: 'U9' });
   });
 
   it('матч чемпионата с выбранным событием: состав берётся из списка события', async () => {

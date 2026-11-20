@@ -58,7 +58,9 @@ export default function CoachRsvp({ groups, all = false, onBack }: { groups: Coa
 }
 
 function RsvpCreate({ groups, all, onBack, onCreated }: { groups: CoachGroup[]; all: boolean; onBack: () => void; onCreated: (id: string, note: Note) => void }) {
-  const teams = [...new Set(groups.map(g => g.name).filter(playsMatches).map(matchTeam))].sort(compareGroups);
+  // команда матча: «U13» (все группы возраста) или группа «U13-A», «U13-B» (как в «Добавить матч», миграция 0193)
+  const names = groups.map(g => g.name).filter(playsMatches);
+  const teams = [...new Set([...names.map(matchTeam), ...names.filter(n => /-[A-Z]$/.test(n))])].sort(compareGroups);
   const [team, setTeam] = useState(teams[0] ?? '');
   const [kind, setKind] = useState<'friendly' | 'game'>('friendly');
   const [opp, setOpp] = useState('');
@@ -67,7 +69,6 @@ function RsvpCreate({ groups, all, onBack, onCreated }: { groups: CoachGroup[]; 
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
   const [tour, setTour] = useState('');
-  const [grp, setGrp] = useState(''); // основная группа для товарищеского: '' — все группы команды
   const [events, setEvents] = useState<EventRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +83,8 @@ function RsvpCreate({ groups, all, onBack, onCreated }: { groups: CoachGroup[]; 
   const tours = events.filter(e => !isFinished(e) && (all || groups.some(g => g.name === e.team || matchTeam(g.name) === e.team)));
   const tourEvent = kind === 'game' ? events.find(e => e.id === tour) : undefined;
   const matchTeamName = tourEvent ? tourEvent.team : team; // игра события получает команду события, как в event_add_game
-  const teamGroups = groups.filter(g => playsMatches(g.name) && matchTeam(g.name) === team);
+  // у команды с буквой («U13-B») состав только её группы, у команды без буквы («U13») все группы возраста
+  const teamGroups = groups.filter(g => playsMatches(g.name) && (g.name === team || matchTeam(g.name) === team));
   const save = async () => {
     if (!team || !when) return setError('Выберите команду и укажите дату и время.');
     setBusy(true);
@@ -99,7 +101,7 @@ function RsvpCreate({ groups, all, onBack, onCreated }: { groups: CoachGroup[]; 
     // Если не вышло, черновик всё равно создан, состав можно заполнить кнопкой на экране матча.
     const id = String(r.data);
     const seeds: Record<string, unknown>[] = kind === 'game' && tour ? [{ m: id }]
-      : (grp ? teamGroups.filter(g => g.id === grp) : teamGroups).map(g => ({ m: id, p_group: g.id }));
+      : teamGroups.map(g => ({ m: id, p_group: g.id }));
     let added = 0;
     let seedError: string | null = null;
     for (const a of seeds) {
@@ -122,7 +124,7 @@ function RsvpCreate({ groups, all, onBack, onCreated }: { groups: CoachGroup[]; 
       ) : (
         <>
           <label className="ks-label" htmlFor="rs-team">Команда</label>
-          <select id="rs-team" className="ks-select" value={team} onChange={e => { setTeam(e.target.value); setGrp(''); }}>
+          <select id="rs-team" className="ks-select" value={team} onChange={e => setTeam(e.target.value)}>
             {teams.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         </>
@@ -132,15 +134,6 @@ function RsvpCreate({ groups, all, onBack, onCreated }: { groups: CoachGroup[]; 
         <option value="friendly">Товарищеский матч</option>
         <option value="game">Матч чемпионата</option>
       </select>
-      {kind === 'friendly' && teamGroups.length > 1 && (
-        <>
-          <label className="ks-label" htmlFor="rs-grp">Основная группа</label>
-          <select id="rs-grp" className="ks-select" value={grp} onChange={e => setGrp(e.target.value)}>
-            <option value="">Все группы команды</option>
-            {teamGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-          </select>
-        </>
-      )}
       {kind === 'game' && (
         <>
           <label className="ks-label" htmlFor="rs-tour">Чемпионат или фестиваль</label>
@@ -290,7 +283,7 @@ function RsvpDetail({ id, groups, onBack, note }: { id: string; groups: CoachGro
     setMsg(null);
     let added = 0;
     let err: string | null = null;
-    const targets = m.tournament_id ? [null] : groups.filter(g => matchTeam(g.name) === m.team).map(g => g.id);
+    const targets = m.tournament_id ? [null] : groups.filter(g => g.name === m.team || matchTeam(g.name) === m.team).map(g => g.id);
     if (!targets.length) { setBusy(false); return setMsg({ ok: false, text: 'Группы этой команды не найдены. Добавьте игроков поиском ниже.' }); }
     for (const g of targets) {
       const r = await supabase.rpc('match_rsvp_seed', g ? { m: id, p_group: g } : { m: id });
