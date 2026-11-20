@@ -125,6 +125,10 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 .ks-check input:checked::after { transform: translateY(-1px) rotate(45deg) scale(1); }
 .ks-check input:focus-visible { outline: 3px solid var(--ks-primary); outline-offset: 2px; }
 .ks-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+/* имя и плашка суммы в одной строке: длинное имя переносится внутри себя, плашка не падает вниз */
+.ks-line.pin-end { flex-wrap: nowrap; }
+.ks-line.pin-end > :first-child { flex: 1 1 auto; min-width: 0; }
+.ks-line.pin-end > :last-child { flex: none; }
 /* Заголовок карточки с бейджем справа (счёт матча, статус занятия): заголовок переносится внутри себя, бейдж справа; до 359 px бейдж отдельной строкой у всех карточек */
 .ks-head-badge { flex-wrap: nowrap; align-items: flex-start; }
 .ks-head-badge > b { flex: 1 1 0; min-width: 0; overflow-wrap: break-word; }

@@ -70,6 +70,19 @@ describe('«Оплаты за месяц»', () => {
     expect(screen.getByText(/внесено 150 ₾ из 495 ₾/)).toBeInTheDocument(); // итог группы
   });
 
+  it('имя и плашка суммы стоят в одной строке без переноса плашки вниз (длинное имя переносится внутри себя)', async () => {
+    seed();
+    fake.db.players = [{ id: 'p1', full_name: 'Imanuel Charles McLure', group_id: 'g1', status: 'active' }];
+    fake.db.payments = [{ player_id: 'p1', amount: 165, paid_on: monthIso() }];
+    fake.db.subscriptions = [];
+    render(<MonthPayments />);
+    const pill = await screen.findByText('165 ₾ из 165 ₾');
+    const line = pill.closest('.ks-line');
+    expect(line).toHaveClass('pin-end');
+    expect(line?.lastElementChild).toBe(pill);
+    expect(line?.firstElementChild).toHaveTextContent('Imanuel Charles McLure');
+  });
+
   it('нижняя граница списка месяцев — DEBT_START', async () => {
     seed();
     render(<MonthPayments />);
