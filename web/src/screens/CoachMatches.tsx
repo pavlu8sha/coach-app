@@ -34,6 +34,8 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   const [playedBy, setPlayedBy] = useState<Map<string, number>>(new Map());
   // «Добавить матч»: одно окно — события (чемпионаты, фестивали), где добавляется игра, и команды для товарищеского или кубкового матча
   const [addStep, setAddStep] = useState<'pick' | null>(null);
+  // по умолчанию матч создаётся с подтверждением участия; уже сыгранный матч вводится старой формой (решение владельца 2026-11-20)
+  const [played, setPlayed] = useState(false);
   const [addTeam, setAddTeam] = useNavState('cm.addTeam', '', { entry: 0 });
 
   useEffect(() => {
@@ -66,7 +68,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   const screen = nav.top.screen;
   const topId = nav.top.params.id;
   const back = () => { nav.back(); setReload(n => n + 1); };
-  if (screen.startsWith('rsvp')) return <CoachRsvp groups={groups} onBack={() => nav.back()} />;
+  if (screen.startsWith('rsvp')) return <CoachRsvp groups={groups} all={showAll} onBack={() => nav.back()} />;
   const openEvent = events.find(e => e.id === topId);
   // форму нового события открывает только администратор (миграция 0195); тренер ведёт состав и игры уже созданных событий
   if (screen === 'event' && (openEvent || (!topId && admin))) {
@@ -121,7 +123,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
       <div className="ks-head">
         <h1>Матчи</h1>
         <div className="ks-head-actions">
-          <button type="button" className="ks-btn sm" onClick={() => setAddStep('pick')}>+ Матч</button>
+          <button type="button" className="ks-btn sm" onClick={() => { setPlayed(false); setAddStep('pick'); }}>+ Матч</button>
           <MoreMenu
             badge={upcomingRsvp}
             items={[
@@ -133,6 +135,17 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
       </div>
       {addStep === 'pick' && (
         <div className="ks-card" aria-label="Добавить матч">
+          <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+            <input type="checkbox" checked={played} onChange={e => setPlayed(e.target.checked)} />
+            <span>Матч уже сыгран, ввести результат</span>
+          </label>
+          {!played ? (
+            <>
+              <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>Родители получат приглашение и ответят, придёт ли игрок. Команду, чемпионат и группу выберете в следующем окне.</p>
+              <button type="button" className="ks-btn" onClick={() => { setAddStep(null); nav.push('rsvp.create'); }}>Создать матч с подтверждением</button>
+            </>
+          ) : (
+            <>
           <p className="ks-label">Матч чемпионата или фестиваля</p>
           {champEvents.length === 0 ? (
             <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>Событий пока нет.{admin ? ' Создайте чемпионат или фестиваль кнопкой «Новое событие».' : ' Чемпионаты и фестивали создаёт администратор.'}</p>
@@ -146,6 +159,8 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
           {addTeams.map(t => (
             <ListRow key={t} title={t} onClick={() => { setAddTeam(t); setAddStep(null); nav.push('form'); }} />
           ))}
+            </>
+          )}
           <div style={{ height: 8 }} />
           <button type="button" className="ks-btn secondary" onClick={() => setAddStep(null)}>Отмена</button>
         </div>

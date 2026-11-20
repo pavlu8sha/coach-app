@@ -34,6 +34,12 @@ export function BackNav({ onBack, managed }: { onBack: () => void; managed?: boo
   return native ? null : <BackButton onClick={() => dirtyGuard.leave(onBack)} />;
 }
 
+// Сколько экранов сейчас держат главную кнопку и таймер отложенного возврата цветов Telegram.
+// Цвета возвращаются не сразу: Telegram прячет кнопку анимацией, и мгновенная смена цвета показывала на секунду «старую» голубую кнопку.
+let mainActive = 0;
+let restoreTimer: ReturnType<typeof setTimeout> | undefined;
+const RESTORE_DELAY_MS = 600;
+
 /** Главная кнопка Telegram для единственного главного действия экрана. Возвращает true, если кнопка Telegram доступна;
  *  иначе экран должен показать обычную кнопку. */
 export function useMainButton(o: { text: string; visible: boolean; enabled: boolean; loading?: boolean; onClick: () => void }): boolean {
@@ -44,15 +50,20 @@ export function useMainButton(o: { text: string; visible: boolean; enabled: bool
     const b = tgApp()?.MainButton;
     if (!native || !b || !o.visible) return;
     const handler = () => click.current();
+    mainActive += 1;
+    clearTimeout(restoreTimer);
     b.setText(o.text);
     paintMainButton(b, true);
     b.onClick(handler);
     b.show();
     return () => {
-      paintMainButton(b, false); // вернуть цвета Telegram, чтобы другие экраны не остались перекрашенными
       b.offClick(handler);
       b.hideProgress();
       b.hide();
+      mainActive -= 1;
+      // вернуть цвета Telegram, чтобы другие экраны не остались перекрашенными, но только когда кнопка уже скрыта и её никто не занял
+      clearTimeout(restoreTimer);
+      restoreTimer = setTimeout(() => { if (mainActive === 0) paintMainButton(b, false); }, RESTORE_DELAY_MS);
     };
   }, [native, o.visible, o.text]);
   useEffect(() => {
