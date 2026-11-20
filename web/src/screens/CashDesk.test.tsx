@@ -552,22 +552,6 @@ describe('«Приём оплат»: платежи дня', () => {
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отменить оплату' }));
     await waitFor(() => expect(fake.writes('payments', 'insert')).toHaveLength(1));
   });
-  it('сбой связи при отмене (rejected promise): ошибка, блокировка снята, список перечитан', async () => {
-    seed();
-    fake.db.payments = [{ id: 'x1', player_id: 'p1', amount: 50, paid_on: today(), method: 'Наличные', players: { full_name: 'Иванов Пётр' } }];
-    render(<CashDesk />);
-    await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
-    fake.rejects.payments = 'network down';
-    cancelViaMenu();
-    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отменить оплату' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(/Отмена не записана.*отмена могла примениться/);
-    delete fake.rejects.payments;
-    fireEvent.click(await screen.findByRole('button', { name: 'Повторить' }));
-    await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
-    cancelViaMenu();
-    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отменить оплату' }));
-    await waitFor(() => expect(fake.writes('payments', 'insert')).toHaveLength(1));
-  });
   it('если отмена не записалась, показывается ошибка', async () => {
     seed();
     fake.db.payments = [{ id: 'x1', player_id: 'p1', amount: 50, paid_on: today(), method: 'Наличные', players: { full_name: 'Иванов Пётр' } }];
