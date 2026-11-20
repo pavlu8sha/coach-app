@@ -302,7 +302,8 @@ export default function CashDesk() {
   // Исправление способа оплаты абонемента: UPDATE только method (0179 разрешает и пишет в audit_log); суммы и даты не трогаем
   const changeMethod = async (x: { id: string; amount: number; method?: string | null; players?: { full_name: string } | null }) => {
     if (cancelling) return;
-    const from = x.method === 'Перевод' ? 'Перевод' : 'Наличные';
+    if (x.method !== 'Наличные' && x.method !== 'Перевод') return; // неизвестный способ не подменяем
+    const from = x.method;
     const to = from === 'Перевод' ? 'Наличные' : 'Перевод';
     const ok = await ask({
       title: 'Изменить способ оплаты?',
@@ -389,7 +390,7 @@ export default function CashDesk() {
         const end = can ? (
           <>
             {pill}
-            <MoreMenu label={`Действия: ${name}`} items={[{ label: 'Изменить способ оплаты', onSelect: () => void changeMethod(x) }, { label: 'Отменить оплату', onSelect: () => void cancelPay(x) }]} />
+            <MoreMenu label={`Действия: ${name}`} items={[...(x.method === 'Наличные' || x.method === 'Перевод' ? [{ label: 'Изменить способ оплаты', onSelect: () => void changeMethod(x) }] : []), { label: 'Отменить оплату', onSelect: () => void cancelPay(x) }]} />
           </>
         ) : pill;
         return <div key={x.what + x.id}><ListRow title={name} sub={[x.sub ?? [x.what, x.method].filter(Boolean).join(' · ')]} end={end} /></div>;

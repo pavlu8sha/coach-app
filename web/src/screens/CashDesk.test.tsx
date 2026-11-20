@@ -465,6 +465,15 @@ describe('«Приём оплат»: платежи дня', () => {
       expect(fake.writes('payments', 'update')[0]).toEqual({ method: 'Наличные' });
       expect(fake.writes('payments', 'insert')).toHaveLength(0);
     });
+    it.each([[null], ['Исправление'], ['cash']])('при способе %s пункта нет и UPDATE не уходит, отмена остаётся', async (m) => {
+      seed(); fake.db.payments = [pay({ method: m })];
+      render(<CashDesk />);
+      await screen.findByRole('heading', { name: /Внесено сегодня/ });
+      fireEvent.click(rowMenu());
+      expect(screen.queryByRole('menuitem', { name: 'Изменить способ оплаты' })).toBeNull();
+      expect(screen.getByRole('menuitem', { name: 'Отменить оплату' })).toBeInTheDocument();
+      expect(fake.writes('payments', 'update')).toHaveLength(0);
+    });
     it('у отменённой оплаты пункта нет', async () => {
       seed(); fake.db.payments = [pay(), pay({ id: 'x2', amount: -50, cancels: 'x1' })];
       render(<CashDesk />);
