@@ -20,7 +20,7 @@ insert into clubs (id, name) values ('$CL', 'Конкурентность виз
 insert into users (id, telegram_id, display_name, is_admin) values ('$AD', 991701, 'Админ', true);
 insert into groups (id, club_id, name, location) values ('$GR', '$CL', 'U9-C', 'Чиовани');
 insert into sessions (id, group_id, starts_at, kind, source_key, class) values ('$SE', '$GR', (current_date - 3) + time '15:00', 'training', 'ATT|conc-visit', 'regular');
-insert into players (id, club_id, group_id, full_name, status) select ('00000000-0000-0000-0000-0000bf00d' || lpad(g::text, 3, '0'))::uuid, '$CL', '$GR', 'Игрок ' || g, 'active' from generate_series(1, 7) g;
+insert into players (id, club_id, group_id, full_name, status) select ('00000000-0000-0000-0000-0000bf00d' || lpad(g::text, 3, '0'))::uuid, '$CL', '$GR', 'Игрок ' || g, 'active' from generate_series(1, 9) g;
 SQL
 FROM=$(q -c "select current_date - 10")
 visits() { q -c "select count(*) from own_visits where player_id = '$1' and session_id = '$SE'"; }
@@ -29,6 +29,9 @@ visits() { q -c "select count(*) from own_visits where player_id = '$1' and sess
 # Каждый оператор на своей строке: pg_sleep виден в pg_stat_activity отдельным запросом, и вторая транзакция стартует, только когда первая держит блокировки.
 setmode() { { as "$AD"; printf "begin;\nselect player_set_pay_mode('%s', 'per_visit', '%s');\nselect pg_sleep(2);\ncommit;\n" "$1" "$FROM"; } | $PSQL -q -v ON_ERROR_STOP=1 -d "$DB" >"$T/$2.out" 2>&1; }
 mark() { printf "begin;\n%s\nselect pg_sleep(%s);\ncommit;\n" "$2" "${3:-0.1}" | $PSQL -q -v ON_ERROR_STOP=1 -d "$DB" >"$T/$1.out" 2>&1; }
+# прямой вызов дозаполнения (так его запускает операторский скрипт db/ops/backfill-own-visits-*.sql, без player_set_pay_mode): игрок уже «за визит», отметка стоит, визита нет
+direct() { printf "begin;\nselect own_visits_backfill('%s');\nselect pg_sleep(2);\ncommit;\n" "$1" | $PSQL -q -v ON_ERROR_STOP=1 -d "$DB" >"$T/$2.out" 2>&1; }
+prep_direct() { q -c "update players set pay_mode = 'per_visit', pay_mode_from = '$FROM' where id = '$1'" >/dev/null; }
 # ждать, пока первая транзакция дошла до паузы (то есть уже держит свои блокировки)
 sleeping() { for _ in $(seq 1 100); do [ "$(q -c "select count(*) from pg_stat_activity where datname = current_database() and state = 'active' and query like 'select pg_sleep(2)%'")" != 0 ] && return 0; sleep 0.1; done; return 1; }
 
@@ -85,6 +88,23 @@ setmode "$P" s7a & A=$!; sleeping || { bad "барьер не достигнут
 mark s7b "delete from attendance where session_id = '$SE' and player_id = '$P';" & B=$!
 wait $A || bad "транзакция А завершилась с ошибкой"; wait $B || bad "транзакция Б завершилась с ошибкой"
 [ "$(visits "$P")" = 0 ] && ok "удаление отметки во время смены режима: лишнего визита нет" || { bad "удаление отметки во время смены режима: визитов $(visits "$P")"; cat "$T/s7a.out" "$T/s7b.out"; }
+
+# 8. Прямой вызов own_visits_backfill (путь операторского скрипта) и одновременное снятие отметки: лишнего визита остаться не должно
+P=$(pl 8)
+prep_direct "$P"; q -c "insert into attendance (session_id, player_id, status) values ('$SE', '$P', 'present')" >/dev/null
+q -c "delete from own_visits where player_id = '$P'" >/dev/null
+direct "$P" s8a & A=$!; sleeping || { bad "барьер не достигнут: первая транзакция не дошла до паузы"; exit 1; }
+mark s8b "update attendance set status = 'absent' where session_id = '$SE' and player_id = '$P';" & B=$!
+wait $A || bad "транзакция А завершилась с ошибкой"; wait $B || bad "транзакция Б завершилась с ошибкой"
+[ "$(visits "$P")" = 0 ] && ok "прямой вызов дозаполнения и снятие отметки: лишнего визита нет" || { bad "прямой вызов дозаполнения и снятие отметки: визитов $(visits "$P")"; cat "$T/s8a.out" "$T/s8b.out"; }
+
+# 9. Исправление «Не был» на «Был» открыто, прямой вызов дозаполнения приходит после: ровно один визит
+P=$(pl 9)
+prep_direct "$P"; q -c "insert into attendance (session_id, player_id, status) values ('$SE', '$P', 'absent')" >/dev/null
+mark s9b "update attendance set status = 'present' where session_id = '$SE' and player_id = '$P';" 2 & B=$!; sleeping || { bad "барьер не достигнут: первая транзакция не дошла до паузы"; exit 1; }
+direct "$P" s9a & A=$!
+wait $A || bad "транзакция А завершилась с ошибкой"; wait $B || bad "транзакция Б завершилась с ошибкой"
+[ "$(visits "$P")" = 1 ] && ok "открытое исправление на «Был» и прямой вызов дозаполнения: ровно один визит" || { bad "открытое исправление на «Был» и прямой вызов дозаполнения: визитов $(visits "$P")"; cat "$T/s9a.out" "$T/s9b.out"; }
 
 dl=$(cat "$T"/*.out | grep -ci 'deadlock')
 [ "$dl" = 0 ] && ok "взаимных блокировок нет" || { bad "взаимные блокировки: $dl"; cat "$T"/*.out; }

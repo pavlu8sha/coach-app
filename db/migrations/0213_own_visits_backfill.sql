@@ -8,12 +8,13 @@
 -- поэтому при одновременной правке отметки (UPDATE status или DELETE; INSERT уже сериализован внешним ключом на игрока) визит мог потеряться или остаться лишним.
 -- Теперь триггер перед чтением режима берёт блокировку строки игрока (for share): он ждёт смены режима (там for update) и после её коммита читает новый режим,
 -- а смена режима ждёт открытых отметок и после их коммита видит их. Тело триггера взято из 0200 (единственное определение), изменена одна строка чтения игрока.
+-- Блокировка игрока (for update) стоит и внутри own_visits_backfill, а не только в player_set_pay_mode: операторский скрипт вызывает её напрямую (db/ops/backfill-own-visits-*.sql).
 -- Откат: db/ops/rollback-0213-own-visits-backfill.sql. Условия приёмки: docs/PAY_PER_VISIT_BACKFILL_ACCEPTANCE.md.
 create or replace function own_visits_backfill(p uuid) returns int
 language plpgsql security definer set search_path = public as $$
 declare pl players; n int;
 begin
-  select * into pl from players where id = p;
+  select * into pl from players where id = p for update;
   if not found or pl.pay_mode <> 'per_visit' or pl.pay_mode_from is null then return 0; end if;
   insert into own_visits (session_id, player_id, amount)
     select s.id, pl.id, own_visit_fee(g.club_id)
