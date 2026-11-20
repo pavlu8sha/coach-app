@@ -158,8 +158,12 @@ describe('вход по ссылке на сбор', () => {
     seedCamps();
     start('camp_Zima');
     render(<Home />);
-    // «Назад» есть и у списка, поэтому ждём загруженную карточку (экран перерисовывается при загрузке)
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Зимний лагерь' })).toBeInTheDocument());
+    // «Назад» есть и у списка, поэтому ждём загруженную карточку (экран перерисовывается при загрузке).
+    // Заголовок «Зимний лагерь» виден и в заглушке загрузки (role=status), поэтому ждём и её исчезновения: иначе «Назад» ещё нет
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Зимний лагерь' })).toBeInTheDocument();
+      expect(screen.queryByRole('status', { name: 'Загрузка' })).not.toBeInTheDocument();
+    });
     const back = screen.getByRole('button', { name: 'Назад' });
     fireEvent.click(back);
     expect(await screen.findByText('Зимний лагерь', { selector: '.ks-row-title' })).toBeInTheDocument();

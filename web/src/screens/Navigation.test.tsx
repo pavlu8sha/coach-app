@@ -46,14 +46,17 @@ describe('«Игроки»: возврат из карточки и правки
     seedPlayers();
     render(inApp('players', <Players />));
     fireEvent.change(await screen.findByLabelText('Поиск игроков'), { target: { value: 'andr' } });
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    fireEvent.click(screen.getByRole('button', { name: 'Фильтры' }));
     fireEvent.change(screen.getByLabelText('Статус'), { target: { value: 'all' } });
+    fireEvent.click(screen.getByRole('button', { name: /^Показать/ }));
     const push = vi.spyOn(window.history, 'pushState');
     fireEvent.click(await screen.findByText('Andreev Boris'));
     expect(await screen.findByRole('button', { name: 'Изменить данные' })).toBeInTheDocument();
     expect(push).toHaveBeenCalledTimes(1); // карточка = одна запись истории, «Назад» не дублируется
     fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
     expect(await screen.findByLabelText('Поиск игроков')).toHaveValue('andr');
-    expect(screen.getByLabelText('Статус')).toHaveValue('all');
+    expect(screen.getByRole('button', { name: 'Убрать Все' })).toBeInTheDocument();
     expect(screen.getByText('Andreev Boris')).toBeInTheDocument();
     expect(screen.queryByText('Amodeo Nolan')).not.toBeInTheDocument();
   });
