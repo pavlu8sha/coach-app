@@ -54,6 +54,9 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 @media (max-width: 420px) { .ks-seg.quad { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow-x: visible; } }
 .ks-seg button { min-height: var(--ks-tap); border: 0; border-radius: 10px; background: none; color: var(--ks-text-muted); font: 700 14px var(--ks-font); cursor: pointer; padding: 6px 8px; }
 .ks-seg button { white-space: nowrap; }
+/* два пункта: две равные колонки, длинная подпись переносится внутри кнопки */
+.ks-seg.pair { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow-x: visible; }
+.ks-seg.pair button { white-space: normal; }
 /* все вкладки в одном ряду; не помещаются — ряд прокручивается внутри себя */
 .ks-seg.row, .ks-seg.row.quad { grid-auto-flow: column; grid-template-columns: none; overflow-x: auto; }
 .ks-seg.row { gap: 2px; }
@@ -61,6 +64,8 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 .ks-quickdates { display: flex; gap: 8px; margin: 0 0 8px; }
 .ks-quickdates .ks-btn { flex: 1 1 0; width: auto; }
 .ks-row .ks-more-menu { z-index: 40; }
+/* строка или карточка с открытым меню «⋯» поднимается над соседями (у прямых детей .page свой слой из-за анимации появления, поэтому поднимается и обёртка строки), иначе меню уходит под следующую карточку */
+.ks-row:has(.ks-more-menu), .ks-card:has(.ks-more-menu), .page > :has(.ks-more-menu) { position: relative; z-index: 50; }
 .ks-seg button[aria-selected='true'] { background: var(--ks-primary); color: var(--ks-on-primary); }
 
 /* Тумблер (role=switch) в строке с подписью */
@@ -134,6 +139,8 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 .ks-head-badge > b { flex: 1 1 0; min-width: 0; overflow-wrap: break-word; }
 .ks-head-badge > span { flex: none; }
 @media (max-width: 359px) { .ks-head-badge { flex-direction: column; align-items: flex-start; gap: 6px; } .ks-head-badge > b { flex: none; } }
+/* Вариант «всегда в строку»: плашка справа и на 320 px, название переносится внутри себя (карточка шаблона) */
+@media (max-width: 359px) { .ks-head-badge.keep-row { flex-direction: row; gap: 8px; } .ks-head-badge.keep-row > b { flex: 1 1 0; } }
 .ks-ok { color: var(--ks-success); font-weight: 700; margin: 8px 0; }
 
 /* Экран первой загрузки */
