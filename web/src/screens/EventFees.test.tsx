@@ -31,18 +31,18 @@ describe('взносы: скидка у оплаченного', () => {
     fake.rpc.event_payments = () => [];
     fake.rpc.fee_discounts = () => [];
     const { unmount } = render(<EventFees eventId="e1" reloadKey={0} onChanged={() => {}} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Скидка: Сидоров Ян' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Изменить сумму: Сидоров Ян' }));
     expect(screen.queryByLabelText('Платит: Сидоров Ян')).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Сумма к оплате'), { target: { value: '100' } });
     fireEvent.click(screen.getByRole('button', { name: 'Применить' }));
     fireEvent.change(await screen.findByLabelText(/Причина/), { target: { value: 'отыграл половину чемпионата' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Применить скидку' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Изменить сумму' }));
     await waitFor(() => expect(fake.rpcCalls('event_discount')).toHaveLength(1));
     expect(fake.rpcCalls('event_discount')[0]).toMatchObject({ t: 'e1', pid: 'p2', due: 100, why: 'отыграл половину чемпионата' });
     unmount();
     render(<EventFees eventId="e1" reloadKey={0} coach onChanged={() => {}} />);
     await screen.findByText('Сидоров Ян');
-    expect(screen.queryByRole('button', { name: 'Скидка: Сидоров Ян' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Изменить сумму: Сидоров Ян' })).not.toBeInTheDocument();
   });
 });
 
@@ -58,17 +58,35 @@ describe('взносы: скидка у оплаченного (матч и ну
     const { unmount } = render(<EventFees eventId="m1" mode="match" reloadKey={0} onChanged={() => {}} />);
     expect(await screen.findByText('Без взноса')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Скидка: Орлов Глеб' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Скидка: Сидоров Ян' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Изменить сумму: Сидоров Ян' }));
     fireEvent.change(screen.getByLabelText('Сумма к оплате'), { target: { value: '10' } });
     fireEvent.click(screen.getByRole('button', { name: 'Применить' }));
     fireEvent.change(await screen.findByLabelText(/Причина/), { target: { value: 'не доиграл матч' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Применить скидку' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Изменить сумму' }));
     await waitFor(() => expect(fake.rpcCalls('match_discount')).toHaveLength(1));
     expect(fake.rpcCalls('match_discount')[0]).toMatchObject({ m: 'm1', pid: 'p2', due: 10, why: 'не доиграл матч' });
     unmount();
     render(<EventFees eventId="m1" mode="match" coach reloadKey={0} onChanged={() => {}} />);
     await screen.findByText('Сидоров Ян');
-    expect(screen.queryByRole('button', { name: 'Скидка: Сидоров Ян' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Изменить сумму: Сидоров Ян' })).not.toBeInTheDocument();
+  });
+});
+
+describe('взносы: подпись изменённой суммы', () => {
+  it('у оплаченного взноса запись об изменении называется «Сумма изменена», у неоплаченного «Скидка»', async () => {
+    fake.rpc.event_fees = () => [
+      { player_id: 'p2', full_name: 'Сидоров Ян', group_name: 'U9', due: 100, paid: 100 },
+      { player_id: 'p1', full_name: 'Иванов Пётр', group_name: 'U9', due: 150, paid: 0 },
+    ];
+    fake.rpc.event_payments = () => [];
+    fake.rpc.fee_discounts = () => [
+      { player_id: 'p2', old_amount: 200, new_amount: 100, reason: 'половина чемпионата', by_name: 'Админ', at: '2026-11-20T10:00:00Z' },
+      { player_id: 'p1', old_amount: 200, new_amount: 150, reason: 'скидка семье', by_name: 'Админ', at: '2026-11-20T10:00:00Z' },
+    ];
+    render(<EventFees eventId="e1" reloadKey={0} onChanged={() => {}} />);
+    expect(await screen.findByText(/^Сумма изменена: было 200\u00A0₾, стало 100\u00A0₾ · половина чемпионата/)).toBeInTheDocument();
+    expect(screen.getByText(/^Скидка: было 200\u00A0₾, стало 150\u00A0₾ · скидка семье/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Скидка: Иванов Пётр' })).toBeInTheDocument();
   });
 });
 

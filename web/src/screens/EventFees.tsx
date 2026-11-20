@@ -105,11 +105,12 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
 
   // Скидка: причина обязательна, прежняя сумма, автор и дата сохраняются в базе (#422)
   const applyDiscount = async (f: FeeRow) => {
+    const paidUp = f.due - f.paid <= 0;
     const a = await askClosure({
-      title: 'Скидка на взнос',
+      title: paidUp ? 'Изменить сумму взноса' : 'Скидка на взнос',
       lines: [['Игрок', f.full_name], ['Было', money(f.due)], ['Станет', money(Number(discount))]],
       reasonOnly: true,
-      confirmLabel: 'Применить скидку',
+      confirmLabel: paidUp ? 'Изменить сумму' : 'Применить скидку',
       note: 'Прежняя сумма, причина и автор сохранятся. Оплаты и касса не меняются.',
     });
     if (!a) return;
@@ -148,10 +149,10 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
             <ListRow
               avatar={f.full_name}
               title={f.full_name}
-              sub={[`К оплате ${money(f.due)} · оплачено ${money(f.paid)}`, ...(discs[f.player_id] ? [`Скидка: было ${money(discs[f.player_id].old_amount)}, стало ${money(discs[f.player_id].new_amount)} · ${discs[f.player_id].reason} · ${[discs[f.player_id].by_name, fmtDate(discs[f.player_id].at.slice(0, 10))].filter(Boolean).join(', ')}`] : [])]}
+              sub={[`К оплате ${money(f.due)} · оплачено ${money(f.paid)}`, ...(discs[f.player_id] ? [`${left <= 0 ? 'Сумма изменена' : 'Скидка'}: было ${money(discs[f.player_id].old_amount)}, стало ${money(discs[f.player_id].new_amount)} · ${discs[f.player_id].reason} · ${[discs[f.player_id].by_name, fmtDate(discs[f.player_id].at.slice(0, 10))].filter(Boolean).join(', ')}`] : [])]}
               end={f.due === 0 ? <Pill tone="neutral">Без взноса</Pill> : left <= 0 ? <Pill tone="success">Оплачен</Pill> : <Pill tone="danger">Долг {money(left)}</Pill>}
             />
-            {/* «Скидка» нужна и у полностью оплаченного взноса (оплата из импорта, играл часть турнира): сумма к оплате меняется, оплаты нет */}
+            {/* «Изменить сумму» нужна и у полностью оплаченного взноса (оплата из импорта, играл часть турнира): сумма к оплате меняется, оплаты нет */}
             {(left > 0 || (!coach && f.due > 0)) && <div className="ks-line" style={{ marginBottom: 8 }}>
               {left > 0 && (
                 <label className="ks-check">
@@ -160,7 +161,7 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
                 </label>
               )}
               {left > 0 && !coach && api.add && f.paid === 0 && !pays.some(x => x.player_id === f.player_id) && <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 36 }} aria-label={`Убрать из взноса: ${f.full_name}`} onClick={() => void removeFee(f)}>Убрать</button>}
-              {!coach && f.due > 0 && <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 36 }} aria-label={`Скидка: ${f.full_name}`} onClick={() => { setDiscountFor(discountFor === f.player_id ? null : f.player_id); setDiscount(String(f.due)); }}>Скидка</button>}
+              {!coach && f.due > 0 && <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 36 }} aria-label={`${left <= 0 ? 'Изменить сумму' : 'Скидка'}: ${f.full_name}`} onClick={() => { setDiscountFor(discountFor === f.player_id ? null : f.player_id); setDiscount(String(f.due)); }}>{left <= 0 ? 'Изменить сумму' : 'Скидка'}</button>}
             </div>}
             {!coach && discountFor === f.player_id && (
               <div className="ks-line" style={{ marginBottom: 8 }}>
