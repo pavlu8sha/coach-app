@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import { today } from '../lib/coach';
 import Players from './Players';
@@ -17,7 +17,11 @@ function seed() {
   fake.db.subscriptions = [];
 }
 
+const openFilters = () => fireEvent.click(screen.getByRole('button', { name: /^Фильтры/ }));
+
 describe('«Игроки»', () => {
+  beforeEach(() => { vi.spyOn(window, 'scrollTo').mockImplementation(() => {}); });
+
   it('показывает игроков со статусом оплаты за месяц; неактивных по умолчанию нет', async () => {
     seed();
     render(<Players />);
@@ -53,7 +57,8 @@ describe('«Игроки»', () => {
     expect(screen.queryByText('Amodeo Nolan')).not.toBeInTheDocument();
     expect(screen.getByText('Andreev Boris')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Поиск игроков'), { target: { value: '' } });
-    fireEvent.click(screen.getByRole('button', { name: '2016' }));
+    openFilters();
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '2016' }));
     expect(screen.getByText('Amodeo Nolan')).toBeInTheDocument();
     expect(screen.queryByText('Andreev Boris')).not.toBeInTheDocument();
   });
@@ -62,7 +67,7 @@ describe('«Игроки»', () => {
     seed();
     render(<Players />);
     await screen.findByText('Amodeo Nolan');
-    fireEvent.click(screen.getByRole('switch', { name: 'Только не оплатившие' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Не оплатили' }));
     expect(screen.queryByText('Amodeo Nolan')).not.toBeInTheDocument();
     expect(screen.getByText('Andreev Boris')).toBeInTheDocument();
   });
@@ -71,7 +76,8 @@ describe('«Игроки»', () => {
     seed();
     render(<Players />);
     await screen.findByText('Amodeo Nolan');
-    fireEvent.change(screen.getByLabelText('Статус'), { target: { value: 'inactive' } });
+    openFilters();
+    fireEvent.change(within(screen.getByRole('dialog')).getByLabelText('Статус'), { target: { value: 'inactive' } });
     const row = screen.getByText('Старый Игрок').closest('button')!;
     expect(within(row).getByText('Ушёл')).toBeInTheDocument();
   });
@@ -84,5 +90,114 @@ describe('«Игроки»', () => {
     expect(screen.getByText('Изменить данные')).toBeInTheDocument();
     expect(screen.getAllByText('Внести платёж').length).toBeGreaterThan(0);
     expect(screen.getByText(/KS-0002/)).toBeInTheDocument();
+  });
+
+  describe('окно «Фильтры» и пилюли', () => {
+    it('«+ Добавить» в шапке открывает форму нового игрока', async () => {
+      seed();
+      render(<Players />);
+      await screen.findByText('Amodeo Nolan');
+      fireEvent.click(screen.getByRole('button', { name: '+ Добавить' }));
+      expect(await screen.findByText('Новый ребёнок')).toBeInTheDocument();
+    });
+
+    it('на странице нет селектов и чипов годов; есть «Фильтры» и «Не оплатили»', async () => {
+      seed();
+      render(<Players />);
+      await screen.findByText('Amodeo Nolan');
+      expect(screen.queryByLabelText('Группа')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Статус')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: '2016' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Фильтры' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Не оплатили' })).toHaveAttribute('aria-pressed', 'false');
+      expect(screen.queryByRole('button', { name: /^Убрать/ })).not.toBeInTheDocument();
+    });
+
+    it('выбор в окне сразу меняет список, считает «Фильтры · N» и даёт пилюли с «✕»', async () => {
+      seed();
+      render(<Players />);
+      await screen.findByText('Amodeo Nolan');
+      openFilters();
+      const dlg = screen.getByRole('dialog');
+      expect(within(dlg).getByRole('button', { name: 'Показать 2' })).toBeInTheDocument();
+      fireEvent.click(within(dlg).getByRole('button', { name: '2016' }));
+      fireEvent.change(within(dlg).getByLabelText('Группа'), { target: { value: 'g1' } });
+      expect(within(dlg).getByRole('button', { name: 'Показать 1' })).toBeInTheDocument();
+      expect(screen.queryByText('Andreev Boris')).not.toBeInTheDocument();
+      fireEvent.click(within(dlg).getByRole('button', { name: 'Показать 1' }));
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Фильтры · 2' })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Убрать 2016' }));
+      expect(screen.getByRole('button', { name: 'Фильтры · 1' })).toBeInTheDocument();
+      expect(screen.getByText('Amodeo Nolan')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Убрать U10-B' }));
+      expect(screen.getByText('Andreev Boris')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^Убрать/ })).not.toBeInTheDocument();
+    });
+
+    it('статус не по умолчанию даёт пилюлю; «Сбросить» возвращает значения по умолчанию', async () => {
+      seed();
+      render(<Players />);
+      await screen.findByText('Amodeo Nolan');
+      openFilters();
+      fireEvent.change(within(screen.getByRole('dialog')).getByLabelText('Статус'), { target: { value: 'inactive' } });
+      expect(screen.getByRole('button', { name: 'Убрать Ушли' })).toBeInTheDocument();
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Сбросить' }));
+      expect(screen.queryByRole('button', { name: /^Убрать/ })).not.toBeInTheDocument();
+      expect(screen.getByText('Amodeo Nolan')).toBeInTheDocument();
+    });
+
+    it('«Сбросить» не трогает «Не оплатили»; Esc закрывает окно', async () => {
+      seed();
+      render(<Players />);
+      await screen.findByText('Amodeo Nolan');
+      fireEvent.click(screen.getByRole('button', { name: 'Не оплатили' }));
+      expect(screen.getByRole('button', { name: 'Не оплатили' })).toHaveAttribute('aria-pressed', 'true');
+      openFilters();
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Сбросить' }));
+      expect(screen.getByRole('button', { name: 'Не оплатили' })).toHaveAttribute('aria-pressed', 'true');
+      fireEvent.keyDown(window, { key: 'Escape' });
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('выбор в окне не уводит фокус с выбранного элемента', async () => {
+      seed();
+      render(<Players />);
+      await screen.findByText('Amodeo Nolan');
+      openFilters();
+      const dlg = screen.getByRole('dialog');
+      const chip = within(dlg).getByRole('button', { name: '2016' });
+      chip.focus();
+      fireEvent.click(chip);
+      expect(document.activeElement).toBe(chip);
+      const sel = within(dlg).getByLabelText('Группа');
+      sel.focus();
+      fireEvent.change(sel, { target: { value: 'g1' } });
+      expect(document.activeElement).toBe(sel);
+    });
+
+    it('Tab и Shift+Tab не выходят из окна; после закрытия фокус возвращается на «Фильтры»', async () => {
+      seed();
+      render(<Players />);
+      await screen.findByText('Amodeo Nolan');
+      const opener = screen.getByRole('button', { name: 'Фильтры' });
+      opener.focus();
+      fireEvent.click(opener);
+      const dlg = screen.getByRole('dialog');
+      const show = within(dlg).getByRole('button', { name: /^Показать/ });
+      const reset = within(dlg).getByRole('button', { name: 'Сбросить' });
+      expect(document.activeElement).toBe(show);
+      expect(fireEvent.keyDown(show, { key: 'Tab' })).toBe(false); // последний элемент: уходит на первый
+      expect(document.activeElement).toBe(reset);
+      expect(fireEvent.keyDown(reset, { key: 'Tab', shiftKey: true })).toBe(false); // первый: уходит на последний
+      expect(document.activeElement).toBe(show);
+      fireEvent.click(show);
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(document.activeElement).toBe(opener);
+      opener.focus();
+      fireEvent.click(opener);
+      fireEvent.keyDown(window, { key: 'Escape' });
+      expect(document.activeElement).toBe(opener);
+    });
   });
 });

@@ -3,7 +3,8 @@ import { fmtDate, groupByGroupName, hasSubscription, sortGroups, today } from '.
 import { statusLabel, statusTone, type PlayerStatus } from '../lib/playerStatus';
 import { supabase } from '../lib/supabase';
 import { useNav, useNavState } from '../nav';
-import { EmptyState, ListRow, Pill, SearchInput, SwitchRow, type Tone } from '../ui/components';
+import { EmptyState, ListRow, Pill, SearchInput, type Tone } from '../ui/components';
+import { FilterSheet } from '../ui/FilterSheet';
 import { Failure, Splash } from './Message';
 import { tariffFor } from './MonthPayments';
 import PlayerCard, { type CardPlayer } from './PlayerCard';
@@ -50,6 +51,7 @@ export default function Players() {
   const [status, setStatus] = useNavState<StatusFilter>('status', 'active', { entry: 0, persist: { kind: 'enum', values: ['active', 'paused', 'inactive', 'all'] } });
   const [onlyUnpaid, setOnlyUnpaid] = useNavState('onlyUnpaid', false, { entry: 0, persist: { kind: 'bool' } });
   const [years, setYears] = useNavState<string[]>('years', [], { entry: 0, persist: { kind: 'list', item: { kind: 'slug' }, max: 40 } });
+  const [sheet, setSheet] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -113,35 +115,55 @@ export default function Players() {
   }
   const toggleYear = (y: string) => setYears(cur => (cur.includes(y) ? cur.filter(x => x !== y) : [...cur, y]));
 
+  const statusNames: Record<StatusFilter, string> = { active: 'Активные', paused: 'На паузе', inactive: 'Ушли', all: 'Все' };
+  const yearName = (y: string) => (y === 'none' ? 'без даты' : y);
+  const gName = gid ? groupName.get(gid) ?? '' : '';
+  const count = (gid ? 1 : 0) + (status !== 'active' ? 1 : 0) + years.length;
+  const reset = () => { setGid(''); setStatus('active'); setYears([]); };
+  const Pillx = ({ label, onX }: { label: string; onX: () => void }) => (
+    <span className="ks-pill-x">{label}<button type="button" aria-label={`Убрать ${label}`} onClick={onX}>✕</button></span>
+  );
+
   return (
     <main className="page">
-      <h1>Игроки</h1>
+      <div className="ks-head">
+        <h1>Игроки</h1>
+        <button type="button" className="ks-btn sm" onClick={() => nav.push('edit')}>+ Добавить</button>
+      </div>
       <SearchInput value={q} onChange={setQ} placeholder="Поиск: ФИ, ID, группа" label="Поиск игроков" suggestions={q.trim().length >= 2 ? list.slice(0, 8).map(p => p.full_name) : []} />
-      <div className="two" style={{ marginTop: 8 }}>
-        <select className="ks-select" style={{ marginBottom: 0 }} aria-label="Группа" value={gid} onChange={e => setGid(e.target.value)}>
-          <option value="">Все группы</option>
-          {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-        </select>
-        <select className="ks-select" style={{ marginBottom: 0 }} aria-label="Статус" value={status} onChange={e => setStatus(e.target.value as StatusFilter)}>
-          <option value="active">Активные</option>
-          <option value="paused">На паузе</option>
-          <option value="inactive">Ушли</option>
-          <option value="all">Все</option>
-        </select>
+      <div className="ks-toolbar">
+        <button type="button" className="ks-chip" onClick={() => setSheet(true)}>{count ? `Фильтры · ${count}` : 'Фильтры'}</button>
+        <button type="button" className="ks-chip" aria-pressed={onlyUnpaid} onClick={() => setOnlyUnpaid(v => !v)}>Не оплатили</button>
       </div>
-      <div className="two" style={{ marginTop: 8, alignItems: 'stretch' }}>
-        <SwitchRow id="unpaid" label="Только не оплатившие" checked={onlyUnpaid} onChange={setOnlyUnpaid} />
-        <button type="button" className="ks-btn" onClick={() => nav.push('edit')}>+ Добавить</button>
-      </div>
-      {(allYears.length > 0 || hasNoDate) && (
-        <>
-          <p className="ks-label">Год рождения (можно несколько)</p>
-          <div className="ks-chips">
-            {[...allYears, ...(hasNoDate ? ['none'] : [])].map(y => (
-              <button key={y} type="button" className="ks-chip" aria-pressed={years.includes(y)} onClick={() => toggleYear(y)}>{y === 'none' ? 'без даты' : y}</button>
-            ))}
-          </div>
-        </>
+      {count > 0 && (
+        <div className="ks-pills">
+          {gid && <Pillx label={gName} onX={() => setGid('')} />}
+          {status !== 'active' && <Pillx label={statusNames[status]} onX={() => setStatus('active')} />}
+          {years.map(y => <Pillx key={y} label={yearName(y)} onX={() => toggleYear(y)} />)}
+        </div>
+      )}
+      {sheet && (
+        <FilterSheet showLabel={`Показать ${list.length}`} onReset={reset} onClose={() => setSheet(false)}>
+          <label className="ks-label" htmlFor="pf-group">Группа</label>
+          <select id="pf-group" className="ks-select" aria-label="Группа" value={gid} onChange={e => setGid(e.target.value)}>
+            <option value="">Все группы</option>
+            {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </select>
+          <label className="ks-label" htmlFor="pf-status">Статус</label>
+          <select id="pf-status" className="ks-select" aria-label="Статус" value={status} onChange={e => setStatus(e.target.value as StatusFilter)}>
+            {(Object.keys(statusNames) as StatusFilter[]).map(k => <option key={k} value={k}>{statusNames[k]}</option>)}
+          </select>
+          {(allYears.length > 0 || hasNoDate) && (
+            <>
+              <p className="ks-label">Год рождения (можно несколько)</p>
+              <div className="ks-chips">
+                {[...allYears, ...(hasNoDate ? ['none'] : [])].map(y => (
+                  <button key={y} type="button" className="ks-chip" aria-pressed={years.includes(y)} onClick={() => toggleYear(y)}>{yearName(y)}</button>
+                ))}
+              </div>
+            </>
+          )}
+        </FilterSheet>
       )}
       <h2 className="ks-list-head"><span>Игроки</span><span>{list.length}</span></h2>
       <p className="muted" style={{ marginBottom: 8 }}>Статус оплаты за {monthLabel()}</p>
