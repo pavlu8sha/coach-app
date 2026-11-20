@@ -474,6 +474,21 @@ describe('«Приём оплат»: платежи дня', () => {
       expect(screen.getByRole('menuitem', { name: 'Отменить оплату' })).toBeInTheDocument();
       expect(fake.writes('payments', 'update')).toHaveLength(0);
     });
+    it('сбой связи (rejected promise): понятная ошибка, кнопки не блокируются, список перечитывается', async () => {
+      seed(); fake.db.payments = [pay()];
+      render(<CashDesk />);
+      await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
+      fake.rejects.payments = 'network down';
+      changeViaMenu();
+      fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Изменить способ' }));
+      expect(await screen.findByRole('alert')).toHaveTextContent(/Способ не изменён.*правка могла примениться/);
+      delete fake.rejects.payments;
+      fireEvent.click(await screen.findByRole('button', { name: 'Повторить' }));
+      await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
+      changeViaMenu();
+      fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Изменить способ' }));
+      await waitFor(() => expect(fake.writes('payments', 'update')).toHaveLength(1));
+    });
     it('у отменённой оплаты пункта нет', async () => {
       seed(); fake.db.payments = [pay(), pay({ id: 'x2', amount: -50, cancels: 'x1' })];
       render(<CashDesk />);

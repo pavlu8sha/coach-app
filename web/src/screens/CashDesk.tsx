@@ -314,14 +314,18 @@ export default function CashDesk() {
     if (!ok) return;
     setCancelling(x.id);
     setCancelErr(null);
-    const { data, error } = await supabase.from('payments').update({ method: to }).eq('id', x.id).eq('method', from).select('id');
-    setCancelling(null);
-    if (error || !data || data.length === 0) {
-      setCancelErr(`Способ не изменён: ${error ? errText(error.message) : 'оплата уже изменена или нет прав. Список обновлён.'}`);
+    try {
+      const { data, error } = await supabase.from('payments').update({ method: to }).eq('id', x.id).eq('method', from).select('id');
+      if (error || !data || data.length === 0) {
+        setCancelErr(`Способ не изменён: ${error ? errText(error.message) : 'оплата уже изменена или нет прав. Список обновлён.'}`);
+      }
+    } catch (e) {
+      // сбой связи: запрос мог дойти до сервера, а ответ потеряться, поэтому список перечитываем для сверки
+      setCancelErr(`Способ не изменён: ${errText(errMsg(e))} Проверьте список: правка могла примениться.`);
+    } finally {
+      setCancelling(null);
       setReload(n => n + 1);
-      return;
     }
-    setReload(n => n + 1);
   };
   const total = (todayRows ?? []).reduce((s, x) => s + Number(x.amount), 0);
   // платёж отменён, если на него есть запись cancels (0097). Старые отмены без ссылки ищем по игроку и сумме за этот день (повторная отмена удвоила бы минус)
