@@ -109,3 +109,40 @@ describe('К3: ошибка сервера и сбой сети показыва
     expect(screen.queryByText('Пока пусто')).toBeNull();
   });
 });
+
+describe('К3: отклонённый запрос (сбой сети) не оставляет вечную загрузку', () => {
+  const down = () => Promise.reject(new Error('Failed to fetch'));
+
+  it('Оплата: «Не удалось загрузить оплаты», «Нет связи», есть повтор', async () => {
+    fake.rpc.my_children = down;
+    render(<Payments />);
+    expect(await screen.findByText('Не удалось загрузить оплаты')).toBeInTheDocument();
+    expect(screen.getByText(/Нет связи/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Повторить' })).toBeInTheDocument();
+  });
+
+  it('Мои дети: «Не удалось загрузить детей», «Нет связи»', async () => {
+    fake.rpc.my_children = down;
+    render(<MyKids onBack={() => {}} />);
+    expect(await screen.findByText('Не удалось загрузить детей')).toBeInTheDocument();
+    expect(screen.getByText(/Нет связи/)).toBeInTheDocument();
+    expect(screen.queryByText('Нет привязанных детей')).toBeNull();
+  });
+
+  it('Матчи: «Не удалось загрузить матчи», «Нет связи»', async () => {
+    fake.rpc.my_children = down;
+    render(<Matches />);
+    expect(await screen.findByText('Не удалось загрузить матчи')).toBeInTheDocument();
+    expect(screen.getByText(/Нет связи/)).toBeInTheDocument();
+    expect(screen.queryByText('Пока пусто')).toBeNull();
+  });
+
+  it('App: загрузка завершается, оболочка показана, вкладка «Ребёнок» не открывается по ошибке', async () => {
+    fake.db.users = [{ id: 'u', is_admin: false, chosen_role: 'child' }];
+    fake.rpc.my_children = down;
+    render(<App />);
+    const nav = await screen.findByRole('navigation', { name: 'Разделы' });
+    expect(within(nav).queryByRole('button', { name: 'Ребёнок' })).toBeNull();
+  });
+});
+
