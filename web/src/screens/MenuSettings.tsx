@@ -28,7 +28,7 @@ export default function MenuSettings({ onChanged }: { onChanged: () => void }) {
   }, [reload]);
 
   if (error) return <Failure title="Не удалось загрузить меню" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
-  if (!bar) return <Loading />;
+  if (!bar) return <Loading title="Меню" />;
 
   const change = (next: SectionId[]) => { setBar(next); setMsg(null); };
   const move = (i: number, d: -1 | 1) => {

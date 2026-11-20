@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { useNav, useNavState } from '../nav';
 import { EmptyState, ListRow, Pill, SearchInput, type Tone } from '../ui/components';
 import { FilterSheet } from '../ui/FilterSheet';
-import { Failure, Splash } from './Message';
+import { Failure, Loading } from './Message';
 import { tariffFor } from './MonthPayments';
 import PlayerCard, { type CardPlayer } from './PlayerCard';
 import PlayerEdit, { type PlayerForm } from './PlayerEdit';
@@ -96,7 +96,7 @@ export default function Players() {
   }, [players, q, gid, status, years, onlyUnpaid, paid, subs, prices, groupName]);
 
   if (error) return <Failure title="Не удалось загрузить игроков" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
-  if (!players) return <Splash />;
+  if (!players) return <Loading title="Игроки" />;
   const done = () => {
     nav.backToRoot();
     setReload(n => n + 1);
@@ -108,7 +108,7 @@ export default function Players() {
   const asCard = (p: Row): CardPlayer => ({ ...profileOf(p), id: p.id, full_name: p.full_name, birth_date: p.birth_date, group_id: p.group_id, status: p.status, external_id: p.external_id, group_name: groupName.get(p.group_id ?? '') ?? null });
   const openCard = (p: Row) => nav.push('card', { id: p.id });
   if (nav.top.screen === 'edit') {
-    if (topId && !found) return <Splash />; // игрока уже нет в списке: вернёмся к списку
+    if (topId && !found) return <Loading title="Игроки" />; // игрока уже нет в списке: вернёмся к списку
     const initial: PlayerForm = found
       ? { ...profileOf(found), id: found.id, full_name: found.full_name, birth_date: found.birth_date, group_id: found.group_id, status: found.status }
       : { full_name: '', first_name: null, last_name: null, primary_position: null, jersey_number: null, jersey_team: null, jersey_season_start: null, birth_date: null, group_id: null, status: 'active' };

@@ -3,7 +3,7 @@ import { useNavState } from '../nav';
 import { supabase } from '../lib/supabase';
 import { EmptyState, Segmented } from '../ui/components';
 import { useConfirm } from '../ui/ConfirmSheet';
-import { Failure, Splash } from './Message';
+import { Failure, Loading } from './Message';
 import ParentsRoster from './ParentsRoster';
 import { errMsg } from '../lib/coach';
 
@@ -107,7 +107,7 @@ export default function Admin() {
   };
 
   if (error) return <Failure title="Не удалось загрузить запросы" text={error} onRetry={() => { setError(null); void load(); }} />;
-  if (!rows) return <Splash />;
+  if (!rows) return <Loading title="Запросы родителей" />;
   return (
     <main className="page">
       <h1>Запросы родителей</h1>

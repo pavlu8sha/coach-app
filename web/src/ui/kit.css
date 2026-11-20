@@ -54,6 +54,13 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 @media (max-width: 420px) { .ks-seg.quad { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow-x: visible; } }
 .ks-seg button { min-height: var(--ks-tap); border: 0; border-radius: 10px; background: none; color: var(--ks-text-muted); font: 700 14px var(--ks-font); cursor: pointer; padding: 6px 8px; }
 .ks-seg button { white-space: nowrap; }
+/* все вкладки в одном ряду; не помещаются — ряд прокручивается внутри себя */
+.ks-seg.row, .ks-seg.row.quad { grid-auto-flow: column; grid-template-columns: none; overflow-x: auto; }
+.ks-seg.row { gap: 2px; }
+.ks-seg.row button { font-size: 12px; padding: 6px 4px; }
+.ks-quickdates { display: flex; gap: 8px; margin: 0 0 8px; }
+.ks-quickdates .ks-btn { flex: 1 1 0; width: auto; }
+.ks-row .ks-more-menu { z-index: 40; }
 .ks-seg button[aria-selected='true'] { background: var(--ks-primary); color: var(--ks-on-primary); }
 
 /* Тумблер (role=switch) в строке с подписью */
@@ -78,6 +85,8 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 @keyframes ks-fade { from { opacity: 0; } }
 /* Контент после загрузки проявляется мягко, без сдвига: заглушка уже занимает то же место */
 .page > :not(h1):not(.ks-group):not([aria-hidden]) { animation: ks-fade 0.18s ease-out both; }
+/* каталог «Ещё» статичен: без проявления при каждом возврате из раздела (20.11.2026, мигание) */
+.page.ks-menu > * { animation: none; }
 @media (prefers-reduced-motion: reduce) { .ks-skel i, .ks-skel-bar { animation: none; } .page > :not(h1):not(.ks-group):not([aria-hidden]) { animation: none; } }
 .ks-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 28px 16px; color: var(--ks-text-muted); }
 .ks-empty b { color: var(--ks-text); font-size: 16px; }

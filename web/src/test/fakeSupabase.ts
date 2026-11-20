@@ -10,6 +10,7 @@ export const fake = {
   errors: {} as Record<string, string>,         // таблица → текст ошибки выборки
   rejects: {} as Record<string, string>,        // таблица → запрос отклоняется исключением (сбой сети)
   user: { id: 'u' } as { id: string } | null,
+  hang: false, // запросы не отвечают: проверка экранов в состоянии загрузки
   reset() {
     this.db = {};
     this.calls = [];
@@ -17,6 +18,7 @@ export const fake = {
     this.errors = {};
     this.rejects = {};
     this.user = { id: 'u' };
+    this.hang = false;
   },
   /** Вызовы функций базы по имени (аргументы). */
   rpcCalls(name: string) {
@@ -72,7 +74,7 @@ function query(table: string): any {
     return { data: single ? out[0] ?? null : out, error: null, count: out.length };
   };
 
-  const q: any = { then: (res: any, rej: any) => new Promise(ok => ok(run())).then(res, rej) };
+  const q: any = { then: (res: any, rej: any) => (fake.hang ? new Promise(() => {}) : new Promise(ok => ok(run()))).then(res, rej) };
   q.select = () => { if (op === 'insert' || op === 'update' || op === 'upsert') returning = true; return q; };
   q.insert = (p: any) => ((op = 'insert'), (payload = p), q);
   q.upsert = (p: any) => ((op = 'upsert'), (payload = p), q);
@@ -112,6 +114,7 @@ export const supabase: any = {
             .map(p => ({ id: p.id, full_name: p.full_name, group_id: p.group_id ?? null, external_id: p.external_id ?? null, birth_date: p.birth_date ?? null, status: p.status ?? 'active', group_name: p.groups?.name ?? null }))
         : undefined);
       // ответ может быть обещанием: тест сам решает, когда база «ответит» (проверка повторного нажатия во время запроса)
+      if (fake.hang) return new Promise(() => {}).then(res, rej);
       return Promise.resolve(h ? h(args) : null)
         .then((out: any) => (out && typeof out === 'object' && ('error' in out || 'data' in out) ? { data: out.data ?? null, error: out.error ?? null } : { data: out, error: null }))
         .then(res, rej);
