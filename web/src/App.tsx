@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from './lib/supabase';
+import { saveMyRole } from './lib/role';
 import { hasSession, signInWithTelegram, signInWithWidget } from './lib/auth';
 import { configured } from './lib/supabase';
 import { initData, prepareTelegram } from './lib/telegram';
@@ -80,6 +81,8 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
   const [loaded, setLoaded] = useState(false);
   const [roleReal, setRole] = useState<Role | null>(null);
   const [changingRole, setChangingRole] = useState(false);
+  const [guestError, setGuestError] = useState<string | null>(null); // понятная ошибка перехода в гостя (#705)
+  const guestBusy = useRef(false);
   const [childPlayer, setChildPlayer] = useState<ChildPlayer | null>(null); // игрок, к которому привязан аккаунт ребёнка
   const [childLoaded, setChildLoaded] = useState(false);
   const [childKey, setChildKey] = useState(0);
@@ -100,10 +103,18 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
   };
   // Родитель без ребёнка может стать гостем: роль только подсказка интерфейса, права она не меняет
   const becomeGuest = async () => {
-    const res = await supabase.rpc('set_my_role', { r: 'guest' });
-    if (res.error) return;
-    setRole('guest');
-    setTab('about');
+    if (guestBusy.current) return; // двойное нажатие во время запроса
+    guestBusy.current = true;
+    setGuestError(null);
+    try {
+      // saveMyRole не бросает: ошибка RPC и сетевой сбой приходят как { ok: false, message } (#705)
+      const res = await saveMyRole('guest');
+      if (!res.ok) return setGuestError(res.message);
+      setRole('guest');
+      setTab('about');
+    } finally {
+      guestBusy.current = false;
+    }
   };
   const exitPreview = () => {
     setPreview(null);
@@ -294,6 +305,7 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
           </button>
         </div>
       )}
+      {guestError && <p className="error" role="alert" style={{ margin: '8px 16px' }}>{guestError}</p>}
       <NavRoot root={tab}>{screen}</NavRoot>
       <BottomNav
         label="Разделы"

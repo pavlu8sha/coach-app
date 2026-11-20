@@ -64,6 +64,8 @@ preflight_partial "без 0202, 0204, 0210 и 0211" '0202_club_events|0204_club_
 preflight_partial "без 0204, 0210 и 0211" '0204_club_event_participants|0210_club_event_payments|0211_club_event_delete_draft' 0204_club_event_participants 0210_club_event_payments 0211_club_event_delete_draft
 preflight_partial "без 0210 и 0211" '0210_club_event_payments|0211_club_event_delete_draft' 0210_club_event_payments 0211_club_event_delete_draft
 preflight_partial "без 0211" '0211_club_event_delete_draft' 0211_club_event_delete_draft
+# 0212 (set_my_role подтверждает сохранение) заменяет функцию из 0022: на базе без неё preflight не падает, строка NOT_APPLIED.
+preflight_partial "без 0212" '0212_set_my_role_confirm' 0212_set_my_role_confirm
 # 0207 (шаг 2c) проверяет отметку freeze_2c в таблице equipment_bundle_steps: на базе без 0205 таблицы нет, preflight не должен падать.
 # 0208 требует 0205 и 0207 (отметка freeze_2c), поэтому в «без 0207» и «без 0205 и 0207» её тоже пропускаем.
 preflight_partial "без 0207 и 0208" '0207_eq_freeze_2c|0208_eq_auto_recalc' 0207_eq_freeze_2c 0208_eq_auto_recalc
