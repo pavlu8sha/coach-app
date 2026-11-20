@@ -221,7 +221,7 @@ export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOp
   };
   return (
     <div className="ks-card">
-      <div className="ks-line">
+      <div className="ks-line pin-end">
         <b style={{ overflowWrap: 'anywhere' }}>{title ?? player.full_name}</b>
         <Pill tone={paidUp ? 'success' : 'danger'} dot>{sub?.written_off || sub?.discount ? `${CLOSURE_LABELS[sub.closed_kind ?? (sub.written_off ? 'forgiven' : 'discount')]}${got > 0 ? ` · внесено ${gel(got)}` : ''}` : `${gel(got)}${tariff !== null ? ` из ${gel(tariff)}` : ''}`}</Pill>
       </div>
