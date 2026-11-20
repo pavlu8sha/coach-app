@@ -25,6 +25,17 @@ interface JerseyChange { number: number; team: string; season_start: string; val
 const FIELD_LABEL: Record<ProfileChange['field'], string> = { first_name: 'Имя', last_name: 'Фамилия', primary_position: 'Позиция' };
 const dash = (v: string | null) => (v && v.trim() ? v : '—');
 
+const NUMBER_TAKEN = 'Этот номер уже занят в команде в этом сезоне.';
+const SAVE_FAILED = 'Не удалось сохранить. Попробуйте ещё раз.';
+// Ошибка базы → понятный текст. Технические подробности (SQLSTATE, имена ограничений) пользователю не показываем.
+function saveErrorText(message: string): string {
+  if (/duplicate key|unique|player_jersey_history_open/i.test(message)) return NUMBER_TAKEN;
+  if (/forbidden|permission denied|row-level security/i.test(message)) return 'Нет прав на сохранение.';
+  if (/group belongs to another club/i.test(message)) return 'Группа не относится к клубу игрока.';
+  if (/player not found/i.test(message)) return 'Игрок не найден. Обновите список.';
+  return SAVE_FAILED;
+}
+
 // Форма ребёнка для администратора: правка и добавление. Права проверяет база (политика players_admin_write).
 export default function PlayerEdit({ initial, groups, clubId, onDone, onCancel }: { initial: PlayerForm; groups: GroupRow[]; clubId: string | null; onDone: () => void; onCancel: () => void }) {
   const currentSeason = seasonStart(today());
@@ -47,13 +58,18 @@ export default function PlayerEdit({ initial, groups, clubId, onDone, onCancel }
     if (!initial.id) return;
     let live = true;
     void (async () => {
-      const [ph, jh] = await Promise.all([
-        supabase.from('player_profile_history').select('field, old_value, new_value, changed_at').eq('player_id', initial.id).order('changed_at', { ascending: false }).limit(20),
-        supabase.from('player_jersey_history').select('number, team, season_start, valid_from, valid_to').eq('player_id', initial.id).order('valid_from', { ascending: false }).limit(20),
-      ]);
-      if (!live) return;
-      if (ph.error || jh.error) return setHistory({ fields: [], jerseys: [] });
-      setHistory({ fields: (ph.data ?? []) as ProfileChange[], jerseys: (jh.data ?? []) as JerseyChange[] });
+      try {
+        const [ph, jh] = await Promise.all([
+          supabase.from('player_profile_history').select('field, old_value, new_value, changed_at').eq('player_id', initial.id).order('changed_at', { ascending: false }).limit(20),
+          supabase.from('player_jersey_history').select('number, team, season_start, valid_from, valid_to').eq('player_id', initial.id).order('valid_from', { ascending: false }).limit(20),
+        ]);
+        if (!live) return;
+        if (ph.error || jh.error) return setHistory({ fields: [], jerseys: [] });
+        setHistory({ fields: (ph.data ?? []) as ProfileChange[], jerseys: (jh.data ?? []) as JerseyChange[] });
+      } catch (e) {
+        console.error('PlayerEdit.history', e);
+        if (live) setHistory({ fields: [], jerseys: [] });
+      }
     })();
     return () => {
       live = false;
@@ -90,40 +106,48 @@ export default function PlayerEdit({ initial, groups, clubId, onDone, onCancel }
     if (isNew && !clubId) return setError('Не удалось определить клуб.');
     setBusy(true);
     setError(null);
-    if (isNew && !dup) {
-      const norm = full.replace(/[%_\\]/g, m => '\\' + m).replace(/ё/gi, '_');
-      const same = await supabase.from('players').select('full_name, status, groups(name)').ilike('full_name', norm).limit(3);
-      if (!same.error && (same.data ?? []).length > 0) {
-        const p = (same.data as unknown as { full_name: string; status: string; groups: { name: string } | null }[])[0];
-        setBusy(false);
-        setDup(`${p.full_name} (${p.groups?.name ?? 'без группы'}, ${p.status === 'active' ? 'занимается' : 'не занимается'})`);
+    let saved = false;
+    try {
+      if (isNew && !dup) {
+        const norm = full.replace(/[%_\\]/g, m => '\\' + m).replace(/ё/gi, '_');
+        const same = await supabase.from('players').select('full_name, status, groups(name)').ilike('full_name', norm).limit(3);
+        if (!same.error && (same.data ?? []).length > 0) {
+          const p = (same.data as unknown as { full_name: string; status: string; groups: { name: string } | null }[])[0];
+          setDup(`${p.full_name} (${p.groups?.name ?? 'без группы'}, ${p.status === 'active' ? 'занимается' : 'не занимается'})`);
+          return;
+        }
+      }
+      if (number !== null && team) {
+        let taken = supabase.from('player_jersey_history').select('player_id').eq('team', team).eq('season_start', currentSeason).eq('number', number).is('valid_to', null);
+        if (playerId) taken = taken.neq('player_id', playerId);
+        const busyNumber = await taken.limit(1);
+        if (!busyNumber.error && (busyNumber.data ?? []).length > 0) {
+          setError(NUMBER_TAKEN);
+          return;
+        }
+      }
+      // Одна серверная транзакция (0209, И2.4а): игрок, профиль и абонемент текущего месяца при смене группы.
+      // Любая ошибка откатывает всё; занятость номера окончательно решает уникальный индекс, проверка выше только подсказка.
+      const r = await supabase.rpc('player_save', {
+        p_id: playerId,
+        p_club: playerId ? null : clubId,
+        p_row: { full_name: full, birth_date: f.birth_date || null, group_id: f.group_id || null, status: f.status },
+        p_profile: { first_name: first || null, last_name: last || null, primary_position: position || null, jersey_number: number },
+      });
+      if (r.error) {
+        console.error('player_save', r.error);
+        setError(saveErrorText(r.error.message));
         return;
       }
-    }
-    if (number !== null && team) {
-      let taken = supabase.from('player_jersey_history').select('player_id').eq('team', team).eq('season_start', currentSeason).eq('number', number).is('valid_to', null);
-      if (playerId) taken = taken.neq('player_id', playerId);
-      const busyNumber = await taken.limit(1);
-      if (!busyNumber.error && (busyNumber.data ?? []).length > 0) {
-        setBusy(false);
-        return setError('Этот номер уже занят в команде в этом сезоне.');
-      }
-    }
-    // Одна серверная транзакция (0209, И2.4а): игрок, профиль и абонемент текущего месяца при смене группы.
-    // Любая ошибка откатывает всё; занятость номера окончательно решает уникальный индекс, проверка выше только подсказка.
-    const r = await supabase.rpc('player_save', {
-      p_id: playerId,
-      p_club: playerId ? null : clubId,
-      p_row: { full_name: full, birth_date: f.birth_date || null, group_id: f.group_id || null, status: f.status },
-      p_profile: { first_name: first || null, last_name: last || null, primary_position: position || null, jersey_number: number },
-    });
-    if (r.error) {
+      saved = true;
+    } catch (e) {
+      // сбой сети или иной отклонённый Promise: форма остаётся с введёнными значениями, подробности только в консоль
+      console.error('PlayerEdit.save', e);
+      setError(SAVE_FAILED);
+    } finally {
       setBusy(false);
-      const busyNumber = /duplicate key|unique|player_jersey_history_open/.test(r.error.message);
-      return setError(busyNumber ? 'Этот номер уже занят в команде в этом сезоне.' : r.error.message);
     }
-    setBusy(false);
-    onDone();
+    if (saved) onDone();
   };
 
   const historyLines = history

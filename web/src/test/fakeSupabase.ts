@@ -8,12 +8,14 @@ export const fake = {
   calls: [] as Call[],
   rpc: {} as Record<string, (args: any) => any>, // имя функции → ответ (значение, либо { data, error })
   errors: {} as Record<string, string>,         // таблица → текст ошибки выборки
+  rejects: {} as Record<string, string>,        // таблица → запрос отклоняется исключением (сбой сети)
   user: { id: 'u' } as { id: string } | null,
   reset() {
     this.db = {};
     this.calls = [];
     this.rpc = {};
     this.errors = {};
+    this.rejects = {};
     this.user = { id: 'u' };
   },
   /** Вызовы функций базы по имени (аргументы). */
@@ -38,6 +40,7 @@ function query(table: string): any {
   let lim = Infinity, from = 0, to = Infinity, single = false;
 
   const run = () => {
+    if (fake.rejects[table]) throw new Error(fake.rejects[table]);
     if (fake.errors[table]) return { data: null, error: { message: fake.errors[table] } };
     // как в базе: pay_month — вычисляемый месяц платежа (for_month или месяц paid_on)
     const rows = op === 'select' && table === 'payments'
@@ -69,7 +72,7 @@ function query(table: string): any {
     return { data: single ? out[0] ?? null : out, error: null, count: out.length };
   };
 
-  const q: any = { then: (res: any, rej: any) => Promise.resolve(run()).then(res, rej) };
+  const q: any = { then: (res: any, rej: any) => new Promise(ok => ok(run())).then(res, rej) };
   q.select = () => { if (op === 'insert' || op === 'update' || op === 'upsert') returning = true; return q; };
   q.insert = (p: any) => ((op = 'insert'), (payload = p), q);
   q.upsert = (p: any) => ((op = 'upsert'), (payload = p), q);

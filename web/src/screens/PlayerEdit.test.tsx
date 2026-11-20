@@ -41,7 +41,8 @@ describe('Данные ребёнка: перевод в другую групп
     fake.rpc.player_save = () => ({ error: { message: 'boom' } });
     fireEvent.change(screen.getByLabelText('Группа'), { target: { value: 'g2' } });
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
-    expect(await screen.findByText('boom')).toBeInTheDocument();
+    expect(await screen.findByText('Не удалось сохранить. Попробуйте ещё раз.')).toBeInTheDocument();
+    expect(screen.queryByText('boom')).toBeNull();
     expect(onDone).not.toHaveBeenCalled();
     expect(fake.writes('players')).toEqual([]);
   });
@@ -138,5 +139,78 @@ describe('Профиль игрока: имя, позиция и номер (#65
     await waitFor(() => expect(fake.rpcCalls('player_save')).toHaveLength(2));
     expect(fake.rpcCalls('player_save').every(a => a.p_id === null)).toBe(true);
     expect(onDone).not.toHaveBeenCalled();
+  });
+
+  // И3.10: известные ошибки переводятся, технический текст не показывается
+  it.each([
+    ['forbidden', 'Нет прав на сохранение.'],
+    ['group belongs to another club', 'Группа не относится к клубу игрока.'],
+    ['player not found', 'Игрок не найден. Обновите список.'],
+    ['new row violates check constraint "player_profiles_check" SQLSTATE 23514', 'Не удалось сохранить. Попробуйте ещё раз.'],
+  ])('ошибка сервера «%s» показывается понятным текстом', async (raw, shown) => {
+    open();
+    fake.rpc.player_save = () => ({ error: { message: raw } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    expect(await screen.findByText(shown)).toBeInTheDocument();
+    expect(screen.queryByText(raw)).toBeNull();
+  });
+});
+
+// И3.9: отклонённый Promise не оставляет форму заблокированной
+describe('Данные ребёнка: сбой сети при сохранении', () => {
+  const fill = () => {
+    fireEvent.change(screen.getByLabelText('Фамилия'), { target: { value: 'Петров' } });
+    fireEvent.change(screen.getByLabelText('Имя'), { target: { value: 'Пётр' } });
+    fireEvent.change(screen.getByLabelText('Основная позиция'), { target: { value: 'Вратарь' } });
+    fireEvent.change(screen.getByLabelText('Игровой номер'), { target: { value: '10' } });
+  };
+  const SAFE = 'Не удалось сохранить. Попробуйте ещё раз.';
+  const expectRecovered = async (onDone: ReturnType<typeof vi.fn>) => {
+    expect(await screen.findByText(SAFE)).toBeInTheDocument();
+    expect(screen.queryByText(/network down/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Сохранить' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Отмена' })).toBeEnabled();
+    expect(screen.getByLabelText('Фамилия')).toHaveValue('Петров');
+    expect(screen.getByLabelText('Основная позиция')).toHaveValue('Вратарь');
+    expect(screen.getByLabelText('Игровой номер')).toHaveValue(10);
+    expect(onDone).not.toHaveBeenCalled();
+  };
+  const retry = async (onDone: ReturnType<typeof vi.fn>) => {
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+  };
+
+  it('отказ поиска тёзки', async () => {
+    const onDone = open(vi.fn(), blank);
+    fill();
+    fake.rejects.players = 'network down';
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await expectRecovered(onDone);
+    fake.rejects.players = '';
+    delete fake.rejects.players;
+    await retry(onDone);
+    expect(fake.rpcCalls('player_save')).toHaveLength(1);
+  });
+
+  it('отказ проверки занятого номера', async () => {
+    const onDone = open(vi.fn(), blank);
+    fill();
+    fake.rejects.player_jersey_history = 'network down';
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await expectRecovered(onDone);
+    delete fake.rejects.player_jersey_history;
+    await retry(onDone);
+    expect(fake.rpcCalls('player_save')).toHaveLength(1);
+  });
+
+  it('отказ player_save', async () => {
+    const onDone = open(vi.fn(), blank);
+    fill();
+    fake.rpc.player_save = () => Promise.reject(new Error('network down'));
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await expectRecovered(onDone);
+    delete fake.rpc.player_save;
+    await retry(onDone);
+    expect(fake.rpcCalls('player_save')).toHaveLength(2);
   });
 });
