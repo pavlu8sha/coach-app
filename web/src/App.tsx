@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from './lib/supabase';
+import { loadMyChildren } from './lib/myChildren';
 import { saveMyRole } from './lib/role';
 import { AuthError, hasSession, signInWithTelegram, signInWithWidget } from './lib/auth';
 import { configured } from './lib/supabase';
@@ -131,8 +132,10 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
       setRole((r.data?.chosen_role as Role | null) ?? null);
       const isAdm = Boolean(r.data?.is_admin);
       // у администратора вкладка «Ребёнок» нужна, только если он сам родитель
-      const mine = await supabase.from('player_guardians').select('player_id', { count: 'exact', head: true }).eq('user_id', data.user.id).is('consent_revoked_at', null);
-      setHasKids((mine.count ?? 0) > 0);
+      // дети по серверному списку (my_children, 0215): тот же предикат доступа, что в RLS; ошибка не открывает вкладку «Ребёнок»
+      const mine = await loadMyChildren();
+      const kidsCount = mine.kids?.length ?? 0;
+      setHasKids(kidsCount > 0);
       // тренер — тот, кому администратор назначил группы (coach_groups); каждый видит только свои строки
       const cg = await supabase.from('coach_groups').select('groups(id, name)').eq('user_id', data.user.id);
       const mineGroups = ((cg.data ?? []) as unknown as { groups: CoachGroup | null }[]).map(x => x.groups).filter((g): g is CoachGroup => Boolean(g)).sort((x, y) => compareGroups(x.name, y.name));
@@ -154,8 +157,8 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
       if (isAdm) setTab('sessions');
       else if (mineGroups.length) setTab('sessions'); // тренер — сразу на занятиях
       else if (locs.length) setTab('cash'); // локальный админ без групп — сразу в кассу
-      else if ((mine.count ?? 0) === 0 && r.data?.chosen_role === 'child') setTab('home');
-      else if ((mine.count ?? 0) === 0 && r.data?.chosen_role && r.data.chosen_role !== 'parent') setTab('about');
+      else if (kidsCount === 0 && r.data?.chosen_role === 'child') setTab('home');
+      else if (kidsCount === 0 && r.data?.chosen_role && r.data.chosen_role !== 'parent') setTab('about');
       setLoaded(true);
     })();
   }, []);

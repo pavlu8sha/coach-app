@@ -45,7 +45,7 @@ describe('нижняя панель по ролям', () => {
     fake.db.users = [{ id: 'u', is_admin: false, chosen_role: 'coach' }];
     fake.db.coach_groups = CG;
     fake.db.groups = GROUPS;
-    fake.db.player_guardians = [{ user_id: 'u', player_id: 'p1', consent_revoked_at: null }];
+    fake.db.player_guardians = [{ user_id: 'u', player_id: 'p1', consent_revoked_at: null, players: { id: 'p1', full_name: 'Аня' } }];
     render(<App />);
     expect(await labels()).toEqual(['Занятия', 'Матчи', 'Посещаемость', 'Учёт', 'Группа']);
     expect(screen.getByText('Режим: тренер')).toBeInTheDocument();
@@ -56,7 +56,7 @@ describe('нижняя панель по ролям', () => {
     fake.db.users = [{ id: 'u', is_admin: false, chosen_role: 'coach' }];
     fake.db.coach_groups = CG;
     fake.db.groups = GROUPS;
-    fake.db.player_guardians = [{ user_id: 'u', player_id: 'p1', consent_revoked_at: null }];
+    fake.db.player_guardians = [{ user_id: 'u', player_id: 'p1', consent_revoked_at: null, players: { id: 'p1', full_name: 'Аня' } }];
     const { unmount } = render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: 'Кабинет родителя' }));
     expect(await labels()).toEqual(['Ребёнок', 'Расписание', 'Матчи', 'Оплата', 'Профиль']);
@@ -81,7 +81,7 @@ describe('нижняя панель по ролям', () => {
     a.unmount();
     fake.db.coach_groups = [];
     fake.db.users = [{ id: 'u', is_admin: false, chosen_role: 'parent' }];
-    fake.db.player_guardians = [{ user_id: 'u', player_id: 'p1', consent_revoked_at: null }];
+    fake.db.player_guardians = [{ user_id: 'u', player_id: 'p1', consent_revoked_at: null, players: { id: 'p1', full_name: 'Аня' } }];
     const b = render(<App />);
     expect(await labels()).toEqual(['Ребёнок', 'Расписание', 'Матчи', 'Оплата', 'Профиль']);
     expect(screen.queryByText(/Режим:/)).not.toBeInTheDocument();
