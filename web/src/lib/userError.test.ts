@@ -29,9 +29,17 @@ describe('fallbackError / coachError / errMsg', () => {
     expect(coachError('FetchError: network request failed')).toBe(ERR_NETWORK);
     expect(coachError('relation "players" does not exist')).toBe(ERR_GENERIC);
   });
-  it('известное и русское проходит как есть', () => {
+  it('известное показывается понятным текстом', () => {
     expect(coachError('note required')).toBe('Напишите, за что баллы.');
-    expect(coachError('Нельзя удалить игрока с оплатой')).toBe('Нельзя удалить игрока с оплатой');
+  });
+  // Ревью #759 (MEDIUM): язык сообщения ничего не доказывает, русскоязычная техническая ошибка не должна попасть в UI
+  it('русскоязычная техническая ошибка не проходит как есть', () => {
+    const tech = 'Ошибка запроса: отношение "players" не существует (SQLSTATE 42P01)';
+    for (const out of [fallbackError(tech), coachError(tech), errMsg({ message: tech }), userError({ message: tech }, () => null)]) {
+      expect(out).toBe(ERR_GENERIC);
+      expect(out).not.toMatch(/SQLSTATE|players|42P01/);
+    }
+    expect(fallbackError('Ошибка сети: Failed to fetch (proxy 502)')).toBe(ERR_NETWORK); // сеть классифицируется до общего текста, язык не важен
   });
   it('errMsg принимает ответ { error } и исключение', () => {
     expect(errMsg({ message: 'permission denied for function f (SQLSTATE 42501)' })).toBe('Нет прав на это действие.');
