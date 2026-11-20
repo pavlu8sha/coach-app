@@ -109,9 +109,10 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
         : { data: [], error: null };
       if (mp.error) return setError(errMsg(mp.error));
       const parts = (mp.data ?? []) as { player_id: string; played: boolean; goals: number }[];
-      // Запросы нужны только для строки «ждёт подтверждения»; сбой этой выборки не мешает показать детей
+      // Запросы нужны для строки «ждёт подтверждения» и онбординга; сбой загрузки показывается ошибкой с повтором (замечание ревью #789)
       const rq = await loadMyLinkRequests(me); // имя ребёнка из my_link_requests() (0217)
-      setReqs(rq.error ? [] : ((rq.reqs ?? []) as Req[]));
+      if (rq.error) return setError(errMsg(rq.error)); // сбой не выдаём за «запросов нет»: ошибка с повтором
+      setReqs((rq.reqs ?? []) as Req[]);
       // «подтверждён, но не виден»: и когда детей нет, и когда второй ребёнок ждёт согласия. Сбой проверки не выдаём за «согласий нет»: ошибка с повтором
       const pc = await loadPendingConsents();
       if (pc.error) return setError(errMsg(pc.error));

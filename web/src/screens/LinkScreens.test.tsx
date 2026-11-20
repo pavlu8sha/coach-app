@@ -151,6 +151,49 @@ describe('С16: второй ребёнок ждёт согласия при у�
   });
 });
 
+describe('С17: ошибка загрузки запросов на привязку не скрывается на главной', () => {
+  it('RPC 42501/500: ошибка загрузки с повтором, даже когда ребёнок уже виден; технического текста нет', async () => {
+    fake.db.player_guardians = [kid('p1', 'Алексей Петров')];
+    fake.rpc.my_link_requests = () => ({ error: { message: 'permission denied for function my_link_requests', code: '42501' } });
+    render(<Home />);
+    expect(await screen.findByText('Не удалось загрузить данные')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Повторить/ })).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/permission denied|42501/);
+  });
+
+  it('rejected Promise: ошибка загрузки, не пустой блок запросов', async () => {
+    fake.db.link_requests = [{ id: 'r1', user_id: 'u', status: 'pending', players: { full_name: 'Алексей Петров' } }];
+    fake.rpc.my_link_requests = () => Promise.reject(new Error('Failed to fetch'));
+    fake.rejects.link_requests = 'Failed to fetch'; // прямой выбор тоже не отвечает: сети нет
+    render(<Home />);
+    expect(await screen.findByText('Не удалось загрузить данные')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Подключите профиль ребёнка' })).toBeNull();
+  });
+
+  it('повтор после ошибки: запросы показываются', async () => {
+    fake.db.link_requests = [{ id: 'r1', user_id: 'u', status: 'pending', players: { full_name: 'Алексей Петров' } }];
+    let fail = true;
+    fake.rpc.my_link_requests = () => (fail ? { error: { message: 'boom', code: '500' } } : [{ id: 'r1', status: 'pending', player_id: 'p1', full_name: 'Алексей Петров', group_name: null }]);
+    render(<Home />);
+    fireEvent.click(await screen.findByRole('button', { name: /Повторить/ }));
+    fail = false;
+    expect(await screen.findByRole('heading', { name: 'Запрос отправлен' })).toBeInTheDocument();
+  });
+
+  it('PGRST202 (функции ещё нет): прежний выбор, ошибки нет; успешный пустой ответ: обычный онбординг', async () => {
+    fake.db.link_requests = [{ id: 'r1', user_id: 'u', status: 'pending', players: { full_name: 'Алексей Петров' } }];
+    fake.rpc.my_link_requests = () => ({ error: { message: 'Could not find the function', code: 'PGRST202' } });
+    const first = render(<Home />);
+    expect(await screen.findByRole('heading', { name: 'Запрос отправлен' })).toBeInTheDocument();
+    first.unmount();
+    fake.db.link_requests = [];
+    fake.rpc.my_link_requests = () => [];
+    render(<Home />);
+    expect(await screen.findByRole('heading', { name: 'Подключите профиль ребёнка' })).toBeInTheDocument();
+    expect(screen.queryByText('Не удалось загрузить данные')).toBeNull();
+  });
+});
+
 describe('С12: поиск ребёнка', () => {
   const found = [{ player_id: 'p1', full_name: 'Starostenko Timofey', group_name: 'U10-A' }];
   const pick = async () => {
