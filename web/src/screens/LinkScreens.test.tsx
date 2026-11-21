@@ -179,6 +179,19 @@ describe('С17: ошибка загрузки запросов на привяз
     expect(screen.queryByRole('heading', { name: 'Запрос отправлен' })).toBeNull();
   });
 
+  it('RPC вернул успешный, но не массив ответ ({ data: null, error: null } и null): Failure, прямой SELECT не используется', async () => {
+    fake.db.link_requests = [{ id: 'r1', user_id: 'u', status: 'pending', players: { full_name: 'Алексей Петров' } }];
+    fake.rpc.my_link_requests = () => ({ data: null, error: null });
+    const first = render(<Home />);
+    expect(await screen.findByText('Не удалось загрузить данные')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Запрос отправлен' })).toBeNull();
+    first.unmount();
+    fake.rpc.my_link_requests = () => null;
+    render(<Home />);
+    expect(await screen.findByText('Не удалось загрузить данные')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Запрос отправлен' })).toBeNull();
+  });
+
   it('общая ошибка «schema cache» без PGRST202 и без имени функции не считается отсутствием функции', async () => {
     fake.db.link_requests = [{ id: 'r1', user_id: 'u', status: 'pending', players: { full_name: 'Алексей Петров' } }];
     fake.rpc.my_link_requests = () => ({ error: { message: 'schema cache is being reloaded', code: 'PGRST000' } });

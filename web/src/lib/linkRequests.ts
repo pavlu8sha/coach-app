@@ -23,7 +23,7 @@ export async function loadMyLinkRequests(me: string): Promise<{ reqs: LinkReq[] 
     }
     // прямой выбор только при подтверждённом отсутствии функции: сбой RPC (сеть, права, SQL) им не маскируется
     if (r.error && !missing(r.error, 'my_link_requests')) return { reqs: null, error: r.error };
-    if (!r.error && r.data != null) return { reqs: null, error: new Error('bad response') };
+    if (!r.error) return { reqs: null, error: new Error('bad response') }; // успех, но не массив (null/undefined): для функции-таблицы штатно только [], fallback не запускается
   } catch (e) {
     return { reqs: null, error: e ?? new Error('request failed') };
   }
