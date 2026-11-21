@@ -2,7 +2,7 @@
 -- Условия приёмки: docs/acceptance/group-since-2026-11-21.md (G1-G12). Даты считаются от текущего дня, тест не зависит от календаря.
 begin;
 create extension if not exists pgtap;
-select plan(32);
+select plan(43);
 
 create function tx(n int) returns uuid language sql immutable as $$ select ('00000000-0000-0000-0000-' || lpad(to_hex(n), 12, '0'))::uuid $$;
 create function dd(n int) returns date language sql stable as $$ select tbilisi_day(now()) + n $$;
@@ -41,6 +41,25 @@ insert into points_rule_versions (id, club_id, effective_from, params) values (t
 insert into individual_sessions (id, club_id, external_id, starts_at, topic) values
   (tx(51), tx(1), 'IND-T-1', (dd(-19) + time '18:00')::timestamp, 'т1'), (tx(52), tx(1), 'IND-T-2', (dd(-12) + time '18:00')::timestamp, 'т2'), (tx(53), tx(1), 'IND-T-3', (dd(-3) + time '18:00')::timestamp, 'т3');
 insert into individual_bookings (session_id, player_id, attended) select s, p, true from unnest(array[tx(51), tx(52), tx(53)]) s, unnest(array[tx(31), tx(32)]) p;
+-- остальные источники K: вратарское (-9), дополнительная (-8), матч (-7), групповое занятие группы 3 (-14: группа в журнале берётся из занятия)
+insert into individual_sessions (id, club_id, external_id, starts_at, topic, goalkeepers) values (tx(54), tx(1), 'IND-T-GK', (dd(-9) + time '18:00')::timestamp, 'вр', true);
+insert into individual_bookings (session_id, player_id, attended) values (tx(54), tx(31), true);
+insert into extra_sessions (id, club_id, starts_on) values (tx(55), tx(1), dd(-8));
+insert into extra_bookings (session_id, player_id, attended) values (tx(55), tx(31), true), (tx(55), tx(32), true);
+insert into matches (id, club_id, played_on, team, opponent, goals_for, goals_against) values (tx(56), tx(1), dd(-7), 'U9', 'Соперник', 1, 0);
+insert into match_players (match_id, player_id, played, goals, best) values (tx(56), tx(31), true, 0, false);
+set constraints all immediate; -- триггеры баллов по матчу отложены до конца транзакции
+insert into sessions (id, group_id, starts_at, kind, source_key, class) values (tx(57), tx(3), ((dd(-14) + time '15:00')::timestamp at time zone 'Asia/Tbilisi'), 'training', 'ATT-T-GS', 'regular');
+insert into attendance (session_id, player_id, status) values (tx(57), tx(31), 'present');
+-- клуб B: администратор 61, игрок 63 с двумя группами и своим начислением (для проверки изоляции клубов)
+insert into clubs (id, name) values (tx(60), 'Клуб B');
+insert into users (id, telegram_id, display_name, is_admin, club_id) values (tx(61), 7161, 'Админ B', true, tx(60));
+insert into groups (id, club_id, name) values (tx(62), tx(60), 'B1'), (tx(64), tx(60), 'B2');
+insert into players (id, club_id, group_id, full_name, status) values (tx(63), tx(60), tx(64), 'Синтетик Б', 'active');
+delete from player_group_history where player_id = tx(63);
+insert into player_group_history (player_id, group_id, valid_from, valid_to) values (tx(63), tx(62), date '1970-01-01', dd(-5)), (tx(63), tx(64), dd(-5), null);
+insert into points_ledger (club_id, player_id, group_id, event_date, source_type, source_id, reason_code, points, components, rule_version_id)
+  values (tx(60), tx(63), tx(62), dd(-10), 'manual', tx(98), 'manual', 1, '{}'::jsonb, null);
 -- ручное начисление K в группе 2 (журнал неизменен, перенос его не затрагивает)
 insert into points_ledger (club_id, player_id, group_id, event_date, source_type, source_id, reason_code, points, components, rule_version_id)
   values (tx(1), tx(31), tx(2), dd(-10), 'manual', tx(99), 'manual', 1, '{}'::jsonb, tx(90));
@@ -50,12 +69,12 @@ create temp table q0 as select count(*)::int as n from notifications;
 create temp table aud0 as select count(*)::int as n from points_ledger_audit;
 grant select on q0, aud0 to public;
 
-select is((select count(*)::int from points_ledger where player_id = tx(31) and status = 'active' and group_id = tx(2)), 3, 'старт: у K три действующих строки в группе 2 (два индивидуальных и ручная)');
+select is((select count(*)::int from points_ledger where player_id = tx(31) and status = 'active' and group_id = tx(2)), 6, 'старт: у K шесть действующих строк в группе 2 (два индивидуальных, вратарское, дополнительная, матч, ручная)');
 select is((select count(distinct group_id)::int from points_ledger where player_id = tx(32) and status = 'active'), 2, 'старт: у M начисления в двух группах');
 
 -- G1 предпросмотр
 select as_user(tx(10));
-select is((select player_group_since(tx(31), dd(-20), false) ->> 'ledger_rows')::int, 3, 'G1: предпросмотр: три строки в периоде (два индивидуальных и ручная)');
+select is((select player_group_since(tx(31), dd(-20), false) ->> 'ledger_rows')::int, 7, 'G1: предпросмотр: семь строк в периоде (шесть выше и групповое занятие)');
 select is((select player_group_since(tx(31), dd(-20), false) ->> 'manual_rows')::int, 1, 'G1: предпросмотр: одна ручная');
 select is((select player_group_since(tx(31), dd(-20), false) ->> 'changed')::int, 0, 'G1: предпросмотр ничего не меняет (changed = 0)');
 select is((select (player_group_since(tx(31), dd(-20), false) ->> 'from')::date), dd(-5), 'G1: from = прежнее начало группы');
@@ -78,7 +97,7 @@ select is((select valid_from from player_group_history where player_id = tx(31) 
 
 -- G2-G5 применение для K
 select as_user(tx(10));
-select is((select player_group_since(tx(31), dd(-20), true) ->> 'changed')::int, 2, 'G3: пересоздано две строки индивидуальных занятий');
+select is((select player_group_since(tx(31), dd(-20), true) ->> 'changed')::int, 5, 'G3: пересоздано пять строк (два индивидуальных, вратарское, дополнительная, матч); групповое занятие и ручное не пересоздаются');
 reset role;
 select is((select valid_to from player_group_history where player_id = tx(31) and group_id = tx(2)), dd(-20), 'G2: у предыдущего интервала valid_to = новая дата');
 select is((select valid_from from player_group_history where player_id = tx(31) and valid_to is null), dd(-20), 'G2: у текущего valid_from = новая дата');
@@ -88,6 +107,12 @@ select is((select count(*)::int from points_ledger where player_id = tx(31) and 
 select is((select count(*)::int from points_ledger where player_id = tx(31) and status = 'superseded' and source_type = 'individual'), 2, 'G3: две прежние строки закрыты (superseded)');
 select is((select group_id from points_ledger where player_id = tx(31) and source_type = 'manual'), tx(2), 'G5: ручное начисление осталось со старой группой');
 select is((select sum(points)::int from points_ledger where player_id = tx(31) and status = 'active'), (select pts from tot where player_id = tx(31)), 'G4: сумма баллов K не изменилась');
+select is((select count(*)::int from points_ledger where player_id = tx(31) and status = 'active' and source_type in ('goalkeeper', 'extra', 'match') and group_id = tx(3)), 3, 'G3: вратарское, дополнительная и матч выпущены в новой группе');
+select is((select count(*)::int from points_ledger where player_id = tx(31) and status = 'superseded' and source_type in ('goalkeeper', 'extra', 'match')), 3, 'G3: прежние строки этих источников закрыты');
+select is((select count(*)::int from points_ledger where player_id = tx(31) and source_type = 'group_session' and status = 'active' and group_id = tx(3)), 1, 'G3: групповое занятие осталось (группа берётся из занятия), не пересоздано');
+select is((select count(*)::int from points_ledger where player_id = tx(31) and source_type = 'group_session'), 1, 'G3: у группового занятия нет закрытых версий');
+select is((select count(*)::int from points_ledger where player_id = tx(32) and status <> 'active'), 0, 'G3: строки другого игрока на тех же занятиях (M) не тронуты');
+select is((select count(*)::int from points_ledger where player_id = tx(63) and status <> 'active'), 0, 'G3: игрок другого клуба не тронут');
 
 -- G7 повтор
 select as_user(tx(10));
@@ -97,11 +122,22 @@ select is((select count(*)::int from notifications), (select n from q0), 'G8: у
 
 -- G6 случай без ручных начислений: после переноса одна группа
 select as_user(tx(10));
-select ok((player_group_since(tx(32), dd(-20), true) ->> 'changed')::int = 2, 'G6: перенос для M применён');
+select ok((player_group_since(tx(32), dd(-20), true) ->> 'changed')::int = 3, 'G6: перенос для M применён (два индивидуальных и дополнительная)');
 reset role;
 select is((select count(distinct group_id)::int from points_ledger where player_id = tx(32) and status = 'active'), 1, 'G6: у M после переноса начисления в одной группе');
 select is((select (array_agg(distinct group_id))[1] from points_ledger where player_id = tx(32) and status = 'active'), tx(3), 'G6: это новая группа');
 select is((select sum(points)::int from points_ledger where player_id = tx(32) and status = 'active'), (select pts from tot where player_id = tx(32)), 'G4: сумма баллов M не изменилась');
+
+-- G9 изоляция клубов: администратор клуба A не может даже смотреть игрока клуба B
+select as_user(tx(10));
+select throws_ok(format($$select player_group_since(%L, %L, false)$$, tx(63), dd(-20)), '42501', 'forbidden', 'G9: предпросмотр игрока другого клуба: forbidden');
+select throws_ok(format($$select player_group_since(%L, %L, true)$$, tx(63), dd(-20)), '42501', 'forbidden', 'G9: применение к игроку другого клуба: forbidden');
+reset role;
+select is((select valid_from from player_group_history where player_id = tx(63) and valid_to is null), dd(-5), 'G9: история игрока клуба B не изменилась');
+select is((select count(*)::int from points_ledger where player_id = tx(63)), 1, 'G9: журнал игрока клуба B не изменился');
+select as_user(tx(61));
+select is((select player_group_since(tx(63), dd(-20), false) ->> 'ledger_rows')::int, 1, 'G9: администратор клуба B видит своего игрока');
+reset role;
 
 -- G10 права
 select ok(has_function_privilege('authenticated', 'player_group_since(uuid,date,boolean)', 'execute'), 'G10: authenticated вызывает');

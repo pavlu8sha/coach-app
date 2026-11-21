@@ -130,6 +130,8 @@ echo "== db/tests/concurrency_payment_add.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_payment_add.sh || fail=1
 echo "== db/tests/concurrency_player_save.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_player_save.sh || fail=1
+echo "== db/tests/concurrency_group_since.sh"
+DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_group_since.sh || fail=1
 echo "== db/tests/concurrency_notifications_release.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_notifications_release.sh || fail=1
 $PSQL -q -d postgres -c "drop database if exists $DB"

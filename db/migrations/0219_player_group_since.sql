@@ -3,16 +3,20 @@
 -- player_group_since(p, d, apply): только администратор. apply = false: предпросмотр без изменений.
 -- Применение сдвигает границу между двумя последними интервалами на d и пересоздаёт начисления (индивидуальные, вратарские,
 -- дополнительные, групповые, матчи) за [d, прежнее начало) штатными функциями points_reconcile_*: старая строка закрывается, выпускается новая.
--- Ручные начисления журнала не пересоздаются. Таблицы, RLS и существующие функции не меняются.
+-- Администратор только своего клуба (club_event_current_club). Ручные начисления журнала не пересоздаются. Таблицы, RLS и существующие функции не меняются.
 -- Применять в SQL Editor целиком, сначала db/ops/preflight.sql.
 create or replace function player_group_since(p uuid, d date, apply boolean default false) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare cur player_group_history; prv player_group_history; r record; rows_n int; manual_n int; before_n int; after_n int; changed int := 0;
+declare pl players; cur player_group_history; prv player_group_history; r record; rows_n int; manual_n int; before_n int; after_n int; changed int := 0;
 begin
   if current_user_id() is null or not is_admin() then raise exception 'forbidden' using errcode = '42501'; end if;
   if d is null then raise exception 'date required' using errcode = '22023'; end if;
-  if not exists (select 1 from players where id = p) then raise exception 'player not found' using errcode = 'P0002'; end if;
-  perform pg_advisory_xact_lock(hashtext('player_group_since:' || p::text));
+  -- блокировка строки игрока: тот же замок берёт UPDATE players.group_id (обычный перевод), поэтому операции не пересекаются;
+  -- границы групп читаются уже после получения замка
+  select * into pl from players where id = p for update;
+  if pl.id is null then raise exception 'player not found' using errcode = 'P0002'; end if;
+  -- администратор только своего клуба (как club_event_*): игрок другого клуба недоступен даже для предпросмотра
+  if club_event_current_club() is null or pl.club_id is distinct from club_event_current_club() then raise exception 'forbidden' using errcode = '42501'; end if;
   select * into cur from player_group_history where player_id = p and valid_to is null;
   select * into prv from player_group_history where player_id = p and valid_to = cur.valid_from order by valid_from desc limit 1;
   if cur.id is null or prv.id is null then raise exception 'no previous group' using errcode = '22023'; end if;
