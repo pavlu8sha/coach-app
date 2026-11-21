@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { coachError, fmtDate, plural, type CoachGroup, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
+import { tgApp } from '../lib/telegram';
 import { useNav, useNavState } from '../nav';
 import { EmptyState, ListRow, Pill, Segmented } from '../ui/components';
 import { GroupPicker } from '../ui/coach';
@@ -94,6 +95,7 @@ export function competitionPlaces(sortedDesc: number[]): number[] {
 function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBack: () => void }) {
   const [ledger, setLedger] = useState<{ total: number; count: number } | null>(null);
   const [parents, setParents] = useState<Parent[] | null | 'na'>(null);
+  const [nicks, setNicks] = useState<Record<string, string>>({}); // telegram_id → ник (0218); пока функции нет или она отказала, ников нет
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [pts, setPts] = useState('1');
@@ -137,6 +139,10 @@ function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBa
       const r = await supabase.rpc('group_parents', { g: gid });
       if (r.error) return setParents('na'); // функции нет или нет прав: контакты просто не показываем
       setParents(((r.data ?? []) as Parent[]).filter(x => x.player_id === player.id));
+      // ники для ссылки на чат: любая ошибка (функции ещё нет в базе, сеть) = ников нет, список родителей остаётся
+      const u = await supabase.rpc('group_parent_usernames', { g: gid });
+      const rows = !u.error && Array.isArray(u.data) ? (u.data as { telegram_id: number; username: string | null }[]) : [];
+      setNicks(Object.fromEntries(rows.filter(x => x.username).map(x => [String(x.telegram_id), x.username as string])));
     })();
   }, [gid, player.id]);
 
@@ -212,7 +218,12 @@ function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBa
             <b style={{ overflowWrap: 'anywhere' }}>{p.parent_name ?? 'Без имени'}</b>
             <div className="ks-muted">Telegram ID {p.telegram_id}</div>
             <div style={{ height: 8 }} />
-            <a className="ks-btn secondary" style={{ textDecoration: 'none' }} href={`tg://user?id=${p.telegram_id}`}>Написать в Telegram</a>
+            {nicks[String(p.telegram_id)] ? (
+              <a className="ks-btn secondary" style={{ textDecoration: 'none' }} href={`https://t.me/${nicks[String(p.telegram_id)]}`} target="_blank" rel="noreferrer noopener"
+                onClick={e => { const app = tgApp(); if (app?.openTelegramLink) { e.preventDefault(); app.openTelegramLink(`https://t.me/${nicks[String(p.telegram_id)]}`); } }}>Написать в Telegram</a>
+            ) : (
+              <p className="muted note" style={{ margin: 0 }}>Ника в Telegram нет. Напишите через администратора клуба.</p>
+            )}
           </div>
         ))
       )}

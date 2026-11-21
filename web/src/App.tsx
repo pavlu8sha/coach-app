@@ -3,6 +3,7 @@ import { supabase } from './lib/supabase';
 import { loadMyChildren } from './lib/myChildren';
 import { saveMyRole } from './lib/role';
 import { AuthError, hasSession, signInWithTelegram, signInWithWidget } from './lib/auth';
+import { syncTelegramUsername } from './lib/tgUsername';
 import { configured } from './lib/supabase';
 import { initData, prepareTelegram } from './lib/telegram';
 import AdminSection from './screens/AdminSection';
@@ -372,10 +373,14 @@ export default function App() {
     prepareTelegram();
     if (!configured) return setState({ kind: 'config' });
     try {
-      if (await hasSession()) return setState({ kind: 'ready' });
+      if (await hasSession()) {
+        void syncTelegramUsername(); // ник для связи тренера с родителем; сбой не мешает входу
+        return setState({ kind: 'ready' });
+      }
       const data = initData();
       if (!data) return setState({ kind: 'outside' });
       await signInWithTelegram(data);
+      void syncTelegramUsername();
       setState({ kind: 'ready' });
     } catch (e) {
       setState({ kind: 'error', text: loginError(e) });
