@@ -9,6 +9,7 @@ import { EmptyState, ListRow, Pill, searchFocusProps } from '../ui/components';
 import { useMainButton } from '../ui/nav';
 import { ADMIN_CHAT } from '../lib/clubInfo';
 import { STATUS, type Req } from './LinkStatus';
+import { loadMyLinkRequests } from '../lib/linkRequests';
 
 interface Found { player_id: string; full_name: string; group_name: string | null }
 /** Открыта ли политика поверх экрана с формой привязки (запись стека 'policy'). */
@@ -52,10 +53,9 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
     try {
       const me = (await supabase.auth.getUser()).data.user?.id;
       if (!me) return;
-      // только свои запросы: администратору RLS отдаёт чужие, они показываются во вкладке «Запросы»
-      const r = await supabase.from('link_requests').select('id, status, players(full_name)').eq('user_id', me).order('created_at', { ascending: false });
+      const r = await loadMyLinkRequests(me); // имя ребёнка из my_link_requests() (0217), до подтверждения его нет в players
       if (r.error) return setError(linkError(r.error));
-      const rows = (r.data ?? []) as unknown as Req[];
+      const rows = (r.reqs ?? []) as Req[];
       setReqs(rows);
       if (!notified.current && rows.some(x => x.status === 'approved')) {
         notified.current = true;
@@ -107,7 +107,7 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
 
   const chosen = found?.find(f => f.player_id === selected) ?? null;
   // В Telegram запрос отправляет главная кнопка Telegram для выбранного ребёнка; в браузере — кнопка под списком
-  const native = useMainButton({ text: 'Отправить запрос', visible: Boolean(chosen), enabled: agreed && !busy, loading: busy, onClick: () => selected && void request(selected) });
+  const native = useMainButton({ text: 'Отправить запрос', visible: Boolean(chosen) && agreed, enabled: !busy, loading: busy, onClick: () => selected && void request(selected) });
 
   if (policy) return <Privacy onBack={() => nav.back()} />;
 
@@ -150,7 +150,8 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
               key={f.player_id}
               avatar={f.full_name}
               title={f.full_name}
-              sub={[...(f.group_name ? [f.group_name] : []), ...(selected === f.player_id ? [<Pill tone="primary" dot>Выбрано</Pill>] : [])]}
+              sub={f.group_name ? [f.group_name] : []}
+              selected={selected === f.player_id}
               onClick={() => setSelected(f.player_id)}
             />
           ))}

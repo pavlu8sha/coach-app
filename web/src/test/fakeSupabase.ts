@@ -129,6 +129,16 @@ export const supabase: any = {
             return (fake.db.player_guardians ?? []).filter(g => g.user_id === fake.user!.id && g.players)
               .map(g => ({ player_id: g.players.id, full_name: g.players.full_name, group_id: g.players.group_id ?? null, group_name: g.players.groups?.name ?? null }));
           }
+        : name === 'my_link_requests'
+        // свои запросы (0217): как сервер, всегда массив; таблица link_requests тестов задаёт и ошибки (errors/rejects), как прямой выбор
+        ? () => {
+            if (fake.rejects.link_requests) return Promise.reject(new Error(fake.rejects.link_requests));
+            if (fake.errors.link_requests) return { error: { message: fake.errors.link_requests } };
+            return (fake.db.link_requests ?? []).filter(r => r.user_id === fake.user?.id)
+              .map(r => ({ id: r.id, status: r.status, player_id: r.player_id ?? null, full_name: r.players?.full_name ?? null, group_name: r.players?.groups?.name ?? null }));
+          }
+        : name === 'my_pending_consents'
+        ? () => [] // как сервер (0217): нечего принимать — пустой список, не null
         : name === 'cash_find_players'
         ? (a: { q: string }) => (fake.db.players ?? []).filter(p => String(p.full_name).toLowerCase().includes(String(a.q).toLowerCase()))
             .map(p => ({ id: p.id, full_name: p.full_name, group_id: p.group_id ?? null, external_id: p.external_id ?? null, birth_date: p.birth_date ?? null, status: p.status ?? 'active', group_name: p.groups?.name ?? null }))

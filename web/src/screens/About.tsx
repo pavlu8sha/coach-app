@@ -297,7 +297,7 @@ export default function About({ role, onChangeRole, onBack, cabinet }: { role: R
         <h1>FC KickStart Tbilisi</h1>
         <p className="muted">Футбольная школа в Тбилиси. {cabinet ? 'Выберите раздел.' : 'Запишитесь на пробную тренировку или выберите раздел.'}</p>
         {role !== 'child' && !cabinet && <button type="button" className="ks-btn" onClick={() => setOpen('trial')}>Записаться на пробную</button>}
-        <a className="ks-btn secondary" href={ADMIN_CHAT} target="_blank" rel="noreferrer">Написать администратору</a>
+        {role !== 'child' && <a className="ks-btn secondary" href={ADMIN_CHAT} target="_blank" rel="noreferrer">Написать администратору</a>}
       </div>
       {!cabinet && (
         <>

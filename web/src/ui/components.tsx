@@ -29,7 +29,7 @@ export function Avatar({ name, large = false }: { name: string; large?: boolean 
 }
 
 /** Строка списка: аватар, заголовок, подписи, статус справа, стрелка. С onClick — кнопка. */
-export function ListRow(props: { title: string; sub?: ReactNode[]; avatar?: string; end?: ReactNode; onClick?: () => void }) {
+export function ListRow(props: { title: string; sub?: ReactNode[]; avatar?: string; end?: ReactNode; onClick?: () => void; selected?: boolean }) {
   const inner = (
     <>
       {props.avatar !== undefined && <Avatar name={props.avatar} />}
@@ -44,13 +44,13 @@ export function ListRow(props: { title: string; sub?: ReactNode[]; avatar?: stri
       {(props.end || props.onClick) && (
         <span className="ks-row-end">
           {props.end}
-          {props.onClick && <span className="ks-chev" aria-hidden="true" />}
+          {props.onClick && (props.selected ? <span className="ks-check" aria-hidden="true" /> : <span className="ks-chev" aria-hidden="true" />)}
         </span>
       )}
     </>
   );
   return props.onClick ? (
-    <button type="button" className="ks-row" onClick={props.onClick}>
+    <button type="button" className={props.selected ? 'ks-row selected' : 'ks-row'} aria-pressed={props.selected === undefined ? undefined : props.selected} onClick={props.onClick}>
       {inner}
     </button>
   ) : (

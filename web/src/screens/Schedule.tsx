@@ -81,7 +81,7 @@ export default function Schedule({ all = false, editable = all, results = true }
       </main>
     );
   }
-  if (!groups.length) return <main className="page"><h1>Расписание</h1><EmptyState icon="box" title="Пока пусто" text="Расписание появится, когда администратор подтвердит связь с ребёнком." /></main>;
+  if (!groups.length) return <main className="page"><h1>Расписание</h1><EmptyState icon="box" title="Пока пусто" text={all ? 'Расписание групп пока не опубликовано. Загляните позже.' : 'Расписание появится, когда администратор подтвердит связь с ребёнком.'} /></main>;
 
   const done = () => {
     setEditing(null);
