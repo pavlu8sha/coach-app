@@ -5,7 +5,7 @@
 // ВАЖНО: файл не проверялся на живом проекте — первая проверка на staging (см. README.md).
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { validateInitData } from './init-data.js';
-import { normalizeTgUsername } from './username.js';
+import { handleUsernameOnly, saveVerifiedUsername } from './username.js';
 
 const cors = {
   'Access-Control-Allow-Origin': Deno.env.get('ALLOWED_ORIGIN') ?? '*',
@@ -41,32 +41,25 @@ async function handle(req: Request): Promise<Response> {
   try { const b = await req.json(); initData = String(b.initData ?? ''); usernameOnly = b.username_only === true; } catch { return json({ error: 'bad_request' }, 400); }
 
   const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN') ?? '';
-  const v = await validateInitData(initData, botToken);
-  if (!v.ok) return json({ error: 'unauthorized', reason: v.reason }, 401);
-
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
-  const email = `tg${v.user.id}@telegram.invalid`;
-  const name = [v.user.first_name, v.user.last_name].filter(Boolean).join(' ') || v.user.username || null;
-
   // 0) ограничение частоты: без него один аккаунт может бесконечно создавать ссылки входа, а спам-аккаунты — заводить пользователей
   const hit = async (key: string, lim: { max: number; seconds: number }) => {
     const r = await admin.rpc('rate_limit_hit', { k: key, max_hits: lim.max, window_seconds: lim.seconds });
     if (r.error) throw new Error(`rate_limit: ${r.error.message}`); // при сбое лимитера не пускаем (закрыто по умолчанию)
     return r.data === true;
   };
-  if (!(await hit(`tg:${v.user.id}`, PER_USER))) return json({ error: 'rate_limited' }, 429, { 'Retry-After': String(PER_USER.seconds) });
-  // Ник для связи тренера с родителем (0218): пишем только здесь, из initData с проверенной подписью, и только в строку этого Telegram-аккаунта.
-  // Сбой (например, миграция 0218 ещё не применена) вход не ломает.
-  const saveUsername = async (): Promise<boolean> => {
-    const r = await admin.from('users').update({ telegram_username: normalizeTgUsername(v.user.username) }).eq('telegram_id', v.user.id).select('id');
-    return !r.error && (r.data?.length ?? 0) > 0;
-  };
   if (usernameOnly) {
-    // повторное открытие с живой сессией: вход не выдаём, только обновляем ник этого Telegram-аккаунта (лимит частоты выше общий)
-    let saved = false;
-    try { saved = await saveUsername(); } catch { /* ник не критичен */ }
-    return json({ ok: saved });
+    // повторное открытие с живой сессией: вход не выдаём, только обновляем ник этого Telegram-аккаунта (лимит частоты общий)
+    const r = await handleUsernameOnly({ initData, botToken, admin, hit: k => hit(k, PER_USER) });
+    return json(r.body, r.status, r.status === 429 ? { 'Retry-After': String(PER_USER.seconds) } : {});
   }
+  const v = await validateInitData(initData, botToken);
+  if (!v.ok) return json({ error: 'unauthorized', reason: v.reason }, 401);
+
+  const email = `tg${v.user.id}@telegram.invalid`;
+  const name = [v.user.first_name, v.user.last_name].filter(Boolean).join(' ') || v.user.username || null;
+
+  if (!(await hit(`tg:${v.user.id}`, PER_USER))) return json({ error: 'rate_limited' }, 429, { 'Retry-After': String(PER_USER.seconds) });
   const known = await admin.from('users').select('id').eq('telegram_id', v.user.id).maybeSingle();
   if (known.error) return json({ error: 'users_select', detail: known.error.message }, 500);
   if (!known.data && !(await hit('new_users', NEW_USERS))) return json({ error: 'rate_limited' }, 429, { 'Retry-After': String(NEW_USERS.seconds) });
@@ -88,6 +81,7 @@ async function handle(req: Request): Promise<Response> {
     const { error: insErr } = await admin.from('users').insert({ id: authId, telegram_id: v.user.id, display_name: name });
     if (insErr) return json({ error: 'users_insert', detail: insErr.message }, 500);
   }
-  try { await saveUsername(); } catch { /* ник не критичен */ }
+  // ник для связи тренера с родителем (0218): из initData с проверенной подписью, только в строку этого Telegram-аккаунта; сбой вход не ломает
+  try { await saveVerifiedUsername(admin, v.user); } catch { /* ник не критичен */ }
   return json({ token_hash: link.data.properties.hashed_token, email });
 }
