@@ -59,6 +59,8 @@ button.ks-row.selected { border-color: var(--ks-primary); box-shadow: 0 0 0 1px 
 /* два пункта: две равные колонки, длинная подпись переносится внутри кнопки */
 .ks-seg.pair { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow-x: visible; }
 .ks-seg.pair button { white-space: normal; }
+/* шесть и более пунктов или wrap: три колонки, длинная подпись переносится внутри кнопки, а не уходит за край (рассылки сбора) */
+.ks-seg.many button { white-space: normal; }
 /* все вкладки в одном ряду; не помещаются — ряд прокручивается внутри себя */
 .ks-seg.row, .ks-seg.row.quad { grid-auto-flow: column; grid-template-columns: none; overflow-x: auto; }
 .ks-seg.row { gap: 2px; }
