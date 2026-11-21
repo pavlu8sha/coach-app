@@ -54,6 +54,7 @@ export default function Matches() {
   const [loading, setLoading] = useState(false); // идёт загрузка: «Повторить» на это время отключена
   const [rsvpFailed, setRsvpFailed] = useState(false); // загрузка подтверждений не удалась (#737): это не «подтверждений нет»
   const [rsvp, setRsvp] = useState<MyRsvp[]>([]); // матчи с подтверждением участия (миграция 0134); без неё список пуст
+  const [scoreFailed, setScoreFailed] = useState(false); // проверка счёта матчей с подтверждением не удалась (#770): «счёта нет» неизвестно, а не доказано
   const [rsvpScored, setRsvpScored] = useState<Set<string>>(new Set()); // матчи с подтверждением, у которых внесён счёт
   const [durations, setDurations] = useState<{ values: SettingValues; scoped: ScopedValues }>({ values: {}, scoped: {} }); // длительность матча из настроек клуба (0168)
 
@@ -102,7 +103,10 @@ export default function Matches() {
         else dt[x.team as string] = x.value ?? '';
       }
       setDurations({ values: dv, scoped: { [MATCH_DURATION_KEY]: dt } });
-      setRsvpScored(new Set(((sc?.data ?? []) as { id: string; goals_for: number | null; goals_against: number | null }[]).filter(x => x.goals_for !== null && x.goals_against !== null).map(x => x.id)));
+      // ошибка или некорректный ответ проверки счёта не равны «счёта нет»: матчи с неизвестным счётом ниже скрываются, показывается блок с повтором
+      const scoreBad = Boolean(sc && (sc.error || !Array.isArray(sc.data)));
+      setScoreFailed(scoreBad);
+      setRsvpScored(new Set(scoreBad ? [] : ((sc?.data ?? []) as { id: string; goals_for: number | null; goals_against: number | null }[]).filter(x => x.goals_for !== null && x.goals_against !== null).map(x => x.id)));
       const m = await supabase.from('matches').select('id, team, played_on, opponent, goals_for, goals_against').in('team', teamNames(names)).order('played_on', { ascending: false }).limit(100);
       if (cancelled) return;
       if (m.error) return setError(errMsg(m.error));
@@ -145,10 +149,14 @@ export default function Matches() {
   const t = today();
   // матчи с подтверждением показываются карточками ниже и в общем списке не дублируются
   // со счётом матч переходит в «Результаты» и в итоги команды; отменённый остаётся карточкой
+  // при сбое проверки счёта начавшиеся неотменённые матчи с подтверждением не показываем ни карточкой «результат не внесён», ни в общем списке: счёт неизвестен
+  const isUpcomingRsvp = (r: MyRsvp) => r.lifecycle_status === 'published' && new Date(r.starts_at).getTime() > Date.now();
+  const scoreUnknown = (r: MyRsvp) => scoreFailed && r.lifecycle_status !== 'cancelled' && !isUpcomingRsvp(r);
+  const rsvpShown = rsvp.filter(r => !scoreUnknown(r));
   const rsvpIds = new Set(rsvp.filter(r => r.lifecycle_status === 'cancelled' || !rsvpScored.has(r.match_id)).map(r => r.match_id));
   matches = matches.filter(m => !rsvpIds.has(m.id));
-  const hasRsvpUpcoming = rsvp.some(r => r.lifecycle_status === 'published' && new Date(r.starts_at).getTime() > Date.now());
-  const hasRsvpPast = rsvp.some(r => !(r.lifecycle_status === 'published' && new Date(r.starts_at).getTime() > Date.now()) && (r.lifecycle_status === 'cancelled' || !rsvpScored.has(r.match_id)));
+  const hasRsvpUpcoming = rsvpShown.some(isUpcomingRsvp);
+  const hasRsvpPast = rsvpShown.some(r => !isUpcomingRsvp(r) && (r.lifecycle_status === 'cancelled' || !rsvpScored.has(r.match_id)));
   const upcoming = matches.filter(m => m.played_on >= t && m.goals_for === null).reverse();
   // сыгранные: со счётом, а также прошедшие без счёта (например, товарищеские без результата): их тоже показываем, но в итоги команды они не входят
   const finished = (m: Match) => isResult(m) || m.played_on < t;
@@ -180,6 +188,15 @@ export default function Matches() {
         <div className="ks-card" role="alert">
           <b>Не удалось загрузить подтверждения участия</b>
           <p className="muted note">Матчи ниже показаны без запросов на подтверждение. Это не значит, что отвечать не нужно: повторите загрузку.</p>
+          <button type="button" className="ks-btn secondary" disabled={loading} onClick={() => setReload(n => n + 1)}>
+            {loading ? 'Загружаю…' : 'Повторить'}
+          </button>
+        </div>
+      )}
+      {scoreFailed && (
+        <div className="ks-card" role="alert">
+          <b>Не удалось проверить результаты матчей</b>
+          <p className="muted note">Часть прошедших матчей скрыта: пока неизвестно, внесён ли по ним счёт. Повторите загрузку.</p>
           <button type="button" className="ks-btn secondary" disabled={loading} onClick={() => setReload(n => n + 1)}>
             {loading ? 'Загружаю…' : 'Повторить'}
           </button>
@@ -228,7 +245,7 @@ export default function Matches() {
 
       {showUpcoming && (
         <>
-          <RsvpSection rows={rsvp} part="upcoming" onChanged={() => setReload(n => n + 1)} />
+          <RsvpSection rows={rsvpShown} part="upcoming" onChanged={() => setReload(n => n + 1)} />
           {filter === 'all' && upcoming.length > 0 && <h2 className="ks-sub">Ближайшие</h2>}
           {upcoming.map(m => (
             <ListRow key={m.id} title={m.opponent ?? 'Соперник уточняется'} sub={[sub(m), ...lines(m)]} end={<Pill tone="primary">Предстоит</Pill>} />
@@ -239,7 +256,7 @@ export default function Matches() {
 
       {showPast && (
         <>
-          <RsvpSection rows={rsvp} part="past" scored={rsvpScored} durationMin={team => matchDurationFor(durations.values, durations.scoped, team)} onChanged={() => setReload(n => n + 1)} />
+          <RsvpSection rows={rsvpShown} part="past" scored={rsvpScored} durationMin={team => matchDurationFor(durations.values, durations.scoped, team)} onChanged={() => setReload(n => n + 1)} />
           {filter === 'all' && played.length > 0 && <h2 className="ks-sub">Результаты</h2>}
           {groupInOrder(played, m => m.played_on.slice(0, 7)).map(([ym, items]) => (
             <details className="ks-group" key={ym}>
@@ -268,11 +285,11 @@ export default function Matches() {
               })}
             </details>
           ))}
-          {filter === 'past' && played.length === 0 && !hasRsvpPast && !rsvpFailed && <EmptyState icon="trophy" title="Нет результатов" text="Сыгранных матчей пока нет." />}
+          {filter === 'past' && played.length === 0 && !hasRsvpPast && !rsvpFailed && !scoreFailed && <EmptyState icon="trophy" title="Нет результатов" text="Сыгранных матчей пока нет." />}
         </>
       )}
 
-      {filter === 'all' && upcoming.length === 0 && played.length === 0 && eventCards.length === 0 && !rsvp.length && !rsvpFailed && <EmptyState icon="trophy" title="Матчей пока нет" text="Ближайшие матчи и результаты появятся здесь." />}
+      {filter === 'all' && upcoming.length === 0 && played.length === 0 && eventCards.length === 0 && !rsvp.length && !rsvpFailed && !scoreFailed && <EmptyState icon="trophy" title="Матчей пока нет" text="Ближайшие матчи и результаты появятся здесь." />}
     </main>
   );
 }
