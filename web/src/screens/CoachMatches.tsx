@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { coachError, compareGroups, fmtDate, matchTeam, playsMatches, today, type CoachGroup } from '../lib/coach';
+import { coachError, compareGroups, fmtDate, matchTeam, playsMatches, today, type CoachGroup, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { useDirtySignature, useNav, useNavState } from '../nav';
 import { EmptyState, ListRow, Pill, NameDatalist, searchFocusProps } from '../ui/components';
@@ -10,6 +10,7 @@ import { EventForm, EventScreen, eventCounts, eventTitle, isFinished, type Event
 import { Failure, Loading } from './Message';
 import CoachRsvp from './CoachRsvp';
 import { useConfirm } from '../ui/ConfirmSheet';
+import { MoreMenu } from '../ui/MoreMenu';
 
 interface Match { id: string; team: string; played_on: string; opponent: string | null; goals_for: number | null; goals_against: number | null; technical?: boolean; lifecycle_status?: string; starts_at?: string | null }
 // Матч с подтверждением участия (PR 2–4 по #274): до начала им управляют «Матчи с подтверждением», здесь он появляется после начала — для отметок игроков и счёта
@@ -33,6 +34,8 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   const [playedBy, setPlayedBy] = useState<Map<string, number>>(new Map());
   // «Добавить матч»: одно окно — события (чемпионаты, фестивали), где добавляется игра, и команды для товарищеского или кубкового матча
   const [addStep, setAddStep] = useState<'pick' | null>(null);
+  // по умолчанию матч создаётся с подтверждением участия; уже сыгранный матч вводится старой формой (решение владельца 2026-11-20)
+  const [played, setPlayed] = useState(false);
   const [addTeam, setAddTeam] = useNavState('cm.addTeam', '', { entry: 0 });
 
   useEffect(() => {
@@ -46,7 +49,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
       let q = supabase.from('matches').select('id, team, played_on, opponent, goals_for, goals_against, technical, lifecycle_status, starts_at');
       if (!showAll) q = q.in('team', groups.map(g => g.name));
       const r = await q.order('played_on', { ascending: false }).limit(showAll ? 150 : 60);
-      if (r.error) return setError(r.error.message);
+      if (r.error) return setError(errMsg(r.error));
       // матч с подтверждением виден в общем списке сразу после публикации (решение владельца 2026-11-13), черновики и отменённые остаются только на своём экране
       const list = ((r.data ?? []) as Match[]).filter(m => !isRsvp(m) || m.lifecycle_status === 'published');
       setMatches(list);
@@ -65,7 +68,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   const screen = nav.top.screen;
   const topId = nav.top.params.id;
   const back = () => { nav.back(); setReload(n => n + 1); };
-  if (screen.startsWith('rsvp')) return <CoachRsvp groups={groups} onBack={() => nav.back()} />;
+  if (screen.startsWith('rsvp')) return <CoachRsvp groups={groups} all={showAll} onBack={() => nav.back()} />;
   const openEvent = events.find(e => e.id === topId);
   // форму нового события открывает только администратор (миграция 0195); тренер ведёт состав и игры уже созданных событий
   if (screen === 'event' && (openEvent || (!topId && admin))) {
@@ -83,7 +86,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   }
   const formMatch = screen === 'form' ? (matches ?? []).find(m => m.id === topId) ?? null : null;
   if (screen === 'form' && (formMatch || !topId)) return <MatchForm groups={groups} match={formMatch} admin={admin} rosterOf={formMatch && !(!tours.get(formMatch.id)?.tournament_id || tours.get(formMatch.id)?.match_kind === 'friendly' || tours.get(formMatch.id)?.tournament_kind === 'cup') ? tours.get(formMatch.id)?.tournament_id ?? null : null} feeMode={!formMatch || !tours.get(formMatch.id)?.tournament_id || tours.get(formMatch.id)?.match_kind === 'friendly' || tours.get(formMatch.id)?.tournament_kind === 'cup'} presetTeam={addTeam} onBack={back} onSaved={() => setReload(n => n + 1)} />;
-  if (!matches) return <Loading />;
+  if (!matches) return <Loading title="Матчи" />;
 
   const teams = [...new Set(matches.map(m => m.team))].sort(compareGroups);
   const shown = team ? matches.filter(m => m.team === team) : matches;
@@ -113,20 +116,36 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   // команды для «Добавить матч»: свои группы тренера; у администратора и тренера со всеми командами — все команды клуба
   const addTeams = [...new Set((showAll ? [...groups.map(g => g.name), ...matches.map(m => m.team), ...events.map(e => e.team)] : groups.map(g => g.name)).filter(playsMatches).map(matchTeam))].sort(compareGroups);
   if (other.length) sections.push({ key: 'other', title: byTour.size ? 'Товарищеские и кубки' : 'Матчи', items: other });
+  // предстоящие опубликованные матчи с подтверждением: из уже загруженного списка, без нового запроса
+  const upcomingRsvp = matches.filter(m => isRsvp(m) && m.starts_at && new Date(m.starts_at).getTime() > Date.now()).length;
   return (
     <main className="page">
-      <h1>Матчи</h1>
-      <button type="button" className="ks-btn" onClick={() => setAddStep('pick')}>Добавить матч</button>
-      <div style={{ height: 8 }} />
-      {admin && (
-        <>
-          <button type="button" className="ks-btn secondary" onClick={() => nav.push('event')}>Новое событие</button>
-          <div style={{ height: 8 }} />
-        </>
-      )}
-      <button type="button" className="ks-btn secondary" onClick={() => nav.push('rsvp')}>Матчи с подтверждением</button>
+      <div className="ks-head">
+        <h1>Матчи</h1>
+        <div className="ks-head-actions">
+          <button type="button" className="ks-btn sm" onClick={() => { setPlayed(false); setAddStep('pick'); }}>+ Матч</button>
+          <MoreMenu
+            badge={upcomingRsvp}
+            items={[
+              ...(admin ? [{ label: 'Новое событие', onSelect: () => nav.push('event') }] : []),
+              { label: upcomingRsvp > 0 ? `Матчи с подтверждением · ${upcomingRsvp}` : 'Матчи с подтверждением', onSelect: () => nav.push('rsvp') },
+            ]}
+          />
+        </div>
+      </div>
       {addStep === 'pick' && (
         <div className="ks-card" aria-label="Добавить матч">
+          <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+            <input type="checkbox" checked={played} onChange={e => setPlayed(e.target.checked)} />
+            <span>Матч уже сыгран, ввести результат</span>
+          </label>
+          {!played ? (
+            <>
+              <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>Родители получат приглашение и ответят, придёт ли игрок. Команду, чемпионат и группу выберете в следующем окне.</p>
+              <button type="button" className="ks-btn" onClick={() => { setAddStep(null); nav.push('rsvp.create'); }}>Создать матч с подтверждением</button>
+            </>
+          ) : (
+            <>
           <p className="ks-label">Матч чемпионата или фестиваля</p>
           {champEvents.length === 0 ? (
             <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>Событий пока нет.{admin ? ' Создайте чемпионат или фестиваль кнопкой «Новое событие».' : ' Чемпионаты и фестивали создаёт администратор.'}</p>
@@ -140,6 +159,8 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
           {addTeams.map(t => (
             <ListRow key={t} title={t} onClick={() => { setAddTeam(t); setAddStep(null); nav.push('form'); }} />
           ))}
+            </>
+          )}
           <div style={{ height: 8 }} />
           <button type="button" className="ks-btn secondary" onClick={() => setAddStep(null)}>Отмена</button>
         </div>
@@ -235,7 +256,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
       if (rosterOf) {
         // матч чемпионата или фестиваля: в составе только заявленные на событие
         const r = await supabase.rpc('event_roster', { t: rosterOf });
-        if (r.error) return setError(r.error.message);
+        if (r.error) return setError(errMsg(r.error));
         list = ((r.data ?? []) as { player_id: string; full_name: string }[]).map(x => ({ id: x.player_id, full_name: x.full_name }));
         // ушедшие и игроки на паузе не попадают в новые матчи события (заявка на событие статус не проверяет); без ответа базы список остаётся прежним
         const st = list.length ? await supabase.from('players').select('id, status').in('id', list.map(p => p.id)) : null;
@@ -249,14 +270,14 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
           if (!gr.error) ids = [...new Set([gid, ...((gr.data ?? []) as CoachGroup[]).filter(g => playsMatches(g.name) && matchTeam(g.name) === matchTeam(sel)).map(g => g.id)])];
         }
         const p = await supabase.from('players').select('id, full_name').in('group_id', ids).eq('status', 'active').order('full_name');
-        if (p.error) return setError(p.error.message);
+        if (p.error) return setError(errMsg(p.error));
         list = (p.data ?? []) as Player[];
       }
       const init: Record<string, Line> = {};
       let best: string | null = null;
       if (savedId) {
         const mp = await supabase.from('match_players').select('player_id, played, goals, best').eq('match_id', savedId);
-        if (mp.error) return setError(mp.error.message);
+        if (mp.error) return setError(errMsg(mp.error));
         const rows = (mp.data ?? []) as { player_id: string; played: boolean; goals: number; best: boolean }[];
         for (const r of rows) {
           init[r.player_id] = { played: r.played, goals: r.goals };
@@ -266,7 +287,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
         const extra = rows.map(r => r.player_id).filter(id => !list.some(p => p.id === id));
         if (extra.length) {
           const ex = await supabase.from('players').select('id, full_name').in('id', extra);
-          if (ex.error) return setError(ex.error.message);
+          if (ex.error) return setError(errMsg(ex.error));
           list = [...list, ...((ex.data ?? []) as Player[])].sort((a, b) => a.full_name.localeCompare(b.full_name));
         }
       }

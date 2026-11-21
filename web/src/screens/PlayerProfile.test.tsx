@@ -2,6 +2,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
+import { seasonStart } from '../lib/seasonStats';
 import PlayerProfile, { tbilisiToday } from './PlayerProfile';
 
 const anya = { id: 'p1', full_name: 'Аня Петрова', birth_date: '2016-04-02', groups: { name: 'U10-A' } };
@@ -32,6 +33,22 @@ describe('профиль игрока: шапка и доступ', () => {
     fake.db.players = [{ ...anya, birth_date: null }];
     await open();
     expect(screen.queryByText(/Год рождения/)).toBeNull();
+  });
+
+  it('показывает позицию и действующий номер текущей команды и сезона', async () => {
+    fake.db.players = [{ ...anya, player_profiles: { first_name: 'Аня', last_name: 'Петрова', primary_position: 'Нападающий', jersey_number: 10, jersey_team: 'U10', jersey_season_start: seasonStart(tbilisiToday()) } }];
+    await open();
+    expect(screen.getByText('Позиция: Нападающий')).toBeInTheDocument();
+    expect(screen.getByText('Номер: 10')).toBeInTheDocument();
+  });
+
+  it('не показывает номер другой команды или другого сезона', async () => {
+    fake.db.players = [{ ...anya, player_profiles: { first_name: 'Аня', last_name: 'Петрова', primary_position: null, jersey_number: 10, jersey_team: 'U11', jersey_season_start: seasonStart(tbilisiToday()) } }];
+    await open();
+    expect(screen.queryByText(/Номер: 10/)).toBeNull();
+    fake.db.players = [{ ...anya, player_profiles: { first_name: 'Аня', last_name: 'Петрова', primary_position: null, jersey_number: 10, jersey_team: 'U10', jersey_season_start: '2020-09-01' } }];
+    await open();
+    expect(screen.queryByText(/Номер: 10/)).toBeNull();
   });
 
   it('игрок не отдан сервером: «Профиль недоступен» без сведений', async () => {

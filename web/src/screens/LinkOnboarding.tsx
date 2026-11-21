@@ -1,4 +1,6 @@
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { useNav, useSubEntry } from '../nav';
+import { BackNav } from '../ui/nav';
 import { ADMIN_CHAT } from '../lib/clubInfo';
 import { ListRow, Pill } from '../ui/components';
 import Link, { HideWhen, useLinkPolicyOpen } from './Link';
@@ -39,7 +41,9 @@ const AdminLink = ({ children }: { children: string }) => (
 // Новые данные не запрашиваются: запросы родителя уже загружены главной.
 export default function LinkOnboarding({ reqs, onApproved, onOpenStatus, onGuest }: { reqs: Req[]; onApproved: () => void; onOpenStatus: () => void; onGuest?: () => void }) {
   const policyOpen = useLinkPolicyOpen();
-  const [searching, setSearching] = useState(false);
+  const nav = useNav();
+  const searching = Boolean(useSubEntry('hm.link')); // поиск ребёнка — запись стека: «Назад» возвращает к шагам (#732)
+  const openSearch = () => nav.push('hm.link');
   const waiting = reqs.filter(r => r.status === 'pending').length;
   const rejected = reqs.some(r => r.status === 'rejected');
   // подтверждённый запрос есть, а ребёнка в списке нет: повторная привязка не поможет, нужно восстановить доступ
@@ -59,7 +63,7 @@ export default function LinkOnboarding({ reqs, onApproved, onOpenStatus, onGuest
         <Head tone="warning" title="Запрос отправлен" icon={I_CLOCK}>Как только администратор клуба его подтвердит, здесь появятся баллы ребёнка. Отправлять запрос ещё раз не нужно.</Head>
         <Steps current={2} />
         {statusRow}
-        <button type="button" className="ks-btn secondary" style={{ marginTop: 12 }} onClick={() => setSearching(true)}>
+        <button type="button" className="ks-btn secondary" style={{ marginTop: 12 }} onClick={openSearch}>
           Добавить другого ребёнка
         </button>
       </main>
@@ -73,7 +77,7 @@ export default function LinkOnboarding({ reqs, onApproved, onOpenStatus, onGuest
           Запрос подтверждён, но доступ к профилю не виден. Закройте приложение и откройте снова. Если не помогло, <AdminLink>напишите администратору клуба</AdminLink>: он восстановит доступ.
         </Head>
         {statusRow}
-        <button type="button" className="ks-btn secondary" style={{ marginTop: 12 }} onClick={() => setSearching(true)}>
+        <button type="button" className="ks-btn secondary" style={{ marginTop: 12 }} onClick={openSearch}>
           Найти другого ребёнка
         </button>
       </main>
@@ -92,7 +96,7 @@ export default function LinkOnboarding({ reqs, onApproved, onOpenStatus, onGuest
             Прошлый запрос был отклонён. Можно попробовать снова или <AdminLink>написать администратору клуба</AdminLink>.
           </p>
         )}
-        <button type="button" className="ks-btn" onClick={() => setSearching(true)}>
+        <button type="button" className="ks-btn" onClick={openSearch}>
           Найти ребёнка
         </button>
         {statusRow && <div style={{ marginTop: 12 }}>{statusRow}</div>}
@@ -110,7 +114,10 @@ export default function LinkOnboarding({ reqs, onApproved, onOpenStatus, onGuest
 
   return (
     <main className="page">
-      <HideWhen hide={policyOpen}><h1>Подключите профиль ребёнка</h1></HideWhen>
+      <HideWhen hide={policyOpen}>
+        <BackNav onBack={() => nav.back()} managed />
+        <h1>Подключите профиль ребёнка</h1>
+      </HideWhen>
       <Link onApproved={onApproved} onOpenStatus={onOpenStatus} />
     </main>
   );

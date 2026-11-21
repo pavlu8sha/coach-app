@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { today } from '../lib/coach';
+import { today, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { useConfirm } from '../ui/ConfirmSheet';
 
@@ -15,7 +15,7 @@ export default function PointsStart() {
 
   const load = async () => {
     const r = await supabase.rpc('points_start');
-    if (r.error) return setMsg({ ok: false, text: r.error.message.includes('Could not find the function') ? 'Функция ещё не установлена в базе (миграция 0040).' : r.error.message });
+    if (r.error) return setMsg({ ok: false, text: r.error.message.includes('Could not find the function') ? 'Функция ещё не установлена в базе (миграция 0040).' : errMsg(r.error) });
     setCurrent((r.data as string | null) ?? null);
   };
   useEffect(() => { void load(); }, []);
@@ -26,7 +26,7 @@ export default function PointsStart() {
     const r = await supabase.rpc('set_points_start', { d });
     setBusy(false);
    
-    if (r.error) return setMsg({ ok: false, text: r.error.message.includes('forbidden') ? 'Нет прав: дату задаёт только администратор.' : r.error.message });
+    if (r.error) return setMsg({ ok: false, text: r.error.message.includes('forbidden') ? 'Нет прав: дату задаёт только администратор.' : errMsg(r.error) });
     setMsg({ ok: true, text: d ? `Баллы считаются с ${fmt(d)}.` : 'Ограничение снято: видна вся история баллов.' });
     await load();
   };

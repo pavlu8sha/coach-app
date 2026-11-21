@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useConfirm } from '../ui/ConfirmSheet';
+import { errMsg } from '../lib/coach';
 
 export interface SlotForm { id?: string; weekday: number; starts_at: string; ends_at: string | null; location: string | null; kind: string; coaches: string | null }
 
@@ -19,7 +20,7 @@ export default function SlotEdit({ groupId, initial, onDone, onCancel }: { group
     setError(null);
     const r = await q;
     setBusy(false);
-    if (r.error) return setError(r.error.message);
+    if (r.error) return setError(errMsg(r.error));
     onDone();
   };
 

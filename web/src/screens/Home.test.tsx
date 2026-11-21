@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useNavStore } from '../nav';
 import { afterEach, describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import { resetStartParam } from '../lib/startParam';
@@ -54,6 +55,68 @@ describe('главная родителя', () => {
     expect(screen.getByText('Алексей Петров')).toBeVisible();
   });
 
+  it('«Добавить ещё одного ребёнка» — запись стека: «Назад» возвращает к карточкам, поиск открывается снова (#732)', async () => {
+    fake.db.player_guardians = [kid('p1', 'Алексей Петров', 'U10-A')];
+    render(<Home />);
+    const add = await screen.findByRole('button', { name: /Добавить ещё одного ребёнка/ });
+    expect(screen.queryByRole('button', { name: 'Назад' })).toBeNull();
+    fireEvent.click(add);
+    expect(await screen.findByLabelText('Фамилия или имя ребёнка')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(screen.queryByLabelText('Фамилия или имя ребёнка')).toBeNull();
+    expect(screen.getByText('Алексей Петров')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Назад' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Добавить ещё одного ребёнка/ }));
+    expect(await screen.findByLabelText('Фамилия или имя ребёнка')).toHaveValue('');
+  });
+
+  it('первый ребёнок подтверждён при открытом поиске: запись закрывается, видны карточки (#732)', async () => {
+    fake.db.link_requests = [{ id: 'r1', user_id: 'u', status: 'approved', players: { full_name: 'Алексей Петров' } }];
+    render(<Home />);
+    const open = await screen.findByRole('button', { name: 'Найти другого ребёнка' });
+    fake.db.player_guardians = [kid('p1', 'Алексей Петров', 'U10-A')]; // доступ появился, пока родитель в поиске
+    fireEvent.click(open);
+    expect(await screen.findByRole('heading', { name: 'Мой ребёнок' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Фамилия или имя ребёнка')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Назад' })).toBeNull();
+  });
+
+  it('одобрение пришло, пока открыт поиск: после «Назад» главная обновляется и показывает ребёнка (#732)', async () => {
+    fake.db.link_requests = [{ id: 'r1', user_id: 'u', status: 'pending', players: { full_name: 'Алексей Петров' } }];
+    render(<Home />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Добавить другого ребёнка' }));
+    expect(await screen.findByLabelText('Фамилия или имя ребёнка')).toBeInTheDocument();
+    // администратор одобряет уже после открытия поиска
+    fake.db.link_requests = [{ id: 'r1', user_id: 'u', status: 'approved', players: { full_name: 'Алексей Петров' } }];
+    fake.db.player_guardians = [kid('p1', 'Алексей Петров', 'U10-A')];
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(await screen.findByText('Алексей Петров')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Мой ребёнок' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Фамилия или имя ребёнка')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Запрос отправлен' })).toBeNull();
+  });
+
+  it('первый ребёнок появился при открытой политике поверх поиска: закрывается вся запись поиска, а не только политика (#732)', async () => {
+    let store!: ReturnType<typeof useNavStore>;
+    const Probe = () => {
+      store = useNavStore();
+      return null;
+    };
+    fake.db.link_requests = [{ id: 'r1', user_id: 'u', status: 'pending', players: { full_name: 'Алексей Петров' } }];
+    render(<><Probe /><Home /></>);
+    await screen.findByRole('heading', { name: 'Запрос отправлен' });
+    act(() => {
+      store.push('detached', { screen: 'hm.link' });
+      store.push('detached', { screen: 'policy' });
+      store.push('detached', { screen: 'hm.status' });
+    });
+    expect(store.entries('detached').map(e => e.screen)).toEqual(['detached', 'hm.link', 'policy', 'hm.status']);
+    fake.db.player_guardians = [kid('p1', 'Алексей Петров', 'U10-A')];
+    act(() => void store.back('detached')); // закрыли статусы: главная перезагружается и видит ребёнка
+    expect(await screen.findByRole('heading', { name: 'Мой ребёнок' })).toBeInTheDocument();
+    await waitFor(() => expect(store.entries('detached')).toHaveLength(1)); // сняты и политика, и поиск
+  });
+
   it('нет детей, запрос ждёт подтверждения: поясняет и ведёт к статусу', async () => {
     fake.db.link_requests = [{ id: 'r1', user_id: 'u', status: 'pending', players: { full_name: 'Алексей Петров' } }];
     render(<Home />);
@@ -70,9 +133,10 @@ describe('главная родителя', () => {
   });
 
   it('ошибка загрузки: «Повторить»', async () => {
-    fake.errors.player_guardians = 'нет связи';
+    fake.errors.player_guardians = 'TypeError: Failed to fetch';
     render(<Home />);
-    expect(await screen.findByText('нет связи')).toBeInTheDocument();
+    expect(await screen.findByText(/Нет связи/)).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain('Failed to fetch');
     delete fake.errors.player_guardians;
     fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Найти ребёнка' })).toBeInTheDocument());
@@ -95,8 +159,12 @@ describe('вход по ссылке на сбор', () => {
     seedCamps();
     start('camp_Zima');
     render(<Home />);
-    // «Назад» есть и у списка, поэтому ждём загруженную карточку (экран перерисовывается при загрузке)
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Зимний лагерь' })).toBeInTheDocument());
+    // «Назад» есть и у списка, поэтому ждём загруженную карточку (экран перерисовывается при загрузке).
+    // Заголовок «Зимний лагерь» виден и в заглушке загрузки (role=status), поэтому ждём и её исчезновения: иначе «Назад» ещё нет
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Зимний лагерь' })).toBeInTheDocument();
+      expect(screen.queryByRole('status', { name: 'Загрузка' })).not.toBeInTheDocument();
+    });
     const back = screen.getByRole('button', { name: 'Назад' });
     fireEvent.click(back);
     expect(await screen.findByText('Зимний лагерь', { selector: '.ks-row-title' })).toBeInTheDocument();

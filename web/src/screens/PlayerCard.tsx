@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fmtDate, hasSubscription } from '../lib/coach';
+import { errMsg, fmtDate, hasSubscription, playerTeam, today } from '../lib/coach';
+import { seasonStart } from '../lib/seasonStats';
 import { afterLeftMonthTest, pausedMonthTest, type PlayerStatus, type StatusLogPoint } from '../lib/playerStatus';
 import { supabase } from '../lib/supabase';
 import { Avatar, Segmented } from '../ui/components';
@@ -74,7 +75,7 @@ export default function PlayerCard({ player, onBack, onEdit, onStatus, managed }
       const eq = await supabase.from('equipment_orders').select('number, ordered_on').eq('player_id', player.id);
       if (!eq.error) setShirt(((eq.data ?? []) as { number: string | null; ordered_on: string | null }[]).sort((a, b) => (b.ordered_on ?? '').localeCompare(a.ordered_on ?? '')).map(o => (o.number ?? '').trim()).find(Boolean) ?? null);
       const bad = pr.error ?? pay.error ?? sb.error;
-      if (bad) return setError(bad.message);
+      if (bad) return setError(errMsg(bad));
       setPrices(((pr.data ?? []) as Price[]).map(x => ({ ...x, amount: Number(x.amount) })));
       setPays(((pay.data ?? []) as Pay[]).map(x => ({ ...x, amount: Number(x.amount) })));
       setSubs(new Map(((sb.data ?? []) as (Sub & { month: string })[]).map(x => [x.month, x])));
@@ -92,6 +93,7 @@ export default function PlayerCard({ player, onBack, onEdit, onStatus, managed }
   const isPausedMonth = pausedMonthTest(statusLog);
   const afterLeft = afterLeftMonthTest(status, statusLog, endsOn);
   const gotIn = (m: string) => (pays ?? []).filter(p => (p.pay_month ?? p.paid_on.slice(0, 7) + '-01') === m).reduce((s, p) => s + p.amount, 0);
+  const currentJersey = player.jersey_number !== null && player.jersey_team === playerTeam(player.group_name) && player.jersey_season_start === seasonStart(today()) ? player.jersey_number : null;
 
   return (
     <main className="page">
@@ -101,7 +103,8 @@ export default function PlayerCard({ player, onBack, onEdit, onStatus, managed }
         <div style={{ minWidth: 0, flex: 1 }}>
           <h1 style={{ margin: 0, overflowWrap: 'anywhere' }}>{player.full_name}</h1>
           <p className="muted">{[player.external_id, player.group_name ?? 'без группы'].filter(Boolean).join(' · ')}</p>
-          {shirt && <p className="muted">Номер: {shirt}</p>}
+          {player.primary_position && <p className="muted">Позиция: {player.primary_position}</p>}
+          {currentJersey !== null ? <p className="muted">Игровой номер: {currentJersey}</p> : shirt && <p className="muted">Номер: {shirt}</p>}
           <p className="muted">{player.birth_date ? `Дата рождения: ${fmtDate(player.birth_date)}` : 'Дата рождения не указана'}</p>
         </div>
       </div>

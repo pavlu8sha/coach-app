@@ -318,7 +318,7 @@ describe('карточка участника', () => {
     fireEvent.change(screen.getByLabelText('Способ'), { target: { value: 'Перевод' } });
     await go();
     await waitFor(() => expect(fake.rpcCalls('club_event_pay')).toHaveLength(1));
-    await screen.findByText('Failed to fetch');
+    await screen.findByText(/Нет связи/);
     await go();
     await waitFor(() => expect(fake.rpcCalls('club_event_pay')).toHaveLength(2));
     const [a, b] = fake.rpcCalls('club_event_pay');
@@ -423,5 +423,72 @@ describe('замечания ревью #742', () => {
     const d = screen.getByLabelText('Дата платежа') as HTMLInputElement;
     expect(d.value).toBe('2026-12-06');
     expect(d.max).toBe('2026-12-06');
+  });
+});
+
+describe('замечания Павла после слияния (19.11)', () => {
+  it('возврат из формы в список не показывает «Загрузка»: данные берутся из кэша и тихо обновляются', async () => {
+    seed();
+    render(<ClubEvents />);
+    await screen.findByText('Турнир Осень');
+    fireEvent.click(screen.getByRole('button', { name: 'Новое мероприятие' }));
+    await screen.findByRole('button', { name: 'Создать' });
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(screen.getByText('Турнир Осень')).toBeInTheDocument(); // сразу, без ожидания ответа базы
+    expect(screen.queryByRole('status', { name: 'Загрузка' })).toBeNull();
+  });
+
+  it('чек-боксы групп — как в остальном приложении (класс ks-check, крупная область нажатия)', async () => {
+    seed();
+    render(<ClubEvents />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Новое мероприятие' }));
+    const box = await screen.findByRole('checkbox', { name: 'U9-A' });
+    expect(box.closest('label')?.className).toContain('ks-check');
+  });
+});
+
+describe('UI20: удаление черновика (скрытие)', () => {
+  it('у пустого черновика кнопка есть; подтверждение, вызов club_event_delete_draft, возврат в список без этого мероприятия', async () => {
+    const draft = ev({ status: 'draft', active_count: 0, free_places: 10 });
+    seed(draft, []);
+    fake.rpc.club_event_delete_draft = () => { fake.rpc.club_event_list = () => []; return { applied: true }; }; // как база: после скрытия в списке его нет
+    render(<ClubEvents />);
+    fireEvent.click(await screen.findByText('Турнир Осень'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Удалить черновик' }));
+    const dlg = within(await screen.findByRole('dialog'));
+    expect(dlg.getByText('Мероприятие исчезнет из списка. История изменений сохранится.')).toBeInTheDocument();
+    fireEvent.click(dlg.getByRole('button', { name: 'Удалить' }));
+    await waitFor(() => expect(fake.rpcCalls('club_event_delete_draft')).toEqual([{ p_id: 'e1' }]));
+    expect(await screen.findByRole('button', { name: 'Новое мероприятие' })).toBeInTheDocument();
+    expect(screen.queryByText('Турнир Осень')).toBeNull();
+  });
+
+  it('отказ «Отмена» ничего не вызывает', async () => {
+    seed(ev({ status: 'draft' }), []);
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить черновик' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отмена' }));
+    expect(fake.rpcCalls('club_event_delete_draft')).toHaveLength(0);
+  });
+
+  it.each([['active'], ['finished'], ['cancelled']])('у мероприятия «%s» кнопки нет', async status => {
+    seed(ev({ status }), []);
+    await open();
+    expect(screen.queryByRole('button', { name: 'Удалить черновик' })).toBeNull();
+  });
+
+  it('у черновика с участниками кнопки нет', async () => {
+    seed(ev({ status: 'draft' }), [PARTS[0]]);
+    await open();
+    expect(screen.queryByRole('button', { name: 'Удалить черновик' })).toBeNull();
+  });
+
+  it('ошибка базы показывается понятным текстом, экран остаётся', async () => {
+    seed(ev({ status: 'draft' }), []);
+    fake.rpc.club_event_delete_draft = () => ({ error: { message: 'event has participants' } });
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить черновик' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Удалить' }));
+    expect(await screen.findByText('У черновика есть участники: удалить его нельзя.')).toBeInTheDocument();
   });
 });

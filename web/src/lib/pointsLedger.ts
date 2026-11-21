@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { errMsg } from './coach';
 // Новый журнал баллов (#18): подписи начислений, месячные итоги. Чистые функции, чтобы родитель, ребёнок и тренер видели одинаковый текст.
 export interface LedgerRow {
   id: string;
@@ -62,7 +63,7 @@ export async function fetchLedgerTotals(ids: string[]): Promise<{ totals: Record
   for (let i = 0; i < ids.length; i += 100) {
     for (let from = 0; ; from += 1000) {
       const e = await supabase.from('points_ledger').select('player_id, points').eq('status', 'active').in('player_id', ids.slice(i, i + 100)).order('id').range(from, from + 999);
-      if (e.error) return { totals, error: e.error.message };
+      if (e.error) return { totals, error: errMsg(e.error) };
       for (const r of (e.data ?? []) as { player_id: string; points: number }[]) totals[r.player_id] = (totals[r.player_id] ?? 0) + r.points;
       if ((e.data ?? []).length < 1000) break;
     }

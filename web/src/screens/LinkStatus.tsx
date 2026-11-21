@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { userError } from '../lib/userError';
 import { Avatar, EmptyState, Pill, type Tone } from '../ui/components';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
@@ -15,7 +16,7 @@ export const STATUS: Record<Req['status'], { label: string; tone: Tone; text: st
 };
 
 // Сообщения по ответам функций cancel_link / retry_link (см. db/migrations/0017_link_cancel_retry.sql)
-const actionError = (m: string) =>
+const actionKnown = (m: string): string | null =>
   m.includes('link request limit')
     ? 'Слишком много запросов и отмен за час. Попробуйте позже.'
     : m.includes('retry too soon')
@@ -28,7 +29,8 @@ const actionError = (m: string) =>
           ? 'Для повторного запроса нужно действующее согласие. Обратитесь к администратору клуба.'
           : m.includes('Could not find the function') || m.includes('schema cache')
             ? 'Это действие пока недоступно.'
-            : m;
+            : null;
+const actionError = (e: unknown) => userError(e, actionKnown);
 
 // Запросы родителя на привязку ребёнка и их статусы. Можно отменить неподтверждённый запрос и повторить отклонённый.
 export default function LinkStatus({ onBack }: { onBack: () => void }) {
@@ -45,22 +47,31 @@ export default function LinkStatus({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     void (async () => {
-      const me = (await supabase.auth.getUser()).data.user?.id;
-      if (!me) return setError('Нет сессии');
-      // только свои запросы: администратору RLS отдаёт чужие, они показываются во вкладке «Запросы»
-      const r = await supabase.from('link_requests').select('id, status, players(full_name)').eq('user_id', me).order('created_at', { ascending: false });
-      if (r.error) return setError(r.error.message);
-      setReqs((r.data ?? []) as unknown as Req[]);
+      try {
+        const me = (await supabase.auth.getUser()).data.user?.id;
+        if (!me) return setError('Нет сессии');
+        // только свои запросы: администратору RLS отдаёт чужие, они показываются во вкладке «Запросы»
+        const r = await supabase.from('link_requests').select('id, status, players(full_name)').eq('user_id', me).order('created_at', { ascending: false });
+        if (r.error) return setError(actionError(r.error));
+        setReqs((r.data ?? []) as unknown as Req[]);
+      } catch (e) {
+        setError(actionError(e)); // отказ загрузки не остаётся необработанным, «Повторить» доступна
+      }
     })();
   }, [reload]);
 
   const act = async (id: string, fn: 'cancel_link' | 'retry_link') => {
     setBusyId(id);
     setNotice(null);
-    const r = await supabase.rpc(fn, { r: id });
-    setBusyId(null);
-    if (r.error) setNotice({ id, text: actionError(r.error.message) });
-    setReload(n => n + 1);
+    try {
+      const r = await supabase.rpc(fn, { r: id });
+      if (r.error) setNotice({ id, text: actionError(r.error) });
+    } catch (e) {
+      setNotice({ id, text: actionError(e) });
+    } finally {
+      setBusyId(null);
+      setReload(n => n + 1);
+    }
   };
 
   if (error) return <Failure title="Не удалось загрузить запросы" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} managed />} />;
@@ -89,7 +100,7 @@ export default function LinkStatus({ onBack }: { onBack: () => void }) {
                   <span className="ks-row-sub">{s.text}</span>
                 </span>
               </div>
-              {notice?.id === r.id && <p className="error">{notice.text}</p>}
+              {notice?.id === r.id && <p className="error" role="alert">{notice.text}</p>}
               {r.status === 'pending' &&
                 <button type="button" className="ks-btn secondary" style={{ marginTop: 10 }} disabled={busy} onClick={() => void askCancel(r.id)}>Отменить запрос</button>
               }

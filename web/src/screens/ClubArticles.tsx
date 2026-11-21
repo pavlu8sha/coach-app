@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow } from '../ui/components';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
+import { errMsg } from '../lib/coach';
 
 // Список в памяти до закрытия приложения: повторное открытие раздела показывает его сразу и обновляет тихо, без мигания скелетона.
 const cache = new Map<string, ClubArticle[]>();
@@ -15,7 +16,10 @@ export const resetArticlesCache = () => cache.clear();
 export default function ClubArticles({ role, onBack, section = 'article' }: { role: 'guest' | 'parent'; onBack: () => void; section?: ArticleSection }) {
   const key = `${role}|${section}`;
   const [rows, setRows] = useState<ClubArticle[] | null>(cache.get(key) ?? null);
-  const [error, setError] = useState<string | null>(null);
+  // Ошибка относится к своему ключу (роль|раздел): сбой одного раздела не показывается в другом
+  const [failure, setFailure] = useState<{ key: string; msg: string } | null>(null);
+  const error = failure?.key === key ? failure.msg : null;
+  const [refreshing, setRefreshing] = useState(false); // идёт запрос: повтор отключён, второй запрос не создаётся
   const nav = useNav();
   const openId = useSubEntry('ca.article')?.params.id; // открытая статья — запись стека
   const open = openId ? rows?.find(a => a.id === openId) ?? null : null;
@@ -31,7 +35,7 @@ export default function ClubArticles({ role, onBack, section = 'article' }: { ro
   useEffect(() => {
     let alive = true;
     setRows(cache.get(key) ?? null);
-    setError(null);
+    setRefreshing(true);
     void (async () => {
       const r = await supabase
         .from('club_articles')
@@ -42,11 +46,13 @@ export default function ClubArticles({ role, onBack, section = 'article' }: { ro
         .order('sort_order')
         .order('published_at', { ascending: false });
       if (!alive) return;
-      if (r.error) setError(r.error.message);
+      setRefreshing(false);
+      if (r.error) setFailure({ key, msg: errMsg(r.error) });
       else {
         const list = (r.data ?? []) as ClubArticle[];
         cache.set(key, list);
         setRows(list);
+        setFailure(null);
       }
     })();
     return () => { alive = false; };
@@ -81,10 +87,20 @@ export default function ClubArticles({ role, onBack, section = 'article' }: { ro
       <BackNav onBack={onBack} managed />
       <h1>{section === 'article' ? 'Материалы клуба' : SECTION_LABEL[section]}</h1>
       <p className="muted">{SECTION_HINT[section]}</p>
+      {error && rows !== null && (
+        // обновление не удалось, но список уже есть: показываем его и неблокирующее предупреждение (#736), без технического текста
+        <div className="ks-card" role="alert">
+          <b>Не удалось обновить материалы</b>
+          <p className="muted note">Показан сохранённый список, он мог устареть.</p>
+          <button type="button" className="ks-btn secondary" disabled={refreshing} onClick={() => setReload(n => n + 1)}>
+            {refreshing ? 'Обновляю…' : 'Повторить'}
+          </button>
+        </div>
+      )}
       {rows === null && !error ? (
         slow ? <Loading rows={4} card /> : null
-      ) : error ? (
-        <Failure embedded title="Не удалось загрузить материалы" text={error} onRetry={() => setReload(n => n + 1)} />
+      ) : error && rows === null ? (
+        <Failure embedded title="Не удалось загрузить материалы" text={error} onRetry={() => { setFailure(null); setReload(n => n + 1); }} />
       ) : rows && rows.length === 0 ? (
         <EmptyState icon="box" title={section === 'article' ? 'Материалы скоро появятся' : 'Пока пусто'} text={SECTION_EMPTY[section]} />
       ) : (

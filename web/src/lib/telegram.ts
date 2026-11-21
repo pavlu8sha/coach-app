@@ -27,6 +27,8 @@ interface TgButton {
 }
 interface TgMainButton extends TgButton {
   setText(t: string): void;
+  /** Bot API 6.0+: цвета кнопки; на старых клиентах метода нет. */
+  setParams?(p: { color?: string; text_color?: string }): void;
   enable(): void;
   disable(): void;
   showProgress(leaveActive?: boolean): void;

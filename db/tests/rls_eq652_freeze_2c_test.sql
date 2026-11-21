@@ -22,6 +22,8 @@ alter table equipment_bundle_steps enable trigger equipment_bundle_steps_guard;
 
 create or replace function u(n int) returns uuid language sql immutable as $$ select ('00000000-0000-0000-0000-00000066' || lpad(n::text, 4, '0'))::uuid $$;
 create or replace function pu(n int) returns uuid language sql immutable as $$ select ('00000000-0000-0000-0000-0000006623' || lpad(n::text, 2, '0'))::uuid $$;
+create or replace function rc(p uuid) returns jsonb language sql as $$ select eq_bundle_recalc(p, 'manual', (eq_bundle_preview(p))->>'fingerprint') $$;
+grant execute on function rc(uuid) to authenticated;
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-0000006621c1', 'Клуб'), ('00000000-0000-0000-0000-0000006621c2', 'Другой клуб'), ('00000000-0000-0000-0000-0000006621c3', 'Клуб с процентом 0');
 insert into club_settings (club_id, key, value) values ('00000000-0000-0000-0000-0000006621c3', 'equip.discPct', '0');
@@ -113,8 +115,11 @@ select mk(u(112), pu(11), '2026-10-05', false, -95, '[{"kit":"Спортивны
 select as_user('00000000-0000-0000-0000-0000006621a1');
 select eq_add_payment(u(11), 300, null, 'Наличные');
 select eq_add_payment(u(22), 100, null, 'Наличные');
-select eq_cancel_order(u(71), 'тест отмены');
 select as_pg();
+-- Отмена напрямую: до отметки freeze_2c функции eq_* с автопересчётом (0208) не работают, поэтому «старая» отмена задаётся данными.
+select set_config('eq.op', 'cancel', true);
+update equipment_orders set status = 'cancelled', status_before_cancel = status, cancelled_at = now() where id = u(71);
+select set_config('eq.op', '', true);
 
 select is(inv4(), 0, 'И4 до 2c: итог = строки + корректировка + скидка у всех заказов');
 select is(ma(u(12)), '-95', 'В1: корректировка О12 = −95 (записана 0205), 2c её не меняет');
@@ -213,11 +218,11 @@ select is(snap_state(), (select v from fp where k = 'state2'), 'С7: состо�
 
 -- В2: отмена -> восстановление -> пересчёт: отказ у заказа в рассрочку сохраняется, итог не меняется
 select as_user('00000000-0000-0000-0000-0000006621a1');
-select eq_restore_order(u(71), 'тест восстановления');
+select eq_restore_order(u(71), 'тест восстановления', eq_restore_preview(u(71))->>'fingerprint');
 select as_pg();
 select ok((select discount_forfeited from equipment_orders where id = u(71)) and (select status from equipment_orders where id = u(71)) <> 'cancelled', 'В2: после восстановления заказ действует и отказ сохранён');
 select as_user('00000000-0000-0000-0000-0000006621a1');
-select eq_bundle_recalc(pu(7));
+select rc(pu(7));
 select eq_cancel_order(u(71), 'тест повторной отмены');
 select as_pg();
 select ok((select discount_forfeited from equipment_orders where id = u(71)) and (select installment from equipment_orders where id = u(71)), 'В2: после пересчёта и повторной отмены отказ сохранён, installment не менялся');
@@ -225,14 +230,14 @@ select is(tt(u(71)), '140', 'В2: итог О71 не менялся (150 − 10)
 -- С6 (В5): после заморозки пересчёт не даёт вторую скидку
 select as_user('00000000-0000-0000-0000-0000006621a1');
 select is(eq_bundle_preview(pu(1))->>'changed', 'false', 'С6: предпросмотр замороженному ребёнку не предлагает изменений');
-select eq_bundle_recalc(pu(1));
+select rc(pu(1));
 select as_pg();
 select is(tt(u(12)), '225', 'С6/В5: ручной пересчёт: итог О12 остаётся 225 (вторая скидка не добавлена)');
 select is((select bundle_adjustment from equipment_orders where id = u(12)), 0::numeric, 'С6: bundle_adjustment замороженного заказа 0');
 select is((select count(*)::int from equipment_bundles where player_id = pu(1) and state = 'active'), 0, 'С6: активного комплекта расчёта нет');
 select mk(u(13), pu(1), '2026-11-10', false, 0, '[{"kit":"Дождевик","price":110}]');
 select as_user('00000000-0000-0000-0000-0000006621a1');
-select eq_bundle_recalc(pu(1));
+select rc(pu(1));
 select as_pg();
 select is(tt(u(13)), '110', 'С6: новый заказ после комплекта стоит 110, комплект из замороженных не образуется');
 select is(tt(u(12)), '225', 'С6: О12 по-прежнему 225');
@@ -240,7 +245,7 @@ select is(tt(u(12)), '225', 'С6: О12 по-прежнему 225');
 select mk(u(14), pu(1), '2026-11-11', false, 0, '[{"kit":"Игровая форма","price":150},{"kit":"Тренировочная форма","price":150},{"kit":"Спортивный костюм","price":210}]');
 select mk(u(15), pu(1), '2026-11-12', false, 0, '[{"kit":"Дождевик","price":110}]');
 select as_user('00000000-0000-0000-0000-0000006621a1');
-select eq_bundle_recalc(pu(1));
+select rc(pu(1));
 select as_pg();
 select is(tt(u(12)), '225', 'С6: замороженный О12 не тронут и после нового комплекта');
 select is(tt(u(14)), '415', 'С6: новый полный комплект из незамороженных заказов получает скидку 95 на замыкающем заказе');

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { groupInOrder } from '../lib/coach';
+import { groupInOrder, errMsg } from '../lib/coach';
 import { useNavState } from '../nav';
 import { supabase } from '../lib/supabase';
 import { MATCH_DURATION_KEY, matchDurationFor, type ScopedValues, type SettingValues } from '../lib/clubSettings';
@@ -66,7 +66,7 @@ export default function Matches() {
       if (!me) return setError('Нет сессии');
       const links = await supabase.from('player_guardians').select('players(id, full_name, groups(name))').eq('user_id', me).is('consent_revoked_at', null);
       if (cancelled) return;
-      if (links.error) return setError(links.error.message);
+      if (links.error) return setError(errMsg(links.error));
       const ps = ((links.data ?? []) as any[]).map(l => l.players).filter(Boolean);
       const names = [...new Set(ps.map(p => p.groups?.name as string | undefined).filter((n): n is string => Boolean(n)))];
       const myKids = ps.map(p => ({ id: p.id as string, name: (p.full_name ?? '') as string }));
@@ -78,7 +78,7 @@ export default function Matches() {
       // участие своих детей: база отдаёт родителю только записи его ребёнка (без чужих голов)
       const mp = await supabase.from('match_players').select('match_id, player_id, played, goals').in('player_id', myKids.map(k => k.id));
       if (cancelled) return;
-      if (mp.error) return setError(mp.error.message);
+      if (mp.error) return setError(errMsg(mp.error));
       const map = new Map<string, Part>();
       for (const r of (mp.data ?? []) as { match_id: string; player_id: string; played: boolean; goals: number }[]) map.set(`${r.match_id}|${r.player_id}`, { played: r.played, goals: r.goals });
       setParts(map);
@@ -104,14 +104,14 @@ export default function Matches() {
       setRsvpScored(new Set(((sc?.data ?? []) as { id: string; goals_for: number | null; goals_against: number | null }[]).filter(x => x.goals_for !== null && x.goals_against !== null).map(x => x.id)));
       const m = await supabase.from('matches').select('id, team, played_on, opponent, goals_for, goals_against').in('team', teamNames(names)).order('played_on', { ascending: false }).limit(100);
       if (cancelled) return;
-      if (m.error) return setError(m.error.message);
+      if (m.error) return setError(errMsg(m.error));
       const rows = (m.data ?? []) as Match[];
       // матчи другой команды, в которых играл ребёнок (например, гостем)
       const extraIds = [...new Set([...map.entries()].filter(([, v]) => v.played).map(([k]) => k.split('|')[0]))].filter(id => !rows.some(r => r.id === id));
       if (extraIds.length) {
         const ex = await supabase.from('matches').select('id, team, played_on, opponent, goals_for, goals_against').in('id', extraIds);
         if (cancelled) return;
-        if (ex.error) return setError(ex.error.message);
+        if (ex.error) return setError(errMsg(ex.error));
         rows.push(...((ex.data ?? []) as Match[]));
         rows.sort((a, b) => (a.played_on < b.played_on ? 1 : -1));
       }

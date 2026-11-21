@@ -128,7 +128,7 @@ export default function ClubSettings() {
   const s = useClubSettings();
   const order = s.values['groups.order'];
   useEffect(() => { if (s.loaded) setGroupOrder(order ?? ''); }, [s.loaded, order]);
-  if (!s.loaded) return <Loading />;
+  if (!s.loaded) return <Loading title="Настройки клуба" />;
   if (!s.clubId) return <main className="page"><p className="error">Клуб не найден.</p></main>;
   const groups = [...new Set(SETTINGS.map(x => x.group))];
   const values: SettingValues = s.values;

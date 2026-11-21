@@ -1,3 +1,4 @@
+import { fallbackError } from './userError';
 // «Мероприятия» (Issue #677, этап 4): общие подписи, цвета статусов, тексты ошибок базы. Деньги и правила считает база; здесь только показ.
 import type { Tone } from '../ui/components';
 
@@ -46,6 +47,9 @@ export function clubEventErr(m: string): string {
   if (m.includes('participant cancelled')) return 'Запись отменена: платёж не принимается.';
   if (m.includes('price below counted')) return 'Цена отменённой записи не может быть ниже уже оплаченного.';
   if (m.includes('price change needs reason')) return 'Укажите причину изменения цены (не короче 3 символов).';
+  if (m.includes('only draft can be deleted')) return 'Удалить можно только черновик.';
+  if (m.includes('event has participants')) return 'У черновика есть участники: удалить его нельзя.';
+  if (m.includes('event deleted')) return 'Мероприятие уже удалено.';
   if (m.includes('transition not allowed')) return 'Такой переход статуса недоступен.';
   if (m.includes('request id reused')) return 'Этот запрос уже использован с другими данными. Откройте форму заново.';
   if (m.includes('bad date')) return 'Дата платежа не может быть в будущем.';
@@ -56,5 +60,5 @@ export function clubEventErr(m: string): string {
   if (m.includes('date required')) return 'Укажите дату.';
   if (m.includes('forbidden')) return 'Нет доступа.';
   if (m.includes('Could not find the function') || m.includes('club_event')) return 'Раздел ещё не установлен в базе (миграции 0202, 0204, 0210).';
-  return m;
+  return fallbackError(m);
 }

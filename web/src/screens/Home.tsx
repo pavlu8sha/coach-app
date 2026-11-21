@@ -3,12 +3,14 @@ import { useNav, useSubEntry } from '../nav';
 import { peekCampSlug, takeCampSlug } from '../lib/startParam';
 import { supabase } from '../lib/supabase';
 import { Avatar, EmptyState, ListRow, Pill } from '../ui/components';
+import { BackNav } from '../ui/nav';
 import Link, { HideWhen, useLinkPolicyOpen } from './Link';
 import LinkOnboarding from './LinkOnboarding';
 import LinkStatus, { STATUS, type Req } from './LinkStatus';
 import { Failure, Loading } from './Message';
 import ParentCamps from './ParentCamps';
 import PlayerProfile from './PlayerProfile';
+import { errMsg } from '../lib/coach';
 
 interface Child {
   id: string;
@@ -43,9 +45,9 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [showLink, setShowLink] = useState(false);
-  const [addMore, setAddMore] = useState(false);
   const nav = useNav();
   const policyOpen = useLinkPolicyOpen();
+  const addMore = Boolean(useSubEntry('hm.link')); // «Добавить ещё одного ребёнка» — запись стека (#732)
   const statusOpen = Boolean(useSubEntry('hm.status')); // статусы запросов — запись стека
   const campsEntry = useSubEntry('hm.camps'); // сборы родителя (#470, условие 49)
   const campsOpen = Boolean(campsEntry);
@@ -64,6 +66,24 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
   const refresh = useCallback(() => setReload(n => n + 1), []);
   // Ссылка t.me/kicksapp?startapp=camp_<имя> (условие 62): родителю с детьми один раз за запуск открываем сборы с этим именем
   const hasKids = Boolean(children && children.length > 0);
+  // закрыть запись поиска вместе со всем, что открыто поверх неё (политика): снимается именно hm.link, а не верхний экран
+  const closeSearch = useCallback(() => {
+    const i = nav.entries.findIndex(e => e.screen === 'hm.link');
+    if (i < 0) return;
+    for (let n = nav.entries.length - i; n > 0; n--) nav.back();
+  }, [nav]);
+  // первый ребёнок подтверждён (Link увидел одобрение), пока открыт поиск онбординга: закрываем запись, как раньше исчезал локальный поиск
+  const hadKids = useRef<boolean | null>(null); // null: данные ещё не загружены
+  useEffect(() => {
+    if (hasKids && hadKids.current === false && addMore) closeSearch();
+    if (children) hadKids.current = hasKids;
+  }, [hasKids, children, addMore, closeSearch]);
+  // после выхода из поиска (и «Назад», и системной) подтянуть новых детей и запросы, как после статусов
+  const wasLink = useRef(false);
+  useEffect(() => {
+    if (wasLink.current && !addMore) setReload(n => n + 1);
+    wasLink.current = addMore;
+  }, [addMore]);
   useEffect(() => {
     if (!hasKids || !peekCampSlug()) return;
     const slug = takeCampSlug();
@@ -80,7 +100,7 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
         .select('player_id, players(id, full_name, groups(name))')
         .eq('user_id', me)
         .is('consent_revoked_at', null);
-      if (links.error) return setError(links.error.message);
+      if (links.error) return setError(errMsg(links.error));
       const kids = (links.data ?? []).map((l: any) => ({
         id: l.players?.id as string,
         name: (l.players?.full_name ?? '') as string,
@@ -91,7 +111,7 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
       const mp = ids.length
         ? await supabase.from('match_players').select('player_id, played, goals').in('player_id', ids)
         : { data: [], error: null };
-      if (mp.error) return setError(mp.error.message);
+      if (mp.error) return setError(errMsg(mp.error));
       const parts = (mp.data ?? []) as { player_id: string; played: boolean; goals: number }[];
       // Запросы нужны только для строки «ждёт подтверждения»; сбой этой выборки не мешает показать детей
       const rq = await supabase.from('link_requests').select('id, status, players(full_name)').eq('user_id', me).order('created_at', { ascending: false });
@@ -148,11 +168,14 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
         ))}
       </HideWhen>
       {addMore ? (
-        <Link onApproved={refresh} onOpenStatus={openStatus} />
+        <>
+          <HideWhen hide={policyOpen}><BackNav onBack={() => nav.back()} managed /></HideWhen>
+          <Link onApproved={refresh} onOpenStatus={openStatus} />
+        </>
       ) : (
         <>
           {statusRow}
-          <button className="ks-btn secondary" onClick={() => setAddMore(true)}>
+          <button className="ks-btn secondary" onClick={() => nav.push('hm.link')}>
             + Добавить ещё одного ребёнка
           </button>
         </>

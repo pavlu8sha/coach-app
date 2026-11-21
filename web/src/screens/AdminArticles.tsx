@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { fallbackError } from '../lib/userError';
 import { articleDate, AUDIENCE_LABEL, safeHttpUrl, SECTION_LABEL, STATUS_LABEL, type ArticleSection, type ClubArticle } from '../lib/articles';
 import { supabase } from '../lib/supabase';
 import ArticleEditor, { type ArticleDraft } from '../ui/ArticleEditor';
@@ -23,7 +24,7 @@ const errText = (message: string) =>
   : 'Не удалось сохранить.';
 
 const loadErr = (message: string) =>
-  message.includes('club_articles') || message.includes('Could not find') ? NOT_INSTALLED : message;
+  message.includes('club_articles') || message.includes('Could not find') ? NOT_INSTALLED : fallbackError(message);
 
 // Управление материалами клуба (#236): редактирует только администратор, тренеры раздел не ведут.
 // Права всё равно проверяет база; здесь только не показываем заведомо недоступное редактирование.

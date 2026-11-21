@@ -1,6 +1,24 @@
 // Нативные кнопки Telegram с запасным вариантом вне Telegram.
 import { useEffect, useRef } from 'react';
 import { inTelegram, tgApp } from '../lib/telegram';
+
+/** Цвета главной кнопки: клубные (--ks-primary), чтобы кнопка Telegram не выбивалась из приложения. На старом клиенте или при сбое молча остаётся как есть. */
+function paintMainButton(b: { setParams?: (p: { color?: string; text_color?: string }) => void }, club: boolean): void {
+  try {
+    if (!b.setParams) return;
+    if (club) {
+      const cs = getComputedStyle(document.documentElement);
+      const color = cs.getPropertyValue('--ks-primary').trim();
+      const text_color = cs.getPropertyValue('--ks-on-primary').trim();
+      if (color && text_color) b.setParams({ color, text_color });
+      return;
+    }
+    const p = tgApp()?.themeParams;
+    if (p?.button_color && p.button_text_color) b.setParams({ color: p.button_color, text_color: p.button_text_color });
+  } catch {
+    /* оформление необязательно */
+  }
+}
 import { backStack } from '../nav/backStack';
 import { dirtyGuard } from '../nav/dirtyGuard';
 import { BackButton } from './components';
@@ -16,6 +34,12 @@ export function BackNav({ onBack, managed }: { onBack: () => void; managed?: boo
   return native ? null : <BackButton onClick={() => dirtyGuard.leave(onBack)} />;
 }
 
+// Сколько экранов сейчас держат главную кнопку и таймер отложенного возврата цветов Telegram.
+// Цвета возвращаются не сразу: Telegram прячет кнопку анимацией, и мгновенная смена цвета показывала на секунду «старую» голубую кнопку.
+let mainActive = 0;
+let restoreTimer: ReturnType<typeof setTimeout> | undefined;
+const RESTORE_DELAY_MS = 600;
+
 /** Главная кнопка Telegram для единственного главного действия экрана. Возвращает true, если кнопка Telegram доступна;
  *  иначе экран должен показать обычную кнопку. */
 export function useMainButton(o: { text: string; visible: boolean; enabled: boolean; loading?: boolean; onClick: () => void }): boolean {
@@ -26,13 +50,20 @@ export function useMainButton(o: { text: string; visible: boolean; enabled: bool
     const b = tgApp()?.MainButton;
     if (!native || !b || !o.visible) return;
     const handler = () => click.current();
+    mainActive += 1;
+    clearTimeout(restoreTimer);
     b.setText(o.text);
+    paintMainButton(b, true);
     b.onClick(handler);
     b.show();
     return () => {
       b.offClick(handler);
       b.hideProgress();
       b.hide();
+      mainActive -= 1;
+      // вернуть цвета Telegram, чтобы другие экраны не остались перекрашенными, но только когда кнопка уже скрыта и её никто не занял
+      clearTimeout(restoreTimer);
+      restoreTimer = setTimeout(() => { if (mainActive === 0) paintMainButton(b, false); }, RESTORE_DELAY_MS);
     };
   }, [native, o.visible, o.text]);
   useEffect(() => {

@@ -12,8 +12,9 @@ describe('coachError', () => {
     expect(coachError('Could not find the function public.save_match')).toContain('ещё не установлена');
     expect(coachError('schema cache is stale')).toContain('ещё не установлена');
   });
-  it('неизвестную ошибку показывает как есть', () => {
-    expect(coachError('что-то новое')).toBe('что-то новое');
+  it('неизвестную ошибку не показывает как есть, даже на русском', () => {
+    expect(coachError('что-то новое')).toBe('Не удалось выполнить действие. Попробуйте ещё раз.');
+    expect(coachError('Ошибка запроса: отношение "players" не существует (SQLSTATE 42P01)')).toBe('Не удалось выполнить действие. Попробуйте ещё раз.');
   });
 });
 

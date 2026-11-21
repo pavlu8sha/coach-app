@@ -54,6 +54,13 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 @media (max-width: 420px) { .ks-seg.quad { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow-x: visible; } }
 .ks-seg button { min-height: var(--ks-tap); border: 0; border-radius: 10px; background: none; color: var(--ks-text-muted); font: 700 14px var(--ks-font); cursor: pointer; padding: 6px 8px; }
 .ks-seg button { white-space: nowrap; }
+/* все вкладки в одном ряду; не помещаются — ряд прокручивается внутри себя */
+.ks-seg.row, .ks-seg.row.quad { grid-auto-flow: column; grid-template-columns: none; overflow-x: auto; }
+.ks-seg.row { gap: 2px; }
+.ks-seg.row button { font-size: 12px; padding: 6px 4px; }
+.ks-quickdates { display: flex; gap: 8px; margin: 0 0 8px; }
+.ks-quickdates .ks-btn { flex: 1 1 0; width: auto; }
+.ks-row .ks-more-menu { z-index: 40; }
 .ks-seg button[aria-selected='true'] { background: var(--ks-primary); color: var(--ks-on-primary); }
 
 /* Тумблер (role=switch) в строке с подписью */
@@ -78,6 +85,8 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 @keyframes ks-fade { from { opacity: 0; } }
 /* Контент после загрузки проявляется мягко, без сдвига: заглушка уже занимает то же место */
 .page > :not(h1):not(.ks-group):not([aria-hidden]) { animation: ks-fade 0.18s ease-out both; }
+/* каталог «Ещё» статичен: без проявления при каждом возврате из раздела (20.11.2026, мигание) */
+.page.ks-menu > * { animation: none; }
 @media (prefers-reduced-motion: reduce) { .ks-skel i, .ks-skel-bar { animation: none; } .page > :not(h1):not(.ks-group):not([aria-hidden]) { animation: none; } }
 .ks-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 28px 16px; color: var(--ks-text-muted); }
 .ks-empty b { color: var(--ks-text); font-size: 16px; }
@@ -116,6 +125,10 @@ button.ks-row:focus-visible { outline: 3px solid var(--ks-primary); outline-offs
 .ks-check input:checked::after { transform: translateY(-1px) rotate(45deg) scale(1); }
 .ks-check input:focus-visible { outline: 3px solid var(--ks-primary); outline-offset: 2px; }
 .ks-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+/* имя и плашка суммы в одной строке: длинное имя переносится внутри себя, плашка не падает вниз */
+.ks-line.pin-end { flex-wrap: nowrap; }
+.ks-line.pin-end > :first-child { flex: 1 1 auto; min-width: 0; }
+.ks-line.pin-end > :last-child { flex: none; }
 /* Заголовок карточки с бейджем справа (счёт матча, статус занятия): заголовок переносится внутри себя, бейдж справа; до 359 px бейдж отдельной строкой у всех карточек */
 .ks-head-badge { flex-wrap: nowrap; align-items: flex-start; }
 .ks-head-badge > b { flex: 1 1 0; min-width: 0; overflow-wrap: break-word; }
@@ -317,6 +330,17 @@ a.ks-cover { text-decoration: none; display: block; }
 .ks-counts { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 12px; color: var(--ks-text-muted); }
 .ks-counts b { color: var(--ks-text); font-size: 20px; font-weight: 800; margin-right: 3px; }
 .ks-actions { display: flex; gap: 8px; margin-bottom: 8px; }
+/* Сводка «Отметок» (UI-016): полоса, счётчики и «Все были» в одном закреплённом блоке над списком */
+.ks-sumbar { position: sticky; top: 0; z-index: 4; background: var(--ks-bg); padding: 8px 0 6px; margin-bottom: 8px; }
+.ks-sumbar .ks-progress { margin: 0 0 6px; }
+.ks-sumbar .ks-counts { margin: 0; flex: 1 1 auto; min-width: 0; font-size: 14px; }
+.ks-sumbar .ks-counts b { font-size: 17px; }
+.ks-sumrow { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
+.ks-sumrow .ks-sumbtns { display: flex; align-items: center; gap: 4px; flex: none; }
+/* Кнопка-ссылка: обычная кнопка с видом ссылки, цель нажатия не меньше 44 px */
+.ks-link { min-height: var(--ks-tap); padding: 0 8px; background: none; border: 0; color: var(--ks-primary); font: 700 14px var(--ks-font); text-decoration: underline; cursor: pointer; }
+.ks-link:disabled { opacity: 0.5; cursor: default; text-decoration: none; }
+.ks-link:focus-visible { outline: 3px solid var(--ks-primary); outline-offset: 1px; border-radius: 6px; }
 .ks-actions .ks-btn { width: auto; flex: none; }
 .ks-mark { display: flex; align-items: center; gap: 6px; padding: 8px 10px; margin-bottom: 8px; background: var(--ks-surface); border: 1px solid var(--ks-border); border-radius: var(--ks-radius-card); }
 .ks-mark b { flex: 1; min-width: 0; overflow-wrap: anywhere; }
@@ -457,3 +481,26 @@ ul.policy { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 8px
 .ks-expand-layer textarea { flex: 1 1 auto; min-height: 0; width: 100%; box-sizing: border-box; resize: none; overflow-y: auto; border: 0; background: transparent; color: inherit; font: inherit; font-size: 1.0625rem; line-height: 1.5; padding: 4px 0 12px; outline: none; }
 .ks-expand-layer .ks-expand-btn { position: absolute; top: 8px; right: 12px; background: var(--bg-2); }
 .ks-eyebrow { margin: 0 0 4px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ks-primary); }
+
+/* Нижнее окно «Фильтры» и пилюли выбранного (экраны «Игроки», далее «Матчи», «Оплаты») */
+.ks-sheet-back { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: flex-end; justify-content: center; background: rgba(0, 0, 0, 0.6); overscroll-behavior: contain; }
+.ks-sheet { width: 100%; max-width: 480px; max-height: 88vh; overflow-y: auto; overscroll-behavior: contain; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); border-radius: 20px 20px 0 0; background: var(--ks-surface, #fff); }
+.ks-sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.ks-sheet-head h3 { margin: 0; }
+.ks-sheet .ks-btn { margin-top: 8px; }
+.ks-head { position: relative; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; } /* z-index: меню «⋯» и окна выше следующих за шапкой полей (на iOS select рисовался поверх меню) */
+.ks-head h1 { margin: 0; }
+.ks-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.ks-toolbar .ks-chip { flex: none; }
+.ks-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.ks-pill-x { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 0 6px 0 12px; border-radius: var(--ks-radius-pill); background: var(--ks-primary-subtle, var(--ks-surface)); border: 1px solid var(--ks-border-strong); color: var(--ks-text); font: 700 13px var(--ks-font); }
+.ks-pill-x button { min-width: 44px; min-height: 44px; margin: -6px -6px -6px 0; border: 0; background: none; color: var(--ks-text-muted); font: 700 14px var(--ks-font); cursor: pointer; }
+
+/* Меню «⋯» в шапке (экран «Матчи», далее «Оплаты») */
+.ks-head-actions { display: flex; align-items: center; gap: 8px; }
+.ks-more { position: relative; }
+.ks-more > .ks-btn { gap: 6px; font-size: 20px; line-height: 1; }
+.ks-more-dot { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--ks-primary); color: var(--ks-on-primary); font: 700 12px/20px var(--ks-font); text-align: center; }
+.ks-more-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; width: max-content; min-width: 220px; max-width: min(320px, calc(100vw - 32px)); padding: 6px; border-radius: 14px; background: var(--ks-surface, #fff); border: 1px solid var(--ks-border-strong); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); }
+.ks-more-menu button { display: block; white-space: normal; width: 100%; min-height: var(--ks-tap); padding: 0 12px; border: 0; border-radius: 10px; background: none; color: var(--ks-text); font: 700 15px var(--ks-font); text-align: left; cursor: pointer; }
+.ks-more-menu button:hover, .ks-more-menu button:focus-visible { background: var(--ks-primary-subtle, rgba(127, 127, 127, 0.15)); outline: none; }

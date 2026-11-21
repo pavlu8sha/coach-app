@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { sortGroups } from '../lib/coach';
+import { sortGroups, errMsg } from '../lib/coach';
 import { useNav, useNavState } from '../nav';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput } from '../ui/components';
@@ -30,11 +30,11 @@ export default function Coaches() {
   useEffect(() => {
     void (async () => {
       const u = await supabase.from('users').select('id, telegram_id, display_name, chosen_role').eq('is_admin', false).order('display_name').limit(1000);
-      if (u.error) return setError(u.error.message);
+      if (u.error) return setError(errMsg(u.error));
       const g = await supabase.from('groups').select('id, name').order('name');
-      if (g.error) return setError(g.error.message);
+      if (g.error) return setError(errMsg(g.error));
       const c = await supabase.from('coach_groups').select('user_id, group_id');
-      if (c.error) return setError(c.error.message);
+      if (c.error) return setError(errMsg(c.error));
       setUsers((u.data ?? []) as User[]);
       setGroups(sortGroups((g.data ?? []) as Group[]));
       setLinks(new Set(((c.data ?? []) as { user_id: string; group_id: string }[]).map(r => `${r.user_id}|${r.group_id}`)));
@@ -51,7 +51,7 @@ export default function Coaches() {
       ? await supabase.from('coach_groups').delete().eq('user_id', u.id).eq('group_id', g.id)
       : await supabase.from('coach_groups').insert({ user_id: u.id, group_id: g.id });
     setBusy(null);
-    if (r.error) return setMsg(r.error.message);
+    if (r.error) return setMsg(errMsg(r.error));
     setLinks(s => {
       const n = new Set(s);
       if (n.has(key)) n.delete(key);
@@ -61,7 +61,7 @@ export default function Coaches() {
   };
 
   if (error) return <Failure title="Не удалось загрузить тренеров" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={openId ? <BackNav onBack={() => nav.back()} managed /> : undefined} />;
-  if (!users) return <Loading />;
+  if (!users) return <Loading title="Тренеры" />;
 
   if (open) {
     return (

@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fmtDate, groupByGroupName, hasSubscription, sortGroups, today } from '../lib/coach';
+import { errMsg, fmtDate, groupByGroupName, hasSubscription, sortGroups, today } from '../lib/coach';
 import { statusLabel, statusTone, type PlayerStatus } from '../lib/playerStatus';
 import { supabase } from '../lib/supabase';
 import { useNav, useNavState } from '../nav';
-import { EmptyState, ListRow, Pill, SearchInput, SwitchRow, type Tone } from '../ui/components';
-import { Failure, Splash } from './Message';
+import { EmptyState, ListRow, Pill, SearchInput, type Tone } from '../ui/components';
+import { FilterSheet } from '../ui/FilterSheet';
+import { Failure, Loading } from './Message';
 import { tariffFor } from './MonthPayments';
 import PlayerCard, { type CardPlayer } from './PlayerCard';
 import PlayerEdit, { type PlayerForm } from './PlayerEdit';
 
-interface Row { id: string; full_name: string; group_id: string | null; birth_date: string | null; status: PlayerStatus; external_id: string | null }
+interface ProfileRow { first_name: string | null; last_name: string | null; primary_position: string | null; jersey_number: number | null; jersey_team: string | null; jersey_season_start: string | null }
+interface Row { id: string; full_name: string; group_id: string | null; birth_date: string | null; status: PlayerStatus; external_id: string | null; player_profiles: ProfileRow | ProfileRow[] | null }
 interface GroupRow { id: string; name: string; club_id: string }
 interface Price { group_id: string | null; amount: number; valid_from: string; valid_to: string | null }
 interface Sub { player_id: string; discount: boolean; written_off: boolean }
@@ -50,17 +52,18 @@ export default function Players() {
   const [status, setStatus] = useNavState<StatusFilter>('status', 'active', { entry: 0, persist: { kind: 'enum', values: ['active', 'paused', 'inactive', 'all'] } });
   const [onlyUnpaid, setOnlyUnpaid] = useNavState('onlyUnpaid', false, { entry: 0, persist: { kind: 'bool' } });
   const [years, setYears] = useNavState<string[]>('years', [], { entry: 0, persist: { kind: 'list', item: { kind: 'slug' }, max: 40 } });
+  const [sheet, setSheet] = useState(false);
 
   useEffect(() => {
     void (async () => {
       const month = monthStart();
       const g = await supabase.from('groups').select('id, name, club_id').order('name');
-      const p = await supabase.from('players').select('id, full_name, group_id, birth_date, status, external_id').order('full_name').limit(1000);
+      const p = await supabase.from('players').select('id, full_name, group_id, birth_date, status, external_id, player_profiles(first_name, last_name, primary_position, jersey_number, jersey_team, jersey_season_start)').order('full_name').limit(1000);
       const pr = await supabase.from('prices').select('group_id, amount, valid_from, valid_to').eq('kind', 'subscription');
       const pay = await supabase.from('payments').select('player_id, amount').eq('pay_month', month).limit(1000);
       const sb = await supabase.from('subscriptions').select('player_id, discount, written_off').eq('month', month).limit(1000);
       const bad = g.error ?? p.error ?? pr.error ?? pay.error ?? sb.error;
-      if (bad) return setError(bad.message);
+      if (bad) return setError(errMsg(bad));
       const m = new Map<string, number>();
       ((pay.data ?? []) as { player_id: string; amount: number }[]).forEach(x => m.set(x.player_id, (m.get(x.player_id) ?? 0) + Number(x.amount)));
       setGroups(sortGroups((g.data ?? []) as GroupRow[]));
@@ -93,7 +96,7 @@ export default function Players() {
   }, [players, q, gid, status, years, onlyUnpaid, paid, subs, prices, groupName]);
 
   if (error) return <Failure title="Не удалось загрузить игроков" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
-  if (!players) return <Splash />;
+  if (!players) return <Loading title="Игроки" />;
   const done = () => {
     nav.backToRoot();
     setReload(n => n + 1);
@@ -101,11 +104,14 @@ export default function Players() {
   // Карточка и правка — вложенные экраны стека; игрока берём из уже загруженного списка по id
   const topId = nav.top.params.id;
   const found = topId ? players.find(p => p.id === topId) : undefined;
-  const asCard = (p: Row): CardPlayer => ({ id: p.id, full_name: p.full_name, birth_date: p.birth_date, group_id: p.group_id, status: p.status, external_id: p.external_id, group_name: groupName.get(p.group_id ?? '') ?? null });
+  const profileOf = (p: Row): ProfileRow => (Array.isArray(p.player_profiles) ? p.player_profiles[0] : p.player_profiles) ?? { first_name: null, last_name: null, primary_position: null, jersey_number: null, jersey_team: null, jersey_season_start: null };
+  const asCard = (p: Row): CardPlayer => ({ ...profileOf(p), id: p.id, full_name: p.full_name, birth_date: p.birth_date, group_id: p.group_id, status: p.status, external_id: p.external_id, group_name: groupName.get(p.group_id ?? '') ?? null });
   const openCard = (p: Row) => nav.push('card', { id: p.id });
   if (nav.top.screen === 'edit') {
-    if (topId && !found) return <Splash />; // игрока уже нет в списке: вернёмся к списку
-    const initial: PlayerForm = found ? { id: found.id, full_name: found.full_name, birth_date: found.birth_date, group_id: found.group_id, status: found.status } : { full_name: '', birth_date: null, group_id: null, status: 'active' };
+    if (topId && !found) return <Loading title="Игроки" />; // игрока уже нет в списке: вернёмся к списку
+    const initial: PlayerForm = found
+      ? { ...profileOf(found), id: found.id, full_name: found.full_name, birth_date: found.birth_date, group_id: found.group_id, status: found.status }
+      : { full_name: '', first_name: null, last_name: null, primary_position: null, jersey_number: null, jersey_team: null, jersey_season_start: null, birth_date: null, group_id: null, status: 'active' };
     return <main className="page"><PlayerEdit initial={initial} groups={groups} clubId={groups[0]?.club_id ?? null} onDone={done} onCancel={() => nav.back()} /></main>;
   }
   if (nav.top.screen === 'card' && found) {
@@ -113,35 +119,55 @@ export default function Players() {
   }
   const toggleYear = (y: string) => setYears(cur => (cur.includes(y) ? cur.filter(x => x !== y) : [...cur, y]));
 
+  const statusNames: Record<StatusFilter, string> = { active: 'Активные', paused: 'На паузе', inactive: 'Ушли', all: 'Все' };
+  const yearName = (y: string) => (y === 'none' ? 'без даты' : y);
+  const gName = gid ? groupName.get(gid) ?? '' : '';
+  const count = (gid ? 1 : 0) + (status !== 'active' ? 1 : 0) + years.length;
+  const reset = () => { setGid(''); setStatus('active'); setYears([]); };
+  const Pillx = ({ label, onX }: { label: string; onX: () => void }) => (
+    <span className="ks-pill-x">{label}<button type="button" aria-label={`Убрать ${label}`} onClick={onX}>✕</button></span>
+  );
+
   return (
     <main className="page">
-      <h1>Игроки</h1>
+      <div className="ks-head">
+        <h1>Игроки</h1>
+        <button type="button" className="ks-btn sm" onClick={() => nav.push('edit')}>+ Добавить</button>
+      </div>
       <SearchInput value={q} onChange={setQ} placeholder="Поиск: ФИ, ID, группа" label="Поиск игроков" suggestions={q.trim().length >= 2 ? list.slice(0, 8).map(p => p.full_name) : []} />
-      <div className="two" style={{ marginTop: 8 }}>
-        <select className="ks-select" style={{ marginBottom: 0 }} aria-label="Группа" value={gid} onChange={e => setGid(e.target.value)}>
-          <option value="">Все группы</option>
-          {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-        </select>
-        <select className="ks-select" style={{ marginBottom: 0 }} aria-label="Статус" value={status} onChange={e => setStatus(e.target.value as StatusFilter)}>
-          <option value="active">Активные</option>
-          <option value="paused">На паузе</option>
-          <option value="inactive">Ушли</option>
-          <option value="all">Все</option>
-        </select>
+      <div className="ks-toolbar">
+        <button type="button" className="ks-chip" onClick={() => setSheet(true)}>{count ? `Фильтры · ${count}` : 'Фильтры'}</button>
+        <button type="button" className="ks-chip" aria-pressed={onlyUnpaid} onClick={() => setOnlyUnpaid(v => !v)}>Не оплатили</button>
       </div>
-      <div className="two" style={{ marginTop: 8, alignItems: 'stretch' }}>
-        <SwitchRow id="unpaid" label="Только не оплатившие" checked={onlyUnpaid} onChange={setOnlyUnpaid} />
-        <button type="button" className="ks-btn" onClick={() => nav.push('edit')}>+ Добавить</button>
-      </div>
-      {(allYears.length > 0 || hasNoDate) && (
-        <>
-          <p className="ks-label">Год рождения (можно несколько)</p>
-          <div className="ks-chips">
-            {[...allYears, ...(hasNoDate ? ['none'] : [])].map(y => (
-              <button key={y} type="button" className="ks-chip" aria-pressed={years.includes(y)} onClick={() => toggleYear(y)}>{y === 'none' ? 'без даты' : y}</button>
-            ))}
-          </div>
-        </>
+      {count > 0 && (
+        <div className="ks-pills">
+          {gid && <Pillx label={gName} onX={() => setGid('')} />}
+          {status !== 'active' && <Pillx label={statusNames[status]} onX={() => setStatus('active')} />}
+          {years.map(y => <Pillx key={y} label={yearName(y)} onX={() => toggleYear(y)} />)}
+        </div>
+      )}
+      {sheet && (
+        <FilterSheet showLabel={`Показать ${list.length}`} onReset={reset} onClose={() => setSheet(false)}>
+          <label className="ks-label" htmlFor="pf-group">Группа</label>
+          <select id="pf-group" className="ks-select" aria-label="Группа" value={gid} onChange={e => setGid(e.target.value)}>
+            <option value="">Все группы</option>
+            {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </select>
+          <label className="ks-label" htmlFor="pf-status">Статус</label>
+          <select id="pf-status" className="ks-select" aria-label="Статус" value={status} onChange={e => setStatus(e.target.value as StatusFilter)}>
+            {(Object.keys(statusNames) as StatusFilter[]).map(k => <option key={k} value={k}>{statusNames[k]}</option>)}
+          </select>
+          {(allYears.length > 0 || hasNoDate) && (
+            <>
+              <p className="ks-label">Год рождения (можно несколько)</p>
+              <div className="ks-chips">
+                {[...allYears, ...(hasNoDate ? ['none'] : [])].map(y => (
+                  <button key={y} type="button" className="ks-chip" aria-pressed={years.includes(y)} onClick={() => toggleYear(y)}>{yearName(y)}</button>
+                ))}
+              </div>
+            </>
+          )}
+        </FilterSheet>
       )}
       <h2 className="ks-list-head"><span>Игроки</span><span>{list.length}</span></h2>
       <p className="muted" style={{ marginBottom: 8 }}>Статус оплаты за {monthLabel()}</p>

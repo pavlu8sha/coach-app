@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { compareGroups, matchTeam, playsMatches, type CoachGroup } from '../lib/coach';
+import { compareGroups, matchTeam, playsMatches, type CoachGroup, errMsg } from '../lib/coach';
 import { FILTER_LABEL, LIFECYCLE_LABEL, activityLine, fmtWhen, matchesFilter, fromTbilisiLocal, responseText, rsvpError, toTbilisiLocal, type Lifecycle, type RsvpResponse, type SummaryFilter } from '../lib/matchRsvp';
 import { supabase } from '../lib/supabase';
 import { Pill, ListRow } from '../ui/components';
 import { useNav } from '../nav';
 import { BackNav } from '../ui/nav';
 import { useConfirm } from '../ui/ConfirmSheet';
-import { eventTitle, type EventRow } from './Events';
+import { eventTitle, isFinished, type EventRow } from './Events';
 import { Failure, Loading } from './Message';
 
 interface RsvpMatch { id: string; team: string; opponent: string | null; starts_at: string | null; lifecycle_status: Lifecycle; kind: string | null; venue: string | null; address: string | null; notes: string | null; tournament_id: string | null }
@@ -23,7 +23,7 @@ const title = (m: RsvpMatch) => (m.opponent ? `${m.team} · ${m.opponent}` : `${
  * напоминания, отмена и перенос. Все правила (кто может, сроки, лимит напоминаний) проверяет база; здесь только вызовы.
  * Старые матчи (без подтверждения) сюда не попадают и работают как раньше.
  */
-export default function CoachRsvp({ groups, onBack }: { groups: CoachGroup[]; onBack: () => void }) {
+export default function CoachRsvp({ groups, all = false, onBack }: { groups: CoachGroup[]; all?: boolean; onBack: () => void }) {
   const [list, setList] = useState<RsvpMatch[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -33,14 +33,14 @@ export default function CoachRsvp({ groups, onBack }: { groups: CoachGroup[]; on
   useEffect(() => {
     void (async () => {
       const r = await supabase.from('matches').select(COLS).neq('lifecycle_status', 'legacy').order('starts_at', { ascending: false });
-      if (r.error) return setError(r.error.message);
+      if (r.error) return setError(errMsg(r.error));
       setList((r.data ?? []) as RsvpMatch[]);
     })();
   }, [reload]);
   const back = () => { nav.back(); setCreatedNote(undefined); setReload(n => n + 1); };
   const topId = nav.top.params.id;
   if (nav.top.screen === 'rsvp.detail' && topId) return <RsvpDetail id={topId} groups={groups} onBack={back} note={createdNote} />;
-  if (nav.top.screen === 'rsvp.create') return <RsvpCreate groups={groups} onBack={back} onCreated={(id, note) => { nav.back(); setCreatedNote(note); nav.push('rsvp.detail', { id }); }} />;
+  if (nav.top.screen === 'rsvp.create') return <RsvpCreate groups={groups} all={all} onBack={back} onCreated={(id, note) => { nav.back(); setCreatedNote(note); nav.push('rsvp.detail', { id }); }} />;
   if (error) return <Failure title="Не удалось загрузить матчи" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} managed />} />;
   if (!list) return <Loading />;
   return (
@@ -57,8 +57,10 @@ export default function CoachRsvp({ groups, onBack }: { groups: CoachGroup[]; on
   );
 }
 
-function RsvpCreate({ groups, onBack, onCreated }: { groups: CoachGroup[]; onBack: () => void; onCreated: (id: string, note: Note) => void }) {
-  const teams = [...new Set(groups.map(g => g.name).filter(playsMatches).map(matchTeam))].sort(compareGroups);
+function RsvpCreate({ groups, all, onBack, onCreated }: { groups: CoachGroup[]; all: boolean; onBack: () => void; onCreated: (id: string, note: Note) => void }) {
+  // команда матча: «U13» (все группы возраста) или группа «U13-A», «U13-B» (как в «Добавить матч», миграция 0193)
+  const names = groups.map(g => g.name).filter(playsMatches);
+  const teams = [...new Set([...names.map(matchTeam), ...names.filter(n => /-[A-Z]$/.test(n))])].sort(compareGroups);
   const [team, setTeam] = useState(teams[0] ?? '');
   const [kind, setKind] = useState<'friendly' | 'game'>('friendly');
   const [opp, setOpp] = useState('');
@@ -67,7 +69,6 @@ function RsvpCreate({ groups, onBack, onCreated }: { groups: CoachGroup[]; onBac
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
   const [tour, setTour] = useState('');
-  const [grp, setGrp] = useState(''); // основная группа для товарищеского: '' — все группы команды
   const [events, setEvents] = useState<EventRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,8 +78,13 @@ function RsvpCreate({ groups, onBack, onCreated }: { groups: CoachGroup[]; onBac
       if (!r.error) setEvents((r.data ?? []) as EventRow[]);
     })();
   }, []);
-  const tours = events.filter(e => e.team === team);
-  const teamGroups = groups.filter(g => playsMatches(g.name) && matchTeam(g.name) === team);
+  // события, куда можно добавить игру, те же, что в «Добавить матч»: идущие, своих команд тренера (у администратора и тренера всех команд любые);
+  // команда события может быть и «U9», и «U9-B», поэтому сверяем и с названием группы, и с командой без буквы
+  const tours = events.filter(e => !isFinished(e) && (all || groups.some(g => g.name === e.team || matchTeam(g.name) === e.team)));
+  const tourEvent = kind === 'game' ? events.find(e => e.id === tour) : undefined;
+  const matchTeamName = tourEvent ? tourEvent.team : team; // игра события получает команду события, как в event_add_game
+  // у команды с буквой («U13-B») состав только её группы, у команды без буквы («U13») все группы возраста
+  const teamGroups = groups.filter(g => playsMatches(g.name) && (g.name === team || matchTeam(g.name) === team));
   const save = async () => {
     if (!team || !when) return setError('Выберите команду и укажите дату и время.');
     setBusy(true);
@@ -87,7 +93,7 @@ function RsvpCreate({ groups, onBack, onCreated }: { groups: CoachGroup[]; onBac
     const club = ((c.data ?? []) as { id: string }[])[0]?.id;
     if (!club) { setBusy(false); return setError('Клуб не найден'); }
     const r = await supabase.rpc('match_rsvp_create_draft', {
-      p_club: club, p_kind: kind, p_team: team, p_opponent: opp, p_starts_at: fromTbilisiLocal(when),
+      p_club: club, p_kind: kind, p_team: matchTeamName, p_opponent: opp, p_starts_at: fromTbilisiLocal(when),
       p_venue: venue, p_address: address, p_notes: notes, p_tournament: kind === 'game' && tour ? tour : null,
     });
     if (r.error) { setBusy(false); return setError(rsvpError(r.error.message)); }
@@ -95,7 +101,7 @@ function RsvpCreate({ groups, onBack, onCreated }: { groups: CoachGroup[]; onBac
     // Если не вышло, черновик всё равно создан, состав можно заполнить кнопкой на экране матча.
     const id = String(r.data);
     const seeds: Record<string, unknown>[] = kind === 'game' && tour ? [{ m: id }]
-      : (grp ? teamGroups.filter(g => g.id === grp) : teamGroups).map(g => ({ m: id, p_group: g.id }));
+      : teamGroups.map(g => ({ m: id, p_group: g.id }));
     let added = 0;
     let seedError: string | null = null;
     for (const a of seeds) {
@@ -113,30 +119,27 @@ function RsvpCreate({ groups, onBack, onCreated }: { groups: CoachGroup[]; onBac
     <main className="page">
       <BackNav onBack={onBack} managed />
       <h1>Новый матч</h1>
-      <label className="ks-label" htmlFor="rs-team">Команда</label>
-      <select id="rs-team" className="ks-select" value={team} onChange={e => { setTeam(e.target.value); setTour(''); setGrp(''); }}>
-        {teams.map(t => <option key={t} value={t}>{t}</option>)}
-      </select>
+      {tourEvent ? (
+        <p className="muted" style={{ marginBottom: 8 }}>Команда: {tourEvent.team} (из события)</p>
+      ) : (
+        <>
+          <label className="ks-label" htmlFor="rs-team">Команда</label>
+          <select id="rs-team" className="ks-select" value={team} onChange={e => setTeam(e.target.value)}>
+            {teams.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </>
+      )}
       <label className="ks-label" htmlFor="rs-kind">Тип</label>
       <select id="rs-kind" className="ks-select" value={kind} onChange={e => setKind(e.target.value as 'friendly' | 'game')}>
         <option value="friendly">Товарищеский матч</option>
         <option value="game">Матч чемпионата</option>
       </select>
-      {kind === 'friendly' && teamGroups.length > 1 && (
-        <>
-          <label className="ks-label" htmlFor="rs-grp">Основная группа</label>
-          <select id="rs-grp" className="ks-select" value={grp} onChange={e => setGrp(e.target.value)}>
-            <option value="">Все группы команды</option>
-            {teamGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-          </select>
-        </>
-      )}
       {kind === 'game' && (
         <>
           <label className="ks-label" htmlFor="rs-tour">Чемпионат или фестиваль</label>
           <select id="rs-tour" className="ks-select" value={tour} onChange={e => setTour(e.target.value)}>
             <option value="">Не выбран</option>
-            {tours.map(e => <option key={e.id} value={e.id}>{eventTitle(e)}</option>)}
+            {tours.map(e => <option key={e.id} value={e.id}>{eventTitle(e)} · {e.team}</option>)}
           </select>
         </>
       )}
@@ -186,7 +189,7 @@ function RsvpDetail({ id, groups, onBack, note }: { id: string; groups: CoachGro
   useEffect(() => {
     void (async () => {
       const r = await supabase.from('matches').select(COLS).eq('id', id).maybeSingle();
-      if (r.error) return setError(r.error.message);
+      if (r.error) return setError(errMsg(r.error));
       setM((r.data ?? null) as RsvpMatch | null);
       const s = await supabase.rpc('match_rsvp_summary', { m: id });
       setSum(s.error ? null : (((s.data ?? []) as Summary[])[0] ?? null));
@@ -280,7 +283,7 @@ function RsvpDetail({ id, groups, onBack, note }: { id: string; groups: CoachGro
     setMsg(null);
     let added = 0;
     let err: string | null = null;
-    const targets = m.tournament_id ? [null] : groups.filter(g => matchTeam(g.name) === m.team).map(g => g.id);
+    const targets = m.tournament_id ? [null] : groups.filter(g => g.name === m.team || matchTeam(g.name) === m.team).map(g => g.id);
     if (!targets.length) { setBusy(false); return setMsg({ ok: false, text: 'Группы этой команды не найдены. Добавьте игроков поиском ниже.' }); }
     for (const g of targets) {
       const r = await supabase.rpc('match_rsvp_seed', g ? { m: id, p_group: g } : { m: id });

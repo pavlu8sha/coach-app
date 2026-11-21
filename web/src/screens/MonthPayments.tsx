@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { hasSubscription, sortGroups, today } from '../lib/coach';
+import { hasSubscription, sortGroups, today, errMsg } from '../lib/coach';
 import { settingNumber, settingNumberError, useClubSettings } from '../lib/clubSettings';
 import { perVisitMonth, type PayMode } from '../lib/payMode';
 import { DEBT_START } from '../lib/debtSeason';
@@ -82,7 +82,7 @@ export default function MonthPayments() {
     void (async () => {
       const g = await supabase.from('groups').select('id, name').order('name');
       const p = await supabase.from('prices').select('group_id, amount, valid_from, valid_to').eq('kind', 'subscription');
-      if (g.error || p.error) return setError((g.error ?? p.error)!.message);
+      if (g.error || p.error) return setError(errMsg((g.error ?? p.error)!));
       // игроки индивидуальных и вратарских платят за занятия, а не абонементом
       const gs = ((g.data ?? []) as Group[]).filter(x => hasSubscription(x.name));
       setGroups(sortGroups(gs));
@@ -97,9 +97,9 @@ export default function MonthPayments() {
       const pl = await supabase.from('players').select('id, full_name, group_id').eq('status', 'active').order('full_name').limit(1000);
       const pay = await supabase.from('payments').select('player_id, amount').eq('pay_month', month).limit(5000);
       const sb = await supabase.from('subscriptions').select('player_id, discount, written_off, group_id, closed_kind, closed_reason').eq('month', month).limit(5000);
-      if (pl.error) return setError(pl.error.message);
-      if (pay.error) return setError(pay.error.message);
-      if (sb.error) return setError(sb.error.message);
+      if (pl.error) return setError(errMsg(pl.error));
+      if (pay.error) return setError(errMsg(pay.error));
+      if (sb.error) return setError(errMsg(sb.error));
       const ok = new Set(groups.map(x => x.id));
       const m = new Map<string, number>();
       ((pay.data ?? []) as { player_id: string; amount: number }[]).forEach(x => m.set(x.player_id, (m.get(x.player_id) ?? 0) + Number(x.amount)));
@@ -121,7 +121,7 @@ export default function MonthPayments() {
       let extra: Pl[] = [];
       if (gone.length) {
         const ex = await supabase.from('players').select('id, full_name, group_id').in('id', gone).limit(1000);
-        if (ex.error) return setError(ex.error.message);
+        if (ex.error) return setError(errMsg(ex.error));
         extra = ((ex.data ?? []) as Pl[]).map(inGroup).filter(x => ok.has(x.group_id));
       }
       setPlayers(inMonth([...active, ...extra].sort((a, b) => a.full_name.localeCompare(b.full_name)), month, monthIso(new Date()), withSub, withPay));
@@ -205,7 +205,7 @@ export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOp
     setErr(null);
     const r = await supabase.from('subscriptions').upsert({ player_id: player.id, month, ...closureFlags(a.kind), closed_kind: a.kind, closed_reason: a.reason }, { onConflict: 'player_id,month' });
     setBusy(false);
-    if (r.error) return setErr(r.error.message);
+    if (r.error) return setErr(errMsg(r.error));
     onSaved();
   };
   const save = async () => {
@@ -216,12 +216,12 @@ export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOp
     setErr(null);
     const r = await supabase.from('payments').insert({ player_id: player.id, amount: Math.round(num * 100) / 100, paid_on: date, for_month: month, method });
     setBusy(false);
-    if (r.error) return setErr(r.error.message);
+    if (r.error) return setErr(errMsg(r.error));
     onSaved();
   };
   return (
     <div className="ks-card">
-      <div className="ks-line">
+      <div className="ks-line pin-end">
         <b style={{ overflowWrap: 'anywhere' }}>{title ?? player.full_name}</b>
         <Pill tone={paidUp ? 'success' : 'danger'} dot>{sub?.written_off || sub?.discount ? `${CLOSURE_LABELS[sub.closed_kind ?? (sub.written_off ? 'forgiven' : 'discount')]}${got > 0 ? ` · внесено ${gel(got)}` : ''}` : `${gel(got)}${tariff !== null ? ` из ${gel(tariff)}` : ''}`}</Pill>
       </div>

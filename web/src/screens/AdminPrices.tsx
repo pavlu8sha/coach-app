@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useDirtyGuard } from '../nav';
-import { sortGroups } from '../lib/coach';
+import { sortGroups, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { Pill } from '../ui/components';
 import { Failure, Loading } from './Message';
@@ -42,7 +42,7 @@ export default function AdminPrices() {
         supabase.from('clubs').select('id').limit(1),
       ]);
       const err = p.error ?? g.error ?? c.error;
-      if (err) return setError(err.message);
+      if (err) return setError(errMsg(err));
       setPrices(((p.data ?? []) as Price[]).map(x => ({ ...x, amount: Number(x.amount) })));
       setGroups(sortGroups((g.data ?? []) as Group[]));
       setClubId(((c.data ?? []) as { id: string }[])[0]?.id ?? null);
@@ -63,7 +63,7 @@ export default function AdminPrices() {
     setMsg(null);
     const r = await supabase.from('prices').insert({ club_id: clubId, group_id: gid, kind, amount: Math.round(num * 100) / 100, valid_from: validFrom });
     setBusy(false);
-    if (r.error) return setMsg({ ok: false, text: r.error.message });
+    if (r.error) return setMsg({ ok: false, text: errMsg(r.error) });
     setAmount('');
     setMsg({ ok: true, text: 'Цена добавлена.' });
     setReload(n => n + 1);
@@ -71,12 +71,12 @@ export default function AdminPrices() {
   const remove = async (p: Price) => {
     if (!(await ask({ title: 'Удалить цену?', lines: [['Сумма', gel(p.amount)], ['Действует с', monthLabel(p.valid_from)]], note: 'Отменить нельзя.', confirmLabel: 'Удалить', danger: true }))) return;
     const r = await supabase.from('prices').delete().eq('id', p.id);
-    if (r.error) return setMsg({ ok: false, text: r.error.message });
+    if (r.error) return setMsg({ ok: false, text: errMsg(r.error) });
     setReload(n => n + 1);
   };
 
   if (error) return <Failure title="Не удалось загрузить цены" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
-  if (!prices) return <Loading />;
+  if (!prices) return <Loading title="Цены" />;
 
   return (
     <main className="page">

@@ -1,7 +1,7 @@
 import { BackNav } from '../ui/nav';
 import { ExpandableTextarea } from '../ui/ExpandableTextarea';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { fmtDate } from '../lib/coach';
+import { fmtDate, errMsg } from '../lib/coach';
 import { openCampDoc } from '../lib/campDocs';
 import { supabase } from '../lib/supabase';
 import { useNav, useSubEntry } from '../nav';
@@ -43,14 +43,14 @@ async function loadMine(campId?: string): Promise<{ me: string; kids: Kid[]; par
   const me = (await supabase.auth.getUser()).data.user?.id as string | undefined;
   if (!me) return { error: 'Нет сессии' };
   const g = await supabase.from('player_guardians').select('player_id, players(id, full_name, club_id, status)').eq('user_id', me);
-  if (g.error) return { error: g.error.message };
+  if (g.error) return { error: errMsg(g.error) };
   const kids: Kid[] = (g.data ?? []).filter((l: any) => l.players?.id).map((l: any) => ({ id: l.players.id, name: l.players.full_name ?? '', club: l.players.club_id ?? null, active: l.players.status === 'active' }));
   const ids = kids.map(k => k.id);
   const byKid = ids.length ? supabase.from('camp_participants').select(PART_COLS).in('player_id', ids) : null;
   const byOwner = supabase.from('camp_participants').select(PART_COLS).eq('owner_user_id', me);
   const [a, b] = await Promise.all([campId && byKid ? byKid.eq('camp_id', campId) : byKid ?? Promise.resolve({ data: [], error: null }), campId ? byOwner.eq('camp_id', campId) : byOwner]);
-  if (a.error) return { error: a.error.message };
-  if (b.error) return { error: b.error.message };
+  if (a.error) return { error: errMsg(a.error) };
+  if (b.error) return { error: errMsg(b.error) };
   const seen = new Set<string>();
   const parts = ([...(a.data ?? []), ...(b.data ?? [])] as unknown as Part[]).filter(p => (seen.has(p.id) ? false : (seen.add(p.id), true)));
   return { me, kids, parts };
@@ -72,7 +72,7 @@ export default function ParentCamps({ onBack, openSlug }: { onBack?: () => void;
       if ('error' in mine) return setError(mine.error);
       const c = await supabase.from('camps').select(CAMP_COLS).order('starts_on', { ascending: false }).limit(100);
       if (!live) return;
-      if (c.error) return setError(c.error.message);
+      if (c.error) return setError(errMsg(c.error));
       const clubs = new Set(mine.kids.filter(k => k.active && k.club).map(k => k.club as string));
       const withMine = new Set(mine.parts.map(p => p.camp_id));
       const camps = ((c.data ?? []) as Camp[]).filter(x => (x.active && clubs.has(x.club_id)) || withMine.has(x.id));
@@ -129,7 +129,7 @@ function CampCard({ camp, onBack }: { camp: Camp; onBack: () => void }) {
       ]);
       if (!live) return;
       if ('error' in m) return setError(m.error);
-      if (t.error) return setError(t.error.message);
+      if (t.error) return setError(errMsg(t.error));
       setTariffs((t.data ?? []) as Tariff[]);
       setPeriods(k.error ? [] : (((k.data ?? [])[0]?.periods ?? []) as Period[]));
       // места: при отказе базы строку просто не показываем

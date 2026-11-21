@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, Segmented, type Tone } from '../ui/components';
 import { Failure, Loading } from './Message';
 import type { ChildPlayer } from './ChildHome';
+import { errMsg } from '../lib/coach';
 
 interface Match { id: string; team: string; played_on: string; opponent: string | null; goals_for: number | null; goals_against: number | null }
 interface Part { played: boolean; goals: number }
@@ -27,13 +28,13 @@ export default function ChildMatches({ player }: { player: ChildPlayer }) {
   useEffect(() => {
     void (async () => {
       const mp = await supabase.from('match_players').select('match_id, played, goals').eq('player_id', player.id);
-      if (mp.error) return setError(mp.error.message);
+      if (mp.error) return setError(errMsg(mp.error));
       const map = new Map<string, Part>();
       for (const r of (mp.data ?? []) as { match_id: string; played: boolean; goals: number }[]) map.set(r.match_id, { played: r.played, goals: r.goals });
       setParts(map);
       const q = supabase.from('matches').select('id, team, played_on, opponent, goals_for, goals_against').order('played_on', { ascending: false }).limit(100);
       const m = await (player.group ? q.eq('team', player.group) : q.in('id', [...map.keys()]));
-      if (m.error) return setError(m.error.message);
+      if (m.error) return setError(errMsg(m.error));
       setMatches((m.data ?? []) as Match[]);
     })();
   }, [player.id, player.group, reload]);

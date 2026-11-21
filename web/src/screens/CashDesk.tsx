@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { coachError, fmtDate, hasSubscription, today } from '../lib/coach';
+import { useEffect, useRef, useState } from 'react';
+import { addDays, coachError, fmtDate, hasSubscription, today, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, SearchInput } from '../ui/components';
 import { useConfirm } from '../ui/ConfirmSheet';
+import { MoreMenu } from '../ui/MoreMenu';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 import { afterLeftMonthTest, pausedMonthTest, type StatusLogPoint } from '../lib/playerStatus';
@@ -28,7 +29,7 @@ const EVENT_KIND: Record<string, string> = { championship: 'Чемпионат',
 const errText = (m: string) => (m.includes('paid above total') ? 'Оплата больше суммы заказа.' : m.includes('bad amount') ? 'Сумма указана неверно.' : coachError(m));
 
 /** Всё, что игрок должен: абонемент по месяцам, заказы экипировки, занятия, сборы, взносы матчей и событий. Платёж по строке идёт в нужный раздел. */
-async function loadDues(p: Pl): Promise<Due[]> {
+async function loadDues(p: Pl): Promise<{ dues: Due[]; missing: string[] }> {
   const out: Due[] = [];
   const noSub = !hasSubscription(p.groups?.name);
   const [prices, pays, subs, orders, ind, extra, camps] = await Promise.all([
@@ -101,7 +102,7 @@ async function loadDues(p: Pl): Promise<Due[]> {
     out.push({ key: 'camp' + c.id, kind: 'camp', section: SECTIONS[4], title: c.camps?.name ?? 'Сбор', due: Number(c.amount), paid: got, pay: (amount, method, date) => supabase.rpc('camp_pay', { pid: c.id, amt: r2(amount), k: 'payment', d: date, mth: method, cmt: null }) });
   });
   // взносы матчей и событий (match_fees, tournament_fees): остаток = взнос минус платежи; флаг paid без платежей — оплата из импорта (как в match_pay и event_pay).
-  // Сбой чтения не ломает остальные разделы: такие строки просто не показываются.
+  // Сбой чтения не ломает остальные разделы, но и не выдаётся за «долга нет»: раздел попадает в missing, экран показывает предупреждение (#692).
   const [mFees, mPays, tFees, tPays] = await Promise.all([
     supabase.from('match_fees').select('match_id, amount, paid, matches(played_on, team, opponent, kind)').eq('player_id', p.id),
     supabase.from('match_payments').select('match_id, amount').eq('player_id', p.id),
@@ -110,7 +111,9 @@ async function loadDues(p: Pl): Promise<Due[]> {
   ]);
   const sumBy = (rows: unknown, key: string) => { const m = new Map<string, { sum: number; n: number }>(); ((rows ?? []) as Record<string, unknown>[]).forEach(x => { const k = String(x[key]); const c = m.get(k) ?? { sum: 0, n: 0 }; m.set(k, { sum: c.sum + Number(x.amount), n: c.n + 1 }); }); return m; };
   const paidOf = (pays: Map<string, { sum: number; n: number }>, id: string, fee: number, flag: boolean) => { const c = pays.get(id); return !c && flag ? fee : r2(c?.sum ?? 0); };
-  if (!mFees.error && !mPays.error) {
+  const missing: string[] = [];
+  if (mFees.error || mPays.error) missing.push('взносы матчей');
+  else {
     const pays = sumBy(mPays.data, 'match_id');
     ((mFees.data ?? []) as unknown as { match_id: string; amount: number; paid: boolean; matches: { played_on: string; team: string; opponent: string | null; kind: string | null } | null }[]).forEach(f => {
       const fee = Number(f.amount);
@@ -120,7 +123,8 @@ async function loadDues(p: Pl): Promise<Due[]> {
       out.push({ key: 'mf' + f.match_id, kind: 'match', section: SECTIONS[5], title: m ? `${fmtDate(m.played_on)} · ${m.team}${m.opponent ? ` — ${m.opponent}` : ''}` : 'Матч', sub: m?.kind === 'friendly' ? 'товарищеская игра' : undefined, due: fee, paid: got, pay: (amount, method, date) => supabase.rpc('match_pay', { m: f.match_id, ids: [p.id], amt: r2(amount), d: date, mth: method, cmt: null }) });
     });
   }
-  if (!tFees.error && !tPays.error) {
+  if (tFees.error || tPays.error) missing.push('взносы событий');
+  else {
     const pays = sumBy(tPays.data, 'tournament_id');
     ((tFees.data ?? []) as unknown as { tournament_id: string; amount: number; paid: boolean; tournaments: { name: string | null; kind: string; team: string } | null }[]).forEach(f => {
       const fee = Number(f.amount);
@@ -148,7 +152,7 @@ async function loadDues(p: Pl): Promise<Due[]> {
       out.push({ key: 'ov' + g.session_id, kind: 'own_visit', section: SECTIONS[8], title: `Оплата за визит${day ? ` ${fmtDate(day)}` : ''}${g.sessions?.groups ? ` · ${g.sessions.groups.name}` : ''}`, due: Number(g.amount), paid: 0, pay: (amount, method, date) => supabase.rpc('own_visit_set_paid', { s: g.session_id, p: p.id, is_paid: true, mth: method, amt: r2(amount), d: date }) });
     });
   }
-  return out;
+  return { dues: out, missing };
 }
 
 // время записи платежа по Тбилиси, ЧЧ:ММ
@@ -178,9 +182,11 @@ export default function CashDesk() {
   const [day, setDay] = useNavState('cd.day', today());
   const [payMethod, setPayMethod] = useNavState('cd.method', '');
   const [todayRows, setTodayRows] = useState<TodayRow[] | null>(null);
+  const [todayFailed, setTodayFailed] = useState<string[]>([]); // источники дневного списка, которые не загрузились (#691)
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [cancelErr, setCancelErr] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const dayLoading = useRef(false); // загрузка дня идёт: «Повторить» не запускает вторую (#691)
   const { ask, dialog } = useConfirm();
 
   useEffect(() => {
@@ -200,20 +206,29 @@ export default function CashDesk() {
   // Подпись как в старом приложении: что именно, месяц абонемента, группа, вид оплаты, способ. Только чтение, без миграций.
   useEffect(() => {
     setTodayRows(null);
+    setTodayFailed([]);
+    // ответ устаревшей загрузки (дату сменили или нажали «Повторить») не применяется
+    let alive = true;
+    dayLoading.current = true;
     void (async () => {
+      const failed: string[] = [];
       const a = await supabase.from('payments').select('id, amount, method, player_id, pay_month, cancels, recorded_at, players(full_name)').eq('paid_on', day).limit(500);
       const c = await supabase.from('camp_payments').select('id, amount, method, kind, player_id, recorded_at, players(full_name), camps(name), camp_participants(guest_name)').eq('paid_on', day).limit(500);
-      if (a.error) return;
+      // отказ источника не подменяется пустым списком: он попадает в failed, экран показывает предупреждение и не показывает итог (#691)
+      if (a.error) failed.push('оплаты абонементов');
+      if (c.error) failed.push('оплаты сборов');
       const rows = ((a.data ?? []) as unknown as { id: string; amount: number; method: string | null; player_id: string; pay_month?: string | null; cancels?: string | null; players: { full_name: string } | null }[]).map(x => ({ ...x, what: 'Абонемент' }));
       // какие платежи уже отменены записью со ссылкой cancels (отмена может быть записана в другой день)
       const cancelledIds = new Set<string>();
       const payIds = rows.filter(x => Number(x.amount) > 0).map(x => x.id);
       if (payIds.length) {
         const cx = await supabase.from('payments').select('cancels').in('cancels', payIds).limit(1000);
+        if (cx.error) failed.push('отметки об отменах оплат');
         for (const y of ((cx.data ?? []) as unknown as { cancels: string | null }[])) if (y.cancels) cancelledIds.add(y.cancels);
       }
       const camp = c.error ? [] : ((c.data ?? []) as unknown as { id: string; amount: number; method: string | null; kind: string; player_id?: string; players: { full_name: string } | null; camps?: { name: string } | null; camp_participants?: { guest_name: string | null } | null }[]).map(x => ({ ...x, players: x.players ?? (x.camp_participants?.guest_name ? { full_name: `${x.camp_participants.guest_name} (гость)` } : null), what: 'Сбор', detail: x.camps?.name }));
       const svc = await supabase.rpc('cash_day_service', { p_day: day });
+      if (svc.error) failed.push('оплаты экипировки и занятий');
       const service = svc.error ? [] : ((svc.data ?? []) as unknown as { id: string; amount: number; method: string | null; what: string; player_id: string; full_name: string; recorded_at?: string | null; detail?: string | null }[]).map(x => ({ id: x.id, amount: x.amount, method: x.method, what: x.what, recorded_at: x.recorded_at ?? null, player_id: x.player_id, players: { full_name: x.full_name }, ...(x.detail ? { detail: x.detail } : {}) }));
       // все виды платежей одним списком: новые сверху по времени записи; платежи без времени (импорт) в конце
       const byTime = (x: TodayRow, y: TodayRow) => (y.recorded_at ?? '').localeCompare(x.recorded_at ?? '') || String(x.id ?? '').localeCompare(String(y.id ?? ''));
@@ -236,6 +251,9 @@ export default function CashDesk() {
           for (const [pid, list] of per) if (list.length === 1 && list[0].length) kits.set(pid, list[0]);
         }
       }
+      if (!alive) return;
+      dayLoading.current = false;
+      setTodayFailed(failed);
       setTodayRows(all.map(x => {
         const pid = x.player_id;
         const group = pid ? (x.what === 'Абонемент' && x.pay_month ? gBySub.get(`${pid}|${x.pay_month}`) : undefined) ?? gById.get(pid) : undefined;
@@ -243,7 +261,15 @@ export default function CashDesk() {
         const line = payLine(x, group, detail);
         return { ...x, cancelled: x.what === 'Абонемент' && cancelledIds.has(x.id), sub: x.recorded_at ? `${whenOf(x.recorded_at, day)} · ${line}` : line };
       }));
-    })();
+    })().catch(e => {
+      // непредвиденный сбой (например, обрыв связи): список не показываем как полный
+      if (!alive) return;
+      dayLoading.current = false;
+      console.error('касса за день', errMsg(e));
+      setTodayFailed(['данные дня']);
+      setTodayRows([]);
+    });
+    return () => { alive = false; };
   }, [reload, player, day]);
 
   // Отмена оплаты абонемента — записью с минусом (журнал платежей только добавляется)
@@ -309,34 +335,49 @@ export default function CashDesk() {
           )}
         </>
       )}
-      <h2 className="ks-list-head"><span>{day === today() ? 'Внесено сегодня' : `Внесено ${fmtDate(day)}`}</span><span>{todayRows ? gel(total) : ''}</span></h2>
+      <h2 className="ks-list-head"><span>{day === today() ? 'Внесено сегодня' : `Внесено ${fmtDate(day)}`}</span><span>{todayRows && todayFailed.length === 0 ? gel(total) : ''}</span></h2>
+      <div className="ks-quickdates" role="group" aria-label="Быстрый выбор даты">
+        <button type="button" className={day === today() ? 'ks-btn sm' : 'ks-btn sm secondary'} aria-pressed={day === today()} onClick={() => setDay(today())}>Сегодня</button>
+        <button type="button" className={day === addDays(today(), -1) ? 'ks-btn sm' : 'ks-btn sm secondary'} aria-pressed={day === addDays(today(), -1)} onClick={() => setDay(addDays(today(), -1))}>Вчера</button>
+      </div>
       <label className="field" style={{ marginBottom: 8 }}>Дата<input type="date" aria-label="Дата платежей" value={day} max={today()} onChange={e => e.target.value && setDay(e.target.value)} /></label>
-      {todayRows && todayRows.length > 0 && (
+      {todayRows && todayFailed.length > 0 && (
+        <div className="ks-card" role="alert" style={{ marginBottom: 12 }}>
+          <b>Касса за день загружена не полностью</b>
+          <p className="muted" style={{ margin: '4px 0' }}>Не удалось загрузить: {todayFailed.join(', ')}.</p>
+          <p className="muted" style={{ margin: '4px 0 8px' }}>Список ниже неполный, итог за день не показан, пока данные не загрузятся.</p>
+          <button type="button" className="ks-btn secondary" onClick={() => { if (dayLoading.current) return; dayLoading.current = true; setReload(n => n + 1); }}>Повторить</button>
+        </div>
+      )}
+      {todayRows && todayFailed.length === 0 && todayRows.length > 0 && (
         <div className="ks-tiles" style={{ marginBottom: 12, gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
           <div className="ks-tile"><b>Наличные</b>{gel(todayRows.filter(x => x.method === 'Наличные').reduce((s, x) => s + Number(x.amount), 0))}</div>
           <div className="ks-tile"><b>Перевод</b>{gel(todayRows.filter(x => x.method === 'Перевод').reduce((s, x) => s + Number(x.amount), 0))}</div>
           <div className="ks-tile"><b>Всего</b>{gel(total)}</div>
         </div>
       )}
-      {!todayRows ? <Loading /> : todayRows.length === 0 ? <p className="muted">В этот день платежей нет.</p> : todayRows.map(x => {
-        const row = <ListRow title={x.players?.full_name ?? 'Игрок'} sub={[x.sub ?? [x.what, x.method].filter(Boolean).join(' · ')]} end={<Pill tone={Number(x.amount) < 0 ? 'danger' : 'success'}>{gel(Number(x.amount))}</Pill>} />;
-        if (!(x.what === 'Абонемент' && Number(x.amount) > 0 && !isCancelled(x))) return <div key={x.what + x.id}>{row}</div>;
-        // Отмена относится к этой оплате: это часть той же карточки, под разделителем.
-        return (
-          <div className="ks-pay-group" key={x.what + x.id}>
-            {row}
-            <button type="button" className="ks-pay-cancel" aria-label={`Отменить оплату: ${x.players?.full_name ?? 'игрок'}`} disabled={cancelling === x.id} onClick={() => void cancelPay(x)}>Отменить оплату</button>
-          </div>
-        );
+      {!todayRows ? <Loading /> : todayRows.length === 0 ? (todayFailed.length === 0 ? <p className="muted">В этот день платежей нет.</p> : null) : todayRows.map(x => {
+        const name = x.players?.full_name ?? 'Игрок';
+        const can = x.what === 'Абонемент' && Number(x.amount) > 0 && !isCancelled(x);
+        const pill = <Pill tone={Number(x.amount) < 0 ? 'danger' : 'success'}>{gel(Number(x.amount))}</Pill>;
+        // отмена оплаты абонемента — пункт меню «⋯» строки; окно подтверждения прежнее (cancelPay)
+        const end = can ? (
+          <>
+            {pill}
+            <MoreMenu label={`Действия: ${name}`} items={[{ label: 'Отменить оплату', onSelect: () => void cancelPay(x) }]} />
+          </>
+        ) : pill;
+        return <div key={x.what + x.id}><ListRow title={name} sub={[x.sub ?? [x.what, x.method].filter(Boolean).join(' · ')]} end={end} /></div>;
       })}
       {dialog}
-      <p className="ks-muted" style={{ fontSize: 13 }}>В списке оплаты за день: абонементы, сборы, экипировка и занятия. Отменить можно оплату абонемента кнопкой у строки; остальные оплаты отменяются в своих разделах.</p>
+      <p className="ks-muted" style={{ fontSize: 13 }}>В списке оплаты за день: абонементы, сборы, экипировка и занятия. Отменить можно оплату абонемента через «⋯» у строки; остальные оплаты отменяются в своих разделах.</p>
     </main>
   );
 }
 
 export function PlayerDues({ player, onBack, embedded = false, sharedMethod, jumps = false }: { player: Pl; onBack?: () => void; embedded?: boolean; sharedMethod?: string; jumps?: boolean }) {
   const [dues, setDues] = useState<Due[] | null>(null);
+  const [missing, setMissing] = useState<string[]>([]); // разделы, чьи данные не загрузились: список долгов неполный (#692)
   const [error, setError] = useState<string | null>(null);
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -344,8 +385,12 @@ export function PlayerDues({ player, onBack, embedded = false, sharedMethod, jum
   // после записи платежа список обновляется на месте: старый список остаётся на экране, чтобы страница не сжималась и не прыгала к началу
   const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(() => { void loadDues(player).then(d => { setDues(d); setRefreshing(false); }).catch(e => { setError(e instanceof Error ? e.message : String(e)); setRefreshing(false); }); }, [player]);
-  useEffect(() => { load(); }, [load, reload]);
+  // ответ устаревшей загрузки (сменили игрока, нажали «Повторить», записали платёж) не применяется
+  useEffect(() => {
+    let alive = true;
+    void loadDues(player).then(d => { if (!alive) return; setDues(d.dues); setMissing(d.missing); setRefreshing(false); }).catch(e => { if (!alive) return; setError(errMsg(e)); setRefreshing(false); });
+    return () => { alive = false; };
+  }, [player, reload]);
 
   if (error) return <Failure title="Не удалось загрузить долги игрока" text={coachError(error)} embedded={embedded} onRetry={() => { setError(null); setDues(null); setReload(n => n + 1); }} />;
   const sum = (dues ?? []).filter(d => !d.advance).reduce((s, d) => s + (d.due - d.paid), 0);
@@ -364,12 +409,20 @@ export function PlayerDues({ player, onBack, embedded = false, sharedMethod, jum
           </div>
         </>
       )}
-      <p className="muted">{embedded ? '' : `${player.groups?.name ?? 'без группы'}`}{dues ? `${embedded ? '' : ' · '}к оплате: ${gel(sum)}` : ''}</p>
+      <p className="muted">{embedded ? '' : `${player.groups?.name ?? 'без группы'}`}{dues ? `${embedded ? '' : ' · '}к оплате: ${gel(sum)}${missing.length ? ' (неполно)' : ''}` : ''}</p>
+      {dues && missing.length > 0 && (
+        <div className="ks-card" role="alert" style={{ marginBottom: 12 }}>
+          <b>Список долгов неполный</b>
+          <p className="muted" style={{ margin: '4px 0' }}>Не удалось загрузить: {missing.join(', ')}.</p>
+          <p className="muted" style={{ margin: '4px 0 8px' }}>Отсутствие раздела не значит, что долга нет.</p>
+          <button type="button" className="ks-btn secondary" disabled={refreshing} onClick={() => { setRefreshing(true); setReload(n => n + 1); }}>{refreshing ? 'Загружаю…' : 'Повторить'}</button>
+        </div>
+      )}
       {msg && <p className="ks-ok">{msg}</p>}
-      {dues && dues.length > 0 && !dues.some(d => !d.advance) && <p className="muted">Долгов нет. Ниже можно принять оплату вперёд.</p>}
-      {!dues ? <Loading /> : dues.length === 0 ? (
+      {dues && missing.length === 0 && dues.length > 0 && !dues.some(d => !d.advance) && <p className="muted">Долгов нет. Ниже можно принять оплату вперёд.</p>}
+      {!dues ? <Loading /> : dues.length === 0 ? (missing.length > 0 ? null : (
         <EmptyState icon="users" title="Долгов нет" text="По абонементу, экипировке, занятиям, сборам и взносам матчей и событий всё оплачено." />
-      ) : (
+      )) : (
         SECTIONS.filter(s => dues.some(d => d.section === s)).map(s => (
           <section key={s} data-sec={s}>
             <h2 className="ks-sub">{s}</h2>
@@ -441,7 +494,7 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false 
     const d = await due.discount!();
     setBusy(false);
     // платёж уже записан: повторно его не отправляем, только сообщаем об ошибке скидки
-    if (d.error) return setErr(`Платёж записан, но скидку не применили (${d.error.message}). Примените скидку в «Оплатах за месяц», платёж повторять не нужно.`);
+    if (d.error) return setErr(`Платёж записан, но скидку не применили (${errMsg(d.error)}). Примените скидку в «Оплатах за месяц», платёж повторять не нужно.`);
     onPaid();
   };
   return (

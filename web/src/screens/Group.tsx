@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { coachError, fmtDate, plural, type CoachGroup } from '../lib/coach';
+import { coachError, fmtDate, plural, type CoachGroup, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { useNav, useNavState } from '../nav';
 import { EmptyState, ListRow, Pill, Segmented } from '../ui/components';
@@ -24,13 +24,15 @@ export default function Group({ groups, notify = false }: { groups: CoachGroup[]
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [totals, setTotals] = useState<Record<string, number> | null>(null);
+  const [ranked, setRanked] = useState(false); // баллы загружены (или не загрузились): до этого список не показываем, чтобы он не мелькал по алфавиту, а потом по баллам
 
   useEffect(() => {
     setPlayers(null);
     setTotals(null);
+    setRanked(false);
     void (async () => {
       const p = await supabase.from('players').select('id, full_name').eq('group_id', gid).eq('status', 'active').order('full_name');
-      if (p.error) return setError(p.error.message);
+      if (p.error) return setError(errMsg(p.error));
       const list = (p.data ?? []) as Player[];
       setPlayers(list);
       // Рейтинг по баллам: если баллы не загрузились, список остаётся по алфавиту
@@ -39,19 +41,20 @@ export default function Group({ groups, notify = false }: { groups: CoachGroup[]
       for (let i = 0; i < ids.length; i += 100) {
         for (let from = 0; ; from += 1000) {
           const e = await supabase.from('points_ledger').select('player_id, points').eq('status', 'active').in('player_id', ids.slice(i, i + 100)).order('id').range(from, from + 999);
-          if (e.error) return;
+          if (e.error) return setRanked(true);
           for (const r of (e.data ?? []) as { player_id: string; points: number }[]) sums[r.player_id] = (sums[r.player_id] ?? 0) + r.points;
           if ((e.data ?? []).length < 1000) break;
         }
       }
       setTotals(sums);
+      setRanked(true);
     })();
   }, [gid, reload, nav.top.screen]);
 
   if (error) return <Failure title="Не удалось загрузить группу" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   const open = nav.top.screen === 'player' ? (players ?? []).find(p => p.id === nav.top.params.id) : undefined;
   if (open) return <PlayerCard gid={gid} player={open} onBack={() => nav.back()} />;
-  if (!players) return <Loading />;
+  if (!players || !ranked) return <Loading title="Группа" />;
 
   return (
     <main className="page">
@@ -121,7 +124,7 @@ function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBa
       let count = 0;
       for (let from = 0; ; from += 1000) {
         const e = await supabase.from('points_ledger').select('id, points').eq('player_id', player.id).eq('status', 'active').order('id').range(from, from + 999);
-        if (e.error) return setError(e.error.message);
+        if (e.error) return setError(errMsg(e.error));
         for (const r of (e.data ?? []) as { points: number }[]) { total += r.points; count += 1; }
         if ((e.data ?? []).length < 1000) break;
       }

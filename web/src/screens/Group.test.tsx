@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { supabase } from '../lib/supabase';
 import { fake } from '../test/fakeSupabase';
 import Group, { competitionPlaces } from './Group';
 
@@ -19,6 +20,40 @@ const open = async () => {
   fireEvent.click(await screen.findByText('Иванов Пётр'));
   await screen.findByText('Ручные баллы');
 };
+
+// запрос баллов отвечает позже запроса игроков, как по сети: иначе оба ответа попадают в один рендер и мигание не видно
+const slow = <T extends object>(o: T): T => new Proxy(o, {
+  get(t: any, k) {
+    if (k === 'then') return (res: any, rej: any) => new Promise(r => setTimeout(r, 40)).then(() => t.then(res, rej));
+    const v = t[k];
+    return typeof v === 'function' ? (...a: unknown[]) => { const r = v.apply(t, a); return r && typeof r === 'object' ? slow(r) : r; } : v;
+  },
+});
+
+describe('список группы', () => {
+  it('сначала не показывает список по алфавиту: имена появляются сразу с местом по баллам', async () => {
+    seed();
+    const real = supabase.from.bind(supabase);
+    vi.spyOn(supabase, 'from').mockImplementation(((t: string) => (t === 'points_ledger' ? slow(real(t)) : real(t))) as never);
+    let alphabetical = false;
+    const watch = new MutationObserver(() => { if (screen.queryByText('Иванов Пётр') && !screen.queryByText(/Место \d+ по баллам/)) alphabetical = true; });
+    watch.observe(document.body, { subtree: true, childList: true, characterData: true });
+    render(<Group groups={groups} />);
+    expect(await screen.findByText('Место 1 по баллам')).toBeInTheDocument();
+    watch.disconnect();
+    vi.restoreAllMocks();
+    expect(alphabetical).toBe(false);
+  });
+
+  it('если баллы не загрузились, список показывается по алфавиту без мест', async () => {
+    seed();
+    fake.db.points_ledger = [];
+    fake.errors.points_ledger = 'boom';
+    render(<Group groups={groups} />);
+    expect(await screen.findByText('Иванов Пётр')).toBeInTheDocument();
+    expect(screen.queryByText(/Место/)).not.toBeInTheDocument();
+  });
+});
 
 describe('карточка игрока', () => {
   it('показывает сумму баллов и контакт родителя со ссылкой на Telegram', async () => {
