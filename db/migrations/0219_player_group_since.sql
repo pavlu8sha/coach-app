@@ -6,7 +6,7 @@
 -- Администратор только своего клуба (club_event_current_club). Ручные начисления журнала не пересоздаются. Таблицы, RLS и существующие функции не меняются.
 -- Применять в SQL Editor целиком, сначала db/ops/preflight.sql.
 create or replace function player_group_since(p uuid, d date, apply boolean default false) returns jsonb
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 declare pl players; cur player_group_history; prv player_group_history; r record; rows_n int; manual_n int; before_n int; after_n int; changed int := 0;
 begin
   if current_user_id() is null or not is_admin() then raise exception 'forbidden' using errcode = '42501'; end if;
