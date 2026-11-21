@@ -477,6 +477,8 @@ main.page > :nth-child(n+8) { animation-delay: 175ms; }
 /* Политика и согласие: нумерация в тексте, без второго маркера; абзацы с воздухом */
 ul.policy { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 8px; }
 .policy-doc p { margin: 0 0 10px; }
+/* Правила открываются без обёртки .page: место под нижнюю навигацию, иначе конец текста уходит под неё */
+.policy-wrap { padding-bottom: calc(88px + var(--ks-safe-b)); }
 
 /* Поле «Развернуть» (#517): значок в углу поля, как в Telegram; тот же textarea разворачивается на весь экран */
 .ks-expandable { display: flex; flex-direction: column; }
