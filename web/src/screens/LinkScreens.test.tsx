@@ -170,6 +170,22 @@ describe('С17: ошибка загрузки запросов на привяз
     expect(screen.queryByRole('heading', { name: 'Подключите профиль ребёнка' })).toBeNull();
   });
 
+  it('RPC выбросил rejected Promise, а прямой SELECT link_requests успешен: fallback не маскирует сбой, Failure с повтором', async () => {
+    fake.db.link_requests = [{ id: 'r1', user_id: 'u', status: 'pending', players: { full_name: 'Алексей Петров' } }];
+    fake.rpc.my_link_requests = () => Promise.reject(new Error('Failed to fetch')); // прямой выбор НЕ падает
+    render(<Home />);
+    expect(await screen.findByText('Не удалось загрузить данные')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Повторить/ })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Запрос отправлен' })).toBeNull();
+  });
+
+  it('общая ошибка «schema cache» без PGRST202 и без имени функции не считается отсутствием функции', async () => {
+    fake.db.link_requests = [{ id: 'r1', user_id: 'u', status: 'pending', players: { full_name: 'Алексей Петров' } }];
+    fake.rpc.my_link_requests = () => ({ error: { message: 'schema cache is being reloaded', code: 'PGRST000' } });
+    render(<Home />);
+    expect(await screen.findByText('Не удалось загрузить данные')).toBeInTheDocument();
+  });
+
   it('повтор после ошибки: запросы показываются', async () => {
     fake.db.link_requests = [{ id: 'r1', user_id: 'u', status: 'pending', players: { full_name: 'Алексей Петров' } }];
     let fail = true;
