@@ -59,6 +59,8 @@ button.ks-row.selected { border-color: var(--ks-primary); box-shadow: 0 0 0 1px 
 /* два пункта: две равные колонки, длинная подпись переносится внутри кнопки */
 .ks-seg.pair { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow-x: visible; }
 .ks-seg.pair button { white-space: normal; }
+/* шесть и более пунктов или wrap: три колонки, длинная подпись переносится внутри кнопки, а не уходит за край (рассылки сбора) */
+.ks-seg.many button { white-space: normal; }
 /* все вкладки в одном ряду; не помещаются — ряд прокручивается внутри себя */
 .ks-seg.row, .ks-seg.row.quad { grid-auto-flow: column; grid-template-columns: none; overflow-x: auto; }
 .ks-seg.row { gap: 2px; }
@@ -477,6 +479,8 @@ main.page > :nth-child(n+8) { animation-delay: 175ms; }
 /* Политика и согласие: нумерация в тексте, без второго маркера; абзацы с воздухом */
 ul.policy { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 8px; }
 .policy-doc p { margin: 0 0 10px; }
+/* Правила открываются без обёртки .page: место под нижнюю навигацию, иначе конец текста уходит под неё */
+.policy-wrap { padding-bottom: calc(88px + var(--ks-safe-b)); }
 
 /* Поле «Развернуть» (#517): значок в углу поля, как в Telegram; тот же textarea разворачивается на весь экран */
 .ks-expandable { display: flex; flex-direction: column; }

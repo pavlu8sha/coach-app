@@ -6,6 +6,7 @@ import { BackNav } from '../ui/nav';
 export default function Privacy({ onBack }: { onBack: () => void }) {
   const c = CONSENT[preferredLang()];
   return (
+    <div className="policy-wrap">
     <section className="ks-card policy-doc">
       <BackNav onBack={onBack} managed />
       <h1>Политика конфиденциальности</h1>
@@ -31,5 +32,6 @@ export default function Privacy({ onBack }: { onBack: () => void }) {
       ))}
       <p className="muted">{CONSENT_VERSION}</p>
     </section>
+    </div>
   );
 }
