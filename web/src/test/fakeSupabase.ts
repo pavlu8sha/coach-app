@@ -11,6 +11,7 @@ export const fake = {
   rejects: {} as Record<string, string>,        // таблица → запрос отклоняется исключением (сбой сети)
   user: { id: 'u' } as { id: string } | null,
   hang: false, // запросы не отвечают: проверка экранов в состоянии загрузки
+  rejectsNext: {} as Record<string, string>,    // таблица → ближайший запрос отклоняется исключением (сбой сети), потом запросы идут как обычно
   errorsNext: {} as Record<string, string>,     // таблица → ошибка только для ближайшего запроса (потом запросы идут как обычно)
   holds: {} as Record<string, { release: (result?: { error: { message: string } }) => void; promise: Promise<{ error: { message: string } } | undefined> }[]>, // таблица → ближайшие запросы ждут release (ответ можно подменить ошибкой)
   /** Ближайший запрос к таблице ждёт: release() отпускает его (с ошибкой, если передана). Для проверки перекрывающихся загрузок. */
@@ -21,6 +22,7 @@ export const fake = {
     return { release };
   },
   reset() {
+    this.rejectsNext = {};
     this.errorsNext = {};
     this.holds = {};
     this.db = {};
@@ -62,6 +64,11 @@ function query(table: string): any {
   let heldError: { message: string } | undefined;
   const run = () => {
     if (fake.rejects[table]) throw new Error(fake.rejects[table]);
+    if (fake.rejectsNext[table]) {
+      const message = fake.rejectsNext[table];
+      delete fake.rejectsNext[table];
+      throw new Error(message);
+    }
     if (fake.errors[table]) return { data: null, error: { message: fake.errors[table] } };
     if (heldError) return { data: null, error: heldError };
     if (fake.errorsNext[table]) {

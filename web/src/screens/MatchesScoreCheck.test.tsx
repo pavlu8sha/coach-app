@@ -36,6 +36,19 @@ describe('«Матчи» родителя: проверка счёта матч�
     expect(screen.queryByText('Нет результатов')).toBeNull();
   });
 
+  it('отклонённый запрос счёта (сбой сети): ложного статуса нет, есть сообщение, повтор работает', async () => {
+    seed({ scored: true });
+    fake.rejectsNext.matches = 'network down secret';
+    render(<Matches />);
+    expect(await screen.findByText(ALERT)).toBeInTheDocument();
+    expect(screen.queryByText(STALE)).toBeNull();
+    expect(screen.queryByText(/network down|secret/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    await waitFor(() => expect(screen.queryByText(ALERT)).toBeNull());
+    expect(await screen.findByText('Победа')).toBeInTheDocument();
+    expect(screen.queryByText(STALE)).toBeNull();
+  });
+
   it('матч без счёта и успешный запрос: прежнее поведение, сообщения нет', async () => {
     seed({ scored: false });
     render(<Matches />);

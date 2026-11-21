@@ -91,7 +91,16 @@ export default function Matches() {
       setRsvp(rsRows);
       // счёт прошедших матчей с подтверждением: без него статус «Прошёл» не определить
       const rsIds = [...new Set(rsRows.map(r => r.match_id))];
-      const sc = rsIds.length ? await supabase.from('matches').select('id, goals_for, goals_against').in('id', rsIds) : null;
+      // сбой сети (отклонённый запрос) тоже ошибка проверки счёта, а не «счёта нет»
+      let sc: { error?: unknown; data?: unknown } | null = null;
+      if (rsIds.length) {
+        try {
+          sc = await supabase.from('matches').select('id, goals_for, goals_against').in('id', rsIds);
+        } catch (e) {
+          console.error('Matches.score', e);
+          sc = { error: e, data: null };
+        }
+      }
       if (cancelled) return;
       // длительность матча по командам; без миграции 0168 или при ошибке действует 90 минут
       const du = rsIds.length ? await supabase.rpc('match_duration_minutes') : null;
