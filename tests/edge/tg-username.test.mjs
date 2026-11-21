@@ -6,6 +6,12 @@ test('ник нормализуется: без @ и пробелов', () => {
   assert.equal(normalizeTgUsername('  @Mama_One '), 'Mama_One');
   assert.equal(normalizeTgUsername('Papa24'), 'Papa24');
 });
+test('граница длины: 4 знака отклоняется, 5 и 32 принимаются, 33 отклоняется', () => {
+  assert.equal(normalizeTgUsername('abcd'), null);
+  assert.equal(normalizeTgUsername('abcde'), 'abcde');
+  assert.equal(normalizeTgUsername('a' + 'b'.repeat(31)), 'a' + 'b'.repeat(31));
+  assert.equal(normalizeTgUsername('a' + 'b'.repeat(32)), null);
+});
 test('неверный формат или отсутствие ника дают null (прежний ник очищается)', () => {
   for (const bad of [undefined, null, '', 'abc', '1abcde', 'a b cd', 'x'.repeat(33), 'ник_кириллица', 'a-b-c-d'])
     assert.equal(normalizeTgUsername(bad), null, String(bad));

@@ -3,7 +3,7 @@
 -- Ник пишет ТОЛЬКО Edge Function tg-auth (service_role) из проверенной по подписи initData; из приложения записи нет (RLS users: политика только на чтение).
 -- Колонка users.telegram_username читается как и остальные поля users: сам пользователь и администратор (RLS users_self не меняется).
 -- Тренер получает ник только через group_parent_usernames(g), которая берёт набор родителей из group_parents(g): то же согласие на контакт.
-alter table users add column if not exists telegram_username text check (telegram_username is null or telegram_username ~ '^[A-Za-z][A-Za-z0-9_]{3,31}$');
+alter table users add column if not exists telegram_username text check (telegram_username is null or telegram_username ~ '^[A-Za-z][A-Za-z0-9_]{4,31}$');
 
 create or replace function group_parent_usernames(g uuid) returns table (telegram_id bigint, username text)
 language plpgsql stable security definer set search_path = public, pg_temp as $$

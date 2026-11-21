@@ -2,7 +2,7 @@
 -- Условия приёмки: docs/acceptance/parent-tg-username-2026-11-21.md (U1-U5).
 begin;
 create extension if not exists pgtap;
-select plan(19);
+select plan(21);
 
 create function tx(n int) returns uuid language sql immutable as $$ select ('00000000-0000-0000-0000-' || lpad(to_hex(n), 12, '0'))::uuid $$;
 create function as_user(uid uuid) returns void language plpgsql as $$
@@ -52,6 +52,9 @@ select as_anon_session();
 select lives_ok($$update users set telegram_username = 'Hacker' where id = '00000000-0000-0000-0000-000000000015'$$, 'U1: без входа UPDATE не падает, но ничего не меняет');
 select is(nick(tx(21)), null, 'U1: ник без входа не записан');
 select throws_ok($$update users set telegram_username = 'a b' where id = '00000000-0000-0000-0000-000000000015'$$, '23514', null, 'U1: формат ника защищён ограничением таблицы (запись от имени сервера)');
+select throws_ok($$update users set telegram_username = 'abcd' where id = '00000000-0000-0000-0000-000000000015'$$, '23514', null, 'U1: ник из 4 знаков отклоняется ограничением таблицы (Telegram: от 5)');
+select lives_ok($$update users set telegram_username = 'abcde' where id = '00000000-0000-0000-0000-000000000015'$$, 'U1: ник из 5 знаков принимается');
+update users set telegram_username = null where id = tx(21);
 -- ники, как их записал бы tg-auth (service_role / владелец)
 select is(nick(tx(21)), null, 'U1: ник без входа не изменился (перед записью ников сервером)');
 update users set telegram_username = 'Mama_One' where id = tx(21);

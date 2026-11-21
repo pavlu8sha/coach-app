@@ -1,10 +1,10 @@
 // Ник Telegram для кнопки «Написать в Telegram» у тренера (миграция 0218). Берётся только из initData с проверенной подписью.
-// Формат Telegram: 5-32 знака, латиница, цифры, «_», начинается с буквы; в базе допускается 4-32 (ограничение users_telegram_username_check).
+// Формат Telegram: 5-32 знака, латиница, цифры, «_», начинается с буквы; то же ограничение в базе (миграция 0218).
 import { validateInitData } from './init-data.js';
 
 export function normalizeTgUsername(u) {
   const v = String(u ?? '').trim().replace(/^@+/, '');
-  return /^[A-Za-z][A-Za-z0-9_]{3,31}$/.test(v) ? v : null;
+  return /^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(v) ? v : null;
 }
 
 /** Записать ник в строку именно этого Telegram-аккаунта (id из проверенной подписи). true, если строка найдена и обновлена. */
