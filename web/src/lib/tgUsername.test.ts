@@ -1,41 +1,40 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { fake } from '../test/fakeSupabase';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetTgUsernameSync, syncTelegramUsername } from './tgUsername';
 
-// A1 (docs/acceptance/parent-tg-username-2026-11-21.md): ник из Telegram уходит в базу один раз за открытие; сбой не ломает вход.
-const setTg = (user: { username?: string } | null, initData = 'query_id=1&hash=x') => {
-  (window as any).Telegram = user === undefined ? undefined : { WebApp: { initData, initDataUnsafe: { user } } };
-};
-beforeEach(() => resetTgUsernameSync());
-afterEach(() => { delete (window as any).Telegram; });
+// A1 (docs/acceptance/parent-tg-username-2026-11-21.md): ник клиент не пишет; подписанные initData уходят в tg-auth один раз за открытие; сбой не ломает вход.
+const setTg = (initData: string, username?: string) => { (window as any).Telegram = { WebApp: { initData, initDataUnsafe: { user: { username } } } }; };
+let fetchMock: ReturnType<typeof vi.fn>;
+beforeEach(() => { resetTgUsernameSync(); fetchMock = vi.fn(async () => new Response('{"ok":true}')); vi.stubGlobal('fetch', fetchMock); });
+afterEach(() => { delete (window as any).Telegram; vi.unstubAllGlobals(); });
 
 describe('ник из Telegram', () => {
-  it('внутри Telegram с ником: set_my_tg_username с ником', async () => {
-    setTg({ username: 'Mama_One' });
+  it('внутри Telegram: в tg-auth уходят подписанные initData, а не ник из initDataUnsafe', async () => {
+    setTg('query_id=1&hash=abc', 'Fake_Nick');
     await syncTelegramUsername();
-    expect(fake.rpcCalls('set_my_tg_username')).toEqual([{ p: 'Mama_One' }]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toMatch(/\/functions\/v1\/tg-auth$/);
+    expect(JSON.parse(init.body)).toEqual({ initData: 'query_id=1&hash=abc', username_only: true });
+    expect(init.body).not.toContain('Fake_Nick');
   });
-  it('внутри Telegram без ника: уходит null (очистить прежний)', async () => {
-    setTg({});
+  it('вне Telegram или без initData: не вызывается', async () => {
     await syncTelegramUsername();
-    expect(fake.rpcCalls('set_my_tg_username')).toEqual([{ p: null }]);
-  });
-  it('вне Telegram: не вызывается', async () => {
+    setTg('', 'x_nick');
     await syncTelegramUsername();
-    expect(fake.rpcCalls('set_my_tg_username')).toHaveLength(0);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
   it('один раз за открытие', async () => {
-    setTg({ username: 'Mama_One' });
+    setTg('query_id=1&hash=abc');
     await syncTelegramUsername();
     await syncTelegramUsername();
-    expect(fake.rpcCalls('set_my_tg_username')).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
-  it('ошибка базы (функции ещё нет) или сбой связи: тихо, без исключения', async () => {
-    setTg({ username: 'Mama_One' });
-    fake.rpc.set_my_tg_username = () => ({ error: { message: 'Could not find the function public.set_my_tg_username', code: 'PGRST202' } });
+  it('сбой связи или ответ сервера с ошибкой: тихо, без исключения', async () => {
+    setTg('query_id=1&hash=abc');
+    fetchMock.mockRejectedValueOnce(new Error('network'));
     await expect(syncTelegramUsername()).resolves.toBeUndefined();
     resetTgUsernameSync();
-    fake.rpc.set_my_tg_username = () => Promise.reject(new Error('network'));
+    fetchMock.mockResolvedValueOnce(new Response('{"error":"unauthorized"}', { status: 401 }));
     await expect(syncTelegramUsername()).resolves.toBeUndefined();
   });
 });

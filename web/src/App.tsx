@@ -379,8 +379,7 @@ export default function App() {
       }
       const data = initData();
       if (!data) return setState({ kind: 'outside' });
-      await signInWithTelegram(data);
-      void syncTelegramUsername();
+      await signInWithTelegram(data); // ник при входе сохраняет сама tg-auth
       setState({ kind: 'ready' });
     } catch (e) {
       setState({ kind: 'error', text: loginError(e) });

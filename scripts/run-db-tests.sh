@@ -80,7 +80,7 @@ preflight_partial "без 0215" '0215_my_children' 0215_my_children
 preflight_partial "без 0216" '0216_payment_set_method' 0216_payment_set_method
 # 0217 (my_link_requests, my_pending_consents) самостоятельна: на базе без неё preflight не падает, строка 0217 даёт NOT_APPLIED.
 preflight_partial "без 0217" '0217_link_screens' 0217_link_screens
-# 0218 (ник родителя, set_my_tg_username и group_parent_usernames) самостоятельна: на базе без неё preflight не падает, строка 0218 даёт NOT_APPLIED.
+# 0218 (ник родителя: колонка и group_parent_usernames) самостоятельна: на базе без неё preflight не падает, строка 0218 даёт NOT_APPLIED.
 preflight_partial "без 0218" '0218_parent_tg_username' 0218_parent_tg_username
 preflight_partial "без 0209" '0209_player_profile_attributes' 0209_player_profile_attributes
 for t in db/tests/*_test.sql; do

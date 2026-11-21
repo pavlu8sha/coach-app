@@ -1,8 +1,8 @@
--- pgTAP (0218): set_my_tg_username() и group_parent_usernames(). Только синтетические данные.
+-- pgTAP (0218): group_parent_usernames() и запрет записи ника из приложения. Только синтетические данные.
 -- Условия приёмки: docs/acceptance/parent-tg-username-2026-11-21.md (U1-U5).
 begin;
 create extension if not exists pgtap;
-select plan(24);
+select plan(19);
 
 create function tx(n int) returns uuid language sql immutable as $$ select ('00000000-0000-0000-0000-' || lpad(to_hex(n), 12, '0'))::uuid $$;
 create function as_user(uid uuid) returns void language plpgsql as $$
@@ -40,32 +40,23 @@ insert into player_guardians (player_id, user_id, consent_version, consent_given
   (tx(31), tx(21), 'with-contacts', now(), null), (tx(32), tx(22), 'with-contacts', now(), null),
   (tx(33), tx(23), 'old-text', now(), null), (tx(34), tx(24), 'with-contacts', now(), null);
 
--- U1: сохранение и нормализация
+-- U1: ники записывает только сервер (service_role из tg-auth); из приложения записи нет
 select as_user(tx(21));
-select lives_ok($$select set_my_tg_username('  @Mama_One ')$$, 'ник с @ и пробелами сохраняется');
-select is(nick(tx(21)), 'Mama_One', 'U1: ник без @ и пробелов');
+select is((select count(*)::int from pg_proc where proname = 'set_my_tg_username' and pronamespace = 'public'::regnamespace), 0, 'U1: функции записи ника для приложения нет');
+update users set telegram_username = 'Hacker' where id = tx(21);
+select is(nick(tx(21)), null, 'U1: прямой UPDATE ника от authenticated (своя строка) не меняет данные');
 select as_user(tx(21));
-select lives_ok($$select set_my_tg_username('a b')$$, 'ник с пробелом внутри не ошибка');
-select is(nick(tx(21)), null, 'U1: неверный формат очищает ник');
-select as_user(tx(21));
-select set_my_tg_username('abc');
-select is(nick(tx(21)), null, 'U1: слишком короткий ник (3 знака) очищает');
-select as_user(tx(21));
-select set_my_tg_username('1abcde');
-select is(nick(tx(21)), null, 'U1: ник начинается с цифры, очищается');
-select as_user(tx(21));
-select set_my_tg_username('Mama_One');
-select set_my_tg_username(null);
-select is(nick(tx(21)), null, 'U1: null очищает ник');
-select as_user(tx(21));
-select set_my_tg_username('Mama_One');
-select as_user(tx(23)); select set_my_tg_username('@Papa23');
-select as_user(tx(24)); select set_my_tg_username('Papa24');
-select is(nick(tx(21)), 'Mama_One', 'U1: чужие ники не меняются');
+update users set telegram_username = 'Hacker' where id = tx(22);
+select is(nick(tx(22)), null, 'U1: прямой UPDATE чужой строки не меняет данные');
 select as_anon_session();
-select throws_ok($$select set_my_tg_username('Hacker')$$, '42501', 'forbidden', 'U1: без входа forbidden');
-select nick(tx(21)); -- роль суперпользователя: проверяем ограничение таблицы, а не права
-select throws_ok($$update users set telegram_username = 'a b' where id = '00000000-0000-0000-0000-000000000015'$$, '23514', null, 'формат ника защищён ограничением таблицы (прямая запись ошибочного значения)');
+select lives_ok($$update users set telegram_username = 'Hacker' where id = '00000000-0000-0000-0000-000000000015'$$, 'U1: без входа UPDATE не падает, но ничего не меняет');
+select is(nick(tx(21)), null, 'U1: ник без входа не записан');
+select throws_ok($$update users set telegram_username = 'a b' where id = '00000000-0000-0000-0000-000000000015'$$, '23514', null, 'U1: формат ника защищён ограничением таблицы (запись от имени сервера)');
+-- ники, как их записал бы tg-auth (service_role / владелец)
+select is(nick(tx(21)), null, 'U1: ник без входа не изменился (перед записью ников сервером)');
+update users set telegram_username = 'Mama_One' where id = tx(21);
+update users set telegram_username = 'Papa23' where id = tx(23);
+update users set telegram_username = 'Papa24' where id = tx(24);
 
 -- U2/U3: ники родителей группы для тренера и администратора
 select as_user(tx(11));
@@ -87,8 +78,6 @@ select is((select count(*)::int from users where id = tx(21)), 0, 'U4: чужа�
 -- U5: права
 -- U5: права на функции (база с привилегиями по умолчанию Supabase)
 select nick(tx(21));
-select ok(has_function_privilege('authenticated', 'set_my_tg_username(text)', 'execute'), 'U5: set_my_tg_username доступна authenticated');
-select ok(not has_function_privilege('anon', 'set_my_tg_username(text)', 'execute'), 'U5: set_my_tg_username закрыта для anon');
 select ok(has_function_privilege('authenticated', 'group_parent_usernames(uuid)', 'execute'), 'U5: group_parent_usernames доступна authenticated');
 select ok(not has_function_privilege('anon', 'group_parent_usernames(uuid)', 'execute'), 'U5: group_parent_usernames закрыта для anon');
 select ok(not has_function_privilege('public', 'group_parent_usernames(uuid)', 'execute'), 'U5: group_parent_usernames закрыта для public');
