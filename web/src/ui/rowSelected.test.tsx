@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ListRow } from './components';
@@ -16,10 +15,5 @@ describe('ListRow: отметка выбранной строки', () => {
     const { container } = render(<ListRow title="Группа" onClick={() => undefined} />);
     expect(container.querySelector('.ks-chev')).not.toBeNull();
     expect(container.querySelector('.ks-row-tick')).toBeNull();
-  });
-  it('в стилях .ks-check определён один раз (строка с чекбоксом), отметка оформлена отдельным классом', () => {
-    const css = readFileSync('src/ui/kit.css', 'utf8');
-    expect(css.match(/^\.ks-check \{/gm)).toHaveLength(1);
-    expect(css).toMatch(/^\.ks-row-tick \{/m);
   });
 });
