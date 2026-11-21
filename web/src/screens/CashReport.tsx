@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { coachError, fmtDate, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, Segmented } from '../ui/components';
+import { locationOptions } from '../lib/branches';
 import { Loading } from './Message';
 import { gel } from './MonthPayments';
 import { useNavState } from '../nav';
@@ -12,9 +13,27 @@ interface Row { id: string; kind: string; player: string; amount: number; paid_o
 interface Report { total: number; by_method: MethodSum[]; by_staff: StaffSum[]; rows: Row[] }
 
 type Preset = 'today' | 'day' | 'month' | 'custom';
-interface LocRes { data: Record<string, string | null>[] | null; error: { message: string } | null }
-const LOCATION_SOURCES = [{ table: 'groups', column: 'location' }, { table: 'camps', column: 'location' }, { table: 'equipment_orders', column: 'location' }, { table: 'extra_sessions', column: 'place' }];
+type Kind = 'all' | 'camps' | 'nocamps';
+const KIND_FILTERS: { value: Kind; label: string }[] = [{ value: 'all', label: 'Всё' }, { value: 'camps', label: 'Сборы' }, { value: 'nocamps', label: 'Без сборов' }];
+const CAMP_KIND = 'Сбор'; // вид операции из cash_report (0210)
 const METHOD_FILTERS = [{ value: '', label: 'Все' }, { value: 'Наличные', label: 'Наличные' }, { value: 'Перевод', label: 'Перевод' }, { value: 'не указан', label: 'Не указан' }];
+
+/** Фильтр вида операций на экране: итоги, суммы по способам и по сотрудникам пересчитываются из показанных операций и сходятся с ними. «Всё» — данные сервера как есть. */
+function byKind(r: Report, kind: Kind): Report {
+  if (kind === 'all') return r;
+  const rows = r.rows.filter(x => (x.kind === CAMP_KIND) === (kind === 'camps'));
+  const sum = (key: (x: Row) => string) => {
+    const m = new Map<string, number>();
+    for (const x of rows) m.set(key(x), (m.get(key(x)) ?? 0) + x.amount);
+    return [...m.entries()];
+  };
+  return {
+    total: rows.reduce((a, x) => a + x.amount, 0),
+    by_method: sum(x => x.method).map(([method, s]) => ({ method, sum: s })).sort((a, b) => a.method.localeCompare(b.method)),
+    by_staff: sum(x => x.staff).map(([name, s]) => ({ staff_id: null, name, sum: s })).sort((a, b) => a.name.localeCompare(b.name)),
+    rows,
+  };
+}
 
 // Кассовый отчёт (#264): поступления за день, месяц или период. Суммы считает сервер (0078): по сотрудникам и способам они сходятся с итогом.
 // Отмена — строка с минусом. Способ вне «Наличные»/«Перевод» показан как «не указан».
@@ -25,8 +44,7 @@ export default function CashReport() {
   const [location, setLocation] = useNavState('cr.location', '');
   const [method, setMethod] = useNavState('cr.method', '');
   const [report, setReport] = useState<Report | null>(null);
-  const [locations, setLocations] = useState<string[]>([]);
-  const [locErr, setLocErr] = useState<string | null>(null);
+  const [kind, setKind] = useNavState<Kind>('cr.kind', 'all');
   const [err, setErr] = useState<string | null>(null);
 
   const choose = (p: Preset) => {
@@ -35,20 +53,6 @@ export default function CashReport() {
     if (p === 'day') setTo(from);
     if (p === 'month') { setFrom(today().slice(0, 8) + '01'); setTo(today()); }
   };
-
-  // список локаций для выбора: те же источники, по которым cash_report (0210) определяет локацию платежа:
-  // groups.location (абонементы, доп. посещения, оплата за визит), camps.location (сборы), equipment_orders.location (экипировка), extra_sessions.place (доп. занятия)
-  useEffect(() => {
-    let live = true;
-    void Promise.all(LOCATION_SOURCES.map(src => (supabase.from(src.table).select(src.column) as unknown) as PromiseLike<LocRes>)).then(res => {
-      if (!live) return;
-      const failed = res.find(r => r.error);
-      if (failed?.error) { setLocErr(coachError(failed.error.message)); return; }
-      const names = res.flatMap((r, i) => (r.data ?? []).map(x => (x[LOCATION_SOURCES[i].column] ?? '').trim()));
-      setLocations([...new Set(names.filter(Boolean))].sort((x, y) => x.localeCompare(y)));
-    }, () => { if (live) setLocErr('Нет связи, список локаций не загрузился'); });
-    return () => { live = false; };
-  }, []);
 
   useEffect(() => {
     if (!from || !to || to < from) return;
@@ -59,6 +63,8 @@ export default function CashReport() {
       setReport(r.data as Report);
     });
   }, [from, to, location, method]);
+
+  const shown = report ? byKind(report, kind) : null;
 
   return (
     <main style={{ maxWidth: 560, margin: '0 auto', padding: '12px 16px calc(88px + var(--ks-safe-b))' }}>
@@ -79,33 +85,35 @@ export default function CashReport() {
         <label className="field" style={{ flex: 1 }}>Локация
           <select value={location} onChange={e => setLocation(e.target.value)}>
             <option value="">Все локации</option>
-            {(location && !locations.includes(location) ? [location, ...locations] : locations).map(l => <option key={l} value={l}>{l}</option>)}
+            {locationOptions(location).map(l => <option key={l} value={l}>{l}</option>)}
           </select>
         </label>
       </div>
-      {locErr && <p role="status" className="ks-muted" style={{ margin: '4px 0 0' }}>Список локаций не загрузился: {locErr}. Отчёт по всем локациям работает.</p>}
       <div style={{ marginTop: 8 }}>
         <Segmented label="Способ оплаты" value={method} onChange={setMethod} items={METHOD_FILTERS} />
+      </div>
+      <div style={{ marginTop: 8 }}>
+        <Segmented label="Что показывать" value={kind} onChange={setKind} items={KIND_FILTERS} />
       </div>
 
       {to < from && <p role="alert" className="ks-muted">Конец периода раньше начала.</p>}
       {err && <p role="alert" className="ks-muted">{err}</p>}
       {!err && to >= from && !report && <Loading />}
 
-      {report && (
+      {report && shown && (
         <>
-          <h2 className="ks-list-head"><span>{from === to ? fmtDate(from) : `${fmtDate(from)} — ${fmtDate(to)}`}</span><span>{gel(report.total)}</span></h2>
+          <h2 className="ks-list-head"><span>{from === to ? fmtDate(from) : `${fmtDate(from)} — ${fmtDate(to)}`}</span><span>{gel(shown.total)}</span></h2>
           <div className="ks-tiles">
-            {report.by_method.map(m => <div key={m.method} className="ks-tile"><b>{m.method}</b>{gel(m.sum)}</div>)}
+            {shown.by_method.map(m => <div key={m.method} className="ks-tile"><b>{m.method}</b>{gel(m.sum)}</div>)}
           </div>
 
           <h2 className="ks-list-head"><span>По сотрудникам</span></h2>
-          {report.by_staff.length === 0 && <div className="ks-muted">Нет поступлений</div>}
-          {report.by_staff.map(s => <ListRow key={s.staff_id ?? 'none'} title={s.name} end={<Pill tone={s.sum < 0 ? 'danger' : 'success'}>{gel(s.sum)}</Pill>} />)}
+          {shown.by_staff.length === 0 && <div className="ks-muted">Нет поступлений</div>}
+          {shown.by_staff.map(s => <ListRow key={s.staff_id ?? 'none'} title={s.name} end={<Pill tone={s.sum < 0 ? 'danger' : 'success'}>{gel(s.sum)}</Pill>} />)}
 
-          <h2 className="ks-list-head"><span>Операции</span><span>{report.rows.length}</span></h2>
-          {report.rows.length === 0 && <EmptyState icon="box" title="За период платежей нет" />}
-          {report.rows.map(x => (
+          <h2 className="ks-list-head"><span>Операции</span><span>{shown.rows.length}</span></h2>
+          {shown.rows.length === 0 && <EmptyState icon="box" title="За период платежей нет" />}
+          {shown.rows.map(x => (
             <ListRow key={x.id} title={x.player}
               sub={[[x.kind, x.method, x.staff, x.location].filter(Boolean).join(' · ')]}
               end={<Pill tone={x.amount < 0 ? 'danger' : 'success'}>{gel(x.amount)}</Pill>} />
