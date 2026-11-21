@@ -1,8 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { today } from '../lib/coach';
-// @ts-expect-error в проекте нет типов node; vitest читает файлы напрямую
-import { readFileSync, readdirSync } from 'node:fs';
 import { fake } from '../test/fakeSupabase';
 import CashReport from './CashReport';
 
@@ -39,39 +37,35 @@ describe('Кассовый отчёт', () => {
 
   it('передаёт фильтры локации и способа в функцию базы', async () => {
     fake.rpc.cash_report = () => ({ data: report, error: null });
-    fake.db.groups = [{ location: 'Исани' }];
     render(<CashReport />);
     await screen.findByText('По сотрудникам');
-    await waitFor(() => expect(screen.getByRole('option', { name: 'Исани' })).toBeInTheDocument());
-    fireEvent.change(screen.getByLabelText('Локация'), { target: { value: 'Исани' } });
+    fireEvent.change(screen.getByLabelText('Локация'), { target: { value: 'Isani' } });
     fireEvent.click(screen.getByRole('tab', { name: 'Перевод' }));
-    await waitFor(() => expect(fake.rpcCalls('cash_report').at(-1)).toMatchObject({ p_location: 'Исани', p_method: 'Перевод' }));
+    await waitFor(() => expect(fake.rpcCalls('cash_report').at(-1)).toMatchObject({ p_location: 'Isani', p_method: 'Перевод' }));
   });
 
-  it('локация: выпадающий список без дублей, выбор передаёт точное значение, «Все локации» — null', async () => {
-    fake.db.groups = [{ location: 'Ortachala' }, { location: 'Isani' }, { location: null }];
-    fake.db.camps = [{ location: 'Surami' }, { location: 'Ortachala' }, { location: ' ' }];
-    fake.db.equipment_orders = [{ location: 'Isani' }];
-    fake.db.extra_sessions = [{ place: 'Vake' }];
+  it('L1/L2: список локаций из справочника филиалов, без запросов к таблицам; выбор передаёт точное значение, «Все локации» — null', async () => {
+    fake.db.groups = [{ location: 'Исани' }, { location: '35-я школа' }];
+    fake.db.camps = [{ location: 'Surami' }];
+    fake.db.extra_sessions = [{ place: 'Surami Hotel' }];
     fake.rpc.cash_report = () => ({ data: report, error: null });
     render(<CashReport />);
     await screen.findByText('По сотрудникам');
     const sel = screen.getByLabelText('Локация') as HTMLSelectElement;
     expect(sel.tagName).toBe('SELECT');
-    await waitFor(() => expect(Array.from(sel.options).map(o => o.textContent)).toEqual(['Все локации', 'Isani', 'Ortachala', 'Surami', 'Vake']));
+    expect(Array.from(sel.options).map(o => o.textContent)).toEqual(['Все локации', 'Red Garden', 'Isani', 'Ortachala']);
+    expect(fake.calls.filter(c => ['groups', 'camps', 'equipment_orders', 'extra_sessions'].includes(c.name))).toEqual([]);
     fireEvent.change(sel, { target: { value: 'Ortachala' } });
     await waitFor(() => expect(fake.rpcCalls('cash_report').at(-1)).toMatchObject({ p_location: 'Ortachala' }));
     fireEvent.change(sel, { target: { value: '' } });
     await waitFor(() => expect(fake.rpcCalls('cash_report').at(-1)).toMatchObject({ p_location: null }));
   });
 
-  it('локация: сбой списка не блокирует отчёт и показывается сообщение, а не пустой список', async () => {
-    fake.errors.camps = 'column camps.location does not exist';
-    fake.rpc.cash_report = () => ({ data: report, error: null });
+  it('L7: операция с разовой площадкой видна при «Все локации», хотя в списке её нет', async () => {
+    fake.rpc.cash_report = () => ({ data: { ...report, rows: [{ ...report.rows[0], location: '35-я школа' }] }, error: null });
     render(<CashReport />);
-    await screen.findByText('По сотрудникам');
-    expect(Array.from((screen.getByLabelText('Локация') as HTMLSelectElement).options).map(o => o.textContent)).toEqual(['Все локации']);
-    expect(await screen.findByRole('status')).toHaveTextContent('Список локаций не загрузился');
+    expect(await screen.findByText(/35-я школа/)).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: '35-я школа' })).toBeNull();
   });
 
   it('период: поля «С» и «По» стоят в паре равных колонок', async () => {
@@ -82,31 +76,44 @@ describe('Кассовый отчёт', () => {
     expect(screen.getByLabelText('С').closest('.ks-pair')).toBe(screen.getByLabelText('По').closest('.ks-pair'));
   });
 
+  it('L4/L5: «Сборы» и «Без сборов» оставляют нужные операции и пересчитывают итоги, которые сходятся', async () => {
+    const rows = [
+      { id: 'a', kind: 'Абонемент', player: 'Аня', amount: 100, paid_on: today(), method: 'Наличные', staff: 'Дима', recorded_at: null, location: 'Isani' },
+      { id: 'b', kind: 'Сбор', player: 'Боря', amount: 300, paid_on: today(), method: 'Перевод', staff: 'Гил', recorded_at: null, location: 'Surami' },
+      { id: 'c', kind: 'Сбор', player: 'Вера', amount: -50, paid_on: today(), method: 'Перевод', staff: 'Дима', recorded_at: null, location: 'Surami' },
+    ];
+    fake.rpc.cash_report = () => ({ data: { total: 350, by_method: [{ method: 'Наличные', sum: 100 }, { method: 'Перевод', sum: 250 }], by_staff: [{ staff_id: 'x', name: 'Гил', sum: 300 }, { staff_id: 'y', name: 'Дима', sum: 50 }], rows }, error: null });
+    render(<CashReport />);
+    await screen.findByText('По сотрудникам');
+    expect(screen.getByText('Аня')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Сборы' }));
+    expect(screen.queryByText('Аня')).toBeNull();
+    expect(screen.getByText('Боря')).toBeInTheDocument();
+    expect(screen.getByText('Вера')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: /250/ })).toBeInTheDocument(); // итог 300 - 50
+    expect(screen.getByText('Операции').parentElement).toHaveTextContent('2');
+    fireEvent.click(screen.getByRole('tab', { name: 'Без сборов' }));
+    expect(screen.getByText('Аня')).toBeInTheDocument();
+    expect(screen.queryByText('Боря')).toBeNull();
+    expect(screen.getByRole('heading', { level: 2, name: /100/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Всё' }));
+    expect(screen.getByRole('heading', { level: 2, name: /350/ })).toBeInTheDocument();
+    // запрос в базу от фильтра вида не меняется
+    expect(new Set(fake.rpcCalls('cash_report').map(a => JSON.stringify(a))).size).toBe(1);
+  });
+
+  it('L6: пустой результат фильтра вида показывает «За период платежей нет»', async () => {
+    fake.rpc.cash_report = () => ({ data: report, error: null });
+    render(<CashReport />);
+    await screen.findByText('По сотрудникам');
+    fireEvent.click(screen.getByRole('tab', { name: 'Сборы' }));
+    expect(screen.getByText('За период платежей нет')).toBeInTheDocument();
+  });
+
   it('показывает ошибку, если отчёт не открылся', async () => {
     fake.rpc.cash_report = () => ({ data: null, error: { message: 'forbidden' } });
     render(<CashReport />);
     expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(screen.queryByText('По сотрудникам')).not.toBeInTheDocument();
-  });
-});
-
-// Контракт с базой: заглушка Supabase не знает схему, поэтому колонки списка локаций сверяются с миграциями, а источники — с телом cash_report.
-describe('Кассовый отчёт: источники списка локаций совпадают с базой', () => {
-  const dir = '../db/migrations/';
-  const sql = (readdirSync(dir) as string[]).filter(f => f.endsWith('.sql')).sort().map(f => readFileSync(dir + f, 'utf8') as string);
-  const report = [...sql].reverse().find(t => /function +(public\.)?cash_report *\(/i.test(t) && /create or replace/i.test(t)) ?? '';
-  it('cash_report берёт локацию из groups, camps, equipment_orders и extra_sessions.place, а sessions.location в схеме нет', () => {
-    expect(report).toMatch(/gr\.location/);
-    expect(report).toMatch(/cm\.location/);
-    expect(report).toMatch(/eo\.location from equipment_orders/);
-    expect(report).toMatch(/es\.place from extra_sessions/);
-    const all = sql.join('\n');
-    expect(all).not.toMatch(/alter table sessions[^;]*add column[^;]*location/i);
-  });
-  it('колонки, которые читает экран, есть в миграциях', () => {
-    const all = sql.join('\n');
-    expect(all).toMatch(/alter table camps[\s\S]{0,80}add column if not exists location/i);
-    expect(all).toMatch(/create table (if not exists )?extra_sessions[\s\S]{0,400}place text/i);
-    expect(all).toMatch(/create table (if not exists )?equipment_orders[\s\S]{0,600}location text/i);
   });
 });
