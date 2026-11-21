@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
-import { coachError } from '../lib/coach';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { coachError, errMsg } from '../lib/coach';
+import { loadMyChildren } from '../lib/myChildren';
 import { supabase } from '../lib/supabase';
 import { EmptyState, Pill } from '../ui/components';
 import { Failure, Loading } from './Message';
@@ -40,41 +41,117 @@ const when = (iso: string, kind: Kind, endIso?: string | null) => {
 // Запись детей на индивидуальные, вратарские и дополнительные тренировки (миграция 0045). Оплату вносит администратор.
 export default function Booking() {
   const [rows, setRows] = useState<Row[] | null>(null);
-  const [kids, setKids] = useState<Kid[]>([]);
+  // null = состояние неизвестно (идёт загрузка или она не удалась); [] = успешно пусто (#765, #766)
+  const [kids, setKids] = useState<Kid[] | null>(null);
+  const [kidsError, setKidsError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [waits, setWaits] = useState<Wait[]>([]);
+  const [waits, setWaits] = useState<Wait[] | null>(null);
+  const [waitsError, setWaitsError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [info, setInfo] = useState(false); // однократное информационное сообщение (миграция 0151)
-  const [clash, setClash] = useState<{ key: string; list: Clash[] } | null>(null);
+  // Только предупреждение о пересечении или неудачная проверка: запись родитель подтверждает сам
+  const [clash, setClash] = useState<{ key: string; list: Clash[] | null } | null>(null); // list === null: проверка не удалась
+  const seq = useRef(0); // номер последней загрузки: ответы более ранних не применяются
+  const user = useRef<string | null | undefined>(undefined); // пользователь, для которого загружен экран
+  const lock = useRef(false); // запись/проверка идёт: повторное нажатие не запускает вторую
 
   const load = useCallback(async () => {
-    const me = (await supabase.auth.getUser()).data.user?.id;
-    const g = me ? await supabase.from('player_guardians').select('players(id, full_name)').eq('user_id', me).is('consent_revoked_at', null) : null;
-    setKids(((g?.data ?? []) as unknown as { players: { id: string; full_name: string } | null }[]).filter(x => x.players).map(x => ({ id: x.players!.id, name: x.players!.full_name })));
-    const r = await supabase.rpc('booking_board');
-    if (r.error) return setError(err(r.error.message));
-    setRows((r.data ?? []) as Row[]);
-    const ip = await supabase.rpc('booking_info_pending');
-    setInfo(!ip.error && ip.data === true);
-    const w = await supabase.rpc('waitlist_board'); // до миграции 0149 функции нет: очередь просто не показываем
-    setWaits(w.error ? [] : ((w.data ?? []) as Wait[]));
+    const mine = ++seq.current;
+    const live = () => mine === seq.current;
+    setLoading(true);
+    try {
+      let me: string | undefined;
+      try { me = (await supabase.auth.getUser()).data.user?.id; } catch { me = undefined; }
+      if (!live()) return;
+      user.current = me ?? null;
+      if (!me) return setError(errMsg({ message: 'not authenticated' })); // как сервер: без пользователя booking_board отвечает forbidden
+      let kidsNext: Kid[] | null = null;
+      let kidsErr: string | null = null;
+      {
+        try {
+          const g = await loadMyChildren();
+          if (g.error) kidsErr = errMsg(g.error);
+          else kidsNext = (g.kids ?? []).map(x => ({ id: x.player_id, name: x.full_name }));
+        } catch (e) { kidsErr = errMsg(e); }
+      }
+      if (!live()) return;
+      let board: Row[];
+      try {
+        const r = await supabase.rpc('booking_board');
+        if (!live()) return;
+        if (r.error) return setError(err(r.error.message));
+        board = (r.data ?? []) as Row[];
+      } catch (e) {
+        if (live()) setError(errMsg(e));
+        return;
+      }
+      let infoNext = false;
+      try { const ip = await supabase.rpc('booking_info_pending'); infoNext = !ip.error && ip.data === true; } catch { infoNext = false; }
+      if (!live()) return;
+      let waitsNext: Wait[] | null = null;
+      let waitsErr: string | null = null;
+      try {
+        const w = await supabase.rpc('waitlist_board');
+        if (w.error) waitsErr = errMsg(w.error);
+        else waitsNext = (w.data ?? []) as Wait[];
+      } catch (e) { waitsErr = errMsg(e); }
+      if (!live()) return;
+      // всё применяется разом: экран не показывает промежуточное «очереди нет»
+      setKids(kidsNext); setKidsError(kidsErr);
+      setWaits(waitsNext); setWaitsError(waitsErr);
+      setInfo(infoNext);
+      setRows(board);
+    } finally {
+      if (live()) setLoading(false);
+    }
   }, []);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    // смена пользователя: прежнее состояние сбрасывается, ответы прежних загрузок отбрасываются; обновление токена того же пользователя не перезагружает
+    const sub = supabase.auth.onAuthStateChange?.((_ev: string, session: { user?: { id?: string } } | null) => {
+      const id = session?.user?.id ?? null;
+      if (user.current === undefined || id === user.current) return;
+      user.current = id;
+      setRows(null); setKids(null); setKidsError(null); setWaits(null); setWaitsError(null); setClash(null); setMsg(null); setError(null);
+      void load();
+    });
+    return () => { seq.current++; sub?.data?.subscription?.unsubscribe(); };
+  }, [load]);
 
-  // Перед записью проверяем пересечения ребёнка с другими занятиями: только предупреждение, запись не блокируется
+  // Перед записью проверяем пересечения ребёнка с другими занятиями: только предупреждение, запись не блокируется.
+  // Если проверка не удалась, запись сама не начинается: родитель выбирает, повторить, продолжить без проверки или отказаться.
   const trySignup = async (r: Row, kid: Kid) => {
+    if (lock.current) return;
+    lock.current = true;
+    const key = r.session_id + kid.id;
     setMsg(null);
-    const c = await supabase.rpc('booking_conflicts', { k: r.kind, s: r.session_id, p: kid.id });
-    const list = c.error ? [] : ((c.data ?? []) as Clash[]);
-    if (list.length === 0) return act('booking_signup', r, kid);
-    setClash({ key: r.session_id + kid.id, list });
+    setBusy(key);
+    try {
+      let list: Clash[] | null;
+      try {
+        const c = await supabase.rpc('booking_conflicts', { k: r.kind, s: r.session_id, p: kid.id });
+        list = c.error ? null : ((c.data ?? []) as Clash[]);
+      } catch { list = null; }
+      if (list === null) { setBusy(null); return setClash({ key, list: null }); }
+      if (list.length === 0) return await run('booking_signup', r, kid);
+      setBusy(null);
+      setClash({ key, list });
+    } finally { lock.current = false; }
   };
 
   const act = async (fn: 'booking_signup' | 'booking_cancel' | 'waitlist_join' | 'waitlist_leave' | 'waitlist_claim', r: Row, kid: Kid) => {
+    if (lock.current) return;
+    lock.current = true;
+    try { await run(fn, r, kid); } finally { lock.current = false; }
+  };
+
+  const run = async (fn: 'booking_signup' | 'booking_cancel' | 'waitlist_join' | 'waitlist_leave' | 'waitlist_claim', r: Row, kid: Kid) => {
     setBusy(r.session_id + kid.id);
     setMsg(null);
-    const res = await supabase.rpc(fn, { k: r.kind, s: r.session_id, p: kid.id });
+    let res: { error: { message: string } | null };
+    try { res = await supabase.rpc(fn, { k: r.kind, s: r.session_id, p: kid.id }); } catch (e) { setBusy(null); return setMsg(errMsg(e)); }
     setBusy(null);
     if (res.error) return setMsg(err(res.error.message));
     setClash(null);
@@ -95,6 +172,21 @@ export default function Booking() {
       )}
       <p className="muted">Запишите ребёнка на свободное место. Оплату вносит администратор клуба, статус виден здесь.</p>
       {msg && <p className="error" role="alert">{msg}</p>}
+      {kidsError && (
+        <section className="ks-card" role="alert">
+          <b>Не удалось загрузить список детей</b>
+          <p style={{ margin: '6px 0' }}>{kidsError} Пока список не загружен, записывать детей нельзя.</p>
+          <button type="button" className="ks-btn secondary" disabled={loading} onClick={() => void load()}>{loading ? 'Загружаю…' : 'Повторить'}</button>
+        </section>
+      )}
+      {waitsError && (
+        <section className="ks-card" role="alert">
+          <b>Не удалось загрузить очередь ожидания</b>
+          <p style={{ margin: '6px 0' }}>{waitsError} Пока неизвестно, стоит ли ребёнок в очереди, записаться или встать в очередь нельзя.</p>
+          <button type="button" className="ks-btn secondary" disabled={loading} onClick={() => void load()}>{loading ? 'Загружаю…' : 'Повторить'}</button>
+        </section>
+      )}
+      {kids && kids.length === 0 && <p className="muted">К профилю не привязан ни один ребёнок, записывать некого.</p>}
       {rows.map(r => {
         const left = r.capacity === null ? null : Math.max(0, r.capacity - r.booked.length);
         return (
@@ -110,7 +202,7 @@ export default function Booking() {
             ) : (
               <p style={{ margin: '8px 0' }}>Записаны: пока никого</p>
             )}
-            {kids.map(k => {
+            {(kids ?? []).map(k => {
               const mine = r.mine.find(m => m.player_id === k.id);
               return mine ? (
                 <div key={k.id} style={{ marginTop: 8 }}>
@@ -119,6 +211,7 @@ export default function Booking() {
                   {mine.paid && <p className="ks-muted" style={{ fontSize: 13, margin: '4px 0 0' }}>Оплата сохранится: администратор решит, оставить её клубу, перенести на другое занятие или вернуть.</p>}
                 </div>
               ) : r.eligible && !r.eligible.includes(k.id) ? null : (() => {
+                if (waits === null) return null; // очередь неизвестна: не предполагаем, что ребёнка в ней нет
                 const w = waits.find(x => x.session_id === r.session_id && x.player_id === k.id);
                 if (w) {
                   return (
@@ -134,8 +227,18 @@ export default function Booking() {
                   ? <button key={k.id} type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy !== null} onClick={() => void act('waitlist_join', r, k)}>Встать в очередь: {k.name}</button>
                   : clash?.key === r.session_id + k.id ? (
                     <div key={k.id} style={{ marginTop: 8 }} role="alert">
-                      <p className="error" style={{ margin: '0 0 6px' }}>В это время у {k.name} уже есть: {clash.list.map(c => `${c.label} (${clockOf(c.starts_at)}${c.ends_at ? `–${clockOf(c.ends_at)}` : ''})`).join(', ')}.</p>
-                      <button type="button" className="ks-btn" disabled={busy !== null} onClick={() => void act('booking_signup', r, k)}>Всё равно записать: {k.name}</button>
+                      {clash.list === null ? (
+                        <>
+                          <p className="error" style={{ margin: '0 0 6px' }}>Не удалось проверить, есть ли у {k.name} другие занятия в это время.</p>
+                          <button type="button" className="ks-btn secondary" disabled={busy !== null} onClick={() => void trySignup(r, k)}>Повторить проверку: {k.name}</button>
+                          <button type="button" className="ks-btn" style={{ marginTop: 6 }} disabled={busy !== null} onClick={() => void act('booking_signup', r, k)}>Продолжить без проверки: {k.name}</button>
+                        </>
+                      ) : (
+                        <>
+                          <p className="error" style={{ margin: '0 0 6px' }}>В это время у {k.name} уже есть: {clash.list.map(c => `${c.label} (${clockOf(c.starts_at)}${c.ends_at ? `–${clockOf(c.ends_at)}` : ''})`).join(', ')}.</p>
+                          <button type="button" className="ks-btn" disabled={busy !== null} onClick={() => void act('booking_signup', r, k)}>Всё равно записать: {k.name}</button>
+                        </>
+                      )}
                       <button type="button" className="ks-btn secondary" style={{ marginTop: 6 }} onClick={() => setClash(null)}>Не записывать</button>
                     </div>
                   )

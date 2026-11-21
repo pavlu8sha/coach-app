@@ -4,6 +4,7 @@ import { settingNumber, settingNumberError, useClubSettings } from '../lib/clubS
 import { perVisitMonth, type PayMode } from '../lib/payMode';
 import { DEBT_START } from '../lib/debtSeason';
 import { supabase } from '../lib/supabase';
+import { addPayment, paymentError, DUPLICATE_PAYMENT_NOTE } from '../lib/paymentAdd';
 import { EmptyState, Pill, SearchInput, SwitchRow } from '../ui/components';
 import { CLOSURE_LABELS, closureFlags, useClosure, type ClosureKind } from '../ui/ClosureSheet';
 import { Failure, Loading } from './Message';
@@ -74,6 +75,7 @@ export default function MonthPayments() {
   const [subs, setSubs] = useState<Map<string, Sub>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [note, setNote] = useState<string | null>(null);
   const [openId, setOpenId] = useNavState<string | null>('mp.open', null);
   const [q, setQ] = useNavState('mp.q', ''); // поиск на диск не пишем: в нём могут быть имена детей
   const [onlyDebt, setOnlyDebt] = useNavState('mp.debt', false, { persist: { kind: 'bool' } });
@@ -153,6 +155,7 @@ export default function MonthPayments() {
         <SwitchRow id="md" label="Только должники" checked={onlyDebt} onChange={setOnlyDebt} />
       </div>
       <SearchInput value={q} onChange={setQ} placeholder="Поиск по ФИ" label="Поиск по ФИ" />
+      {note && <p className="ks-muted" role="status">{note}</p>}
       {!players ? <Loading /> : (
         <>
           <div className="ks-tiles" style={{ margin: '12px 0' }}>
@@ -176,7 +179,7 @@ export default function MonthPayments() {
                   <p className="muted" style={{ fontSize: 13 }}>внесено {gel(gTotal)} из {gel(gExp)}</p>
                 </summary>
                 {shown.map(p => (
-                  <Row key={`${p.id}|${gotOf(p)}|${month}`} player={p} month={month} tariff={tariffOf(p)} got={gotOf(p)} sub={subs.get(p.id)} paidUp={done(p)} open={openId === p.id} onOpen={() => setOpenId(openId === p.id ? null : p.id)} onSaved={() => { setOpenId(null); setReload(n => n + 1); }} />
+                  <Row key={`${p.id}|${gotOf(p)}|${month}`} player={p} month={month} tariff={tariffOf(p)} got={gotOf(p)} sub={subs.get(p.id)} paidUp={done(p)} open={openId === p.id} onOpen={() => setOpenId(openId === p.id ? null : p.id)} onSaved={n => { setNote(n ?? null); setOpenId(null); setReload(x => x + 1); }} />
                 ))}
               </details>
             );
@@ -190,7 +193,7 @@ export default function MonthPayments() {
   );
 }
 
-export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOpen, onSaved }: { player: Player; title?: string; month: string; tariff: number | null; got: number; sub?: Sub; paidUp: boolean; open: boolean; onOpen: () => void; onSaved: () => void }) {
+export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOpen, onSaved }: { player: Player; title?: string; month: string; tariff: number | null; got: number; sub?: Sub; paidUp: boolean; open: boolean; onOpen: () => void; onSaved: (note?: string) => void }) {
   const [amount, setAmount] = useState(String(Math.max((tariff ?? 0) - got, 0) || ''));
   const [date, setDate] = useState(today());
   const [method, setMethod] = useState('');
@@ -214,10 +217,10 @@ export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOp
     if (date > today()) return setErr('Дата платежа не может быть в будущем.');
     setBusy(true);
     setErr(null);
-    const r = await supabase.from('payments').insert({ player_id: player.id, amount: Math.round(num * 100) / 100, paid_on: date, for_month: month, method });
+    const r = await addPayment({ player_id: player.id, amount: num, paid_on: date, for_month: month, method });
     setBusy(false);
-    if (r.error) return setErr(errMsg(r.error));
-    onSaved();
+    if (r.error) return setErr(paymentError(r.error));
+    onSaved(r.duplicate ? DUPLICATE_PAYMENT_NOTE : undefined);
   };
   return (
     <div className="ks-card">

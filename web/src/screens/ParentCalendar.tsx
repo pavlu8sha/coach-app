@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavState } from '../nav';
+import { loadMyChildren } from '../lib/myChildren';
 import { supabase } from '../lib/supabase';
 import { EmptyState } from '../ui/components';
 import { Failure, Loading } from './Message';
@@ -7,10 +8,6 @@ import { Failure, Loading } from './Message';
 interface Child {
   id: string;
   name: string;
-}
-interface GuardianRow {
-  player_id: string;
-  players: { id: string; full_name: string | null; groups: { name: string } | null } | null;
 }
 interface CalendarEvent {
   event_id: string;
@@ -90,19 +87,12 @@ export default function ParentCalendar() {
         if (!cancelled) { setChildrenError(true); setChildrenLoading(false); }
         return;
       }
-      const { data, error } = await supabase
-        .from('player_guardians')
-        .select('player_id, players(id, full_name, groups(name))')
-        .eq('user_id', me)
-        .is('consent_revoked_at', null)
-        .order('player_id');
+      const mine = await loadMyChildren(); // доступ решает сервер (my_children, 0215), как RLS; порядок по имени
       if (cancelled) return;
-      if (error) {
+      if (mine.error) {
         setChildrenError(true);
       } else {
-        const next = ((data ?? []) as unknown as GuardianRow[])
-          .map(row => row.players ? { id: row.players.id, name: row.players.full_name ?? 'Ребёнок' } : null)
-          .filter((child): child is Child => child !== null);
+        const next: Child[] = (mine.kids ?? []).map(k => ({ id: k.player_id, name: k.full_name || 'Ребёнок' }));
         setChildren(next);
         setPlayerId(current => next.some(child => child.id === current) ? current : next[0]?.id ?? '');
       }

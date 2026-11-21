@@ -26,9 +26,9 @@ describe('«Платежи» (администратор)', () => {
     fireEvent.change(screen.getByLabelText(/^Способ/), { target: { value: 'Наличные' } });
     fireEvent.click(screen.getByRole('button', { name: 'Внести платёж' }));
     expect(await screen.findByRole('dialog')).toHaveTextContent('65.50 ₾');
-    expect(fake.writes('payments', 'insert')).toHaveLength(0);
+    expect(fake.paymentAdds()).toHaveLength(0);
     fireEvent.click(screen.getByRole('button', { name: 'Записать платёж' }));
-    await waitFor(() => expect(fake.writes('payments', 'insert')).toEqual([{ player_id: 'p1', amount: 65.5, paid_on: today(), method: 'Наличные' }]));
+    await waitFor(() => expect(fake.paymentAdds()).toEqual([{ player_id: 'p1', amount: 65.5, paid_on: today(), method: 'Наличные' }]));
     expect(await screen.findByText('Платёж записан.')).toBeInTheDocument();
   });
 
@@ -44,7 +44,7 @@ describe('«Платежи» (администратор)', () => {
     fireEvent.change(screen.getByLabelText('Дата платежа'), { target: { value: '2999-01-01' } });
     fireEvent.click(screen.getByRole('button', { name: 'Внести платёж' }));
     expect(screen.getByText('Дата платежа не может быть в будущем.')).toBeInTheDocument();
-    expect(fake.writes('payments', 'insert')).toHaveLength(0);
+    expect(fake.paymentAdds()).toHaveLength(0);
   });
 
   it('исправление пишет встречную запись с минусом той же датой', async () => {
@@ -52,7 +52,7 @@ describe('«Платежи» (администратор)', () => {
     await openPlayer();
     fireEvent.click(await screen.findByRole('button', { name: 'Исправить (записать с минусом)' }));
     fireEvent.click(screen.getByRole('button', { name: 'Записать исправление' }));
-    await waitFor(() => expect(fake.writes('payments', 'insert')).toEqual([{ player_id: 'p1', amount: -100, paid_on: '2026-10-01', method: 'Исправление' }]));
+    await waitFor(() => expect(fake.paymentAdds()).toEqual([{ player_id: 'p1', amount: -100, paid_on: '2026-10-01', method: 'Исправление' }]));
   });
 });
 

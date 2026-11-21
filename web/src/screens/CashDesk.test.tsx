@@ -92,8 +92,8 @@ describe('«Приём оплат»', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Перевод' }));
     fireEvent.click(within(sub).getByRole('button', { name: 'Записать платёж' }));
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
-    await waitFor(() => expect(fake.writes('payments', 'insert')).toHaveLength(1));
-    expect(fake.writes('payments', 'insert')[0]).toMatchObject({ player_id: 'p1', amount: 60, method: 'Перевод', paid_on: today() });
+    await waitFor(() => expect(fake.paymentAdds()).toHaveLength(1));
+    expect(fake.paymentAdds()[0]).toMatchObject({ player_id: 'p1', amount: 60, method: 'Перевод', paid_on: today() });
   });
 
   it('абонемент: «Оплатить со скидкой» записывает меньшую сумму и сразу ставит скидку месяца', async () => {
@@ -107,8 +107,76 @@ describe('«Приём оплат»', () => {
     fireEvent.click(within(sub).getByRole('button', { name: 'Оплатить со скидкой' }));
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Оплатить' }));
     await waitFor(() => expect(fake.writes('subscriptions', 'upsert')).toHaveLength(1));
-    expect(fake.writes('payments', 'insert')[0]).toMatchObject({ player_id: 'p1', amount: 60, method: 'Перевод', for_month: M });
+    expect(fake.paymentAdds()[0]).toMatchObject({ player_id: 'p1', amount: 60, method: 'Перевод', for_month: M });
     expect(fake.writes('subscriptions', 'upsert')[0]).toMatchObject({ player_id: 'p1', month: M, discount: true });
+  });
+
+  it('абонемент: сервер ответил duplicate — сообщение «уже был записан», а не «Платёж записан» (#724)', async () => {
+    seed();
+    fake.rpc.payment_add = () => ({ data: { id: 'x1', duplicate: true } });
+    await openPlayer();
+    await screen.findByText(/Внесено 50 ₾ из 165 ₾/);
+    const sub = card(/Внесено 50 ₾ из 165 ₾/);
+    fireEvent.click(within(sub).getByRole('button', { name: 'Принять оплату' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Перевод' }));
+    fireEvent.click(within(sub).getByRole('button', { name: 'Записать платёж' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
+    expect(await screen.findByText('Этот платёж уже был записан ранее, второй не создан.')).toBeInTheDocument();
+    expect(screen.queryByText('Платёж записан.')).not.toBeInTheDocument();
+  });
+
+  it('абонемент: ключ, использованный с другими данными, показывается понятным текстом (#724)', async () => {
+    seed();
+    fake.rpc.payment_add = () => ({ error: { message: 'request id reused' } });
+    await openPlayer();
+    await screen.findByText(/Внесено 50 ₾ из 165 ₾/);
+    const sub = card(/Внесено 50 ₾ из 165 ₾/);
+    fireEvent.click(within(sub).getByRole('button', { name: 'Принять оплату' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Перевод' }));
+    fireEvent.click(within(sub).getByRole('button', { name: 'Записать платёж' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
+    expect(await screen.findByText(/уже записан с другими параметрами/)).toBeInTheDocument();
+    expect(screen.queryByText(/request id/)).not.toBeInTheDocument();
+  });
+
+  it('абонемент: «Оплатить со скидкой» при duplicate применяет скидку и сообщает, что платёж не создавался заново (#724)', async () => {
+    seed();
+    fake.rpc.payment_add = () => ({ data: { id: 'x1', duplicate: true } });
+    await openPlayer();
+    await screen.findByText(/Внесено 50 ₾ из 165 ₾/);
+    const sub = card(/Внесено 50 ₾ из 165 ₾/);
+    fireEvent.click(within(sub).getByRole('button', { name: 'Принять оплату' }));
+    fireEvent.change(within(sub).getByLabelText(/Сумма/), { target: { value: '60' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Перевод' }));
+    fireEvent.click(within(sub).getByRole('button', { name: 'Оплатить со скидкой' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Оплатить' }));
+    await waitFor(() => expect(fake.writes('subscriptions', 'upsert')).toHaveLength(1));
+    expect(await screen.findByText('Этот платёж уже был записан ранее, второй не создан.')).toBeInTheDocument();
+  });
+
+  it('абонемент: «Оплатить со скидкой», платёж записан, скидка упала, повтор: тот же ключ (duplicate), второй платёж не создаётся; повторяется только скидка (#724)', async () => {
+    seed();
+    let n = 0;
+    fake.rpc.payment_add = () => ({ data: { id: 'x1', duplicate: ++n > 1 } });
+    await openPlayer();
+    await screen.findByText(/Внесено 50 ₾ из 165 ₾/);
+    const sub = card(/Внесено 50 ₾ из 165 ₾/);
+    fireEvent.click(within(sub).getByRole('button', { name: 'Принять оплату' }));
+    fireEvent.change(within(sub).getByLabelText(/Сумма/), { target: { value: '60' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Перевод' }));
+    fireEvent.click(within(sub).getByRole('button', { name: 'Оплатить со скидкой' }));
+    fake.errors.subscriptions = 'boom'; // платёж пройдёт, скидка не запишется
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Оплатить' }));
+    expect(await screen.findByText(/Платёж записан, но скидку не применили/)).toBeInTheDocument();
+    delete fake.errors.subscriptions;
+    fireEvent.click(within(sub).getByRole('button', { name: 'Оплатить со скидкой' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Оплатить' }));
+    await waitFor(() => expect(fake.writes('subscriptions', 'upsert')).toHaveLength(1));
+    const keys = fake.paymentKeys();
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toBe(keys[1]);
+    expect(fake.writes('payments')).toHaveLength(0);
+    expect(await screen.findByText('Этот платёж уже был записан ранее, второй не создан.')).toBeInTheDocument();
   });
 
   it('разовое посещение другой группы показано отдельным разделом и платится через session_guest_set_paid', async () => {
@@ -227,8 +295,8 @@ describe('«Приём оплат»', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Перевод' }));
     fireEvent.click(within(c).getByRole('button', { name: 'Записать платёж' }));
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
-    await waitFor(() => expect(fake.writes('payments', 'insert')).toHaveLength(1));
-    expect(fake.writes('payments', 'insert')[0]).toMatchObject({ player_id: 'p1', amount: 165, paid_on: today(), for_month: next, method: 'Перевод' });
+    await waitFor(() => expect(fake.paymentAdds()).toHaveLength(1));
+    expect(fake.paymentAdds()[0]).toMatchObject({ player_id: 'p1', amount: 165, paid_on: today(), for_month: next, method: 'Перевод' });
   });
 
   it('«Внесено» за выбранную дату: платежи абонемента и сборов, итог по дню', async () => {
@@ -257,7 +325,7 @@ describe('«Приём оплат»', () => {
     fireEvent.click(within(sub).getByRole('button', { name: 'Принять оплату' }));
     fireEvent.click(within(sub).getByRole('button', { name: 'Записать платёж' }));
     expect(await screen.findByText(/Выберите способ оплаты вверху экрана/)).toBeInTheDocument();
-    expect(fake.writes('payments', 'insert')).toHaveLength(0);
+    expect(fake.paymentAdds()).toHaveLength(0);
   });
 
   it('будущая дата платежа отклоняется без записи; «Внесено сегодня» показывает итог', async () => {
@@ -274,7 +342,7 @@ describe('«Приём оплат»', () => {
     fireEvent.change(within(sub).getByLabelText('Дата'), { target: { value: '2999-01-05' } });
     fireEvent.click(within(sub).getByRole('button', { name: 'Записать платёж' }));
     expect(await screen.findByText(/Дата платежа не может быть в будущем/)).toBeInTheDocument();
-    expect(fake.writes('payments', 'insert')).toHaveLength(0);
+    expect(fake.paymentAdds()).toHaveLength(0);
   });
 
   it('экипировка: дата платежа выбирается, уходит в eq_add_payment, будущая дата отклоняется', async () => {
@@ -371,6 +439,118 @@ describe('«Приём оплат»: платежи дня', () => {
     cancelViaMenu();
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отменить оплату' }));
     await waitFor(() => expect(fake.writes('payments', 'insert')).toEqual([expect.objectContaining({ player_id: 'p1', amount: -50, paid_on: today(), method: 'Наличные' })]));
+  });
+  describe('изменение способа оплаты', () => {
+    const pay = (extra: object = {}) => ({ id: 'x1', player_id: 'p1', amount: 50, paid_on: today(), method: 'Перевод', players: { full_name: 'Иванов Пётр' }, ...extra });
+    const changeViaMenu = () => { fireEvent.click(rowMenu()); fireEvent.click(screen.getByRole('menuitem', { name: 'Изменить способ оплаты' })); };
+    const confirmChange = async () => fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Изменить способ' }));
+    // функция базы (0216): меняет только method у неотменённой оплаты, при несовпадении прежнего способа отказывает
+    const dbFn = () => { fake.rpc.payment_set_method = (a: { pid: string; new_method: string; old_method: string }) => {
+      const r = (fake.db.payments ?? []).find(x => x.id === a.pid);
+      if (!r) return { error: { message: 'payment not found' } };
+      if (r.method !== a.old_method) return { error: { message: 'payment changed' } };
+      r.method = a.new_method;
+      return { id: a.pid, changed: true };
+    }; };
+    it('пункт есть у оплаты абонемента рядом с «Отменить оплату»', async () => {
+      seed(); fake.db.payments = [pay()];
+      render(<CashDesk />);
+      await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
+      fireEvent.click(rowMenu());
+      expect(screen.getByRole('menuitem', { name: 'Изменить способ оплаты' })).toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: 'Отменить оплату' })).toBeInTheDocument();
+    });
+    it('подтверждение зовёт payment_set_method (а не прямой UPDATE), итоги «Наличные»/«Перевод» пересчитываются', async () => {
+      seed(); fake.db.payments = [pay()]; dbFn();
+      render(<CashDesk />);
+      await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
+      expect(screen.getByText('Перевод').nextSibling?.textContent).toBe('50 ₾');
+      changeViaMenu();
+      const dlg = await screen.findByRole('dialog');
+      expect(dlg).toHaveTextContent('Перевод');
+      expect(dlg).toHaveTextContent('Наличные');
+      expect(dlg).toHaveTextContent('50 ₾');
+      fireEvent.click(within(dlg).getByRole('button', { name: 'Изменить способ' }));
+      await waitFor(() => expect(screen.getByText('Наличные').nextSibling?.textContent).toBe('50 ₾'));
+      expect(screen.getByText('Перевод').nextSibling?.textContent).toBe('0 ₾');
+      expect(fake.rpcCalls('payment_set_method')).toEqual([{ pid: 'x1', new_method: 'Наличные', old_method: 'Перевод' }]);
+      expect(fake.writes('payments', 'update')).toHaveLength(0);
+      expect(fake.writes('payments', 'insert')).toHaveLength(0);
+    });
+    it.each([[null], ['Исправление'], ['cash']])('при способе %s пункта нет и функция не вызывается, отмена остаётся', async (m) => {
+      seed(); fake.db.payments = [pay({ method: m })];
+      render(<CashDesk />);
+      await screen.findByRole('heading', { name: /Внесено сегодня/ });
+      fireEvent.click(rowMenu());
+      expect(screen.queryByRole('menuitem', { name: 'Изменить способ оплаты' })).toBeNull();
+      expect(screen.getByRole('menuitem', { name: 'Отменить оплату' })).toBeInTheDocument();
+      expect(fake.rpcCalls('payment_set_method')).toHaveLength(0);
+    });
+    it('у отменённой оплаты пункта нет', async () => {
+      seed(); fake.db.payments = [pay(), pay({ id: 'x2', amount: -50, cancels: 'x1' })];
+      render(<CashDesk />);
+      await screen.findByRole('heading', { name: /Внесено сегодня/ });
+      expect(screen.queryByRole('button', { name: 'Действия: Иванов Пётр' })).toBeNull();
+    });
+    it('оплату уже изменили до подтверждения: понятная ошибка, оплата не тронута, список перечитан', async () => {
+      seed(); fake.db.payments = [pay()]; dbFn();
+      render(<CashDesk />);
+      await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
+      fake.db.payments[0].method = 'Наличные'; // другой администратор уже поменял, экран ещё показывает «Перевод»
+      changeViaMenu();
+      await confirmChange();
+      expect(await screen.findByRole('alert')).toHaveTextContent(/Способ не изменён: оплата уже изменена или отменена/);
+      expect(fake.db.payments[0].method).toBe('Наличные');
+    });
+    it('функции нет в базе (0216 не применена): сообщение про миграции, а не молчаливая неудача', async () => {
+      seed(); fake.db.payments = [pay()];
+      fake.rpc.payment_set_method = () => ({ error: { message: 'Could not find the function public.payment_set_method(new_method, old_method, pid) in the schema cache' } });
+      render(<CashDesk />);
+      await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
+      changeViaMenu();
+      await confirmChange();
+      expect(await screen.findByRole('alert')).toHaveTextContent(/правка способа ещё не установлена в базе \(нужны миграции 0179 и 0216\)/);
+    });
+    it('нет прав: сообщение «нет прав»', async () => {
+      seed(); fake.db.payments = [pay()];
+      fake.rpc.payment_set_method = () => ({ error: { message: 'forbidden' } });
+      render(<CashDesk />);
+      await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
+      changeViaMenu();
+      await confirmChange();
+      expect(await screen.findByRole('alert')).toHaveTextContent(/Способ не изменён: нет прав/);
+    });
+    it('сбой связи (rejected promise): понятная ошибка, кнопки не блокируются, список перечитывается', async () => {
+      seed(); fake.db.payments = [pay()]; dbFn();
+      render(<CashDesk />);
+      await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
+      fake.rpc.payment_set_method = () => Promise.reject(new Error('network down'));
+      changeViaMenu();
+      await confirmChange();
+      expect(await screen.findByRole('alert')).toHaveTextContent(/Способ не изменён.*правка могла примениться/);
+      dbFn();
+      await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
+      changeViaMenu();
+      await confirmChange();
+      await waitFor(() => expect(fake.rpcCalls('payment_set_method')).toHaveLength(2));
+      await waitFor(() => expect(fake.db.payments[0].method).toBe('Наличные'));
+    });
+  });
+  it('сбой связи при отмене (rejected promise): ошибка, блокировка снята, список перечитан', async () => {
+    seed();
+    fake.db.payments = [{ id: 'x1', player_id: 'p1', amount: 50, paid_on: today(), method: 'Наличные', players: { full_name: 'Иванов Пётр' } }];
+    render(<CashDesk />);
+    await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
+    fake.rejects.payments = 'network down';
+    cancelViaMenu();
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отменить оплату' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Отмена не записана.*отмена могла примениться/);
+    delete fake.rejects.payments;
+    fireEvent.click(await screen.findByRole('button', { name: 'Повторить' }));
+    await screen.findByRole('heading', { name: /Внесено сегодня.*50 ₾/ });
+    cancelViaMenu();
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отменить оплату' }));
+    await waitFor(() => expect(fake.writes('payments', 'insert')).toHaveLength(1));
   });
   it('если отмена не записалась, показывается ошибка', async () => {
     seed();
@@ -833,9 +1013,9 @@ describe('«Приём оплат»: быстрые даты и отмена ч�
     cancelViaMenu();
     const dlg = within(await screen.findByRole('dialog'));
     expect(dlg.getByText('Отменить оплату?')).toBeInTheDocument();
-    expect(fake.writes('payments', 'insert')).toEqual([]);
+    expect(fake.paymentAdds()).toEqual([]);
     fireEvent.click(dlg.getByRole('button', { name: /^(Отмена|Не надо|Назад)/ }));
-    expect(fake.writes('payments', 'insert')).toEqual([]);
+    expect(fake.paymentAdds()).toEqual([]);
   });
 
   it('у отменённой оплаты и у записи с минусом меню нет', async () => {

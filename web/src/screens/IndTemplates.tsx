@@ -132,8 +132,8 @@ export default function IndTemplates() {
         <EmptyState icon="calendar" title="Шаблонов нет" text="Создайте первый шаблон кнопкой выше." />
       ) : list.map(t => (
         <section className="ks-card" key={t.id || `${t.isodow}-${t.start_time}-${t.goalkeepers}`}>
-          <div className="ks-line">
-            <b style={{ overflowWrap: 'anywhere' }}>{slotTitle(t)}</b>
+          <div className="ks-line ks-head-badge keep-row">
+            <b>{slotTitle(t)}</b>
             <Pill tone={t.active ? 'success' : 'neutral'} dot>{t.active ? 'Активен' : 'Отключён'}</Pill>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>

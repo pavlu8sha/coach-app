@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { groupInOrder, errMsg } from '../lib/coach';
 import { useNavState } from '../nav';
+import { loadMyChildren } from '../lib/myChildren';
 import { supabase } from '../lib/supabase';
 import { MATCH_DURATION_KEY, matchDurationFor, type ScopedValues, type SettingValues } from '../lib/clubSettings';
 import { teamResults } from '../lib/teamResults';
@@ -64,10 +65,10 @@ export default function Matches() {
       const me = (await supabase.auth.getUser()).data.user?.id;
       if (cancelled) return;
       if (!me) return setError('Нет сессии');
-      const links = await supabase.from('player_guardians').select('players(id, full_name, groups(name))').eq('user_id', me).is('consent_revoked_at', null);
+      const links = await loadMyChildren();
       if (cancelled) return;
       if (links.error) return setError(errMsg(links.error));
-      const ps = ((links.data ?? []) as any[]).map(l => l.players).filter(Boolean);
+      const ps = (links.kids ?? []).map(k => ({ id: k.player_id, full_name: k.full_name, groups: k.group_name ? { name: k.group_name } : null }));
       const names = [...new Set(ps.map(p => p.groups?.name as string | undefined).filter((n): n is string => Boolean(n)))];
       const myKids = ps.map(p => ({ id: p.id as string, name: (p.full_name ?? '') as string }));
       setKids(myKids);

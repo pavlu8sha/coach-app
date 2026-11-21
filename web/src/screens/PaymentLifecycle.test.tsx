@@ -46,8 +46,8 @@ describe('Платёж: ввод суммы и повтор', () => {
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText('60.50 ₾')).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Записать' }));
-    await waitFor(() => expect(fake.writes('payments', 'insert')).toHaveLength(1));
-    expect(fake.writes('payments', 'insert')[0]).toMatchObject({ player_id: 'p1', amount: 60.5, method: 'Перевод' });
+    await waitFor(() => expect(fake.paymentAdds()).toHaveLength(1));
+    expect(fake.paymentAdds()[0]).toMatchObject({ player_id: 'p1', amount: 60.5, method: 'Перевод' });
   });
 
   it.each(['0', '-5', 'abc', ''])('сумма «%s» отклоняется: окна подтверждения нет, записи нет', async (bad) => {
@@ -69,7 +69,7 @@ describe('Платёж: ввод суммы и повтор', () => {
     fireEvent.click(confirm);
     fireEvent.click(confirm);
     await screen.findByText('Платёж записан.');
-    expect(fake.writes('payments', 'insert')).toHaveLength(1);
+    expect(fake.paymentAdds()).toHaveLength(1);
   });
 });
 
@@ -80,7 +80,7 @@ describe('Платёж: ошибка записи', () => {
     fill(card, '100');
     fireEvent.click(within(card).getByRole('button', { name: 'Записать платёж' }));
     const dialog = await screen.findByRole('dialog');
-    fake.errors.payments = 'boom'; // база начинает отвечать ошибкой уже после загрузки списка
+    fake.rpc.payment_add = () => ({ error: { message: 'boom' } }); // база начинает отвечать ошибкой уже после загрузки списка
     fireEvent.click(within(dialog).getByRole('button', { name: 'Записать' }));
     await waitFor(() => expect(card.querySelector('.error')).not.toBeNull());
     expect(screen.queryByText('Платёж записан.')).not.toBeInTheDocument();

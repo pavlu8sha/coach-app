@@ -24,6 +24,13 @@ export const fake = {
   rpcCalls(name: string) {
     return this.calls.filter(c => c.kind === 'rpc' && c.name === name).map(c => c.args);
   },
+  /** Платежи абонемента, записанные через payment_add (0214), в виде строки payments (без ключа); ключи: paymentKeys(). */
+  paymentAdds() {
+    return this.rpcCalls('payment_add').map((a: any) => ({ player_id: a.pid, amount: a.amt, paid_on: a.d, method: a.mth, ...(a.fm ? { for_month: a.fm } : {}) }));
+  },
+  paymentKeys() {
+    return this.rpcCalls('payment_add').map((a: any) => a.req);
+  },
   /** Записи в таблицу: insert/upsert/update/delete. */
   writes(table: string, kind?: Call['kind']) {
     return this.calls.filter(c => c.kind !== 'rpc' && c.name === table && (!kind || c.kind === kind)).map(c => c.args);
@@ -61,7 +68,12 @@ function query(table: string): any {
     }
     if (op === 'update') {
       fake.calls.push({ kind: 'update', name: table, args: payload });
-      return { data: null, error: null };
+      // как PostgREST: применяет значения к строкам под фильтром; с .select() возвращает их (пусто = ни одной строки не обновлено)
+      const hit = rows.filter(r => filters.every(f => f(r)));
+      // без мутации исходных объектов: тесты делят константы-фикстуры между собой
+      const changed = hit.map(r => ({ ...r, ...payload }));
+      fake.db[table] = rows.map(r => { const i = hit.indexOf(r); return i < 0 ? r : changed[i]; });
+      return { data: returning ? changed : null, error: null };
     }
     if (op === 'delete') {
       fake.calls.push({ kind: 'delete', name: table, args: undefined });
@@ -109,7 +121,15 @@ export const supabase: any = {
     then: (res: any, rej: any) => {
       fake.calls.push({ kind: 'rpc', name, args });
       // поиск игрока в кассе (0154): по умолчанию ищет по данным fake.db.players, как админ; тест может подставить свой ответ
-      const h = fake.rpc[name] ?? (name === 'cash_find_players'
+      // список детей родителя (0215): по умолчанию строится из fake.db.player_guardians (вложенный players, как в прежних данных; решение о доступе принимает сервер, фильтра тут нет);
+      // тест подставляет fake.rpc.my_children, чтобы проверить ответ сервера, ошибку или сбой сети
+      const h = fake.rpc[name] ?? (name === 'my_children'
+        ? () => {
+            if (!fake.user) return { error: { message: 'forbidden', code: '42501' } };
+            return (fake.db.player_guardians ?? []).filter(g => g.user_id === fake.user!.id && g.players)
+              .map(g => ({ player_id: g.players.id, full_name: g.players.full_name, group_id: g.players.group_id ?? null, group_name: g.players.groups?.name ?? null }));
+          }
+        : name === 'cash_find_players'
         ? (a: { q: string }) => (fake.db.players ?? []).filter(p => String(p.full_name).toLowerCase().includes(String(a.q).toLowerCase()))
             .map(p => ({ id: p.id, full_name: p.full_name, group_id: p.group_id ?? null, external_id: p.external_id ?? null, birth_date: p.birth_date ?? null, status: p.status ?? 'active', group_name: p.groups?.name ?? null }))
         : undefined);

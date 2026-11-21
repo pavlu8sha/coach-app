@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNav, useSubEntry } from '../nav';
+import { loadMyChildren } from '../lib/myChildren';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow } from '../ui/components';
 import { BackNav } from '../ui/nav';
@@ -53,15 +54,11 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
       const me = (await supabase.auth.getUser()).data.user?.id;
       if (cancelled) return;
       if (!me) return setError('Нет сессии');
-      const links = await supabase.from('player_guardians').select('players(id, full_name, groups(name))').eq('user_id', me).is('consent_revoked_at', null);
+      const links = await loadMyChildren();
       if (cancelled) return;
       if (links.error) return setError(errMsg(links.error));
       kidsGen.current = gen;
-      setKids(
-        ((links.data ?? []) as any[])
-          .filter(l => l.players)
-          .map(l => ({ id: l.players.id as string, name: (l.players.full_name ?? '') as string, group: (l.players.groups?.name ?? null) as string | null })),
-      );
+      setKids((links.kids ?? []).map(k => ({ id: k.player_id, name: k.full_name ?? '', group: k.group_name })));
     })();
     return () => { cancelled = true; };
   }, [reload]);

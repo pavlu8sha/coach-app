@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { addDays, coachError, fmtDate, hasSubscription, today, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
+import { addPayment, clearPaymentKey, paymentError, DUPLICATE_PAYMENT_NOTE } from '../lib/paymentAdd';
 import { EmptyState, ListRow, Pill, SearchInput } from '../ui/components';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { MoreMenu } from '../ui/MoreMenu';
@@ -13,7 +14,7 @@ import { gel, monthIso, monthName, nextMonth, tariffFor } from './MonthPayments'
 import { useNavState } from '../nav';
 
 interface Pl { id: string; full_name: string; group_id: string | null; groups: { name: string } | null; external_id?: string | null; birth_date?: string | null; status?: string }
-interface Due { key: string; kind: 'sub' | 'eq' | 'ind' | 'extra' | 'visit' | 'own_visit' | 'camp' | 'match' | 'event'; section: string; title: string; sub?: string; due: number; paid: number; month?: string; advance?: boolean; pay: (amount: number, method: string, date: string, req?: string) => PromiseLike<{ error: { message: string } | null }>; discount?: () => PromiseLike<{ error: { message: string } | null }> }
+interface Due { key: string; kind: 'sub' | 'eq' | 'ind' | 'extra' | 'visit' | 'own_visit' | 'camp' | 'match' | 'event'; section: string; title: string; sub?: string; due: number; paid: number; month?: string; advance?: boolean; pay: (amount: number, method: string, date: string, req?: string) => PromiseLike<{ error: { message: string } | null; duplicate?: boolean }>; discount?: () => PromiseLike<{ error: { message: string } | null }>; settle?: () => void }
 
 const METHODS = ['Наличные', 'Перевод'];
 const PAY_METHODS = ['Наличные', 'Перевод'];
@@ -78,7 +79,8 @@ async function loadDues(p: Pl): Promise<{ dues: Due[]; missing: string[] }> {
       if (got >= tariff) continue;
       out.push({
         key: 'sub' + m, kind: 'sub', section: SECTIONS[0], title: m > cur ? `${monthName(m)} (вперёд)` : monthName(m), sub: s?.discount ? 'скидка по договорённости: оплатите любую сумму' : m > cur ? 'оплата вперёд: дата — день, когда внесли деньги' : undefined, due: tariff, paid: got, month: m, advance: m > cur,
-        pay: (amount, method, date) => supabase.from('payments').insert({ player_id: p.id, amount: r2(amount), paid_on: date, for_month: m, method }),
+        pay: (amount, method, date) => addPayment({ player_id: p.id, amount: r2(amount), paid_on: date, for_month: m, method }, { keep: true }),
+        settle: () => clearPaymentKey(p.id), // ключ платежа живёт, пока не закончена вся операция (платёж + скидка)
         discount: () => supabase.from('subscriptions').upsert({ player_id: p.id, month: m, discount: true, closed_kind: 'discount', closed_reason: 'скидка при приёме оплаты в кассе' }, { onConflict: 'player_id,month' }),
       });
     }
@@ -286,16 +288,51 @@ export default function CashDesk() {
     if (!ok) return;
     setCancelling(x.id);
     setCancelErr(null);
-    const { error } = await supabase.from('payments').insert({ player_id: x.player_id, amount: -Number(x.amount), paid_on: day, cancels: x.id, ...(x.pay_month ? { for_month: x.pay_month } : {}), method: x.method ?? 'Исправление' });
-    setCancelling(null);
-    if (error) {
-      // запись не сохранилась: не показываем отмену, которой нет в базе. Если платёж уже отменён (повтор или параллельный клик), обновляем список
-      const already = (error as { code?: string }).code === '23505' || /cancels/.test(error.message);
-      setCancelErr(already ? 'Этот платёж уже отменён.' : `Отмена не записана: ${errText(error.message)}`);
-      if (already) setReload(n => n + 1);
-      return;
+    try {
+      const { error } = await supabase.from('payments').insert({ player_id: x.player_id, amount: -Number(x.amount), paid_on: day, cancels: x.id, ...(x.pay_month ? { for_month: x.pay_month } : {}), method: x.method ?? 'Исправление' });
+      if (error) {
+        // запись не сохранилась: не показываем отмену, которой нет в базе. Если платёж уже отменён (повтор или параллельный клик), обновляем список
+        const already = (error as { code?: string }).code === '23505' || /cancels/.test(error.message);
+        setCancelErr(already ? 'Этот платёж уже отменён.' : `Отмена не записана: ${errText(error.message)}`);
+      }
+    } catch (e) {
+      // сбой связи: запись могла дойти до сервера, а ответ потеряться, поэтому список перечитываем для сверки
+      setCancelErr(`Отмена не записана: ${errText(errMsg(e))} Проверьте список: отмена могла примениться.`);
+    } finally {
+      setCancelling(null);
+      setReload(n => n + 1);
     }
-    setReload(n => n + 1);
+  };
+  // Исправление способа оплаты абонемента через payment_set_method (0216): у authenticated нет права UPDATE на payments (0004), запись идёт функцией и попадает в audit_log
+  const methodError = (m: string) =>
+    /payment changed|payment cancelled|not a payment|payment not found/.test(m) ? 'оплата уже изменена или отменена. Список обновлён.'
+      : /forbidden/.test(m) ? 'нет прав на это действие.'
+      : /audit not installed|PGRST202|Could not find the function|does not exist/.test(m) ? 'правка способа ещё не установлена в базе (нужны миграции 0179 и 0216).'
+      : errText(m);
+  const changeMethod = async (x: { id: string; amount: number; method?: string | null; players?: { full_name: string } | null }) => {
+    if (cancelling) return;
+    if (x.method !== 'Наличные' && x.method !== 'Перевод') return; // неизвестный способ не подменяем
+    const from = x.method;
+    const to = from === 'Перевод' ? 'Наличные' : 'Перевод';
+    const ok = await ask({
+      title: 'Изменить способ оплаты?',
+      lines: [['Игрок', x.players?.full_name], ['Сумма', gel(Number(x.amount))], ['Был способ', from], ['Станет', to]],
+      note: 'Сумма и дата не меняются. Правка запишется в журнал.',
+      confirmLabel: 'Изменить способ',
+    });
+    if (!ok) return;
+    setCancelling(x.id);
+    setCancelErr(null);
+    try {
+      const { error } = await supabase.rpc('payment_set_method', { pid: x.id, new_method: to, old_method: from });
+      if (error) setCancelErr(`Способ не изменён: ${methodError(error.message)}`);
+    } catch (e) {
+      // сбой связи: запрос мог дойти до сервера, а ответ потеряться, поэтому список перечитываем для сверки
+      setCancelErr(`Способ не изменён: ${errText(errMsg(e))} Проверьте список: правка могла примениться.`);
+    } finally {
+      setCancelling(null);
+      setReload(n => n + 1);
+    }
   };
   const total = (todayRows ?? []).reduce((s, x) => s + Number(x.amount), 0);
   // платёж отменён, если на него есть запись cancels (0097). Старые отмены без ссылки ищем по игроку и сумме за этот день (повторная отмена удвоила бы минус)
@@ -364,13 +401,13 @@ export default function CashDesk() {
         const end = can ? (
           <>
             {pill}
-            <MoreMenu label={`Действия: ${name}`} items={[{ label: 'Отменить оплату', onSelect: () => void cancelPay(x) }]} />
+            <MoreMenu label={`Действия: ${name}`} items={[...(x.method === 'Наличные' || x.method === 'Перевод' ? [{ label: 'Изменить способ оплаты', onSelect: () => void changeMethod(x) }] : []), { label: 'Отменить оплату', onSelect: () => void cancelPay(x) }]} />
           </>
         ) : pill;
         return <div key={x.what + x.id}><ListRow title={name} sub={[x.sub ?? [x.what, x.method].filter(Boolean).join(' · ')]} end={end} /></div>;
       })}
       {dialog}
-      <p className="ks-muted" style={{ fontSize: 13 }}>В списке оплаты за день: абонементы, сборы, экипировка и занятия. Отменить можно оплату абонемента через «⋯» у строки; остальные оплаты отменяются в своих разделах.</p>
+      <p className="ks-muted" style={{ fontSize: 13 }}>В списке оплаты за день: абонементы, сборы, экипировка и занятия. У оплаты абонемента через «⋯» можно изменить способ или отменить её; остальные оплаты отменяются в своих разделах.</p>
     </main>
   );
 }
@@ -427,7 +464,7 @@ export function PlayerDues({ player, onBack, embedded = false, sharedMethod, jum
           <section key={s} data-sec={s}>
             <h2 className="ks-sub">{s}</h2>
             {dues.filter(d => d.section === s).map(d => (
-              <DueCard key={d.key} due={d} who={player.full_name} sharedMethod={sharedMethod} open={openKey === d.key} onOpen={() => setOpenKey(openKey === d.key ? null : d.key)} locked={refreshing} onPaid={() => { setOpenKey(null); setMsg('Платёж записан.'); setRefreshing(true); setReload(n => n + 1); }} />
+              <DueCard key={d.key} due={d} who={player.full_name} sharedMethod={sharedMethod} open={openKey === d.key} onOpen={() => setOpenKey(openKey === d.key ? null : d.key)} locked={refreshing} onPaid={dup => { setOpenKey(null); setMsg(dup ? DUPLICATE_PAYMENT_NOTE : 'Платёж записан.'); setRefreshing(true); setReload(n => n + 1); }} />
             ))}
           </section>
         ))
@@ -436,7 +473,7 @@ export function PlayerDues({ player, onBack, embedded = false, sharedMethod, jum
   );
 }
 
-function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false }: { due: Due; open: boolean; onOpen: () => void; onPaid: () => void; sharedMethod?: string; who: string; locked?: boolean }) {
+function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false }: { due: Due; open: boolean; onOpen: () => void; onPaid: (duplicate?: boolean) => void; sharedMethod?: string; who: string; locked?: boolean }) {
   const left = r2(due.due - due.paid);
   const [amount, setAmount] = useState(String(left));
   const [ownMethod, setMethod] = useState('');
@@ -470,9 +507,10 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false 
     setErr(null);
     const r = await due.pay(fixedAmount ? left : num, method, date, reqFor(`${fixedAmount ? left : num}|${method}|${date}`));
     setBusy(false);
-    if (r.error) return setErr(errText(r.error.message));
+    if (r.error) return setErr(due.kind === 'sub' ? paymentError(r.error) : errText(r.error.message));
     reqRef.current = null;
-    onPaid();
+    due.settle?.();
+    onPaid(r.duplicate);
   };
   // «Оплатить со скидкой»: то же, что внести меньшую сумму и затем применить скидку месяца, одним действием
   const payWithDiscount = async () => {
@@ -489,13 +527,14 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false 
     setBusy(true);
     setErr(null);
     const p = await due.pay(num, method, date, reqFor(`${num}|${method}|${date}`));
-    if (p.error) { setBusy(false); return setErr(errText(p.error.message)); }
-    reqRef.current = null;
+    if (p.error) { setBusy(false); return setErr(due.kind === 'sub' ? paymentError(p.error) : errText(p.error.message)); }
     const d = await due.discount!();
     setBusy(false);
     // платёж уже записан: повторно его не отправляем, только сообщаем об ошибке скидки
-    if (d.error) return setErr(`Платёж записан, но скидку не применили (${errMsg(d.error)}). Примените скидку в «Оплатах за месяц», платёж повторять не нужно.`);
-    onPaid();
+    if (d.error) return setErr(`${p.duplicate ? 'Платёж уже был записан ранее, второй не создан' : 'Платёж записан'}, но скидку не применили (${errMsg(d.error)}). Примените скидку в «Оплатах за месяц», платёж повторять не нужно.`);
+    reqRef.current = null;
+    due.settle?.();
+    onPaid(p.duplicate);
   };
   return (
     <div className="ks-card ks-due">

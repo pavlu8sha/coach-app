@@ -73,6 +73,12 @@ preflight_partial "без 0205, 0207 и 0208" '0205_eq_bundle_model|0207_eq_free
 preflight_partial "без 0208" '0208_eq_auto_recalc' 0208_eq_auto_recalc
 # 0209 (профиль игрока, #654) самостоятельна: на базе без неё preflight не должен падать (to_regclass), строка 0209 даёт NOT_APPLIED.
 preflight_partial "без 0209" '0209_player_profile_attributes' 0209_player_profile_attributes
+# 0214 (идемпотентность платежей, #724) самостоятельна: на базе без неё preflight не должен падать, строка 0214 даёт NOT_APPLIED.
+preflight_partial "без 0214" '0214_payment_idempotency' 0214_payment_idempotency
+# 0215 (my_children, серверный список детей) самостоятельна: на базе без неё preflight не падает (to_regprocedure), строка 0215 даёт NOT_APPLIED.
+preflight_partial "без 0215" '0215_my_children' 0215_my_children
+# 0216 (payment_set_method) самостоятельна: на базе без неё preflight не падает, строка 0216 даёт NOT_APPLIED.
+preflight_partial "без 0216" '0216_payment_set_method' 0216_payment_set_method
 # 0217 (finish/renew lease) проверяет отсутствие старой сигнатуры finish_notification: на базе без неё строка NOT_APPLIED, preflight не падает.
 preflight_partial "без 0217" '0217_notifications_finish_lease' 0217_notifications_finish_lease
 for t in db/tests/*_test.sql; do
@@ -91,6 +97,8 @@ echo "== db/tests/concurrency_camp_seats.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_camp_seats.sh || fail=1
 echo "== db/tests/concurrency_camp_applications.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_camp_applications.sh || fail=1
+echo "== db/tests/concurrency_own_visit_backfill.sh"
+DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_own_visit_backfill.sh || fail=1
 echo "== db/tests/concurrency_camp_refund.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_camp_refund.sh || fail=1
 echo "== db/tests/concurrency_consent_record.sh"
@@ -116,6 +124,8 @@ echo "== db/tests/concurrency_club_event_seats.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_club_event_seats.sh || fail=1
 echo "== db/tests/concurrency_club_event_pay.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_club_event_pay.sh || fail=1
+echo "== db/tests/concurrency_payment_add.sh"
+DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_payment_add.sh || fail=1
 echo "== db/tests/concurrency_player_save.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_player_save.sh || fail=1
 echo "== db/tests/concurrency_notifications_release.sh"
