@@ -44,7 +44,7 @@ export function ListRow(props: { title: string; sub?: ReactNode[]; avatar?: stri
       {(props.end || props.onClick) && (
         <span className="ks-row-end">
           {props.end}
-          {props.onClick && (props.selected ? <span className="ks-check" aria-hidden="true" /> : <span className="ks-chev" aria-hidden="true" />)}
+          {props.onClick && (props.selected ? <span className="ks-row-tick" aria-hidden="true" /> : <span className="ks-chev" aria-hidden="true" />)}
         </span>
       )}
     </>
