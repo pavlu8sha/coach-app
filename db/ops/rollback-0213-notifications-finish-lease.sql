@@ -1,4 +1,4 @@
--- Откат 0209 (#714). Возвращает finish_notification из 0026 без claim_token и удаляет renew_notifications.
+-- Откат 0213 (#714). Возвращает finish_notification из 0026 без claim_token и удаляет renew_notifications.
 -- После отката новый tg-notify не сможет завершать уведомления: вместе с откатом нужен откат функции tg-notify
 -- к версии до #714. Выполнять в SQL Editor целиком только при необходимости.
 begin;

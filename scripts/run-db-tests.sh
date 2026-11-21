@@ -73,6 +73,8 @@ preflight_partial "без 0205, 0207 и 0208" '0205_eq_bundle_model|0207_eq_free
 preflight_partial "без 0208" '0208_eq_auto_recalc' 0208_eq_auto_recalc
 # 0209 (профиль игрока, #654) самостоятельна: на базе без неё preflight не должен падать (to_regclass), строка 0209 даёт NOT_APPLIED.
 preflight_partial "без 0209" '0209_player_profile_attributes' 0209_player_profile_attributes
+# 0213 (finish/renew lease) проверяет отсутствие старой сигнатуры finish_notification: на базе без неё строка NOT_APPLIED, preflight не падает.
+preflight_partial "без 0213" '0213_notifications_finish_lease' 0213_notifications_finish_lease
 for t in db/tests/*_test.sql; do
   echo "== $t"
   out=$($PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f "$t" 2>&1) || { echo "$out"; fail=1; continue; }

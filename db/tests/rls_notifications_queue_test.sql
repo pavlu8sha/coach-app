@@ -88,7 +88,7 @@ select is((row_of('Q2')).state || '/' || (row_of('Q2')).last_error, 'failed/stal
 
 -- Q3a: последняя (третья) попытка: finish с ошибкой закрывает её, как раньше
 select as_service();
-select finish_notification((row_of('Q3a')).id, false, '500 again');
+select finish_notification((row_of('Q3a')).id, false, '500 again', false, (row_of('Q3a')).claim_token);
 reset role;
 select is((row_of('Q3a')).state || '/' || (row_of('Q3a')).last_error, 'failed/500 again', 'Q6. finish на третьей попытке закрывает строку, как раньше');
 
@@ -117,7 +117,7 @@ select is(rel(array[(row_of('QR')).id, (row_of('QR')).id]), 1, 'Q4. повтор
 select is(rel(array[(row_of('QR')).id]), 0, 'Q4. повторный вызов ничего не меняет');
 select is((row_of('QR')).attempts, 0, 'Q4. attempts после повторов = 0');
 select as_service();
-select finish_notification((row_of('QRother')).id, true, null);
+select finish_notification((row_of('QRother')).id, true, null, false, (row_of('QRother')).claim_token);
 reset role;
 select is(rel(array[(row_of('QRother')).id, (row_of('Q1a')).id, (row_of('Q3k')).id]), 0, 'Q4. sent, failed, skipped не возвращаются');
 select is((row_of('QRother')).state || '/' || (row_of('QRother')).attempts, 'sent/1', 'Q4. отправленная строка не изменилась');
@@ -155,7 +155,8 @@ begin
   for i in 1..5 loop
     perform as_service();
     perform claim_notifications(50);
-    perform finish_notification(a, false, '429 Too Many Requests');  -- строка с 429
+    perform finish_notification(a, false, '429 Too Many Requests', false,
+      (select claim_token from notifications where id = a));  -- строка с 429
     perform release_notifications(array[b], (select claim_token from notifications where id = b)); -- остальные возвращаются
     reset role;
     update notifications set claimed_at = now() - interval '5 minutes' where id = a and state = 'pending';

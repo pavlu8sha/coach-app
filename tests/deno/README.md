@@ -17,7 +17,8 @@ deno test --allow-env --allow-net --allow-read --allow-run tests/deno/
   лимитера, конфликт `identity_mismatch` 409, ошибки Supabase.
 - `tg-login`: вход через Telegram Login Widget, подмена полей, просроченная
   подпись, создание пользователя, лимиты, конфликт и ошибки Supabase.
-- `tg-notify`: проверка секрета, отправка очереди, `finish_notification`, ответы
+- `tg-notify`: проверка секрета, `renew_notifications` перед каждым запросом,
+  `finish_notification` с `claim_token`, timeout запроса, бюджет пачки, ответы
   Telegram 403/429/500 и ошибка выборки очереди.
 - `tg-bot`: проверка webhook-секрета, `/start`, callback `next`, группы,
   некорректный JSON и ответы Telegram 403/429/500.

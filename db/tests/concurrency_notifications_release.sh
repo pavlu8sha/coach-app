@@ -81,5 +81,31 @@ if [ "$((E + F))" = "1" ] && [ "$R" = "1|-|-|pending" ] && ! grep -qi 'deadlock\
   ok "Q4: два одновременных release одной выдачи вернули строку один раз (attempts=1)"
 else bad "Q4: два release ($E + $F, строка $R)"; cat "$TMP/e.out" "$TMP/f.out"; fi
 
+# 4. Q10 (#714): A получил строку, закрепление истекло, B получил её заново. A не может завершить строку токеном A.
+q -c "insert into notifications (user_id, kind, text) values ('$U', 'syn_rel', 'R2')" >/dev/null
+id2=$(q -c "select id from notifications where text = 'R2'")
+TA2=$(claim R2); age R2; TB2=$(claim R2)
+FA=$(q -c "$(svc) select finish_notification('$id2'::uuid, true, null, false, '$TA2'::uuid);" | tail -1)
+R=$(row R2)
+if [ "$FA" = "f" ] && [ "$TB2" != "$TA2" ] && [ "$(echo "$R" | cut -d'|' -f1)" = "2" ] && [ "$(echo "$R" | cut -d'|' -f3)" = "$TB2" ] && [ "$(echo "$R" | cut -d'|' -f4)" = "pending" ]; then
+  ok "Q10: stale finish A не завершил строку B (attempts=2, токен B, pending)"
+else bad "Q10: stale finish A (finish '$FA', строка $R, токены A=$TA2 B=$TB2)"; fi
+FB=$(q -c "$(svc) select finish_notification('$id2'::uuid, true, null, false, '$TB2'::uuid);" | tail -1)
+[ "$FB" = "t" ] && [ "$(q -c "select state from notifications where id = '$id2'")" = "sent" ] && ok "Q10: finish B с токеном B завершил строку" || bad "Q10: finish B не завершил строку"
+
+# 5. Q11 (#714): renew продлевает только свою выдачу; после выдачи B старый токен A продление не получает.
+q -c "insert into notifications (user_id, kind, text) values ('$U', 'syn_rel', 'R3')" >/dev/null
+id3=$(q -c "select id from notifications where text = 'R3'")
+TA3=$(claim R3); age R3
+RA=$(q -c "$(svc) select renew_notifications('$id3'::uuid, '$TA3'::uuid);" | tail -1)
+C=$(q -c "$(svc) select count(*) from claim_notifications(10) where text = 'R3';" | tail -1)
+age R3; TB3=$(claim R3)
+RB=$(q -c "$(svc) select renew_notifications('$id3'::uuid, '$TA3'::uuid);" | tail -1)
+R=$(row R3)
+if [ "$RA" = "t" ] && [ "$C" = "0" ] && [ "$TB3" != "$TA3" ] && [ "$RB" = "f" ] && [ "$(echo "$R" | cut -d'|' -f1)" = "2" ] && [ "$(echo "$R" | cut -d'|' -f3)" = "$TB3" ] && [ "$(echo "$R" | cut -d'|' -f4)" = "pending" ]; then
+  ok "Q11: renew A продлил закрепление до выдачи B; после B старый renew A не прошёл"
+else bad "Q11: renew (A '$RA', после renew claim '$C', A после B '$RB', строка $R, токены A=$TA3 B=$TB3)"; fi
+[ "$(q -c "$(svc) select finish_notification('$id3'::uuid, true, null, false, '$TB3'::uuid);" | tail -1)" = "t" ] && ok "Q11: finish B с токеном B завершил строку" || bad "Q11: finish B не завершил строку"
+
 q -c "delete from notifications where kind = 'syn_rel'" >/dev/null
 [ "$fail" = 0 ] || exit 1
