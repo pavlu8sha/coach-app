@@ -7,18 +7,18 @@ set -euo pipefail
 DB="${DB_NAME:-kickstart_test}"
 PSQL="${PSQL:-psql}"
 q() { $PSQL -q -v ON_ERROR_STOP=1 -t -A -d "$DB" "$@"; }
-CL=00000000-0000-0000-0000-0000ee0000c1
-AD=00000000-0000-0000-0000-0000ee0000a1
-G1=00000000-0000-0000-0000-0000ee0000e1
-G2=00000000-0000-0000-0000-0000ee0000e2
-G3=00000000-0000-0000-0000-0000ee0000e3
-PL=00000000-0000-0000-0000-0000ee00d001
+CL=00000000-0000-0000-0000-0000f7a000c1
+AD=00000000-0000-0000-0000-0000f7a000a1
+G1=00000000-0000-0000-0000-0000f7a000e1
+G2=00000000-0000-0000-0000-0000f7a000e2
+G3=00000000-0000-0000-0000-0000f7a000e3
+PL=00000000-0000-0000-0000-0000f7a0d001
 fail=0; ok() { echo "ok - $1"; }; bad() { echo "not ok - $1"; fail=1; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 q <<SQL
 insert into clubs (id, name) values ('$CL', 'Конкурентность player_group_since');
-insert into users (id, telegram_id, display_name, is_admin, club_id) values ('$AD', 990701, 'Админ', true, '$CL');
+insert into users (id, telegram_id, display_name, is_admin, club_id) values ('$AD', 9990219, 'Админ', true, '$CL');
 insert into groups (id, club_id, name) values ('$G1', '$CL', 'Г1'), ('$G2', '$CL', 'Г2'), ('$G3', '$CL', 'Г3');
 insert into players (id, club_id, group_id, full_name, status) values ('$PL', '$CL', '$G2', 'Игрок конкурентности', 'active');
 delete from player_group_history where player_id = '$PL';
