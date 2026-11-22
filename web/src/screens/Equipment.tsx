@@ -750,7 +750,7 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
               const reversed = pays.some(x => x.cancels === p.id);
               const kind = p.op === 'reversal' ? 'Сторно' : p.op === 'refund' ? 'Возврат' : p.op === 'opening_balance' ? 'Внесено до начала учёта' : reversed ? 'Оплата (сторнирована)' : 'Оплата';
               return (
-                <div className="ks-line" key={p.id} style={{ alignItems: 'flex-start' }}>
+                <div className="ks-line" key={p.id} style={{ alignItems: 'flex-start', marginBottom: 12 }}>
                   <span style={{ overflowWrap: 'anywhere' }}>{p.op === 'opening_balance' ? kind : `${fmtDate(p.paid_on)} · ${kind}${p.method ? ` · ${p.method}` : ''}${p.note ? ` · ${p.note}` : ''}`}</span>
                   <b>{gel(Number(p.amount))}</b>
                   {p.op === 'payment' && !reversed && (
