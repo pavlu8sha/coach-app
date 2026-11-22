@@ -61,7 +61,9 @@ describe('карточка игрока', () => {
     await open();
     expect(screen.getByText(/Всего: 4 балла · начислений: 2/)).toBeInTheDocument();
     expect(await screen.findByText('Мама Пети')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Написать в Telegram' })).toHaveAttribute('href', 'tg://user?id=4242');
+    // без ника ссылки tg://user?id= нет (у тренера она не открывается), вместо неё подсказка
+    expect(screen.queryByRole('link', { name: 'Написать в Telegram' })).toBeNull();
+    expect(screen.getByText(/Ника в Telegram нет/)).toBeInTheDocument();
   });
 
   it('если функции контактов нет или нет прав, контакты не показываются', async () => {
