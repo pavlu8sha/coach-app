@@ -82,6 +82,8 @@ preflight_partial "без 0216" '0216_payment_set_method' 0216_payment_set_metho
 preflight_partial "без 0217" '0217_link_screens' 0217_link_screens
 # 0218 (ник родителя: колонка и group_parent_usernames) самостоятельна: на базе без неё preflight не падает, строка 0218 даёт NOT_APPLIED.
 preflight_partial "без 0218" '0218_parent_tg_username' 0218_parent_tg_username
+# 0219 (player_group_since) самостоятельна: на базе без неё preflight не падает (to_regprocedure), строка 0219 даёт NOT_APPLIED.
+preflight_partial "без 0219" '0219_player_group_since' 0219_player_group_since
 preflight_partial "без 0209" '0209_player_profile_attributes' 0209_player_profile_attributes
 for t in db/tests/*_test.sql; do
   echo "== $t"
@@ -130,6 +132,8 @@ echo "== db/tests/concurrency_payment_add.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_payment_add.sh || fail=1
 echo "== db/tests/concurrency_player_save.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_player_save.sh || fail=1
+echo "== db/tests/concurrency_group_since.sh"
+DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_group_since.sh || fail=1
 echo "== db/tests/concurrency_notifications_release.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_notifications_release.sh || fail=1
 $PSQL -q -d postgres -c "drop database if exists $DB"

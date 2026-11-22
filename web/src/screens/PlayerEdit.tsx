@@ -4,6 +4,7 @@ import { fmtDate, playerTeam, today } from '../lib/coach';
 import { seasonStart } from '../lib/seasonStats';
 import { supabase } from '../lib/supabase';
 import type { PlayerStatus } from '../lib/playerStatus';
+import PlayerGroupSince from './PlayerGroupSince';
 
 export interface PlayerForm {
   id?: string;
@@ -219,6 +220,7 @@ export default function PlayerEdit({ initial, groups, clubId, onDone, onCancel }
           Отмена
         </button>
       </div>
+      {playerId && <PlayerGroupSince playerId={playerId} groups={groups} />}
       {historyLines.length > 0 && (
         <details style={{ marginTop: 12 }}>
           <summary>История изменений</summary>
