@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { coachError, fmtDate, today } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { EmptyState, ListRow, Pill, Segmented } from '../ui/components';
-import { locationOptions } from '../lib/branches';
+import { canonicalLocation, locationOptions } from '../lib/branches';
 import { Loading } from './Message';
 import { gel } from './MonthPayments';
 import { useNavState } from '../nav';
@@ -58,13 +58,15 @@ export default function CashReport() {
     if (!from || !to || to < from) return;
     setErr(null);
     setReport(null);
-    void supabase.rpc('cash_report', { p_from: from, p_to: to, p_location: location.trim() || null, p_staff: null, p_method: method || null }).then(r => {
+    void supabase.rpc('cash_report', { p_from: from, p_to: to, p_location: canonicalLocation(location) || null, p_staff: null, p_method: method || null }).then(r => {
       if (r.error) return setErr(coachError(r.error.message));
       setReport(r.data as Report);
     });
   }, [from, to, location, method]);
 
-  const shown = report ? byKind(report, kind) : null;
+  // в rows нет идентификатора сотрудника: при двух сотрудниках с одним именем суммы по людям после фильтра вида были бы склеены, поэтому фильтр недоступен
+  const ambiguousStaff = report ? new Set(report.by_staff.map(x => x.name)).size < report.by_staff.length : false;
+  const shown = report ? byKind(report, ambiguousStaff ? 'all' : kind) : null;
 
   return (
     <main style={{ maxWidth: 560, margin: '0 auto', padding: '12px 16px calc(88px + var(--ks-safe-b))' }}>
@@ -83,7 +85,7 @@ export default function CashReport() {
       )}
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
         <label className="field" style={{ flex: 1 }}>Локация
-          <select value={location} onChange={e => setLocation(e.target.value)}>
+          <select value={canonicalLocation(location)} onChange={e => setLocation(e.target.value)}>
             <option value="">Все локации</option>
             {locationOptions(location).map(l => <option key={l} value={l}>{l}</option>)}
           </select>
@@ -93,7 +95,8 @@ export default function CashReport() {
         <Segmented label="Способ оплаты" value={method} onChange={setMethod} items={METHOD_FILTERS} />
       </div>
       <div style={{ marginTop: 8 }}>
-        <Segmented label="Что показывать" value={kind} onChange={setKind} items={KIND_FILTERS} />
+        <Segmented label="Что показывать" value={ambiguousStaff ? 'all' : kind} onChange={v => { if (!ambiguousStaff) setKind(v); }} items={KIND_FILTERS} />
+        {ambiguousStaff && <p role="status" className="ks-muted" style={{ margin: '4px 0 0' }}>Фильтр по виду недоступен: в отчёте есть сотрудники с одинаковым именем, суммы по ним нельзя разделить.</p>}
       </div>
 
       {to < from && <p role="alert" className="ks-muted">Конец периода раньше начала.</p>}
@@ -109,7 +112,7 @@ export default function CashReport() {
 
           <h2 className="ks-list-head"><span>По сотрудникам</span></h2>
           {shown.by_staff.length === 0 && <div className="ks-muted">Нет поступлений</div>}
-          {shown.by_staff.map(s => <ListRow key={s.staff_id ?? 'none'} title={s.name} end={<Pill tone={s.sum < 0 ? 'danger' : 'success'}>{gel(s.sum)}</Pill>} />)}
+          {shown.by_staff.map(s => <ListRow key={s.staff_id ?? s.name} title={s.name} end={<Pill tone={s.sum < 0 ? 'danger' : 'success'}>{gel(s.sum)}</Pill>} />)}
 
           <h2 className="ks-list-head"><span>Операции</span><span>{shown.rows.length}</span></h2>
           {shown.rows.length === 0 && <EmptyState icon="box" title="За период платежей нет" />}

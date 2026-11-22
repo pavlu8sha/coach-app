@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BRANCHES, branchOf, locationOptions } from './branches';
+import { BRANCHES, branchOf, canonicalLocation, locationOptions } from './branches';
 
 // L8 (docs/acceptance/cash-locations-2026-11-21.md)
 describe('справочник филиалов', () => {
@@ -15,6 +15,11 @@ describe('справочник филиалов', () => {
   it('L3: сохранённая локация не из справочника остаётся отдельной строкой, филиал не дублируется', () => {
     expect(locationOptions('')).toEqual(['Red Garden', 'Isani', 'Ortachala']);
     expect(locationOptions('Isani')).toEqual(['Red Garden', 'Isani', 'Ortachala']);
+    // старое написание из сохранённого состояния приводится к филиалу, отдельной строкой не показывается
+    expect(locationOptions('Исани')).toEqual(['Red Garden', 'Isani', 'Ortachala']);
+    expect(locationOptions(' ortachala ')).toEqual(['Red Garden', 'Isani', 'Ortachala']);
+    expect(canonicalLocation('Исани')).toBe('Isani');
+    expect(canonicalLocation(' Vake ')).toBe('Vake');
     expect(locationOptions('Vake')).toEqual(['Vake', 'Red Garden', 'Isani', 'Ortachala']);
   });
 });

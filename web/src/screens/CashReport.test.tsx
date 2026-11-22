@@ -102,6 +102,31 @@ describe('Кассовый отчёт', () => {
     expect(new Set(fake.rpcCalls('cash_report').map(a => JSON.stringify(a))).size).toBe(1);
   });
 
+  it('L2: выбор филиала уходит в отчёт названием справочника (старые написания приводит canonicalLocation, см. branches.test)', async () => {
+    fake.rpc.cash_report = () => ({ data: report, error: null });
+    render(<CashReport />);
+    await screen.findByText('По сотрудникам');
+    expect((screen.getByLabelText('Локация') as HTMLSelectElement).value).toBe('');
+    fireEvent.change(screen.getByLabelText('Локация'), { target: { value: 'Isani' } });
+    await waitFor(() => expect(fake.rpcCalls('cash_report').at(-1)).toMatchObject({ p_location: 'Isani' }));
+  });
+
+  it('L5: два сотрудника с одним именем: фильтр вида недоступен, суммы не склеиваются', async () => {
+    const rows = [
+      { id: 'a', kind: 'Абонемент', player: 'Аня', amount: 100, paid_on: today(), method: 'Наличные', staff: 'Дима', recorded_at: null, location: 'Isani' },
+      { id: 'b', kind: 'Сбор', player: 'Боря', amount: 300, paid_on: today(), method: 'Перевод', staff: 'Дима', recorded_at: null, location: 'Surami' },
+    ];
+    fake.rpc.cash_report = () => ({ data: { total: 400, by_method: [{ method: 'Наличные', sum: 100 }, { method: 'Перевод', sum: 300 }], by_staff: [{ staff_id: 'x', name: 'Дима', sum: 100 }, { staff_id: 'y', name: 'Дима', sum: 300 }], rows }, error: null });
+    render(<CashReport />);
+    await screen.findByText('По сотрудникам');
+    fireEvent.click(screen.getByRole('tab', { name: 'Сборы' }));
+    expect(screen.getByText(/Фильтр по виду недоступен/)).toBeInTheDocument();
+    expect(screen.getByText('Аня')).toBeInTheDocument(); // показано всё, как на сервере
+    expect(screen.getAllByText('Дима')).toHaveLength(2); // два сотрудника в итогах, суммы раздельные (100 и 300)
+    expect(screen.getAllByText('100 ₾').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('300 ₾').length).toBeGreaterThan(0);
+  });
+
   it('L6: пустой результат фильтра вида показывает «За период платежей нет»', async () => {
     fake.rpc.cash_report = () => ({ data: report, error: null });
     render(<CashReport />);

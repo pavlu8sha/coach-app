@@ -19,8 +19,11 @@ export function branchOf(text: string | null | undefined): Branch | null {
   return BRANCHES.find(b => ALIASES[b].includes(t)) ?? null;
 }
 
+/** Сохранённое или выбранное значение фильтра: старое написание филиала («Исани») заменяется названием справочника, остальное остаётся как есть. */
+export const canonicalLocation = (text: string): string => branchOf(text) ?? text.trim();
+
 /** Список для выпадающего «Локация»: филиалы справочника; сохранённое значение не из справочника остаётся отдельной строкой, чтобы фильтр не терялся молча. */
 export function locationOptions(current: string): string[] {
-  const c = current.trim();
+  const c = canonicalLocation(current);
   return c && !(BRANCHES as readonly string[]).includes(c) ? [c, ...BRANCHES] : [...BRANCHES];
 }
