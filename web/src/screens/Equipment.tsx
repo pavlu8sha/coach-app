@@ -648,7 +648,7 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
   };
   // Отмена оплаты и возврат денег (#471, 0188): только администратор, причина обязательна.
   const reversePayment = async (p: Pay) => {
-    if (!(await ask({ title: 'Сторнировать оплату?', lines: [['Игрок', o.players?.full_name ?? 'Игрок'], ['Оплата', `${fmtDate(p.paid_on)} · ${gel(Number(p.amount))}`], ['Причина', reason.trim()]], note: 'Появится запись с минусом на ту же сумму. Саму оплату удалить нельзя.', confirmLabel: 'Сторнировать', danger: true }))) return;
+    if (!(await ask({ title: 'Отменить оплату?', lines: [['Игрок', o.players?.full_name ?? 'Игрок'], ['Оплата', `${fmtDate(p.paid_on)} · ${gel(Number(p.amount))}`], ['Причина', reason.trim()]], note: 'Появится запись с минусом на ту же сумму. Саму оплату удалить нельзя.', confirmLabel: 'Отменить', danger: true }))) return;
     if (await run(`rev-${p.id}`, () => supabase.rpc('eq_reverse_payment', { pid: p.id, note: reason.trim(), req: newKey() }), 'Оплата отменена.')) setReason('');
   };
   const refund = async () => {

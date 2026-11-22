@@ -693,7 +693,7 @@ describe('Экипировка: отмена и восстановление з�
     expect(btn).toBeDisabled();
     fireEvent.change(screen.getByLabelText(/Причина \(для отмены оплаты/), { target: { value: ' ошибка кассира ' } });
     fireEvent.click(btn);
-    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Сторнировать' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отменить' }));
     await waitFor(() => expect(fake.rpcCalls('eq_reverse_payment')).toEqual([{ pid: 'sp1', note: 'ошибка кассира', req: expect.any(String) }]));
   });
 
