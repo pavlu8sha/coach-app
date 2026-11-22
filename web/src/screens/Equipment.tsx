@@ -29,8 +29,8 @@ const num = (s: string) => Number(s.replace(',', '.'));
 const errText = (m: string) =>
   m.includes('request id reused') ? 'Этот заказ уже был отправлен с другим составом. Закройте форму и создайте заказ заново: прежний мог сохраниться.' : m.includes('bad quantity') ? 'Количество вещи: целое число от 1 до 10.' :
   m.includes('paid above total') ? 'Оплата больше суммы заказа.' : m.includes('paid below zero') ? 'Оплачено не может быть меньше нуля.' :
-  m.includes('order has payments') ? 'По заказу есть записи об оплате (в том числе сторно или возврат): удалить его нельзя, его можно отменить.' : m.includes('order has issues') ? 'У заказа есть выданные вещи: сначала снимите выдачу.' : m.includes('item issued') ? 'Вещь уже выдана: сначала снимите выдачу (размер менять можно).' : m.includes('last line') ? 'Это последняя вещь в заказе: удалите весь заказ.' : m.includes('bad quantity') ? 'Количество от 1 до 10.' : m.includes('bad date') ? 'Дата не может быть в будущем.' : m.includes('kit not in catalog') ? 'Позиции нет в каталоге.' : m.includes('no items') ? 'Выберите хотя бы одну вещь.' : m.includes('bad amount') ? 'Сумма указана неверно.' :
-  m.includes('use reversal or refund') ? 'Сумма должна быть больше нуля. Ошибочную оплату отменяет «Сторно», деньги клиенту возвращает «Возврат».' : m.includes('already reversed') ? 'Эта оплата уже сторнирована.' : m.includes('not a payment') ? 'Сторнировать можно только оплату.' : m.includes('note required') ? 'Укажите причину.' : m.includes('refund above paid') ? 'Возврат больше оплаченной суммы.' : m.includes('request id reused') ? 'Эта отправка уже была с другими данными. Обновите экран и повторите.' :
+  m.includes('order has payments') ? 'По заказу есть записи об оплате (в том числе отмена оплаты или возврат): удалить его нельзя, его можно отменить.' : m.includes('order has issues') ? 'У заказа есть выданные вещи: сначала снимите выдачу.' : m.includes('item issued') ? 'Вещь уже выдана: сначала снимите выдачу (размер менять можно).' : m.includes('last line') ? 'Это последняя вещь в заказе: удалите весь заказ.' : m.includes('bad quantity') ? 'Количество от 1 до 10.' : m.includes('bad date') ? 'Дата не может быть в будущем.' : m.includes('kit not in catalog') ? 'Позиции нет в каталоге.' : m.includes('no items') ? 'Выберите хотя бы одну вещь.' : m.includes('bad amount') ? 'Сумма указана неверно.' :
+  m.includes('use reversal or refund') ? 'Сумма должна быть больше нуля. Ошибочную оплату отменяет «Отменить оплату», деньги клиенту возвращает «Возврат».' : m.includes('already reversed') ? 'Эта оплата уже отменена.' : m.includes('not a payment') ? 'Отменить можно только оплату.' : m.includes('note required') ? 'Укажите причину.' : m.includes('refund above paid') ? 'Возврат больше оплаченной суммы.' : m.includes('request id reused') ? 'Эта отправка уже была с другими данными. Обновите экран и повторите.' :
   m.includes('order cancelled') ? 'Заказ отменён: менять его нельзя. Сначала восстановите заказ.' : m.includes('already cancelled') ? 'Заказ уже отменён.' : m.includes('not cancelled') ? 'Заказ не отменён.' : m.includes('reason required') ? 'Укажите причину отмены.' :
   m.includes('parent order') ? 'Заказ оформил родитель: удалить его нельзя, можно только отменить.' : m.includes('order has events') ? 'У заказа есть история отмены: удалить его нельзя.' :
   m.includes('bad transition') ? 'Статус можно менять только на один шаг вперёд (назад — администратору).' : m.includes('bad status') ? 'Такого статуса нет.' : m.includes('not all issued') ? 'Статус «Выдан» можно поставить, только когда выданы все вещи заказа.' :
@@ -562,7 +562,7 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
   const [addSize, setAddSize] = useState('');
   const [orderedOn, setOrderedOn] = useState(order.ordered_on ?? '');
   const [cancelReason, setCancelReason] = useState('');
-  // Журнал оплат заказа (#471, 0188): сторно и возврат. Ключ идемпотентности живёт, пока операция не прошла: повторное нажатие после обрыва связи не задвоит запись.
+  // Журнал оплат заказа (#471, 0188): отмена оплаты и возврат. Ключ идемпотентности живёт, пока операция не прошла: повторное нажатие после обрыва связи не задвоит запись.
   const [pays, setPays] = useState<Pay[]>([]);
   const [reason, setReason] = useState('');
   const [refundAmt, setRefundAmt] = useState('');
@@ -646,10 +646,10 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
     if (!yes) return;
     await run('restore', () => supabase.rpc('eq_restore_order', { o: o.id, note: null, expect: pv.fingerprint ?? null }), 'Заказ восстановлен.');
   };
-  // Сторно оплаты и возврат денег (#471, 0188): только администратор, причина обязательна.
+  // Отмена оплаты и возврат денег (#471, 0188): только администратор, причина обязательна.
   const reversePayment = async (p: Pay) => {
     if (!(await ask({ title: 'Сторнировать оплату?', lines: [['Игрок', o.players?.full_name ?? 'Игрок'], ['Оплата', `${fmtDate(p.paid_on)} · ${gel(Number(p.amount))}`], ['Причина', reason.trim()]], note: 'Появится запись с минусом на ту же сумму. Саму оплату удалить нельзя.', confirmLabel: 'Сторнировать', danger: true }))) return;
-    if (await run(`rev-${p.id}`, () => supabase.rpc('eq_reverse_payment', { pid: p.id, note: reason.trim(), req: newKey() }), 'Оплата сторнирована.')) setReason('');
+    if (await run(`rev-${p.id}`, () => supabase.rpc('eq_reverse_payment', { pid: p.id, note: reason.trim(), req: newKey() }), 'Оплата отменена.')) setReason('');
   };
   const refund = async () => {
     const amt = num(refundAmt);
@@ -748,19 +748,19 @@ function OrderView({ order, knownNumber, onBack, onChanged }: { order: Order; kn
           <div className="ks-card">
             {pays.map(p => {
               const reversed = pays.some(x => x.cancels === p.id);
-              const kind = p.op === 'reversal' ? 'Сторно' : p.op === 'refund' ? 'Возврат' : p.op === 'opening_balance' ? 'Внесено до начала учёта' : reversed ? 'Оплата (сторнирована)' : 'Оплата';
+              const kind = p.op === 'reversal' ? 'Отмена оплаты' : p.op === 'refund' ? 'Возврат' : p.op === 'opening_balance' ? 'Внесено до начала учёта' : reversed ? 'Оплата отменена' : 'Оплата';
               return (
                 <div className="ks-line" key={p.id} style={{ alignItems: 'flex-start', marginBottom: 12 }}>
                   <span style={{ overflowWrap: 'anywhere' }}>{p.op === 'opening_balance' ? kind : `${fmtDate(p.paid_on)} · ${kind}${p.method ? ` · ${p.method}` : ''}${p.note ? ` · ${p.note}` : ''}`}</span>
                   <b>{gel(Number(p.amount))}</b>
                   {p.op === 'payment' && !reversed && (
-                    <button type="button" className="ks-btn secondary" disabled={busy === `rev-${p.id}` || !reason.trim()} onClick={() => void reversePayment(p)}>Сторно</button>
+                    <button type="button" className="ks-btn secondary" disabled={busy === `rev-${p.id}` || !reason.trim()} onClick={() => void reversePayment(p)}>Отменить оплату</button>
                   )}
                 </div>
               );
             })}
           </div>
-          <label className="field">Причина (для сторно и возврата)<input value={reason} maxLength={200} onChange={e => setReason(e.target.value)} /></label>
+          <label className="field">Причина (для отмены оплаты и возврата)<input value={reason} maxLength={200} onChange={e => setReason(e.target.value)} /></label>
           <label className="field">Сумма возврата, ₾<input inputMode="decimal" value={refundAmt} onChange={e => setRefundAmt(e.target.value)} /></label>
           <button type="button" className="ks-btn secondary" disabled={busy === 'refund' || !method || !reason.trim() || refundAmt.trim() === '' || Number.isNaN(num(refundAmt)) || num(refundAmt) <= 0} onClick={() => void refund()}>Записать возврат</button>
         </>
