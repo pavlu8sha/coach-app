@@ -22,3 +22,11 @@ describe('Правки вёрстки по скриншотам (часть 3)',
     expect(css).toMatch(/\.ks-row:has\(\.ks-more-menu\)[^{]*\.page > :has\(\.ks-more-menu\) \{[^}]*position: relative[^}]*z-index: 50/);
   });
 });
+
+describe('Переключатель с wrap (рассылки сбора)', () => {
+  it('три длинные подписи: класс many, подпись переносится внутри кнопки', () => {
+    render(<Segmented wrap label="Вид" value="a" onChange={() => {}} items={[{ value: 'a', label: 'Записанным на сбор' }, { value: 'b', label: 'Всем родителям клуба' }, { value: 'c', label: 'Напоминание об оплате' }]} />);
+    expect(screen.getByRole('tablist', { name: 'Вид' }).className).toContain('many');
+    expect(css).toMatch(/\.ks-seg\.many button \{[^}]*white-space: normal/);
+  });
+});

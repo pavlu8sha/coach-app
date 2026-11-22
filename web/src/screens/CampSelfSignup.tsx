@@ -380,7 +380,7 @@ export function CampBroadcasts({ camp }: { camp: CampLite }) {
     <>
       {dialog}
       <p className="muted" style={{ margin: '10px 0' }}>Рассылка уходит только после предпросмотра и вашего подтверждения. Каждый родитель получает своё сообщение, недоступного родителя другим членом семьи не заменяют.</p>
-      <Segmented label="Вид рассылки" value={kind} onChange={v => edit(() => setKind(v))} items={[{ value: 'participants', label: KIND.participants }, { value: 'info', label: KIND.info }, { value: 'reminder', label: KIND.reminder }]} />
+      <Segmented wrap label="Вид рассылки" value={kind} onChange={v => edit(() => setKind(v))} items={[{ value: 'participants', label: KIND.participants }, { value: 'info', label: KIND.info }, { value: 'reminder', label: KIND.reminder }]} />
       <ExpandableTextarea label="Текст рассылки" rows={4} maxLength={1000} value={text} placeholder={kind === 'reminder' ? 'Необязательно: добавится к напоминанию' : kind === 'participants' ? 'Сообщение семьям записанных участников' : 'Сообщение родителям клуба'} onChange={v => edit(() => setText(v))} />
       {msg && <p className={msg.ok ? 'muted' : 'error'}>{msg.text}</p>}
       <button type="button" className="ks-btn secondary" disabled={busy || (kind !== 'reminder' && !text.trim())} onClick={() => void doPreview()}>Предпросмотр</button>

@@ -11,7 +11,20 @@ export const fake = {
   rejects: {} as Record<string, string>,        // таблица → запрос отклоняется исключением (сбой сети)
   user: { id: 'u' } as { id: string } | null,
   hang: false, // запросы не отвечают: проверка экранов в состоянии загрузки
+  rejectsNext: {} as Record<string, string>,    // таблица → ближайший запрос отклоняется исключением (сбой сети), потом запросы идут как обычно
+  errorsNext: {} as Record<string, string>,     // таблица → ошибка только для ближайшего запроса (потом запросы идут как обычно)
+  holds: {} as Record<string, { release: (result?: { error: { message: string } }) => void; promise: Promise<{ error: { message: string } } | undefined> }[]>, // таблица → ближайшие запросы ждут release (ответ можно подменить ошибкой)
+  /** Ближайший запрос к таблице ждёт: release() отпускает его (с ошибкой, если передана). Для проверки перекрывающихся загрузок. */
+  hold(table: string) {
+    let release!: (result?: { error: { message: string } }) => void;
+    const promise = new Promise<{ error: { message: string } } | undefined>(ok => { release = ok; });
+    (this.holds[table] ??= []).push({ release, promise });
+    return { release };
+  },
   reset() {
+    this.rejectsNext = {};
+    this.errorsNext = {};
+    this.holds = {};
     this.db = {};
     this.calls = [];
     this.rpc = {};
@@ -48,9 +61,21 @@ function query(table: string): any {
   let returning = false;
   let lim = Infinity, from = 0, to = Infinity, single = false;
 
+  let heldError: { message: string } | undefined;
   const run = () => {
     if (fake.rejects[table]) throw new Error(fake.rejects[table]);
+    if (fake.rejectsNext[table]) {
+      const message = fake.rejectsNext[table];
+      delete fake.rejectsNext[table];
+      throw new Error(message);
+    }
     if (fake.errors[table]) return { data: null, error: { message: fake.errors[table] } };
+    if (heldError) return { data: null, error: heldError };
+    if (fake.errorsNext[table]) {
+      const message = fake.errorsNext[table];
+      delete fake.errorsNext[table];
+      return { data: null, error: { message } };
+    }
     // как в базе: pay_month — вычисляемый месяц платежа (for_month или месяц paid_on)
     const rows = op === 'select' && table === 'payments'
       ? (fake.db[table] ?? []).map((r: any) => ({ pay_month: r.for_month ?? (r.paid_on ? String(r.paid_on).slice(0, 7) + '-01' : undefined), ...r }))
@@ -86,7 +111,15 @@ function query(table: string): any {
     return { data: single ? out[0] ?? null : out, error: null, count: out.length };
   };
 
-  const q: any = { then: (res: any, rej: any) => (fake.hang ? new Promise(() => {}) : new Promise(ok => ok(run()))).then(res, rej) };
+  // запрос, взятый на удержание (fake.hold), ждёт release; ответ данных берётся в момент ответа, как у настоящей базы
+  const q: any = {
+    then: (res: any, rej: any) => {
+      if (fake.hang) return new Promise(() => {}).then(res, rej);
+      const held = op === 'select' ? fake.holds[table]?.shift() : undefined;
+      const go = () => new Promise(ok => ok(run()));
+      return (held ? held.promise.then(r => { heldError = r?.error; return go(); }) : go()).then(res, rej);
+    },
+  };
   q.select = () => { if (op === 'insert' || op === 'update' || op === 'upsert') returning = true; return q; };
   q.insert = (p: any) => ((op = 'insert'), (payload = p), q);
   q.upsert = (p: any) => ((op = 'upsert'), (payload = p), q);
