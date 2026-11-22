@@ -80,7 +80,7 @@ export default function PlayerGroupSince({ playerId, groups }: { playerId: strin
   };
 
   return (
-    <section className="ks-card" aria-label="Начало занятий в группе">
+    <section className="ks-card" aria-label="Начало занятий в группе" style={{ marginTop: 12 }}>
       <b>В группе {name(hist.cur.group_id)} с {fmtDate(hist.cur.valid_from)}</b>
       <p className="muted" style={{ fontSize: 13, margin: '4px 0 8px' }}>До этого: {name(hist.prev.group_id)}. Если перевод внесли позже, чем он был на самом деле, перенесите начало на более раннюю дату: баллы за эти дни пересчитаются в новую группу.</p>
       <label className="field">
