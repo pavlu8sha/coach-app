@@ -76,9 +76,14 @@ test('дамп: в каталоге копий только файлы age, от
   const dir = path.join(tmp, 'ok');
   const r = dump(dir);
   assert.equal(r.status, 0, r.stdout + r.stderr);
-  const files = listFiles(dir);
-  assert.equal(files.length, 2, files.join(','));
-  for (const f of files) {
+  // по воскресеньям daily-копия дублируется в weekly/ (db/ops/backup-pg-dump.sh, ротация): считаем основную копию, а дубль проверяем отдельно
+  const all = listFiles(dir);
+  const files = all.filter(f => !f.startsWith('weekly' + path.sep) && !f.startsWith('weekly/'));
+  const weekly = all.filter(f => !files.includes(f));
+  assert.equal(files.length, 2, all.join(','));
+  assert.ok(weekly.length === 0 || weekly.length === 2, 'weekly: ' + weekly.join(','));
+  if (new Date().getDay() === 0) assert.equal(weekly.length, 2, 'воскресенье: копия должна дублироваться в weekly/');
+  for (const f of all) {
     assert.match(f, /\.(dump|manifest)\.age$/);
     assert.equal(fs.readFileSync(path.join(dir, f)).subarray(0, 21).toString(), 'age-encryption.org/v1');
   }
