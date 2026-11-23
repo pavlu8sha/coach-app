@@ -1,7 +1,7 @@
 -- pgTAP: скидка на доп. посещение и закрытие без оплаты (миграция 0221). Условия: docs/VISIT_DISCOUNT_ACCEPTANCE.md. Фикстуры вымышленные.
 begin;
 create extension if not exists pgtap;
-select plan(30);
+select plan(31);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -63,6 +63,11 @@ select throws_ok($$select session_guest_discount('00000000-0000-0000-0000-000000
 select throws_ok($$select session_guest_discount('00000000-0000-0000-0000-0000000005a1', '00000000-0000-0000-0000-00000000d001', null, 'тест причины')$$, '22023', 'bad amount', 'У2: сумма не задана');
 select throws_ok($$select session_guest_discount('00000000-0000-0000-0000-0000000005a2', '00000000-0000-0000-0000-00000000d002', 0, 'тест причины')$$, 'P0002', 'guest not found', 'У3: нет такого посещения');
 
+-- У2: увеличить сумму скидкой нельзя
+select throws_ok($$select session_guest_discount('00000000-0000-0000-0000-0000000005a1', '00000000-0000-0000-0000-00000000d002', 20, 'тест причины')$$, '22023', 'bad amount', 'У2: сумма больше текущей отклонена');
+select is((select amount from session_guests where session_id = '00000000-0000-0000-0000-0000000005a1' and player_id = '00000000-0000-0000-0000-00000000d002'), 15.00::numeric, 'У2: после отказа сумма прежняя');
+select is((select count(*) from fee_discount_log where kind = 'visit')::int, 0, 'У2: после отказа журнал пуст');
+
 -- У4: скидка до 10
 select lives_ok($$select session_guest_discount('00000000-0000-0000-0000-0000000005a1', '00000000-0000-0000-0000-00000000d002', 10, 'договорённость с тренером')$$, 'У4: админ ставит скидку до 10');
 select is((select amount from session_guests where session_id = '00000000-0000-0000-0000-0000000005a1' and player_id = '00000000-0000-0000-0000-00000000d002'), 10.00::numeric, 'У4: сумма стала 10');
@@ -70,7 +75,7 @@ select is((select paid from session_guests where session_id = '00000000-0000-000
 
 -- У5: закрытие без оплаты
 select lives_ok($$select session_guest_discount('00000000-0000-0000-0000-0000000005a1', '00000000-0000-0000-0000-00000000d001', 0, 'тренерский обмен')$$, 'У5: админ закрывает без оплаты');
-select is((select paid::text || '|' || paid_amount::text || '|' || coalesce(method, 'нет') from session_guests where session_id = '00000000-0000-0000-0000-0000000005a1' and player_id = '00000000-0000-0000-0000-00000000d001'), 'true|0.00|нет', 'У5: оплачено, 0, способа нет');
+select is((select paid::text || '|' || paid_amount::text || '|' || coalesce(method, 'нет') || '|' || amount::text from session_guests where session_id = '00000000-0000-0000-0000-0000000005a1' and player_id = '00000000-0000-0000-0000-00000000d001'), 'true|0.00|нет|15.00', 'У5: оплачено, 0, способа нет, сумма посещения прежняя');
 select is((select count(*) from service_payments)::text, (select v from snap where k = 'svc'), 'У5: журнал платежей не изменился, касса не меняется');
 
 -- У7: журнал
@@ -90,10 +95,8 @@ select is((select count(*) from fee_discount_log where kind = 'visit')::int, 2, 
 
 -- У8: возврат закрытого в долг, затем возврат суммы
 select lives_ok($$select session_guest_set_paid('00000000-0000-0000-0000-0000000005a1', '00000000-0000-0000-0000-00000000d001', false)$$, 'У8: админ отменяет закрытие без оплаты');
-select is((select paid::text || '|' || amount::text from session_guests where session_id = '00000000-0000-0000-0000-0000000005a1' and player_id = '00000000-0000-0000-0000-00000000d001'), 'false|0.00', 'У8: посещение снова неоплачено, сумма 0');
+select is((select paid::text || '|' || amount::text from session_guests where session_id = '00000000-0000-0000-0000-0000000005a1' and player_id = '00000000-0000-0000-0000-00000000d001'), 'false|15.00', 'У8: посещение снова неоплачено в прежней сумме 15');
 select is((select count(*) from service_payments)::text, (select v from snap where k = 'svc_after_cash'), 'У8: сторно не создано, платежей по-прежнему нет');
-select lives_ok($$select session_guest_discount('00000000-0000-0000-0000-0000000005a1', '00000000-0000-0000-0000-00000000d001', 15, 'ошибочное закрытие')$$, 'У8: сумма возвращается скидкой с причиной');
-select is((select amount from session_guests where session_id = '00000000-0000-0000-0000-0000000005a1' and player_id = '00000000-0000-0000-0000-00000000d001'), 15.00::numeric, 'У8: сумма снова 15');
 reset role;
 
 select * from finish();
