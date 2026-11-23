@@ -31,6 +31,7 @@ export interface SupabaseState {
   renewed: Array<{ id: string; token: string | null }>;
   renewResults: boolean[];
   renewError: string | null;
+  renewDelayMs: number;
   // tg-notify после 429: какие строки возвращены в очередь (release_notifications, 0184)
   released: Array<{ ids: string[]; token: string | null }>;
   releaseError: string | null;
@@ -69,6 +70,7 @@ function freshState(): SupabaseState {
     renewed: [],
     renewResults: [],
     renewError: null,
+    renewDelayMs: 0,
     released: [],
     releaseError: null,
     requests: [],
@@ -177,6 +179,9 @@ export function createSupabaseFake() {
 
     if (url.pathname === "/rest/v1/rpc/renew_notifications") {
       if (state.renewError) return postgrestError(state.renewError);
+      if (state.renewDelayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, state.renewDelayMs));
+      }
       state.renewed.push({
         id: String(body?.i ?? ""),
         token: (body?.token as string | null) ?? null,

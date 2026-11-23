@@ -7,7 +7,12 @@ import { buildCall, classify } from './notify-logic.js';
 
 const APP_URL = Deno.env.get('MINI_APP_URL') ?? 'https://coach-app-84b.pages.dev/';
 const TELEGRAM_TIMEOUT_MS = Number(Deno.env.get('TELEGRAM_TIMEOUT_MS') ?? '15000');
+const RENEW_TIMEOUT_MS = Number(Deno.env.get('NOTIFY_RENEW_TIMEOUT_MS') ?? '10000');
 const BATCH_BUDGET_MS = Number(Deno.env.get('NOTIFY_BATCH_BUDGET_MS') ?? '90000');
+// claim_notifications закрепляет строку на 2 минуты. Отсчёт ведём от начала renew: ответ мог задержаться,
+// а база обновила claimed_at раньше, поэтому это консервативная оценка остатка lease.
+const LEASE_TTL_MS = 120000;
+const LEASE_SAFETY_MS = 5000;
 
 const same = (a: string, b: string) => {
   if (a.length !== b.length) return false;
@@ -48,7 +53,10 @@ Deno.serve(async (req: Request) => {
         break;
       }
       // Продлеваем закрепление перед каждым запросом: даже долгая отправка не отдаёт строку другому запуску.
-      const ren = await admin.rpc('renew_notifications', { i: n.id, token: claimToken });
+      // Ограничиваем сам renew: если RPC завис, старый worker не должен отправить сообщение уже после истечения lease.
+      const renewStartedAt = Date.now();
+      const ren = await admin.rpc('renew_notifications', { i: n.id, token: claimToken })
+        .abortSignal(AbortSignal.timeout(RENEW_TIMEOUT_MS));
       if (ren.error) {
         console.error('renew_notifications', ren.error.message);
         released = await releaseFrom(idx, claimToken);
@@ -57,6 +65,13 @@ Deno.serve(async (req: Request) => {
       if (ren.data !== true) {
         // За время обработки строку забрал другой запуск. Его finish/release не перебиваем.
         continue;
+      }
+      // После renew проверяем ещё раз: ответ RPC мог съесть бюджет пачки, а Telegram-запрос должен
+      // целиком поместиться и в бюджет, и в остаток lease (с запасом).
+      if (Date.now() - startedAt + TELEGRAM_TIMEOUT_MS > BATCH_BUDGET_MS ||
+          Date.now() - renewStartedAt + TELEGRAM_TIMEOUT_MS + LEASE_SAFETY_MS > LEASE_TTL_MS) {
+        released = await releaseFrom(idx, claimToken);
+        break;
       }
       const call = buildCall(n, APP_URL);
       let res: { ok: boolean; giveUp: boolean; stop: boolean; error: string | null };

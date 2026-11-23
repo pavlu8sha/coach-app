@@ -284,3 +284,57 @@ Deno.test("tg-notify: batch budget releases unprocessed rows without starting a 
     await supa.close();
   }
 });
+
+Deno.test("tg-notify: slow renew is aborted and the row is released without Telegram", async () => {
+  const supa = createSupabaseFake();
+  const telegram = createTelegramFake();
+  const fn = await startFunction("tg-notify", {
+    ...envFor(supa.url, telegram.url),
+    NOTIFY_RENEW_TIMEOUT_MS: "50",
+    TELEGRAM_TIMEOUT_MS: "800",
+    NOTIFY_BATCH_BUDGET_MS: "5000",
+  });
+
+  try {
+    supa.state.notifications = [rows[0]];
+    supa.state.renewDelayMs = 200;
+    const r = await postJson(fn.url, {}, { "x-notify-secret": NOTIFY_SECRET });
+    assert.equal(r.res.status, 200);
+    assert.deepEqual(r.data, { claimed: 1, sent: 0, failed: 0, released: 1 });
+    assert.equal(telegram.state.calls.length, 0);
+    assert.deepEqual(supa.state.finish, []);
+    assert.deepEqual(supa.state.released, [{ ids: [rows[0].id], token: CLAIM_TOKEN }]);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  } finally {
+    await fn.close();
+    await telegram.close();
+    await supa.close();
+  }
+});
+
+Deno.test("tg-notify: renew delay that eats the batch budget does not start Telegram", async () => {
+  const supa = createSupabaseFake();
+  const telegram = createTelegramFake();
+  const fn = await startFunction("tg-notify", {
+    ...envFor(supa.url, telegram.url),
+    NOTIFY_RENEW_TIMEOUT_MS: "1000",
+    TELEGRAM_TIMEOUT_MS: "200",
+    NOTIFY_BATCH_BUDGET_MS: "300",
+  });
+
+  try {
+    supa.state.notifications = [rows[0]];
+    supa.state.renewDelayMs = 150;
+    const r = await postJson(fn.url, {}, { "x-notify-secret": NOTIFY_SECRET });
+    assert.equal(r.res.status, 200);
+    assert.deepEqual(r.data, { claimed: 1, sent: 0, failed: 0, released: 1 });
+    assert.equal(supa.state.renewed.length, 1);
+    assert.equal(telegram.state.calls.length, 0);
+    assert.deepEqual(supa.state.finish, []);
+    assert.deepEqual(supa.state.released, [{ ids: [rows[0].id], token: CLAIM_TOKEN }]);
+  } finally {
+    await fn.close();
+    await telegram.close();
+    await supa.close();
+  }
+});
