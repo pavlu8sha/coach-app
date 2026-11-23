@@ -195,6 +195,64 @@ describe('«Приём оплат»', () => {
     await waitFor(() => expect(fake.rpcCalls('session_guest_set_paid')[0]).toMatchObject({ s: 's9', p: 'p1', is_paid: true, mth: 'Наличные', amt: 15 }));
   });
 
+  it('доп. посещение: «Закрыть без оплаты» требует причину и вызывает session_guest_discount (0221)', async () => {
+    seed();
+    fake.db.session_guests = [{ session_id: 's9', player_id: 'p1', paid: false, amount: 15, sessions: { starts_at: '2020-02-03T15:00:00+04:00', groups: { name: 'U9-B' } } }];
+    fake.rpc.session_guest_discount = () => null;
+    await openPlayer();
+    await screen.findByText(/к оплате:/);
+    const title = /Доп. посещение 03.02.2020 · U9-B/;
+    await screen.findByText(title);
+    const c = card(title);
+    await waitFor(() => expect(within(c).getByRole('button', { name: 'Принять оплату' })).toBeEnabled());
+    fireEvent.click(within(c).getByRole('button', { name: 'Принять оплату' }));
+    fireEvent.click(within(c).getByRole('button', { name: 'Скидка или закрыть без оплаты' }));
+    fireEvent.click(within(c).getByRole('button', { name: 'Применить' }));
+    const dlg = await screen.findByRole('dialog');
+    const ok = within(dlg).getByRole('button', { name: 'Закрыть без оплаты' });
+    expect(ok).toBeDisabled();
+    fireEvent.change(within(dlg).getByLabelText('Причина (обязательно)'), { target: { value: 'обмен с тренером' } });
+    fireEvent.click(ok);
+    await waitFor(() => expect(fake.rpcCalls('session_guest_discount')[0]).toEqual({ s: 's9', p: 'p1', due: 0, why: 'обмен с тренером' }));
+    expect(fake.rpcCalls('session_guest_set_paid')).toHaveLength(0);
+    expect(await screen.findByText('Посещение закрыто без оплаты.')).toBeInTheDocument();
+  });
+
+  it('доп. посещение: скидка до суммы больше нуля; сумма не меньше нуля и ниже текущей; ошибка базы показана', async () => {
+    seed();
+    fake.db.session_guests = [{ session_id: 's9', player_id: 'p1', paid: false, amount: 15, sessions: { starts_at: '2020-02-03T15:00:00+04:00', groups: { name: 'U9-B' } } }];
+    fake.rpc.session_guest_discount = () => ({ error: { message: 'forbidden' } });
+    await openPlayer();
+    await screen.findByText(/к оплате:/);
+    const c = card(/Доп. посещение 03.02.2020 · U9-B/);
+    await waitFor(() => expect(within(c).getByRole('button', { name: 'Принять оплату' })).toBeEnabled());
+    fireEvent.click(within(c).getByRole('button', { name: 'Принять оплату' }));
+    fireEvent.click(within(c).getByRole('button', { name: 'Скидка или закрыть без оплаты' }));
+    const field = within(c).getByLabelText(/Сумма к оплате после скидки/);
+    fireEvent.change(field, { target: { value: '15' } });
+    fireEvent.click(within(c).getByRole('button', { name: 'Применить' }));
+    expect(await within(c).findByText('Введите сумму к оплате от 0 и меньше текущей.')).toBeInTheDocument();
+    expect(fake.rpcCalls('session_guest_discount')).toHaveLength(0);
+    fireEvent.change(field, { target: { value: '10' } });
+    fireEvent.click(within(c).getByRole('button', { name: 'Применить' }));
+    const dlg = await screen.findByRole('dialog');
+    fireEvent.change(within(dlg).getByLabelText('Причина (обязательно)'), { target: { value: 'скидка семье' } });
+    fireEvent.click(within(dlg).getByRole('button', { name: 'Применить скидку' }));
+    await waitFor(() => expect(fake.rpcCalls('session_guest_discount')[0]).toEqual({ s: 's9', p: 'p1', due: 10, why: 'скидка семье' }));
+    expect(await within(c).findByText(/Нет прав/i)).toBeInTheDocument();
+  });
+
+  it('кнопки скидки на доп. посещение нет у оплаты за визит и других долгов', async () => {
+    seed();
+    fake.db.own_visits = [{ session_id: 's9', player_id: 'p1', paid: false, amount: 20, sessions: { starts_at: '2020-02-03T15:00:00+04:00', groups: { name: 'U9-B' } } }];
+    await openPlayer();
+    await screen.findByText(/к оплате:/);
+    const c = card(/Оплата за визит 03.02.2020 · U9-B/);
+    await waitFor(() => expect(within(c).getByRole('button', { name: 'Принять оплату' })).toBeEnabled());
+    fireEvent.click(within(c).getByRole('button', { name: 'Принять оплату' }));
+    expect(within(c).queryByRole('button', { name: 'Скидка или закрыть без оплаты' })).toBeNull();
+  });
+
   it('оплата за визит показана отдельным разделом и платится через own_visit_set_paid', async () => {
     seed();
     fake.db.own_visits = [{ session_id: 's9', player_id: 'p1', paid: false, amount: 20, sessions: { starts_at: '2020-02-03T15:00:00+04:00', groups: { name: 'U9-B' } } }];

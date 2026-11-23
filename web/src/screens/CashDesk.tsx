@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { addPayment, clearPaymentKey, paymentError, DUPLICATE_PAYMENT_NOTE } from '../lib/paymentAdd';
 import { EmptyState, ListRow, Pill, SearchInput } from '../ui/components';
 import { useConfirm } from '../ui/ConfirmSheet';
+import { useClosure } from '../ui/ClosureSheet';
 import { MoreMenu } from '../ui/MoreMenu';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
@@ -14,7 +15,7 @@ import { gel, monthIso, monthName, nextMonth, tariffFor } from './MonthPayments'
 import { useNavState } from '../nav';
 
 interface Pl { id: string; full_name: string; group_id: string | null; groups: { name: string } | null; external_id?: string | null; birth_date?: string | null; status?: string }
-interface Due { key: string; kind: 'sub' | 'eq' | 'ind' | 'extra' | 'visit' | 'own_visit' | 'camp' | 'match' | 'event'; section: string; title: string; sub?: string; due: number; paid: number; month?: string; advance?: boolean; pay: (amount: number, method: string, date: string, req?: string) => PromiseLike<{ error: { message: string } | null; duplicate?: boolean }>; discount?: () => PromiseLike<{ error: { message: string } | null }>; settle?: () => void }
+interface Due { key: string; kind: 'sub' | 'eq' | 'ind' | 'extra' | 'visit' | 'own_visit' | 'camp' | 'match' | 'event'; section: string; title: string; sub?: string; due: number; paid: number; month?: string; advance?: boolean; pay: (amount: number, method: string, date: string, req?: string) => PromiseLike<{ error: { message: string } | null; duplicate?: boolean }>; discount?: () => PromiseLike<{ error: { message: string } | null }>; closeFree?: (due: number, why: string) => PromiseLike<{ error: { message: string } | null }>; settle?: () => void }
 
 const METHODS = ['Наличные', 'Перевод'];
 const PAY_METHODS = ['Наличные', 'Перевод'];
@@ -142,7 +143,7 @@ async function loadDues(p: Pl): Promise<{ dues: Due[]; missing: string[] }> {
     ((vis.data ?? []) as unknown as { session_id: string; amount: number; sessions: { starts_at: string; groups: { name: string } | null } | null }[]).forEach(g => {
       if (Number(g.amount) <= 0) return;
       const day = g.sessions ? dayOf(g.sessions.starts_at) : null;
-      out.push({ key: 'vis' + g.session_id, kind: 'visit', section: SECTIONS[7], title: `Доп. посещение${day ? ` ${fmtDate(day)}` : ''}${g.sessions?.groups ? ` · ${g.sessions.groups.name}` : ''}`, due: Number(g.amount), paid: 0, pay: (amount, method, date) => supabase.rpc('session_guest_set_paid', { s: g.session_id, p: p.id, is_paid: true, mth: method, amt: r2(amount), d: date }) });
+      out.push({ key: 'vis' + g.session_id, kind: 'visit', section: SECTIONS[7], title: `Доп. посещение${day ? ` ${fmtDate(day)}` : ''}${g.sessions?.groups ? ` · ${g.sessions.groups.name}` : ''}`, due: Number(g.amount), paid: 0, pay: (amount, method, date) => supabase.rpc('session_guest_set_paid', { s: g.session_id, p: p.id, is_paid: true, mth: method, amt: r2(amount), d: date }), closeFree: (newDue, why) => supabase.rpc('session_guest_discount', { s: g.session_id, p: p.id, due: r2(newDue), why }) });
     });
   }
   // оплата за визит (0200): визиты игрока без абонемента, долг копится до оплаты; сбой чтения не ломает остальные разделы
@@ -464,7 +465,7 @@ export function PlayerDues({ player, onBack, embedded = false, sharedMethod, jum
           <section key={s} data-sec={s}>
             <h2 className="ks-sub">{s}</h2>
             {dues.filter(d => d.section === s).map(d => (
-              <DueCard key={d.key} due={d} who={player.full_name} sharedMethod={sharedMethod} open={openKey === d.key} onOpen={() => setOpenKey(openKey === d.key ? null : d.key)} locked={refreshing} onPaid={dup => { setOpenKey(null); setMsg(dup ? DUPLICATE_PAYMENT_NOTE : 'Платёж записан.'); setRefreshing(true); setReload(n => n + 1); }} />
+              <DueCard key={d.key} due={d} who={player.full_name} sharedMethod={sharedMethod} open={openKey === d.key} onOpen={() => setOpenKey(openKey === d.key ? null : d.key)} locked={refreshing} onPaid={dup => { setOpenKey(null); setMsg(dup ? DUPLICATE_PAYMENT_NOTE : 'Платёж записан.'); setRefreshing(true); setReload(n => n + 1); }} onClosed={text => { setOpenKey(null); setMsg(text); setRefreshing(true); setReload(n => n + 1); }} />
             ))}
           </section>
         ))
@@ -473,7 +474,7 @@ export function PlayerDues({ player, onBack, embedded = false, sharedMethod, jum
   );
 }
 
-function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false }: { due: Due; open: boolean; onOpen: () => void; onPaid: (duplicate?: boolean) => void; sharedMethod?: string; who: string; locked?: boolean }) {
+function DueCard({ due, open, onOpen, onPaid, onClosed, sharedMethod, who, locked = false }: { due: Due; open: boolean; onOpen: () => void; onPaid: (duplicate?: boolean) => void; onClosed?: (text: string) => void; sharedMethod?: string; who: string; locked?: boolean }) {
   const left = r2(due.due - due.paid);
   const [amount, setAmount] = useState(String(left));
   const [ownMethod, setMethod] = useState('');
@@ -482,6 +483,9 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const { ask, dialog } = useConfirm();
+  const { askClosure, closureDialog } = useClosure();
+  const [discOpen, setDiscOpen] = useState(false);
+  const [discAmount, setDiscAmount] = useState('0');
   const fixedAmount = due.kind === 'ind'; // индивидуальное занятие отмечается оплаченным целиком
   const num = Number(amount.replace(',', '.'));
   // Ключ запроса (#471, 0188): одно действие кассира = один ключ. Повтор после обрыва связи с теми же данными не создаёт вторую оплату;
@@ -490,6 +494,26 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false 
   const reqFor = (sig: string) => {
     if (!reqRef.current || reqRef.current.sig !== sig) reqRef.current = { sig, key: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}` };
     return reqRef.current.key;
+  };
+  // Скидка на доп. посещение: новая сумма к оплате, 0 закрывает посещение без оплаты; причина обязательна, автор и прежняя сумма пишутся в журнал (0221)
+  const applyDiscount = async () => {
+    if (!due.closeFree) return;
+    const d = Number(discAmount.replace(',', '.'));
+    if (discAmount.trim() === '' || !Number.isFinite(d) || d < 0 || d >= left) return setErr('Введите сумму к оплате от 0 и меньше текущей.');
+    const free = d === 0;
+    const a = await askClosure({
+      title: free ? 'Закрыть без оплаты' : 'Скидка на посещение',
+      lines: [['Игрок', who], ['За что', due.title], ['Было', gel(left)], ['Станет', free ? 'без оплаты' : gel(d)]],
+      reasonOnly: true,
+      confirmLabel: free ? 'Закрыть без оплаты' : 'Применить скидку',
+    });
+    if (!a) return;
+    setBusy(true);
+    setErr(null);
+    const r = await due.closeFree(d, a.reason);
+    setBusy(false);
+    if (r.error) return setErr(errText(r.error.message));
+    onClosed?.(free ? 'Посещение закрыто без оплаты.' : 'Скидка применена.');
   };
   const save = async () => {
     if (!method) return setErr(sharedMethod !== undefined ? 'Выберите способ оплаты вверху экрана: «Наличные» или «Перевод».' : 'Выберите способ оплаты.');
@@ -552,9 +576,21 @@ function DueCard({ due, open, onOpen, onPaid, sharedMethod, who, locked = false 
           {err && <p className="error">{err}</p>}
           <button type="button" className="ks-btn" disabled={busy} onClick={() => void save()}>{fixedAmount ? `Отметить оплаченным (${gel(left)})` : 'Записать платёж'}</button>
           {!fixedAmount && due.discount && num > 0 && num < left && <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy} onClick={() => void payWithDiscount()}>Оплатить со скидкой</button>}
+          {due.closeFree && (
+            <>
+              <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy} aria-expanded={discOpen} onClick={() => { setDiscOpen(v => !v); setErr(null); }}>Скидка или закрыть без оплаты</button>
+              {discOpen && (
+                <div style={{ marginTop: 8 }}>
+                  <label className="field">Сумма к оплате после скидки, ₾ (0 — закрыть без оплаты)<input inputMode="decimal" value={discAmount} onChange={e => setDiscAmount(e.target.value.replace(/[^\d.,]/g, '').slice(0, 7))} /></label>
+                  <button type="button" className="ks-btn" disabled={busy} onClick={() => void applyDiscount()}>Применить</button>
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
       {dialog}
+      {closureDialog}
     </div>
   );
 }
