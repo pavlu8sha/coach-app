@@ -27,7 +27,7 @@ export interface SupabaseState {
   finish: Array<
     { id: string; ok: boolean; err: string | null; give_up: boolean; token: string | null }
   >;
-  // tg-notify перед отправкой продлевает закрепление (renew_notifications, 0217)
+  // tg-notify перед отправкой продлевает закрепление (renew_notifications, 0220)
   renewed: Array<{ id: string; token: string | null }>;
   renewResults: boolean[];
   renewError: string | null;

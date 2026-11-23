@@ -79,8 +79,8 @@ preflight_partial "без 0214" '0214_payment_idempotency' 0214_payment_idempote
 preflight_partial "без 0215" '0215_my_children' 0215_my_children
 # 0216 (payment_set_method) самостоятельна: на базе без неё preflight не падает, строка 0216 даёт NOT_APPLIED.
 preflight_partial "без 0216" '0216_payment_set_method' 0216_payment_set_method
-# 0217 (finish/renew lease) проверяет отсутствие старой сигнатуры finish_notification: на базе без неё строка NOT_APPLIED, preflight не падает.
-preflight_partial "без 0217" '0217_notifications_finish_lease' 0217_notifications_finish_lease
+# 0220 (finish/renew lease) проверяет отсутствие старой сигнатуры finish_notification: на базе без неё строка NOT_APPLIED, preflight не падает.
+preflight_partial "без 0220" '0220_notifications_finish_lease' 0220_notifications_finish_lease
 for t in db/tests/*_test.sql; do
   echo "== $t"
   out=$($PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f "$t" 2>&1) || { echo "$out"; fail=1; continue; }

@@ -1,4 +1,4 @@
-﻿-- pgTAP (Issue #714, миграция 0217): finish_notification принадлежит только текущей выдаче,
+﻿-- pgTAP (Issue #714, миграция 0220): finish_notification принадлежит только текущей выдаче,
 -- renew_notifications продлевает lease только владельцу. Только синтетические данные.
 begin;
 create extension if not exists pgtap;
@@ -114,22 +114,22 @@ select is(fin((row_of('F4')).id, (select t from f4_a), true, null), true, 'F4. �
 
 -- ===== права и совместимость сигнатуры =====
 select is(to_regprocedure('public.finish_notification(uuid,boolean,text,boolean)') is null, true,
-  '0217. старая 4-аргументная finish_notification удалена');
+  '0220. старая 4-аргументная finish_notification удалена');
 select is(has_function_privilege('anon', 'finish_notification(uuid,boolean,text,boolean,uuid)', 'execute'), false,
-  '0217. anon не завершает уведомления');
+  '0220. anon не завершает уведомления');
 select is(has_function_privilege('authenticated', 'finish_notification(uuid,boolean,text,boolean,uuid)', 'execute'), false,
-  '0217. authenticated не завершает уведомления');
+  '0220. authenticated не завершает уведомления');
 select is(has_function_privilege('anon', 'renew_notifications(uuid,uuid)', 'execute'), false,
-  '0217. anon не продлевает lease');
+  '0220. anon не продлевает lease');
 select is(has_function_privilege('authenticated', 'renew_notifications(uuid,uuid)', 'execute'), false,
-  '0217. authenticated не продлевает lease');
+  '0220. authenticated не продлевает lease');
 select is(has_function_privilege('service_role', 'finish_notification(uuid,boolean,text,boolean,uuid)', 'execute'), true,
-  '0217. service_role завершает уведомления');
+  '0220. service_role завершает уведомления');
 select is(has_function_privilege('service_role', 'renew_notifications(uuid,uuid)', 'execute'), true,
-  '0217. service_role продлевает lease');
+  '0220. service_role продлевает lease');
 select is((select p.prosecdef and p.proconfig @> array['search_path=public'] from pg_proc p
             where p.oid = 'renew_notifications(uuid,uuid)'::regprocedure), true,
-  '0217. renew_notifications: security definer с закреплённым search_path');
+  '0220. renew_notifications: security definer с закреплённым search_path');
 
 select * from finish();
 rollback;

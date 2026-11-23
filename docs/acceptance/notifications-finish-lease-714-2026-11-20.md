@@ -1,6 +1,6 @@
 # #714: lease-aware finish и продление закрепления: условия приёмки
 
-Источник: Issue #714. Реализация в `db/migrations/0217_notifications_finish_lease.sql` и
+Источник: Issue #714. Реализация в `db/migrations/0220_notifications_finish_lease.sql` и
 `supabase/functions/tg-notify/index.ts`.
 
 ## Условия
@@ -13,13 +13,13 @@
   строку без токена пропускает. При ошибке `renew` или исчерпании бюджета возвращает необработанные строки без отправки.
 - **F5.** Ответ 429 по-прежнему закрывает текущую строку и возвращает остальные; consent-check, stalled и лимит трёх попыток не меняются.
 - **F6.** Остаточный риск at-least-once описан: если Telegram принял сообщение, а ответ/finish потерян, возможен повтор после
-  истечения закрепления; бесконечного повтора нет. Миграция 0217 и новый `tg-notify` разворачиваются вместе в окно без cron.
+  истечения закрепления; бесконечного повтора нет. Миграция 0220 и новый `tg-notify` разворачиваются вместе в окно без cron.
 
 ## Проверки
 - `db/tests/rls_notifications_finish_lease_test.sql` — stale finish/release, reclaim, renew, права и отсутствие старой сигнатуры.
 - `db/tests/rls_notifications_queue_test.sql` — обновлённые Q1–Q9 и токены finish.
 - `db/tests/concurrency_notifications_release.sh` — Q10 stale finish и Q11 renew после истечения закрепления.
-- `db/ops/preflight.sql` и `scripts/run-db-tests.sh` — строка 0217, полная база APPLIED и база без 0217 NOT_APPLIED без падения preflight.
+- `db/ops/preflight.sql` и `scripts/run-db-tests.sh` — строка 0220, полная база APPLIED и база без 0220 NOT_APPLIED без падения preflight.
 - `tests/deno/tg-notify.test.ts` — renew перед отправкой, timeout, бюджет, потеря lease, ошибка renew, finish с токеном.
 
 ## Не входит
