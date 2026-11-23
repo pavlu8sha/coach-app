@@ -7,7 +7,7 @@ describe('справочник филиалов', () => {
   it('разные написания приводятся к названию справочника', () => {
     for (const t of ['Исани', 'isani', 'ISANI', ' Isani ', 'ისანი']) expect(branchOf(t)).toBe('Isani');
     for (const t of ['Ортачала', 'ortachala', 'Ortachala', 'ორთაჭალა']) expect(branchOf(t)).toBe('Ortachala');
-    for (const t of ['Red Garden', 'red  garden', 'RedGarden', 'Ред Гарден']) expect(branchOf(t)).toBe('Red Garden');
+    for (const t of ['Red Garden', 'red  garden', 'RedGarden', 'Ред Гарден', 'Красный парк', ' красный  Парк ']) expect(branchOf(t)).toBe('Red Garden');
   });
   it('разовые площадки и пустые значения — не филиал', () => {
     for (const t of ['35-я школа', 'Surami Hotel', 'Vake', '', '  ', null, undefined]) expect(branchOf(t)).toBeNull();
