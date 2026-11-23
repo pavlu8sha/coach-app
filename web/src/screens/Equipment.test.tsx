@@ -661,13 +661,13 @@ describe('Экипировка: отмена и восстановление з�
     ];
   };
 
-  it('Ж11: журнал оплат показывает платежи, сторно и «сторнирована»; сторно только у живой оплаты', async () => {
+  it('Ж11: журнал оплат показывает платежи, «Отмена оплаты» и «Оплата отменена»; «Отменить оплату» только у живой оплаты', async () => {
     seedPays();
     render(<Equipment />);
     fireEvent.click(await screen.findByText('Сидоров Ян'));
     expect(await screen.findByText('Журнал оплат')).toBeInTheDocument();
-    expect(screen.getByText(/Оплата \(сторнирована\)/)).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Сторно' })).toHaveLength(1);
+    expect(screen.getByText(/Оплата отменена/)).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Отменить оплату' })).toHaveLength(1);
   });
 
   it('правка 6: входящий остаток — одна строка «Внесено до начала учёта», без даты 01.01.2000 и без дубля', async () => {
@@ -684,16 +684,16 @@ describe('Экипировка: отмена и восстановление з�
     expect(document.body.textContent).not.toContain('в приложении');
   });
 
-  it('Ж11: сторно требует причину и вызывает eq_reverse_payment с ключом', async () => {
+  it('Ж11: «Отменить оплату» требует причину и вызывает eq_reverse_payment с ключом', async () => {
     seedPays();
     fake.rpc.eq_reverse_payment = () => 0;
     render(<Equipment />);
     fireEvent.click(await screen.findByText('Сидоров Ян'));
-    const btn = await screen.findByRole('button', { name: 'Сторно' });
+    const btn = await screen.findByRole('button', { name: 'Отменить оплату' });
     expect(btn).toBeDisabled();
-    fireEvent.change(screen.getByLabelText(/Причина \(для сторно/), { target: { value: ' ошибка кассира ' } });
+    fireEvent.change(screen.getByLabelText(/Причина \(для отмены оплаты/), { target: { value: ' ошибка кассира ' } });
     fireEvent.click(btn);
-    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Сторнировать' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отменить' }));
     await waitFor(() => expect(fake.rpcCalls('eq_reverse_payment')).toEqual([{ pid: 'sp1', note: 'ошибка кассира', req: expect.any(String) }]));
   });
 
@@ -705,7 +705,7 @@ describe('Экипировка: отмена и восстановление з�
     const btn = await screen.findByRole('button', { name: 'Записать возврат' });
     expect(btn).toBeDisabled();
     fireEvent.change(screen.getByLabelText(/^Способ оплаты/), { target: { value: 'Наличные' } });
-    fireEvent.change(screen.getByLabelText(/Причина \(для сторно/), { target: { value: 'отказ' } });
+    fireEvent.change(screen.getByLabelText(/Причина \(для отмены оплаты/), { target: { value: 'отказ' } });
     fireEvent.change(screen.getByLabelText(/Сумма возврата/), { target: { value: '30' } });
     fireEvent.click(btn);
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать возврат' }));

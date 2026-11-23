@@ -2,7 +2,7 @@ import { applyTelegramTheme } from '../ui/telegram-theme';
 // Обёртка над Telegram.WebApp (скрипт подключён в index.html). Вне Telegram window.Telegram.WebApp.initData пустой.
 interface TgWebApp {
   initData: string;
-  initDataUnsafe?: { user?: { language_code?: string; first_name?: string; last_name?: string }; start_param?: string };
+  initDataUnsafe?: { user?: { language_code?: string; first_name?: string; last_name?: string; username?: string }; start_param?: string };
   ready(): void;
   expand(): void;
   themeParams: Record<string, string | undefined>;
@@ -15,6 +15,8 @@ interface TgWebApp {
   // Bot API 8.0+: ярлык на экран «Домой»; на старых клиентах методов нет
   // Открывает ссылку во внешнем браузере; работает и после ожидания ответа сервера, в отличие от window.open
   openLink?(url: string, options?: { try_instant_view?: boolean }): void;
+  // Открывает ссылку t.me внутри Telegram (чат с пользователем по нику)
+  openTelegramLink?(url: string): void;
   addToHomeScreen?(): void;
   checkHomeScreenStatus?(cb: (status: HomeScreenStatus) => void): void;
 }

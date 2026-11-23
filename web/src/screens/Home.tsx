@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNav, useSubEntry } from '../nav';
 import { peekCampSlug, takeCampSlug } from '../lib/startParam';
 import { loadMyChildren } from '../lib/myChildren';
+import { loadMyLinkRequests, loadPendingConsents, type PendingConsent } from '../lib/linkRequests';
+import ConsentAccept from './ConsentAccept';
 import { supabase } from '../lib/supabase';
 import { Avatar, EmptyState, ListRow, Pill } from '../ui/components';
 import { BackNav } from '../ui/nav';
@@ -43,6 +45,7 @@ function ChildCard({ c, onProfile }: { c: Child; onProfile: () => void }) {
 export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; onGuest?: () => void }) {
   const [children, setChildren] = useState<Child[] | null>(null);
   const [reqs, setReqs] = useState<Req[]>([]);
+  const [pendingConsents, setPendingConsents] = useState<PendingConsent[]>([]); // подтверждено, но не принято согласие (0217)
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [showLink, setShowLink] = useState(false);
@@ -106,9 +109,14 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
         : { data: [], error: null };
       if (mp.error) return setError(errMsg(mp.error));
       const parts = (mp.data ?? []) as { player_id: string; played: boolean; goals: number }[];
-      // Запросы нужны только для строки «ждёт подтверждения»; сбой этой выборки не мешает показать детей
-      const rq = await supabase.from('link_requests').select('id, status, players(full_name)').eq('user_id', me).order('created_at', { ascending: false });
-      setReqs(rq.error ? [] : ((rq.data ?? []) as unknown as Req[]));
+      // Запросы нужны для строки «ждёт подтверждения» и онбординга; сбой загрузки показывается ошибкой с повтором (замечание ревью #789)
+      const rq = await loadMyLinkRequests(me); // имя ребёнка из my_link_requests() (0217)
+      if (rq.error) return setError(errMsg(rq.error)); // сбой не выдаём за «запросов нет»: ошибка с повтором
+      setReqs((rq.reqs ?? []) as Req[]);
+      // «подтверждён, но не виден»: и когда детей нет, и когда второй ребёнок ждёт согласия. Сбой проверки не выдаём за «согласий нет»: ошибка с повтором
+      const pc = await loadPendingConsents();
+      if (pc.error) return setError(errMsg(pc.error));
+      setPendingConsents(pc.items);
       setChildren(
         kids.map(k => {
           const played = parts.filter(p => p.player_id === k.id);
@@ -150,10 +158,12 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
         </main>
       );
     }
+    if (pendingConsents.length && !showLink) return <ConsentAccept items={pendingConsents} onDone={refresh} />;
     return <LinkOnboarding reqs={reqs} onApproved={refresh} onOpenStatus={openStatus} onGuest={onGuest} />;
   }
   return (
     <main className="page">
+      {pendingConsents.length > 0 && !addMore && <ConsentAccept embedded items={pendingConsents} onDone={refresh} />}
       <HideWhen hide={policyOpen}>
         <h1>{children.length > 1 ? 'Мои дети' : 'Мой ребёнок'}</h1>
         {children.map(c => (
