@@ -5,7 +5,7 @@ export const BRANCHES = ['Red Garden', 'Isani', 'Ortachala'] as const;
 export type Branch = (typeof BRANCHES)[number];
 
 const ALIASES: Record<Branch, string[]> = {
-  'Red Garden': ['red garden', 'redgarden', 'ред гарден', 'редгарден', 'რედ გარდენ'],
+  'Red Garden': ['red garden', 'redgarden', 'ред гарден', 'редгарден', 'красный парк', 'რედ გარდენ'],
   Isani: ['isani', 'исани', 'ისანი'],
   Ortachala: ['ortachala', 'ортачала', 'ორთაჭალა'],
 };
