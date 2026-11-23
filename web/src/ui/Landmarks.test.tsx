@@ -42,3 +42,13 @@ describe('Заявка на пробную', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Записаться на пробную тренировку' })).toBeInTheDocument();
   });
 });
+
+// 23.11.2026: Loading внутри экрана на десктопе сжимался до 78 px. Стили vitest не считает, проверяем, что правило не потеряно.
+describe('Loading внутри .page', () => {
+  it('kit.css сбрасывает поля и ширину у вложенной .page', async () => {
+    // @ts-expect-error в проекте нет типов node; vitest читает файл напрямую (CSS через ?raw в тестах пустой)
+    const { readFileSync } = await import('node:fs');
+    const css: string = readFileSync('src/ui/kit.css', 'utf8');
+    expect(css).toMatch(/\.page > \.page \{[^}]*max-width: none[^}]*margin: 0[^}]*padding: 0/);
+  });
+});

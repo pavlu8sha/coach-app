@@ -90,6 +90,8 @@ button.ks-row.selected { border-color: var(--ks-primary); box-shadow: 0 0 0 1px 
 .ks-skel.card i { margin: 0 0 8px; height: 14px; }
 .ks-skel.card i:last-child { margin-bottom: 0; }
 .ks-skel-bar { height: var(--ks-tap); border-radius: 12px; margin-bottom: 12px; background: var(--ks-border); animation: ks-pulse 1.2s ease-in-out infinite; }
+/* Loading внутри другого экрана (.page в .page): без своих полей и ограничения ширины. На ≥768 px внешняя .page — сетка, и вложенная с margin: auto сжималась до ширины содержимого (скелетоны Кассы на десктопе, 23.11.2026) */
+.page > .page { max-width: none; margin: 0; padding: 0; width: auto; }
 @keyframes ks-pulse { 50% { opacity: 0.45; } }
 @keyframes ks-fade { from { opacity: 0; } }
 /* Контент после загрузки проявляется мягко, без сдвига: заглушка уже занимает то же место */
