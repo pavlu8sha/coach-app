@@ -25,8 +25,13 @@ export interface SupabaseState {
   bookingResults: Record<string, Json>;
   bookingError: string | null;
   finish: Array<
-    { id: string; ok: boolean; err: string | null; give_up: boolean }
+    { id: string; ok: boolean; err: string | null; give_up: boolean; token: string | null }
   >;
+  // tg-notify перед отправкой продлевает закрепление (renew_notifications, 0220)
+  renewed: Array<{ id: string; token: string | null }>;
+  renewResults: boolean[];
+  renewError: string | null;
+  renewDelayMs: number;
   // tg-notify после 429: какие строки возвращены в очередь (release_notifications, 0184)
   released: Array<{ ids: string[]; token: string | null }>;
   releaseError: string | null;
@@ -62,6 +67,10 @@ function freshState(): SupabaseState {
     bookingResults: {},
     bookingError: null,
     finish: [],
+    renewed: [],
+    renewResults: [],
+    renewError: null,
+    renewDelayMs: 0,
     released: [],
     releaseError: null,
     requests: [],
@@ -168,6 +177,18 @@ export function createSupabaseFake() {
       return json(state.bookingResults[url.pathname.split("/").pop()!] ?? { ok: false, code: "error" });
     }
 
+    if (url.pathname === "/rest/v1/rpc/renew_notifications") {
+      if (state.renewError) return postgrestError(state.renewError);
+      if (state.renewDelayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, state.renewDelayMs));
+      }
+      state.renewed.push({
+        id: String(body?.i ?? ""),
+        token: (body?.token as string | null) ?? null,
+      });
+      return json(state.renewResults.length ? state.renewResults.shift()! : true);
+    }
+
     if (url.pathname === "/rest/v1/rpc/release_notifications") {
       if (state.releaseError) return postgrestError(state.releaseError);
       const ids = Array.isArray(body?.ids) ? (body?.ids as unknown[]).map(String) : [];
@@ -181,6 +202,7 @@ export function createSupabaseFake() {
         ok: Boolean(body?.ok),
         err: (body?.err as string | null) ?? null,
         give_up: Boolean(body?.give_up),
+        token: (body?.token as string | null) ?? null,
       });
       return new Response(null, { status: 204 });
     }
@@ -240,15 +262,17 @@ export function createSupabaseFake() {
 export interface TelegramState {
   status: number;
   text: string;
+  delayMs: number;
   calls: Array<{ method: string; body: Json | null }>;
 }
 
 export function createTelegramFake() {
-  const state: TelegramState = { status: 200, text: "{}", calls: [] };
+  const state: TelegramState = { status: 200, text: "{}", delayMs: 0, calls: [] };
   const server = Deno.serve({ port: 0, hostname: "127.0.0.1" }, async (req) => {
     const url = new URL(req.url);
     const method = url.pathname.split("/").pop() ?? "";
     state.calls.push({ method, body: await bodyOf(req) });
+    if (state.delayMs > 0) await new Promise((resolve) => setTimeout(resolve, state.delayMs));
     return new Response(state.text, {
       status: state.status,
       headers: { "Content-Type": "application/json" },
@@ -261,6 +285,7 @@ export function createTelegramFake() {
     reset() {
       state.status = 200;
       state.text = "{}";
+      state.delayMs = 0;
       state.calls = [];
     },
     close() {

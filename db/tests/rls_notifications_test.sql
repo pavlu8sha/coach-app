@@ -51,7 +51,7 @@ select is((select count(*)::int from notifications where user_id = '00000000-000
 select as_user('00000000-0000-0000-0000-0000000000b1');
 select throws_ok($$select * from notifications$$, '42501', null, 'родитель не читает очередь уведомлений');
 select throws_ok($$select claim_notifications(10)$$, '42501', null, 'родитель не забирает уведомления');
-select throws_ok($$select finish_notification(gen_random_uuid(), true, null)$$, '42501', null, 'родитель не отмечает отправку');
+select throws_ok($$select finish_notification(gen_random_uuid(), true, null, false, gen_random_uuid())$$, '42501', null, 'родитель не отмечает отправку');
 select throws_ok($$select enqueue_notification('00000000-0000-0000-0000-0000000000a1', 'x', 'спам')$$, '42501', null, 'родитель не ставит сообщения в очередь');
 select lives_ok($$select set_notifications(true)$$, 'родитель включает уведомления обратно');
 
@@ -61,11 +61,14 @@ select set_config('role', 'service_role', true);
 select is((select count(*)::int from claim_notifications(10)), 3, 'отправитель забирает ожидающие сообщения (два администратору и одно родителю)');
 select is((select count(*)::int from claim_notifications(10)), 0, 'забранные сообщения повторно не выдаются (закреплены на 2 минуты)');
 select is((select min(attempts)::int from notifications where state = 'pending'), 1, 'попытка учтена');
-select finish_notification((select id from notifications where kind = 'link_decided'), true, null);
+select finish_notification((select id from notifications where kind = 'link_decided'), true, null, false,
+  (select claim_token from notifications where kind = 'link_decided'));
 select is((select state from notifications where kind = 'link_decided'), 'sent', 'успешная отправка отмечена');
-select finish_notification((select id from notifications where kind = 'link_request' and text like '%Иванов%'), false, 'chat not found', true);
+select finish_notification((select id from notifications where kind = 'link_request' and text like '%Иванов%'), false, 'chat not found', true,
+  (select claim_token from notifications where kind = 'link_request' and text like '%Иванов%'));
 select is((select state from notifications where kind = 'link_request' and text like '%Иванов%'), 'failed', 'отказ без повторов (бот заблокирован) закрывает сообщение');
-select finish_notification((select id from notifications where kind = 'link_request' and text like '%Сидоров%'), false, 'timeout');
+select finish_notification((select id from notifications where kind = 'link_request' and text like '%Сидоров%'), false, 'timeout', false,
+  (select claim_token from notifications where kind = 'link_request' and text like '%Сидоров%'));
 select is((select state from notifications where kind = 'link_request' and text like '%Сидоров%'), 'pending', 'временная ошибка оставляет сообщение для повтора');
 reset role;
 update notifications set claimed_at = now() - interval '5 minutes' where state = 'pending';

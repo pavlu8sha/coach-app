@@ -9,22 +9,23 @@ import {
   startFunction,
 } from "./harness.ts";
 
+const CLAIM_TOKEN = "99999999-9999-9999-9999-999999999999";
 const rows = [
   {
     id: "11111111-1111-1111-1111-111111111111",
     telegram_id: 42,
     text: "Первый",
-    claim_token: "99999999-9999-9999-9999-999999999999",
+    claim_token: CLAIM_TOKEN,
   },
   {
     id: "22222222-2222-2222-2222-222222222222",
     telegram_id: 43,
     text: "Второй",
-    claim_token: "99999999-9999-9999-9999-999999999999",
+    claim_token: CLAIM_TOKEN,
   },
 ];
 
-Deno.test("tg-notify: HTTP → claim/finish + Telegram", async (t) => {
+Deno.test("tg-notify: HTTP → claim/renew/finish + Telegram", async (t) => {
   const supa = createSupabaseFake();
   const telegram = createTelegramFake();
   const fn = await startFunction("tg-notify", envFor(supa.url, telegram.url));
@@ -53,7 +54,7 @@ Deno.test("tg-notify: HTTP → claim/finish + Telegram", async (t) => {
     });
 
     await t.step(
-      "200 sends all claimed notifications and finishes them",
+      "200 renews and sends all claimed notifications and finishes them with the token",
       async () => {
         supa.reset();
         telegram.reset();
@@ -73,10 +74,15 @@ Deno.test("tg-notify: HTTP → claim/finish + Telegram", async (t) => {
             web_app: { url: APP_URL },
           }]],
         });
-        assert.deepEqual(supa.state.finish, [
-          { id: rows[0].id, ok: true, err: null, give_up: false },
-          { id: rows[1].id, ok: true, err: null, give_up: false },
+        assert.deepEqual(supa.state.renewed, [
+          { id: rows[0].id, token: CLAIM_TOKEN },
+          { id: rows[1].id, token: CLAIM_TOKEN },
         ]);
+        assert.deepEqual(supa.state.finish, [
+          { id: rows[0].id, ok: true, err: null, give_up: false, token: CLAIM_TOKEN },
+          { id: rows[1].id, ok: true, err: null, give_up: false, token: CLAIM_TOKEN },
+        ]);
+        assert.deepEqual(supa.state.released, []);
       },
     );
 
@@ -94,6 +100,7 @@ Deno.test("tg-notify: HTTP → claim/finish + Telegram", async (t) => {
           ok: false,
           err: "403 Forbidden: bot was blocked by the user",
           give_up: true,
+          token: CLAIM_TOKEN,
         },
       ]);
     });
@@ -115,11 +122,12 @@ Deno.test("tg-notify: HTTP → claim/finish + Telegram", async (t) => {
             ok: false,
             err: "429 Too Many Requests",
             give_up: false,
+            token: CLAIM_TOKEN,
           },
         ]);
         // REL-02 (0184): необработанная строка возвращена без потери попытки
         // токен своей выдачи передаётся: чужая, более новая выдача не снимается
-        assert.deepEqual(supa.state.released, [{ ids: [rows[1].id], token: rows[0].claim_token }]);
+        assert.deepEqual(supa.state.released, [{ ids: [rows[1].id], token: CLAIM_TOKEN }]);
       },
     );
 
@@ -134,14 +142,15 @@ Deno.test("tg-notify: HTTP → claim/finish + Telegram", async (t) => {
       assert.deepEqual(supa.state.released, []);
     });
 
-    await t.step("no claim token: nothing is released", async () => {
+    await t.step("no claim token: row is skipped, not sent, not finished or released", async () => {
       supa.reset();
       telegram.reset();
       supa.state.notifications = rows.map(({ claim_token: _t, ...r }) => r);
-      telegram.state.status = 429;
-      telegram.state.text = "Too Many Requests";
       const r = await send();
-      assert.deepEqual(r.data, { claimed: 2, sent: 0, failed: 1, released: 0 });
+      assert.deepEqual(r.data, { claimed: 2, sent: 0, failed: 0, released: 0 });
+      assert.equal(telegram.state.calls.length, 0);
+      assert.deepEqual(supa.state.renewed, []);
+      assert.deepEqual(supa.state.finish, []);
       assert.deepEqual(supa.state.released, []);
     });
 
@@ -169,12 +178,43 @@ Deno.test("tg-notify: HTTP → claim/finish + Telegram", async (t) => {
       assert.deepEqual(supa.state.released, []);
       assert.equal(telegram.state.calls.length, 2);
       assert.deepEqual(
-        supa.state.finish.map((f) => [f.id, f.ok, f.err, f.give_up]),
+        supa.state.finish.map((f) => [f.id, f.ok, f.err, f.give_up, f.token]),
         [
-          [rows[0].id, false, "500 oops", false],
-          [rows[1].id, false, "500 oops", false],
+          [rows[0].id, false, "500 oops", false, CLAIM_TOKEN],
+          [rows[1].id, false, "500 oops", false, CLAIM_TOKEN],
         ],
       );
+    });
+
+    await t.step("lost lease: row is not sent and finish is not called for it", async () => {
+      supa.reset();
+      telegram.reset();
+      supa.state.notifications = rows;
+      supa.state.renewResults = [false, true];
+      const r = await send();
+      assert.deepEqual(r.data, { claimed: 2, sent: 1, failed: 0, released: 0 });
+      assert.deepEqual(telegram.state.calls.map((c) => c.body?.chat_id), [43]);
+      assert.deepEqual(supa.state.renewed, [
+        { id: rows[0].id, token: CLAIM_TOKEN },
+        { id: rows[1].id, token: CLAIM_TOKEN },
+      ]);
+      assert.deepEqual(supa.state.finish, [
+        { id: rows[1].id, ok: true, err: null, give_up: false, token: CLAIM_TOKEN },
+      ]);
+      assert.deepEqual(supa.state.released, []);
+    });
+
+    await t.step("renew failure: current and rest are released without sending", async () => {
+      supa.reset();
+      telegram.reset();
+      supa.state.notifications = rows;
+      supa.state.renewError = "lease is locked";
+      const r = await send();
+      assert.equal(r.res.status, 200);
+      assert.deepEqual(r.data, { claimed: 2, sent: 0, failed: 0, released: 2 });
+      assert.equal(telegram.state.calls.length, 0);
+      assert.deepEqual(supa.state.finish, []);
+      assert.deepEqual(supa.state.released, [{ ids: rows.map((r) => r.id), token: CLAIM_TOKEN }]);
     });
 
     await t.step("claim failure returns 500", async () => {
@@ -186,6 +226,112 @@ Deno.test("tg-notify: HTTP → claim/finish + Telegram", async (t) => {
       assert.deepEqual(r.data, { error: "internal" });
       assert.equal(telegram.state.calls.length, 0);
     });
+  } finally {
+    await fn.close();
+    await telegram.close();
+    await supa.close();
+  }
+});
+
+Deno.test("tg-notify: per-request timeout fails the row without releasing the rest", async () => {
+  const supa = createSupabaseFake();
+  const telegram = createTelegramFake();
+  const fn = await startFunction("tg-notify", {
+    ...envFor(supa.url, telegram.url),
+    TELEGRAM_TIMEOUT_MS: "50",
+  });
+
+  try {
+    supa.state.notifications = [rows[0]];
+    telegram.state.delayMs = 200;
+    const r = await postJson(fn.url, {}, { "x-notify-secret": NOTIFY_SECRET });
+    assert.equal(r.res.status, 200);
+    assert.deepEqual(r.data, { claimed: 1, sent: 0, failed: 1, released: 0 });
+    assert.equal(telegram.state.calls.length, 1);
+    assert.equal(supa.state.finish.length, 1);
+    assert.equal(supa.state.finish[0].id, rows[0].id);
+    assert.equal(supa.state.finish[0].ok, false);
+    assert.equal(supa.state.finish[0].give_up, false);
+    assert.equal(supa.state.finish[0].token, CLAIM_TOKEN);
+    assert.deepEqual(supa.state.released, []);
+  } finally {
+    await fn.close();
+    await telegram.close();
+    await supa.close();
+  }
+});
+
+Deno.test("tg-notify: batch budget releases unprocessed rows without starting a request", async () => {
+  const supa = createSupabaseFake();
+  const telegram = createTelegramFake();
+  const fn = await startFunction("tg-notify", {
+    ...envFor(supa.url, telegram.url),
+    TELEGRAM_TIMEOUT_MS: "800",
+    NOTIFY_BATCH_BUDGET_MS: "1",
+  });
+
+  try {
+    supa.state.notifications = rows;
+    const r = await postJson(fn.url, {}, { "x-notify-secret": NOTIFY_SECRET });
+    assert.equal(r.res.status, 200);
+    assert.deepEqual(r.data, { claimed: 2, sent: 0, failed: 0, released: 2 });
+    assert.equal(telegram.state.calls.length, 0);
+    assert.deepEqual(supa.state.finish, []);
+    assert.deepEqual(supa.state.released, [{ ids: rows.map((r) => r.id), token: CLAIM_TOKEN }]);
+  } finally {
+    await fn.close();
+    await telegram.close();
+    await supa.close();
+  }
+});
+
+Deno.test("tg-notify: slow renew is aborted and the row is released without Telegram", async () => {
+  const supa = createSupabaseFake();
+  const telegram = createTelegramFake();
+  const fn = await startFunction("tg-notify", {
+    ...envFor(supa.url, telegram.url),
+    NOTIFY_RENEW_TIMEOUT_MS: "50",
+    TELEGRAM_TIMEOUT_MS: "800",
+    NOTIFY_BATCH_BUDGET_MS: "5000",
+  });
+
+  try {
+    supa.state.notifications = [rows[0]];
+    supa.state.renewDelayMs = 200;
+    const r = await postJson(fn.url, {}, { "x-notify-secret": NOTIFY_SECRET });
+    assert.equal(r.res.status, 200);
+    assert.deepEqual(r.data, { claimed: 1, sent: 0, failed: 0, released: 1 });
+    assert.equal(telegram.state.calls.length, 0);
+    assert.deepEqual(supa.state.finish, []);
+    assert.deepEqual(supa.state.released, [{ ids: [rows[0].id], token: CLAIM_TOKEN }]);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  } finally {
+    await fn.close();
+    await telegram.close();
+    await supa.close();
+  }
+});
+
+Deno.test("tg-notify: renew delay that eats the batch budget does not start Telegram", async () => {
+  const supa = createSupabaseFake();
+  const telegram = createTelegramFake();
+  const fn = await startFunction("tg-notify", {
+    ...envFor(supa.url, telegram.url),
+    NOTIFY_RENEW_TIMEOUT_MS: "1000",
+    TELEGRAM_TIMEOUT_MS: "200",
+    NOTIFY_BATCH_BUDGET_MS: "300",
+  });
+
+  try {
+    supa.state.notifications = [rows[0]];
+    supa.state.renewDelayMs = 150;
+    const r = await postJson(fn.url, {}, { "x-notify-secret": NOTIFY_SECRET });
+    assert.equal(r.res.status, 200);
+    assert.deepEqual(r.data, { claimed: 1, sent: 0, failed: 0, released: 1 });
+    assert.equal(supa.state.renewed.length, 1);
+    assert.equal(telegram.state.calls.length, 0);
+    assert.deepEqual(supa.state.finish, []);
+    assert.deepEqual(supa.state.released, [{ ids: [rows[0].id], token: CLAIM_TOKEN }]);
   } finally {
     await fn.close();
     await telegram.close();
