@@ -186,3 +186,17 @@ describe('профиль игрока: тренировки', () => {
     expect(screen.getByRole('heading', { name: 'Аня Петрова' })).toBeInTheDocument();
   });
 });
+
+describe('профиль игрока: смена вкладки без мигания (правка 24.11)', () => {
+  it('В1–В2: разделы в одной обёртке, она не пересоздаётся и держит высоту', async () => {
+    fake.db.players = [anya];
+    await open();
+    const wrap = screen.getByLabelText('Обзор').parentElement as HTMLElement;
+    expect(wrap.classList.contains('ks-prof-body')).toBe(true);
+    expect(wrap.parentElement?.classList.contains('page')).toBe(true);
+    fireEvent.click(screen.getByRole('tab', { name: 'Матчи' }));
+    const wrap2 = screen.getByLabelText('Матчи').parentElement as HTMLElement;
+    expect(wrap2).toBe(wrap);
+    expect(wrap2.style.minHeight).not.toBe('');
+  });
+});
