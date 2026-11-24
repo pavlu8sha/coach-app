@@ -540,3 +540,6 @@ ul.policy { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 8px
 .ks-more-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; width: max-content; min-width: 220px; max-width: min(320px, calc(100vw - 32px)); padding: 6px; border-radius: 14px; background: var(--ks-surface, #fff); border: 1px solid var(--ks-border-strong); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); }
 .ks-more-menu button { display: block; white-space: normal; width: 100%; min-height: var(--ks-tap); padding: 0 12px; border: 0; border-radius: 10px; background: none; color: var(--ks-text); font: 700 15px var(--ks-font); text-align: left; cursor: pointer; }
 .ks-more-menu button:hover, .ks-more-menu button:focus-visible { background: var(--ks-primary-subtle, rgba(127, 127, 127, 0.15)); outline: none; }
+
+/* «Отметки»: у поля даты родное оформление iOS (без appearance: none окно выбора появляется плавно, как у выбора группы; 24.11.2026, пробная правка). Остальные поля даты прежние */
+input[type='date'].ks-date-native { -webkit-appearance: auto; appearance: auto; }
