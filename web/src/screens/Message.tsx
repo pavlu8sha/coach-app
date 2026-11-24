@@ -19,8 +19,9 @@ export default function Message(props: { title: string; text?: string; action?: 
 export function Splash() {
   return (
     <main className="ks-splash" role="status" aria-label="Загрузка">
-      <img src="/icon-192.png" alt="" width="96" height="96" />
-      <b>KicksApp</b>
+      <img className="ks-logo-light" src="/icon-192.png" alt="" width="96" height="96" />
+      <img className="ks-logo-dark" src="/logo-dark.png" alt="" width="160" height="160" />
+      <b className="ks-splash-name">KicksApp</b>
       <span className="ks-spinner" aria-hidden="true" />
     </main>
   );

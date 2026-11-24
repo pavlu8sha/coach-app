@@ -153,6 +153,14 @@ button.ks-row.selected { border-color: var(--ks-primary); box-shadow: 0 0 0 1px 
 .ks-splash { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: var(--ks-bg); color: var(--ks-text); font-family: var(--ks-font); }
 .ks-splash img { width: 96px; height: 96px; border-radius: 22px; box-shadow: var(--ks-shadow); }
 .ks-splash b { font-size: 20px; letter-spacing: 0.04em; }
+/* Тёмная тема: эмблема на белом фоне (kickstart-kicksapp-dark), в ней уже есть название; светлая тема: прежняя синяя плитка. Условия те же, что у токенов в tokens.css */
+.ks-splash .ks-logo-dark { display: none; width: 160px; height: 160px; border-radius: 28px; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .ks-splash .ks-logo-light, :root:not([data-theme='light']) .ks-splash .ks-splash-name { display: none; }
+  :root:not([data-theme='light']) .ks-splash .ks-logo-dark { display: block; }
+}
+:root[data-theme='dark'] .ks-splash .ks-logo-light, :root[data-theme='dark'] .ks-splash .ks-splash-name { display: none; }
+:root[data-theme='dark'] .ks-splash .ks-logo-dark { display: block; }
 .ks-spinner { width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--ks-border); border-top-color: var(--ks-primary); animation: ks-spin 0.8s linear infinite; }
 @keyframes ks-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .ks-spinner { animation-duration: 2.4s; } }
