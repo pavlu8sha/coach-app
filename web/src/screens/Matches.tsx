@@ -18,6 +18,7 @@ export function teamNames(groupNames: string[]): string[] {
   return [...new Set(groupNames.flatMap(n => [n, n.replace(/-[ABC]$/, '')]))];
 }
 type Filter = 'all' | 'upcoming' | 'past';
+type ScoreCheck = 'loading' | 'success' | 'error';
 interface Tour { match_id: string; tournament_name: string | null; tournament_kind: string | null; match_kind: string | null }
 interface MyTour { id: string; team: string; kind: string; name: string | null; starts_on: string | null; games: number }
 const FORM: Record<'w' | 'd' | 'l', { letter: string; name: string; tone: Tone }> = { w: { letter: 'В', name: 'Победа', tone: 'success' }, d: { letter: 'Н', name: 'Ничья', tone: 'neutral' }, l: { letter: 'П', name: 'Поражение', tone: 'danger' } };
@@ -54,7 +55,7 @@ export default function Matches() {
   const [loading, setLoading] = useState(false); // идёт загрузка: «Повторить» на это время отключена
   const [rsvpFailed, setRsvpFailed] = useState(false); // загрузка подтверждений не удалась (#737): это не «подтверждений нет»
   const [rsvp, setRsvp] = useState<MyRsvp[]>([]); // матчи с подтверждением участия (миграция 0134); без неё список пуст
-  const [scoreFailed, setScoreFailed] = useState(false); // проверка счёта матчей с подтверждением не удалась (#770): «счёта нет» неизвестно, а не доказано
+  const [scoreCheck, setScoreCheck] = useState<ScoreCheck>('loading'); // проверка счёта матчей с подтверждением: до успеха «счёта нет» неизвестно (#770, #804)
   const [rsvpScored, setRsvpScored] = useState<Set<string>>(new Set()); // матчи с подтверждением, у которых внесён счёт
   const [durations, setDurations] = useState<{ values: SettingValues; scoped: ScopedValues }>({ values: {}, scoped: {} }); // длительность матча из настроек клуба (0168)
 
@@ -62,6 +63,8 @@ export default function Matches() {
     // устаревший ответ (перекрывающиеся перезагрузки, #737) не применяется: после каждого ожидания проверяем, что эта загрузка последняя
     let cancelled = false;
     setLoading(true);
+    // после ошибки оставляем error: блок с повтором остаётся видимым и на время новой проверки; при обычной перезагрузке счёт снова неизвестен
+    setScoreCheck(s => s === 'error' ? 'error' : 'loading');
     const load = async () => {
       const me = (await supabase.auth.getUser()).data.user?.id;
       if (cancelled) return;
@@ -114,8 +117,8 @@ export default function Matches() {
       setDurations({ values: dv, scoped: { [MATCH_DURATION_KEY]: dt } });
       // ошибка или некорректный ответ проверки счёта не равны «счёта нет»: матчи с неизвестным счётом ниже скрываются, показывается блок с повтором
       const scoreBad = Boolean(sc && (sc.error || !Array.isArray(sc.data)));
-      setScoreFailed(scoreBad);
       setRsvpScored(new Set(scoreBad ? [] : ((sc?.data ?? []) as { id: string; goals_for: number | null; goals_against: number | null }[]).filter(x => x.goals_for !== null && x.goals_against !== null).map(x => x.id)));
+      setScoreCheck(scoreBad ? 'error' : 'success');
       const m = await supabase.from('matches').select('id, team, played_on, opponent, goals_for, goals_against').in('team', teamNames(names)).order('played_on', { ascending: false }).limit(100);
       if (cancelled) return;
       if (m.error) return setError(errMsg(m.error));
@@ -158,9 +161,9 @@ export default function Matches() {
   const t = today();
   // матчи с подтверждением показываются карточками ниже и в общем списке не дублируются
   // со счётом матч переходит в «Результаты» и в итоги команды; отменённый остаётся карточкой
-  // при сбое проверки счёта начавшиеся неотменённые матчи с подтверждением не показываем ни карточкой «результат не внесён», ни в общем списке: счёт неизвестен
+  // пока проверка счёта не завершилась успешно (идёт или ошибка), начавшиеся неотменённые матчи с подтверждением не показываем ни карточкой «результат не внесён», ни в общем списке: счёт неизвестен
   const isUpcomingRsvp = (r: MyRsvp) => r.lifecycle_status === 'published' && new Date(r.starts_at).getTime() > Date.now();
-  const scoreUnknown = (r: MyRsvp) => scoreFailed && r.lifecycle_status !== 'cancelled' && !isUpcomingRsvp(r);
+  const scoreUnknown = (r: MyRsvp) => scoreCheck !== 'success' && r.lifecycle_status !== 'cancelled' && !isUpcomingRsvp(r);
   const rsvpShown = rsvp.filter(r => !scoreUnknown(r));
   const rsvpIds = new Set(rsvp.filter(r => r.lifecycle_status === 'cancelled' || !rsvpScored.has(r.match_id)).map(r => r.match_id));
   matches = matches.filter(m => !rsvpIds.has(m.id));
@@ -202,7 +205,7 @@ export default function Matches() {
           </button>
         </div>
       )}
-      {scoreFailed && (
+      {scoreCheck === 'error' && (
         <div className="ks-card" role="alert">
           <b>Не удалось проверить результаты матчей</b>
           <p className="muted note">Часть прошедших матчей скрыта: пока неизвестно, внесён ли по ним счёт. Повторите загрузку.</p>
@@ -294,11 +297,11 @@ export default function Matches() {
               })}
             </details>
           ))}
-          {filter === 'past' && played.length === 0 && !hasRsvpPast && !rsvpFailed && !scoreFailed && <EmptyState icon="trophy" title="Нет результатов" text="Сыгранных матчей пока нет." />}
+          {filter === 'past' && played.length === 0 && !hasRsvpPast && !rsvpFailed && scoreCheck === 'success' && <EmptyState icon="trophy" title="Нет результатов" text="Сыгранных матчей пока нет." />}
         </>
       )}
 
-      {filter === 'all' && upcoming.length === 0 && played.length === 0 && eventCards.length === 0 && !rsvp.length && !rsvpFailed && !scoreFailed && <EmptyState icon="trophy" title="Матчей пока нет" text="Ближайшие матчи и результаты появятся здесь." />}
+      {filter === 'all' && upcoming.length === 0 && played.length === 0 && eventCards.length === 0 && !rsvp.length && !rsvpFailed && scoreCheck === 'success' && <EmptyState icon="trophy" title="Матчей пока нет" text="Ближайшие матчи и результаты появятся здесь." />}
     </main>
   );
 }

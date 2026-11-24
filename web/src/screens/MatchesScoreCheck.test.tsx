@@ -24,7 +24,58 @@ function seed(opts: { scored: boolean; extra?: unknown[] }) {
   fake.rpc.match_rsvp_my_matches = () => [row(), ...(opts.extra ?? [])];
 }
 
-describe('«Матчи» родителя: проверка счёта матчей с подтверждением (#770)', () => {
+describe('«Матчи» родителя: проверка счёта матчей с подтверждением (#770, #804)', () => {
+  it('первая загрузка: пока score-query удерживается, прошедший матч не получает статус «результат не внесён»', async () => {
+    seed({ scored: true });
+    const gate = fake.hold('matches');
+    render(<Matches />);
+    await waitFor(() => expect(fake.holds.matches).toHaveLength(0));
+    await waitFor(() => expect(fake.rpcCalls('match_rsvp_my_matches')).toHaveLength(1));
+    expect(screen.queryByText(STALE)).toBeNull();
+    gate.release();
+    expect(await screen.findByText('Победа')).toBeInTheDocument();
+    expect(screen.queryByText(STALE)).toBeNull();
+  });
+
+  it('RSVP загружен, score-query удерживается: прошедшие карточки скрыты, предстоящая и отменённая остаются', async () => {
+    seed({ scored: false });
+    const when = new Date(Date.now() - 3 * day).toLocaleDateString('en-CA');
+    const upcoming = row({ match_id: 'r3', opponent: 'Будущий', starts_at: new Date(Date.now() + 5 * day).toISOString(), response: null, can_answer: true });
+    const cancelled = row({ match_id: 'r4', opponent: 'Отменён', lifecycle_status: 'cancelled' });
+    let rows = [row(), upcoming, cancelled];
+    fake.rpc.match_rsvp_my_matches = () => rows;
+    fake.db.matches.push(
+      { id: 'r3', team: 'U9', played_on: when, opponent: 'Будущий', goals_for: null, goals_against: null },
+      { id: 'r4', team: 'U9', played_on: when, opponent: 'Отменён', goals_for: null, goals_against: null },
+    );
+    render(<Matches />);
+    expect(await screen.findByText(STALE)).toBeInTheDocument();
+    expect(screen.getByLabelText('Матч Будущий')).toBeInTheDocument();
+    expect(screen.getByLabelText('Матч Отменён')).toBeInTheDocument();
+
+    // новая прошедшая RSVP-карточка уже со счётом; ответ на предстоящий матч запускает перезагрузку, score-query зависает
+    fake.db.matches.push({ id: 'r2', team: 'U9', played_on: when, opponent: 'Динамо', goals_for: 3, goals_against: 0 });
+    rows = [row(), row({ match_id: 'r2', opponent: 'Динамо' }), upcoming, cancelled];
+    const gate = fake.hold('matches');
+    fireEvent.click(screen.getByRole('button', { name: 'Иванов Пётр: Будет' }));
+    await waitFor(() => expect(fake.rpcCalls('match_rsvp_my_matches')).toHaveLength(2));
+    await waitFor(() => expect(fake.holds.matches).toHaveLength(0));
+    await new Promise(r => setTimeout(r, 20));
+
+    expect(screen.queryByLabelText('Матч Динамо')).toBeNull();
+    expect(screen.queryByLabelText('Матч Олимп')).toBeNull();
+    expect(screen.queryByText(STALE)).toBeNull();
+    expect(screen.queryByText(ALERT)).toBeNull();
+    expect(screen.getByLabelText('Матч Будущий')).toBeInTheDocument();
+    expect(screen.getByLabelText('Матч Отменён')).toBeInTheDocument();
+
+    gate.release();
+    expect(await screen.findByText('Победа')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Матч Олимп')).toBeInTheDocument();
+    expect(screen.getByText(STALE)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Матч Динамо')).toBeNull();
+  });
+
   it('матч со счётом и ошибка проверки: ложного статуса «результат не внесён» нет, есть сообщение и повтор', async () => {
     seed({ scored: true });
     fake.errorsNext.matches = 'boom: secret technical text';
