@@ -17,10 +17,10 @@ const openEquipment = () => {
 const openProduct = (name: RegExp) => fireEvent.click(screen.getByRole('button', { name }));
 
 describe('экипировка по каталогу KAIRA', () => {
-  it('плитка «Экипировка» в «О клубе» с общим фото коллекции (правка 24.11)', () => {
+  it('плитка «Экипировка» в «О клубе» с шаблонной картинкой (градиент и футболка), без фото (правка 24.11)', () => {
     // jsdom не разбирает background с градиентом, поэтому проверяем описание плиток в исходнике
     const src: string = readFileSync('src/screens/About.tsx', 'utf8');
-    expect(src).toMatch(/id: 'equipment', title: 'Экипировка'[^}]*photo: 'kit-lineup'/);
+    expect(src).toMatch(/id: 'equipment', title: 'Экипировка', sub: 'Комплекты от 100 GEL' \}/);
   });
 
   it('п.1–2: заголовок, общее фото и пять карточек по порядку PDF', () => {

@@ -297,7 +297,7 @@ const TILES: { id: Exclude<CoverId, 'channel'>; title: string; sub: string; wide
   { id: 'champ', title: 'Чемпионаты', sub: 'Сезон 2026/27' },
   { id: 'individual', title: 'Индивидуальные', sub: 'До 3 футболистов на тренера' },
   { id: 'gk', title: 'Вратарские', sub: 'Отдельные тренировки' },
-  { id: 'equipment', title: 'Экипировка', sub: 'Комплекты от 100 GEL', photo: 'kit-lineup' },
+  { id: 'equipment', title: 'Экипировка', sub: 'Комплекты от 100 GEL' },
 ];
 const SCREENS: Record<Exclude<CoverId, 'channel'>, (p: { cabinet?: boolean }) => ReactNode> = { branches: Branches, champ: Championships, individual: Individual, gk: Goalkeepers, equipment: () => null, camp: Camp };
 

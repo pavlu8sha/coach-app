@@ -15,6 +15,14 @@ describe('Lightbox: фон не скроллится', () => {
     expect(document.body.style.overflow).toBe('');
   });
 
+  it('окно просмотра вынесено в body, а не лежит внутри карточки страницы', () => {
+    const { container } = render(<ZoomPhoto name="kit-lineup" alt="Фото" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть фото: Фото' }));
+    const dlg = screen.getByRole('dialog');
+    expect(dlg.parentElement).toBe(document.body);
+    expect(container.contains(dlg)).toBe(false);
+  });
+
   it('оверлей в CSS не пропускает вертикальный жест к странице', () => {
     const css: string = readFileSync('src/ui/kit.css', 'utf8');
     const line = css.split('\n').find(l => /^\.ks-lightbox \{/.test(l)) ?? '';
