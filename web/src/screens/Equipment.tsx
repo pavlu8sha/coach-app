@@ -258,7 +258,14 @@ export default function Equipment() {
     }
   };
 
-  const done = () => { nav.backToRoot(); setOrders(null); setReload(n => n + 1); };
+  // после создания или удаления заказа закрываем только вложенные экраны раздела и остаёмся на списке экипировки; прежний backToRoot уводил на «Ещё» (24.11.2026)
+  const done = () => {
+    let k = 0;
+    for (let i = nav.entries.length - 1; i > 0 && ['new', 'order', 'catalog', 'text'].includes(nav.entries[i].screen); i--) k++;
+    for (let i = 0; i < k; i++) nav.back();
+    setOrders(null);
+    setReload(n => n + 1);
+  };
   if (error) return <Failure title="Не удалось загрузить заказы" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   const screen = nav.top.screen;
   if (screen === 'new') return <NewOrder onBack={() => nav.back()} onDone={done} />;
