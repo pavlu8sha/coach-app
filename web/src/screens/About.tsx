@@ -114,7 +114,7 @@ function ProductCard({ p, onOpen }: { p: Product; onOpen: () => void }) {
       {p.photos[0] ? <Photo name={p.photos[0]} alt="" /> : <span className="ph" aria-hidden="true"><Art id="equipment" size={44} /></span>}
       <span className="ks-row-main">
         <span className="ks-row-title">{p.name}</span>
-        <span className="ks-row-sub">{p.lead}</span>
+        <span className="ks-row-sub">{p.tagline}</span>
       </span>
       <span className="pr">{p.price} GEL</span>
     </button>
@@ -126,14 +126,21 @@ function ProductDetail({ p }: { p: Product }) {
     <>
       <h1 className="ks-ptitle">{p.name}</h1>
       <p className="ks-pprice">{p.price} GEL</p>
+      <p className="ks-hint" style={{ marginTop: 0 }}>{p.tagline}</p>
       {p.photos.length > 0 && (
         <Gallery className="ks-gallery flush" keys={p.photos} alt={p.name} />
       )}
-      <Card title="Описание">
-        <p className="ks-lead" style={{ marginBottom: 0 }}>{p.lead}</p>
-      </Card>
-      <Card title="Особенности">
-        <Checks items={p.features} />
+      <Card>
+        {p.sections.map(x => (
+          <div key={x.label} className="ks-eq-sec">
+            <p className="ks-label">{x.label}</p>
+            <p className="ks-lead" style={{ margin: 0 }}>{x.text}</p>
+          </div>
+        ))}
+        <div className="ks-eq-sec">
+          <p className="ks-label">Размеры</p>
+          <p className="ks-lead" style={{ margin: 0 }}><b>{p.sizes}</b></p>
+        </div>
       </Card>
       {p.id === 'suit' && (
         <Card title="Размерная таблица">
@@ -152,15 +159,34 @@ function ProductDetail({ p }: { p: Product }) {
 function Equipment({ product, setProduct }: { product: Product['id'] | null; setProduct: (id: Product['id'] | null) => void }) {
   const cur = PRODUCTS.find(p => p.id === product);
   if (cur) return <ProductDetail p={cur} />;
+  const E = EQUIPMENT;
   return (
     <>
-      <CoverBanner id="equipment" title="Экипировка 2026/27" sub="Выберите товар" photo="kit-game" />
+      <CoverBanner id="equipment" title={E.title} sub={E.sub} />
+      <section className="ks-card">
+        <ZoomPhoto name="kit-lineup" alt={E.lineup} className="ks-photo" />
+        <p className="ks-lead" style={{ marginBottom: 0 }}><b>{E.lineup}</b></p>
+      </section>
       <section className="ks-card" style={{ padding: 0 }}>
         {PRODUCTS.map(p => <ProductCard key={p.id} p={p} onOpen={() => setProduct(p.id)} />)}
       </section>
-      <Card title="Скидка и рассрочка">
-        <p className="ks-callout" style={{ marginTop: 0 }}>{EQUIPMENT.bundle}</p>
-        <p className="ks-hint">{EQUIPMENT.installment} {EQUIPMENT.fitting}</p>
+      <Card title={E.bundle.title}>
+        <p className="ks-hint" style={{ marginTop: 0 }}>{E.bundle.sub}</p>
+        {E.bundle.items.map(([n, pr]) => <Price key={n} name={n} price={`${pr} GEL`} />)}
+        <p className="ks-hint">{E.bundle.separate}</p>
+        <div className="ks-eq-total">
+          <b>{E.bundle.total}</b>
+          <span>{E.bundle.benefit}</span>
+          <small>{E.bundle.note}</small>
+        </div>
+        <h3 className="ks-eq-h3">{E.installment.title}</h3>
+        <p className="ks-lead" style={{ marginBottom: 0 }}>{E.installment.text}</p>
+      </Card>
+      <Card title={E.order.title}>
+        <p className="ks-hint" style={{ marginTop: 0 }}>{E.order.sub}</p>
+        <ol className="ks-steps2 ks-eq-steps">
+          {E.order.steps.map(x => <li key={x.title}><b>{x.title}</b>{x.text}</li>)}
+        </ol>
         <Sign text="Заказать" />
         <a className="ks-btn secondary" href={INSTALLMENT_CHAT} target="_blank" rel="noreferrer">Вопросы по рассрочке</a>
       </Card>
