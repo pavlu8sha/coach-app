@@ -15,6 +15,17 @@ describe('заставка: эмблемы по темам', () => {
     expect(container.querySelector('img.ks-logo-dark')?.getAttribute('src')).toBe('/logo-dark.png');
   });
 
+  it('п.2–3: обе эмблемы одного размера 112 px, отдельной подписи KicksApp нет', () => {
+    const { container } = render(<Splash />);
+    for (const c of ['ks-logo-light', 'ks-logo-dark']) {
+      const img = container.querySelector(`img.${c}`);
+      expect(img?.getAttribute('width')).toBe('112');
+      expect(img?.getAttribute('height')).toBe('112');
+    }
+    expect(screen.queryByText('KicksApp')).toBeNull();
+    expect(css).toMatch(/\.ks-splash img \{ width: 112px; height: 112px;/);
+  });
+
   it('п.2–3: белая эмблема скрыта по умолчанию и показывается в тёмной теме обоими путями', () => {
     expect(css).toMatch(/\.ks-splash \.ks-logo-dark \{ display: none;/);
     expect(css).toMatch(/prefers-color-scheme: dark\) \{\s*:root:not\(\[data-theme='light'\]\) \.ks-splash \.ks-logo-light[^}]*\}\s*:root:not\(\[data-theme='light'\]\) \.ks-splash \.ks-logo-dark \{ display: block; \}/);
