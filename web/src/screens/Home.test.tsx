@@ -204,7 +204,7 @@ describe('главная родителя: вход в профиль игрок
     render(<Home />);
     fireEvent.click(await screen.findByRole('button', { name: 'Профиль игрока: Мария Петрова' }));
     expect(await screen.findByRole('heading', { name: 'Мария Петрова' })).toBeInTheDocument();
-    expect(screen.getByText('Год рождения: 2018')).toBeInTheDocument();
+    expect(screen.getByText('Дата рождения: 01.01.2018')).toBeInTheDocument();
     expect(screen.queryByText('Алексей Петров')).toBeNull();
     expect(fake.rpcCalls('player_training_history')[0].p).toBe('p2');
     fireEvent.click(screen.getByRole('button', { name: 'Назад' }));

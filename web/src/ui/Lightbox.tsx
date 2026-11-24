@@ -8,6 +8,15 @@ export function Lightbox({ keys, start = 0, alt, onClose }: { keys: string[]; st
   const src = usePhoto(keys[i]);
   const go = (d: number) => setI(n => (n + d + keys.length) % keys.length);
 
+  // пока фото открыто, страница под ним не прокручивается (24.11.2026: на iPhone фон скроллился за фото)
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();

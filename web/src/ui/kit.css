@@ -337,7 +337,7 @@ a.ks-cover { text-decoration: none; display: block; }
 /* Фото на весь экран */
 .ks-zoom { flex: none; display: contents; padding: 0; border: 0; background: none; cursor: zoom-in; }
 .ks-zoom.block { display: block; width: 100%; }
-.ks-lightbox { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, .92); touch-action: pan-y; }
+.ks-lightbox { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, .92); touch-action: none; overscroll-behavior: contain; }
 .ks-lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .ks-lb-close, .ks-lb-nav { position: absolute; border: 0; border-radius: 999px; width: 44px; height: 44px; background: rgba(255, 255, 255, .16); color: #fff; font-size: 28px; line-height: 1; cursor: pointer; }
 .ks-lb-close { top: max(12px, env(safe-area-inset-top)); right: 12px; }

@@ -19,20 +19,20 @@ const open = (section?: string) => {
 };
 
 describe('профиль игрока: шапка и доступ', () => {
-  it('шапка: имя, группа, год рождения; разделов ровно четыре', async () => {
+  it('шапка: имя, группа, дата рождения; разделов ровно четыре', async () => {
     fake.db.players = [anya];
     await open();
     expect(screen.getByText('U10-A')).toBeInTheDocument();
-    expect(screen.getByText('Год рождения: 2016')).toBeInTheDocument();
+    expect(screen.getByText('Дата рождения: 02.04.2016')).toBeInTheDocument();
     const tabs = within(screen.getByRole('tablist', { name: 'Разделы профиля' })).getAllByRole('tab').map(t => t.textContent);
     expect(tabs).toEqual(['Обзор', 'Матчи', 'Тренировки', 'Баллы']);
     expect(screen.queryByText(/Прогресс|Достижения|Номер|Позиция/)).toBeNull();
   });
 
-  it('без даты рождения строки года нет', async () => {
+  it('без даты рождения строки даты нет', async () => {
     fake.db.players = [{ ...anya, birth_date: null }];
     await open();
-    expect(screen.queryByText(/Год рождения/)).toBeNull();
+    expect(screen.queryByText(/Дата рождения/)).toBeNull();
   });
 
   it('показывает позицию и действующий номер текущей команды и сезона', async () => {
@@ -184,5 +184,19 @@ describe('профиль игрока: тренировки', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
     expect(await screen.findByText('Был')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Аня Петрова' })).toBeInTheDocument();
+  });
+});
+
+describe('профиль игрока: смена вкладки без мигания (правка 24.11)', () => {
+  it('В1–В2: разделы в одной обёртке, она не пересоздаётся и держит высоту', async () => {
+    fake.db.players = [anya];
+    await open();
+    const wrap = screen.getByLabelText('Обзор').parentElement as HTMLElement;
+    expect(wrap.classList.contains('ks-prof-body')).toBe(true);
+    expect(wrap.parentElement?.classList.contains('page')).toBe(true);
+    fireEvent.click(screen.getByRole('tab', { name: 'Матчи' }));
+    const wrap2 = screen.getByLabelText('Матчи').parentElement as HTMLElement;
+    expect(wrap2).toBe(wrap);
+    expect(wrap2.style.minHeight).not.toBe('');
   });
 });

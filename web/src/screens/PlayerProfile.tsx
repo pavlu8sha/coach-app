@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavState } from '../nav';
 import { fmtDate, playerTeam, plural, errMsg } from '../lib/coach';
 import { seasonStart } from '../lib/seasonStats';
@@ -87,6 +87,17 @@ export default function PlayerProfile({ playerId, onBack }: { playerId: string; 
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [section, setSection] = useNavState<Section>('profile.section', 'overview');
+  // при смене вкладки обёртка на миг держит прежнюю высоту: страница не схлопывается и не прыгает
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [hold, setHold] = useState<number | null>(null);
+  const holdTimer = useRef<number | undefined>(undefined);
+  const pick = (s: Section) => {
+    setHold(bodyRef.current?.offsetHeight ?? 0);
+    window.clearTimeout(holdTimer.current);
+    holdTimer.current = window.setTimeout(() => setHold(null), 300);
+    setSection(s);
+  };
+  useEffect(() => () => window.clearTimeout(holdTimer.current), []);
   // лента тренировок: загружено от from до сегодня; догружается порциями назад
   const [train, setTrain] = useState<TrainingRow[] | null>(null);
   const [trainFrom, setTrainFrom] = useState<string | null>(null);
@@ -170,7 +181,7 @@ export default function PlayerProfile({ playerId, onBack }: { playerId: string; 
             {player.groups?.name && <p className="muted">{player.groups.name}</p>}
             {profile?.primary_position && <p className="muted">Позиция: {profile.primary_position}</p>}
             {currentJersey !== null && <p className="muted">Номер: {currentJersey}</p>}
-            {player.birth_date && <p className="muted">Год рождения: {player.birth_date.slice(0, 4)}</p>}
+            {player.birth_date && <p className="muted">Дата рождения: {fmtDate(player.birth_date)}</p>}
           </div>
         </div>
       </section>
@@ -178,7 +189,7 @@ export default function PlayerProfile({ playerId, onBack }: { playerId: string; 
       <Segmented<Section>
         label="Разделы профиля"
         value={section}
-        onChange={setSection}
+        onChange={pick}
         items={[
           { value: 'overview', label: 'Обзор' },
           { value: 'matches', label: 'Матчи' },
@@ -187,6 +198,7 @@ export default function PlayerProfile({ playerId, onBack }: { playerId: string; 
         ]}
       />
 
+      <div ref={bodyRef} className="ks-prof-body" style={hold !== null ? { minHeight: hold } : undefined}>
       {section === 'overview' && (
         <section className="ks-card" aria-label="Обзор">
           {matches.length ? <Line label="Сыграно матчей" value={`${matches.length} · голов: ${goals}`} /> : <Line label="Матчи" value="Пока нет отмеченных матчей" />}
@@ -235,6 +247,7 @@ export default function PlayerProfile({ playerId, onBack }: { playerId: string; 
       )}
 
       {section === 'points' && <PointsLedger playerId={player.id} showEmpty />}
+      </div>
     </main>
   );
 }
