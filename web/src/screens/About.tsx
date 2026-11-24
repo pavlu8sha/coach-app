@@ -285,7 +285,7 @@ function Camp({ cabinet }: { cabinet?: boolean }) {
         <h2 className="ks-h">{C.cta.title}</h2>
         <p className="ks-lead">{C.short}</p>
         <p className="ks-hint">{C.cta.note}</p>
-        <p className="ks-hint"><a href={ADMIN_CHAT} target="_blank" rel="noreferrer">Остались вопросы? Написать администратору</a></p>
+        <a className="ks-btn secondary" href={ADMIN_CHAT} target="_blank" rel="noreferrer">Остались вопросы? Написать администратору</a>
       </Card>
     </>
   );
