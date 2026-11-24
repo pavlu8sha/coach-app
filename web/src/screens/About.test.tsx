@@ -81,10 +81,10 @@ describe('«О клубе» для гостя', () => {
     expect(screen.getByText(/Полная оплата — до 20 декабря/)).toBeInTheDocument();
     expect(screen.getByText('проведённых сборов')).toBeInTheDocument();
     expect(screen.getByText('участников')).toBeInTheDocument();
-    // правка 5: внизу не кнопка, а ссылка для вопросов
+    // правка Павла 24.11 (отменяет прежнюю правку 5): внизу кнопка к чату администратора, как у рассрочки
     const ask = screen.getByRole('link', { name: 'Остались вопросы? Написать администратору' });
     expect(ask).toHaveAttribute('href', expect.stringContaining('fc_kickstart_tbs_admin'));
-    expect(ask.className).not.toContain('ks-btn');
+    expect(ask.className).toContain('ks-btn');
     expect(screen.queryByText(/Запись открыта/)).toBeNull();
     // старых сборов нет нигде на странице
     const text = document.body.textContent ?? '';

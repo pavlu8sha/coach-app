@@ -285,7 +285,7 @@ function Camp({ cabinet }: { cabinet?: boolean }) {
         <h2 className="ks-h">{C.cta.title}</h2>
         <p className="ks-lead">{C.short}</p>
         <p className="ks-hint">{C.cta.note}</p>
-        <p className="ks-hint"><a href={ADMIN_CHAT} target="_blank" rel="noreferrer">Остались вопросы? Написать администратору</a></p>
+        <a className="ks-btn secondary" href={ADMIN_CHAT} target="_blank" rel="noreferrer">Остались вопросы? Написать администратору</a>
       </Card>
     </>
   );
@@ -297,7 +297,7 @@ const TILES: { id: Exclude<CoverId, 'channel'>; title: string; sub: string; wide
   { id: 'champ', title: 'Чемпионаты', sub: 'Сезон 2026/27' },
   { id: 'individual', title: 'Индивидуальные', sub: 'До 3 футболистов на тренера' },
   { id: 'gk', title: 'Вратарские', sub: 'Отдельные тренировки' },
-  { id: 'equipment', title: 'Экипировка', sub: 'Комплекты от 100 GEL', photo: 'kit-lineup' },
+  { id: 'equipment', title: 'Экипировка', sub: 'Комплекты от 100 GEL' },
 ];
 const SCREENS: Record<Exclude<CoverId, 'channel'>, (p: { cabinet?: boolean }) => ReactNode> = { branches: Branches, champ: Championships, individual: Individual, gk: Goalkeepers, equipment: () => null, camp: Camp };
 

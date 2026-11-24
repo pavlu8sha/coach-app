@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Photo, usePhoto } from '../lib/photos';
 
 /** Фото на весь экран: закрытие по нажатию на фон, крестику или Esc; листание стрелками и свайпом. */
@@ -27,7 +28,8 @@ export function Lightbox({ keys, start = 0, alt, onClose }: { keys: string[]; st
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  return (
+  // в корень страницы: у карточек .page своя анимация и слой, внутри них следующие карточки рисовались поверх фото (24.11.2026)
+  return createPortal(
     <div
       className="ks-lightbox"
       role="dialog"
@@ -52,7 +54,8 @@ export function Lightbox({ keys, start = 0, alt, onClose }: { keys: string[]; st
           <span className="ks-lb-count">{i + 1} / {keys.length}</span>
         </>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }
 
