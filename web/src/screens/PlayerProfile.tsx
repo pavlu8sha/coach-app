@@ -181,7 +181,7 @@ export default function PlayerProfile({ playerId, onBack }: { playerId: string; 
             {player.groups?.name && <p className="muted">{player.groups.name}</p>}
             {profile?.primary_position && <p className="muted">Позиция: {profile.primary_position}</p>}
             {currentJersey !== null && <p className="muted">Номер: {currentJersey}</p>}
-            {player.birth_date && <p className="muted">Год рождения: {player.birth_date.slice(0, 4)}</p>}
+            {player.birth_date && <p className="muted">Дата рождения: {fmtDate(player.birth_date)}</p>}
           </div>
         </div>
       </section>
