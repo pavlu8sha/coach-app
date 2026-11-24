@@ -13,6 +13,7 @@ export const PHOTO_SLOTS: { key: string; label: string; group: string }[] = [
   { key: 'camp-life2', label: 'Сборы: жизнь команды 2', group: 'Сборы' },
   { key: 'camp-family', label: 'Сборы: семья', group: 'Сборы' },
   { key: 'camp-team', label: 'Сборы: команда', group: 'Сборы' },
+  { key: 'camp-promo', label: 'Сборы: новогоднее предложение (рассрочка)', group: 'Сборы' },
   { key: 'kit-lineup', label: 'Экипировка: все позиции', group: 'Экипировка' },
   { key: 'kit-train', label: 'Тренировочный комплект', group: 'Экипировка' },
   { key: 'kit-game', label: 'Игровой комплект', group: 'Экипировка' },

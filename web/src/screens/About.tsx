@@ -269,6 +269,18 @@ function Camp({ cabinet }: { cabinet?: boolean }) {
         <p className="ks-callout"><b>{C.price.booking}</b><br /><b>{C.price.full}</b></p>
       </Card>
       <Card>
+        <Eyebrow>{C.installment.label}</Eyebrow>
+        <h2 className="ks-h">{C.installment.title}</h2>
+        {photo('camp-promo', 'Новогоднее предложение: рассрочка на три месяца')}
+        <p className="ks-lead">{C.installment.lead}</p>
+        <ul className="ks-steps2">
+          {C.installment.steps.map(x => <li key={x.amount}><b>{x.amount} · {x.due}</b>{x.text}</li>)}
+        </ul>
+        <p className="ks-callout"><b>{C.installment.total}</b></p>
+        <p className="ks-hint">{C.installment.note}</p>
+        <a className="ks-btn secondary" href={INSTALLMENT_CHAT} target="_blank" rel="noreferrer">{C.installment.contact}</a>
+      </Card>
+      <Card>
         {photo('camp-team', 'Участники Winter Camp')}
         <h2 className="ks-h">{C.cta.title}</h2>
         <p className="ks-lead">{C.short}</p>

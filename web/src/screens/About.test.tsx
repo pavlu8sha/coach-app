@@ -166,4 +166,16 @@ describe('«О клубе» для гостя', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Отправить заявку' }));
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Сегодня уже отправлено три заявки'));
   });
+
+  it('сборы: новогоднее предложение с рассрочкой 500/450/400, плакатом и ссылкой на тренера', () => {
+    render(<About role="guest" onChangeRole={() => undefined} />);
+    open(/Winter Camp 2027/);
+    expect(screen.getByText('Рассрочка на 3 месяца без процентов и переплат')).toBeInTheDocument();
+    expect(screen.getByAltText('Новогоднее предложение: рассрочка на три месяца')).toHaveAttribute('src', '/img/camp-promo.jpg');
+    for (const t of ['500 GEL · до 10 декабря', '450 GEL · до 10 января', '400 GEL · до 10 февраля']) expect(screen.getByText(t)).toBeInTheDocument();
+    expect(screen.getByText('Итого: 1 350 GEL — никаких переплат')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Для оформления рассрочки напишите @coach_siordia' })).toHaveAttribute('href', 'https://t.me/coach_siordia');
+    // общие сроки сборов не затронуты
+    expect(screen.getByText(/Полная оплата — до 20 декабря/)).toBeInTheDocument();
+  });
 });
