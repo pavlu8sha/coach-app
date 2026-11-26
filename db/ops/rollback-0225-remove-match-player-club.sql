@@ -1,4 +1,4 @@
--- Откат 0225: remove_match_player, save_match, set_match_technical и delete_match возвращаются к телам 0223 (без проверки клуба). Данные не затрагиваются. search_path = public, pg_temp остаётся; helper-функции is_any_coach() и club_event_current_club() НЕ откатываются (их защита от pg_temp не зависит от проверки клуба, возврат старых тел вернул бы подмену pg_temp.users / pg_temp.coach_groups).
+-- Откат 0225: remove_match_player, save_match, set_match_technical, delete_match и save_match_team возвращаются к телам 0223 (без проверки клуба). Данные не затрагиваются. search_path = public, pg_temp остаётся; helper-функции is_any_coach() и club_event_current_club() НЕ откатываются (их защита от pg_temp не зависит от проверки клуба, возврат старых тел вернул бы подмену pg_temp.users / pg_temp.coach_groups).
 begin;
 create or replace function remove_match_player(m uuid, p uuid) returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -122,4 +122,20 @@ begin
   delete from matches where id = m;
   insert into audit_log (actor_id, action, entity, entity_id, before) values (current_user_id(), 'delete_match', 'matches', m, to_jsonb(mt));
 end $$;
+create or replace function save_match_team(tm text, d date, opp text, gf int, ga int, roster jsonb) returns uuid
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare club uuid; mid uuid;
+begin
+  if current_user_id() is null then raise exception 'not authenticated' using errcode = '42501'; end if;
+  if not is_admin() then raise exception 'forbidden' using errcode = '42501'; end if;
+  if nullif(trim(tm), '') is null then raise exception 'team required'; end if;
+  select c.id into club from clubs c order by c.id limit 1;
+  insert into matches (club_id, played_on, team, opponent, goals_for, goals_against)
+    values (club, d, trim(tm), nullif(trim(opp), ''), gf, ga) returning id into mid;
+  -- проверки счёта, состава и баллов те же, что в save_match; при ошибке вся вставка откатится
+  perform save_match(mid, null, d, opp, gf, ga, roster);
+  return mid;
+end $$;
+revoke execute on function save_match_team(text, date, text, int, int, jsonb) from public, anon;
+grant execute on function save_match_team(text, date, text, int, int, jsonb) to authenticated;
 commit;

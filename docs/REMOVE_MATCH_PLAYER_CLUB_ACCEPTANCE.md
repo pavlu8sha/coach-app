@@ -1,6 +1,6 @@
 # remove_match_player, save_match, set_match_technical и delete_match: закрыть чужой клуб (миграция 0225)
 
-Условия приёмки. Тесты пишутся от них: `db/tests/rls_remove_match_player_club_test.sql`, `db/tests/rls_save_match_club_test.sql`, `db/tests/rls_match_club_misc_test.sql`, `db/tests/rls_match_club_helpers_pg_temp_test.sql`.
+Условия приёмки. Тесты пишутся от них: `db/tests/rls_remove_match_player_club_test.sql`, `db/tests/rls_save_match_club_test.sql`, `db/tests/rls_match_club_misc_test.sql`, `db/tests/rls_match_club_helpers_pg_temp_test.sql`, `db/tests/rls_save_match_team_club_test.sql`.
 
 ## Проблема
 Независимый прогон по #823 нашёл: `remove_match_player(m, p)` (тело 0192, пересоздано в 0223) проверяет только `is_admin() or is_any_coach()`. Матч берётся по id без клуба. Тренер клуба А, зная id матча клуба Б, может убрать игрока из чужого матча: удаляется строка состава, оценка и баллы за матч пропадают. Пункт 5 условий 0192 («клуб не проверяется») прямо противоречит правилу, что чужой клуб ничего менять не может.
@@ -42,6 +42,12 @@
 21. Подмена `pg_temp.users` (клуб и признак администратора) и `pg_temp.coach_groups` (признак тренера) не обходит проверку клуба и роли ни в одной из четырёх функций; тесты красные на прежних helper-ах (родитель с `pg_temp.coach_groups` проходил как тренер своего клуба, тренер клуба Б с `pg_temp.users` «переселялся» в клуб А).
 22. Строка preflight 0225 проверяет оба helper-а раздельно: `SECURITY DEFINER`, `search_path`, права и обязательные `public.`-ссылки (`is_any_coach`: `coach_groups`, `current_user_id()`; `club_event_current_club`: `users`, `clubs`, `current_user_id()`). Тест добавляет подмену `pg_temp.clubs` (fallback «единственный клуб» при пустом `users.club_id`). Откат helper-ов не возвращает прежние тела (защита от `pg_temp` не зависит от проверки клуба).
 Эти две функции используются в политиках и других функциях (изменилась только защита имён, не результат); полный `run-db-tests.sh` это подтверждает.
+
+## save_match_team (решение владельца 2026-11-26)
+У каждого клуба свой администратор (`users.club_id`); он создаёт матч в своём клубе. Раньше `save_match_team` брала первый клуб по id, поэтому администратор клуба Б не мог создать командный матч (после проверки клуба в `save_match`) либо создавал его не в своём клубе.
+23. `save_match_team` создаёт матч в клубе `club_event_current_club()` (клуб администратора, иначе единственный клуб). Если клуб определить нельзя (пустой `users.club_id` при нескольких клубах), `42501 forbidden`, матч не создаётся (создание без клуба невозможно, это отличие от остальных функций, где такой администратор работает как раньше). Тренер, родитель, без входа: прежние отказы.
+24. `search_path = public, pg_temp`; права `authenticated`, не `anon`. Подмена `pg_temp.users` не меняет клуб матча. Строка preflight 0225 проверяет и эту функцию (клуб из `club_event_current_club()`, нет «первого по id»).
+`save_match_tech` (0186) вызывает `save_match_team` и `save_match` и сама клуб не выбирает.
 
 ## Не входит
 `search_path` без `pg_temp` у остальных функций 0223 и матчи 26–30 ноября без баллов: отдельные решения владельца. Прямые записи администратора в `matches` и `match_players` (политики `matches_admin_write`, `match_players_admin_write` без клуба) остаются отдельным вопросом (#832). Остальные функции 0223 проверены отчётом: `match_rsvp_restore_marks` защищена `rsvp_assert_staff(club)`, прочие закрыты от клиента.

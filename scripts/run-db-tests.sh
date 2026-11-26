@@ -96,7 +96,7 @@ preflight_partial "без 0222" '0222_is_admin_pg_temp_hardening' 0222_is_admin_
 preflight_partial "без 0223" '0223_match_rating_points' 0223_match_rating_points
 # 0225 (remove_match_player с проверкой клуба) пересоздаёт функцию 0192/0223: на базе без 0225 функция есть со старым телом, строка 0225 даёт NOT_APPLIED, preflight не падает.
 preflight_partial "без 0225" '0225_remove_match_player_club' 0225_remove_match_player_club
-# 0225 меняет четыре функции: частичные состояния (ревью #830, P2) не должны показываться как APPLIED.
+# 0225 меняет семь функций (четыре RPC, save_match_team и два helper-а): частичные состояния (ревью #830, P2) не должны показываться как APPLIED.
 preflight_0225_state() {  # $1 метка, $2 sql, который портит состояние после полной миграции
   local label=$1 sql=$2 pdb="${DB}_pre" out st
   $PSQL -q -d postgres -c "drop database if exists $pdb" -c "create database $pdb"
@@ -132,6 +132,9 @@ preflight_0225_state "club_event_current_club теряет public.users" "do \$f
 preflight_0225_state "club_event_current_club теряет public.clubs" "do \$f\$ begin execute replace(pg_get_functiondef('public.club_event_current_club()'::regprocedure), 'public.clubs', 'clubs'); end \$f\$"
 preflight_0225_state "club_event_current_club теряет public.current_user_id()" "do \$f\$ begin execute replace(pg_get_functiondef('public.club_event_current_club()'::regprocedure), 'public.current_user_id()', 'current_user_id()'); end \$f\$"
 preflight_0225_state "club_event_current_club не SECURITY DEFINER" "alter function public.club_event_current_club() security invoker"
+preflight_0225_state "save_match_team со старым телом (первый клуб по id)" "do \$f\$ begin execute replace(pg_get_functiondef('public.save_match_team(text,date,text,integer,integer,jsonb)'::regprocedure), 'club := club_event_current_club();', 'select c.id into club from clubs c order by c.id limit 1;'); end \$f\$"
+preflight_0225_state "save_match_team без pg_temp в search_path" "alter function public.save_match_team(text,date,text,integer,integer,jsonb) set search_path = public"
+preflight_0225_state "save_match_team доступна anon" "grant execute on function public.save_match_team(text,date,text,integer,integer,jsonb) to anon"
 for t in db/tests/*_test.sql; do
   echo "== $t"
   out=$($PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f "$t" 2>&1) || { echo "$out"; fail=1; continue; }

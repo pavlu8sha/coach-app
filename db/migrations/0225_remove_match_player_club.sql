@@ -1,4 +1,4 @@
--- 0225: remove_match_player, save_match, set_match_technical и delete_match не дают менять матч чужого клуба.
+-- 0225: remove_match_player, save_match, set_match_technical и delete_match не дают менять матч чужого клуба; save_match_team создаёт матч в клубе администратора.
 -- Тело 0223 (последнее определение: grep -lEi "function +(public\.)?remove_match_player *\(" db/migrations/*.sql даёт 0192 и 0223),
 -- единственное изменение: проверка клуба матча после проверки роли и существования матча.
 -- Клуб пользователя: club_event_current_club() (users.club_id, иначе единственный клуб, иначе NULL).
@@ -8,6 +8,7 @@
 -- set_match_technical: тело 0122, delete_match: тело 0027 (последние определения), та же проверка клуба.
 -- helper-функции проверки: is_any_coach() (0042) и club_event_current_club() (0202) получают search_path = public, pg_temp и public. у таблиц (ревью #830, P1):
 -- без этого подмена pg_temp.users / pg_temp.coach_groups обходила проверку клуба и роли. Тела прежние, ACL как в 0042 и 0202.
+-- save_match_team: тело 0106; клуб берётся из club_event_current_club() (клуб администратора), а не «первый по id» (решение владельца 2026-11-26).
 -- Условия: docs/REMOVE_MATCH_PLAYER_CLUB_ACCEPTANCE.md. Откат: db/ops/rollback-0225-remove-match-player-club.sql.
 create or replace function remove_match_player(m uuid, p uuid) returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -178,3 +179,22 @@ begin
 end $$;
 revoke execute on function club_event_current_club() from public, anon;
 grant execute on function club_event_current_club() to authenticated;
+
+-- save_match_team (тело 0106): матч создаётся в клубе текущего администратора (users.club_id, иначе единственный клуб); если клуб определить нельзя, отказ
+create or replace function save_match_team(tm text, d date, opp text, gf int, ga int, roster jsonb) returns uuid
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare club uuid; mid uuid;
+begin
+  if current_user_id() is null then raise exception 'not authenticated' using errcode = '42501'; end if;
+  if not is_admin() then raise exception 'forbidden' using errcode = '42501'; end if;
+  if nullif(trim(tm), '') is null then raise exception 'team required'; end if;
+  club := club_event_current_club();
+  if club is null then raise exception 'forbidden' using errcode = '42501'; end if;
+  insert into matches (club_id, played_on, team, opponent, goals_for, goals_against)
+    values (club, d, trim(tm), nullif(trim(opp), ''), gf, ga) returning id into mid;
+  -- проверки счёта, состава и баллов те же, что в save_match; при ошибке вся вставка откатится
+  perform save_match(mid, null, d, opp, gf, ga, roster);
+  return mid;
+end $$;
+revoke execute on function save_match_team(text, date, text, int, int, jsonb) from public, anon;
+grant execute on function save_match_team(text, date, text, int, int, jsonb) to authenticated;
