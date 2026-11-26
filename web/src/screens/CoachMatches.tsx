@@ -233,6 +233,9 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
   const [guestIds, setGuestIds] = useState<string[]>([]); // игроки с разовым взносом: играли, но не заявлены в этом чемпионате ни за одну команду
   const [lines, setLines] = useState<Record<string, Line>>({});
   const [bestId, setBestId] = useState<string | null>(null);
+  // версии правил баллов: модель оценки действует только с даты версии, где match.model = 'rating' (0224); для прежних дат оценки не обязательны.
+  // Не удалось прочитать версии: клиент не блокирует сохранение, решает сервер.
+  const [ruleVersions, setRuleVersions] = useState<{ effective_from: string; params: { match?: { model?: string } } | null }[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -305,6 +308,12 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gid, reload]);
 
+  useEffect(() => {
+    void supabase.from('points_rule_versions').select('effective_from, params').order('effective_from', { ascending: false }).then(v => {
+      if (!v.error) setRuleVersions((v.data ?? []) as { effective_from: string; params: { match?: { model?: string } } | null }[]);
+    });
+  }, []);
+
   // Найти любого игрока клуба и добавить в состав (тренеры и администратор)
   useEffect(() => {
     if (q.trim().length < 2) return setFound([]);
@@ -331,6 +340,10 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     if (!l.played && bestId === id) setBestId(null);
     setMsg(null);
   };
+  const ratingModel = (() => {
+    const v = (ruleVersions ?? []).find(x => x.effective_from <= date);
+    return v?.params?.match?.model === 'rating';
+  })();
   const total = Object.values(lines).reduce((s, l) => s + (l.played ? l.goals : 0), 0);
 
   const problem = (): string | null => {
@@ -339,7 +352,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     if (gf !== '' && total > Number(gf)) return 'Голов у игроков больше, чем забила команда.';
     // баллы считаются по оценке тренера: при внесённом счёте (кроме технического результата) оценён каждый игравший и выбран лучший
     const playedPl = (players ?? []).filter(pl => line(pl.id).played);
-    if (gf !== '' && !technical && playedPl.length > 0) {
+    if (ratingModel && gf !== '' && !technical && playedPl.length > 0) {
       if (playedPl.some(pl => line(pl.id).rating === null)) return 'Выставьте оценку каждому, кто играл.';
       if (!playedPl.some(pl => bestId === pl.id)) return 'Выберите лучшего игрока матча.';
     }
@@ -487,7 +500,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
                     <button key={n} type="button" className={`ks-btn sm ${line(p.id).rating === n ? '' : 'secondary'}`} style={{ width: 'auto', minWidth: 40 }} aria-pressed={line(p.id).rating === n} aria-label={`Оценка ${n}: ${p.full_name}`} onClick={() => setLine(p.id, { ...line(p.id), played: true, rating: line(p.id).rating === n ? null : n })}>{n}</button>
                   ))}
                 </div>
-                {line(p.id).rating !== null && gf !== '' && !technical && <p className="muted" style={{ fontSize: 13, margin: '4px 0 0' }}>Баллов за матч: {matchPoints(line(p.id).rating, bestId === p.id)}</p>}
+                {ratingModel && line(p.id).rating !== null && gf !== '' && !technical && <p className="muted" style={{ fontSize: 13, margin: '4px 0 0' }}>Баллов за матч: {matchPoints(line(p.id).rating, bestId === p.id)}</p>}
                 <button type="button" className={`ks-btn ${bestId === p.id ? '' : 'secondary'}`} style={{ marginTop: 8, minHeight: 40 }} aria-pressed={bestId === p.id} onClick={() => { setBestId(bestId === p.id ? null : p.id); setMsg(null); }}>
                   {bestId === p.id ? '★ Лучший игрок матча' : 'Назначить лучшим игроком'}
                 </button>

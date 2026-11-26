@@ -97,7 +97,7 @@ select alike(sn('alter function camp_broadcast_player_ids(uuid, uuid) rename to 
 
 -- ===== после всех откатов: снова applied, остальные строки не пострадали =====
 select is(pf_note(), 'applied', '14. после откатов снова applied');
-select is((select count(*)::int from pf where applied is not true and migration not in ('0047_ind_no_autobook', '0052_ind_change_type')), 0, '15. все остальные строки preflight true (известные исключения 0047 и 0052)');
+select is((select count(*)::int from pf where applied is not true and migration not in ('0047_ind_no_autobook', '0052_ind_change_type', '0224_points_rules_match_rating')), 0, '15. все остальные строки preflight true (известные исключения 0047, 0052 и 0224: на пустой базе версии правил нет)');
 
 select * from finish();
 rollback;

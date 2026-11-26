@@ -55,7 +55,7 @@ revoke execute on function match_revisions_log_player() from public, anon, authe
 create or replace function points_reconcile_match(mid uuid) returns void
 language plpgsql security definer set search_path = public as $$
 declare s matches; club uuid; rv points_rule_versions; mp record; exp jsonb := '[]'::jsonb;
-        total int; cap int; bonus int; bst int; rating_model boolean;
+        total int; cap int; bonus int; bst int;
 begin
   select * into s from matches where id = mid;
   if s.id is null then
@@ -65,12 +65,20 @@ begin
   end if;
   club := s.club_id;
   rv := points_rules_for(club, s.played_on);
+  -- модель оценки действует только там, где версия правил на дату матча явно её включает (match.model = 'rating', её ставит 0224).
+  -- Для прежних дат расчёт не выполняется и старые начисления не закрываются; исключение: строка модели оценки у матча,
+  -- дату которого перенесли в период прежних правил, закрывается (иначе она осталась бы без основания).
+  if rv.id is null or coalesce(rv.params #>> '{match,model}', '') <> 'rating' then
+    if exists (select 1 from points_ledger l where l.source_type = 'match' and l.source_id = mid and l.status = 'active' and l.components ->> 'model' = 'rating') then
+      perform points_ledger_apply(club, 'match', mid, '[]'::jsonb, 'match_changed');
+    end if;
+    return;
+  end if;
   -- технический результат, матч без счёта и игрок без оценки баллов не дают; голы и результат команды в расчёте не участвуют
-  if rv.id is not null and coalesce((rv.params #>> '{enabled,match}')::boolean, false)
+  if coalesce((rv.params #>> '{enabled,match}')::boolean, false)
      and s.goals_for is not null and s.goals_against is not null and not s.technical then
-    rating_model := coalesce(rv.params #>> '{match,model}', '') = 'rating';
-    cap := case when rating_model then (rv.params #>> '{match,cap}')::int else 6 end;
-    bonus := case when rating_model then (rv.params #>> '{match,best}')::int else 1 end;
+    cap := (rv.params #>> '{match,cap}')::int;
+    bonus := (rv.params #>> '{match,best}')::int;
     for mp in select * from match_players where match_id = mid and played and performance_rating is not null loop
       bst := case when mp.best then bonus else 0 end;
       total := least(mp.performance_rating + bst, cap);

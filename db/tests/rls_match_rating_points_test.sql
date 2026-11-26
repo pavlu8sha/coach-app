@@ -2,7 +2,7 @@
 -- Помощники sv и sv_tech вызывают save_match и сразу применяют отложенные проверки и пересчёт (как конец транзакции в приложении).
 begin;
 create extension if not exists pgtap;
-select plan(61);
+select plan(65);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб'), ('00000000-0000-0000-0000-00000000c002', 'Другой клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -167,6 +167,16 @@ select as_user('00000000-0000-0000-0000-0000000000c1');
 select lives_ok($$select sv('00000000-0000-0000-0000-00000000aa05', 2, 0, jsonb_build_array(r(1, true, 2, null, true), r(2, true, 0, null, false)))$$, 'матч старой версии правил без оценок сохраняется');
 reset role;
 select is((select count(*)::int from points_ledger where source_id = '00000000-0000-0000-0000-00000000aa05'), 0, 'историческая запись без оценки баллов не получает');
+
+-- историческое начисление старой формулы у матча до модели оценки не закрывается и не пересчитывается при правке матча
+insert into points_ledger (club_id, player_id, event_date, source_type, source_id, reason_code, points, components)
+  values ('00000000-0000-0000-0000-00000000c001', pid(1), '2023-05-01', 'match', '00000000-0000-0000-0000-00000000aa05', 'match', 5, '{"result":"win","base":2,"goals":2,"best":2,"before_cap":6,"cap":5}');
+select as_user('00000000-0000-0000-0000-0000000000c1');
+select lives_ok($$select sv('00000000-0000-0000-0000-00000000aa05', 3, 0, jsonb_build_array(r(1, true, 2, null, true), r(2, true, 0, null, false)))$$, 'правка счёта исторического матча без оценок');
+select lives_ok($$select sv('00000000-0000-0000-0000-00000000aa05', 3, 0, jsonb_build_array(r(1, true, 2, 5, true), r(2, true, 0, 3, false)))$$, 'правка исторического матча с оценками');
+reset role;
+select is((select string_agg(points::text || status, ',') from points_ledger where source_id = '00000000-0000-0000-0000-00000000aa05'), '5active', 'старое начисление осталось действующим, новых строк по оценке нет');
+select is((select count(*)::int from points_ledger_audit where source_id = '00000000-0000-0000-0000-00000000aa05' and action <> 'create'), 0, 'правки исторического матча не закрывали начисление');
 
 -- 18. история исправлений: оценка в before и after, автор и время
 select is((select before ->> 'performance_rating' from match_revisions where match_id = '00000000-0000-0000-0000-00000000aa01' and player_id = pid(1) and action = 'update' order by id limit 1), '1', 'before: прежняя оценка');

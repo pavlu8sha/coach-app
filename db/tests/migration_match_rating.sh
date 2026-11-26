@@ -42,43 +42,53 @@ for u in 0000-0000-0000-0000000000c1 0000-0000-0000-0000000000b1; do
   [ "$r" = 3 ] && ok "0223: прямая запись оценки ($u) не прошла при умолчаниях Supabase" || bad "0223: оценка изменена напрямую ($u): $r"
 done
 
-# --- 0224: версия правил от 2026-12-01
+# --- 0224: версия правил от 2026-12-01 (несколько клубов, fail-closed)
 OLD='{"played":1,"draw":1,"win":2,"goal":1,"best":2,"cap":5,"technical":0}'
-q <<SQL >/dev/null
-insert into points_rule_versions (club_id, effective_from, params, comment) values ('00000000-0000-0000-0000-00000000c0f1', date '2026-12-01', jsonb_build_object(
-  'training', jsonb_build_object('group', 1, 'individual', 2, 'goalkeeper', 2, 'extra', 2, 'moved_group', 1), 'match', '$OLD'::jsonb,
+C1=00000000-0000-0000-0000-00000000c0f1; C2=00000000-0000-0000-0000-00000000c0f2; C3=00000000-0000-0000-0000-00000000c0f3; C4=00000000-0000-0000-0000-00000000c0f4
+ver() {  # $1 клуб, $2 раздел match
+  q -c "insert into points_rule_versions (club_id, effective_from, params, comment) values ('$1', date '2026-12-01', jsonb_build_object(
+  'training', jsonb_build_object('group', 1, 'individual', 2, 'goalkeeper', 2, 'extra', 2, 'moved_group', 1), 'match', '$2'::jsonb,
   'manual', jsonb_build_object('values', jsonb_build_array(1, 2, 3), 'limits', jsonb_build_object('1', 3, '2', 2, '3', 1), 'month_cap', 10),
   'series', jsonb_build_object('thresholds', jsonb_build_array()), 'group_benchmark', jsonb_build_object('min_size', 5),
-  'enabled', jsonb_build_object('training', true, 'match', true, 'series', true, 'manual', true, 'benchmark', true)), 'Стартовая версия');
-SQL
-st=$(q -f db/ops/preflight.sql | awk -F'|' '$1 == "0224_points_rules_match_rating" {print $3}')
+  'enabled', jsonb_build_object('training', true, 'match', true, 'series', true, 'manual', true, 'benchmark', true)), 'Стартовая версия')" >/dev/null
+}
+pf() { q -f db/ops/preflight.sql | awk -F'|' '$1 == "0224_points_rules_match_rating" {print $3}'; }
+mm() { q -c "select params #>> '{match,best}' from points_rule_versions where club_id = '$1' and effective_from = date '2026-12-01'"; }
+st=$(pf)
+[ "$st" = NOT_APPLIED ] && ok "0224: preflight без версии от 2026-12-01 даёт NOT_APPLIED" || bad "0224: preflight без версии: '$st'"
+q -c "insert into clubs (id, name) values ('$C2', 'Второй клуб'), ('$C3', 'Третий клуб'), ('$C4', 'Четвёртый клуб')" >/dev/null
+ver $C1 "$OLD"; ver $C2 "$OLD"
+st=$(pf)
 [ "$st" = NOT_APPLIED ] && ok "0224: preflight до применения NOT_APPLIED" || bad "0224: preflight до применения: '$st'"
-before=$(q -c "select params - 'match' from points_rule_versions where effective_from = date '2026-12-01'")
-q -f db/migrations/0224_points_rules_match_rating.sql >/dev/null 2>&1 && ok "0224 применилась" || bad "0224 не применилась"
-r=$(q -c "select params #>> '{match,model}' || ':' || (params #>> '{match,best}') || ':' || (params #>> '{match,cap}') from points_rule_versions where effective_from = date '2026-12-01'")
-[ "$r" = "rating:1:6" ] && ok "0224: раздел match на модели оценки (best 1, cap 6)" || bad "0224: раздел match: '$r'"
-after=$(q -c "select params - 'match' from points_rule_versions where effective_from = date '2026-12-01'")
-[ "$before" = "$after" ] && ok "0224: остальные разделы версии не изменены" || bad "0224: остальные разделы изменились"
+# у четвёртого клуба версии нет (третий и четвёртый добавлены без версии): миграция отклоняется целиком
+out=$(q -f db/migrations/0224_points_rules_match_rating.sql 2>&1); rc=$?
+[ $rc -ne 0 ] && echo "$out" | grep -q "нет версии правил от 2026-12-01" && ok "0224: у клуба нет версии: ошибка с понятной причиной" || bad "0224: отсутствие версии не отклонено: $out"
+[ "$(mm $C1)" = 2 ] && [ "$(mm $C2)" = 2 ] && ok "0224: при ошибке ни один клуб не изменён" || bad "0224: клубы изменились при ошибке"
+ver $C3 "$OLD"; ver $C4 '{"played":1,"draw":1,"win":2,"goal":1,"best":3,"cap":5,"technical":0}'
+out=$(q -f db/migrations/0224_points_rules_match_rating.sql 2>&1); rc=$?
+[ $rc -ne 0 ] && echo "$out" | grep -q "не совпадает с ожидаемым" && ok "0224: неожиданное состояние одного клуба: ошибка с понятной причиной" || bad "0224: неожиданное состояние не отклонено: $out"
+[ "$(mm $C1)" = 2 ] && [ "$(mm $C3)" = 2 ] && [ "$(mm $C4)" = 3 ] && ok "0224: при ошибке версии всех клубов не изменены" || bad "0224: версии изменились при ошибке"
+r=$(q -c "select tgenabled from pg_trigger where tgrelid = 'public.points_rule_versions'::regclass and tgname = 'points_rule_versions_no_change'")
+[ "$r" = O ] && ok "0224: при ошибке защита версий включена" || bad "0224: защита после ошибки: '$r'"
+# четвёртый клуб приводим к ожидаемому состоянию в обход защиты (как исправление данных вручную) и применяем
+q -c "alter table points_rule_versions disable trigger points_rule_versions_no_change" -c "update points_rule_versions set params = jsonb_set(params, '{match}', '$OLD'::jsonb) where club_id = '$C4'" -c "alter table points_rule_versions enable trigger points_rule_versions_no_change" >/dev/null
+before=$(q -c "select md5(string_agg((params - 'match')::text, ',' order by club_id)) from points_rule_versions where effective_from = date '2026-12-01'")
+q -f db/migrations/0224_points_rules_match_rating.sql >/dev/null 2>&1 && ok "0224 применилась ко всем клубам" || bad "0224 не применилась"
+r=$(q -c "select count(*) from points_rule_versions where effective_from = date '2026-12-01' and params #>> '{match,model}' = 'rating' and params #>> '{match,best}' = '1' and params #>> '{match,cap}' = '6'")
+[ "$r" = 4 ] && ok "0224: раздел match всех четырёх клубов на модели оценки (best 1, cap 6)" || bad "0224: клубов на модели оценки: '$r'"
+after=$(q -c "select md5(string_agg((params - 'match')::text, ',' order by club_id)) from points_rule_versions where effective_from = date '2026-12-01'")
+[ "$before" = "$after" ] && ok "0224: остальные разделы версий не изменены" || bad "0224: остальные разделы изменились"
 r=$(q -c "select count(*) from points_rule_versions where effective_from = date '2026-12-01'")
-[ "$r" = 1 ] && ok "0224: вторая версия на ту же дату не создана" || bad "0224: версий на дату: $r"
+[ "$r" = 4 ] && ok "0224: вторых версий на ту же дату не создано" || bad "0224: версий на дату: $r"
 r=$(q -c "select tgenabled from pg_trigger where tgrelid = 'public.points_rule_versions'::regclass and tgname = 'points_rule_versions_no_change'")
 [ "$r" = O ] && ok "0224: защита неизменности версий включена" || bad "0224: защита неизменности: '$r'"
 q -c "update points_rule_versions set comment = 'x'" >/dev/null 2>&1 && bad "0224: версию снова можно править" || ok "0224: правка версии по-прежнему запрещена"
-r=$(q -c "select (before #>> '{match,best}') || ':' || (after #>> '{match,best}') from audit_log where action = 'points_rules_match_rating'")
-[ "$r" = "2:1" ] && ok "0224: before/after записаны в audit_log" || bad "0224: audit_log: '$r'"
-st=$(q -f db/ops/preflight.sql | awk -F'|' '$1 == "0224_points_rules_match_rating" {print $3}')
+r=$(q -c "select count(*) from audit_log where action = 'points_rules_match_rating' and (before #>> '{match,best}') = '2' and (after #>> '{match,best}') = '1'")
+[ "$r" = 4 ] && ok "0224: before/after четырёх клубов записаны в audit_log" || bad "0224: audit_log: '$r'"
+st=$(pf)
 [ "$st" = APPLIED ] && ok "0224: preflight после применения APPLIED" || bad "0224: preflight после применения: '$st'"
 q -f db/migrations/0224_points_rules_match_rating.sql >/dev/null 2>&1 && ok "0224: повторный запуск ничего не ломает" || bad "0224: повторный запуск упал"
 r=$(q -c "select count(*) from audit_log where action = 'points_rules_match_rating'")
-[ "$r" = 1 ] && ok "0224: повторный запуск не пишет второй аудит" || bad "0224: аудитов: $r"
-
-# неожиданное состояние: раздел match отличается от ожидаемого, миграция падает и ничего не меняет
-q -c "alter table points_rule_versions disable trigger points_rule_versions_no_change" -c "update points_rule_versions set params = jsonb_set(params, '{match}', '{\"played\":1,\"draw\":1,\"win\":2,\"goal\":1,\"best\":3,\"cap\":5,\"technical\":0}'::jsonb)" -c "alter table points_rule_versions enable trigger points_rule_versions_no_change" >/dev/null
-out=$(q -f db/migrations/0224_points_rules_match_rating.sql 2>&1); rc=$?
-[ $rc -ne 0 ] && echo "$out" | grep -q "не совпадает с ожидаемым" && ok "0224: неожиданное состояние: ошибка с понятной причиной" || bad "0224: неожиданное состояние не отклонено: $out"
-r=$(q -c "select params #>> '{match,best}' from points_rule_versions where effective_from = date '2026-12-01'")
-[ "$r" = 3 ] && ok "0224: при ошибке версия не изменена" || bad "0224: версия изменилась: '$r'"
-r=$(q -c "select tgenabled from pg_trigger where tgrelid = 'public.points_rule_versions'::regclass and tgname = 'points_rule_versions_no_change'")
-[ "$r" = O ] && ok "0224: при ошибке защита версий включена" || bad "0224: защита после ошибки: '$r'"
+[ "$r" = 4 ] && ok "0224: повторный запуск не пишет новый аудит" || bad "0224: аудитов: $r"
 $PSQL -q -d postgres -c "drop database if exists $DB"
 exit $fail
