@@ -94,6 +94,51 @@ preflight_partial "без 0222" '0222_is_admin_pg_temp_hardening' 0222_is_admin_
 # 0223 (оценка тренера за матч) самостоятельна: на базе без неё preflight не падает (information_schema, to_regprocedure), строка 0223 даёт NOT_APPLIED.
 # Строка 0224 (версия правил от 2026-12-01): на пустой базе без клуба версии нет, статус NOT_APPLIED; её проверяет db/tests/migration_match_rating.sh (нет версии, старая, новая).
 preflight_partial "без 0223" '0223_match_rating_points' 0223_match_rating_points
+# 0225 (remove_match_player с проверкой клуба) пересоздаёт функцию 0192/0223: на базе без 0225 функция есть со старым телом, строка 0225 даёт NOT_APPLIED, preflight не падает.
+preflight_partial "без 0225" '0225_remove_match_player_club' 0225_remove_match_player_club
+# 0225 меняет семь функций (четыре RPC, save_match_team и два helper-а): частичные состояния (ревью #830, P2) не должны показываться как APPLIED.
+preflight_0225_state() {  # $1 метка, $2 sql, который портит состояние после полной миграции
+  local label=$1 sql=$2 pdb="${DB}_pre" out st
+  $PSQL -q -d postgres -c "drop database if exists $pdb" -c "create database $pdb"
+  $PSQL -q -v ON_ERROR_STOP=1 -d "$pdb" -f db/tests/setup_local.sql
+  for f in db/migrations/*.sql; do $PSQL -q -v ON_ERROR_STOP=1 -d "$pdb" -f "$f" >/dev/null 2>&1 || { echo "not ok - preflight 0225 ($label): миграция $f не применилась"; fail=1; }; done
+  $PSQL -q -v ON_ERROR_STOP=1 -d "$pdb" -c "$sql" >/dev/null
+  out=$($PSQL -q -At -v ON_ERROR_STOP=1 -d "$pdb" -f db/ops/preflight.sql 2>&1) || { echo "$out"; echo "not ok - preflight 0225 ($label): preflight падает"; fail=1; }
+  st=$(printf '%s\n' "$out" | awk -F'|' '$1 == "0225_remove_match_player_club" {print $3}')
+  if [ "$st" = "NOT_APPLIED" ]; then echo "ok - preflight 0225 ($label): частичное состояние даёт NOT_APPLIED"; else echo "not ok - preflight 0225 ($label): ожидался NOT_APPLIED, получено '$st'"; fail=1; fi
+  $PSQL -q -d postgres -c "drop database if exists $pdb"
+}
+preflight_0225_state "save_match без pg_temp в search_path" "alter function public.save_match(uuid,uuid,date,text,int,int,jsonb) set search_path = public"
+preflight_0225_state "remove_match_player без pg_temp в search_path" "alter function public.remove_match_player(uuid,uuid) set search_path = public"
+preflight_0225_state "save_match доступна anon" "grant execute on function public.save_match(uuid,uuid,date,text,int,int,jsonb) to anon"
+preflight_0225_state "save_match недоступна authenticated" "revoke execute on function public.save_match(uuid,uuid,date,text,int,int,jsonb) from authenticated"
+preflight_0225_state "remove_match_player со старым телом (без проверки клуба)" "do \$f\$ begin execute replace(pg_get_functiondef('public.remove_match_player(uuid,uuid)'::regprocedure), 'club_event_current_club', 'current_user_id'); end \$f\$"
+preflight_0225_state "save_match со старым телом (без проверки клуба)" "do \$f\$ begin execute replace(pg_get_functiondef('public.save_match(uuid,uuid,date,text,integer,integer,jsonb)'::regprocedure), 'club_event_current_club', 'current_user_id'); end \$f\$"
+preflight_0225_state "set_match_technical со старым телом (без проверки клуба)" "do \$f\$ begin execute replace(pg_get_functiondef('public.set_match_technical(uuid,boolean)'::regprocedure), 'club_event_current_club', 'current_user_id'); end \$f\$"
+preflight_0225_state "delete_match со старым телом (без проверки клуба)" "do \$f\$ begin execute replace(pg_get_functiondef('public.delete_match(uuid)'::regprocedure), 'club_event_current_club', 'current_user_id'); end \$f\$"
+preflight_0225_state "set_match_technical без pg_temp в search_path" "alter function public.set_match_technical(uuid,boolean) set search_path = public"
+preflight_0225_state "delete_match без pg_temp в search_path" "alter function public.delete_match(uuid) set search_path = public"
+preflight_0225_state "delete_match доступна anon" "grant execute on function public.delete_match(uuid) to anon"
+preflight_0225_state "remove_match_player не SECURITY DEFINER" "alter function public.remove_match_player(uuid,uuid) security invoker"
+preflight_0225_state "save_match не SECURITY DEFINER" "alter function public.save_match(uuid,uuid,date,text,integer,integer,jsonb) security invoker"
+preflight_0225_state "set_match_technical не SECURITY DEFINER" "alter function public.set_match_technical(uuid,boolean) security invoker"
+preflight_0225_state "delete_match не SECURITY DEFINER" "alter function public.delete_match(uuid) security invoker"
+preflight_0225_state "set_match_technical недоступна authenticated" "revoke execute on function public.set_match_technical(uuid,boolean) from authenticated"
+preflight_0225_state "подстрока club_event_current_club только в комментарии" "do \$f\$ begin execute replace(pg_get_functiondef('public.delete_match(uuid)'::regprocedure), 'uclub := club_event_current_club()', 'uclub := current_user_id(); -- club_event_current_club()'); end \$f\$"
+preflight_0225_state "is_any_coach без pg_temp в search_path" "alter function public.is_any_coach() set search_path = public"
+preflight_0225_state "club_event_current_club без pg_temp в search_path" "alter function public.club_event_current_club() set search_path = public"
+preflight_0225_state "is_any_coach доступна anon" "grant execute on function public.is_any_coach() to anon"
+preflight_0225_state "club_event_current_club недоступна authenticated" "revoke execute on function public.club_event_current_club() from authenticated"
+preflight_0225_state "is_any_coach со старым телом (таблица без public.)" "do \$f\$ begin execute replace(pg_get_functiondef('public.is_any_coach()'::regprocedure), 'public.coach_groups', 'coach_groups'); end \$f\$"
+preflight_0225_state "is_any_coach без public.current_user_id()" "do \$f\$ begin execute replace(pg_get_functiondef('public.is_any_coach()'::regprocedure), 'public.current_user_id()', 'current_user_id()'); end \$f\$"
+preflight_0225_state "is_any_coach не SECURITY DEFINER" "alter function public.is_any_coach() security invoker"
+preflight_0225_state "club_event_current_club теряет public.users" "do \$f\$ begin execute replace(pg_get_functiondef('public.club_event_current_club()'::regprocedure), 'public.users', 'users'); end \$f\$"
+preflight_0225_state "club_event_current_club теряет public.clubs" "do \$f\$ begin execute replace(pg_get_functiondef('public.club_event_current_club()'::regprocedure), 'public.clubs', 'clubs'); end \$f\$"
+preflight_0225_state "club_event_current_club теряет public.current_user_id()" "do \$f\$ begin execute replace(pg_get_functiondef('public.club_event_current_club()'::regprocedure), 'public.current_user_id()', 'current_user_id()'); end \$f\$"
+preflight_0225_state "club_event_current_club не SECURITY DEFINER" "alter function public.club_event_current_club() security invoker"
+preflight_0225_state "save_match_team со старым телом (первый клуб по id)" "do \$f\$ begin execute replace(pg_get_functiondef('public.save_match_team(text,date,text,integer,integer,jsonb)'::regprocedure), 'club := club_event_current_club();', 'select c.id into club from clubs c order by c.id limit 1;'); end \$f\$"
+preflight_0225_state "save_match_team без pg_temp в search_path" "alter function public.save_match_team(text,date,text,integer,integer,jsonb) set search_path = public"
+preflight_0225_state "save_match_team доступна anon" "grant execute on function public.save_match_team(text,date,text,integer,integer,jsonb) to anon"
 # 0226 (взнос за матч с подтверждением) пересоздаёт функции матчей с подтверждением: на базе без неё колонки matches.fee нет, preflight не падает (information_schema, to_regprocedure), строка 0226 даёт NOT_APPLIED.
 preflight_partial "без 0226" '0226_match_rsvp_fee' 0226_match_rsvp_fee
 for t in db/tests/*_test.sql; do
