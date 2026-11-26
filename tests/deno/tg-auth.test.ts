@@ -103,6 +103,24 @@ Deno.test("tg-auth: HTTP → Supabase Auth/PostgREST", async (t) => {
       },
     );
 
+    await t.step(
+      "insert conflict is confirmed by re-reading the row",
+      async () => {
+        supa.reset();
+        supa.state.usersInsertConflict = true;
+        const r = await send(await payload());
+        assert.equal(r.res.status, 200);
+        assert.deepEqual(supa.state.users.map((u) => u.id), [AUTH_ID]);
+        const paths = supa.state.requests.map((x) => `${x.method} ${x.path}`);
+        const firstGet = paths.indexOf("GET /rest/v1/users");
+        const insert = paths.indexOf("POST /rest/v1/users");
+        const verifyGet = paths.indexOf("GET /rest/v1/users", insert + 1);
+        assert.ok(firstGet >= 0);
+        assert.ok(insert > firstGet);
+        assert.ok(verifyGet > insert); // строка перечитана после вставки
+      },
+    );
+
     await t.step("known user is not inserted again", async () => {
       supa.reset();
       supa.state.users = [{

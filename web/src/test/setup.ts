@@ -4,6 +4,7 @@ import { afterEach, beforeEach, vi } from 'vitest';
 import { fake } from './fakeSupabase';
 import { dirtyGuard, resetDetachedNav } from '../nav';
 import { resetPaymentKeys } from '../lib/paymentAdd';
+import { resetTgUsernameSync } from '../lib/tgUsername';
 
 beforeEach(() => {
   fake.reset();
@@ -11,6 +12,7 @@ beforeEach(() => {
   dirtyGuard.reset();
   localStorage.clear();
   resetPaymentKeys();
+  resetTgUsernameSync();
   document.documentElement.removeAttribute('data-theme');
 });
 afterEach(() => {

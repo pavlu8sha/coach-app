@@ -18,6 +18,7 @@ export interface SupabaseState {
   linkError: string | null;
   usersSelectError: string | null;
   usersInsertError: string | null;
+  usersInsertConflict: boolean;
   claimError: string | null;
   notifications: Array<{ id: string; telegram_id: number; text: string; buttons?: unknown; claim_token?: string }>;
   rsvpResult: Json;
@@ -60,6 +61,7 @@ function freshState(): SupabaseState {
     linkError: null,
     usersSelectError: null,
     usersInsertError: null,
+    usersInsertConflict: false,
     claimError: null,
     notifications: [],
     rsvpResult: { ok: true, player: "Иванов Пётр" },
@@ -223,6 +225,7 @@ export function createSupabaseFake() {
           state.users.push(row as SupabaseState["users"][number]);
         }
       }
+      if (state.usersInsertConflict) return postgrestError("duplicate key value violates unique constraint");
       return new Response(null, { status: 201 });
     }
 

@@ -15,7 +15,7 @@ import Schedule from './screens/Schedule';
 import Matches from './screens/Matches';
 import LocationCash from './screens/LocationCash';
 import Profile from './screens/Profile';
-import Message, { Splash } from './screens/Message';
+import Message, { Failure, Splash } from './screens/Message';
 import BrowserLogin, { browserLoginEnabled } from './screens/BrowserLogin';
 import About from './screens/About';
 import Welcome from './screens/Welcome';
@@ -55,6 +55,8 @@ type State = { kind: 'loading' } | { kind: 'ready' } | { kind: 'outside' } | { k
 type Tab = 'about' | 'home' | 'schedule' | 'matches' | 'payments' | 'profile' | 'more' | 'group' | 'attendance' | 'ledger' | 'cash' | SectionId;
 
 const PREVIEW_LABEL: Record<Role, string> = { parent: 'Родитель', child: 'Ребёнок', guest: 'Гость', coach: 'Тренер без групп' };
+const PROFILE_ERR_AUTH = 'Не удалось подтвердить вход. Закройте приложение и откройте его заново.';
+const PROFILE_ERR_MISSING = 'Профиль не найден. Попробуйте войти ещё раз.';
 
 // Администратор может посмотреть экраны гостя, родителя и ребёнка: это только предпросмотр, права остаются администраторскими (проверяет база).
 export function Shell() {
@@ -81,6 +83,9 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
   const [menuKey, setMenuKey] = useState(0);
   const [hasKidsReal, setHasKids] = useState(true); // пока не знаем — не прячем вкладку
   const [loaded, setLoaded] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const recoverTried = useRef(false);
   const [roleReal, setRole] = useState<Role | null>(null);
   const [changingRole, setChangingRole] = useState(false);
   const [guestError, setGuestError] = useState<string | null>(null); // понятная ошибка перехода в гостя (#705)
@@ -122,28 +127,90 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
     setPreview(null);
     setTab('more');
   };
+  // Штатный полный вход по подписанным initData: он же безопасно досоздаёт отсутствующую строку users (#816).
+  const recoverProfile = useCallback(async (): Promise<string | null> => {
+    if (recoverTried.current) return null;
+    recoverTried.current = true;
+    const data = initData();
+    if (!data) return null;
+    try {
+      await signInWithTelegram(data);
+      const again = await supabase.auth.getUser();
+      if (again.error) console.error('профиль: getUser после входа', again.error);
+      return again.data.user?.id ?? null;
+    } catch (e) {
+      console.error('профиль: повторный вход', e);
+      return null;
+    }
+  }, []);
+  const retryProfile = () => {
+    recoverTried.current = false;
+    setProfileError(null);
+    setLoaded(false);
+    setReloadKey(k => k + 1);
+  };
   useEffect(() => {
+    let active = true;
     void (async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!data.user) return setLoaded(true);
-      setUid(data.user.id);
-      clearNavStorage(data.user.id); // состояние другого пользователя на этом устройстве удаляем
+      setProfileError(null);
+      const auth = await supabase.auth.getUser();
+      if (auth.error) console.error('профиль: getUser', auth.error);
+      let userId = auth.data.user?.id ?? null;
+      if (!userId) {
+        userId = await recoverProfile();
+        if (!active) return;
+        if (!userId) {
+          setProfileError(PROFILE_ERR_AUTH);
+          setLoaded(true);
+          return;
+        }
+      }
+      setUid(userId);
+      clearNavStorage(userId); // состояние другого пользователя на этом устройстве удаляем
+      const read = (id: string) => supabase.from('users').select('is_admin, chosen_role').eq('id', id).maybeSingle();
       // RLS: пользователь читает только свою строку; флаг и роль — только подсказка для меню, права проверяет база
-      const r = await supabase.from('users').select('is_admin, chosen_role').eq('id', data.user.id).maybeSingle();
-      setRole((r.data?.chosen_role as Role | null) ?? null);
-      const isAdm = Boolean(r.data?.is_admin);
+      let r = await read(userId);
+      if (!active) return;
+      // Сессия жива, а строки нет: один раз проходим полный вход и перечитываем профиль. Это не выбор роли.
+      if (!r.error && !r.data && !recoverTried.current) {
+        const recoveredId = await recoverProfile();
+        if (!active) return;
+        if (recoveredId) {
+          userId = recoveredId;
+          setUid(userId);
+          clearNavStorage(userId);
+          r = await read(userId);
+          if (!active) return;
+        }
+      }
+      if (r.error) {
+        console.error('профиль: чтение users', r.error);
+        setProfileError(errMsg(r.error));
+        setLoaded(true);
+        return;
+      }
+      if (!r.data) {
+        setProfileError(PROFILE_ERR_MISSING);
+        setLoaded(true);
+        return;
+      }
+      setRole((r.data.chosen_role as Role | null) ?? null);
+      const isAdm = Boolean(r.data.is_admin);
       // у администратора вкладка «Ребёнок» нужна, только если он сам родитель
       // дети по серверному списку (my_children, 0215): тот же предикат доступа, что в RLS; ошибка не открывает вкладку «Ребёнок»
       const mine = await loadMyChildren();
+      if (!active) return;
       const kidsCount = mine.kids?.length ?? 0;
       setHasKids(kidsCount > 0);
       // тренер — тот, кому администратор назначил группы (coach_groups); каждый видит только свои строки
-      const cg = await supabase.from('coach_groups').select('groups(id, name)').eq('user_id', data.user.id);
+      const cg = await supabase.from('coach_groups').select('groups(id, name)').eq('user_id', userId);
+      if (!active) return;
       const mineGroups = ((cg.data ?? []) as unknown as { groups: CoachGroup | null }[]).map(x => x.groups).filter((g): g is CoachGroup => Boolean(g)).sort((x, y) => compareGroups(x.name, y.name));
       setCoachGroups(mineGroups);
       if (isAdm || mineGroups.length) {
         // тренеры видят и ведут все группы (миграция 0042): свои идут первыми
         const ag = await supabase.from('groups').select('id, name').order('name');
+        if (!active) return;
         const all = ((ag.data ?? []) as CoachGroup[]).sort((x, y) => compareGroups(x.name, y.name));
         const mineIds = new Set(mineGroups.map(g => g.id));
         setAllGroups(isAdm ? all : [...all.filter(g => mineIds.has(g.id)), ...all.filter(g => !mineIds.has(g.id))]);
@@ -152,17 +219,19 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
       let locs: string[] = [];
       if (!isAdm) {
         const lr = await supabase.rpc('my_locations');
+        if (!active) return;
         locs = lr.error ? [] : ((lr.data ?? []) as string[]);
         setLocations(locs);
       }
       if (isAdm) setTab('sessions');
       else if (mineGroups.length) setTab('sessions'); // тренер — сразу на занятиях
       else if (locs.length) setTab('cash'); // локальный админ без групп — сразу в кассу
-      else if (kidsCount === 0 && r.data?.chosen_role === 'child') setTab('home');
-      else if (kidsCount === 0 && r.data?.chosen_role && r.data.chosen_role !== 'parent') setTab('about');
+      else if (kidsCount === 0 && r.data.chosen_role === 'child') setTab('home');
+      else if (kidsCount === 0 && r.data.chosen_role && r.data.chosen_role !== 'parent') setTab('about');
       setLoaded(true);
     })();
-  }, []);
+    return () => { active = false; };
+  }, [reloadKey, recoverProfile]);
   // Выход из аккаунта: состояние навигации очищается
   useEffect(() => {
     const sub = supabase.auth.onAuthStateChange?.(ev => {
@@ -219,7 +288,9 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
     : ['home', 'schedule', 'matches', 'payments', 'profile'];
   const navReady = useNavScope(uid && loaded ? `${uid}:${preview ?? (asParent ? 'parent' : 'real')}` : null, { allowRoot: r => allowedRoots.includes(r) });
   const cashItem = { value: 'cash' as Tab, label: 'Касса', icon: 'wallet' as const };
-  if (!loaded || !navReady) return <Splash />;
+  if (!loaded) return <Splash />;
+  if (profileError) return <Failure title="Профиль недоступен" text={profileError} onRetry={retryProfile} />;
+  if (!navReady) return <Splash />;
   // Роль спрашиваем при первом входе. Администратора, тренера с группами и тех, у кого уже есть дети, не трогаем.
   if (!admin && !coach && !locAdmin && !hasKids && (role === null || changingRole)) {
     return (
