@@ -94,6 +94,8 @@ preflight_partial "без 0222" '0222_is_admin_pg_temp_hardening' 0222_is_admin_
 # 0223 (оценка тренера за матч) самостоятельна: на базе без неё preflight не падает (information_schema, to_regprocedure), строка 0223 даёт NOT_APPLIED.
 # Строка 0224 (версия правил от 2026-12-01): на пустой базе без клуба версии нет, статус NOT_APPLIED; её проверяет db/tests/migration_match_rating.sh (нет версии, старая, новая).
 preflight_partial "без 0223" '0223_match_rating_points' 0223_match_rating_points
+# 0225 (remove_match_player с проверкой клуба) пересоздаёт функцию 0192/0223: на базе без 0225 функция есть со старым телом, строка 0225 даёт NOT_APPLIED, preflight не падает.
+preflight_partial "без 0225" '0225_remove_match_player_club' 0225_remove_match_player_club
 for t in db/tests/*_test.sql; do
   echo "== $t"
   out=$($PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f "$t" 2>&1) || { echo "$out"; fail=1; continue; }
