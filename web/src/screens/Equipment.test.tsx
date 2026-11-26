@@ -144,6 +144,28 @@ describe('«Экипировка»', () => {
     expect(call.custom_total).toBeNull();
   });
 
+  it('после создания заказа остаёмся на списке экипировки, а не уходим на «Ещё» (правка 24.11)', async () => {
+    seed();
+    fake.rpc.eq_create_order = () => 'new-order';
+    let nav: ReturnType<typeof useNav> | undefined;
+    const Probe = () => { nav = useNav(); return null; };
+    render(<><Probe /><Equipment /></>);
+    await screen.findByText('Иванов Пётр');
+    act(() => nav!.push('under')); // как в приложении: под экраном экипировки лежит «Ещё»
+    const depth = nav!.depth;
+    fireEvent.click(await screen.findByRole('button', { name: 'Новый заказ' }));
+    fireEvent.change(screen.getByLabelText('Найти игрока'), { target: { value: 'Иванов' } });
+    fireEvent.click(await screen.findByText('Иванов Пётр'));
+    fireEvent.click(await screen.findByLabelText(/Форма/));
+    fireEvent.change(screen.getByLabelText('Размер: Форма'), { target: { value: '128' } });
+    fireEvent.change(screen.getByLabelText('Номер'), { target: { value: '7' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Создать заказ' }));
+    await waitFor(() => expect(fake.rpcCalls('eq_create_order')).toHaveLength(1));
+    expect(await screen.findByRole('heading', { name: 'Экипировка' })).toBeInTheDocument();
+    expect(nav!.depth).toBe(depth);
+    expect(nav!.top.screen).toBe('under');
+  });
+
   it('новый заказ: клиент не считает скидку и не шлёт сумму, скидку посчитает база (#652, 0208)', async () => {
     seed();
     fake.db.equipment_catalog = [
