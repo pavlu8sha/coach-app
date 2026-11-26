@@ -393,10 +393,11 @@ a.ks-cover { text-decoration: none; display: block; }
 /* Оплаты за месяц: группы раскрываются списком игроков */
 .ks-group { margin-bottom: 8px; padding: 12px; background: var(--ks-surface); border: 1px solid var(--ks-border); border-radius: var(--ks-radius-card); }
 .ks-group > summary { cursor: pointer; list-style: none; }
-.ks-group[open] > summary { padding-bottom: 8px; }
+.ks-group.ks-group-spaced[open] > summary { padding-bottom: 8px; }
 /* Строка списка с плашкой справа (сумма, статус): плашка остаётся в одной строке с именем, длинное имя переносится внутри своей колонки */
 .ks-row.ks-row-end-inline { flex-wrap: nowrap; }
 .ks-row.ks-row-end-inline .ks-row-end { flex: none; flex-wrap: nowrap; }
+@media (max-width: 380px) { .ks-row.ks-row-end-inline { flex-wrap: wrap; } .ks-row.ks-row-end-inline .ks-row-main { flex-basis: 8rem; } } /* узкий экран: имени не хватает места рядом с плашкой, плашка уходит под имя */
 .ks-group > summary::-webkit-details-marker { display: none; }
 .ks-group .ks-card { margin: 8px 0 0; box-shadow: none; background: transparent; }
 .ks-bar { height: 8px; margin: 8px 0 4px; border-radius: 4px; background: var(--ks-neutral-fill); overflow: hidden; }

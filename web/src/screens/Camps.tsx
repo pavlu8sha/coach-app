@@ -146,7 +146,7 @@ function CampView({ camp, campIndex, onBack, onEdit, onPatched }: { camp: Camp; 
           <button type="button" className="ks-btn" onClick={() => nav.push('camp.add')} disabled={tariffs.filter(t => t.active).length === 0}>{tariffs.some(t => t.active) ? 'Записать игрока' : 'Сначала добавьте тариф'}</button>
           <Attention camp={camp} parts={parts} onOpen={id => nav.push('camp.part', { id })} />
           {parts.length === 0 ? <EmptyState icon="users" title="Пока никого" /> : groupByGroupName(parts, groupOf).map(([group, items]) => (
-            <details className="ks-group" key={group}>
+            <details className="ks-group ks-group-spaced" key={group}>
               <summary><div className="ks-line"><b>{group}</b><span className="muted">{items.length} уч.</span></div></summary>
               {items.map(p => (
                 <ListRow key={p.id} endInline avatar={nameOf(p)} title={nameOf(p)} sub={[p.camp_tariffs?.name ?? 'без тарифа', p.status === 'declined' ? 'отказ' : p.status === 'cancelled' ? 'отменил родитель' : p.player_id ? p.players?.groups?.name ?? 'без группы' : 'гость']}

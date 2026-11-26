@@ -52,11 +52,11 @@ export function ConfirmSheet({ title, lines = [], note, confirmLabel, danger, on
       <div className="ks-card" onClick={e => e.stopPropagation()} style={sheetCardStyle}>
         <h3 style={{ marginTop: 0, textAlign: 'center' }}>{title}</h3>
         {shown.length > 0 && (
-          <dl style={{ margin: '12px 0', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '8px 16px', alignItems: 'baseline' }}>
+          <dl style={{ margin: '12px 0', display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', gap: '8px 16px', alignItems: 'baseline' }}>
             {shown.map(([label, value]) => (
               <div key={label} style={{ display: 'contents' }}>
                 <dt className="ks-muted" style={{ fontSize: 13 }}>{label}</dt>
-                <dd style={{ margin: 0, overflowWrap: 'break-word', textAlign: 'right' }}><b>{noSplitHyphenated(value)}</b></dd>
+                <dd style={{ margin: 0, minWidth: 0, overflowWrap: 'anywhere', textAlign: 'right' }}><b>{noSplitHyphenated(value)}</b></dd>
               </div>
             ))}
           </dl>
@@ -99,10 +99,10 @@ export function useBodyScrollLock() {
   }, []);
 }
 
-/** Слова с дефисом («U7-A», «U10-B») не разрываются по дефису при переносе строки: переносится только между словами. */
+/** Слова с дефисом («U7-A», «U10-B») не разрываются по дефису, пока помещаются в строку: inline-block переносится целиком; слово шире окна всё равно переносится внутри (overflow-wrap: anywhere), за край не выходит. */
 function noSplitHyphenated(text: string): ReactNode {
   if (!/\S-\S/.test(text)) return text;
-  return text.split(/(\s+)/).map((part, i) => (/^[^\s-]+-[^\s-]+$/.test(part) ? <span key={i} style={{ whiteSpace: 'nowrap' }}>{part}</span> : part));
+  return text.split(/(\s+)/).map((part, i) => (/^[^\s-]+-[^\s-]+$/.test(part) ? <span key={i} style={{ display: 'inline-block', maxWidth: '100%', overflowWrap: 'anywhere' }}>{part}</span> : part));
 }
 
 /** Промис-обёртка: `if (!(await ask({...}))) return;` — возвращает true только после нажатия кнопки подтверждения. */

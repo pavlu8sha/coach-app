@@ -35,6 +35,21 @@ describe('п.6: окно подтверждения не рвёт «U7-A» по 
       </>
     );
   }
+  it('длинное слово без пробела и дефисное слово шире окна переносятся внутри колонки значения', async () => {
+    function Long() {
+      const { ask, dialog } = useConfirm();
+      return (<><button type="button" onClick={() => void ask({ title: 'Удалить?', lines: [['Комментарий', 'я'.repeat(120)], ['Ссылка', 'очень-' + 'длинный-'.repeat(12) + 'хвост']], confirmLabel: 'Да' })}>длинно</button>{dialog}</>);
+    }
+    render(<Long />);
+    fireEvent.click(screen.getByRole('button', { name: 'длинно' }));
+    const dialog = await screen.findByRole('dialog');
+    const dd = Array.from(dialog.querySelectorAll('dd')) as HTMLElement[];
+    expect(dd).toHaveLength(2);
+    for (const el of dd) { expect(el.style.minWidth).toBe('0'); expect(el.style.overflowWrap).toBe('anywhere'); }
+    expect((dialog.querySelector('dl') as HTMLElement).style.gridTemplateColumns).toBe('auto minmax(0, 1fr)');
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Отмена' })); });
+  });
+
   it('слово с дефисом лежит в неразрывной обёртке, текст сохраняется целиком', async () => {
     render(<Probe />);
     fireEvent.click(screen.getByRole('button', { name: 'открыть' }));
@@ -42,7 +57,9 @@ describe('п.6: окно подтверждения не рвёт «U7-A» по 
     expect(dialog).toHaveTextContent('Оплата за визит 23.11.2026 · U7-A');
     const word = screen.getByText('U7-A');
     expect(word.tagName).toBe('SPAN');
-    expect((word as HTMLElement).style.whiteSpace).toBe('nowrap');
+    expect((word as HTMLElement).style.display).toBe('inline-block');
+    expect((word as HTMLElement).style.maxWidth).toBe('100%');
+    expect((word as HTMLElement).style.overflowWrap).toBe('anywhere');
     expect(screen.getByText('20 ₾').tagName).toBe('B');
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Отмена' })); });
   });
@@ -58,6 +75,8 @@ describe('п.7: плашка суммы в строке с именем', () => 
   it('правила: строка не переносится, плашка не сжимается; заголовок раскрытой группы с отступом', () => {
     expect(css('.ks-row.ks-row-end-inline {')).toMatch(/flex-wrap: nowrap/);
     expect(css('.ks-row.ks-row-end-inline .ks-row-end')).toMatch(/flex: none/);
-    expect(css('.ks-group[open] > summary')).toMatch(/padding-bottom: 8px/);
+    expect(css('.ks-group.ks-group-spaced[open] > summary')).toMatch(/padding-bottom: 8px/);
+    expect(kit).not.toMatch(/^\.ks-group\[open\] > summary \{/m);
+    expect(kit).toMatch(/@media \(max-width: 380px\) \{ \.ks-row\.ks-row-end-inline \{ flex-wrap: wrap; \}/);
   });
 });
