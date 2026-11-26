@@ -1,8 +1,8 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import { errMsg } from '../lib/coach';
-import PointsLedger from './PointsLedger';
+import PointsLedger, { loadLedger, pointsAuthEvent, prefetchPoints, resetPointsCache } from './PointsLedger';
 
 const seed = () => {
   fake.db.points_ledger = [
@@ -108,5 +108,115 @@ describe('баллы по новым правилам', () => {
     fake.db.points_ledger = (fake.db.points_ledger as { player_id: string }[]).map(r => (r.player_id === 'p9' ? { ...r, player_id: 'p1' } : r));
     render(<PointsLedger playerId="p1" />);
     expect(await screen.findByText(/Всего накоплено: 2509/)).toBeInTheDocument();
+  });
+
+  it('мигание вкладки: первая загрузка показывает заглушку, повторное открытие сразу показывает сохранённые баллы', async () => {
+    seed();
+    fake.rpc.points_group_benchmark = () => ({ groups: [] });
+    const first = render(<PointsLedger playerId="p1" />);
+    expect(screen.getByLabelText('Баллы по новым правилам')).toHaveAttribute('aria-busy', 'true');
+    expect(await screen.findByText('Серия посещений')).toBeInTheDocument();
+    first.unmount();
+    render(<PointsLedger playerId="p1" />);
+    // без await: данные уже на экране в первом же кадре, заглушки нет
+    expect(screen.getByText('Серия посещений')).toBeInTheDocument();
+    expect(screen.getByLabelText('Баллы по новым правилам')).not.toHaveAttribute('aria-busy');
+  });
+
+  it('предзагрузка при открытии карточки: вкладка открывается сразу; ошибка предзагрузки не ломает экран', async () => {
+    seed();
+    fake.rpc.points_group_benchmark = () => ({ groups: [] });
+    prefetchPoints('p1');
+    await waitFor(() => expect(fake.rpcCalls('points_series_info')).toHaveLength(1));
+    render(<PointsLedger playerId="p1" />);
+    expect(screen.getByText('Серия посещений')).toBeInTheDocument();
+    resetPointsCache();
+    fake.errors.points_ledger = 'сбой сети';
+    expect(() => prefetchPoints('p1')).not.toThrow();
+  });
+
+  it('сохранённые баллы остаются, если фоновое обновление упало; без сохранённых ошибка показывается', async () => {
+    seed();
+    fake.rpc.points_group_benchmark = () => ({ groups: [] });
+    const first = render(<PointsLedger playerId="p1" />);
+    await screen.findByText('Серия посещений');
+    first.unmount();
+    fake.errors.points_ledger = 'сбой сети';
+    render(<PointsLedger playerId="p1" />);
+    await new Promise(r => setTimeout(r, 30));
+    expect(screen.getByText('Серия посещений')).toBeInTheDocument();
+    expect(screen.queryByText('Не удалось загрузить баллы')).toBeNull();
+    resetPointsCache();
+    cleanup();
+    render(<PointsLedger playerId="p1" />);
+    expect(await screen.findByText('Не удалось загрузить баллы')).toBeInTheDocument();
+  });
+
+  it('предзагрузка и вкладка делят один запрос', async () => {
+    seed();
+    fake.rpc.points_group_benchmark = () => ({ groups: [] });
+    prefetchPoints('p1');
+    render(<PointsLedger playerId="p1" />);
+    await screen.findByText('Серия посещений');
+    expect(fake.rpcCalls('points_series_info')).toHaveLength(1);
+  });
+
+  it('запоздавший ответ старого запроса не затирает свежие баллы', async () => {
+    seed();
+    fake.rpc.points_group_benchmark = () => ({ groups: [] });
+    const base = { current: 99, record: 99, current_from: null, last_break: null, next_threshold: null, next_bonus: null, remaining: null, finished_runs: [] };
+    let n = 0;
+    let slow!: (v: unknown) => void;
+    fake.rpc.points_series_info = () => (++n === 1 ? new Promise(r => { slow = r; }) : { ...base, current: 4, record: 7 });
+    const p1 = loadLedger('p1', true); // зависает со «старым» ответом
+    await waitFor(() => expect(n).toBe(1));
+    const p2 = loadLedger('p1', true); // свежий
+    const fresh = await p2;
+    expect(fresh.series?.record).toBe(7);
+    slow(base); // запоздавший ответ первого запроса
+    await p1;
+    render(<PointsLedger playerId="p1" />);
+    expect(screen.getByText('7 подряд')).toBeInTheDocument();
+    expect(screen.queryByText('99 подряд')).toBeNull();
+  });
+
+  it('при падении обновления сохранённые баллы остаются, есть пометка и повтор; без сохранённых показывается ошибка', async () => {
+    seed();
+    fake.rpc.points_group_benchmark = () => ({ groups: [] });
+    const first = render(<PointsLedger playerId="p1" />);
+    await screen.findByText('Серия посещений');
+    first.unmount();
+    fake.errors.points_ledger = 'сбой сети';
+    render(<PointsLedger playerId="p1" />);
+    expect(await screen.findByText(/данные могли устареть/, undefined, { timeout: 4000 })).toBeInTheDocument();
+    expect(screen.getByText('Серия посещений')).toBeInTheDocument();
+    delete fake.errors.points_ledger;
+    fireEvent.click(screen.getByRole('button', { name: 'Обновить' }));
+    await waitFor(() => expect(screen.queryByText(/данные могли устареть/)).toBeNull());
+  }, 15000);
+
+  it('выход из аккаунта и смена пользователя забывают запомненные баллы', async () => {
+    seed();
+    fake.rpc.points_group_benchmark = () => ({ groups: [] });
+    for (const change of [() => pointsAuthEvent('SIGNED_OUT', null), () => { pointsAuthEvent('SIGNED_IN', { user: { id: 'u1' } }); pointsAuthEvent('SIGNED_IN', { user: { id: 'u2' } }); }]) {
+      const r = render(<PointsLedger playerId="p1" />);
+      await screen.findByText('Серия посещений');
+      r.unmount();
+      change();
+      render(<PointsLedger playerId="p1" />);
+      expect(screen.getByLabelText('Баллы по новым правилам')).toHaveAttribute('aria-busy', 'true'); // памяти нет: заглушка, а не чужие данные
+      await screen.findByText('Серия посещений');
+      cleanup();
+    }
+  });
+
+  it('память ограничена: самые старые игроки вытесняются', async () => {
+    seed();
+    fake.rpc.points_group_benchmark = () => ({ groups: [] });
+    for (let i = 0; i < 52; i++) { const r = render(<PointsLedger playerId={`x${i}`} />); await waitFor(() => expect(fake.rpcCalls('points_group_benchmark').length).toBeGreaterThanOrEqual(0)); r.unmount(); }
+    await new Promise(r => setTimeout(r, 50));
+    const r0 = render(<PointsLedger playerId="x0" />);
+    // у игроков без начислений в журнале карточки нет, но память для них тоже держится в пределах 50: самый старый вытеснен
+    expect(r0.container.querySelector('[aria-busy="true"]')).not.toBeNull();
   });
 });
