@@ -9,12 +9,12 @@ import { ListRow } from './components';
 const kit: string = readFileSync('src/ui/kit.css', 'utf8');
 const css = (selector: string) => kit.split('\n').find(l => l.startsWith(selector)) ?? '';
 
-describe('п.1: поле даты в «Отметках» не шире колонки', () => {
-  const rule = css("input[type='date'].ks-date-native");
-  it('ширина ограничена колонкой', () => {
-    expect(rule).toMatch(/width: 100%/);
-    expect(rule).toMatch(/min-width: 0/);
-    expect(rule).toMatch(/max-width: 100%/);
+describe('п.1: поле даты в «Отметках»: пробная правка #812 откатана', () => {
+  it('родного оформления (ks-date-native, appearance: auto) нет ни в CSS, ни в экране', () => {
+    const sessions: string = readFileSync('src/screens/Sessions.tsx', 'utf8');
+    expect(kit).not.toMatch(/ks-date-native/);
+    expect(sessions).not.toMatch(/ks-date-native/);
+    expect(sessions).toMatch(/className="ks-input" type="date" aria-label="Дата"/);
   });
 });
 

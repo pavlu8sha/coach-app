@@ -104,7 +104,7 @@ export default function Sessions({ groups, admin = false }: { groups: CoachGroup
       <Segmented label="Тип занятий" value={tab} onChange={changeTab} items={[{ value: 'grp', label: 'Группы' }, { value: 'ind', label: 'Индивидуальные' }]} />
       <div className={tab === 'grp' && shown.length > 0 ? 'ks-pair' : undefined} style={{ marginBottom: 12 }}>
         {tab === 'grp' && shown.length > 0 && <GroupPicker groups={shown} value={gid} onChange={changeGroup} />}
-        <input className="ks-input ks-date-native" type="date" aria-label="Дата" value={date} onChange={e => e.target.value && changeDate(e.target.value)} />
+        <input className="ks-input" type="date" aria-label="Дата" value={date} onChange={e => e.target.value && changeDate(e.target.value)} />
       </div>
       {tab === 'grp' && (
         <>
