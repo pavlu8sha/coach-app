@@ -1,7 +1,7 @@
 -- pgTAP: save_match закрывает чужой клуб (0225, вместе с remove_match_player). Условия: docs/REMOVE_MATCH_PLAYER_CLUB_ACCEPTANCE.md, раздел save_match. Фикстуры вымышленные.
 begin;
 create extension if not exists pgtap;
-select plan(22);
+select plan(25);
 
 alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
 -- пересоздаём функцию под умолчаниями Supabase (тело берётся из миграции 0225)
@@ -55,6 +55,18 @@ reset role;
 select is((select opponent from matches where id = '00000000-0000-0000-0000-0000000000f2'), 'Соперник Б', 'чужой матч не изменён');
 select is((select goals_for from matches where id = '00000000-0000-0000-0000-0000000000f2'), null, 'счёт чужого матча не изменён');
 select is((select count(*)::int from matches where club_id = '00000000-0000-0000-0000-00000000c002'), 1, 'в чужом клубе нет новых матчей');
+
+-- ревью #830 P1: подмена pg_temp.matches не даёт чужому тренеру записать состав в чужой матч
+-- (планы plpgsql уже закэшированы прежними вызовами в этой сессии: сбрасываем, как у свежего соединения злоумышленника)
+discard plans;
+select as_user('00000000-0000-0000-0000-0000000000c2');
+create temp table matches (like public.matches including defaults);
+insert into pg_temp.matches (id, club_id, played_on, team) values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-00000000c002', '2026-11-01', 'U9');
+select throws_ok($$select save_match('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000e2', '2026-11-01', 'Взлом', null, null, '[{"player_id":"00000000-0000-0000-0000-00000000d002","played":true,"goals":0,"best":false}]'::jsonb)$$, '42501', 'forbidden', 'подмена pg_temp.matches не обходит проверку клуба');
+drop table pg_temp.matches;
+reset role;
+select is((select count(*)::int from match_players where match_id = '00000000-0000-0000-0000-0000000000f1'), 0, 'в состав матча клуба А ничего не записано');
+select ok((select p.proconfig @> array['search_path=public, pg_temp'] from pg_proc p where p.oid = 'save_match(uuid,uuid,date,text,integer,integer,jsonb)'::regprocedure), 'search_path функции: public, pg_temp');
 
 -- администратор чужого клуба
 select as_user('00000000-0000-0000-0000-0000000000a2');

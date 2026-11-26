@@ -2,7 +2,7 @@
 -- Выполняется на базе с применёнными миграциями (включая 0225). Права проверяются при умолчаниях Supabase.
 begin;
 create extension if not exists pgtap;
-select plan(21);
+select plan(24);
 
 alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
 -- пересоздаём функцию под умолчаниями Supabase (тело берётся из миграции 0225)
@@ -54,6 +54,18 @@ select throws_ok($$select remove_match_player('00000000-0000-0000-0000-000000000
 reset role;
 select is((select count(*)::int from match_players where match_id = '00000000-0000-0000-0000-0000000000f1'), 3, 'после отказа чужому тренеру состав цел');
 select is((select performance_rating::int from match_players where match_id = '00000000-0000-0000-0000-0000000000f1' and player_id = '00000000-0000-0000-0000-00000000d001'), 5, 'оценка не стёрта');
+
+-- ревью #830 P1: подмена pg_temp.matches (чужой тренер выдаёт чужой матч за свой) не обходит проверку клуба
+-- (планы plpgsql уже закэшированы прежними вызовами в этой сессии: сбрасываем, как у свежего соединения злоумышленника)
+discard plans;
+select as_user('00000000-0000-0000-0000-0000000000c2');
+create temp table matches (like public.matches including defaults);
+insert into pg_temp.matches (id, club_id, played_on, team) values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-00000000c002', '2026-11-01', 'U9');
+select throws_ok($$select remove_match_player('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-00000000d001')$$, '42501', 'forbidden', 'подмена pg_temp.matches не обходит проверку клуба');
+drop table pg_temp.matches;
+reset role;
+select is((select count(*)::int from match_players where match_id = '00000000-0000-0000-0000-0000000000f1'), 3, 'после попытки с pg_temp.matches состав цел');
+select ok((select p.proconfig @> array['search_path=public, pg_temp'] from pg_proc p where p.oid = 'remove_match_player(uuid,uuid)'::regprocedure), 'search_path функции: public, pg_temp');
 
 -- 4. администратор другого клуба отклонён
 select as_user('00000000-0000-0000-0000-0000000000a2');

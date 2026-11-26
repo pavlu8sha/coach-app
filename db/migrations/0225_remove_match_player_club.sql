@@ -4,9 +4,10 @@
 -- Клуб пользователя: club_event_current_club() (users.club_id, иначе единственный клуб, иначе NULL).
 -- Тренер с неопределимым клубом получает отказ; администратор с неопределимым клубом работает как раньше.
 -- save_match: тело 0223 (последнее определение), добавлена та же проверка клуба сразу после проверки роли.
+-- search_path = public, pg_temp (как is_admin() в 0222): временная схема стоит последней, подмена pg_temp.matches и других таблиц не работает (ревью #830, P1).
 -- Условия: docs/REMOVE_MATCH_PLAYER_CLUB_ACCEPTANCE.md. Откат: db/ops/rollback-0225-remove-match-player-club.sql.
 create or replace function remove_match_player(m uuid, p uuid) returns void
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 declare was_best boolean; mclub uuid; uclub uuid;
 begin
   if current_user_id() is null then raise exception 'not authenticated' using errcode = '42501'; end if;
@@ -26,7 +27,7 @@ grant execute on function remove_match_player(uuid, uuid) to authenticated;
 
 -- save_match (тело 0223 + проверка клуба)
 create or replace function save_match(m uuid, g uuid, d date, opp text, gf int, ga int, roster jsonb) returns uuid
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 declare grp groups; mt matches; el jsonb; pid uuid; v_played boolean; v_goals int; v_best boolean; bests int := 0; v_rating int; v_has_rating boolean;
         club uuid; uclub uuid; adm boolean := is_admin(); ev_kind text; gfee numeric;
 begin

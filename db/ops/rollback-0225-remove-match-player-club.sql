@@ -1,7 +1,7 @@
--- Откат 0225: remove_match_player и save_match возвращаются к телам 0223 (без проверки клуба). Данные не затрагиваются.
+-- Откат 0225: remove_match_player и save_match возвращаются к телам 0223 (без проверки клуба). Данные не затрагиваются. search_path = public, pg_temp остаётся: небезопасная конфигурация (public без pg_temp) не возвращается.
 begin;
 create or replace function remove_match_player(m uuid, p uuid) returns void
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 declare was_best boolean;
 begin
   if current_user_id() is null then raise exception 'not authenticated' using errcode = '42501'; end if;
@@ -16,7 +16,7 @@ end $$;
 revoke execute on function remove_match_player(uuid, uuid) from public, anon;
 grant execute on function remove_match_player(uuid, uuid) to authenticated;
 create or replace function save_match(m uuid, g uuid, d date, opp text, gf int, ga int, roster jsonb) returns uuid
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 declare grp groups; mt matches; el jsonb; pid uuid; v_played boolean; v_goals int; v_best boolean; bests int := 0; v_rating int; v_has_rating boolean;
         club uuid; adm boolean := is_admin(); ev_kind text; gfee numeric;
 begin

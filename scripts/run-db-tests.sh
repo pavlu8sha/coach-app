@@ -96,6 +96,24 @@ preflight_partial "без 0222" '0222_is_admin_pg_temp_hardening' 0222_is_admin_
 preflight_partial "без 0223" '0223_match_rating_points' 0223_match_rating_points
 # 0225 (remove_match_player с проверкой клуба) пересоздаёт функцию 0192/0223: на базе без 0225 функция есть со старым телом, строка 0225 даёт NOT_APPLIED, preflight не падает.
 preflight_partial "без 0225" '0225_remove_match_player_club' 0225_remove_match_player_club
+# 0225 меняет две функции: частичные состояния (ревью #830, P2) не должны показываться как APPLIED.
+preflight_0225_state() {  # $1 метка, $2 sql, который портит состояние после полной миграции
+  local label=$1 sql=$2 pdb="${DB}_pre" out st
+  $PSQL -q -d postgres -c "drop database if exists $pdb" -c "create database $pdb"
+  $PSQL -q -v ON_ERROR_STOP=1 -d "$pdb" -f db/tests/setup_local.sql
+  for f in db/migrations/*.sql; do $PSQL -q -v ON_ERROR_STOP=1 -d "$pdb" -f "$f" >/dev/null 2>&1 || { echo "not ok - preflight 0225 ($label): миграция $f не применилась"; fail=1; }; done
+  $PSQL -q -v ON_ERROR_STOP=1 -d "$pdb" -c "$sql" >/dev/null
+  out=$($PSQL -q -At -v ON_ERROR_STOP=1 -d "$pdb" -f db/ops/preflight.sql 2>&1) || { echo "$out"; echo "not ok - preflight 0225 ($label): preflight падает"; fail=1; }
+  st=$(printf '%s\n' "$out" | awk -F'|' '$1 == "0225_remove_match_player_club" {print $3}')
+  if [ "$st" = "NOT_APPLIED" ]; then echo "ok - preflight 0225 ($label): частичное состояние даёт NOT_APPLIED"; else echo "not ok - preflight 0225 ($label): ожидался NOT_APPLIED, получено '$st'"; fail=1; fi
+  $PSQL -q -d postgres -c "drop database if exists $pdb"
+}
+preflight_0225_state "save_match без pg_temp в search_path" "alter function public.save_match(uuid,uuid,date,text,int,int,jsonb) set search_path = public"
+preflight_0225_state "remove_match_player без pg_temp в search_path" "alter function public.remove_match_player(uuid,uuid) set search_path = public"
+preflight_0225_state "save_match доступна anon" "grant execute on function public.save_match(uuid,uuid,date,text,int,int,jsonb) to anon"
+preflight_0225_state "save_match недоступна authenticated" "revoke execute on function public.save_match(uuid,uuid,date,text,int,int,jsonb) from authenticated"
+preflight_0225_state "remove_match_player со старым телом (без проверки клуба)" "do \$f\$ begin execute replace(pg_get_functiondef('public.remove_match_player(uuid,uuid)'::regprocedure), 'club_event_current_club', 'current_user_id'); end \$f\$"
+preflight_0225_state "save_match со старым телом (без проверки клуба)" "do \$f\$ begin execute replace(pg_get_functiondef('public.save_match(uuid,uuid,date,text,integer,integer,jsonb)'::regprocedure), 'club_event_current_club', 'current_user_id'); end \$f\$"
 for t in db/tests/*_test.sql; do
   echo "== $t"
   out=$($PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f "$t" 2>&1) || { echo "$out"; fail=1; continue; }
