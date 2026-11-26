@@ -1,7 +1,7 @@
 -- pgTAP: взнос за матч в форме матча с подтверждением (0226). Условия: docs/MATCH_RSVP_FEE_ACCEPTANCE.md. Фикстуры вымышленные.
 begin;
 create extension if not exists pgtap;
-select plan(53);
+select plan(81);
 
 alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
 \i db/migrations/0226_match_rsvp_fee.sql
@@ -148,6 +148,56 @@ select as_user('00000000-0000-0000-0000-0000000000b3');
 select is((select count(*)::int from match_rsvp_my_matches()), 0, 'чужой родитель не видит матчей и сумм клуба А');
 select throws_ok($$insert into match_fees (match_id, player_id, amount) values (mid('z'), '00000000-0000-0000-0000-00000000d001', 5)$$, '42501', null, 'прямая запись во взносы клиентом закрыта');
 reset role;
+
+-- 10. скидки: строки со скидкой не меняются (ревью #837, P1)
+-- 10а. матч со взносом 30: d002 получает скидку до 10, d003 позже скидку 40 -> 30, d001 и d004 обычные
+select as_user('00000000-0000-0000-0000-0000000000c1');
+select lives_ok($$insert into ids select 'd', match_rsvp_create_draft('00000000-0000-0000-0000-00000000c001', 'friendly', 'U12', 'Скидочный', now() + interval '8 days', null, null, null, null, 30)$$, 'матч для проверки скидок');
+select lives_ok($$select match_rsvp_invite(mid('d'), array['00000000-0000-0000-0000-00000000d001','00000000-0000-0000-0000-00000000d002','00000000-0000-0000-0000-00000000d003','00000000-0000-0000-0000-00000000d004']::uuid[])$$, 'состав скидочного матча');
+select lives_ok($$select match_rsvp_publish(mid('d'))$$, 'публикация скидочного матча');
+select as_user('00000000-0000-0000-0000-0000000000a1');
+select lives_ok($$select match_discount(mid('d'), '00000000-0000-0000-0000-00000000d002', 10, 'Скидка тренера')$$, 'скидка d002 до 10');
+select as_user('00000000-0000-0000-0000-0000000000c1');
+select lives_ok($$select match_rsvp_update(mid('d'), '{"fee": 40}'::jsonb)$$, 'сумма матча 40');
+reset role;
+select is(fee_of(mid('d'), '00000000-0000-0000-0000-00000000d001'), 40.00::numeric, 'обычная строка получила 40');
+select is(fee_of(mid('d'), '00000000-0000-0000-0000-00000000d002'), 10.00::numeric, 'скидка 10 при смене суммы сохранена');
+select is(fee_of(mid('d'), '00000000-0000-0000-0000-00000000d003'), 40.00::numeric, 'у игрока без скидки сумма стала 40');
+-- d003 получает скидку 40 -> 30; затем сумма матча проходит через 30, 50: сумма скидки совпадает с прежней суммой матча
+select as_user('00000000-0000-0000-0000-0000000000a1');
+select lives_ok($$select match_discount(mid('d'), '00000000-0000-0000-0000-00000000d003', 30, 'Скидка 40 на 30')$$, 'скидка d003 до 30');
+select as_user('00000000-0000-0000-0000-0000000000c1');
+select lives_ok($$select match_rsvp_update(mid('d'), '{"fee": 30}'::jsonb)$$, 'сумма матча 30');
+select lives_ok($$select match_rsvp_update(mid('d'), '{"fee": 50}'::jsonb)$$, 'сумма матча 50 (прежняя была 30, как сумма скидки d003)');
+reset role;
+select is(fee_of(mid('d'), '00000000-0000-0000-0000-00000000d001'), 50.00::numeric, 'обычная строка получила 50');
+select is(fee_of(mid('d'), '00000000-0000-0000-0000-00000000d003'), 30.00::numeric, 'скидка с суммой, равной прежней сумме матча, сохранена (определяется по журналу)');
+select as_user('00000000-0000-0000-0000-0000000000c1');
+select lives_ok($$select match_rsvp_update(mid('d'), '{"fee": null}'::jsonb)$$, 'сумму очистили');
+reset role;
+select ok(fee_of(mid('d'), '00000000-0000-0000-0000-00000000d001') is null and fee_of(mid('d'), '00000000-0000-0000-0000-00000000d004') is null, 'обычные строки сняты');
+select is((select array_agg(player_id order by player_id)::text from match_fees where match_id = mid('d')), '{00000000-0000-0000-0000-00000000d002,00000000-0000-0000-0000-00000000d003}', 'при очистке остались строки со скидкой');
+-- убрали игрока со скидкой: строка остаётся, решает администратор
+select as_user('00000000-0000-0000-0000-0000000000c1');
+select lives_ok($$select match_rsvp_update(mid('d'), '{"fee": 30}'::jsonb)$$, 'сумма снова 30');
+select lives_ok($$select match_rsvp_remove(mid('d'), array['00000000-0000-0000-0000-00000000d002']::uuid[])$$, 'убрали игрока со скидкой');
+reset role;
+select is(fee_of(mid('d'), '00000000-0000-0000-0000-00000000d002'), 10.00::numeric, 'взнос со скидкой при исключении остаётся');
+
+-- 10б. первое задание суммы: существующие строки (вручную и со скидкой) не перезаписываются, недостающие создаются
+select as_user('00000000-0000-0000-0000-0000000000c1');
+select lives_ok($$insert into ids select 'e', match_rsvp_create_draft('00000000-0000-0000-0000-00000000c001', 'friendly', 'U12', 'Ручные взносы', now() + interval '9 days', null, null, null)$$, 'матч без суммы');
+select lives_ok($$select match_rsvp_invite(mid('e'), array['00000000-0000-0000-0000-00000000d001','00000000-0000-0000-0000-00000000d002','00000000-0000-0000-0000-00000000d003']::uuid[])$$, 'состав матча без суммы');
+select lives_ok($$select match_rsvp_publish(mid('e'))$$, 'публикация матча без суммы');
+select lives_ok($$select match_fee_add(mid('e'), array['00000000-0000-0000-0000-00000000d001','00000000-0000-0000-0000-00000000d002']::uuid[], 25)$$, 'взносы вручную по 25');
+select as_user('00000000-0000-0000-0000-0000000000a1');
+select lives_ok($$select match_discount(mid('e'), '00000000-0000-0000-0000-00000000d002', 10, 'Скидка вручную')$$, 'скидка d002 до 10');
+select as_user('00000000-0000-0000-0000-0000000000c1');
+select lives_ok($$select match_rsvp_update(mid('e'), '{"fee": 30}'::jsonb)$$, 'сумма задана впервые');
+reset role;
+select is(fee_of(mid('e'), '00000000-0000-0000-0000-00000000d001'), 25.00::numeric, 'ручная сумма 25 не перезаписана');
+select is(fee_of(mid('e'), '00000000-0000-0000-0000-00000000d002'), 10.00::numeric, 'скидка 10 не перезаписана');
+select is(fee_of(mid('e'), '00000000-0000-0000-0000-00000000d003'), 30.00::numeric, 'недостающему приглашённому взнос создан');
 
 select * from finish();
 rollback;

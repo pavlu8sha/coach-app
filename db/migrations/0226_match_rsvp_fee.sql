@@ -32,29 +32,38 @@ begin
 end $$;
 revoke execute on function rsvp_fee_assign(uuid, uuid[]) from public, anon, authenticated;
 
--- Снять взнос у игроков без оплат (ни одной записи match_payments, даже отменённой, и не paid).
+-- Строка взноса «обычная», если по ней нет оплат (даже отменённых), она не оплачена и по ней нет записи скидки в fee_discount_log.
+-- Скидку не определить по сумме: сумма могла совпасть с суммой матча, а скидки до 0109 в журнале нет (их суммы отличаются от суммы матча).
+-- Снять взнос у обычных строк игроков (p_players пусто = у всех).
 create or replace function rsvp_fee_drop(m uuid, p_players uuid[] default null) returns void
 language sql security definer set search_path = public, pg_temp as $$
   delete from match_fees f
    where f.match_id = m and (p_players is null or f.player_id = any (p_players))
      and not f.paid
      and not exists (select 1 from match_payments p where p.match_id = m and p.player_id = f.player_id)
+     and not exists (select 1 from fee_discount_log l where l.kind = 'match' and l.ref_id = m and l.player_id = f.player_id)
 $$;
 revoke execute on function rsvp_fee_drop(uuid, uuid[]) from public, anon, authenticated;
 
--- Новая сумма матча: строки без оплат, не оплаченные и без скидки (amount = прежняя сумма) получают новую; fee пусто или 0 снимает такие строки.
+-- Новая сумма матча. Меняются только обычные строки (см. выше) с прежней суммой матча (amount = old_fee):
+-- строки со скидкой, с оплатой и с суммой, заданной вручную, остаются. Первое задание суммы (old_fee пусто)
+-- существующие строки не трогает, только создаёт недостающие приглашённым. Пустая сумма или 0 снимает те же обычные строки.
 create or replace function rsvp_fee_resync(m uuid, old_fee numeric, new_fee numeric) returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
-  if new_fee is null or new_fee = 0 then
-    delete from match_fees f
-     where f.match_id = m and not f.paid and (old_fee is null or f.amount = old_fee)
-       and not exists (select 1 from match_payments p where p.match_id = m and p.player_id = f.player_id);
-    return;
+  if old_fee is not null then
+    if new_fee is null or new_fee = 0 then
+      delete from match_fees f
+       where f.match_id = m and not f.paid and f.amount = old_fee
+         and not exists (select 1 from match_payments p where p.match_id = m and p.player_id = f.player_id)
+         and not exists (select 1 from fee_discount_log l where l.kind = 'match' and l.ref_id = m and l.player_id = f.player_id);
+    else
+      update match_fees f set amount = new_fee
+       where f.match_id = m and not f.paid and f.amount = old_fee
+         and not exists (select 1 from match_payments p where p.match_id = m and p.player_id = f.player_id)
+         and not exists (select 1 from fee_discount_log l where l.kind = 'match' and l.ref_id = m and l.player_id = f.player_id);
+    end if;
   end if;
-  update match_fees f set amount = new_fee
-   where f.match_id = m and not f.paid and (old_fee is null or f.amount = old_fee)
-     and not exists (select 1 from match_payments p where p.match_id = m and p.player_id = f.player_id);
   perform rsvp_fee_assign(m);
 end $$;
 revoke execute on function rsvp_fee_resync(uuid, numeric, numeric) from public, anon, authenticated;
