@@ -1,6 +1,6 @@
-# remove_match_player и save_match: закрыть чужой клуб (миграция 0225)
+# remove_match_player, save_match, set_match_technical и delete_match: закрыть чужой клуб (миграция 0225)
 
-Условия приёмки. Тесты пишутся от них: `db/tests/rls_remove_match_player_club_test.sql`, `db/tests/rls_save_match_club_test.sql`.
+Условия приёмки. Тесты пишутся от них: `db/tests/rls_remove_match_player_club_test.sql`, `db/tests/rls_save_match_club_test.sql`, `db/tests/rls_match_club_misc_test.sql`.
 
 ## Проблема
 Независимый прогон по #823 нашёл: `remove_match_player(m, p)` (тело 0192, пересоздано в 0223) проверяет только `is_admin() or is_any_coach()`. Матч берётся по id без клуба. Тренер клуба А, зная id матча клуба Б, может убрать игрока из чужого матча: удаляется строка состава, оценка и баллы за матч пропадают. Пункт 5 условий 0192 («клуб не проверяется») прямо противоречит правилу, что чужой клуб ничего менять не может.
@@ -27,8 +27,18 @@
 13. Обе функции создаются с `set search_path = public, pg_temp` (как `is_admin()` в 0222): подмена `pg_temp.matches` не обходит проверку клуба. Тесты обеих функций создают `pg_temp.matches` с чужим матчем «своего» клуба и ждут `forbidden`; на версии с `search_path = public` они красные (обход воспроизведён). Откат тоже оставляет `public, pg_temp`.
 14. Строка preflight 0225 даёт APPLIED, только если обе функции содержат проверку клуба, имеют `search_path = public, pg_temp`, `execute` у `authenticated` и нет у `anon`. Шаги `preflight_0225_state` в `scripts/run-db-tests.sh` проверяют шесть частичных состояний (NOT_APPLIED).
 
+## save_match_team и save_match_tech
+Обёртки вызывают `save_match`, поэтому клуб проверяется там. Следствие (отчёт тестировщика): администратор клуба, не совпадающего с клубом группы, раньше сохранял матч в любой группе, теперь получает `42501 forbidden`; это ожидаемое поведение. Администратор с неопределимым клубом работает как раньше.
+
+## set_match_technical и delete_match (решение владельца 2026-11-26, отчёт тестировщика по #830)
+15. Обе функции получают ту же проверку клуба (п. 2-4) и `search_path = public, pg_temp` (п. 13). Порядок: вход, роль, существование матча (прежние ошибки `match not found`, у `set_match_technical` с кодом `P0002`), затем клуб, затем изменения.
+16. `set_match_technical`: тренер и администратор своего клуба меняют флаг как раньше; чужие, тренер с неопределимым клубом и родитель получают `42501`. `delete_match` остаётся только для администратора; администратор другого клуба получает `42501`, матч, состав и баллы не меняются.
+17. Права: `execute` у `authenticated`, нет у `anon` и `public`.
+18. Строка preflight 0225 проверяет все четыре функции по точному фрагменту `uclub := club_event_current_club()` и `uclub is distinct from`, а не по подстроке имени (упоминание в комментарии не засчитывается).
+19. Запрос для сверки перед применением: `db/ops/readonly-0225-users-without-club.sql` (тренеры и администраторы без `users.club_id`, число клубов).
+
 ## Не входит
-`search_path` без `pg_temp` у остальных функций 0223 и у `club_event_current_club()` (отдельное решение) и матчи 26–30 ноября без баллов: отдельные решения владельца. Остальные функции 0223 проверены отчётом: `match_rsvp_restore_marks` защищена `rsvp_assert_staff(club)`, прочие закрыты от клиента.
+`search_path` без `pg_temp` у остальных функций 0223 и у `club_event_current_club()` (отдельное решение) и матчи 26–30 ноября без баллов: отдельные решения владельца. Прямые записи администратора в `matches` и `match_players` (политики `matches_admin_write`, `match_players_admin_write` без клуба) и `pg_temp` у `club_event_current_club()` и `is_any_coach()` остаются отдельными вопросами. Остальные функции 0223 проверены отчётом: `match_rsvp_restore_marks` защищена `rsvp_assert_staff(club)`, прочие закрыты от клиента.
 
 ## Откат
 `db/ops/rollback-0225-remove-match-player-club.sql` возвращает тело 0223.

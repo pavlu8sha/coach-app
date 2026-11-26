@@ -1,4 +1,4 @@
--- Откат 0225: remove_match_player и save_match возвращаются к телам 0223 (без проверки клуба). Данные не затрагиваются. search_path = public, pg_temp остаётся: небезопасная конфигурация (public без pg_temp) не возвращается.
+-- Откат 0225: remove_match_player, save_match, set_match_technical и delete_match возвращаются к телам 0223 (без проверки клуба). Данные не затрагиваются. search_path = public, pg_temp остаётся: небезопасная конфигурация (public без pg_temp) не возвращается.
 begin;
 create or replace function remove_match_player(m uuid, p uuid) returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -100,5 +100,26 @@ begin
   end if;
   perform apply_match_points(mt.id);
   return mt.id;
+end $$;
+create or replace function set_match_technical(m uuid, tech boolean) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if current_user_id() is null then raise exception 'not authenticated' using errcode = '42501'; end if;
+  if not (is_admin() or is_any_coach()) then raise exception 'forbidden' using errcode = '42501'; end if;
+  if tech is null then raise exception 'technical flag required' using errcode = '22023'; end if;
+  update matches set technical = tech where id = m;
+  if not found then raise exception 'match not found' using errcode = 'P0002'; end if;
+end $$;
+create or replace function delete_match(m uuid) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare mt matches;
+begin
+  if not is_admin() then raise exception 'forbidden' using errcode = '42501'; end if;
+  select * into mt from matches where id = m;
+  if mt.id is null then raise exception 'match not found'; end if;
+  if exists (select 1 from match_fees where match_id = m) then raise exception 'match has fees'; end if;
+  delete from point_events where source_type = 'match' and source_id = m;
+  delete from matches where id = m;
+  insert into audit_log (actor_id, action, entity, entity_id, before) values (current_user_id(), 'delete_match', 'matches', m, to_jsonb(mt));
 end $$;
 commit;

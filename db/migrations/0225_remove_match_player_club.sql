@@ -1,10 +1,11 @@
--- 0225: remove_match_player и save_match не дают менять матч чужого клуба.
+-- 0225: remove_match_player, save_match, set_match_technical и delete_match не дают менять матч чужого клуба.
 -- Тело 0223 (последнее определение: grep -lEi "function +(public\.)?remove_match_player *\(" db/migrations/*.sql даёт 0192 и 0223),
 -- единственное изменение: проверка клуба матча после проверки роли и существования матча.
 -- Клуб пользователя: club_event_current_club() (users.club_id, иначе единственный клуб, иначе NULL).
 -- Тренер с неопределимым клубом получает отказ; администратор с неопределимым клубом работает как раньше.
 -- save_match: тело 0223 (последнее определение), добавлена та же проверка клуба сразу после проверки роли.
 -- search_path = public, pg_temp (как is_admin() в 0222): временная схема стоит последней, подмена pg_temp.matches и других таблиц не работает (ревью #830, P1).
+-- set_match_technical: тело 0122, delete_match: тело 0027 (последние определения), та же проверка клуба.
 -- Условия: docs/REMOVE_MATCH_PLAYER_CLUB_ACCEPTANCE.md. Откат: db/ops/rollback-0225-remove-match-player-club.sql.
 create or replace function remove_match_player(m uuid, p uuid) returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -117,3 +118,38 @@ begin
 end $$;
 revoke execute on function save_match(uuid, uuid, date, text, int, int, jsonb) from public, anon;
 grant execute on function save_match(uuid, uuid, date, text, int, int, jsonb) to authenticated;
+
+-- set_match_technical (тело 0122 + проверка клуба; «match not found» с прежним кодом P0002)
+create or replace function set_match_technical(m uuid, tech boolean) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare mclub uuid; uclub uuid;
+begin
+  if current_user_id() is null then raise exception 'not authenticated' using errcode = '42501'; end if;
+  if not (is_admin() or is_any_coach()) then raise exception 'forbidden' using errcode = '42501'; end if;
+  if tech is null then raise exception 'technical flag required' using errcode = '22023'; end if;
+  select club_id into mclub from matches where id = m;
+  if not found then raise exception 'match not found' using errcode = 'P0002'; end if;
+  uclub := club_event_current_club();
+  if uclub is distinct from mclub and (uclub is not null or not is_admin()) then raise exception 'forbidden' using errcode = '42501'; end if;
+  update matches set technical = tech where id = m;
+end $$;
+revoke execute on function set_match_technical(uuid, boolean) from public, anon;
+grant execute on function set_match_technical(uuid, boolean) to authenticated;
+
+-- delete_match (тело 0027 + проверка клуба; только администратор)
+create or replace function delete_match(m uuid) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare mt matches; uclub uuid;
+begin
+  if not is_admin() then raise exception 'forbidden' using errcode = '42501'; end if;
+  select * into mt from matches where id = m;
+  if mt.id is null then raise exception 'match not found'; end if;
+  uclub := club_event_current_club();
+  if uclub is distinct from mt.club_id and (uclub is not null or not is_admin()) then raise exception 'forbidden' using errcode = '42501'; end if;
+  if exists (select 1 from match_fees where match_id = m) then raise exception 'match has fees'; end if;
+  delete from point_events where source_type = 'match' and source_id = m;
+  delete from matches where id = m;
+  insert into audit_log (actor_id, action, entity, entity_id, before) values (current_user_id(), 'delete_match', 'matches', m, to_jsonb(mt));
+end $$;
+revoke execute on function delete_match(uuid) from public, anon;
+grant execute on function delete_match(uuid) to authenticated;
