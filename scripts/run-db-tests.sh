@@ -94,6 +94,8 @@ preflight_partial "без 0222" '0222_is_admin_pg_temp_hardening' 0222_is_admin_
 # 0223 (оценка тренера за матч) самостоятельна: на базе без неё preflight не падает (information_schema, to_regprocedure), строка 0223 даёт NOT_APPLIED.
 # Строка 0224 (версия правил от 2026-12-01): на пустой базе без клуба версии нет, статус NOT_APPLIED; её проверяет db/tests/migration_match_rating.sh (нет версии, старая, новая).
 preflight_partial "без 0223" '0223_match_rating_points' 0223_match_rating_points
+# 0226 (взнос за матч с подтверждением) пересоздаёт функции матчей с подтверждением: на базе без неё колонки matches.fee нет, preflight не падает (information_schema, to_regprocedure), строка 0226 даёт NOT_APPLIED.
+preflight_partial "без 0226" '0226_match_rsvp_fee' 0226_match_rsvp_fee
 for t in db/tests/*_test.sql; do
   echo "== $t"
   out=$($PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f "$t" 2>&1) || { echo "$out"; fail=1; continue; }

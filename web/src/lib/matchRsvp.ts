@@ -9,6 +9,8 @@ export interface MyRsvp {
   starts_at: string; venue: string | null; address: string | null; notes: string | null; rescheduled: boolean;
   player_id: string; player_name: string; response: RsvpResponse | null; responded_by_name: string | null;
   responded_at: string | null; answer_until: string | null; can_answer: boolean;
+  /** Взнос за матч на игрока (миграция 0226); до её применения поля нет */
+  fee?: number | null;
 }
 
 export const RESPONSE_LABEL: Record<RsvpResponse, string> = { yes: 'Будет', no: 'Не будет' };
@@ -37,7 +39,21 @@ export function fromTbilisiLocal(local: string): string {
   return `${local.length === 16 ? local + ':00' : local}+04:00`;
 }
 
+/** Сумма взноса: «30», «30,5», «30.50»; пусто = без взноса. Отрицательное и нечисло не принимаются. */
+export function parseFee(input: string): { value: number | null } | { error: string } {
+  const t = input.trim().replace(',', '.');
+  if (!t) return { value: null };
+  if (!/^\d+(\.\d{1,2})?$/.test(t)) return { error: 'Взнос за матч: укажите сумму числом, например 30 или 30,5.' };
+  return { value: Number(t) };
+}
+/** «30 ₾» с неразрывным пробелом (кошелёк не переносится на следующую строку) */
+export const feeText = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2)}\u00a0₾`;
+/** Взнос допустим у товарищеского матча, игры без события и игры кубка; у чемпионата и фестиваля он на событие */
+export const feeAllowed = (kind: 'friendly' | 'game', eventKind: string | undefined) => kind === 'friendly' || !eventKind || eventKind === 'cup';
+
 const ERRORS: [string, string][] = [
+  ['bad fee', 'Сумма взноса не может быть отрицательной'],
+  ['fee not allowed', 'У матча чемпионата или фестиваля взноса нет: он на событие'],
   ['answers are closed', 'Приём ответов закрыт'],
   ['match is cancelled', 'Матч отменён'],
   ['match already started', 'Матч уже начался'],
