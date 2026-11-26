@@ -8,7 +8,7 @@ import { BackNav, useMainButton } from '../ui/nav';
 import EventFees from './EventFees';
 import { EventForm, EventScreen, eventCounts, eventTitle, isFinished, type EventRow } from './Events';
 import { Failure, Loading } from './Message';
-import CoachRsvp from './CoachRsvp';
+import CoachRsvp, { RsvpDetail, type RsvpMatch } from './CoachRsvp';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { MoreMenu } from '../ui/MoreMenu';
 
@@ -51,7 +51,8 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
       const r = await q.order('played_on', { ascending: false }).limit(showAll ? 150 : 60);
       if (r.error) return setError(errMsg(r.error));
       // матч с подтверждением виден в общем списке сразу после публикации (решение владельца 2026-11-13), черновики и отменённые остаются только на своём экране
-      const list = ((r.data ?? []) as Match[]).filter(m => !isRsvp(m) || m.lifecycle_status === 'published');
+      // единый экран матча (PR 1): в общем списке матчи с подтверждением во всех состояниях, черновик и отменённый с пометкой
+      const list = (r.data ?? []) as Match[];
       setMatches(list);
       // сколько сыграло в каждом матче; порциями, чтобы не упереться в лимит строк; без доступа список остаётся прежним
       const ids = list.map(m => m.id);
@@ -85,6 +86,12 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
     return <EventForm teams={allTeams2} events={events} admin={admin} onBack={back} onCreated={id => void openCreated(id)} />;
   }
   const formMatch = screen === 'form' ? (matches ?? []).find(m => m.id === topId) ?? null : null;
+  // матч с подтверждением: один экран с разделами «Состав и ответы» и «Результат»; форма результата та же, что у обычного матча
+  if (screen === 'form' && formMatch && isRsvp(formMatch)) {
+    const t = tours.get(formMatch.id);
+    const friendly = !t?.tournament_id || t?.match_kind === 'friendly' || t?.tournament_kind === 'cup';
+    return <MatchHub match={formMatch} groups={groups} onBack={back} renderResult={active => <MatchForm groups={groups} match={formMatch} admin={admin} rosterOf={friendly ? null : t?.tournament_id ?? null} feeMode={friendly} embedded active={active} onBack={back} onSaved={() => setReload(n => n + 1)} />} />;
+  }
   if (screen === 'form' && (formMatch || !topId)) return <MatchForm groups={groups} match={formMatch} admin={admin} rosterOf={formMatch && !(!tours.get(formMatch.id)?.tournament_id || tours.get(formMatch.id)?.match_kind === 'friendly' || tours.get(formMatch.id)?.tournament_kind === 'cup') ? tours.get(formMatch.id)?.tournament_id ?? null : null} feeMode={!formMatch || !tours.get(formMatch.id)?.tournament_id || tours.get(formMatch.id)?.match_kind === 'friendly' || tours.get(formMatch.id)?.tournament_kind === 'cup'} presetTeam={addTeam} onBack={back} onSaved={() => setReload(n => n + 1)} />;
   if (!matches) return <Loading title="Матчи" />;
 
@@ -190,7 +197,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
                   key={m.id}
                   title={m.opponent ?? 'Соперник не указан'}
                   sub={[`${fmtDate(m.played_on)}${showAll || groups.length > 1 ? ' · ' + m.team : ''}${cupName ? ' · ' + cupName : ''}${playedBy.get(m.id) ? ' · играло ' + playedBy.get(m.id) : ''}`]}
-                  end={done ? <span className="ks-score">{m.goals_for}:{m.goals_against}{m.technical ? ' (тех.)' : ''}</span> : <Pill tone="primary">{m.played_on > today() ? 'Предстоит' : 'Без счёта'}</Pill>}
+                  end={done ? <span className="ks-score">{m.goals_for}:{m.goals_against}{m.technical ? ' (тех.)' : ''}</span> : m.lifecycle_status === 'draft' ? <Pill tone="warning">Черновик</Pill> : m.lifecycle_status === 'cancelled' ? <Pill tone="danger">Отменён</Pill> : <Pill tone="primary">{m.played_on > today() ? 'Предстоит' : 'Без счёта'}</Pill>}
                   onClick={() => nav.push('form', { id: m.id })}
                 />
               );
@@ -205,7 +212,8 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
 // Баллы игрока за матч по правилу владельца (2026-11-26): оценка тренера 1-5 и +1 лучшему игроку, не больше 6; технический результат баллов не даёт
 const matchPoints = (rating: number | null, best: boolean) => (rating === null ? 0 : Math.min(rating + (best ? 1 : 0), 6));
 // feeMode: у товарищеских и кубковых матчей взнос свой (на матч); у чемпионатов и фестивалей он на событие
-function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack, onSaved }: { groups: CoachGroup[]; match: Match | null; admin: boolean; feeMode: boolean; rosterOf: string | null; presetTeam?: string; onBack: () => void; onSaved?: () => void }) {
+// embedded: форма внутри единого экрана матча (без своей кнопки «Назад» и заголовка); active: раздел «Результат» открыт, только тогда видна кнопка «Сохранить матч»
+function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack, onSaved, embedded = false, active = true }: { groups: CoachGroup[]; match: Match | null; admin: boolean; feeMode: boolean; rosterOf: string | null; presetTeam?: string; onBack: () => void; onSaved?: () => void; embedded?: boolean; active?: boolean }) {
   const { ask, dialog: confirmDialog } = useConfirm();
   const matchGroups = groups.filter(g => playsMatches(g.name));
   const matched = match ? (groups.find(g => g.name === match.team) ?? groups.find(g => matchTeam(g.name) === match.team))?.id : undefined;
@@ -300,18 +308,18 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
       // матч с подтверждением: состав, собранный до публикации, лежит в приглашениях (match_invitations), а не в match_players;
       // показываем приглашённых (в том числе из других групп), «Играл» не ставим. Не прочиталось: форма как раньше
       let invitedIds: string[] = [];
-      let rsvpRoster = false; // приглашения прочитаны: в списке только приглашённые и игроки с отметкой, остальных добавляют поиском
+      let rsvpRoster = false; // у матча с подтверждением в списке только приглашённые и игроки с отметкой, остальных добавляют поиском
       if (match && isRsvp(match)) {
+        // без приглашений состав не известен: явная ошибка с «Повторить», а не вся группа (она показала бы тренеру неверный состав)
         const inv = await supabase.from('match_invitations').select('player_id').eq('match_id', match.id).eq('status', 'invited');
-        if (!inv.error) {
-          invitedIds = ((inv.data ?? []) as { player_id: string }[]).map(r => r.player_id);
-          rsvpRoster = true;
-          const miss = invitedIds.filter(id => !list.some(p => p.id === id));
-          if (miss.length) {
-            const ex = await supabase.from('players').select('id, full_name, status').in('id', miss);
-            if (!ex.error) list = [...list, ...((ex.data ?? []) as (Player & { status?: string })[]).filter(p => p.status === undefined || p.status === 'active').map(p => ({ id: p.id, full_name: p.full_name }))].sort((a, b) => a.full_name.localeCompare(b.full_name));
-            else invitedIds = invitedIds.filter(id => list.some(p => p.id === id));
-          }
+        if (inv.error) return setError(errMsg(inv.error));
+        invitedIds = ((inv.data ?? []) as { player_id: string }[]).map(r => r.player_id);
+        rsvpRoster = true;
+        const miss = invitedIds.filter(id => !list.some(p => p.id === id));
+        if (miss.length) {
+          const ex = await supabase.from('players').select('id, full_name, status').in('id', miss);
+          if (ex.error) return setError(errMsg(ex.error));
+          list = [...list, ...((ex.data ?? []) as (Player & { status?: string })[]).filter(p => p.status === undefined || p.status === 'active').map(p => ({ id: p.id, full_name: p.full_name }))].sort((a, b) => a.full_name.localeCompare(b.full_name));
         }
       }
       // неактивные остаются только там, где у них уже есть запись в этом матче (прошлые матчи не меняются)
@@ -468,17 +476,18 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     // нового лучшего назначает только тренер: игрок убран, лучшего в матче сейчас нет
     setMsg({ ok: true, text: wasBest ? `${p.full_name} убран из матча. Он был лучшим игроком: выберите нового лучшего и сохраните матч.` : `${p.full_name} убран из матча.` });
   };
-  const native = useMainButton({ text: 'Сохранить матч', visible: true, enabled: !busy && Boolean(players), loading: busy, onClick: () => void save() });
+  const native = useMainButton({ text: 'Сохранить матч', visible: active, enabled: !busy && Boolean(players), loading: busy, onClick: () => void save() });
 
-  if (error) return <Failure title="Не удалось загрузить состав" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} managed />} />;
+  if (error) return <Failure title="Не удалось загрузить состав" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={embedded ? undefined : <BackNav onBack={onBack} managed />} />;
   if (!players) return <Loading />;
   const guests = players.filter(p => guestIds.includes(p.id));
 
   const canPickGroup = !match && !savedId;
+  const Wrap = embedded ? 'div' : 'main';
   return (
-    <main className="page">
-      <BackNav onBack={onBack} managed />
-      <h1>{match ? 'Матч' : 'Новый матч'}</h1>
+    <Wrap className={embedded ? undefined : 'page'}>
+      {!embedded && <BackNav onBack={onBack} managed />}
+      {!embedded && <h1>{match ? 'Матч' : 'Новый матч'}</h1>}
       {canPickGroup && presetMissing && !admin && <p className="error" style={{ marginBottom: 8 }}>В клубе нет группы «{presetTeam}», поэтому матч для неё не сохранить. Вернитесь и выберите другую команду.</p>}
       {canPickGroup && presetMissing && admin && <p className="muted" style={{ marginBottom: 8 }}>Команда «{presetTeam}» без группы: состав собирайте поиском по игрокам клуба.</p>}
       {canPickGroup && !presetMissing && matchGroups.length > 1 && (
@@ -590,6 +599,41 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
         </>
       )}
       {confirmDialog}
+    </Wrap>
+  );
+}
+
+// Единый экран матча с подтверждением (PR 1 «Один матч — один экран»): разделы «Состав и ответы» (RsvpDetail) и «Результат» (MatchForm).
+// Раздел по умолчанию определяет момент начала матча (starts_at, абсолютное время); выбранные разделы остаются в памяти, чтобы несохранённые правки не терялись.
+type HubTab = 'roster' | 'result';
+function MatchHub({ match, groups, onBack, renderResult }: { match: Match; groups: CoachGroup[]; onBack: () => void; renderResult: (active: boolean) => React.ReactNode }) {
+  const [live, setLive] = useState<{ lifecycle_status?: string; starts_at?: string | null }>({ lifecycle_status: match.lifecycle_status, starts_at: match.starts_at });
+  const [tab, setTab] = useState<HubTab>(() => (match.starts_at && new Date(match.starts_at).getTime() <= Date.now() ? 'result' : 'roster'));
+  const [opened, setOpened] = useState<Record<HubTab, boolean>>(() => ({ roster: tab === 'roster', result: tab === 'result' }));
+  const choose = (t: HubTab) => { setTab(t); setOpened(o => ({ ...o, [t]: true })); };
+  const status = live.lifecycle_status;
+  const tabs: [HubTab, string][] = [['roster', 'Состав и ответы'], ['result', 'Результат']];
+  return (
+    <main className="page">
+      <BackNav onBack={onBack} managed />
+      <h1>{match.opponent ? `${match.team} · ${match.opponent}` : `${match.team} · соперник не указан`}</h1>
+      <div role="tablist" aria-label="Разделы матча" style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+        {tabs.map(([k, label]) => (
+          <button key={k} type="button" role="tab" aria-selected={tab === k} className={`ks-btn ${tab === k ? '' : 'secondary'}`} style={{ flex: 1, minHeight: 44 }} onClick={() => choose(k)}>{label}</button>
+        ))}
+      </div>
+      {opened.roster && (
+        <div role="tabpanel" aria-label="Состав и ответы" hidden={tab !== 'roster'}>
+          <RsvpDetail id={match.id} groups={groups} onBack={onBack} embedded onLoaded={(m: RsvpMatch) => setLive({ lifecycle_status: m.lifecycle_status, starts_at: m.starts_at })} />
+        </div>
+      )}
+      {opened.result && (
+        <div role="tabpanel" aria-label="Результат" hidden={tab !== 'result'}>
+          {status === 'draft' || status === 'cancelled'
+            ? <p className="muted">Результат вносится после публикации и начала матча{status === 'cancelled' ? '; отменённый матч результата не имеет' : ''}.</p>
+            : renderResult(tab === 'result')}
+        </div>
+      )}
     </main>
   );
 }

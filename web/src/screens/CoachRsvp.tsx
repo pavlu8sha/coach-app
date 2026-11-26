@@ -9,7 +9,7 @@ import { useConfirm } from '../ui/ConfirmSheet';
 import { eventTitle, isFinished, type EventRow } from './Events';
 import { Failure, Loading } from './Message';
 
-interface RsvpMatch { id: string; team: string; opponent: string | null; starts_at: string | null; lifecycle_status: Lifecycle; kind: string | null; venue: string | null; address: string | null; notes: string | null; tournament_id: string | null }
+export interface RsvpMatch { id: string; team: string; opponent: string | null; starts_at: string | null; lifecycle_status: Lifecycle; kind: string | null; venue: string | null; address: string | null; notes: string | null; tournament_id: string | null }
 interface Summary { invited: number; yes: number; no: number; unanswered: number; reminders: number; last_reminder_at: string | null }
 interface RosterRow { player_id: string; full_name: string; group_name: string | null; status: string; response: RsvpResponse | null; responded_by_name: string | null; responded_by_coach: boolean; responded_at: string | null; answer_until: string | null }
 
@@ -200,7 +200,8 @@ function RsvpCreate({ groups, all, onBack, onCreated }: { groups: CoachGroup[]; 
   );
 }
 
-function RsvpDetail({ id, groups, onBack, note }: { id: string; groups: CoachGroup[]; onBack: () => void; note?: Note }) {
+// embedded: экран внутри единого экрана матча (раздел «Состав и ответы»): без своей кнопки «Назад» и заголовка; onLoaded сообщает актуальный матч
+export function RsvpDetail({ id, groups, onBack, note, embedded = false, onLoaded }: { id: string; groups: CoachGroup[]; onBack: () => void; note?: Note; embedded?: boolean; onLoaded?: (m: RsvpMatch) => void }) {
   const { ask: confirm, dialog } = useConfirm();
   const [m, setM] = useState<RsvpMatch | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -243,6 +244,7 @@ function RsvpDetail({ id, groups, onBack, note }: { id: string; groups: CoachGro
         if (!alive) return;
         if (r.error) return setError(errMsg(r.error));
         setM((r.data ?? null) as RsvpMatch | null);
+        if (r.data) onLoaded?.(r.data as RsvpMatch);
       } catch (e) {
         if (alive) setError(errMsg(e));
       }
@@ -282,8 +284,9 @@ function RsvpDetail({ id, groups, onBack, note }: { id: string; groups: CoachGro
     setReload(n => n + 1);
   };
 
-  if (error) return <Failure title="Не удалось загрузить матч" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} managed />} />;
+  if (error) return <Failure title="Не удалось загрузить матч" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={embedded ? undefined : <BackNav onBack={onBack} managed />} />;
   if (!m) return <Loading />;
+  const Wrap = embedded ? 'div' : 'main';
   const st = m.lifecycle_status;
   const invited = roster.filter(p => p.status === 'invited'); // исключённые остаются в базе, в списке их нет
   const shown = invited.filter(p => matchesFilter(p.response, filter));
@@ -369,10 +372,10 @@ function RsvpDetail({ id, groups, onBack, note }: { id: string; groups: CoachGro
   const setFor = (p: RosterRow, v: RsvpResponse) => run('match_rsvp_coach_set', { m: id, p_player: p.player_id, p_response: v }, () => `${p.full_name}: ${responseText(v)}`);
 
   return (
-    <main className="page">
-      <BackNav onBack={onBack} managed />
+    <Wrap className={embedded ? undefined : 'page'}>
+      {!embedded && <BackNav onBack={onBack} managed />}
       {dialog}
-      <h1>{title(m)}</h1>
+      {!embedded && <h1>{title(m)}</h1>}
       <p><Pill tone={TONE[st]}>{LIFECYCLE_LABEL[st]}</Pill> {m.starts_at ? fmtWhen(m.starts_at) : ''}</p>
       {[m.venue, m.address, m.notes].filter(Boolean).map(t => <p key={t} className="muted">{t}</p>)}
       {sumL.status === 'error' && <BlockError title="Не удалось загрузить сводку ответов" text={sumL.text} onRetry={retrySum} />}
@@ -483,6 +486,6 @@ function RsvpDetail({ id, groups, onBack, note }: { id: string; groups: CoachGro
       {showHistory && histL.status === 'error' && <BlockError title="Не удалось загрузить историю" text={histL.text} onRetry={retryHist} />}
       {showHistory && histL.status === 'ok' && histL.data.length === 0 && <p className="muted">Записей пока нет.</p>}
       {showHistory && histL.status === 'ok' && histL.data.map(a => <p key={a.id} className="muted">{activityLine(a)}</p>)}
-    </main>
+    </Wrap>
   );
 }
