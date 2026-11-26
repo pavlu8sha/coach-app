@@ -3,7 +3,7 @@ import { useNavState } from '../nav';
 import { errMsg, fmtDate, plural } from '../lib/coach';
 import { grandTotal, latestMonth, ledgerLabel, monthLabel, monthOf, monthTotal, shiftMonth, type LedgerRow } from '../lib/pointsLedger';
 import { supabase } from '../lib/supabase';
-import { EmptyState, Pill } from '../ui/components';
+import { EmptyState, Pill, SkeletonRows } from '../ui/components';
 import { Failure } from './Message';
 
 interface SeriesInfo {
@@ -36,39 +36,69 @@ const today = () => new Date().toISOString().slice(0, 7);
 // История читается страницами: сервер отдаёт не больше 1000 строк за запрос, больше ограничения в приложении нет
 const PAGE = 1000;
 
+// Последние загруженные баллы игрока держатся в памяти: повторное открытие вкладки показывает их сразу (без пустого экрана и прыжка страницы),
+// свежие данные подтягиваются в фоне. prefetchPoints вызывается при открытии карточки игрока, чтобы и первое открытие вкладки было мгновенным.
+const ledgerCache = new Map<string, { rows: LedgerRow[]; series: SeriesInfo | null }>();
+const benchCache = new Map<string, Bench>();
+
+async function loadLedger(playerId: string): Promise<{ rows: LedgerRow[]; series: SeriesInfo | null }> {
+  const list: LedgerRow[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const r = await supabase.from('points_ledger').select('id, event_date, points, source_type, reason_code, components, status').eq('player_id', playerId).eq('status', 'active')
+      .order('event_date', { ascending: false }).order('id', { ascending: false }).range(from, from + PAGE - 1);
+    if (r.error) throw r.error;
+    const page = (r.data ?? []) as LedgerRow[];
+    list.push(...page);
+    if (page.length < PAGE) break;
+  }
+  let series: SeriesInfo | null = null;
+  if (list.length > 0) {
+    const s = await supabase.rpc('points_series_info', { p: playerId });
+    series = s.error ? null : (s.data as SeriesInfo | null);
+  }
+  const res = { rows: list, series };
+  ledgerCache.set(playerId, res);
+  return res;
+}
+
+/** Для тестов: забыть всё, что запомнено между экранами. */
+export function resetPointsCache(): void {
+  ledgerCache.clear();
+  benchCache.clear();
+}
+
+/** Заранее загружает баллы игрока (ошибки молча игнорируются: вкладка загрузит сама). */
+export function prefetchPoints(playerId: string): void {
+  void loadLedger(playerId).catch(() => undefined);
+}
+
 // Баллы по новым правилам (#18): итог за месяц, всего накоплено, история начислений с пояснениями и серия посещаемости.
 // Блок появляется, когда у игрока есть хотя бы одно начисление в новом журнале; до этого остаётся прежний показ баллов.
 export default function PointsLedger({ playerId, showEmpty = false }: { playerId: string; showEmpty?: boolean }) {
-  const [rows, setRows] = useState<LedgerRow[] | null>(null);
-  const [series, setSeries] = useState<SeriesInfo | null>(null);
+  const cached = ledgerCache.get(playerId);
+  const [rows, setRows] = useState<LedgerRow[] | null>(cached?.rows ?? null);
+  const [series, setSeries] = useState<SeriesInfo | null>(cached?.series ?? null);
   const [picked, setMonth] = useNavState<string | null>(`pl.month.${playerId}`, null); // выбранный вручную; пока не выбран — последний месяц с начислениями
   const month = picked ?? (rows ? latestMonth(rows, today()) : null);
-  const [bench, setBench] = useState<Bench | null>(null);
+  const [bench, setBench] = useState<Bench | null>(month ? benchCache.get(`${playerId}|${month}`) ?? null : null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
-    setRows(null);
+    // показанное из памяти остаётся на экране, пока тихо подтягиваются свежие данные: вкладка не мигает пустотой
+    const c = ledgerCache.get(playerId);
+    setRows(c?.rows ?? null);
+    setSeries(c?.series ?? null);
     setError(null);
     let off = false;
     void (async () => {
-      const list: LedgerRow[] = [];
-      for (let from = 0; ; from += PAGE) {
-        const r = await supabase.from('points_ledger').select('id, event_date, points, source_type, reason_code, components, status').eq('player_id', playerId).eq('status', 'active')
-          .order('event_date', { ascending: false }).order('id', { ascending: false }).range(from, from + PAGE - 1);
-        if (r.error) {
-          if (!off) setError(errMsg(r.error)); // ошибка загрузки не превращается в пустой список
-          return;
-        }
-        const page = (r.data ?? []) as LedgerRow[];
-        list.push(...page);
-        if (page.length < PAGE) break;
-      }
-      if (off) return;
-      setRows(list);
-      if (list.length > 0) {
-        const s = await supabase.rpc('points_series_info', { p: playerId });
-        if (!off) setSeries(s.error ? null : (s.data as SeriesInfo | null));
+      try {
+        const fresh = await loadLedger(playerId);
+        if (off) return;
+        setRows(fresh.rows);
+        setSeries(fresh.series);
+      } catch (e) {
+        if (!off && !ledgerCache.has(playerId)) setError(errMsg(e)); // ошибка загрузки не превращается в пустой список
       }
     })();
     return () => { off = true; };
@@ -77,13 +107,19 @@ export default function PointsLedger({ playerId, showEmpty = false }: { playerId
   // ориентиры группы за выбранный месяц: анонимно, только числа; без функции (старая база) блок просто не показывается
   useEffect(() => {
     if (!month) return;
-    setBench(null);
-    void supabase.rpc('points_group_benchmark', { p: playerId, ym: `${month}-01` }).then(r => setBench(r.error ? null : (r.data as Bench | null)));
+    const key = `${playerId}|${month}`;
+    setBench(benchCache.get(key) ?? null);
+    void supabase.rpc('points_group_benchmark', { p: playerId, ym: `${month}-01` }).then(r => {
+      const b = r.error ? null : (r.data as Bench | null);
+      if (b) benchCache.set(key, b);
+      setBench(b);
+    });
   }, [playerId, month]);
 
   if (error) return <Failure embedded title="Не удалось загрузить баллы" text={error} onRetry={() => setReload(n => n + 1)} />;
   if (rows && rows.length === 0 && showEmpty) return <EmptyState icon="trophy" title="Баллов пока нет" text="Они появятся после тренировок и матчей." />;
-  if (!rows || rows.length === 0 || !month) return null;
+  if (!rows) return <section className="ks-card" aria-label="Баллы по новым правилам" aria-busy="true"><h2 style={{ marginTop: 0 }}>Баллы</h2><SkeletonRows count={3} /></section>;
+  if (rows.length === 0 || !month) return null;
   const inMonth = rows.filter(r => monthOf(r.event_date) === month);
   const total = monthTotal(rows, month);
   const all = grandTotal(rows);

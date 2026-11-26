@@ -1,8 +1,8 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import { errMsg } from '../lib/coach';
-import PointsLedger from './PointsLedger';
+import PointsLedger, { prefetchPoints, resetPointsCache } from './PointsLedger';
 
 const seed = () => {
   fake.db.points_ledger = [
@@ -108,5 +108,47 @@ describe('баллы по новым правилам', () => {
     fake.db.points_ledger = (fake.db.points_ledger as { player_id: string }[]).map(r => (r.player_id === 'p9' ? { ...r, player_id: 'p1' } : r));
     render(<PointsLedger playerId="p1" />);
     expect(await screen.findByText(/Всего накоплено: 2509/)).toBeInTheDocument();
+  });
+
+  it('мигание вкладки: первая загрузка показывает заглушку, повторное открытие сразу показывает сохранённые баллы', async () => {
+    seed();
+    fake.rpc.points_group_benchmark = () => ({ groups: [] });
+    const first = render(<PointsLedger playerId="p1" />);
+    expect(screen.getByLabelText('Баллы по новым правилам')).toHaveAttribute('aria-busy', 'true');
+    expect(await screen.findByText('Серия посещений')).toBeInTheDocument();
+    first.unmount();
+    render(<PointsLedger playerId="p1" />);
+    // без await: данные уже на экране в первом же кадре, заглушки нет
+    expect(screen.getByText('Серия посещений')).toBeInTheDocument();
+    expect(screen.getByLabelText('Баллы по новым правилам')).not.toHaveAttribute('aria-busy');
+  });
+
+  it('предзагрузка при открытии карточки: вкладка открывается сразу; ошибка предзагрузки не ломает экран', async () => {
+    seed();
+    fake.rpc.points_group_benchmark = () => ({ groups: [] });
+    prefetchPoints('p1');
+    await waitFor(() => expect(fake.rpcCalls('points_series_info')).toHaveLength(1));
+    render(<PointsLedger playerId="p1" />);
+    expect(screen.getByText('Серия посещений')).toBeInTheDocument();
+    resetPointsCache();
+    fake.errors.points_ledger = 'сбой сети';
+    expect(() => prefetchPoints('p1')).not.toThrow();
+  });
+
+  it('сохранённые баллы остаются, если фоновое обновление упало; без сохранённых ошибка показывается', async () => {
+    seed();
+    fake.rpc.points_group_benchmark = () => ({ groups: [] });
+    const first = render(<PointsLedger playerId="p1" />);
+    await screen.findByText('Серия посещений');
+    first.unmount();
+    fake.errors.points_ledger = 'сбой сети';
+    render(<PointsLedger playerId="p1" />);
+    await new Promise(r => setTimeout(r, 30));
+    expect(screen.getByText('Серия посещений')).toBeInTheDocument();
+    expect(screen.queryByText('Не удалось загрузить баллы')).toBeNull();
+    resetPointsCache();
+    cleanup();
+    render(<PointsLedger playerId="p1" />);
+    expect(await screen.findByText('Не удалось загрузить баллы')).toBeInTheDocument();
   });
 });

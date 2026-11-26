@@ -138,7 +138,7 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
                   <p style={{ fontSize: 24, letterSpacing: 4, fontWeight: 600 }}>{codes[k.id]}</p>
                 </div>
               ) : linkStateOf(k.id) === 'loading' ? (
-                <p className="muted" role="status" style={{ marginBottom: 8 }}>Проверяю привязку аккаунта…</p>
+                <div className="ks-back" role="status" style={{ marginBottom: 8, color: 'var(--ks-text-muted)', fontWeight: 400, cursor: 'default' }}>Проверяю привязку аккаунта…</div> /* той же высоты, что кнопки «Код для ребёнка» / «Отвязать»: страница не прыгает, когда проверка закончилась */
               ) : linkStateOf(k.id) === 'error' ? (
                 <div style={{ marginBottom: 8 }}>
                   <p className="error" role="alert">Не удалось проверить привязку аккаунта ребёнка. Действия с кодом скрыты, пока проверка не пройдёт.</p>

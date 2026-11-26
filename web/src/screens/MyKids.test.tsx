@@ -32,6 +32,7 @@ describe('«Мои дети»: статус привязки ребёнка (#73
     await screen.findByText('Иван Петров');
     await waitFor(() => expect(fake.rpcCalls('child_linked')).toEqual([{ p: 'p1' }]));
     expect(screen.getByRole('status')).toHaveTextContent('Проверяю привязку аккаунта');
+    expect(screen.getByRole('status')).toHaveClass('ks-back'); // та же высота, что у кнопок «Код для ребёнка» / «Отвязать»: страница не прыгает
     expect(screen.queryByRole('button', { name: CODE })).toBeNull();
     expect(screen.queryByRole('button', { name: UNLINK })).toBeNull();
     expect(fake.rpcCalls('create_child_code')).toHaveLength(0);
