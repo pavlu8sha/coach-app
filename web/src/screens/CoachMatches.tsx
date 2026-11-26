@@ -308,11 +308,21 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gid, reload]);
 
+  // версии правил читаются только своего клуба: клуб берётся у группы матча (для команды без группы у первой группы тренера)
+  const clubGroupId = gid || groups[0]?.id || '';
   useEffect(() => {
-    void supabase.from('points_rule_versions').select('effective_from, params').order('effective_from', { ascending: false }).then(v => {
-      if (!v.error) setRuleVersions((v.data ?? []) as { effective_from: string; params: { match?: { model?: string } } | null }[]);
-    });
-  }, []);
+    setRuleVersions(null);
+    if (!clubGroupId) return;
+    let off = false;
+    void (async () => {
+      const g = await supabase.from('groups').select('club_id').eq('id', clubGroupId).maybeSingle();
+      const club = (g.data as { club_id?: string } | null)?.club_id;
+      if (g.error || !club) return;
+      const v = await supabase.from('points_rule_versions').select('effective_from, params').eq('club_id', club).order('effective_from', { ascending: false });
+      if (!off && !v.error) setRuleVersions((v.data ?? []) as { effective_from: string; params: { match?: { model?: string } } | null }[]);
+    })();
+    return () => { off = true; };
+  }, [clubGroupId]);
 
   // Найти любого игрока клуба и добавить в состав (тренеры и администратор)
   useEffect(() => {

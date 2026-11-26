@@ -16,7 +16,8 @@ function seed() {
   ];
   fake.db.match_players = [{ match_id: 'm1', player_id: 'p1', played: true, goals: 2, best: false, performance_rating: 4 }, { match_id: 'm1', player_id: 'p9', played: true, goals: 0, best: true, performance_rating: 5 }];
   // модель оценки действует с 2026-01-01 (в тестах матч от 2026-10-10); тесты исторических дат подменяют версии
-  fake.db.points_rule_versions = [{ effective_from: '2026-01-01', params: { match: { model: 'rating' } } }];
+  fake.db.groups = [{ id: 'g1', name: 'U9', club_id: 'c1' }, { id: 'g2', name: 'U11', club_id: 'c1' }];
+  fake.db.points_rule_versions = [{ club_id: 'c1', effective_from: '2026-01-01', params: { match: { model: 'rating' } } }];
   fake.rpc.save_match = a => a.m ?? 'm-new';
 }
 const openNewEvent = async () => {
@@ -229,7 +230,7 @@ describe('«Матчи»: оценка тренера (0223)', () => {
   it('матч до даты модели оценки (ноябрь) сохраняется без оценок и лучшего, итог баллов не показывается', async () => {
     seed();
     fake.db.match_players = (fake.db.match_players as { player_id: string }[]).filter(r => r.player_id !== 'p9').map(r => ({ ...r, performance_rating: null }));
-    fake.db.points_rule_versions = [{ effective_from: '2026-12-01', params: { match: { model: 'rating' } } }, { effective_from: '2026-11-01', params: { match: { played: 1 } } }];
+    fake.db.points_rule_versions = [{ club_id: 'c1', effective_from: '2026-12-01', params: { match: { model: 'rating' } } }, { club_id: 'c1', effective_from: '2026-11-01', params: { match: { played: 1 } } }];
     fake.db.matches = [{ id: 'm1', team: 'U9', played_on: '2026-11-20', opponent: 'Олимп', goals_for: 3, goals_against: 1 }];
     render(<CoachMatches groups={groups} />);
     fireEvent.click(await screen.findByText('Олимп'));
@@ -306,6 +307,37 @@ describe('«Матчи» администратора', () => {
     expect(fake.rpcCalls('remove_match_player')).toEqual([{ m: 'm1', p: 'p9' }]);
     expect((fake.db.match_players as { player_id: string }[]).some(r => r.player_id === 'p9')).toBe(false);
     expect(await screen.findByText(/Гость Игорь убран из матча\./)).toBeInTheDocument();
+  });
+
+  it('модель оценки берётся из версий клуба матча, а не другого клуба', async () => {
+    seed();
+    fake.db.match_players = (fake.db.match_players as { player_id: string }[]).filter(r => r.player_id !== 'p9').map(r => ({ ...r, performance_rating: null }));
+    // на одну дату: у клуба группы g1 (c1) модели оценки ещё нет, у клуба c2 она уже действует
+    fake.db.points_rule_versions = [
+      { club_id: 'c2', effective_from: '2026-10-01', params: { match: { model: 'rating' } } },
+      { club_id: 'c1', effective_from: '2026-10-01', params: { match: { played: 1 } } },
+    ];
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText('Олимп'));
+    await screen.findByText('Иванов Пётр');
+    fireEvent.click(screen.getByText('Сохранить матч'));
+    await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
+    expect(screen.queryByText('Выставьте оценку каждому, кто играл.')).toBeNull();
+  });
+
+  it('и наоборот: у клуба матча модель оценки действует, у другого клуба нет', async () => {
+    seed();
+    fake.db.match_players = (fake.db.match_players as { player_id: string }[]).filter(r => r.player_id !== 'p9').map(r => ({ ...r, performance_rating: null }));
+    fake.db.points_rule_versions = [
+      { club_id: 'c2', effective_from: '2026-10-01', params: { match: { played: 1 } } },
+      { club_id: 'c1', effective_from: '2026-10-01', params: { match: { model: 'rating' } } },
+    ];
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText('Олимп'));
+    await screen.findByText('Иванов Пётр');
+    fireEvent.click(screen.getByText('Сохранить матч'));
+    expect(await screen.findByText('Выставьте оценку каждому, кто играл.')).toBeInTheDocument();
+    expect(fake.rpcCalls('save_match')).toHaveLength(0);
   });
 
   it('убранного лучшего игрока заменяет тренер: новый лучший автоматически не назначается', async () => {
