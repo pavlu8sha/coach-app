@@ -89,6 +89,8 @@ preflight_partial "без 0219" '0219_player_group_since' 0219_player_group_sinc
 preflight_partial "без 0220" '0220_notifications_finish_lease' 0220_notifications_finish_lease
 # 0221 (session_guest_discount, расширение fee_discount_log) самостоятельна: на базе без неё preflight не падает (to_regprocedure, to_regclass), строка 0221 даёт NOT_APPLIED.
 preflight_partial "без 0221" '0221_visit_discount' 0221_visit_discount
+# 0222 (is_admin против pg_temp) пересоздаёт функцию, существующую с 0002: на базе без 0222 функция есть со старым телом (search_path=public), строка 0222 даёт NOT_APPLIED, preflight не падает.
+preflight_partial "без 0222" '0222_is_admin_pg_temp_hardening' 0222_is_admin_pg_temp_hardening
 for t in db/tests/*_test.sql; do
   echo "== $t"
   out=$($PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f "$t" 2>&1) || { echo "$out"; fail=1; continue; }
