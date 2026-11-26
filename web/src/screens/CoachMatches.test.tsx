@@ -1176,7 +1176,7 @@ describe('Состав матча с подтверждением в форме 
     expect(screen.queryByText('Сидоров Ян')).toBeNull();
     expect(screen.queryByText('Петров Лев')).toBeNull();
     expect((screen.getAllByRole('checkbox') as HTMLInputElement[]).every(c => !c.checked)).toBe(true);
-    expect(screen.getByRole('button', { name: /Показать всех игроков команды \(2\)/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Показать всех игроков команды/ })).toBeNull(); // остальных игроков группы ищут в «Добавить в состав»
   });
 
   it('исключённый, но с отметкой в match_players остаётся в составе', async () => {
@@ -1204,7 +1204,8 @@ describe('Состав матча с подтверждением в форме 
     await screen.findByText('Гость Игорь');
     fireEvent.click(screen.getByText('Сохранить матч'));
     await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
-    await waitFor(() => expect(screen.getByRole('button', { name: /Показать всех игроков команды \(2\)/ })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Иванов Пётр')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: /Показать всех игроков команды/ })).toBeNull();
     expect(screen.queryByText('Сидоров Ян')).toBeNull();
     expect(screen.getByText('Иванов Пётр')).toBeInTheDocument();
   });
@@ -1217,9 +1218,30 @@ describe('Состав матча с подтверждением в форме 
     fireEvent.click(within(screen.getByText('Иванов Пётр').closest('.ks-card') as HTMLElement).getByRole('checkbox'));
     fireEvent.click(screen.getByText('Сохранить матч'));
     await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
-    await waitFor(() => expect(screen.getByRole('button', { name: /Показать всех игроков команды \(2\)/ })).toBeInTheDocument());
-    expect(screen.getByText('Иванов Пётр')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('Иванов Пётр')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: /Показать всех игроков команды/ })).toBeNull();
+    expect(screen.queryByText('Сидоров Ян')).toBeNull();
     expect(screen.getByText('Гость Игорь')).toBeInTheDocument();
+  });
+
+  it('«Убрать из матча» скрыта у приглашённых и есть у добавленных вручную', async () => {
+    fake.db.match_invitations = [{ match_id: 'r1', player_id: 'p1', status: 'invited' }];
+    fake.db.matches = [{ id: 'r1', club_id: 'c1', team: 'U9', played_on: '2099-01-01', opponent: 'Икс', goals_for: null, goals_against: null, lifecycle_status: 'published', starts_at: future }];
+    fake.db.players = [
+      { id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'active' },
+      { id: 'p9', full_name: 'Гость Игорь', group_id: 'g2', status: 'active' },
+    ];
+    fake.db.groups = [{ id: 'g1', name: 'U9', club_id: 'c1' }, { id: 'g2', name: 'U11', club_id: 'c1' }];
+    fake.db.match_players = [
+      { match_id: 'r1', player_id: 'p1', played: true, goals: 0, best: false, performance_rating: null },
+      { match_id: 'r1', player_id: 'p9', played: true, goals: 0, best: false, performance_rating: null },
+    ];
+    fake.db.points_rule_versions = [];
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    fireEvent.click(await screen.findByRole('button', { name: 'Править состав' }));
+    expect(await screen.findByRole('button', { name: 'Убрать из матча: Гость Игорь' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Убрать из матча: Иванов Пётр' })).toBeNull();
   });
 
   it('матч без подтверждения: приглашения не читаются, вся группа как раньше', async () => {
