@@ -543,7 +543,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
                 </button>
               </>
             )}
-            {savedId && editLineup && (
+            {savedId && editLineup && !invitedIds.includes(p.id) && ( // приглашённых RSVP-матча «Убрать из матча» не стирает: приглашение остаётся, для «не играл» снимается галочка
               <button type="button" className="ks-btn secondary" style={{ marginTop: 8, minHeight: 40 }} disabled={busy} aria-label={`Убрать из матча: ${p.full_name}`} onClick={() => void removeFromMatch(p)}>
                 Убрать из матча
               </button>
