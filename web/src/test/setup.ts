@@ -6,6 +6,7 @@ import { dirtyGuard, resetDetachedNav } from '../nav';
 import { resetPaymentKeys } from '../lib/paymentAdd';
 import { resetTgUsernameSync } from '../lib/tgUsername';
 import { resetPointsCache } from '../screens/PointsLedger';
+import { resetMyKidsCache } from '../screens/MyKids';
 
 beforeEach(() => {
   fake.reset();
@@ -15,6 +16,7 @@ beforeEach(() => {
   resetPaymentKeys();
   resetTgUsernameSync();
   resetPointsCache();
+  resetMyKidsCache();
   document.documentElement.removeAttribute('data-theme');
 });
 afterEach(() => {
