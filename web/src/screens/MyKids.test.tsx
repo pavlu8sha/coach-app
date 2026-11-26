@@ -2,7 +2,8 @@ import { Profiler, StrictMode } from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fake, supabase } from '../test/fakeSupabase';
-import MyKids from './MyKids';
+import MyKids, { myKidsAuthEvent } from './MyKids';
+import { cleanup } from '@testing-library/react';
 
 const kid = (id: string, name: string) => ({ user_id: 'u', consent_revoked_at: null, players: { id, full_name: name, groups: { name: 'U9' } } });
 const realGetUser = supabase.auth.getUser;
@@ -214,3 +215,45 @@ const findRow = async (name: string) => {
   await screen.findByText(name);
   return row(name);
 };
+
+describe('«Мои дети»: запоминание между открытиями', () => {
+  beforeEach(() => {
+    fake.reset();
+    fake.db.player_guardians = [kid('p1', 'Иван Петров')];
+    fake.rpc.child_linked = () => false;
+  });
+
+  it('повторное открытие: дети и кнопка кода видны в первом кадре, без «Проверяю…»', async () => {
+    const first = render(<MyKids onBack={() => {}} />);
+    await screen.findByRole('button', { name: CODE });
+    first.unmount();
+    const d = deferred<boolean>();
+    fake.rpc.child_linked = () => d.promise; // перепроверка зависла: экран всё равно готов
+    render(<MyKids onBack={() => {}} />);
+    expect(screen.getByText('Иван Петров')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: CODE })).toBeInTheDocument();
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('тихая перепроверка меняет статус, если привязка появилась', async () => {
+    const first = render(<MyKids onBack={() => {}} />);
+    await screen.findByRole('button', { name: CODE });
+    first.unmount();
+    fake.rpc.child_linked = () => true;
+    render(<MyKids onBack={() => {}} />);
+    expect(await screen.findByRole('button', { name: UNLINK })).toBeInTheDocument();
+  });
+
+  it('выход из аккаунта и смена пользователя забывают детей', async () => {
+    for (const change of [() => myKidsAuthEvent('SIGNED_OUT', null), () => { myKidsAuthEvent('SIGNED_IN', { user: { id: 'u1' } }); myKidsAuthEvent('SIGNED_IN', { user: { id: 'u2' } }); }]) {
+      const r = render(<MyKids onBack={() => {}} />);
+      await screen.findByRole('button', { name: CODE });
+      r.unmount();
+      change();
+      render(<MyKids onBack={() => {}} />);
+      expect(screen.queryByText('Иван Петров')).toBeNull(); // памяти нет: чужих детей не видно
+      await screen.findByRole('button', { name: CODE });
+      cleanup();
+    }
+  });
+});
