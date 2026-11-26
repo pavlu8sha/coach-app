@@ -416,7 +416,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
   // и удаляет строку состава. Нужно для ушедших игроков: снятая отметка «играл» оставляла их в составе матча.
   const removeFromMatch = async (p: Player) => {
     if (!savedId) return;
-    if (!(await ask({ title: 'Убрать игрока из матча?', note: `${p.full_name}: пропадут его отметка и баллы за этот матч. Из чемпионата и команды он не удаляется.`, confirmLabel: 'Убрать', danger: true }))) return;
+    if (!(await ask({ title: 'Убрать игрока из матча?', note: `${p.full_name}: пропадут его отметка и баллы за этот матч. Из чемпионата и команды он не удаляется.${bestId === p.id ? ' Он назначен лучшим игроком матча: нового лучшего потом выберете вы сами.' : ''}`, confirmLabel: 'Убрать', danger: true }))) return;
     setBusy(true);
     setMsg(null);
     const r = await supabase.rpc('remove_match_player', { m: savedId, p: p.id });
@@ -425,8 +425,10 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     setPlayers(list => (list ?? []).filter(x => x.id !== p.id));
     setLines(s => { const n = { ...s }; delete n[p.id]; return n; });
     setShownIds(ids => (ids ? ids.filter(id => id !== p.id) : ids));
-    if (bestId === p.id) setBestId(null);
-    setMsg({ ok: true, text: `${p.full_name} убран из матча.` });
+    const wasBest = bestId === p.id;
+    if (wasBest) setBestId(null);
+    // нового лучшего назначает только тренер: игрок убран, лучшего в матче сейчас нет
+    setMsg({ ok: true, text: wasBest ? `${p.full_name} убран из матча. Он был лучшим игроком: выберите нового лучшего и сохраните матч.` : `${p.full_name} убран из матча.` });
   };
   const native = useMainButton({ text: 'Сохранить матч', visible: true, enabled: !busy && Boolean(players), loading: busy, onClick: () => void save() });
 

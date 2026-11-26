@@ -68,7 +68,12 @@ begin
   -- модель оценки действует только там, где версия правил на дату матча явно её включает (match.model = 'rating', её ставит 0224).
   -- Для прежних дат расчёт не выполняется и старые начисления не закрываются; исключение: строка модели оценки у матча,
   -- дату которого перенесли в период прежних правил, закрывается (иначе она осталась бы без основания).
-  if rv.id is null or coalesce(rv.params #>> '{match,model}', '') <> 'rating' then
+  -- Дата вне действия правил (раньше points_start или первой версии): журнал матча закрывается целиком, как и прежде.
+  if rv.id is null then
+    perform points_ledger_apply(club, 'match', mid, '[]'::jsonb, 'match_changed');
+    return;
+  end if;
+  if coalesce(rv.params #>> '{match,model}', '') <> 'rating' then
     if exists (select 1 from points_ledger l where l.source_type = 'match' and l.source_id = mid and l.status = 'active' and l.components ->> 'model' = 'rating') then
       perform points_ledger_apply(club, 'match', mid, '[]'::jsonb, 'match_changed');
     end if;
@@ -113,6 +118,9 @@ begin
     into n_played, n_unrated, n_best from match_players where match_id = mid;
   if n_played = 0 then return; end if;
   if n_unrated > 0 then raise exception 'ratings incomplete' using errcode = '23514'; end if;
+  -- тренер убрал из матча единственного лучшего: замену выбирает он сам, поэтому в этой транзакции отсутствие лучшего допускается
+  -- (матч остаётся в сверке как match_without_best); два и более лучших не допускаются никогда
+  if n_best = 0 and coalesce(current_setting('app.match_best_removed', true), '') = mid::text then return; end if;
   if n_best <> 1 then raise exception 'best player required' using errcode = '23514'; end if;
 end $$;
 revoke execute on function match_rating_check(uuid) from public, anon, authenticated;
@@ -225,11 +233,14 @@ end $$;
 -- Убрать игрока из матча: оценка очищается вместе с отметкой, голами и лучшим (тело 0192)
 create or replace function remove_match_player(m uuid, p uuid) returns void
 language plpgsql security definer set search_path = public as $$
+declare was_best boolean;
 begin
   if current_user_id() is null then raise exception 'not authenticated' using errcode = '42501'; end if;
   if not (is_admin() or is_any_coach()) then raise exception 'forbidden' using errcode = '42501'; end if;
   if not exists (select 1 from matches where id = m) then raise exception 'match not found'; end if;
   if not exists (select 1 from match_players where match_id = m and player_id = p) then raise exception 'player not in match'; end if;
+  select best into was_best from match_players where match_id = m and player_id = p;
+  if coalesce(was_best, false) then perform set_config('app.match_best_removed', m::text, true); end if;
   update match_players set played = false, goals = 0, best = false, performance_rating = null where match_id = m and player_id = p;
   delete from match_players where match_id = m and player_id = p;
 end $$;

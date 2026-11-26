@@ -85,6 +85,12 @@ r=$(q -c "select tgenabled from pg_trigger where tgrelid = 'public.points_rule_v
 q -c "update points_rule_versions set comment = 'x'" >/dev/null 2>&1 && bad "0224: версию снова можно править" || ok "0224: правка версии по-прежнему запрещена"
 r=$(q -c "select count(*) from audit_log where action = 'points_rules_match_rating' and (before #>> '{match,best}') = '2' and (after #>> '{match,best}') = '1'")
 [ "$r" = 4 ] && ok "0224: before/after четырёх клубов записаны в audit_log" || bad "0224: audit_log: '$r'"
+# частичное состояние: у клубов версия на модели оценки, у ещё одного клуба версии от 2026-12-01 нет: APPLIED быть не должно
+C5=00000000-0000-0000-0000-0000000000c5
+q -c "insert into clubs (id, name) values ('$C5', 'Пятый клуб без версии')" >/dev/null
+st=$(pf)
+[ "$st" != APPLIED ] && [ -n "$st" ] && ok "0224: один клуб на модели оценки, другой без версии: preflight не APPLIED ($st)" || bad "0224: частичное состояние дало '$st'"
+q -c "delete from clubs where id = '$C5'" >/dev/null
 st=$(pf)
 [ "$st" = APPLIED ] && ok "0224: preflight после применения APPLIED" || bad "0224: preflight после применения: '$st'"
 q -f db/migrations/0224_points_rules_match_rating.sql >/dev/null 2>&1 && ok "0224: повторный запуск ничего не ломает" || bad "0224: повторный запуск упал"

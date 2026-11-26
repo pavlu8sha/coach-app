@@ -2,7 +2,7 @@
 -- Помощники sv и sv_tech вызывают save_match и сразу применяют отложенные проверки и пересчёт (как конец транзакции в приложении).
 begin;
 create extension if not exists pgtap;
-select plan(65);
+select plan(71);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб'), ('00000000-0000-0000-0000-00000000c002', 'Другой клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -221,6 +221,17 @@ select is((select (points_group_benchmark(pid(1), date '2025-04-01') -> 'groups'
 select is((select (points_group_benchmark(pid(3), date '2025-04-01') -> 'groups' -> 0 ->> 'place')::int), 1, 'третий из троих тоже на 1 месте');
 select is((select (points_group_benchmark(pid(4), date '2025-04-01') -> 'groups' -> 0 ->> 'place')::int), 4, 'четвёртый на 4 месте (3 места пропущены)');
 reset role;
+
+-- удаление единственного лучшего: тренер может убрать его без отказа, нового лучшего база не назначает
+select as_user('00000000-0000-0000-0000-0000000000c1');
+select lives_ok($$select remove_match_player('00000000-0000-0000-0000-00000000aa06', pid(1))$$, 'тренер убирает единственного лучшего из матча');
+reset role;
+select lives_ok($$set constraints all immediate$$, 'удаление лучшего проходит проверку на итоговом состоянии');
+set constraints all deferred;
+select is((select count(*)::int from match_players where match_id = '00000000-0000-0000-0000-00000000aa06' and best), 0, 'новый лучший автоматически не назначен');
+select is((select count(*)::int from match_players where match_id = '00000000-0000-0000-0000-00000000aa06' and player_id = pid(1)), 0, 'убранный игрок удалён из состава матча');
+select is((select count(*)::int from points_ledger where source_id = '00000000-0000-0000-0000-00000000aa06' and player_id = pid(1) and status = 'active'), 0, 'баллы убранного лучшего сняты');
+select is(pts('00000000-0000-0000-0000-00000000aa06'), array[5, 5, 4, 1, 1], 'остальные сохраняют баллы за оценку без бонуса');
 
 -- прямая запись администратора не обходит проверку полноты (при подтверждении на итоговом состоянии)
 select as_user('00000000-0000-0000-0000-0000000000a1');

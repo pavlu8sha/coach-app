@@ -305,7 +305,30 @@ describe('«Матчи» администратора', () => {
     await waitFor(() => expect(screen.queryByText('Гость Игорь')).not.toBeInTheDocument());
     expect(fake.rpcCalls('remove_match_player')).toEqual([{ m: 'm1', p: 'p9' }]);
     expect((fake.db.match_players as { player_id: string }[]).some(r => r.player_id === 'p9')).toBe(false);
-    expect(await screen.findByText('Гость Игорь убран из матча.')).toBeInTheDocument();
+    expect(await screen.findByText(/Гость Игорь убран из матча\./)).toBeInTheDocument();
+  });
+
+  it('убранного лучшего игрока заменяет тренер: новый лучший автоматически не назначается', async () => {
+    seed();
+    removeRpc();
+    render(<CoachMatches groups={allGroups} admin />);
+    fireEvent.click(await screen.findByText('Олимп'));
+    await screen.findByText('Гость Игорь');
+    fireEvent.click(screen.getByRole('button', { name: 'Править состав' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Убрать из матча: Гость Игорь' }));
+    const dlg = await screen.findByRole('dialog');
+    expect(within(dlg).getByText(/назначен лучшим игроком/)).toBeInTheDocument();
+    fireEvent.click(within(dlg).getByRole('button', { name: 'Убрать' }));
+    expect(await screen.findByText(/Он был лучшим игроком: выберите нового лучшего/)).toBeInTheDocument();
+    expect(screen.queryByText('★ Лучший игрок матча')).not.toBeInTheDocument();
+    // без выбора тренера матч не отправляется: понятное предупреждение, запроса нет
+    fireEvent.click(screen.getByText('Сохранить матч'));
+    expect(await screen.findByText('Выберите лучшего игрока матча.')).toBeInTheDocument();
+    expect(fake.rpcCalls('save_match')).toHaveLength(0);
+    fireEvent.click(within(screen.getByText('Иванов Пётр').closest('.ks-card') as HTMLElement).getByRole('button', { name: 'Назначить лучшим игроком' }));
+    fireEvent.click(screen.getByText('Сохранить матч'));
+    await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
+    expect(fake.rpcCalls('save_match')[0].roster).toEqual(expect.arrayContaining([expect.objectContaining({ player_id: 'p1', best: true })]));
   });
 
   it('тренер видит «Править состав» и убирает игрока через remove_match_player', async () => {
