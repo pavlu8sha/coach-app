@@ -231,7 +231,7 @@ function RsvpDetail({ id, groups, onBack, note }: { id: string; groups: CoachGro
           setSearch({ q: query, rows: null, text: errMsg(e) });
         }
       })();
-    }, 250);
+    }, 150); // короче 250 мс: поиск ходит в базу, а не фильтрует загруженный список, лишняя пауза заметна на телефоне
     return () => { alive = false; clearTimeout(t); };
   }, [query, searchTry]);
   const searchNow = query.length >= 2 && search?.q === query ? search : null;

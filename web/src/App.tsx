@@ -9,6 +9,8 @@ import { initData, prepareTelegram } from './lib/telegram';
 import AdminSection from './screens/AdminSection';
 import { DEFAULT_BAR, MENU_KEY, isSection, parseBar, sectionById, type SectionId } from './lib/adminMenu';
 import Home from './screens/Home';
+import { pointsAuthEvent } from './screens/PointsLedger';
+import { myKidsAuthEvent } from './screens/MyKids';
 import Payments from './screens/Payments';
 import Players from './screens/Players';
 import Schedule from './screens/Schedule';
@@ -234,7 +236,9 @@ function ShellInner({ preview, setPreview }: { preview: Role | null; setPreview:
   }, [reloadKey, recoverProfile]);
   // Выход из аккаунта: состояние навигации очищается
   useEffect(() => {
-    const sub = supabase.auth.onAuthStateChange?.(ev => {
+    const sub = supabase.auth.onAuthStateChange?.((ev: string, session: { user?: { id?: string } } | null) => {
+      pointsAuthEvent(ev, session);
+      myKidsAuthEvent(ev, session);
       if (ev === 'SIGNED_OUT') {
         resetNav();
         clearNavStorage();

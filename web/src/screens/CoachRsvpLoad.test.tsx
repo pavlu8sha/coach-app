@@ -279,6 +279,14 @@ describe('Поиск игроков в составе: ошибки и гонк�
     expect(await screen.findByText('Сидорчук Илья')).toBeInTheDocument();
   });
 
+  it('запрос в базу уходит быстрее 250 мс после ввода', async () => {
+    fake.db.players = [{ id: 'p5', full_name: 'Петров Олег' }];
+    await openDraft();
+    const reqs = manualSearch();
+    await type('Петр');
+    await waitFor(() => expect(reqs).toHaveLength(1), { timeout: 220 });
+  });
+
   it('ошибка нового запроса: результаты прежнего запроса не остаются на экране', async () => {
     fake.db.players = [{ id: 'p5', full_name: 'Петров Олег' }];
     await openDraft();

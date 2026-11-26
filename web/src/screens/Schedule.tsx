@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { sortGroups, errMsg } from '../lib/coach';
+import { canonicalLocation } from '../lib/branches';
 import { loadMyChildren } from '../lib/myChildren';
 import { supabase } from '../lib/supabase';
 import { EmptyState } from '../ui/components';
@@ -109,7 +110,7 @@ export default function Schedule({ all = false, editable = all, results = true }
                       {s.ends_at ? `–${hm(s.ends_at)}` : ''}
                       {(s.kind !== 'Групповая' || s.location) && (
                         <span className="ks-muted">
-                          {[s.kind !== 'Групповая' ? s.kind : null, s.location].filter(Boolean).join(' · ')}
+                          {[s.kind !== 'Групповая' ? s.kind : null, s.location ? canonicalLocation(s.location) : null].filter(Boolean).join(' · ')}
                         </span>
                       )}
                     </span>

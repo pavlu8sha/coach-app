@@ -2,7 +2,8 @@ import { Profiler, StrictMode } from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fake, supabase } from '../test/fakeSupabase';
-import MyKids from './MyKids';
+import MyKids, { myKidsAuthEvent } from './MyKids';
+import { cleanup } from '@testing-library/react';
 
 const kid = (id: string, name: string) => ({ user_id: 'u', consent_revoked_at: null, players: { id, full_name: name, groups: { name: 'U9' } } });
 const realGetUser = supabase.auth.getUser;
@@ -32,11 +33,18 @@ describe('«Мои дети»: статус привязки ребёнка (#73
     await screen.findByText('Иван Петров');
     await waitFor(() => expect(fake.rpcCalls('child_linked')).toEqual([{ p: 'p1' }]));
     expect(screen.getByRole('status')).toHaveTextContent('Проверяю привязку аккаунта');
+    expect(screen.getByRole('status')).toHaveClass('ks-back');
+    // строка статуса и кнопка лежат в такой же отдельной строке на всю ширину: страница не прыгает, когда проверка закончилась
+    const statusRow = screen.getByRole('status').parentElement!;
+    expect(statusRow).toHaveClass('ks-link-row');
+    expect(statusRow.style.display).toBe('flex');
     expect(screen.queryByRole('button', { name: CODE })).toBeNull();
     expect(screen.queryByRole('button', { name: UNLINK })).toBeNull();
     expect(fake.rpcCalls('create_child_code')).toHaveLength(0);
     await act(async () => d.resolve(false));
-    expect(await screen.findByRole('button', { name: CODE })).toBeInTheDocument();
+    const codeBtn = await screen.findByRole('button', { name: CODE });
+    expect(codeBtn.parentElement).toHaveClass('ks-link-row');
+    expect(codeBtn.parentElement!.style.display).toBe('flex');
     expect(screen.queryByRole('status')).toBeNull();
   });
 
@@ -207,3 +215,45 @@ const findRow = async (name: string) => {
   await screen.findByText(name);
   return row(name);
 };
+
+describe('«Мои дети»: запоминание между открытиями', () => {
+  beforeEach(() => {
+    fake.reset();
+    fake.db.player_guardians = [kid('p1', 'Иван Петров')];
+    fake.rpc.child_linked = () => false;
+  });
+
+  it('повторное открытие: дети и кнопка кода видны в первом кадре, без «Проверяю…»', async () => {
+    const first = render(<MyKids onBack={() => {}} />);
+    await screen.findByRole('button', { name: CODE });
+    first.unmount();
+    const d = deferred<boolean>();
+    fake.rpc.child_linked = () => d.promise; // перепроверка зависла: экран всё равно готов
+    render(<MyKids onBack={() => {}} />);
+    expect(screen.getByText('Иван Петров')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: CODE })).toBeInTheDocument();
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('тихая перепроверка меняет статус, если привязка появилась', async () => {
+    const first = render(<MyKids onBack={() => {}} />);
+    await screen.findByRole('button', { name: CODE });
+    first.unmount();
+    fake.rpc.child_linked = () => true;
+    render(<MyKids onBack={() => {}} />);
+    expect(await screen.findByRole('button', { name: UNLINK })).toBeInTheDocument();
+  });
+
+  it('выход из аккаунта и смена пользователя забывают детей', async () => {
+    for (const change of [() => myKidsAuthEvent('SIGNED_OUT', null), () => { myKidsAuthEvent('SIGNED_IN', { user: { id: 'u1' } }); myKidsAuthEvent('SIGNED_IN', { user: { id: 'u2' } }); }]) {
+      const r = render(<MyKids onBack={() => {}} />);
+      await screen.findByRole('button', { name: CODE });
+      r.unmount();
+      change();
+      render(<MyKids onBack={() => {}} />);
+      expect(screen.queryByText('Иван Петров')).toBeNull(); // памяти нет: чужих детей не видно
+      await screen.findByRole('button', { name: CODE });
+      cleanup();
+    }
+  });
+});

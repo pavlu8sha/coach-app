@@ -248,6 +248,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
   const [found, setFound] = useState<Player[]>([]);
   // после первого сохранения в составе остаются только сыгравшие; остальных можно показать кнопкой, чтобы добавить забытого
   const [shownIds, setShownIds] = useState<string[] | null>(null);
+  const [invitedIds, setInvitedIds] = useState<string[]>([]); // приглашённые матча с подтверждением: остаются в составе и после сохранения
   const [showAll, setShowAll] = useState(false);
   // правки считаются от загруженного состояния; после сохранения на месте принимаются за исходные
   const markClean = useDirtySignature(JSON.stringify([gid, date, opp, gf, ga, lines, bestId, technical]), players !== null);
@@ -296,12 +297,32 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
           list = [...list, ...((ex.data ?? []) as Player[])].sort((a, b) => a.full_name.localeCompare(b.full_name));
         }
       }
+      // матч с подтверждением: состав, собранный до публикации, лежит в приглашениях (match_invitations), а не в match_players;
+      // показываем приглашённых (в том числе из других групп), «Играл» не ставим. Не прочиталось: форма как раньше
+      let invitedIds: string[] = [];
+      let rsvpRoster = false; // приглашения прочитаны: в списке только приглашённые и игроки с отметкой, остальных добавляют поиском
+      if (match && isRsvp(match)) {
+        const inv = await supabase.from('match_invitations').select('player_id').eq('match_id', match.id).eq('status', 'invited');
+        if (!inv.error) {
+          invitedIds = ((inv.data ?? []) as { player_id: string }[]).map(r => r.player_id);
+          rsvpRoster = true;
+          const miss = invitedIds.filter(id => !list.some(p => p.id === id));
+          if (miss.length) {
+            const ex = await supabase.from('players').select('id, full_name, status').in('id', miss);
+            if (!ex.error) list = [...list, ...((ex.data ?? []) as (Player & { status?: string })[]).filter(p => p.status === undefined || p.status === 'active').map(p => ({ id: p.id, full_name: p.full_name }))].sort((a, b) => a.full_name.localeCompare(b.full_name));
+            else invitedIds = invitedIds.filter(id => list.some(p => p.id === id));
+          }
+        }
+      }
       // неактивные остаются только там, где у них уже есть запись в этом матче (прошлые матчи не меняются)
       list = list.filter(p => !notActive.has(p.id) || p.id in init);
+      if (rsvpRoster) list = list.filter(p => invitedIds.includes(p.id) || p.id in init);
       setLines(init);
       setBestId(best);
       const playedIds = Object.entries(init).filter(([, l]) => l.played).map(([id]) => id);
-      setShownIds(playedIds.length ? playedIds : null);
+      setInvitedIds(invitedIds);
+      const shown = [...new Set([...invitedIds, ...playedIds])];
+      setShownIds(shown.length ? shown : null);
       setPlayers(list);
     })();
     // состав подгружается при смене группы и при повторной попытке; сохранённый матч не перезагружаем из-за savedId
@@ -404,7 +425,8 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     setSavedId(r.data as string);
     if (techChanged) setSavedTech(technical);
     const playedNow = Object.entries(lines).filter(([, l]) => l.played).map(([id]) => id);
-    setShownIds(playedNow.length ? playedNow : null);
+    const shownNow = [...new Set([...invitedIds, ...playedNow])];
+    setShownIds(shownNow.length ? shownNow : null);
     setShowAll(false);
     let saved = 'Матч сохранён. Баллы за матч начислены автоматически.';
     // взнос неигравших без оплаты снимается сам (0197); пока никто не отмечен «Играл», взносы остаются
@@ -440,6 +462,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     setPlayers(list => (list ?? []).filter(x => x.id !== p.id));
     setLines(s => { const n = { ...s }; delete n[p.id]; return n; });
     setShownIds(ids => (ids ? ids.filter(id => id !== p.id) : ids));
+    setInvitedIds(ids => ids.filter(id => id !== p.id));
     const wasBest = bestId === p.id;
     if (wasBest) setBestId(null);
     // нового лучшего назначает только тренер: игрок убран, лучшего в матче сейчас нет
@@ -507,23 +530,23 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
             </label>
             {line(p.id).played && (
               <>
-                <div className="ks-line">
+                <div className="ks-line" style={{ marginTop: 12 }}>
                   <span className="ks-muted">Голы</span>
                   <Stepper label={`Голы: ${p.full_name}`} value={line(p.id).goals} max={30} onChange={n => setLine(p.id, { played: true, goals: n, rating: line(p.id).rating })} />
                 </div>
-                <div className="ks-line" role="group" aria-label={`Оценка тренера: ${p.full_name}`}>
+                <div className="ks-line" role="group" aria-label={`Оценка тренера: ${p.full_name}`} style={{ marginTop: 14, rowGap: 8 }}>
                   <span className="ks-muted">Оценка</span>
                   {[1, 2, 3, 4, 5].map(n => (
                     <button key={n} type="button" className={`ks-btn sm ${line(p.id).rating === n ? '' : 'secondary'}`} style={{ width: 'auto', minWidth: 40 }} aria-pressed={line(p.id).rating === n} aria-label={`Оценка ${n}: ${p.full_name}`} onClick={() => setLine(p.id, { ...line(p.id), played: true, rating: line(p.id).rating === n ? null : n })}>{n}</button>
                   ))}
                 </div>
                 {ratingModel && line(p.id).rating !== null && gf !== '' && !technical && <p className="muted" style={{ fontSize: 13, margin: '4px 0 0' }}>Баллов за матч: {matchPoints(line(p.id).rating, bestId === p.id)}</p>}
-                <button type="button" className={`ks-btn ${bestId === p.id ? '' : 'secondary'}`} style={{ marginTop: 8, minHeight: 40 }} aria-pressed={bestId === p.id} onClick={() => { setBestId(bestId === p.id ? null : p.id); setMsg(null); }}>
+                <button type="button" className={`ks-btn ${bestId === p.id ? '' : 'secondary'}`} style={{ marginTop: 14, minHeight: 40 }} aria-pressed={bestId === p.id} onClick={() => { setBestId(bestId === p.id ? null : p.id); setMsg(null); }}>
                   {bestId === p.id ? '★ Лучший игрок матча' : 'Назначить лучшим игроком'}
                 </button>
               </>
             )}
-            {savedId && editLineup && (
+            {savedId && editLineup && !invitedIds.includes(p.id) && ( // приглашённых RSVP-матча «Убрать из матча» не стирает: приглашение остаётся, для «не играл» снимается галочка
               <button type="button" className="ks-btn secondary" style={{ marginTop: 8, minHeight: 40 }} disabled={busy} aria-label={`Убрать из матча: ${p.full_name}`} onClick={() => void removeFromMatch(p)}>
                 Убрать из матча
               </button>

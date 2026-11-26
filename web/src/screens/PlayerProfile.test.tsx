@@ -69,6 +69,16 @@ describe('профиль игрока: шапка и доступ', () => {
     expect(await screen.findByRole('heading', { name: 'Аня Петрова' })).toBeInTheDocument();
   });
 
+  it('в Telegram экранной «Назад» нет: работает кнопка Telegram (скриншот 24.11, две стрелки назад)', async () => {
+    fake.db.players = [anya];
+    const w = window as unknown as { Telegram?: unknown };
+    w.Telegram = { WebApp: { initData: 'query_id=1', BackButton: { show() {}, hide() {}, onClick() {}, offClick() {} }, themeParams: {} } };
+    try {
+      await open();
+      expect(screen.queryByRole('button', { name: 'Назад' })).toBeNull();
+    } finally { delete w.Telegram; }
+  });
+
   it('«Назад» вызывает возврат', async () => {
     fake.db.players = [anya];
     let back = 0;
