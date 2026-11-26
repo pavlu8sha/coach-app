@@ -201,7 +201,7 @@ select is((select count(*)::int from points_ledger where source_id = '00000000-0
 
 -- 21-22. доступ: чужой клуб, родитель, прямые записи
 select as_user('00000000-0000-0000-0000-0000000000c2');
-select throws_ok($$select sv('00000000-0000-0000-0000-00000000aa01', 3, 1, jsonb_build_array(r(1, true, 0, 5, true)), '00000000-0000-0000-0000-0000000000e2')$$, '42501', 'match is not of this group', 'тренер другого клуба не меняет чужой матч');
+select throws_ok($$select sv('00000000-0000-0000-0000-00000000aa01', 3, 1, jsonb_build_array(r(1, true, 0, 5, true)), '00000000-0000-0000-0000-0000000000e2')$$, '42501', 'forbidden', 'тренер другого клуба не меняет чужой матч'); -- 0225: клуб сверяется раньше, чем группа
 select as_user('00000000-0000-0000-0000-0000000000b1');
 select throws_ok($$select sv('00000000-0000-0000-0000-00000000aa01', 3, 1, jsonb_build_array(r(1, true, 0, 5, true)))$$, '42501', 'forbidden', 'родитель не сохраняет матч и оценки');
 update match_players set performance_rating = 5 where match_id = '00000000-0000-0000-0000-00000000aa01';
