@@ -6,6 +6,8 @@
 -- save_match: тело 0223 (последнее определение), добавлена та же проверка клуба сразу после проверки роли.
 -- search_path = public, pg_temp (как is_admin() в 0222): временная схема стоит последней, подмена pg_temp.matches и других таблиц не работает (ревью #830, P1).
 -- set_match_technical: тело 0122, delete_match: тело 0027 (последние определения), та же проверка клуба.
+-- helper-функции проверки: is_any_coach() (0042) и club_event_current_club() (0202) получают search_path = public, pg_temp и public. у таблиц (ревью #830, P1):
+-- без этого подмена pg_temp.users / pg_temp.coach_groups обходила проверку клуба и роли. Тела прежние, ACL как в 0042 и 0202.
 -- Условия: docs/REMOVE_MATCH_PLAYER_CLUB_ACCEPTANCE.md. Откат: db/ops/rollback-0225-remove-match-player-club.sql.
 create or replace function remove_match_player(m uuid, p uuid) returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -153,3 +155,26 @@ begin
 end $$;
 revoke execute on function delete_match(uuid) from public, anon;
 grant execute on function delete_match(uuid) to authenticated;
+
+-- helper: is_any_coach (тело 0042, search_path = public, pg_temp, таблица и функция с public.)
+create or replace function is_any_coach() returns boolean
+language sql stable security definer set search_path = public, pg_temp as $$
+  select exists (select 1 from public.coach_groups c where c.user_id = public.current_user_id())
+$$;
+revoke execute on function is_any_coach() from public, anon;
+grant execute on function is_any_coach() to authenticated;
+
+-- helper: club_event_current_club (тело 0202, search_path = public, pg_temp, таблицы и функция с public.)
+create or replace function club_event_current_club() returns uuid
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+declare c uuid; n int;
+begin
+  if public.current_user_id() is null then return null; end if;
+  select u.club_id into c from public.users u where u.id = public.current_user_id();
+  if c is not null then return c; end if;
+  select count(*) into n from public.clubs;
+  if n = 1 then select id into c from public.clubs; return c; end if;
+  return null;
+end $$;
+revoke execute on function club_event_current_club() from public, anon;
+grant execute on function club_event_current_club() to authenticated;

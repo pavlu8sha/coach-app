@@ -1,6 +1,6 @@
 # remove_match_player, save_match, set_match_technical и delete_match: закрыть чужой клуб (миграция 0225)
 
-Условия приёмки. Тесты пишутся от них: `db/tests/rls_remove_match_player_club_test.sql`, `db/tests/rls_save_match_club_test.sql`, `db/tests/rls_match_club_misc_test.sql`.
+Условия приёмки. Тесты пишутся от них: `db/tests/rls_remove_match_player_club_test.sql`, `db/tests/rls_save_match_club_test.sql`, `db/tests/rls_match_club_misc_test.sql`, `db/tests/rls_match_club_helpers_pg_temp_test.sql`.
 
 ## Проблема
 Независимый прогон по #823 нашёл: `remove_match_player(m, p)` (тело 0192, пересоздано в 0223) проверяет только `is_admin() or is_any_coach()`. Матч берётся по id без клуба. Тренер клуба А, зная id матча клуба Б, может убрать игрока из чужого матча: удаляется строка состава, оценка и баллы за матч пропадают. Пункт 5 условий 0192 («клуб не проверяется») прямо противоречит правилу, что чужой клуб ничего менять не может.
@@ -37,8 +37,14 @@
 18. Строка preflight 0225 проверяет все четыре функции по точному фрагменту `uclub := club_event_current_club()` и `uclub is distinct from`, а не по подстроке имени (упоминание в комментарии не засчитывается).
 19. Запрос для сверки перед применением: `db/ops/readonly-0225-users-without-club.sql` (тренеры и администраторы без `users.club_id`, число клубов).
 
+## Helper-функции (повторное ревью #830, решение владельца 2026-11-26)
+20. `is_any_coach()` (0042) и `club_event_current_club()` (0202) пересоздаются с прежними телами, `search_path = public, pg_temp` и `public.` у таблиц и внутренних функций; ACL прежний (`execute` у `authenticated`, нет у `anon` и `public`).
+21. Подмена `pg_temp.users` (клуб и признак администратора) и `pg_temp.coach_groups` (признак тренера) не обходит проверку клуба и роли ни в одной из четырёх функций; тесты красные на прежних helper-ах (родитель с `pg_temp.coach_groups` проходил как тренер своего клуба, тренер клуба Б с `pg_temp.users` «переселялся» в клуб А).
+22. Строка preflight 0225 учитывает и оба helper-а (`search_path`, `public.`-ссылка в теле, права). Откат helper-ов не возвращает прежние тела (защита от `pg_temp` не зависит от проверки клуба).
+Эти две функции используются в политиках и других функциях (изменилась только защита имён, не результат); полный `run-db-tests.sh` это подтверждает.
+
 ## Не входит
-`search_path` без `pg_temp` у остальных функций 0223 и у `club_event_current_club()` (отдельное решение) и матчи 26–30 ноября без баллов: отдельные решения владельца. Прямые записи администратора в `matches` и `match_players` (политики `matches_admin_write`, `match_players_admin_write` без клуба) и `pg_temp` у `club_event_current_club()` и `is_any_coach()` остаются отдельными вопросами. Остальные функции 0223 проверены отчётом: `match_rsvp_restore_marks` защищена `rsvp_assert_staff(club)`, прочие закрыты от клиента.
+`search_path` без `pg_temp` у остальных функций 0223 и матчи 26–30 ноября без баллов: отдельные решения владельца. Прямые записи администратора в `matches` и `match_players` (политики `matches_admin_write`, `match_players_admin_write` без клуба) остаются отдельным вопросом (#832). Остальные функции 0223 проверены отчётом: `match_rsvp_restore_marks` защищена `rsvp_assert_staff(club)`, прочие закрыты от клиента.
 
 ## Откат
 `db/ops/rollback-0225-remove-match-player-club.sql` возвращает тело 0223.

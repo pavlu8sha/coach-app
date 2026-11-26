@@ -1,4 +1,4 @@
--- Откат 0225: remove_match_player, save_match, set_match_technical и delete_match возвращаются к телам 0223 (без проверки клуба). Данные не затрагиваются. search_path = public, pg_temp остаётся: небезопасная конфигурация (public без pg_temp) не возвращается.
+-- Откат 0225: remove_match_player, save_match, set_match_technical и delete_match возвращаются к телам 0223 (без проверки клуба). Данные не затрагиваются. search_path = public, pg_temp остаётся; helper-функции is_any_coach() и club_event_current_club() НЕ откатываются (их защита от pg_temp не зависит от проверки клуба, возврат старых тел вернул бы подмену pg_temp.users / pg_temp.coach_groups).
 begin;
 create or replace function remove_match_player(m uuid, p uuid) returns void
 language plpgsql security definer set search_path = public, pg_temp as $$

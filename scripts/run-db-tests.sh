@@ -121,6 +121,11 @@ preflight_0225_state "delete_match без pg_temp в search_path" "alter functio
 preflight_0225_state "delete_match доступна anon" "grant execute on function public.delete_match(uuid) to anon"
 preflight_0225_state "set_match_technical недоступна authenticated" "revoke execute on function public.set_match_technical(uuid,boolean) from authenticated"
 preflight_0225_state "подстрока club_event_current_club только в комментарии" "do \$f\$ begin execute replace(pg_get_functiondef('public.delete_match(uuid)'::regprocedure), 'uclub := club_event_current_club()', 'uclub := current_user_id(); -- club_event_current_club()'); end \$f\$"
+preflight_0225_state "is_any_coach без pg_temp в search_path" "alter function public.is_any_coach() set search_path = public"
+preflight_0225_state "club_event_current_club без pg_temp в search_path" "alter function public.club_event_current_club() set search_path = public"
+preflight_0225_state "is_any_coach доступна anon" "grant execute on function public.is_any_coach() to anon"
+preflight_0225_state "club_event_current_club недоступна authenticated" "revoke execute on function public.club_event_current_club() from authenticated"
+preflight_0225_state "is_any_coach со старым телом (таблица без public.)" "do \$f\$ begin execute replace(pg_get_functiondef('public.is_any_coach()'::regprocedure), 'public.coach_groups', 'coach_groups'); end \$f\$"
 for t in db/tests/*_test.sql; do
   echo "== $t"
   out=$($PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f "$t" 2>&1) || { echo "$out"; fail=1; continue; }
