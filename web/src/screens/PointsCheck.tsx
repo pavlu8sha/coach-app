@@ -8,7 +8,12 @@ interface Exc { kind: string; source_id: string; event_date: string; player_id?:
 interface Report { fix: boolean; checked: number; changes: number; drift: Drift[]; exceptions: Exc[] }
 
 const SOURCE: Record<string, string> = { group_session: 'Групповое занятие', individual: 'Индивидуальное', goalkeeper: 'Вратарское', extra: 'Дополнительное', match: 'Матч', series_bonus: 'Серия' };
-const KIND: Record<string, string> = { match_without_score: 'Матч без счёта: баллы не начислены', ledger_without_group: 'Начисление без группы' };
+const KIND: Record<string, string> = {
+  match_without_score: 'Матч без счёта: баллы не начислены',
+  ledger_without_group: 'Начисление без группы',
+  match_without_ratings: 'Матч: у сыгравших нет оценки тренера, баллы не начислены',
+  match_without_best: 'Матч: не выбран лучший игрок',
+};
 const ruDate = (d: string) => d.slice(0, 10).split('-').reverse().join('.');
 
 // Для администратора: сверка нового журнала баллов (#18) с занятиями, матчами и сериями. Проверка ничего не меняет; исправление запускается отдельно.

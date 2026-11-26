@@ -35,4 +35,12 @@ describe('Сверка баллов (#18, этап 11)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Проверить' }));
     expect(await screen.findByText(/только администратору/)).toBeInTheDocument();
   });
+
+  it('исключения по оценкам матча показаны понятным текстом', async () => {
+    fake.rpc.points_consistency = () => ({ data: report({ exceptions: [{ kind: 'match_without_ratings', source_id: 'm1', event_date: '2026-12-05' }, { kind: 'match_without_best', source_id: 'm2', event_date: '2026-12-06' }] }) });
+    render(<PointsCheck />);
+    fireEvent.click(screen.getByRole('button', { name: 'Проверить' }));
+    expect(await screen.findByText(/у сыгравших нет оценки тренера/)).toBeInTheDocument();
+    expect(screen.getByText(/не выбран лучший игрок/)).toBeInTheDocument();
+  });
 });

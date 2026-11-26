@@ -32,7 +32,7 @@ insert into player_group_history (player_id, group_id, valid_from, valid_to) val
   (tx(32), tx(2), date '1970-01-01', dd(-5)), (tx(32), tx(3), dd(-5), null);
 insert into points_rule_versions (id, club_id, effective_from, params) values (tx(90), tx(1), date '2026-01-01', jsonb_build_object(
   'training', jsonb_build_object('group', 1, 'individual', 2, 'goalkeeper', 2, 'extra', 2, 'moved_group', 1),
-  'match', jsonb_build_object('played', 1, 'draw', 1, 'win', 2, 'goal', 1, 'best', 2, 'cap', 5, 'technical', 0),
+  'match', jsonb_build_object('model', 'rating', 'rating_min', 1, 'rating_max', 5, 'best', 1, 'cap', 6, 'technical', 0, 'played', 0, 'draw', 0, 'win', 0, 'goal', 0),
   'manual', jsonb_build_object('values', jsonb_build_array(1, 2, 3), 'limits', jsonb_build_object('1', 3, '2', 2, '3', 1), 'month_cap', 10),
   'series', jsonb_build_object('thresholds', jsonb_build_array()),
   'group_benchmark', jsonb_build_object('min_size', 5),
@@ -47,7 +47,7 @@ insert into individual_bookings (session_id, player_id, attended) values (tx(54)
 insert into extra_sessions (id, club_id, starts_on) values (tx(55), tx(1), dd(-8));
 insert into extra_bookings (session_id, player_id, attended) values (tx(55), tx(31), true), (tx(55), tx(32), true);
 insert into matches (id, club_id, played_on, team, opponent, goals_for, goals_against) values (tx(56), tx(1), dd(-7), 'U9', 'Соперник', 1, 0);
-insert into match_players (match_id, player_id, played, goals, best) values (tx(56), tx(31), true, 0, false);
+insert into match_players (match_id, player_id, played, goals, best, performance_rating) values (tx(56), tx(31), true, 0, true, 3);
 set constraints all immediate; -- триггеры баллов по матчу отложены до конца транзакции
 insert into sessions (id, group_id, starts_at, kind, source_key, class) values (tx(57), tx(3), ((dd(-14) + time '15:00')::timestamp at time zone 'Asia/Tbilisi'), 'training', 'ATT-T-GS', 'regular');
 insert into attendance (session_id, player_id, status) values (tx(57), tx(31), 'present');

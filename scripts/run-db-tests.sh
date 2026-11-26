@@ -89,6 +89,9 @@ preflight_partial "без 0219" '0219_player_group_since' 0219_player_group_sinc
 preflight_partial "без 0220" '0220_notifications_finish_lease' 0220_notifications_finish_lease
 # 0221 (session_guest_discount, расширение fee_discount_log) самостоятельна: на базе без неё preflight не падает (to_regprocedure, to_regclass), строка 0221 даёт NOT_APPLIED.
 preflight_partial "без 0221" '0221_visit_discount' 0221_visit_discount
+# 0223 (оценка тренера за матч) самостоятельна: на базе без неё preflight не падает (information_schema, to_regprocedure), строка 0223 даёт NOT_APPLIED.
+# Строку 0224 (версия правил) проверяет db/tests/migration_match_rating.sh: на базе без клуба версии нет.
+preflight_partial "без 0223" '0223_match_rating_points' 0223_match_rating_points
 for t in db/tests/*_test.sql; do
   echo "== $t"
   out=$($PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f "$t" 2>&1) || { echo "$out"; fail=1; continue; }
@@ -138,6 +141,10 @@ echo "== db/tests/concurrency_player_save.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_player_save.sh || fail=1
 echo "== db/tests/concurrency_group_since.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_group_since.sh || fail=1
+echo "== db/tests/concurrency_match_rating.sh"
+DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_match_rating.sh || fail=1
+echo "== db/tests/migration_match_rating.sh"
+DB_NAME="$DB" PSQL="$PSQL" db/tests/migration_match_rating.sh || fail=1
 echo "== db/tests/concurrency_notifications_release.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_notifications_release.sh || fail=1
 $PSQL -q -d postgres -c "drop database if exists $DB"

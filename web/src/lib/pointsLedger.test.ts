@@ -12,14 +12,27 @@ describe('подписи начислений', () => {
     expect(ledgerLabel(row({ source_type: 'goalkeeper' })).title).toBe('Вратарская тренировка — посещение');
     expect(ledgerLabel(row({ source_type: 'extra' })).title).toBe('Дополнительная тренировка — посещение');
   });
-  it('матч: результат, из чего сложились баллы и ограничение', () => {
-    const l = ledgerLabel(row({ source_type: 'match', points: 5, components: { result: 'win', base: 2, goals: 3, best: 2, before_cap: 7, cap: 5 } }));
-    expect(l.title).toBe('Матч — победа');
-    expect(l.detail).toBe('участие +2, голы +3, лучший игрок +2 · ограничено максимумом 5 за матч');
+  it('матч: оценка тренера и бонус лучшего игрока', () => {
+    const l = ledgerLabel(row({ source_type: 'match', points: 6, components: { model: 'rating', rating: 5, best: true, best_bonus: 1, before_cap: 6, cap: 6, technical: false } }));
+    expect(l).toEqual({ title: 'Матч — оценка тренера 5', detail: 'лучший игрок +1' });
   });
-  it('матч без ограничения и без голов', () => {
-    const l = ledgerLabel(row({ source_type: 'match', points: 1, components: { result: 'loss', base: 1, goals: 0, best: 0, before_cap: 1, cap: 5 } }));
-    expect(l).toEqual({ title: 'Матч — поражение', detail: 'участие +1' });
+  it('матч без бонуса: только оценка, без побед, голов и ограничения', () => {
+    const l = ledgerLabel(row({ source_type: 'match', points: 3, components: { model: 'rating', rating: 3, best: false, best_bonus: 0, before_cap: 3, cap: 6 } }));
+    expect(l).toEqual({ title: 'Матч — оценка тренера 3', detail: undefined });
+  });
+  it('матч: если до ограничения было больше, это видно в основании', () => {
+    const l = ledgerLabel(row({ source_type: 'match', points: 6, components: { model: 'rating', rating: 6, best: true, best_bonus: 1, before_cap: 7, cap: 6 } }));
+    expect(l.detail).toBe('лучший игрок +1 · ограничено максимумом 6 за матч');
+  });
+  it('старая запись за матч (победа, голы) показывается без расшифровки по старой формуле', () => {
+    const l = ledgerLabel(row({ source_type: 'match', points: 5, components: { result: 'win', base: 2, goals: 3, best: 2, before_cap: 7, cap: 5 } }));
+    expect(l).toEqual({ title: 'Матч (по прежним правилам)' });
+    const text = JSON.stringify(l);
+    expect(text).not.toMatch(/победа|ничья|поражение|голы|участие/);
+  });
+  it('матч: ни победа, ни голы в подписи не участвуют', () => {
+    const l = ledgerLabel(row({ source_type: 'match', points: 4, components: { model: 'rating', rating: 4, best: false, best_bonus: 0, result: 'win', goals: 5 } }));
+    expect(JSON.stringify(l)).not.toMatch(/победа|ничья|поражение|голы/);
   });
   it('серия и ручные баллы', () => {
     expect(ledgerLabel(row({ source_type: 'series_bonus', components: { threshold: 12 } })).title).toBe('Серия: 12 тренировок подряд');

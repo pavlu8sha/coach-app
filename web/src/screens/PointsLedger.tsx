@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavState } from '../nav';
-import { fmtDate, plural } from '../lib/coach';
+import { errMsg, fmtDate, plural } from '../lib/coach';
 import { grandTotal, latestMonth, ledgerLabel, monthLabel, monthOf, monthTotal, shiftMonth, type LedgerRow } from '../lib/pointsLedger';
 import { supabase } from '../lib/supabase';
 import { EmptyState, Pill } from '../ui/components';
+import { Failure } from './Message';
 
 interface SeriesInfo {
   current: number;
@@ -32,6 +33,8 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 const today = () => new Date().toISOString().slice(0, 7);
+// История читается страницами: сервер отдаёт не больше 1000 строк за запрос, больше ограничения в приложении нет
+const PAGE = 1000;
 
 // Баллы по новым правилам (#18): итог за месяц, всего накоплено, история начислений с пояснениями и серия посещаемости.
 // Блок появляется, когда у игрока есть хотя бы одно начисление в новом журнале; до этого остаётся прежний показ баллов.
@@ -41,19 +44,35 @@ export default function PointsLedger({ playerId, showEmpty = false }: { playerId
   const [picked, setMonth] = useNavState<string | null>(`pl.month.${playerId}`, null); // выбранный вручную; пока не выбран — последний месяц с начислениями
   const month = picked ?? (rows ? latestMonth(rows, today()) : null);
   const [bench, setBench] = useState<Bench | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     setRows(null);
+    setError(null);
+    let off = false;
     void (async () => {
-      const r = await supabase.from('points_ledger').select('id, event_date, points, source_type, reason_code, components, status').eq('player_id', playerId).eq('status', 'active').order('event_date', { ascending: false }).limit(1000);
-      const list = r.error ? [] : ((r.data ?? []) as LedgerRow[]);
+      const list: LedgerRow[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const r = await supabase.from('points_ledger').select('id, event_date, points, source_type, reason_code, components, status').eq('player_id', playerId).eq('status', 'active')
+          .order('event_date', { ascending: false }).order('id', { ascending: false }).range(from, from + PAGE - 1);
+        if (r.error) {
+          if (!off) setError(errMsg(r.error)); // ошибка загрузки не превращается в пустой список
+          return;
+        }
+        const page = (r.data ?? []) as LedgerRow[];
+        list.push(...page);
+        if (page.length < PAGE) break;
+      }
+      if (off) return;
       setRows(list);
       if (list.length > 0) {
         const s = await supabase.rpc('points_series_info', { p: playerId });
-        setSeries(s.error ? null : (s.data as SeriesInfo | null));
+        if (!off) setSeries(s.error ? null : (s.data as SeriesInfo | null));
       }
     })();
-  }, [playerId]);
+    return () => { off = true; };
+  }, [playerId, reload]);
 
   // ориентиры группы за выбранный месяц: анонимно, только числа; без функции (старая база) блок просто не показывается
   useEffect(() => {
@@ -62,6 +81,7 @@ export default function PointsLedger({ playerId, showEmpty = false }: { playerId
     void supabase.rpc('points_group_benchmark', { p: playerId, ym: `${month}-01` }).then(r => setBench(r.error ? null : (r.data as Bench | null)));
   }, [playerId, month]);
 
+  if (error) return <Failure embedded title="Не удалось загрузить баллы" text={error} onRetry={() => setReload(n => n + 1)} />;
   if (rows && rows.length === 0 && showEmpty) return <EmptyState icon="trophy" title="Баллов пока нет" text="Они появятся после тренировок и матчей." />;
   if (!rows || rows.length === 0 || !month) return null;
   const inMonth = rows.filter(r => monthOf(r.event_date) === month);

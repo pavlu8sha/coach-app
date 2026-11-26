@@ -35,14 +35,15 @@ export function ledgerLabel(r: LedgerRow): Label {
     case 'extra':
       return { title: 'Дополнительная тренировка — посещение' };
     case 'match': {
-      const res = c.technical ? 'технический результат' : c.result === 'win' ? 'победа' : c.result === 'draw' ? 'ничья' : 'поражение';
-      const parts = [
-        num(c.base) > 0 ? `участие +${num(c.base)}` : '',
-        num(c.goals) > 0 ? `голы +${num(c.goals)}` : '',
-        num(c.best) > 0 ? `лучший игрок +${num(c.best)}` : '',
-      ].filter(Boolean);
-      const capped = num(c.before_cap) > r.points && num(c.cap) > 0 ? `ограничено максимумом ${num(c.cap)} за матч` : '';
-      return { title: `Матч — ${res}`, detail: [parts.join(', '), capped].filter(Boolean).join(' · ') || undefined };
+      // Баллы за матч: оценка тренера 1-5 и +1 лучшему игроку (с 0223). Победа, ничья, поражение и голы основанием не бывают.
+      if (c.model === 'rating') {
+        const bonus = num(c.best_bonus);
+        const capped = num(c.before_cap) > r.points && num(c.cap) > 0 ? `ограничено максимумом ${num(c.cap)} за матч` : '';
+        const detail = [bonus > 0 ? `лучший игрок +${bonus}` : '', capped].filter(Boolean).join(' · ');
+        return { title: `Матч — оценка тренера ${num(c.rating)}`, detail: detail || undefined };
+      }
+      // записи тестового периода, посчитанные по прежним правилам: основание не расшифровываем
+      return { title: 'Матч (по прежним правилам)' };
     }
     case 'series_bonus':
       return { title: `Серия: ${num(c.threshold)} тренировок подряд` };

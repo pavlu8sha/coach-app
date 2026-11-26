@@ -17,7 +17,7 @@ interface Match { id: string; team: string; played_on: string; opponent: string 
 const isRsvp = (m: Pick<Match, 'lifecycle_status'>) => Boolean(m.lifecycle_status) && m.lifecycle_status !== 'legacy';
 interface Tour { match_id: string; tournament_id: string | null; tournament_name: string | null; tournament_kind: string | null; match_kind: string | null }
 interface Player { id: string; full_name: string }
-interface Line { played: boolean; goals: number }
+interface Line { played: boolean; goals: number; rating: number | null }
 
 // «Матчи»: матчи групп тренера (у администратора — всех команд), добавление матча, ввод результата, состава, голов и лучшего игрока.
 // Тренеры видят матчи всех команд (allTeams), как и администратор; взносы и поиск чужих игроков остаются у администратора.
@@ -202,6 +202,8 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   );
 }
 
+// Баллы игрока за матч по правилу владельца (2026-11-26): оценка тренера 1-5 и +1 лучшему игроку, не больше 6; технический результат баллов не даёт
+const matchPoints = (rating: number | null, best: boolean) => (rating === null ? 0 : Math.min(rating + (best ? 1 : 0), 6));
 // feeMode: у товарищеских и кубковых матчей взнос свой (на матч); у чемпионатов и фестивалей он на событие
 function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack, onSaved }: { groups: CoachGroup[]; match: Match | null; admin: boolean; feeMode: boolean; rosterOf: string | null; presetTeam?: string; onBack: () => void; onSaved?: () => void }) {
   const { ask, dialog: confirmDialog } = useConfirm();
@@ -276,11 +278,11 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
       const init: Record<string, Line> = {};
       let best: string | null = null;
       if (savedId) {
-        const mp = await supabase.from('match_players').select('player_id, played, goals, best').eq('match_id', savedId);
+        const mp = await supabase.from('match_players').select('player_id, played, goals, best, performance_rating').eq('match_id', savedId);
         if (mp.error) return setError(errMsg(mp.error));
-        const rows = (mp.data ?? []) as { player_id: string; played: boolean; goals: number; best: boolean }[];
+        const rows = (mp.data ?? []) as { player_id: string; played: boolean; goals: number; best: boolean; performance_rating: number | null }[];
         for (const r of rows) {
-          init[r.player_id] = { played: r.played, goals: r.goals };
+          init[r.player_id] = { played: r.played, goals: r.goals, rating: r.performance_rating };
           if (r.best) best = r.player_id;
         }
         // в составе бывают игроки не из группы (гости, старые записи): администратор их видит и правит
@@ -314,7 +316,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     return () => clearTimeout(t);
   }, [q]);
 
-  const line = (id: string): Line => lines[id] ?? { played: false, goals: 0 };
+  const line = (id: string): Line => lines[id] ?? { played: false, goals: 0, rating: null };
   // гости чемпионата определяет база (заявки всех команд этого чемпионата); после каждого сохранения список читается заново
   useEffect(() => {
     if (feeMode || !admin || !savedId || !rosterOf) return setGuestIds([]);
@@ -335,6 +337,12 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     if ((gf === '') !== (ga === '')) return 'Укажите оба числа счёта или оставьте оба пустыми.';
     if (gf !== '' && date > today()) return 'Счёт нельзя внести для матча, который ещё не прошёл.';
     if (gf !== '' && total > Number(gf)) return 'Голов у игроков больше, чем забила команда.';
+    // баллы считаются по оценке тренера: при внесённом счёте (кроме технического результата) оценён каждый игравший и выбран лучший
+    const playedPl = (players ?? []).filter(pl => line(pl.id).played);
+    if (gf !== '' && !technical && playedPl.length > 0) {
+      if (playedPl.some(pl => line(pl.id).rating === null)) return 'Выставьте оценку каждому, кто играл.';
+      if (!playedPl.some(pl => bestId === pl.id)) return 'Выберите лучшего игрока матча.';
+    }
     return null;
   };
   const save = async () => {
@@ -345,7 +353,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     if (!savedId && !gid && !teamOnly) return setMsg({ ok: false, text: 'В клубе нет группы для этой команды, матч не сохранить.' });
     setBusy(true);
     setMsg(null);
-    const roster = (players ?? []).map(pl => ({ player_id: pl.id, played: line(pl.id).played, goals: line(pl.id).played ? line(pl.id).goals : 0, best: bestId === pl.id && line(pl.id).played }));
+    const roster = (players ?? []).map(pl => ({ player_id: pl.id, played: line(pl.id).played, goals: line(pl.id).played ? line(pl.id).goals : 0, best: bestId === pl.id && line(pl.id).played, performance_rating: line(pl.id).played ? line(pl.id).rating : null }));
     const score = { gf: gf === '' ? null : Number(gf), ga: ga === '' ? null : Number(ga) };
     // смена технического результата сохраняется вместе с матчем одной транзакцией (миграция 0186):
     // иначе родитель успевал получить уведомление о баллах, которые тут же снимались
@@ -451,7 +459,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
       {technical && <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>За технический результат баллы игрокам не начисляются. Счёт остаётся в статистике команды.</p>}
       <h2 className="ks-sub">Состав{Object.values(lines).some(l => l.played) ? ` · играло ${Object.values(lines).filter(l => l.played).length}` : ''}</h2>
       <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>
-        Баллы начисляются автоматически, когда внесён счёт, только тем, кто играл: поражение или ничья +1, победа +2, каждый гол +1, лучший игрок +2, всего не больше 5 за матч. За технический результат баллов нет.
+        Баллы начисляются автоматически, когда внесён счёт, только тем, кто играл: оценка тренера от 1 до 5, лучшему игроку матча ещё +1, всего не больше 6 за матч. Голы и результат команды на баллы игрока не влияют. За технический результат баллов нет.
       </p>
       {savedId && players.length > 0 && (
         <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 36, marginBottom: 8 }} aria-pressed={editLineup} onClick={() => setEditLineup(v => !v)}>
@@ -464,15 +472,22 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
         (shownIds && !showAll ? players.filter(p => shownIds.includes(p.id) || line(p.id).played) : players).map(p => (
           <div className="ks-card" key={p.id}>
             <label className="ks-check">
-              <input type="checkbox" checked={line(p.id).played} onChange={e => setLine(p.id, { played: e.target.checked, goals: e.target.checked ? line(p.id).goals : 0 })} />
+              <input type="checkbox" checked={line(p.id).played} onChange={e => setLine(p.id, { played: e.target.checked, goals: e.target.checked ? line(p.id).goals : 0, rating: e.target.checked ? line(p.id).rating : null })} />
               <span style={{ overflowWrap: 'anywhere' }}>{p.full_name}</span>
             </label>
             {line(p.id).played && (
               <>
                 <div className="ks-line">
                   <span className="ks-muted">Голы</span>
-                  <Stepper label={`Голы: ${p.full_name}`} value={line(p.id).goals} max={30} onChange={n => setLine(p.id, { played: true, goals: n })} />
+                  <Stepper label={`Голы: ${p.full_name}`} value={line(p.id).goals} max={30} onChange={n => setLine(p.id, { played: true, goals: n, rating: line(p.id).rating })} />
                 </div>
+                <div className="ks-line" role="group" aria-label={`Оценка тренера: ${p.full_name}`}>
+                  <span className="ks-muted">Оценка</span>
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <button key={n} type="button" className={`ks-btn sm ${line(p.id).rating === n ? '' : 'secondary'}`} style={{ width: 'auto', minWidth: 40 }} aria-pressed={line(p.id).rating === n} aria-label={`Оценка ${n}: ${p.full_name}`} onClick={() => setLine(p.id, { ...line(p.id), played: true, rating: line(p.id).rating === n ? null : n })}>{n}</button>
+                  ))}
+                </div>
+                {line(p.id).rating !== null && gf !== '' && !technical && <p className="muted" style={{ fontSize: 13, margin: '4px 0 0' }}>Баллов за матч: {matchPoints(line(p.id).rating, bestId === p.id)}</p>}
                 <button type="button" className={`ks-btn ${bestId === p.id ? '' : 'secondary'}`} style={{ marginTop: 8, minHeight: 40 }} aria-pressed={bestId === p.id} onClick={() => { setBestId(bestId === p.id ? null : p.id); setMsg(null); }}>
                   {bestId === p.id ? '★ Лучший игрок матча' : 'Назначить лучшим игроком'}
                 </button>
