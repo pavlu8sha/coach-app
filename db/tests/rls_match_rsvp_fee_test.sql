@@ -1,7 +1,7 @@
 -- pgTAP: взнос за матч в форме матча с подтверждением (0226). Условия: docs/MATCH_RSVP_FEE_ACCEPTANCE.md. Фикстуры вымышленные.
 begin;
 create extension if not exists pgtap;
-select plan(81);
+select plan(91);
 
 alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
 \i db/migrations/0226_match_rsvp_fee.sql
@@ -198,6 +198,25 @@ reset role;
 select is(fee_of(mid('e'), '00000000-0000-0000-0000-00000000d001'), 25.00::numeric, 'ручная сумма 25 не перезаписана');
 select is(fee_of(mid('e'), '00000000-0000-0000-0000-00000000d002'), 10.00::numeric, 'скидка 10 не перезаписана');
 select is(fee_of(mid('e'), '00000000-0000-0000-0000-00000000d003'), 30.00::numeric, 'недостающему приглашённому взнос создан');
+
+-- 10в. скидка до 0109 без записи в журнале: при исключении игрока и при отмене остаётся (ревью #837, повторное)
+select as_user('00000000-0000-0000-0000-0000000000c1');
+select lives_ok($$insert into ids select 'f', match_rsvp_create_draft('00000000-0000-0000-0000-00000000c001', 'friendly', 'U12', 'Старые скидки', now() + interval '10 days', null, null, null, null, 30)$$, 'матч со старой скидкой');
+select lives_ok($$select match_rsvp_invite(mid('f'), array['00000000-0000-0000-0000-00000000d001','00000000-0000-0000-0000-00000000d002','00000000-0000-0000-0000-00000000d003']::uuid[])$$, 'состав матча со старой скидкой');
+select lives_ok($$select match_rsvp_publish(mid('f'))$$, 'публикация матча со старой скидкой');
+reset role;
+update match_fees set amount = 10 where match_id = mid('f') and player_id = '00000000-0000-0000-0000-00000000d002'; -- скидка без строки журнала, как до 0109
+select is((select count(*)::int from fee_discount_log where ref_id = mid('f')), 0, 'в журнале скидок по матчу записей нет (старая скидка)');
+select as_user('00000000-0000-0000-0000-0000000000c1');
+select lives_ok($$select match_rsvp_remove(mid('f'), array['00000000-0000-0000-0000-00000000d001','00000000-0000-0000-0000-00000000d002']::uuid[])$$, 'убрали обычного игрока и игрока со старой скидкой');
+reset role;
+select ok(fee_of(mid('f'), '00000000-0000-0000-0000-00000000d001') is null, 'обычный взнос исключённого снят');
+select is(fee_of(mid('f'), '00000000-0000-0000-0000-00000000d002'), 10.00::numeric, 'старая скидка при исключении остаётся');
+select as_user('00000000-0000-0000-0000-0000000000c1');
+select lives_ok($$select match_rsvp_cancel(mid('f'), 'отмена')$$, 'матч со старой скидкой отменён');
+reset role;
+select ok(fee_of(mid('f'), '00000000-0000-0000-0000-00000000d003') is null, 'при отмене обычный взнос снят');
+select is(fee_of(mid('f'), '00000000-0000-0000-0000-00000000d002'), 10.00::numeric, 'при отмене старая скидка остаётся');
 
 select * from finish();
 rollback;

@@ -32,14 +32,15 @@ begin
 end $$;
 revoke execute on function rsvp_fee_assign(uuid, uuid[]) from public, anon, authenticated;
 
--- Строка взноса «обычная», если по ней нет оплат (даже отменённых), она не оплачена и по ней нет записи скидки в fee_discount_log.
--- Скидку не определить по сумме: сумма могла совпасть с суммой матча, а скидки до 0109 в журнале нет (их суммы отличаются от суммы матча).
--- Снять взнос у обычных строк игроков (p_players пусто = у всех).
+-- Снять взнос у обычных строк игроков (p_players пусто = у всех). «Обычная» строка: нет оплат (даже отменённых), не оплачена,
+-- нет записи скидки в fee_discount_log и сумма равна текущей сумме матча. Последнее условие нужно для скидок до 0109: в журнале
+-- их нет, но их сумма отличается от суммы матча (равная сумме «скидка» не меняла бы взнос). Ручные суммы тоже остаются.
 create or replace function rsvp_fee_drop(m uuid, p_players uuid[] default null) returns void
 language sql security definer set search_path = public, pg_temp as $$
   delete from match_fees f
    where f.match_id = m and (p_players is null or f.player_id = any (p_players))
      and not f.paid
+     and f.amount = (select x.fee from matches x where x.id = m)
      and not exists (select 1 from match_payments p where p.match_id = m and p.player_id = f.player_id)
      and not exists (select 1 from fee_discount_log l where l.kind = 'match' and l.ref_id = m and l.player_id = f.player_id)
 $$;
