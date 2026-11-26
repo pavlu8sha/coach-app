@@ -1176,7 +1176,7 @@ describe('Состав матча с подтверждением в форме 
     expect(screen.queryByText('Сидоров Ян')).toBeNull();
     expect(screen.queryByText('Петров Лев')).toBeNull();
     expect((screen.getAllByRole('checkbox') as HTMLInputElement[]).every(c => !c.checked)).toBe(true);
-    expect(screen.getByRole('button', { name: /Показать всех игроков команды \(2\)/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Показать всех игроков команды/ })).toBeNull(); // остальных игроков группы ищут в «Добавить в состав»
   });
 
   it('исключённый, но с отметкой в match_players остаётся в составе', async () => {
@@ -1204,7 +1204,8 @@ describe('Состав матча с подтверждением в форме 
     await screen.findByText('Гость Игорь');
     fireEvent.click(screen.getByText('Сохранить матч'));
     await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
-    await waitFor(() => expect(screen.getByRole('button', { name: /Показать всех игроков команды \(2\)/ })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Иванов Пётр')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: /Показать всех игроков команды/ })).toBeNull();
     expect(screen.queryByText('Сидоров Ян')).toBeNull();
     expect(screen.getByText('Иванов Пётр')).toBeInTheDocument();
   });
@@ -1217,8 +1218,9 @@ describe('Состав матча с подтверждением в форме 
     fireEvent.click(within(screen.getByText('Иванов Пётр').closest('.ks-card') as HTMLElement).getByRole('checkbox'));
     fireEvent.click(screen.getByText('Сохранить матч'));
     await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
-    await waitFor(() => expect(screen.getByRole('button', { name: /Показать всех игроков команды \(2\)/ })).toBeInTheDocument());
-    expect(screen.getByText('Иванов Пётр')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('Иванов Пётр')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: /Показать всех игроков команды/ })).toBeNull();
+    expect(screen.queryByText('Сидоров Ян')).toBeNull();
     expect(screen.getByText('Гость Игорь')).toBeInTheDocument();
   });
 

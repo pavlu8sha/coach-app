@@ -300,10 +300,12 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
       // матч с подтверждением: состав, собранный до публикации, лежит в приглашениях (match_invitations), а не в match_players;
       // показываем приглашённых (в том числе из других групп), «Играл» не ставим. Не прочиталось: форма как раньше
       let invitedIds: string[] = [];
+      let rsvpRoster = false; // приглашения прочитаны: в списке только приглашённые и игроки с отметкой, остальных добавляют поиском
       if (match && isRsvp(match)) {
         const inv = await supabase.from('match_invitations').select('player_id').eq('match_id', match.id).eq('status', 'invited');
         if (!inv.error) {
           invitedIds = ((inv.data ?? []) as { player_id: string }[]).map(r => r.player_id);
+          rsvpRoster = true;
           const miss = invitedIds.filter(id => !list.some(p => p.id === id));
           if (miss.length) {
             const ex = await supabase.from('players').select('id, full_name, status').in('id', miss);
@@ -314,6 +316,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
       }
       // неактивные остаются только там, где у них уже есть запись в этом матче (прошлые матчи не меняются)
       list = list.filter(p => !notActive.has(p.id) || p.id in init);
+      if (rsvpRoster) list = list.filter(p => invitedIds.includes(p.id) || p.id in init);
       setLines(init);
       setBestId(best);
       const playedIds = Object.entries(init).filter(([, l]) => l.played).map(([id]) => id);
