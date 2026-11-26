@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavState } from '../nav';
+import { canonicalLocation } from '../lib/branches';
 import { loadMyChildren } from '../lib/myChildren';
 import { supabase } from '../lib/supabase';
 import { EmptyState } from '../ui/components';
@@ -44,6 +45,7 @@ const formatDate = (key: string) => dateFromKey(key).toLocaleDateString('ru-RU',
 // Назад листаем до месяца первой отметки ребёнка; если отметок нет, до начала сезона (сентябрь 2026): раньше расписание было другим.
 const MATCH_KIND_LABEL: Record<string, string> = { championship: 'Матч чемпионата', festival: 'Матч фестиваля', cup: 'Матч кубка' };
 const SEASON_MONTH = new Date(2026, 8, 1);
+const upFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1); // textTransform: capitalize давал «Ноября 2026 Г.»: заглавной должна быть только первая буква
 const formatMonth = (date: Date) => date.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
 const formatTime = (time: string | null) => time ? time.slice(0, 5) : null;
 const clockTbilisi = (iso: string) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tbilisi', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso));
@@ -228,7 +230,7 @@ export default function ParentCalendar() {
       <section aria-label="Календарь событий" style={{ maxWidth: 560, margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12 }}>
           <button type="button" className="ks-btn sm ks-tap" aria-label="Предыдущий месяц" disabled={month <= minMonth} onClick={() => shiftMonth(-1)}>‹</button>
-          <h2 style={{ margin: 0, textTransform: 'capitalize', fontSize: 18 }}>{formatMonth(month)}</h2>
+          <h2 style={{ margin: 0, fontSize: 18 }}>{upFirst(formatMonth(month))}</h2>
           <button type="button" className="ks-btn sm ks-tap" aria-label="Следующий месяц" onClick={() => shiftMonth(1)}>›</button>
         </div>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
@@ -265,7 +267,7 @@ export default function ParentCalendar() {
       </section>
 
       <section aria-live="polite" style={{ maxWidth: 560, margin: '0 auto' }}>
-        <h2 style={{ fontSize: 18, marginBottom: 12, textTransform: 'capitalize' }}>{formatDate(selectedDate)}</h2>
+        <h2 style={{ fontSize: 18, marginBottom: 12 }}>{upFirst(formatDate(selectedDate))}</h2>
         {eventsLoading ? <Loading /> : eventsError ? (
           <EmptyState icon="alert" title="События не загрузились" text="Данные не удалось получить. Повтори попытку." action={{ label: 'Повторить', run: () => setRetry(n => n + 1) }} />
         ) : selectedEvents.length ? (
@@ -276,7 +278,7 @@ export default function ParentCalendar() {
                   <div>
                     <div style={{ fontWeight: 650 }}>{event.title}</div>
                     <div style={{ color: 'var(--ks-text-muted, #5a6584)', fontSize: 13, marginTop: 4 }}>
-                      {[eventTime(event), event.location].filter(Boolean).join(' · ') || (event.event_type === 'match' ? matchLabel(event.event_id) : 'Тренировка')}
+                      {[eventTime(event), event.location ? canonicalLocation(event.location) : null].filter(Boolean).join(' · ') || (event.event_type === 'match' ? matchLabel(event.event_id) : 'Тренировка')}
                     </div>
                   </div>
                   <span style={{ flexShrink: 0, fontSize: 12, borderRadius: 999, padding: '4px 8px', background: 'var(--ks-primary-subtle, #dde4f6)', color: 'var(--ks-primary, #25335a)' }}>{statusLabel(event)}</span>

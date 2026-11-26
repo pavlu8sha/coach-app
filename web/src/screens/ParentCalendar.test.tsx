@@ -42,6 +42,22 @@ describe('календарь родителя', () => {
     }]));
   });
 
+  it('скриншот 24.11: локация в одном написании, заголовки с заглавной только первой буквой', async () => {
+    const today = new Date();
+    const eventDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    fake.rpc.parent_calendar = () => [{
+      event_id: 'training:t1', event_date: eventDate, event_time: '17:00:00', event_type: 'training',
+      title: 'Тренировка по расписанию', location: 'Красный парк', event_status: 'upcoming', attendance_status: null,
+    }];
+    render(<ParentCalendar />);
+    expect(await screen.findByText('17:00 · Red Garden')).toBeInTheDocument();
+    const month = today.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+    expect(screen.getByRole('heading', { name: month.charAt(0).toUpperCase() + month.slice(1) })).toBeInTheDocument();
+    const day = today.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+    expect(screen.getByRole('heading', { name: day })).toBeInTheDocument();
+    expect(screen.queryByText(/ Г\./)).toBeNull();
+  });
+
   it('не подменяет ошибку загрузки пустым календарём', async () => {
     fake.rpc.parent_calendar = () => ({ data: null, error: { message: 'permission denied' } });
     render(<ParentCalendar />);

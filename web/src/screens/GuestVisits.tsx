@@ -104,7 +104,7 @@ export default function GuestVisits({ gid, date, admin = false }: { gid: string;
       <h2>Доп. посещения</h2>
       <p className="muted">Игрок из другой группы пришёл на эту тренировку. Баллы начисляются как за обычную тренировку, оплата записывается отдельно и в долг по абонементу не входит.</p>
       {guests === null ? <p className="muted">Загрузка…</p> : guests.map(g => (
-        <div className="ks-mark" key={g.player_id} role="group" aria-label={`Гость: ${g.players?.full_name ?? ''}`} style={{ flexWrap: 'wrap' }}>
+        <div className="ks-mark ks-mark-guest" key={g.player_id} role="group" aria-label={`Гость: ${g.players?.full_name ?? ''}`}>
           <b>{g.players?.full_name ?? 'Игрок'}</b>
           <span className="muted">{g.players?.groups?.name ?? 'без группы'} · {gel(Number(g.amount))}</span>
           {g.paid ? <span className="ks-ok">Оплачено{g.method ? ` (${g.method})` : ''}</span> : <span className="error">Не оплачено</span>}
