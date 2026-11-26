@@ -104,20 +104,62 @@ Deno.test("tg-auth: HTTP → Supabase Auth/PostgREST", async (t) => {
     );
 
     await t.step(
-      "insert conflict is confirmed by re-reading the row",
+      "concurrent insert with the same Auth ID succeeds with a single row",
       async () => {
         supa.reset();
-        supa.state.usersInsertConflict = true;
+        supa.state.usersInsertConflictRow = {
+          id: AUTH_ID,
+          telegram_id: 42,
+          display_name: "Concurrent Winner",
+        };
         const r = await send(await payload());
         assert.equal(r.res.status, 200);
-        assert.deepEqual(supa.state.users.map((u) => u.id), [AUTH_ID]);
+        // Сохранилась именно конкурентная строка: строку из текущего INSERT fake не добавлял.
+        assert.deepEqual(supa.state.users, [{
+          id: AUTH_ID,
+          telegram_id: 42,
+          display_name: "Concurrent Winner",
+        }]);
         const paths = supa.state.requests.map((x) => `${x.method} ${x.path}`);
-        const firstGet = paths.indexOf("GET /rest/v1/users");
         const insert = paths.indexOf("POST /rest/v1/users");
         const verifyGet = paths.indexOf("GET /rest/v1/users", insert + 1);
-        assert.ok(firstGet >= 0);
-        assert.ok(insert > firstGet);
+        assert.ok(insert >= 0);
         assert.ok(verifyGet > insert); // строка перечитана после вставки
+      },
+    );
+
+    await t.step(
+      "concurrent insert with another Auth ID returns 409 and keeps that row",
+      async () => {
+        supa.reset();
+        supa.state.usersInsertConflictRow = {
+          id: OTHER_AUTH_ID,
+          telegram_id: 42,
+          display_name: "Other Account",
+        };
+        const r = await send(await payload());
+        assert.equal(r.res.status, 409);
+        assert.deepEqual(r.data, { error: "identity_mismatch" });
+        assert.deepEqual(supa.state.users, [{
+          id: OTHER_AUTH_ID,
+          telegram_id: 42,
+          display_name: "Other Account",
+        }]);
+      },
+    );
+
+    await t.step(
+      "insert error without a concurrent row returns 500 and creates nothing",
+      async () => {
+        supa.reset();
+        supa.state.usersInsertError = "insert failed";
+        const r = await send(await payload());
+        assert.equal(r.res.status, 500);
+        assert.deepEqual(r.data, {
+          error: "users_insert",
+          detail: "insert failed",
+        });
+        assert.deepEqual(supa.state.users, []);
       },
     );
 
