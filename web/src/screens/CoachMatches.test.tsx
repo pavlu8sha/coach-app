@@ -8,7 +8,7 @@ const groups = [{ id: 'g1', name: 'U9' }];
 const allGroups = [{ id: 'g1', name: 'U9' }, { id: 'g2', name: 'U11' }];
 
 function seed() {
-  fake.db.matches = [{ id: 'm1', team: 'U9', played_on: '2026-10-10', opponent: 'Олимп', goals_for: 3, goals_against: 1 }];
+  fake.db.matches = [{ id: 'm1', club_id: 'c1', team: 'U9', played_on: '2026-10-10', opponent: 'Олимп', goals_for: 3, goals_against: 1 }];
   fake.db.players = [
     { id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'active' },
     { id: 'p2', full_name: 'Сидоров Ян', group_id: 'g1', status: 'active' },
@@ -318,6 +318,23 @@ describe('«Матчи» администратора', () => {
       { club_id: 'c1', effective_from: '2026-10-01', params: { match: { played: 1 } } },
     ];
     render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText('Олимп'));
+    await screen.findByText('Иванов Пётр');
+    fireEvent.click(screen.getByText('Сохранить матч'));
+    await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
+    expect(screen.queryByText('Выставьте оценку каждому, кто играл.')).toBeNull();
+  });
+
+  it('одинаковое название команды в двух клубах: правила берутся по club_id матча, а не по первой группе', async () => {
+    seed();
+    // группа g0 клуба c2 с тем же названием U9 стоит первой в списке тренера; матч принадлежит клубу c1
+    fake.db.groups = [{ id: 'g0', name: 'U9', club_id: 'c2' }, { id: 'g1', name: 'U9', club_id: 'c1' }];
+    fake.db.match_players = (fake.db.match_players as { player_id: string }[]).filter(r => r.player_id !== 'p9').map(r => ({ ...r, performance_rating: null }));
+    fake.db.points_rule_versions = [
+      { club_id: 'c2', effective_from: '2026-10-01', params: { match: { model: 'rating' } } },
+      { club_id: 'c1', effective_from: '2026-10-01', params: { match: { played: 1 } } },
+    ];
+    render(<CoachMatches groups={[{ id: 'g0', name: 'U9' }, { id: 'g1', name: 'U9' }]} />);
     fireEvent.click(await screen.findByText('Олимп'));
     await screen.findByText('Иванов Пётр');
     fireEvent.click(screen.getByText('Сохранить матч'));

@@ -12,7 +12,7 @@ import CoachRsvp from './CoachRsvp';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { MoreMenu } from '../ui/MoreMenu';
 
-interface Match { id: string; team: string; played_on: string; opponent: string | null; goals_for: number | null; goals_against: number | null; technical?: boolean; lifecycle_status?: string; starts_at?: string | null }
+interface Match { id: string; club_id?: string; team: string; played_on: string; opponent: string | null; goals_for: number | null; goals_against: number | null; technical?: boolean; lifecycle_status?: string; starts_at?: string | null }
 // Матч с подтверждением участия (PR 2–4 по #274): до начала им управляют «Матчи с подтверждением», здесь он появляется после начала — для отметок игроков и счёта
 const isRsvp = (m: Pick<Match, 'lifecycle_status'>) => Boolean(m.lifecycle_status) && m.lifecycle_status !== 'legacy';
 interface Tour { match_id: string; tournament_id: string | null; tournament_name: string | null; tournament_kind: string | null; match_kind: string | null }
@@ -46,7 +46,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
       // события (чемпионаты, фестивали, кубки) со счётчиками; без миграции 0051 список остаётся прежним
       const ev = await supabase.rpc('event_list');
       setEvents(ev.error ? [] : ((ev.data ?? []) as EventRow[]));
-      let q = supabase.from('matches').select('id, team, played_on, opponent, goals_for, goals_against, technical, lifecycle_status, starts_at');
+      let q = supabase.from('matches').select('id, club_id, team, played_on, opponent, goals_for, goals_against, technical, lifecycle_status, starts_at');
       if (!showAll) q = q.in('team', groups.map(g => g.name));
       const r = await q.order('played_on', { ascending: false }).limit(showAll ? 150 : 60);
       if (r.error) return setError(errMsg(r.error));
@@ -308,21 +308,26 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gid, reload]);
 
-  // версии правил читаются только своего клуба: клуб берётся у группы матча (для команды без группы у первой группы тренера)
-  const clubGroupId = gid || groups[0]?.id || '';
+  // версии правил читаются только своего клуба: у существующего матча это его club_id; у нового матча клуб выбранной группы
+  // (для команды без группы у первой группы тренера). Имя команды клуб не определяет: одинаковые названия бывают в разных клубах
+  const matchClub = match?.club_id ?? '';
+  const clubGroupId = matchClub ? '' : gid || groups[0]?.id || '';
   useEffect(() => {
     setRuleVersions(null);
-    if (!clubGroupId) return;
+    if (!matchClub && !clubGroupId) return;
     let off = false;
     void (async () => {
-      const g = await supabase.from('groups').select('club_id').eq('id', clubGroupId).maybeSingle();
-      const club = (g.data as { club_id?: string } | null)?.club_id;
-      if (g.error || !club) return;
+      let club = matchClub;
+      if (!club) {
+        const g = await supabase.from('groups').select('club_id').eq('id', clubGroupId).maybeSingle();
+        club = (g.data as { club_id?: string } | null)?.club_id ?? '';
+        if (g.error || !club) return;
+      }
       const v = await supabase.from('points_rule_versions').select('effective_from, params').eq('club_id', club).order('effective_from', { ascending: false });
       if (!off && !v.error) setRuleVersions((v.data ?? []) as { effective_from: string; params: { match?: { model?: string } } | null }[]);
     })();
     return () => { off = true; };
-  }, [clubGroupId]);
+  }, [matchClub, clubGroupId]);
 
   // Найти любого игрока клуба и добавить в состав (тренеры и администратор)
   useEffect(() => {
