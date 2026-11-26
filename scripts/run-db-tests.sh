@@ -139,6 +139,8 @@ preflight_0225_state "club_event_current_club не SECURITY DEFINER" "alter func
 preflight_0225_state "save_match_team со старым телом (первый клуб по id)" "do \$f\$ begin execute replace(pg_get_functiondef('public.save_match_team(text,date,text,integer,integer,jsonb)'::regprocedure), 'club := club_event_current_club();', 'select c.id into club from clubs c order by c.id limit 1;'); end \$f\$"
 preflight_0225_state "save_match_team без pg_temp в search_path" "alter function public.save_match_team(text,date,text,integer,integer,jsonb) set search_path = public"
 preflight_0225_state "save_match_team доступна anon" "grant execute on function public.save_match_team(text,date,text,integer,integer,jsonb) to anon"
+# 0226 (взнос за матч с подтверждением) пересоздаёт функции матчей с подтверждением: на базе без неё колонки matches.fee нет, preflight не падает (information_schema, to_regprocedure), строка 0226 даёт NOT_APPLIED.
+preflight_partial "без 0226" '0226_match_rsvp_fee' 0226_match_rsvp_fee
 for t in db/tests/*_test.sql; do
   echo "== $t"
   out=$($PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f "$t" 2>&1) || { echo "$out"; fail=1; continue; }

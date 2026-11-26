@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { MATCH_DURATION_DEFAULT } from '../lib/clubSettings';
 import { supabase } from '../lib/supabase';
-import { fmtWhen, linkLabel, responseText, rsvpError, splitLinks, type MyRsvp, type RsvpResponse } from '../lib/matchRsvp';
+import { feeText, fmtWhen, linkLabel, responseText, rsvpError, splitLinks, type MyRsvp, type RsvpResponse } from '../lib/matchRsvp';
 import { Pill } from '../ui/components';
 
 /** Текст с кликабельными ссылками (откроются в браузере телефона) */
@@ -78,6 +78,7 @@ export default function RsvpSection({ rows, part, onChanged, scored = new Set(),
                 <p style={{ margin: 0 }}><LinkText text={m.notes} /></p>
               </>
             )}
+            {!cancelled && m.fee != null && m.fee > 0 && <p style={{ margin: '8px 0 0' }}>Взнос за матч: {feeText(m.fee)}</p>}
             {kids.map(r => {
               const key = `${r.match_id}|${r.player_id}`;
               return (
