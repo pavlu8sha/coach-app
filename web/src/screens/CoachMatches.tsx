@@ -507,18 +507,18 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
             </label>
             {line(p.id).played && (
               <>
-                <div className="ks-line">
+                <div className="ks-line" style={{ marginTop: 12 }}>
                   <span className="ks-muted">Голы</span>
                   <Stepper label={`Голы: ${p.full_name}`} value={line(p.id).goals} max={30} onChange={n => setLine(p.id, { played: true, goals: n, rating: line(p.id).rating })} />
                 </div>
-                <div className="ks-line" role="group" aria-label={`Оценка тренера: ${p.full_name}`}>
+                <div className="ks-line" role="group" aria-label={`Оценка тренера: ${p.full_name}`} style={{ marginTop: 14, rowGap: 8 }}>
                   <span className="ks-muted">Оценка</span>
                   {[1, 2, 3, 4, 5].map(n => (
                     <button key={n} type="button" className={`ks-btn sm ${line(p.id).rating === n ? '' : 'secondary'}`} style={{ width: 'auto', minWidth: 40 }} aria-pressed={line(p.id).rating === n} aria-label={`Оценка ${n}: ${p.full_name}`} onClick={() => setLine(p.id, { ...line(p.id), played: true, rating: line(p.id).rating === n ? null : n })}>{n}</button>
                   ))}
                 </div>
                 {ratingModel && line(p.id).rating !== null && gf !== '' && !technical && <p className="muted" style={{ fontSize: 13, margin: '4px 0 0' }}>Баллов за матч: {matchPoints(line(p.id).rating, bestId === p.id)}</p>}
-                <button type="button" className={`ks-btn ${bestId === p.id ? '' : 'secondary'}`} style={{ marginTop: 8, minHeight: 40 }} aria-pressed={bestId === p.id} onClick={() => { setBestId(bestId === p.id ? null : p.id); setMsg(null); }}>
+                <button type="button" className={`ks-btn ${bestId === p.id ? '' : 'secondary'}`} style={{ marginTop: 14, minHeight: 40 }} aria-pressed={bestId === p.id} onClick={() => { setBestId(bestId === p.id ? null : p.id); setMsg(null); }}>
                   {bestId === p.id ? '★ Лучший игрок матча' : 'Назначить лучшим игроком'}
                 </button>
               </>
