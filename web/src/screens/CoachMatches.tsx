@@ -197,7 +197,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
                   key={m.id}
                   title={m.opponent ?? 'Соперник не указан'}
                   sub={[`${fmtDate(m.played_on)}${showAll || groups.length > 1 ? ' · ' + m.team : ''}${cupName ? ' · ' + cupName : ''}${playedBy.get(m.id) ? ' · играло ' + playedBy.get(m.id) : ''}`]}
-                  end={done ? <span className="ks-score">{m.goals_for}:{m.goals_against}{m.technical ? ' (тех.)' : ''}</span> : m.lifecycle_status === 'draft' ? <Pill tone="warning">Черновик</Pill> : m.lifecycle_status === 'cancelled' ? <Pill tone="danger">Отменён</Pill> : <Pill tone="primary">{m.played_on > today() ? 'Предстоит' : 'Без счёта'}</Pill>}
+                  end={m.lifecycle_status === 'cancelled' ? <Pill tone="danger">Отменён</Pill> : m.lifecycle_status === 'draft' ? <Pill tone="warning">Черновик</Pill> : done ? <span className="ks-score">{m.goals_for}:{m.goals_against}{m.technical ? ' (тех.)' : ''}</span> : <Pill tone="primary">{m.played_on > today() ? 'Предстоит' : 'Без счёта'}</Pill>}
                   onClick={() => nav.push('form', { id: m.id })}
                 />
               );

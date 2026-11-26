@@ -1028,6 +1028,17 @@ describe('«Матчи» тренера и матчи с подтвержден�
     expect(row(/Старый-соперник/)).not.toHaveTextContent('Черновик');
   });
 
+  it('отменённый матч с сохранённым счётом показывает «Отменён», а не счёт', async () => {
+    fake.db.matches = [{ ...rsvp('c2', 'Отменённый-со-счётом', 'cancelled', past), goals_for: 3, goals_against: 1 }];
+    fake.db.players = [];
+    fake.db.match_players = [];
+    render(<CoachMatches groups={groups} />);
+    const name = await screen.findByText(/Отменённый-со-счётом/);
+    const row = name.closest('.ks-row, li, div') as HTMLElement;
+    expect(within(row).getByText('Отменён')).toBeInTheDocument();
+    expect(row).not.toHaveTextContent('3:1');
+  });
+
   it('у начавшегося матча с подтверждением дата и соперник закрыты для правки', async () => {
     fake.db.matches = [rsvp('s1', 'Начавшийся-соперник', 'published', past)];
     fake.db.players = [];
