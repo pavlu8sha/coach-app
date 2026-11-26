@@ -17,10 +17,21 @@ type LinkState = 'loading' | 'linked' | 'free' | 'error';
 // списка он недействителен в том же рендере (состояние «loading»), без промежутка до эффекта.
 interface LinkEntry { gen: number; s: LinkState }
 
+// Память между открытиями экрана: список детей и последний известный статус привязки показываются сразу,
+// свежие данные подтягиваются тихо (иначе при каждом открытии заглушка и смена текста). Сбрасывается при выходе/смене пользователя.
+let kidsMemory: { kids: Kid[]; links: Record<string, LinkState> } | null = null;
+let memoryUser: string | undefined;
+export function resetMyKidsCache() { kidsMemory = null; memoryUser = undefined; }
+export function myKidsAuthEvent(ev: string, session: { user?: { id?: string } } | null) {
+  const id = session?.user?.id;
+  if (ev === 'SIGNED_OUT' || (id && memoryUser && id !== memoryUser)) kidsMemory = null;
+  if (id) memoryUser = id;
+}
+
 // «Мои дети»: привязанные дети текущего пользователя, добавление ребёнка и статус запросов.
 export default function MyKids({ onBack }: { onBack: () => void }) {
   const { ask, dialog: confirmDialog } = useConfirm();
-  const [kids, setKids] = useState<Kid[] | null>(null);
+  const [kids, setKids] = useState<Kid[] | null>(() => kidsMemory?.kids ?? null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const nav = useNav();
@@ -34,7 +45,7 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [codes, setCodes] = useState<Record<string, string>>({}); // выданные в этой сессии коды для ребёнка
-  const [linkStates, setLinkStates] = useState<Record<string, LinkEntry>>({});
+  const [linkStates, setLinkStates] = useState<Record<string, LinkEntry>>(() => Object.fromEntries(Object.entries(kidsMemory?.links ?? {}).map(([id, st]) => [id, { gen: 0, s: st }])));
   const linkStateOf = (id: string): LinkState => { const e = linkStates[id]; return e && e.gen === reload ? e.s : 'loading'; };
   const linkStateRef = useRef(linkStateOf); // актуальный статус для обработчиков (защита от нажатия по устаревшему экрану)
   linkStateRef.current = linkStateOf;
@@ -58,14 +69,16 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
       if (cancelled) return;
       if (links.error) return setError(errMsg(links.error));
       kidsGen.current = gen;
-      setKids((links.kids ?? []).map(k => ({ id: k.player_id, name: k.full_name ?? '', group: k.group_name })));
+      const list = (links.kids ?? []).map(k => ({ id: k.player_id, name: k.full_name ?? '', group: k.group_name }));
+      kidsMemory = { kids: list, links: Object.fromEntries(list.filter(k => kidsMemory?.links[k.id]).map(k => [k.id, kidsMemory!.links[k.id]])) };
+      setKids(list); // новый массив: статусы привязки перепроверяются для этого поколения списка
     })();
     return () => { cancelled = true; };
   }, [reload]);
 
   const checkLinked = useCallback(async (id: string, gen: number) => {
     const n = (seq.current[id] = ++seqNext.current);
-    setLinkStates(m => ({ ...m, [id]: { gen, s: 'loading' } }));
+    setLinkStates(m => (m[id]?.gen === gen && m[id].s !== 'loading' ? m : { ...m, [id]: { gen, s: 'loading' } })); // известный статус не затираем «Проверяю…»: тихая перепроверка
     let next: LinkState;
     try {
       const r = await supabase.rpc('child_linked', { p: id });
@@ -75,6 +88,7 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
       next = 'error'; // отклонённый запрос (сеть и т.п.): тот же безопасный error, текст исключения не показываем
     }
     if (!alive.current || seq.current[id] !== n) return;
+    if (kidsMemory) kidsMemory.links[id] = next;
     setLinkStates(m => ({ ...m, [id]: { gen, s: next } }));
   }, []);
 

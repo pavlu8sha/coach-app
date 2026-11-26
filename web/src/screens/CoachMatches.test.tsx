@@ -1145,3 +1145,103 @@ describe('«Матчи»: «+ Матч» в шапке и меню «⋯»', () 
   });
 
 });
+
+describe('Состав матча с подтверждением в форме результата', () => {
+  const future = new Date(Date.now() + 5 * 86400_000).toISOString();
+  const open = async () => {
+    fake.db.matches = [{ id: 'r1', club_id: 'c1', team: 'U9', played_on: '2099-01-01', opponent: 'Икс', goals_for: null, goals_against: null, lifecycle_status: 'published', starts_at: future }];
+    fake.db.players = [
+      { id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'active' },
+      { id: 'p2', full_name: 'Сидоров Ян', group_id: 'g1', status: 'active' },
+      { id: 'p3', full_name: 'Петров Лев', group_id: 'g1', status: 'active' },
+      { id: 'p9', full_name: 'Гость Игорь', group_id: 'g2', status: 'active' },
+    ];
+    fake.db.groups = [{ id: 'g1', name: 'U9', club_id: 'c1' }, { id: 'g2', name: 'U11', club_id: 'c1' }];
+    fake.db.match_players = [];
+    fake.db.points_rule_versions = [];
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    await screen.findByRole('heading', { name: /Состав/ });
+  };
+
+  it('показаны приглашённые (в том числе из другой группы), остальные скрыты за кнопкой, «Играл» не ставится', async () => {
+    fake.db.match_invitations = [
+      { match_id: 'r1', player_id: 'p1', status: 'invited' },
+      { match_id: 'r1', player_id: 'p9', status: 'invited' },
+      { match_id: 'r1', player_id: 'p2', status: 'removed' },
+    ];
+    await open();
+    await waitFor(() => expect(screen.getByText('Гость Игорь')).toBeInTheDocument());
+    expect(screen.getByText('Иванов Пётр')).toBeInTheDocument();
+    expect(screen.queryByText('Сидоров Ян')).toBeNull();
+    expect(screen.queryByText('Петров Лев')).toBeNull();
+    expect((screen.getAllByRole('checkbox') as HTMLInputElement[]).every(c => !c.checked)).toBe(true);
+    expect(screen.getByRole('button', { name: /Показать всех игроков команды \(2\)/ })).toBeInTheDocument();
+  });
+
+  it('исключённый, но с отметкой в match_players остаётся в составе', async () => {
+    fake.db.match_invitations = [{ match_id: 'r1', player_id: 'p1', status: 'invited' }, { match_id: 'r1', player_id: 'p2', status: 'removed' }];
+    fake.db.match_players = [{ match_id: 'r1', player_id: 'p2', played: true, goals: 0, best: false, performance_rating: null }];
+    fake.db.matches = [{ id: 'r1', club_id: 'c1', team: 'U9', played_on: '2099-01-01', opponent: 'Икс', goals_for: null, goals_against: null, lifecycle_status: 'published', starts_at: future }];
+    fake.db.players = [
+      { id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'active' },
+      { id: 'p2', full_name: 'Сидоров Ян', group_id: 'g1', status: 'active' },
+      { id: 'p3', full_name: 'Петров Лев', group_id: 'g1', status: 'active' },
+    ];
+    fake.db.groups = [{ id: 'g1', name: 'U9', club_id: 'c1' }];
+    fake.db.points_rule_versions = [];
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    expect(await screen.findByText('Сидоров Ян')).toBeInTheDocument();
+    expect(screen.getByText('Иванов Пётр')).toBeInTheDocument();
+    expect(screen.queryByText('Петров Лев')).toBeNull();
+  });
+
+  it('после «Сохранить» состав остаётся приглашёнными, в том числе когда никто не отмечен «Играл»', async () => {
+    fake.rpc.save_match = (a: { m?: string }) => a.m ?? 'r1';
+    fake.db.match_invitations = [{ match_id: 'r1', player_id: 'p1', status: 'invited' }, { match_id: 'r1', player_id: 'p9', status: 'invited' }];
+    await open();
+    await screen.findByText('Гость Игорь');
+    fireEvent.click(screen.getByText('Сохранить матч'));
+    await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Показать всех игроков команды \(2\)/ })).toBeInTheDocument());
+    expect(screen.queryByText('Сидоров Ян')).toBeNull();
+    expect(screen.getByText('Иванов Пётр')).toBeInTheDocument();
+  });
+
+  it('после «Сохранить» с одним отмеченным остальные приглашённые остаются в составе', async () => {
+    fake.rpc.save_match = (a: { m?: string }) => a.m ?? 'r1';
+    fake.db.match_invitations = [{ match_id: 'r1', player_id: 'p1', status: 'invited' }, { match_id: 'r1', player_id: 'p9', status: 'invited' }];
+    await open();
+    await screen.findByText('Гость Игорь');
+    fireEvent.click(within(screen.getByText('Иванов Пётр').closest('.ks-card') as HTMLElement).getByRole('checkbox'));
+    fireEvent.click(screen.getByText('Сохранить матч'));
+    await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Показать всех игроков команды \(2\)/ })).toBeInTheDocument());
+    expect(screen.getByText('Иванов Пётр')).toBeInTheDocument();
+    expect(screen.getByText('Гость Игорь')).toBeInTheDocument();
+  });
+
+  it('матч без подтверждения: приглашения не читаются, вся группа как раньше', async () => {
+    fake.db.match_invitations = [{ match_id: 'r1', player_id: 'p1', status: 'invited' }];
+    fake.db.matches = [{ id: 'r1', club_id: 'c1', team: 'U9', played_on: '2026-10-10', opponent: 'Икс', goals_for: null, goals_against: null }];
+    fake.db.players = [
+      { id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'active' },
+      { id: 'p2', full_name: 'Сидоров Ян', group_id: 'g1', status: 'active' },
+    ];
+    fake.db.groups = [{ id: 'g1', name: 'U9', club_id: 'c1' }];
+    fake.db.match_players = [];
+    fake.db.points_rule_versions = [];
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    expect(await screen.findByText('Сидоров Ян')).toBeInTheDocument();
+    expect(screen.getByText('Иванов Пётр')).toBeInTheDocument();
+  });
+
+  it('приглашения не прочитались: форма открывается со всей группой', async () => {
+    fake.db.match_invitations = [{ match_id: 'r1', player_id: 'p1', status: 'invited' }];
+    fake.errors.match_invitations = 'boom';
+    await open();
+    expect(await screen.findByText('Сидоров Ян')).toBeInTheDocument();
+  });
+});
