@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 export interface ConfirmRequest {
@@ -56,7 +56,7 @@ export function ConfirmSheet({ title, lines = [], note, confirmLabel, danger, on
             {shown.map(([label, value]) => (
               <div key={label} style={{ display: 'contents' }}>
                 <dt className="ks-muted" style={{ fontSize: 13 }}>{label}</dt>
-                <dd style={{ margin: 0, overflowWrap: 'anywhere', textAlign: 'right' }}><b>{value}</b></dd>
+                <dd style={{ margin: 0, overflowWrap: 'break-word', textAlign: 'right' }}><b>{noSplitHyphenated(value)}</b></dd>
               </div>
             ))}
           </dl>
@@ -97,6 +97,12 @@ export function useBodyScrollLock() {
       window.scrollTo(0, scrollY);
     };
   }, []);
+}
+
+/** Слова с дефисом («U7-A», «U10-B») не разрываются по дефису при переносе строки: переносится только между словами. */
+function noSplitHyphenated(text: string): ReactNode {
+  if (!/\S-\S/.test(text)) return text;
+  return text.split(/(\s+)/).map((part, i) => (/^[^\s-]+-[^\s-]+$/.test(part) ? <span key={i} style={{ whiteSpace: 'nowrap' }}>{part}</span> : part));
 }
 
 /** Промис-обёртка: `if (!(await ask({...}))) return;` — возвращает true только после нажатия кнопки подтверждения. */

@@ -4,7 +4,8 @@ import { fmtDate, playerTeam, plural, errMsg } from '../lib/coach';
 import { seasonStart } from '../lib/seasonStats';
 import { fetchLedgerTotals } from '../lib/pointsLedger';
 import { supabase } from '../lib/supabase';
-import { Avatar, BackButton, EmptyState, Pill, Segmented, type Tone } from '../ui/components';
+import { BackNav } from '../ui/nav';
+import { Avatar, EmptyState, Pill, Segmented, type Tone } from '../ui/components';
 import { Failure, Loading } from './Message';
 import PointsLedger from './PointsLedger';
 
@@ -147,7 +148,7 @@ export default function PlayerProfile({ playerId, onBack }: { playerId: string; 
 
   const back = (
     <div style={{ marginBottom: 8 }}>
-      <BackButton onClick={onBack} />
+      <BackNav onBack={onBack} managed />
     </div>
   );
   if (error) return <Failure title="Не удалось загрузить профиль" text={error} onRetry={() => setReload(n => n + 1)} back={back} />;

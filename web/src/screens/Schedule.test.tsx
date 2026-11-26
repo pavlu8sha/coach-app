@@ -31,7 +31,7 @@ describe('расписание групп родителя', () => {
     expect(await screen.findByText('Последние результаты')).toBeInTheDocument();
     unmount();
     render(<Schedule results={false} />);
-    await screen.findByText('Красный парк');
+    await screen.findByText('Red Garden');
     expect(screen.queryByText('Последние результаты')).toBeNull();
     expect(screen.queryByText('FC Прошлый')).toBeNull();
   });
@@ -72,7 +72,7 @@ describe('расписание групп родителя: ребёнок бе�
   it('несколько детей, один без группы: группа показана, ребёнок без группы не исчезает и не получает чужое расписание', async () => {
     fake.db.player_guardians = [kid('Тимофей Иванов', 'U10-A'), kid('Мария Иванова', null)];
     render(<Schedule />);
-    expect(await screen.findByText('Красный парк')).toBeInTheDocument();
+    expect(await screen.findByText('Red Garden')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'U10-A' })).toBeInTheDocument();
     const card = screen.getByText('Группа ещё не назначена').closest('section')!;
     expect(card).toHaveTextContent('Мария Иванова');
@@ -84,7 +84,7 @@ describe('расписание групп родителя: ребёнок бе�
   it('все дети с группами: карточки групп как раньше, заметки нет', async () => {
     fake.db.player_guardians = [kid('Тимофей Иванов', 'U10-A')];
     render(<Schedule />);
-    expect(await screen.findByText('Красный парк')).toBeInTheDocument();
+    expect(await screen.findByText('Red Garden')).toBeInTheDocument();
     expect(screen.queryByText('Группа ещё не назначена')).toBeNull();
   });
 
@@ -92,7 +92,7 @@ describe('расписание групп родителя: ребёнок бе�
     fake.db.groups = [{ id: 'g-U10-A', name: 'U10-A' }];
     fake.db.player_guardians = [kid('Мария Иванова', null)];
     render(<Schedule all editable={false} />);
-    expect(await screen.findByText('Красный парк')).toBeInTheDocument();
+    expect(await screen.findByText('Red Garden')).toBeInTheDocument();
     expect(screen.queryByText('Группа ещё не назначена')).toBeNull();
   });
 });

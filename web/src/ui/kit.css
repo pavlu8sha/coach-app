@@ -377,6 +377,9 @@ a.ks-cover { text-decoration: none; display: block; }
 .ks-actions .ks-btn { width: auto; flex: none; }
 .ks-mark { display: flex; align-items: center; gap: 6px; padding: 8px 10px; margin-bottom: 8px; background: var(--ks-surface); border: 1px solid var(--ks-border); border-radius: var(--ks-radius-card); }
 .ks-mark b { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+/* «Доп. посещения»: имя гостя на всю ширину строки, остальное под ним (иначе имя сжималось до ширины одной буквы) */
+.ks-mark.ks-mark-guest { flex-wrap: wrap; }
+.ks-mark.ks-mark-guest b { flex: 1 1 100%; }
 .ks-mark .mk { flex: none; min-height: 44px; padding: 0 12px; border: 1px solid var(--ks-border); border-radius: 12px; background: var(--ks-bg, transparent); color: var(--ks-text-muted); font: 700 14px var(--ks-font); cursor: pointer; }
 .ks-mark .mk.on { border-width: 2px; }
 .ks-mark .mk.on.present { background: var(--ks-success-subtle); border-color: var(--ks-success); color: var(--ks-success); }
@@ -390,6 +393,10 @@ a.ks-cover { text-decoration: none; display: block; }
 /* Оплаты за месяц: группы раскрываются списком игроков */
 .ks-group { margin-bottom: 8px; padding: 12px; background: var(--ks-surface); border: 1px solid var(--ks-border); border-radius: var(--ks-radius-card); }
 .ks-group > summary { cursor: pointer; list-style: none; }
+.ks-group[open] > summary { padding-bottom: 8px; }
+/* Строка списка с плашкой справа (сумма, статус): плашка остаётся в одной строке с именем, длинное имя переносится внутри своей колонки */
+.ks-row.ks-row-end-inline { flex-wrap: nowrap; }
+.ks-row.ks-row-end-inline .ks-row-end { flex: none; flex-wrap: nowrap; }
 .ks-group > summary::-webkit-details-marker { display: none; }
 .ks-group .ks-card { margin: 8px 0 0; box-shadow: none; background: transparent; }
 .ks-bar { height: 8px; margin: 8px 0 4px; border-radius: 4px; background: var(--ks-neutral-fill); overflow: hidden; }
@@ -541,4 +548,6 @@ ul.policy { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 8px
 .ks-more-menu button:hover, .ks-more-menu button:focus-visible { background: var(--ks-primary-subtle, rgba(127, 127, 127, 0.15)); outline: none; }
 
 /* «Отметки»: у поля даты родное оформление iOS (без appearance: none окно выбора появляется плавно, как у выбора группы; 24.11.2026, пробная правка). Остальные поля даты прежние */
-input[type='date'].ks-date-native { -webkit-appearance: auto; appearance: auto; }
+input[type='date'].ks-date-native { -webkit-appearance: auto; appearance: auto; display: block; width: 100%; min-width: 0; max-width: 100%; overflow: hidden; -webkit-min-logical-width: 0; }
+/* iOS: у родного поля даты собственная минимальная ширина, в паре с выбором группы оно уходило за край экрана */
+input[type='date'].ks-date-native::-webkit-date-and-time-value { text-align: left; min-width: 0; }

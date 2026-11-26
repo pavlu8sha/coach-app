@@ -29,7 +29,7 @@ export function Avatar({ name, large = false }: { name: string; large?: boolean 
 }
 
 /** Строка списка: аватар, заголовок, подписи, статус справа, стрелка. С onClick — кнопка. */
-export function ListRow(props: { title: string; sub?: ReactNode[]; avatar?: string; end?: ReactNode; onClick?: () => void; selected?: boolean }) {
+export function ListRow(props: { title: string; sub?: ReactNode[]; avatar?: string; end?: ReactNode; onClick?: () => void; selected?: boolean; endInline?: boolean }) {
   const inner = (
     <>
       {props.avatar !== undefined && <Avatar name={props.avatar} />}
@@ -50,11 +50,11 @@ export function ListRow(props: { title: string; sub?: ReactNode[]; avatar?: stri
     </>
   );
   return props.onClick ? (
-    <button type="button" className={props.selected ? 'ks-row selected' : 'ks-row'} aria-pressed={props.selected === undefined ? undefined : props.selected} onClick={props.onClick}>
+    <button type="button" className={`${props.selected ? 'ks-row selected' : 'ks-row'}${props.endInline ? ' ks-row-end-inline' : ''}`} aria-pressed={props.selected === undefined ? undefined : props.selected} onClick={props.onClick}>
       {inner}
     </button>
   ) : (
-    <div className="ks-row">{inner}</div>
+    <div className={props.endInline ? 'ks-row ks-row-end-inline' : 'ks-row'}>{inner}</div>
   );
 }
 
