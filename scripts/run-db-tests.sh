@@ -25,7 +25,7 @@ echo "== db/ops/preflight.sql"
 if ! pf=$($PSQL -q -At -v ON_ERROR_STOP=1 -d "$DB" -f db/ops/preflight.sql 2>&1); then
   echo "$pf"; echo "not ok - preflight.sql не выполняется"; fail=1
 else
-  bad=$(printf '%s\n' "$pf" | awk -F'|' '$1 ~ /^[0-9]{4}_/ && $3 != "APPLIED" && $3 != "SUPERSEDED" {print}')
+  bad=$(printf '%s\n' "$pf" | awk -F'|' '$1 ~ /^[0-9]{4}_/ && $3 != "APPLIED" && $3 != "SUPERSEDED" && $1 != "0224_points_rules_match_rating" {print}')
   if [ -n "$bad" ]; then echo "$bad"; echo "not ok - preflight.sql: NOT_APPLIED/UNKNOWN на полной базе"; fail=1; fi
   for m in 0047_ind_no_autobook 0052_ind_change_type 0081_match_stats_drop_old_overload 0091_event_list_players_count; do
     st=$(printf '%s\n' "$pf" | awk -F'|' -v m="$m" '$1 == m {print $3}')
@@ -91,6 +91,9 @@ preflight_partial "без 0220" '0220_notifications_finish_lease' 0220_notificat
 preflight_partial "без 0221" '0221_visit_discount' 0221_visit_discount
 # 0222 (is_admin против pg_temp) пересоздаёт функцию, существующую с 0002: на базе без 0222 функция есть со старым телом (search_path=public), строка 0222 даёт NOT_APPLIED, preflight не падает.
 preflight_partial "без 0222" '0222_is_admin_pg_temp_hardening' 0222_is_admin_pg_temp_hardening
+# 0223 (оценка тренера за матч) самостоятельна: на базе без неё preflight не падает (information_schema, to_regprocedure), строка 0223 даёт NOT_APPLIED.
+# Строка 0224 (версия правил от 2026-12-01): на пустой базе без клуба версии нет, статус NOT_APPLIED; её проверяет db/tests/migration_match_rating.sh (нет версии, старая, новая).
+preflight_partial "без 0223" '0223_match_rating_points' 0223_match_rating_points
 for t in db/tests/*_test.sql; do
   echo "== $t"
   out=$($PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f "$t" 2>&1) || { echo "$out"; fail=1; continue; }
@@ -140,6 +143,10 @@ echo "== db/tests/concurrency_player_save.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_player_save.sh || fail=1
 echo "== db/tests/concurrency_group_since.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_group_since.sh || fail=1
+echo "== db/tests/concurrency_match_rating.sh"
+DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_match_rating.sh || fail=1
+echo "== db/tests/migration_match_rating.sh"
+DB_NAME="$DB" PSQL="$PSQL" db/tests/migration_match_rating.sh || fail=1
 echo "== db/tests/concurrency_notifications_release.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_notifications_release.sh || fail=1
 $PSQL -q -d postgres -c "drop database if exists $DB"

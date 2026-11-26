@@ -8,13 +8,16 @@ const groups = [{ id: 'g1', name: 'U9' }];
 const allGroups = [{ id: 'g1', name: 'U9' }, { id: 'g2', name: 'U11' }];
 
 function seed() {
-  fake.db.matches = [{ id: 'm1', team: 'U9', played_on: '2026-10-10', opponent: 'Олимп', goals_for: 3, goals_against: 1 }];
+  fake.db.matches = [{ id: 'm1', club_id: 'c1', team: 'U9', played_on: '2026-10-10', opponent: 'Олимп', goals_for: 3, goals_against: 1 }];
   fake.db.players = [
     { id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'active' },
     { id: 'p2', full_name: 'Сидоров Ян', group_id: 'g1', status: 'active' },
     { id: 'p9', full_name: 'Гость Игорь', group_id: 'g2', status: 'active' },
   ];
-  fake.db.match_players = [{ match_id: 'm1', player_id: 'p1', played: true, goals: 2, best: false }, { match_id: 'm1', player_id: 'p9', played: true, goals: 0, best: false }];
+  fake.db.match_players = [{ match_id: 'm1', player_id: 'p1', played: true, goals: 2, best: false, performance_rating: 4 }, { match_id: 'm1', player_id: 'p9', played: true, goals: 0, best: true, performance_rating: 5 }];
+  // модель оценки действует с 2026-01-01 (в тестах матч от 2026-10-10); тесты исторических дат подменяют версии
+  fake.db.groups = [{ id: 'g1', name: 'U9', club_id: 'c1' }, { id: 'g2', name: 'U11', club_id: 'c1' }];
+  fake.db.points_rule_versions = [{ club_id: 'c1', effective_from: '2026-01-01', params: { match: { model: 'rating' } } }];
   fake.rpc.save_match = a => a.m ?? 'm-new';
 }
 const openNewEvent = async () => {
@@ -67,8 +70,8 @@ describe('«Матчи» тренера', () => {
     const a = fake.rpcCalls('save_match')[0];
     expect(a).toMatchObject({ m: 'm1', g: 'g1', d: '2026-10-10', opp: 'Олимп', gf: 3, ga: 1 });
     expect(a.roster).toEqual([
-      { player_id: 'p1', played: true, goals: 2, best: true },
-      { player_id: 'p2', played: false, goals: 0, best: false },
+      { player_id: 'p1', played: true, goals: 2, best: true, performance_rating: 4 },
+      { player_id: 'p2', played: false, goals: 0, best: false, performance_rating: null },
     ]);
   });
 
@@ -97,7 +100,11 @@ describe('«Матчи» тренера', () => {
     fireEvent.click(await screen.findByText('Олимп'));
     await screen.findByText('Иванов Пётр');
     expect(screen.queryByText(/лучшему игроку — 3/)).toBeNull();
-    expect(screen.getByText(/не больше 5 за матч/)).toBeInTheDocument();
+    expect(screen.queryByText(/победа \+2/)).toBeNull();
+    expect(screen.queryByText(/каждый гол \+1/)).toBeNull();
+    expect(screen.queryByText(/не больше 5 за матч/)).toBeNull();
+    expect(screen.getByText(/оценка тренера от 1 до 5, лучшему игроку матча ещё \+1, всего не больше 6 за матч/)).toBeInTheDocument();
+    expect(screen.getByText(/Голы и результат команды на баллы игрока не влияют/)).toBeInTheDocument();
   });
 
   it('у тренера есть поиск игроков клуба, но нет удаления матча', async () => {
@@ -150,7 +157,7 @@ describe('«Матчи» тренера', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Иванов Пётр' }));
     fireEvent.click(screen.getByText('Сохранить матч'));
     await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
-    expect(fake.rpcCalls('save_match')[0].roster[0]).toEqual({ player_id: 'p1', played: false, goals: 0, best: false });
+    expect(fake.rpcCalls('save_match')[0].roster[0]).toEqual({ player_id: 'p1', played: false, goals: 0, best: false, performance_rating: null });
   });
 
   it('ошибку базы показывает по-русски', async () => {
@@ -161,6 +168,98 @@ describe('«Матчи» тренера', () => {
     await screen.findByText('Иванов Пётр');
     fireEvent.click(screen.getByText('Сохранить матч'));
     expect(await screen.findByText('Лучший игрок может быть только один.')).toBeInTheDocument();
+  });
+});
+
+describe('«Матчи»: оценка тренера (0223)', () => {
+  const card = (name: string) => screen.getByText(name).closest('.ks-card') as HTMLElement;
+  const open = async () => {
+    seed();
+    fake.db.match_players = (fake.db.match_players as { player_id: string }[]).filter(r => r.player_id !== 'p9');
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText('Олимп'));
+    await screen.findByText('Иванов Пётр');
+  };
+
+  it('сохранённая оценка показана на форме, итог баллов считается автоматически, голы на него не влияют', async () => {
+    await open();
+    expect(within(card('Иванов Пётр')).getByRole('button', { name: 'Оценка 4: Иванов Пётр' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(card('Иванов Пётр')).getByText('Баллов за матч: 4')).toBeInTheDocument();
+    fireEvent.click(stepper('Голы: Иванов Пётр', 'Больше'));
+    expect(within(card('Иванов Пётр')).getByText('Баллов за матч: 4')).toBeInTheDocument();
+    fireEvent.click(within(card('Иванов Пётр')).getByRole('button', { name: 'Назначить лучшим игроком' }));
+    expect(within(card('Иванов Пётр')).getByText('Баллов за матч: 5')).toBeInTheDocument();
+    fireEvent.click(within(card('Иванов Пётр')).getByRole('button', { name: 'Оценка 5: Иванов Пётр' }));
+    expect(within(card('Иванов Пётр')).getByText('Баллов за матч: 6')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Начислить/ })).toBeNull();
+  });
+
+  it('оценка уходит в запрос; снятие «Играл» сбрасывает оценку, повторная отметка начинается без неё', async () => {
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: 'Назначить лучшим игроком' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Показать всех игроков команды (1)' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Сидоров Ян' }));
+    fireEvent.click(within(card('Сидоров Ян')).getByRole('button', { name: 'Оценка 3: Сидоров Ян' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Сидоров Ян' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Сидоров Ян' }));
+    expect(within(card('Сидоров Ян')).getByRole('button', { name: 'Оценка 3: Сидоров Ян' })).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(within(card('Сидоров Ян')).getByRole('button', { name: 'Оценка 2: Сидоров Ян' }));
+    fireEvent.click(screen.getByText('Сохранить матч'));
+    await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
+    expect(fake.rpcCalls('save_match')[0].roster).toEqual([
+      { player_id: 'p1', played: true, goals: 2, best: true, performance_rating: 4 },
+      { player_id: 'p2', played: true, goals: 0, best: false, performance_rating: 2 },
+    ]);
+  });
+
+  it('при внесённом счёте без оценки у игравшего сохранение отклоняется до обращения к базе', async () => {
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: 'Оценка 4: Иванов Пётр' })); // повторное нажатие снимает оценку
+    fireEvent.click(screen.getByText('Сохранить матч'));
+    expect(await screen.findByText('Выставьте оценку каждому, кто играл.')).toBeInTheDocument();
+    expect(fake.rpcCalls('save_match')).toHaveLength(0);
+  });
+
+  it('при внесённом счёте без лучшего игрока сохранение отклоняется до обращения к базе', async () => {
+    await open();
+    fireEvent.click(screen.getByText('Сохранить матч'));
+    expect(await screen.findByText('Выберите лучшего игрока матча.')).toBeInTheDocument();
+    expect(fake.rpcCalls('save_match')).toHaveLength(0);
+  });
+
+  it('матч до даты модели оценки (ноябрь) сохраняется без оценок и лучшего, итог баллов не показывается', async () => {
+    seed();
+    fake.db.match_players = (fake.db.match_players as { player_id: string }[]).filter(r => r.player_id !== 'p9').map(r => ({ ...r, performance_rating: null }));
+    fake.db.points_rule_versions = [{ club_id: 'c1', effective_from: '2026-12-01', params: { match: { model: 'rating' } } }, { club_id: 'c1', effective_from: '2026-11-01', params: { match: { played: 1 } } }];
+    fake.db.matches = [{ id: 'm1', team: 'U9', played_on: '2026-11-20', opponent: 'Олимп', goals_for: 3, goals_against: 1 }];
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText('Олимп'));
+    await screen.findByText('Иванов Пётр');
+    fireEvent.click(screen.getByText('Сохранить матч'));
+    await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
+    expect(screen.queryByText('Выставьте оценку каждому, кто играл.')).toBeNull();
+    expect(screen.queryByText('Выберите лучшего игрока матча.')).toBeNull();
+    expect(screen.queryByText(/Баллов за матч:/)).toBeNull();
+  });
+
+  it('технический результат: оценки не обязательны', async () => {
+    await open();
+    fake.rpc.save_match_tech = () => 'm1';
+    fireEvent.click(screen.getByRole('button', { name: 'Оценка 4: Иванов Пётр' }));
+    fireEvent.click(screen.getByLabelText('Технический результат (матч не играли)'));
+    fireEvent.click(screen.getByText('Сохранить матч'));
+    await waitFor(() => expect(fake.rpcCalls('save_match_tech')).toHaveLength(1));
+    expect(fake.rpcCalls('save_match_tech')[0].roster[0]).toMatchObject({ player_id: 'p1', played: true, performance_rating: null });
+  });
+
+  it('ошибки сервера по оценкам показаны по-русски', async () => {
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: 'Назначить лучшим игроком' }));
+    for (const [msg, text] of [['ratings incomplete', 'Выставьте оценку каждому, кто играл.'], ['best player required', 'Выберите лучшего игрока матча.'], ['invalid rating', 'Оценка должна быть от 1 до 5.'], ['rating without playing', 'Оценку можно выставить только тому, кто играл.']]) {
+      fake.rpc.save_match = () => ({ error: { message: msg } });
+      fireEvent.click(screen.getByText('Сохранить матч'));
+      expect(await screen.findByText(text)).toBeInTheDocument();
+    }
   });
 });
 
@@ -207,7 +306,78 @@ describe('«Матчи» администратора', () => {
     await waitFor(() => expect(screen.queryByText('Гость Игорь')).not.toBeInTheDocument());
     expect(fake.rpcCalls('remove_match_player')).toEqual([{ m: 'm1', p: 'p9' }]);
     expect((fake.db.match_players as { player_id: string }[]).some(r => r.player_id === 'p9')).toBe(false);
-    expect(await screen.findByText('Гость Игорь убран из матча.')).toBeInTheDocument();
+    expect(await screen.findByText(/Гость Игорь убран из матча\./)).toBeInTheDocument();
+  });
+
+  it('модель оценки берётся из версий клуба матча, а не другого клуба', async () => {
+    seed();
+    fake.db.match_players = (fake.db.match_players as { player_id: string }[]).filter(r => r.player_id !== 'p9').map(r => ({ ...r, performance_rating: null }));
+    // на одну дату: у клуба группы g1 (c1) модели оценки ещё нет, у клуба c2 она уже действует
+    fake.db.points_rule_versions = [
+      { club_id: 'c2', effective_from: '2026-10-01', params: { match: { model: 'rating' } } },
+      { club_id: 'c1', effective_from: '2026-10-01', params: { match: { played: 1 } } },
+    ];
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText('Олимп'));
+    await screen.findByText('Иванов Пётр');
+    fireEvent.click(screen.getByText('Сохранить матч'));
+    await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
+    expect(screen.queryByText('Выставьте оценку каждому, кто играл.')).toBeNull();
+  });
+
+  it('одинаковое название команды в двух клубах: правила берутся по club_id матча, а не по первой группе', async () => {
+    seed();
+    // группа g0 клуба c2 с тем же названием U9 стоит первой в списке тренера; матч принадлежит клубу c1
+    fake.db.groups = [{ id: 'g0', name: 'U9', club_id: 'c2' }, { id: 'g1', name: 'U9', club_id: 'c1' }];
+    fake.db.match_players = (fake.db.match_players as { player_id: string }[]).filter(r => r.player_id !== 'p9').map(r => ({ ...r, performance_rating: null }));
+    fake.db.points_rule_versions = [
+      { club_id: 'c2', effective_from: '2026-10-01', params: { match: { model: 'rating' } } },
+      { club_id: 'c1', effective_from: '2026-10-01', params: { match: { played: 1 } } },
+    ];
+    render(<CoachMatches groups={[{ id: 'g0', name: 'U9' }, { id: 'g1', name: 'U9' }]} />);
+    fireEvent.click(await screen.findByText('Олимп'));
+    await screen.findByText('Иванов Пётр');
+    fireEvent.click(screen.getByText('Сохранить матч'));
+    await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
+    expect(screen.queryByText('Выставьте оценку каждому, кто играл.')).toBeNull();
+  });
+
+  it('и наоборот: у клуба матча модель оценки действует, у другого клуба нет', async () => {
+    seed();
+    fake.db.match_players = (fake.db.match_players as { player_id: string }[]).filter(r => r.player_id !== 'p9').map(r => ({ ...r, performance_rating: null }));
+    fake.db.points_rule_versions = [
+      { club_id: 'c2', effective_from: '2026-10-01', params: { match: { played: 1 } } },
+      { club_id: 'c1', effective_from: '2026-10-01', params: { match: { model: 'rating' } } },
+    ];
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText('Олимп'));
+    await screen.findByText('Иванов Пётр');
+    fireEvent.click(screen.getByText('Сохранить матч'));
+    expect(await screen.findByText('Выставьте оценку каждому, кто играл.')).toBeInTheDocument();
+    expect(fake.rpcCalls('save_match')).toHaveLength(0);
+  });
+
+  it('убранного лучшего игрока заменяет тренер: новый лучший автоматически не назначается', async () => {
+    seed();
+    removeRpc();
+    render(<CoachMatches groups={allGroups} admin />);
+    fireEvent.click(await screen.findByText('Олимп'));
+    await screen.findByText('Гость Игорь');
+    fireEvent.click(screen.getByRole('button', { name: 'Править состав' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Убрать из матча: Гость Игорь' }));
+    const dlg = await screen.findByRole('dialog');
+    expect(within(dlg).getByText(/назначен лучшим игроком/)).toBeInTheDocument();
+    fireEvent.click(within(dlg).getByRole('button', { name: 'Убрать' }));
+    expect(await screen.findByText(/Он был лучшим игроком: выберите нового лучшего/)).toBeInTheDocument();
+    expect(screen.queryByText('★ Лучший игрок матча')).not.toBeInTheDocument();
+    // без выбора тренера матч не отправляется: понятное предупреждение, запроса нет
+    fireEvent.click(screen.getByText('Сохранить матч'));
+    expect(await screen.findByText('Выберите лучшего игрока матча.')).toBeInTheDocument();
+    expect(fake.rpcCalls('save_match')).toHaveLength(0);
+    fireEvent.click(within(screen.getByText('Иванов Пётр').closest('.ks-card') as HTMLElement).getByRole('button', { name: 'Назначить лучшим игроком' }));
+    fireEvent.click(screen.getByText('Сохранить матч'));
+    await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
+    expect(fake.rpcCalls('save_match')[0].roster).toEqual(expect.arrayContaining([expect.objectContaining({ player_id: 'p1', best: true })]));
   });
 
   it('тренер видит «Править состав» и убирает игрока через remove_match_player', async () => {

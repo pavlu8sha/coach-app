@@ -1,7 +1,7 @@
 -- pgTAP: перенос матча сохраняет снимок фактических отметок и счёта, затем сбрасывает их; возврат из снимка (миграция 0136).
 begin;
 create extension if not exists pgtap;
-select plan(24);
+select plan(27);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб А'), ('00000000-0000-0000-0000-00000000c002', 'Клуб Б');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -24,7 +24,7 @@ insert into tournaments (id, club_id, team, kind, name, fee, status) values
   ('00000000-0000-0000-0000-0000000000a8', '00000000-0000-0000-0000-00000000c001', 'U9', 'championship', 'Завершённое', 0, 'finished');
 insert into points_rule_versions (id, club_id, effective_from, params) values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-00000000c001', '2026-11-01', jsonb_build_object(
   'training', jsonb_build_object('group', 1, 'individual', 2, 'goalkeeper', 2, 'extra', 2, 'moved_group', 1),
-  'match', jsonb_build_object('played', 1, 'draw', 1, 'win', 2, 'goal', 1, 'best', 2, 'cap', 5, 'technical', 0),
+  'match', jsonb_build_object('model', 'rating', 'rating_min', 1, 'rating_max', 5, 'best', 1, 'cap', 6, 'technical', 0, 'played', 0, 'draw', 0, 'win', 0, 'goal', 0),
   'manual', jsonb_build_object('values', jsonb_build_array(1, 2, 3), 'limits', jsonb_build_object('1', 3, '2', 2, '3', 1), 'month_cap', 10),
   'series', jsonb_build_object('thresholds', jsonb_build_array()),
   'group_benchmark', jsonb_build_object('min_size', 5),
@@ -53,10 +53,10 @@ reset role;
 
 -- Матч m: счёт 3:1, играли Аня (3 гола, лучший) и Боря; Вера не играла. Баллы начисляются новым журналом.
 update matches set goals_for = 3, goals_against = 1 where id = mid('m');
-insert into match_players (match_id, player_id, played, goals, best) values
-  (mid('m'), '00000000-0000-0000-0000-00000000d001', true, 3, true),
-  (mid('m'), '00000000-0000-0000-0000-00000000d002', true, 0, false),
-  (mid('m'), '00000000-0000-0000-0000-00000000d003', false, 0, false);
+insert into match_players (match_id, player_id, played, goals, best, performance_rating) values
+  (mid('m'), '00000000-0000-0000-0000-00000000d001', true, 3, true, 5),
+  (mid('m'), '00000000-0000-0000-0000-00000000d002', true, 0, false, 3),
+  (mid('m'), '00000000-0000-0000-0000-00000000d003', false, 0, false, null);
 set constraints all immediate;
 select is((select count(*)::int from points_ledger where source_id = mid('m') and status = 'active'), 2, 'до переноса баллы за матч начислены двум игрокам');
 
@@ -75,6 +75,7 @@ reset role;
 select is((select count(*)::int from match_mark_snapshots where match_id = mid('m')), 1, 'снимок создан');
 select is((select jsonb_array_length(players) from match_mark_snapshots where match_id = mid('m')), 3, 'в снимке все строки состава');
 select is((select (players->0->>'goals') || ':' || (players->0->>'best') from match_mark_snapshots where match_id = mid('m')), '3:true', 'в снимке голы и «лучший» Ани');
+select is((select players->0->>'performance_rating' from match_mark_snapshots where match_id = mid('m')), '5', 'в снимке оценка Ани');
 select is((select goals_for::text || ':' || goals_against::text from match_mark_snapshots where match_id = mid('m')), '3:1', 'в снимке счёт');
 select is((select count(*)::int from match_players where match_id = mid('m')), 3, 'строки match_players не удалены');
 select is((select count(*)::int from match_players where match_id = mid('m') and (played or goals <> 0 or best)), 0, 'отметки сброшены');
@@ -93,6 +94,8 @@ select lives_ok($$select match_rsvp_restore_marks((select id from match_mark_sna
 select throws_ok($$select match_rsvp_restore_marks((select id from match_mark_snapshots where match_id = mid('m')))$$, '55000', 'snapshot already restored', 'повторно снимок не применяется');
 reset role;
 select is((select goals::text || best::text from match_players where match_id = mid('m') and player_id = '00000000-0000-0000-0000-00000000d001'), '3true', 'голы и «лучший» вернулись');
+select is((select performance_rating from match_players where match_id = mid('m') and player_id = '00000000-0000-0000-0000-00000000d001'), 5::smallint, 'оценка тренера вернулась из снимка');
+select is((select count(*)::int from match_players where match_id = mid('m') and performance_rating is not null), 2, 'оценки обоих игравших вернулись');
 select is((select goals_for::text || ':' || goals_against::text from matches where id = mid('m')), '3:1', 'счёт вернулся');
 
 select * from finish();

@@ -1,11 +1,12 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
+import { errMsg } from '../lib/coach';
 import PointsLedger from './PointsLedger';
 
 const seed = () => {
   fake.db.points_ledger = [
-    { id: 'a', player_id: 'p1', status: 'active', event_date: '2026-12-10', points: 5, source_type: 'match', reason_code: 'match', components: { result: 'win', base: 2, goals: 3, best: 2, before_cap: 7, cap: 5 } },
+    { id: 'a', player_id: 'p1', status: 'active', event_date: '2026-12-10', points: 6, source_type: 'match', reason_code: 'match', components: { model: 'rating', rating: 5, best: true, best_bonus: 1, before_cap: 6, cap: 6, technical: false } },
     { id: 'b', player_id: 'p1', status: 'active', event_date: '2026-12-03', points: 1, source_type: 'group_session', reason_code: 'attended', components: { class: 'regular' } },
     { id: 'c', player_id: 'p1', status: 'active', event_date: '2026-11-28', points: 2, source_type: 'manual', reason_code: 'manual', components: { note: 'Старание' } },
     { id: 'd', player_id: 'p1', status: 'cancelled', event_date: '2026-12-05', points: 3, source_type: 'manual', reason_code: 'manual', components: { note: 'Ошибка' } },
@@ -52,10 +53,11 @@ describe('баллы по новым правилам', () => {
     seed();
     render(<PointsLedger playerId="p1" />);
     expect(await screen.findByText('Декабрь 2026')).toBeInTheDocument();
-    expect(screen.getByText(/За месяц:/).textContent).toContain('6');
-    expect(screen.getByText(/Всего накоплено: 8/)).toBeInTheDocument();
-    expect(screen.getByText('Матч — победа')).toBeInTheDocument();
-    expect(screen.getByText(/ограничено максимумом 5 за матч/)).toBeInTheDocument();
+    expect(screen.getByText(/За месяц:/).textContent).toContain('7');
+    expect(screen.getByText(/Всего накоплено: 9/)).toBeInTheDocument();
+    expect(screen.getByText('Матч — оценка тренера 5')).toBeInTheDocument();
+    expect(screen.getByText(/лучший игрок \+1/)).toBeInTheDocument();
+    expect(screen.queryByText(/победа|ничья|поражение|голы/)).toBeNull();
     expect(screen.queryByText(/Ошибка/)).toBeNull();
   });
 
@@ -84,5 +86,27 @@ describe('баллы по новым правилам', () => {
     fake.rpc.points_series_info = () => ({ current: 0, record: 6, current_from: null, last_break: '2026-12-12', next_threshold: '6', next_bonus: '1', remaining: 6, finished_runs: [] });
     render(<PointsLedger playerId="p1" />);
     expect(await screen.findByText(/Серия прервана после пропуска тренировки 12\.12\.2026/)).toBeInTheDocument();
+  });
+
+  it('ошибка загрузки показана, а не превращается в пустой список; повтор загружает данные', async () => {
+    seed();
+    fake.errors.points_ledger = 'сбой связи';
+    const { container } = render(<PointsLedger playerId="p1" showEmpty />);
+    expect(await screen.findByText('Не удалось загрузить баллы')).toBeInTheDocument();
+    expect(screen.getByText(errMsg({ message: 'сбой связи' }))).toBeInTheDocument();
+    expect(screen.queryByText('Баллов пока нет')).toBeNull();
+    expect(container.querySelector('main')).toBeNull();
+    delete fake.errors.points_ledger;
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    expect(await screen.findByText('Декабрь 2026')).toBeInTheDocument();
+  });
+
+  it('история длиннее 1000 строк читается страницами, итог считается по всем', async () => {
+    seed();
+    const many = Array.from({ length: 2500 }, (_, i) => ({ id: `x${String(i).padStart(4, '0')}`, player_id: 'p9', status: 'active', event_date: '2026-12-03', points: 1, source_type: 'group_session', reason_code: 'attended', components: { class: 'regular' } }));
+    fake.db.points_ledger = [...(fake.db.points_ledger as object[]), ...many];
+    fake.db.points_ledger = (fake.db.points_ledger as { player_id: string }[]).map(r => (r.player_id === 'p9' ? { ...r, player_id: 'p1' } : r));
+    render(<PointsLedger playerId="p1" />);
+    expect(await screen.findByText(/Всего накоплено: 2509/)).toBeInTheDocument();
   });
 });

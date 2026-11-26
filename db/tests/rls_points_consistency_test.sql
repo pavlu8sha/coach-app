@@ -1,7 +1,7 @@
 -- pgTAP: сверка журнала баллов (0127). Фикстуры вымышленные.
 begin;
 create extension if not exists pgtap;
-select plan(11);
+select plan(14);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin) values
@@ -61,6 +61,21 @@ select is((select points from points_ledger where status = 'active'), 1, 'в ж�
 select is((select count(*)::int from audit_log where action = 'points_consistency_fix'), 1, 'исправление записано в аудит');
 select as_user('00000000-0000-0000-0000-0000000000a1');
 select is((select (points_consistency(false) ->> 'changes')::int), 0, 'после исправления расхождений нет');
+
+-- 0223: модель оценки: сыгравшие без оценки и матч без лучшего попадают в исключения
+reset role;
+insert into points_rule_versions (club_id, effective_from, params) select club_id, date '2027-01-01', jsonb_set(params, '{match}', jsonb_build_object('model', 'rating', 'rating_min', 1, 'rating_max', 5, 'best', 1, 'cap', 6, 'technical', 0, 'played', 0, 'draw', 0, 'win', 0, 'goal', 0))
+  from points_rule_versions where id = '00000000-0000-0000-0000-0000000000f1';
+insert into matches (id, club_id, played_on, team, goals_for, goals_against) values
+  ('00000000-0000-0000-0000-00000000aa03', '00000000-0000-0000-0000-00000000c001', '2027-01-10', 'U10', 2, 0),
+  ('00000000-0000-0000-0000-00000000aa04', '00000000-0000-0000-0000-00000000c001', '2027-01-11', 'U10', 1, 0);
+insert into match_players (match_id, player_id, played, performance_rating, best) values
+  ('00000000-0000-0000-0000-00000000aa03', '00000000-0000-0000-0000-00000000d001', true, null, false),
+  ('00000000-0000-0000-0000-00000000aa04', '00000000-0000-0000-0000-00000000d001', true, 4, false);
+select as_user('00000000-0000-0000-0000-0000000000a1');
+select is((select count(*)::int from jsonb_array_elements(points_consistency(false) -> 'exceptions') e where e ->> 'kind' = 'match_without_ratings' and e ->> 'source_id' = '00000000-0000-0000-0000-00000000aa03'), 1, 'исключение: сыгравший без оценки');
+select is((select count(*)::int from jsonb_array_elements(points_consistency(false) -> 'exceptions') e where e ->> 'kind' = 'match_without_best' and e ->> 'source_id' = '00000000-0000-0000-0000-00000000aa04'), 1, 'исключение: матч без лучшего игрока');
+select is((select count(*)::int from jsonb_array_elements(points_consistency(false) -> 'exceptions') e where e ->> 'kind' = 'match_without_ratings' and e ->> 'source_id' = '00000000-0000-0000-0000-00000000aa04'), 0, 'матч с оценкой в исключения по оценкам не попадает');
 
 select * from finish();
 rollback;

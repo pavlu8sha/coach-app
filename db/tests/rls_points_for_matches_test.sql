@@ -19,7 +19,7 @@ insert into player_guardians (player_id, user_id, consent_version, consent_given
   values ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-0000000000b1', 'v1', now());
 insert into points_rule_versions (id, club_id, effective_from, params) values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-00000000c001', '2026-12-01', jsonb_build_object(
   'training', jsonb_build_object('group', 1, 'individual', 2, 'goalkeeper', 2, 'extra', 2, 'moved_group', 1),
-  'match', jsonb_build_object('played', 1, 'draw', 1, 'win', 2, 'goal', 1, 'best', 2, 'cap', 5, 'technical', 0),
+  'match', jsonb_build_object('model', 'rating', 'rating_min', 1, 'rating_max', 5, 'best', 1, 'cap', 6, 'technical', 0, 'played', 0, 'draw', 0, 'win', 0, 'goal', 0),
   'manual', jsonb_build_object('values', jsonb_build_array(1, 2, 3), 'limits', jsonb_build_object('1', 3, '2', 2, '3', 1), 'month_cap', 10),
   'series', jsonb_build_object('thresholds', jsonb_build_array()),
   'group_benchmark', jsonb_build_object('min_size', 5),
@@ -31,20 +31,20 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub', uid, 'role', 'authenticated')::text, true);
 end $$;
 
--- победа 3:1: Аня (3 гола, лучший) = 2+3+2 = 7 -> 5; Боря = 2; Вера не играла
+-- 3:1: Аня (оценка 5, 3 гола, лучший) = 6; Боря (оценка 2) = 2; Вера не играла. Победа и голы баллов не дают (0223).
 insert into matches (id, club_id, played_on, team, opponent, goals_for, goals_against)
   values ('00000000-0000-0000-0000-00000000aa01', '00000000-0000-0000-0000-00000000c001', '2026-12-03', 'U10', 'Соперник', 3, 1);
-insert into match_players (match_id, player_id, played, goals, best) values
-  ('00000000-0000-0000-0000-00000000aa01', '00000000-0000-0000-0000-00000000d001', true, 3, true),
-  ('00000000-0000-0000-0000-00000000aa01', '00000000-0000-0000-0000-00000000d002', true, 0, false),
-  ('00000000-0000-0000-0000-00000000aa01', '00000000-0000-0000-0000-00000000d003', false, 0, false);
+insert into match_players (match_id, player_id, played, goals, best, performance_rating) values
+  ('00000000-0000-0000-0000-00000000aa01', '00000000-0000-0000-0000-00000000d001', true, 3, true, 5),
+  ('00000000-0000-0000-0000-00000000aa01', '00000000-0000-0000-0000-00000000d002', true, 0, false, 2),
+  ('00000000-0000-0000-0000-00000000aa01', '00000000-0000-0000-0000-00000000d003', false, 0, false, null);
 
 select is((select count(*)::int from points_ledger), 0, 'расчёт отложен до конца транзакции');
 set constraints all immediate;
 
-select is((select points from points_ledger where player_id = '00000000-0000-0000-0000-00000000d001' and status = 'active'), 5, 'победа + 3 гола + лучший = 7, но не больше 5');
-select is((select (components ->> 'before_cap')::int from points_ledger where player_id = '00000000-0000-0000-0000-00000000d001' and status = 'active'), 7, 'до ограничения 7, видно в основании');
-select is((select points from points_ledger where player_id = '00000000-0000-0000-0000-00000000d002' and status = 'active'), 2, 'победа без голов = 2');
+select is((select points from points_ledger where player_id = '00000000-0000-0000-0000-00000000d001' and status = 'active'), 6, 'оценка 5 + лучший = 6 (максимум за матч)');
+select is((select (components ->> 'rating') || ':' || (components ->> 'best_bonus') from points_ledger where player_id = '00000000-0000-0000-0000-00000000d001' and status = 'active'), '5:1', 'в основании оценка 5 и бонус лучшего 1');
+select is((select points from points_ledger where player_id = '00000000-0000-0000-0000-00000000d002' and status = 'active'), 2, 'оценка 2 = 2 балла');
 select is((select count(*)::int from points_ledger where player_id = '00000000-0000-0000-0000-00000000d003'), 0, 'не играл: баллов нет');
 select is((select group_id from points_ledger where player_id = '00000000-0000-0000-0000-00000000d001' and status = 'active'), '00000000-0000-0000-0000-0000000000e1'::uuid, 'группа игрока на дату матча');
 select is((select count(*)::int from points_ledger where status = 'active'), 2, 'две действующие строки');
@@ -54,20 +54,18 @@ update matches set opponent = 'Другой' where id = '00000000-0000-0000-0000
 select is((select count(*)::int from points_ledger_audit), 2, 'правка названия соперника баллы не трогает');
 select is((select count(*)::int from match_revisions where entity = 'match' and action = 'update'), 1, 'правка матча записана в журнал исправлений');
 
--- ничья 1:1: Боря 1, Аня 1+3+2 = 6 -> 5
+-- ничья 1:1 и поражение 0:2 с другими голами: личные баллы те же
 update matches set goals_for = 1, goals_against = 1 where id = '00000000-0000-0000-0000-00000000aa01';
-select is((select points from points_ledger where player_id = '00000000-0000-0000-0000-00000000d002' and status = 'active'), 1, 'ничья: участие = 1');
-select is((select points from points_ledger where player_id = '00000000-0000-0000-0000-00000000d001' and status = 'active'), 5, 'ничья, у Ани по-прежнему 5');
-
--- поражение 0:2, Ане сняли голы: 1+0+2 = 3
+select is((select points from points_ledger where player_id = '00000000-0000-0000-0000-00000000d002' and status = 'active'), 2, 'ничья: баллы Бори те же');
+select is((select points from points_ledger where player_id = '00000000-0000-0000-0000-00000000d001' and status = 'active'), 6, 'ничья: баллы Ани те же');
 update match_players set goals = 0 where match_id = '00000000-0000-0000-0000-00000000aa01' and player_id = '00000000-0000-0000-0000-00000000d001';
 update matches set goals_for = 0, goals_against = 2 where id = '00000000-0000-0000-0000-00000000aa01';
-select is((select points from points_ledger where player_id = '00000000-0000-0000-0000-00000000d001' and status = 'active'), 3, 'поражение, без голов, лучший: 3');
+select is((select points from points_ledger where player_id = '00000000-0000-0000-0000-00000000d001' and status = 'active'), 6, 'поражение и снятые голы: баллы Ани те же');
 select is((select count(*)::int from match_revisions where entity = 'player' and action = 'update'), 1, 'правка игрока записана в журнал исправлений');
 
 -- Вера теперь играла
-update match_players set played = true where match_id = '00000000-0000-0000-0000-00000000aa01' and player_id = '00000000-0000-0000-0000-00000000d003';
-select is((select points from points_ledger where player_id = '00000000-0000-0000-0000-00000000d003' and status = 'active'), 1, 'отметка «Играл» добавляет участие');
+update match_players set played = true, performance_rating = 3 where match_id = '00000000-0000-0000-0000-00000000aa01' and player_id = '00000000-0000-0000-0000-00000000d003';
+select is((select points from points_ledger where player_id = '00000000-0000-0000-0000-00000000d003' and status = 'active'), 3, 'отметка «Играл» с оценкой 3 даёт 3 балла');
 
 -- права
 select as_user('00000000-0000-0000-0000-0000000000b1');

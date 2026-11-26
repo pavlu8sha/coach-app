@@ -28,7 +28,7 @@ insert into rules (id, club_id, code, points, explanation, active_from) values
   ('00000000-0000-0000-0000-0000000001a6', '00000000-0000-0000-0000-00000000c001', 'match_best', 3, 'Лучший', date '2026-01-01');
 insert into points_rule_versions (club_id, effective_from, params) values ('00000000-0000-0000-0000-00000000c001', '2026-11-01', jsonb_build_object(
   'training', jsonb_build_object('group', 1, 'individual', 2, 'goalkeeper', 2, 'extra', 2, 'moved_group', 1),
-  'match', jsonb_build_object('played', 1, 'draw', 1, 'win', 2, 'goal', 1, 'best', 2, 'cap', 5, 'technical', 0),
+  'match', jsonb_build_object('model', 'rating', 'rating_min', 1, 'rating_max', 5, 'best', 1, 'cap', 6, 'technical', 0, 'played', 0, 'draw', 0, 'win', 0, 'goal', 0),
   'manual', jsonb_build_object('values', jsonb_build_array(1, 2, 3), 'limits', jsonb_build_object('1', 3, '2', 2, '3', 1), 'month_cap', 10),
   'series', jsonb_build_object('thresholds', jsonb_build_array()),
   'group_benchmark', jsonb_build_object('min_size', 5),
@@ -37,8 +37,8 @@ insert into sessions (id, group_id, starts_at, kind, source_key, class) values
   ('00000000-0000-0000-0000-0000000005a1', '00000000-0000-0000-0000-0000000000e1', '2026-11-03 15:00+04', 'training', 'ATT|2026-11-03', 'regular');
 insert into matches (id, club_id, played_on, team, opponent, goals_for, goals_against) values
   ('00000000-0000-0000-0000-0000000007a1', '00000000-0000-0000-0000-00000000c001', '2026-11-04', 'G1', 'Старый соперник', 1, 0);
-insert into match_players (match_id, player_id, played, goals) values
-  ('00000000-0000-0000-0000-0000000007a1', '00000000-0000-0000-0000-00000000d001', true, 1);
+insert into match_players (match_id, player_id, played, goals, best, performance_rating) values
+  ('00000000-0000-0000-0000-0000000007a1', '00000000-0000-0000-0000-00000000d001', true, 1, true, 4);
 
 -- архив старых баллов (как в prod до 0186): вставляется в обход заморозки
 alter table point_events disable trigger point_events_archive_freeze;
@@ -82,7 +82,7 @@ select is((select count(*)::int from points_ledger where source_id = '00000000-0
 
 -- 3. Матчи: сохранение, правка старого матча, удаление
 select as_user('00000000-0000-0000-0000-0000000000c1');
-select lives_ok($$select save_match(null, '00000000-0000-0000-0000-0000000000e1', tbilisi_day(now()), 'Соперник', 2, 0, '[{"player_id":"00000000-0000-0000-0000-00000000d001","played":true,"goals":1,"best":true}]')$$,
+select lives_ok($$select save_match(null, '00000000-0000-0000-0000-0000000000e1', tbilisi_day(now()), 'Соперник', 2, 0, '[{"player_id":"00000000-0000-0000-0000-00000000d001","played":true,"goals":1,"best":true,"performance_rating":4}]')$$,
   'save_match работает');
 reset role;
 set constraints all immediate; set constraints all deferred;
@@ -91,7 +91,7 @@ select is((select points from points_ledger where source_type = 'match' and stat
 select is(n_bonus(), 1, 'родитель получил одно уведомление о матче (новый путь)');
 
 select as_user('00000000-0000-0000-0000-0000000000c1');
-select lives_ok($$select save_match('00000000-0000-0000-0000-0000000007a1', '00000000-0000-0000-0000-0000000000e1', '2026-11-04', 'Старый соперник', 1, 0, '[{"player_id":"00000000-0000-0000-0000-00000000d001","played":true,"goals":0,"best":false}]')$$,
+select lives_ok($$select save_match('00000000-0000-0000-0000-0000000007a1', '00000000-0000-0000-0000-0000000000e1', '2026-11-04', 'Старый соперник', 1, 0, '[{"player_id":"00000000-0000-0000-0000-00000000d001","played":true,"goals":0,"best":true,"performance_rating":4}]')$$,
   'правка старого матча работает');
 reset role;
 select ok(exists (select 1 from point_events where id = '00000000-0000-0000-0000-0000000008a2'), 'правка матча не стирает архивные баллы матча');
@@ -187,7 +187,7 @@ reset role;
 
 -- 9. Снятие даты старта не шлёт родителю повторное уведомление о том же матче
 select as_user('00000000-0000-0000-0000-0000000000c1');
-select lives_ok($$select save_match(null, '00000000-0000-0000-0000-0000000000e1', tbilisi_day(now()) - 2, 'Повтор', 2, 0, '[{"player_id":"00000000-0000-0000-0000-00000000d001","played":true,"goals":0,"best":false}]')$$,
+select lives_ok($$select save_match(null, '00000000-0000-0000-0000-0000000000e1', tbilisi_day(now()) - 2, 'Повтор', 2, 0, '[{"player_id":"00000000-0000-0000-0000-00000000d001","played":true,"goals":0,"best":true,"performance_rating":3}]')$$,
   'матч за последнюю неделю сохранён');
 reset role;
 set constraints all immediate; set constraints all deferred;
