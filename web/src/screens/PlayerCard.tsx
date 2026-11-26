@@ -11,6 +11,7 @@ import PlayerStatusPanel from './PlayerStatusPanel';
 import PlayerPayMode from './PlayerPayMode';
 import { Failure, Loading } from './Message';
 import { EquipmentTab, MatchesTab, PointsTab, SessionsTab } from './PlayerCardTabs';
+import { prefetchPoints } from './PointsLedger';
 import { DEBT_START } from '../lib/debtSeason';
 import { perVisitMonth, type PayMode } from '../lib/payMode';
 import { monthIso, monthName, nextMonth, Row, tariffFor, type Sub } from './MonthPayments';
@@ -87,6 +88,8 @@ export default function PlayerCard({ player, onBack, onEdit, onStatus, managed }
       setStatusLog(!r.error ? ((r.data ?? []) as StatusLogPoint[]) : []);
     });
   }, [player.id, status, reload]);
+
+  useEffect(() => { prefetchPoints(player.id); }, [player.id]); // вкладка «Баллы» открывается без пустого экрана
 
   if (error) return <Failure title="Не удалось загрузить игрока" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} managed={managed} />} />;
   const payMonths = (pays ?? []).map(x => ({ amount: x.amount, month: x.pay_month ?? x.paid_on.slice(0, 7) + '-01' }));

@@ -32,11 +32,18 @@ describe('«Мои дети»: статус привязки ребёнка (#73
     await screen.findByText('Иван Петров');
     await waitFor(() => expect(fake.rpcCalls('child_linked')).toEqual([{ p: 'p1' }]));
     expect(screen.getByRole('status')).toHaveTextContent('Проверяю привязку аккаунта');
+    expect(screen.getByRole('status')).toHaveClass('ks-back');
+    // строка статуса и кнопка лежат в такой же отдельной строке на всю ширину: страница не прыгает, когда проверка закончилась
+    const statusRow = screen.getByRole('status').parentElement!;
+    expect(statusRow).toHaveClass('ks-link-row');
+    expect(statusRow.style.display).toBe('flex');
     expect(screen.queryByRole('button', { name: CODE })).toBeNull();
     expect(screen.queryByRole('button', { name: UNLINK })).toBeNull();
     expect(fake.rpcCalls('create_child_code')).toHaveLength(0);
     await act(async () => d.resolve(false));
-    expect(await screen.findByRole('button', { name: CODE })).toBeInTheDocument();
+    const codeBtn = await screen.findByRole('button', { name: CODE });
+    expect(codeBtn.parentElement).toHaveClass('ks-link-row');
+    expect(codeBtn.parentElement!.style.display).toBe('flex');
     expect(screen.queryByRole('status')).toBeNull();
   });
 

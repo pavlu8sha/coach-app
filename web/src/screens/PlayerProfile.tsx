@@ -7,7 +7,7 @@ import { supabase } from '../lib/supabase';
 import { BackNav } from '../ui/nav';
 import { Avatar, EmptyState, Pill, Segmented, type Tone } from '../ui/components';
 import { Failure, Loading } from './Message';
-import PointsLedger from './PointsLedger';
+import PointsLedger, { prefetchPoints } from './PointsLedger';
 
 // Профиль игрока для родителя и ребёнка (#266, этапы 1–2; условия П1.*, П2.11–П2.14 в docs/PLAYER_PROFILE_ACCEPTANCE.md).
 // Только данные этого ребёнка: строку игрока, его матчи и посещения отдаёт сервер по правам (RLS и player_training_history).
@@ -140,6 +140,7 @@ export default function PlayerProfile({ playerId, onBack }: { playerId: string; 
       setPoints(led.totals[playerId] ?? 0);
       setPlayer(pl.data as unknown as Player);
       void loadTrain(tbilisiToday());
+      prefetchPoints(playerId); // вкладка «Баллы» открывается без пустого экрана
     })();
     return () => {
       live = false;

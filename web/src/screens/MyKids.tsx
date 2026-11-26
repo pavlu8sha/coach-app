@@ -138,16 +138,16 @@ export default function MyKids({ onBack }: { onBack: () => void }) {
                   <p style={{ fontSize: 24, letterSpacing: 4, fontWeight: 600 }}>{codes[k.id]}</p>
                 </div>
               ) : linkStateOf(k.id) === 'loading' ? (
-                <p className="muted" role="status" style={{ marginBottom: 8 }}>Проверяю привязку аккаунта…</p>
+                <div className="ks-link-row" style={{ display: 'flex', marginBottom: 8 }}><div className="ks-back" role="status" style={{ color: 'var(--ks-text-muted)', fontWeight: 400, cursor: 'default' }}>Проверяю привязку аккаунта…</div></div> /* своя строка на всю ширину, как у кнопок «Код для ребёнка» / «Отвязать»: страница не прыгает, когда проверка закончилась */
               ) : linkStateOf(k.id) === 'error' ? (
                 <div style={{ marginBottom: 8 }}>
                   <p className="error" role="alert">Не удалось проверить привязку аккаунта ребёнка. Действия с кодом скрыты, пока проверка не пройдёт.</p>
                   <button type="button" className="ks-back" onClick={() => void checkLinked(k.id, reload)}>Повторить проверку</button>
                 </div>
               ) : linkStateOf(k.id) === 'linked' ? (
-                <button type="button" className="ks-back" style={{ marginBottom: 8 }} disabled={busy} onClick={() => void unlinkChild(k.id)}>Отвязать аккаунт ребёнка</button>
+                <div className="ks-link-row" style={{ display: 'flex', marginBottom: 8 }}><button type="button" className="ks-back" disabled={busy} onClick={() => void unlinkChild(k.id)}>Отвязать аккаунт ребёнка</button></div>
               ) : (
-                <button type="button" className="ks-back" style={{ marginBottom: 8 }} disabled={busy} onClick={() => void makeCode(k.id)}>Код для ребёнка</button>
+                <div className="ks-link-row" style={{ display: 'flex', marginBottom: 8 }}><button type="button" className="ks-back" disabled={busy} onClick={() => void makeCode(k.id)}>Код для ребёнка</button></div>
               )}
               <button type="button" className="ks-back" style={{ marginBottom: 8 }} disabled={busy} onClick={() => void askRevoke(k)}>Отозвать согласие</button>
             </div>
