@@ -38,10 +38,21 @@ const PAGE = 1000;
 
 // Последние загруженные баллы игрока держатся в памяти: повторное открытие вкладки показывает их сразу (без пустого экрана и прыжка страницы),
 // свежие данные подтягиваются в фоне. prefetchPoints вызывается при открытии карточки игрока, чтобы и первое открытие вкладки было мгновенным.
-const ledgerCache = new Map<string, { rows: LedgerRow[]; series: SeriesInfo | null }>();
+type Loaded = { rows: LedgerRow[]; series: SeriesInfo | null };
+const ledgerCache = new Map<string, Loaded & { at: number }>();
 const benchCache = new Map<string, Bench>();
+const inflight = new Map<string, Promise<Loaded>>();
+const seqOf = new Map<string, number>();
+const CACHE_LIMIT = 50; // игроков в памяти: дальше вытесняются самые старые
+const FRESH_MS = 30_000; // предзагрузка не повторяется, пока запомненное моложе
 
-async function loadLedger(playerId: string): Promise<{ rows: LedgerRow[]; series: SeriesInfo | null }> {
+function remember(playerId: string, v: Loaded) {
+  ledgerCache.delete(playerId);
+  ledgerCache.set(playerId, { ...v, at: Date.now() });
+  while (ledgerCache.size > CACHE_LIMIT) ledgerCache.delete(ledgerCache.keys().next().value as string);
+}
+
+async function fetchLedger(playerId: string): Promise<Loaded> {
   const list: LedgerRow[] = [];
   for (let from = 0; ; from += PAGE) {
     const r = await supabase.from('points_ledger').select('id, event_date, points, source_type, reason_code, components, status').eq('player_id', playerId).eq('status', 'active')
@@ -56,19 +67,46 @@ async function loadLedger(playerId: string): Promise<{ rows: LedgerRow[]; series
     const s = await supabase.rpc('points_series_info', { p: playerId });
     series = s.error ? null : (s.data as SeriesInfo | null);
   }
-  const res = { rows: list, series };
-  ledgerCache.set(playerId, res);
-  return res;
+  return { rows: list, series };
 }
 
-/** Для тестов: забыть всё, что запомнено между экранами. */
+// Один запрос на игрока: предзагрузка и вкладка делят его. Повтор (force) начинает новый запрос; в память пишет только самый поздний запущенный,
+// поэтому запоздавший ответ старого запроса не затирает свежие баллы.
+export function loadLedger(playerId: string, force = false): Promise<Loaded> {
+  const running = inflight.get(playerId);
+  if (running && !force) return running;
+  const mine = (seqOf.get(playerId) ?? 0) + 1;
+  seqOf.set(playerId, mine);
+  const p = fetchLedger(playerId).then(v => {
+    if (seqOf.get(playerId) === mine) remember(playerId, v);
+    return v;
+  }).finally(() => { if (inflight.get(playerId) === p) inflight.delete(playerId); });
+  inflight.set(playerId, p);
+  return p;
+}
+
+/** Забыть всё, что запомнено между экранами: при выходе из аккаунта, смене пользователя и в тестах. */
 export function resetPointsCache(): void {
+  lastAuthUser = undefined;
   ledgerCache.clear();
   benchCache.clear();
+  inflight.clear();
+  seqOf.clear();
 }
 
-/** Заранее загружает баллы игрока (ошибки молча игнорируются: вкладка загрузит сама). */
+let lastAuthUser: string | undefined;
+/** Событие входа/выхода: при выходе и смене пользователя запомненные баллы забываются (чужие баллы не показываются новому пользователю). */
+export function pointsAuthEvent(ev: string, session: { user?: { id?: string } } | null): void {
+  const id = session?.user?.id;
+  if (ev === 'SIGNED_OUT' || (id && lastAuthUser && id !== lastAuthUser)) resetPointsCache();
+  if (ev === 'SIGNED_OUT') lastAuthUser = undefined;
+  else if (id) lastAuthUser = id;
+}
+
+/** Заранее загружает баллы игрока (ошибки молча игнорируются: вкладка загрузит сама). Свежие данные не перезапрашиваются. */
 export function prefetchPoints(playerId: string): void {
+  const c = ledgerCache.get(playerId);
+  if (c && Date.now() - c.at < FRESH_MS) return;
   void loadLedger(playerId).catch(() => undefined);
 }
 
@@ -83,6 +121,7 @@ export default function PointsLedger({ playerId, showEmpty = false }: { playerId
   const [bench, setBench] = useState<Bench | null>(month ? benchCache.get(`${playerId}|${month}`) ?? null : null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [stale, setStale] = useState(false); // обновление не удалось: на экране сохранённые баллы
 
   useEffect(() => {
     // показанное из памяти остаётся на экране, пока тихо подтягиваются свежие данные: вкладка не мигает пустотой
@@ -90,18 +129,18 @@ export default function PointsLedger({ playerId, showEmpty = false }: { playerId
     setRows(c?.rows ?? null);
     setSeries(c?.series ?? null);
     setError(null);
+    setStale(false);
     let off = false;
-    void (async () => {
-      try {
-        const fresh = await loadLedger(playerId);
-        if (off) return;
-        setRows(fresh.rows);
-        setSeries(fresh.series);
-      } catch (e) {
-        if (!off && !ledgerCache.has(playerId)) setError(errMsg(e)); // ошибка загрузки не превращается в пустой список
-      }
-    })();
-    return () => { off = true; };
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const apply = (v: Loaded) => { if (!off) { setRows(v.rows); setSeries(v.series); setStale(false); } };
+    const fail = (e: unknown, again: boolean) => {
+      if (off) return;
+      if (!ledgerCache.has(playerId)) return setError(errMsg(e)); // ошибка загрузки не превращается в пустой список
+      if (again) retry = setTimeout(() => { loadLedger(playerId, true).then(apply, err => fail(err, false)); }, 2000); // один тихий повтор
+      else setStale(true); // показаны сохранённые баллы: честно говорим, что они могли устареть
+    };
+    loadLedger(playerId, reload > 0).then(apply, e => fail(e, true));
+    return () => { off = true; clearTimeout(retry); };
   }, [playerId, reload]);
 
   // ориентиры группы за выбранный месяц: анонимно, только числа; без функции (старая база) блок просто не показывается
@@ -109,11 +148,13 @@ export default function PointsLedger({ playerId, showEmpty = false }: { playerId
     if (!month) return;
     const key = `${playerId}|${month}`;
     setBench(benchCache.get(key) ?? null);
+    let off = false;
     void supabase.rpc('points_group_benchmark', { p: playerId, ym: `${month}-01` }).then(r => {
       const b = r.error ? null : (r.data as Bench | null);
       if (b) benchCache.set(key, b);
-      setBench(b);
+      if (!off) setBench(b); // ответ за прежний месяц не перекрывает выбранный
     });
+    return () => { off = true; };
   }, [playerId, month]);
 
   if (error) return <Failure embedded title="Не удалось загрузить баллы" text={error} onRetry={() => setReload(n => n + 1)} />;
@@ -129,6 +170,12 @@ export default function PointsLedger({ playerId, showEmpty = false }: { playerId
   return (
     <section className="ks-card" aria-label="Баллы по новым правилам">
       <h2 style={{ marginTop: 0 }}>Баллы</h2>
+      {stale && (
+        <p className="muted" role="status" style={{ marginTop: 0 }}>
+          Не удалось обновить, данные могли устареть.{' '}
+          <button type="button" className="ks-back" onClick={() => setReload(n => n + 1)}>Обновить</button>
+        </p>
+      )}
       <div className="ks-line">
         <button type="button" className="ks-btn secondary sm" aria-label="Предыдущий месяц" disabled={month <= first} onClick={() => setMonth(shiftMonth(month, -1))}>‹</button>
         <b>{monthLabel(month)}</b>
