@@ -126,6 +126,12 @@ preflight_0225_state "club_event_current_club без pg_temp в search_path" "al
 preflight_0225_state "is_any_coach доступна anon" "grant execute on function public.is_any_coach() to anon"
 preflight_0225_state "club_event_current_club недоступна authenticated" "revoke execute on function public.club_event_current_club() from authenticated"
 preflight_0225_state "is_any_coach со старым телом (таблица без public.)" "do \$f\$ begin execute replace(pg_get_functiondef('public.is_any_coach()'::regprocedure), 'public.coach_groups', 'coach_groups'); end \$f\$"
+preflight_0225_state "is_any_coach без public.current_user_id()" "do \$f\$ begin execute replace(pg_get_functiondef('public.is_any_coach()'::regprocedure), 'public.current_user_id()', 'current_user_id()'); end \$f\$"
+preflight_0225_state "is_any_coach не SECURITY DEFINER" "alter function public.is_any_coach() security invoker"
+preflight_0225_state "club_event_current_club теряет public.users" "do \$f\$ begin execute replace(pg_get_functiondef('public.club_event_current_club()'::regprocedure), 'public.users', 'users'); end \$f\$"
+preflight_0225_state "club_event_current_club теряет public.clubs" "do \$f\$ begin execute replace(pg_get_functiondef('public.club_event_current_club()'::regprocedure), 'public.clubs', 'clubs'); end \$f\$"
+preflight_0225_state "club_event_current_club теряет public.current_user_id()" "do \$f\$ begin execute replace(pg_get_functiondef('public.club_event_current_club()'::regprocedure), 'public.current_user_id()', 'current_user_id()'); end \$f\$"
+preflight_0225_state "club_event_current_club не SECURITY DEFINER" "alter function public.club_event_current_club() security invoker"
 for t in db/tests/*_test.sql; do
   echo "== $t"
   out=$($PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f "$t" 2>&1) || { echo "$out"; fail=1; continue; }

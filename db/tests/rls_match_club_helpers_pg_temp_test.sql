@@ -3,7 +3,7 @@
 -- не должна давать обход проверки клуба в remove_match_player, save_match, set_match_technical, delete_match. Фикстуры вымышленные.
 begin;
 create extension if not exists pgtap;
-select plan(18);
+select plan(24);
 
 alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
 \i db/migrations/0225_remove_match_player_club.sql
@@ -14,11 +14,14 @@ insert into clubs (id, name) values
 insert into users (id, telegram_id, display_name, is_admin, club_id) values
   ('00000000-0000-0000-0000-0000000000a2', 8002, 'Админ Б', true,  '00000000-0000-0000-0000-00000000c002'),
   ('00000000-0000-0000-0000-0000000000c2', 8004, 'Тренер Б', false, '00000000-0000-0000-0000-00000000c002'),
-  ('00000000-0000-0000-0000-0000000000b1', 8005, 'Родитель А', false, '00000000-0000-0000-0000-00000000c001');
+  ('00000000-0000-0000-0000-0000000000b1', 8005, 'Родитель А', false, '00000000-0000-0000-0000-00000000c001'),
+  ('00000000-0000-0000-0000-0000000000c3', 8006, 'Тренер без клуба', false, null);
 insert into groups (id, club_id, name) values
   ('00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-00000000c001', 'U9'),
   ('00000000-0000-0000-0000-0000000000e2', '00000000-0000-0000-0000-00000000c002', 'U9');
-insert into coach_groups (user_id, group_id) values ('00000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-0000000000e2');
+insert into coach_groups (user_id, group_id) values
+  ('00000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-0000000000e2'),
+  ('00000000-0000-0000-0000-0000000000c3', '00000000-0000-0000-0000-0000000000e1');
 insert into players (id, club_id, group_id, full_name) values
   ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-0000000000e1', 'Игрок А1');
 insert into matches (id, club_id, played_on, team, opponent) values
@@ -37,6 +40,9 @@ select ok((select p.proconfig @> array['search_path=public, pg_temp'] from pg_pr
 select ok((select p.proconfig @> array['search_path=public, pg_temp'] from pg_proc p where p.oid = 'is_any_coach()'::regprocedure), 'is_any_coach: search_path public, pg_temp');
 select ok(has_function_privilege('authenticated', 'club_event_current_club()', 'execute') and not has_function_privilege('anon', 'club_event_current_club()', 'execute'), 'club_event_current_club: права authenticated, не anon');
 select ok(has_function_privilege('authenticated', 'is_any_coach()', 'execute') and not has_function_privilege('anon', 'is_any_coach()', 'execute'), 'is_any_coach: права authenticated, не anon');
+
+select ok(position('public.users' in (select prosrc from pg_proc where oid = 'club_event_current_club()'::regprocedure)) > 0 and position('public.clubs' in (select prosrc from pg_proc where oid = 'club_event_current_club()'::regprocedure)) > 0, 'club_event_current_club: users и clubs квалифицированы public.');
+select ok(position('public.coach_groups' in (select prosrc from pg_proc where oid = 'is_any_coach()'::regprocedure)) > 0, 'is_any_coach: coach_groups квалифицирована public.');
 
 -- A. подмена pg_temp.users: тренер клуба Б «переселяет» себя в клуб А
 discard plans;
@@ -64,6 +70,18 @@ select throws_ok($$select remove_match_player('00000000-0000-0000-0000-000000000
 select throws_ok($$select save_match('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000e1', '2026-11-01', 'Взлом', null, null, '[]'::jsonb)$$, '42501', 'forbidden', 'pg_temp.coach_groups: save_match отказ');
 select throws_ok($$select set_match_technical('00000000-0000-0000-0000-0000000000f1', true)$$, '42501', 'forbidden', 'pg_temp.coach_groups: set_match_technical отказ');
 drop table pg_temp.coach_groups;
+reset role;
+
+-- C. подмена pg_temp.clubs: тренер без club_id при двух клубах; во временной clubs ровно одна строка (клуб А), fallback «единственный клуб» не должен сработать
+discard plans;
+select as_user('00000000-0000-0000-0000-0000000000c3');
+create temp table clubs (like public.clubs including defaults);
+insert into pg_temp.clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Подмена');
+select is(club_event_current_club(), null::uuid, 'pg_temp.clubs: club_event_current_club не использует подменённую clubs');
+select throws_ok($$select remove_match_player('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-00000000d001')$$, '42501', 'forbidden', 'pg_temp.clubs: remove_match_player отказ');
+select throws_ok($$select save_match('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000e1', '2026-11-01', 'Взлом', null, null, '[]'::jsonb)$$, '42501', 'forbidden', 'pg_temp.clubs: save_match отказ');
+select throws_ok($$select set_match_technical('00000000-0000-0000-0000-0000000000f1', true)$$, '42501', 'forbidden', 'pg_temp.clubs: set_match_technical отказ');
+drop table pg_temp.clubs;
 reset role;
 
 -- данные не тронуты
