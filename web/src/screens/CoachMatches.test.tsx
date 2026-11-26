@@ -1197,6 +1197,31 @@ describe('Состав матча с подтверждением в форме 
     expect(screen.queryByText('Петров Лев')).toBeNull();
   });
 
+  it('после «Сохранить» состав остаётся приглашёнными, в том числе когда никто не отмечен «Играл»', async () => {
+    fake.rpc.save_match = (a: { m?: string }) => a.m ?? 'r1';
+    fake.db.match_invitations = [{ match_id: 'r1', player_id: 'p1', status: 'invited' }, { match_id: 'r1', player_id: 'p9', status: 'invited' }];
+    await open();
+    await screen.findByText('Гость Игорь');
+    fireEvent.click(screen.getByText('Сохранить матч'));
+    await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Показать всех игроков команды \(2\)/ })).toBeInTheDocument());
+    expect(screen.queryByText('Сидоров Ян')).toBeNull();
+    expect(screen.getByText('Иванов Пётр')).toBeInTheDocument();
+  });
+
+  it('после «Сохранить» с одним отмеченным остальные приглашённые остаются в составе', async () => {
+    fake.rpc.save_match = (a: { m?: string }) => a.m ?? 'r1';
+    fake.db.match_invitations = [{ match_id: 'r1', player_id: 'p1', status: 'invited' }, { match_id: 'r1', player_id: 'p9', status: 'invited' }];
+    await open();
+    await screen.findByText('Гость Игорь');
+    fireEvent.click(within(screen.getByText('Иванов Пётр').closest('.ks-card') as HTMLElement).getByRole('checkbox'));
+    fireEvent.click(screen.getByText('Сохранить матч'));
+    await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Показать всех игроков команды \(2\)/ })).toBeInTheDocument());
+    expect(screen.getByText('Иванов Пётр')).toBeInTheDocument();
+    expect(screen.getByText('Гость Игорь')).toBeInTheDocument();
+  });
+
   it('матч без подтверждения: приглашения не читаются, вся группа как раньше', async () => {
     fake.db.match_invitations = [{ match_id: 'r1', player_id: 'p1', status: 'invited' }];
     fake.db.matches = [{ id: 'r1', club_id: 'c1', team: 'U9', played_on: '2026-10-10', opponent: 'Икс', goals_for: null, goals_against: null }];

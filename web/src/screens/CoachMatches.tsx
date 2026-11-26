@@ -248,6 +248,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
   const [found, setFound] = useState<Player[]>([]);
   // после первого сохранения в составе остаются только сыгравшие; остальных можно показать кнопкой, чтобы добавить забытого
   const [shownIds, setShownIds] = useState<string[] | null>(null);
+  const [invitedIds, setInvitedIds] = useState<string[]>([]); // приглашённые матча с подтверждением: остаются в составе и после сохранения
   const [showAll, setShowAll] = useState(false);
   // правки считаются от загруженного состояния; после сохранения на месте принимаются за исходные
   const markClean = useDirtySignature(JSON.stringify([gid, date, opp, gf, ga, lines, bestId, technical]), players !== null);
@@ -316,6 +317,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
       setLines(init);
       setBestId(best);
       const playedIds = Object.entries(init).filter(([, l]) => l.played).map(([id]) => id);
+      setInvitedIds(invitedIds);
       const shown = [...new Set([...invitedIds, ...playedIds])];
       setShownIds(shown.length ? shown : null);
       setPlayers(list);
@@ -420,7 +422,8 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     setSavedId(r.data as string);
     if (techChanged) setSavedTech(technical);
     const playedNow = Object.entries(lines).filter(([, l]) => l.played).map(([id]) => id);
-    setShownIds(playedNow.length ? playedNow : null);
+    const shownNow = [...new Set([...invitedIds, ...playedNow])];
+    setShownIds(shownNow.length ? shownNow : null);
     setShowAll(false);
     let saved = 'Матч сохранён. Баллы за матч начислены автоматически.';
     // взнос неигравших без оплаты снимается сам (0197); пока никто не отмечен «Играл», взносы остаются
@@ -456,6 +459,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     setPlayers(list => (list ?? []).filter(x => x.id !== p.id));
     setLines(s => { const n = { ...s }; delete n[p.id]; return n; });
     setShownIds(ids => (ids ? ids.filter(id => id !== p.id) : ids));
+    setInvitedIds(ids => ids.filter(id => id !== p.id));
     const wasBest = bestId === p.id;
     if (wasBest) setBestId(null);
     // нового лучшего назначает только тренер: игрок убран, лучшего в матче сейчас нет
