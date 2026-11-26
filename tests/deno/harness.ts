@@ -18,6 +18,8 @@ export interface SupabaseState {
   linkError: string | null;
   usersSelectError: string | null;
   usersInsertError: string | null;
+  // конкурентная вставка профиля (#816): строку уже создал другой запрос
+  usersInsertConflictRow: { id: string; telegram_id: number; display_name?: string | null } | null;
   claimError: string | null;
   notifications: Array<{ id: string; telegram_id: number; text: string; buttons?: unknown; claim_token?: string }>;
   rsvpResult: Json;
@@ -60,6 +62,7 @@ function freshState(): SupabaseState {
     linkError: null,
     usersSelectError: null,
     usersInsertError: null,
+    usersInsertConflictRow: null,
     claimError: null,
     notifications: [],
     rsvpResult: { ok: true, player: "Иванов Пётр" },
@@ -217,6 +220,15 @@ export function createSupabaseFake() {
 
     if (url.pathname === "/rest/v1/users" && req.method === "POST") {
       if (state.usersInsertError) return postgrestError(state.usersInsertError);
+      const concurrent = state.usersInsertConflictRow;
+      if (concurrent) {
+        // Гонка (#816): пока шёл текущий INSERT, другой запрос уже создал строку.
+        // В состояние попадает именно чужая строка; строку из тела запроса не добавляем.
+        if (!state.users.some((u) => u.id === concurrent.id)) {
+          state.users.push({ ...concurrent });
+        }
+        return postgrestError("duplicate key value violates unique constraint");
+      }
       const rows = Array.isArray(body) ? body : [body];
       for (const row of rows) {
         if (row && typeof row === "object") {

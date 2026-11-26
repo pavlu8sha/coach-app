@@ -79,7 +79,11 @@ async function handle(req: Request): Promise<Response> {
   if (row && row.id !== authId) return json({ error: 'identity_mismatch' }, 409); // строка заведена раньше с другим id — разбирает администратор
   if (!row) {
     const { error: insErr } = await admin.from('users').insert({ id: authId, telegram_id: v.user.id, display_name: name });
-    if (insErr) return json({ error: 'users_insert', detail: insErr.message }, 500);
+    // Не верим одному ответу вставки: конкурентный вход мог уже создать строку, а сеть — потерять ответ.
+    const { data: check, error: checkErr } = await admin.from('users').select('id').eq('telegram_id', v.user.id).maybeSingle();
+    if (checkErr) return json({ error: 'users_select', detail: checkErr.message }, 500);
+    if (!check) return json({ error: 'users_insert', detail: insErr?.message ?? 'profile not created' }, 500);
+    if (check.id !== authId) return json({ error: 'identity_mismatch' }, 409);
   }
   // ник для связи тренера с родителем (0218): из initData с проверенной подписью, только в строку этого Telegram-аккаунта; сбой вход не ломает
   try { await saveVerifiedUsername(admin, v.user); } catch { /* ник не критичен */ }

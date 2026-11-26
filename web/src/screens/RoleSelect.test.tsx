@@ -61,12 +61,12 @@ describe('RoleSelect: выбор роли', () => {
     expect(onDone).not.toHaveBeenCalled();
   });
 
-  it('ошибка RPC: русский текст без технических подробностей, кнопки доступны, повтор сохраняет роль (#704 №9, #705 №10–12)', async () => {
+  it('ошибка RPC 42501 без признака сессии: общий русский текст без технических подробностей, кнопки доступны, повтор сохраняет роль (#704 №9, #705 №10–12)', async () => {
     fake.rpc.set_my_role = () => ({ error: { message: RAW, code: '42501' } });
     const onDone = vi.fn();
     render(<RoleSelect onDone={onDone} />);
     click('Родитель');
-    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось найти ваш профиль. Закройте приложение и откройте его заново.');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось сохранить роль. Попробуйте ещё раз.');
     noTech();
     expect(onDone).not.toHaveBeenCalled();
     roleButtons().forEach(b => expect(b).toBeEnabled());
@@ -75,6 +75,16 @@ describe('RoleSelect: выбор роли', () => {
     click('Родитель');
     await waitFor(() => expect(onDone).toHaveBeenCalledWith('parent'));
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('сессия истекла (42501 forbidden): сообщение о входе, а не о пропавшем профиле', async () => {
+    fake.rpc.set_my_role = () => ({ error: { message: 'forbidden', code: '42501' } });
+    const onDone = vi.fn();
+    render(<RoleSelect onDone={onDone} />);
+    click('Родитель');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось подтвердить вход');
+    expect(onDone).not.toHaveBeenCalled();
+    roleButtons().forEach(b => expect(b).toBeEnabled());
   });
 
   it('отклонённый Promise (нет сети): сообщение про соединение, busy сброшен, повтор работает (#705 №10–12)', async () => {
@@ -112,13 +122,13 @@ describe('RoleSelect: выбор роли', () => {
     await waitFor(() => expect(onDone).toHaveBeenCalledWith('parent'));
   });
 
-  it('нет сессии: профиль недоступен, понятное сообщение', async () => {
+  it('нет сессии: понятное сообщение о входе, а не о пропавшем профиле', async () => {
     saves();
     fake.user = null;
     const onDone = vi.fn();
     render(<RoleSelect onDone={onDone} />);
     click('Родитель');
-    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось найти ваш профиль');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось подтвердить вход');
     expect(onDone).not.toHaveBeenCalled();
   });
 });

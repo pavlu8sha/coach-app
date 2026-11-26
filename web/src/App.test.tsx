@@ -163,6 +163,58 @@ describe('первый вход: выбор роли и переход в гос
     expect(await screen.findByRole('heading', { name: 'Подключите профиль ребёнка' })).toBeInTheDocument();
   });
 
+  it('ошибка начального чтения профиля: экран ошибки с повтором, а не выбор роли', async () => {
+    fake.db.users = [{ id: 'u', is_admin: false, chosen_role: null }];
+    fake.errors.users = 'users down';
+    render(<App />);
+    expect(await screen.findByText('Профиль недоступен')).toBeInTheDocument();
+    expect(screen.queryByText(WELCOME)).toBeNull();
+    fake.errors.users = '';
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    expect(await screen.findByRole('button', { name: /^Родитель/ })).toBeInTheDocument();
+  });
+
+  it('сессия есть, строки профиля нет: полный вход восстанавливает её один раз, без дублей', async () => {
+    fake.db.users = [];
+    saves();
+    vi.stubGlobal('Telegram', {
+      WebApp: {
+        initData: 'signed-init-data',
+        initDataUnsafe: { user: { first_name: 'Ivan' } },
+        ready: () => undefined,
+        expand: () => undefined,
+        themeParams: {},
+      },
+    });
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as { username_only?: boolean };
+      if (!body.username_only) fake.db.users = [{ id: 'u', is_admin: false, chosen_role: null }];
+      return new Response(JSON.stringify({ token_hash: 'token-test' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const fullLogins = () => fetchMock.mock.calls.filter(([, init]) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as { username_only?: boolean };
+      return !body.username_only;
+    });
+    const first = render(<App />);
+    expect(await screen.findByRole('button', { name: /^Родитель/ })).toBeInTheDocument();
+    expect(fullLogins()).toHaveLength(1);
+    expect(fake.db.users).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: /^Родитель/ }));
+    expect(await screen.findByRole('heading', { name: 'Подключите профиль ребёнка' })).toBeInTheDocument();
+    first.unmount();
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'Подключите профиль ребёнка' })).toBeInTheDocument();
+    expect(fullLogins()).toHaveLength(1);
+  });
+
+  it('строки профиля нет и восстановить вход нечем: ошибка профиля, а не первый вход', async () => {
+    fake.db.users = [];
+    render(<App />);
+    expect(await screen.findByText('Профиль недоступен')).toBeInTheDocument();
+    expect(screen.queryByText(WELCOME)).toBeNull();
+  });
+
   const parentNoKids = () => { fake.db.users = [{ id: 'u', is_admin: false, chosen_role: 'parent' }]; };
   const guestLink = async () => screen.findByRole('button', { name: 'Просто посмотреть клуб' });
 
