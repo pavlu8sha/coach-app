@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { addDays, coachError, today } from '../lib/coach';
-import { matchHighlights, seasonStart, type ScoredMatch } from '../lib/seasonStats';
+import { matchHighlights, prevWeek, seasonStart, thisWeek, type ScoredMatch } from '../lib/seasonStats';
 import { settingNumber, settingNumberError, useClubSettings } from '../lib/clubSettings';
 import { supabase } from '../lib/supabase';
 import { EmptyState, Pill, Segmented } from '../ui/components';
@@ -21,18 +21,6 @@ const prevMonthStart = (iso: string) => {
 type Range = 'thisweek' | 'week' | 'month' | 'prev' | 'season' | 'custom';
 const RANGES = ['thisweek', 'week', 'month', 'prev', 'season', 'custom'];
 
-// Эта неделя: с понедельника по сегодня.
-function thisWeek(iso: string) {
-  const dow = (new Date(iso + 'T12:00:00').getDay() + 6) % 7;
-  return { f: addDays(iso, -dow), t: iso };
-}
-
-// Прошлая неделя: понедельник–воскресенье перед текущей неделей.
-function prevWeek(iso: string) {
-  const dow = (new Date(iso + 'T12:00:00').getDay() + 6) % 7; // понедельник = 0
-  const f = addDays(iso, -dow - 7);
-  return { f, t: addDays(f, 6) };
-}
 
 type Kind = 'att' | 'matches';
 
@@ -208,11 +196,12 @@ function SeasonTiles({ t, games, compact = false }: { t: MRow; games: ScoredMatc
     ['Матчей', t.games ?? 0], ['Победы', t.wins ?? 0], ['Ничьи', t.draws ?? 0], ['Поражения', t.losses ?? 0],
     ['Забито', t.goals_for ?? 0], ['Пропущено', t.goals_against ?? 0], ['Разница', diff > 0 ? `+${diff}` : diff],
   ];
-  if (games.length) tiles.push(['Серия побед', streak]);
-  if (compact) tiles.splice(0, tiles.length - (games.length ? 1 : 0));
+  const own: [string, string | number][] = games.length ? [['Серия побед', streak]] : [];
+  const shown = compact ? own : [...tiles, ...own];
+  if (shown.length === 0 && !best) return null; // нечего показать: пустую карточку не рисуем
   return (
     <div className="ks-card">
-      <div className="ks-tiles">{tiles.map(([k, v]) => <div className="ks-tile" key={k}><b>{k}</b>{v}</div>)}</div>
+      {shown.length > 0 && <div className="ks-tiles">{shown.map(([k, v]) => <div className="ks-tile" key={k}><b>{k}</b>{v}</div>)}</div>}
       {best && <p className="ks-muted" style={{ margin: '10px 0 0' }}>Лучший матч: {best.goals_for}:{best.goals_against}{best.opponent ? ` с ${best.opponent}` : ''}, {best.played_on.slice(8, 10)}.{best.played_on.slice(5, 7)}</p>}
     </div>
   );

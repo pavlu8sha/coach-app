@@ -88,6 +88,26 @@ describe('Штат матча и статистика тренеров', () => {
     expect(screen.queryByText('05.10 · U11')).toBeNull();
   });
 
+  it('карточка тренера: длинный текст переносится внутри, у раскрытия есть aria-expanded, правый элемент не сжимается', async () => {
+    fake.db.training_log = [{ id: 'a', coach: 'Павел', held_on: '2026-10-08', group_label: 'Группа Спартак-Юниор 2014 г.р. (первая команда)', starts_at: '17:00', hours: null, held: true }];
+    fake.rpc.trainer_stats = () => [
+      { coach: 'Павел', trainings: 1, hours: null, as_coach: 0, as_operator: 0, parts: 0, reg_pct: null },
+      { coach: 'Без тренировок', trainings: 0, hours: null, as_coach: 0, as_operator: 0, parts: 0, reg_pct: null },
+    ];
+    render(<StaffStats period={period} />);
+    const summary = (await screen.findByText('Павел')).closest('summary') as HTMLElement;
+    expect(summary).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(summary);
+    expect(summary).toHaveAttribute('aria-expanded', 'true');
+    const li = (await screen.findByText(/Спартак-Юниор/)).closest('li') as HTMLElement;
+    expect((li.firstElementChild as HTMLElement).style.minWidth).toBe('0'); // текст сжимается и переносится
+    expect((li.firstElementChild as HTMLElement).style.overflowWrap).toBe('anywhere');
+    const txt = screen.getByText('Без тренировок').parentElement as HTMLElement;
+    expect(txt.style.minWidth).toBe('0');
+    expect(txt.style.overflowWrap).toBe('anywhere');
+    expect(screen.getByText('Без тренировок').closest('details')).toBeNull();
+  });
+
   it('функция не установлена: понятное сообщение', async () => {
     fake.rpc.match_staff_list = () => ({ error: { message: 'Could not find the function public.match_staff_list' } });
     render(<StaffGames period={period} admin />);

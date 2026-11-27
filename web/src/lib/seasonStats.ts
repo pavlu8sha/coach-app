@@ -24,3 +24,21 @@ export function seasonStart(iso: string): string {
   const y = Number(iso.slice(0, 4));
   return `${Number(iso.slice(5, 7)) >= 9 ? y : y - 1}-09-01`;
 }
+
+const addDaysIso = (iso: string, n: number) => {
+  const d = new Date(iso + 'T12:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toLocaleDateString('en-CA');
+};
+const mondayOffset = (iso: string) => (new Date(iso + 'T12:00:00').getDay() + 6) % 7; // понедельник = 0
+
+// Эта неделя: с понедельника по сегодня.
+export function thisWeek(iso: string): { f: string; t: string } {
+  return { f: addDaysIso(iso, -mondayOffset(iso)), t: iso };
+}
+
+// Прошлая неделя: понедельник–воскресенье перед текущей неделей.
+export function prevWeek(iso: string): { f: string; t: string } {
+  const f = addDaysIso(iso, -mondayOffset(iso) - 7);
+  return { f, t: addDaysIso(f, 6) };
+}

@@ -164,6 +164,26 @@ describe('«Статистика»', () => {
     expect(a.p_to).toBe(today());
     expect(a.p_from <= a.p_to).toBe(true);
     expect(a.p_to < addDays(a.p_from, 7)).toBe(true);
+    fireEvent.click(screen.getByRole('tab', { name: 'Матчи' }));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Эта неделя' }));
+    await waitFor(() => expect(fake.rpcCalls('match_stats').length).toBeGreaterThan(0));
+    const m = fake.rpcCalls('match_stats').at(-1);
+    expect(m.p_from).toBe(a.p_from);
+    expect(m.p_to).toBe(today());
+  });
+
+  it('матчи: одна команда без матчей со счётом и без плиток не рисует пустую карточку', async () => {
+    fake.rpc.attendance_stats = () => [];
+    fake.rpc.match_stats = () => [{ kind: 'team', team: 'U9', name: null, games: 0, wins: 0, draws: 0, losses: 0, goals_for: 0, goals_against: 0, played: null, goals: null }];
+    fake.db.matches = [];
+    const { container } = render(<Stats />);
+    fireEvent.click(await screen.findByRole('tab', { name: 'Матчи' }));
+    expect(await screen.findByLabelText('Сводка матчей')).toHaveTextContent('0игр');
+    expect(screen.getByRole('heading', { name: 'U9' })).toBeInTheDocument();
+    expect(container.querySelector('.ks-card:empty')).toBeNull();
+    expect(container.querySelectorAll('.ks-tiles')).toHaveLength(1); // только сводка
+    const h = screen.getByRole('heading', { name: 'U9' });
+    expect(h.nextElementSibling).toBeNull(); // за заголовком команды нет пустой карточки
   });
 
   it('матчи: при выбранном виде матчей список последних матчей не показывается', async () => {

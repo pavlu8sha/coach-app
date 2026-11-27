@@ -39,7 +39,7 @@ describe('«Учёт тренеров»', () => {
     fake.rpc.tl_confirm = () => 2;
     render(<TrainerLog />);
     expect(await screen.findByText(title('U10-A/B · 16:45–18:00'))).toBeInTheDocument();
-    expect(screen.getAllByText((_: string, el: Element | null) => el?.tagName === "B" && /^U10-A\/B\d\d:/.test(el.textContent ?? ""))).toHaveLength(1);
+    expect(screen.getAllByText(title('U10-A/B · 16:45–18:00'))).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: 'Проведена' }));
     await waitFor(() => expect(fake.rpcCalls('tl_confirm')[0]).toMatchObject({ label: 'U10-A/B', st: '16:45', coaches: ['Павел', 'Соприк'] }));
   });
@@ -52,7 +52,7 @@ describe('«Учёт тренеров»', () => {
     fake.db.training_log = ['Паша', 'Цотне'].map((c, i) => ({ ...row('x' + i, c), group_label: 'U10-A/B', starts_at: '17:00:00' }));
     render(<TrainerLog />);
     expect(await screen.findByText(title('U10-A/B · 17:00–18:30'))).toBeInTheDocument();
-    expect(screen.getAllByText((_: string, el: Element | null) => el?.tagName === "B" && /^U10-A\/B\d\d:/.test(el.textContent ?? ""))).toHaveLength(1);
+    expect(screen.getAllByText(title('U10-A/B · 17:00–18:30'))).toHaveLength(1);
     expect(screen.queryByText('Не отмечена')).not.toBeInTheDocument();
     expect(screen.getByText(/Паша · 1.5 ч/)).toBeInTheDocument();
   });
