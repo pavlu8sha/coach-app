@@ -1072,20 +1072,20 @@ describe('«Матчи»: «+ Матч» в шапке и меню «⋯»', () 
     fireEvent.click(await screen.findByRole('button', { name: '+ Матч' }));
     const sw = screen.getByRole('checkbox', { name: 'Матч уже сыгран, ввести результат' });
     expect(sw).not.toBeChecked();
-    expect(screen.getByRole('button', { name: 'Создать матч с подтверждением' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Создать матч' })).toBeInTheDocument();
     expect(screen.queryByText('Товарищеский или кубковый матч')).toBeNull();
     fireEvent.click(sw);
     expect(screen.getByText('Товарищеский или кубковый матч')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Создать матч с подтверждением' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Создать матч' })).toBeNull();
   });
 
-  it('«Создать матч с подтверждением» открывает форму «Новый матч»; при повторном открытии переключатель выключен', async () => {
+  it('«Создать матч» открывает форму «Новый матч»; при повторном открытии переключатель выключен', async () => {
     seed();
     render(<CoachMatches groups={groups} admin />);
     fireEvent.click(await screen.findByRole('button', { name: '+ Матч' }));
     fireEvent.click(screen.getByRole('checkbox', { name: 'Матч уже сыгран, ввести результат' }));
     fireEvent.click(screen.getByRole('checkbox', { name: 'Матч уже сыгран, ввести результат' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Создать матч с подтверждением' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать матч' }));
     expect(await screen.findByRole('heading', { name: 'Новый матч' })).toBeInTheDocument();
   });
 
@@ -1102,7 +1102,7 @@ describe('«Матчи»: «+ Матч» в шапке и меню «⋯»', () 
     };
     render(<CoachMatches groups={groups} admin />);
     fireEvent.click(await screen.findByRole('button', { name: '+ Матч' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Создать матч с подтверждением' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать матч' }));
     fireEvent.change(await screen.findByLabelText('Соперник'), { target: { value: 'Новый-соперник' } });
     fireEvent.change(screen.getByLabelText('Дата и время (Тбилиси)'), { target: { value: '2099-01-01T11:00' } });
     fireEvent.click(screen.getByRole('button', { name: 'Создать черновик' }));
@@ -1127,7 +1127,7 @@ describe('«Матчи»: «+ Матч» в шапке и меню «⋯»', () 
     };
     render(<CoachMatches groups={[{ id: 'ga', name: 'U9-A' }, { id: 'gb', name: 'U9-B' }] as any} />);
     fireEvent.click(await screen.findByRole('button', { name: '+ Матч' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Создать матч с подтверждением' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать матч' }));
     fireEvent.change(await screen.findByLabelText('Команда'), { target: { value: 'U9' } });
     fireEvent.change(screen.getByLabelText('Соперник'), { target: { value: 'Общий-соперник' } });
     fireEvent.change(screen.getByLabelText('Дата и время (Тбилиси)'), { target: { value: '2099-01-01T11:00' } });

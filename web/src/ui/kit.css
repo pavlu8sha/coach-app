@@ -553,3 +553,24 @@ ul.policy { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 8px
 .ks-disclosure::-webkit-details-marker { display: none; }
 .ks-disclosure::after { content: ''; position: absolute; right: 4px; top: 50%; width: 8px; height: 8px; border-right: 2px solid var(--ks-text-muted); border-bottom: 2px solid var(--ks-text-muted); transform: translateY(-70%) rotate(45deg); }
 details[open] > .ks-disclosure::after { transform: translateY(-30%) rotate(-135deg); }
+
+/* «Мероприятия»: сводка в карточке и свёрнутое описание */
+.ks-ce-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 10px 0; }
+.ks-ce-tiles .ks-tile { text-align: center; font-weight: 800; overflow-wrap: anywhere; }
+.ks-ce-clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* Матч: блок «Приглашённые» (фильтр одной строкой, компактные строки игроков) */
+.ks-rsvp-filter { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 0 0 10px; }
+.ks-rsvp-filter button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 54px; padding: 6px 2px; border-radius: 12px; border: 1px solid var(--ks-border); background: var(--ks-surface); color: var(--ks-primary); font: 700 12px var(--ks-font); cursor: pointer; }
+.ks-rsvp-filter button b { font-size: 18px; line-height: 1.1; }
+.ks-rsvp-filter button[aria-pressed='true'] { background: var(--ks-primary); border-color: var(--ks-primary); color: var(--ks-on-primary); }
+.ks-rsvp-item { padding: 12px 0; border-top: 1px solid var(--ks-border); }
+.ks-rsvp-item:first-child { border-top: 0; padding-top: 0; }
+.ks-rsvp-item:last-child { padding-bottom: 0; }
+.ks-rsvp-top { display: flex; align-items: center; gap: 10px; }
+.ks-rsvp-top .ks-row-main { flex: 1 1 0; min-width: 0; }
+.ks-rsvp-acts { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.ks-rsvp-acts .ks-btn { flex: 1 1 0; min-height: 40px; }
+.ks-rsvp-acts .ks-link { flex: none; color: var(--ks-text-muted); }
+/* Экраны без плавного появления: при возврате «назад» и открытии списка не должно быть вспышки */
+main.page.ks-still { animation: none; }
