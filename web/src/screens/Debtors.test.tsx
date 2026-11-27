@@ -1,10 +1,13 @@
 import { fireEvent, within, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { DEBT_START } from '../lib/debtSeason';
 import { fake } from '../test/fakeSupabase';
 import Debtors from './Debtors';
 import Payments from './Payments';
 
+// дата фиксирована: до 22-го следующий месяц в списке не показывается (0230)
+vi.useFakeTimers({ toFake: ['Date'] });
+vi.setSystemTime(new Date(2026, 10, 15, 12, 0, 0));
 const monthIso = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
@@ -118,5 +121,32 @@ describe('«Оплата» родителя: долг', () => {
     render(<Payments />);
     await screen.findByText('Иван Петров');
     expect(screen.queryByText(/К оплате/)).toBeNull();
+  });
+});
+
+// Условия приёмки: docs/PAY_MODE_RETURN_AND_NEXT_MONTH_ACCEPTANCE.md, часть B, п. 6 (следующий месяц с 22-го — долг, не «вперёд»)
+describe('«Должники»: следующий месяц с 22-го', () => {
+  const monthOptions = () => within(screen.getByLabelText('Месяц')).getAllByRole('option').map(o => (o as HTMLOptionElement).value);
+  it('до 22-го списка следующего месяца нет; с 22-го он первый и выбран по умолчанию', async () => {
+    seed();
+    const { unmount } = render(<Debtors />);
+    expect(await screen.findByText('Должны: 3, всего 360 ₾')).toBeInTheDocument();
+    expect(monthOptions()[0]).toBe('2026-11-01');
+    unmount();
+    vi.setSystemTime(new Date(2026, 10, 22, 12, 0, 0));
+    seed();
+    render(<Debtors />);
+    expect(await screen.findByText('Должны: 3, всего 360 ₾')).toBeInTheDocument();
+    expect(monthOptions()[0]).toBe('2026-12-01');
+    vi.setSystemTime(new Date(2026, 10, 15, 12, 0, 0));
+  });
+  it('порог берётся из настройки клуба: при 25 на 22-е следующего месяца ещё нет', async () => {
+    seed();
+    fake.db.club_settings = [{ club_id: 'c1', key: 'payments.nextMonthDay', scope: null, value: '25' }];
+    vi.setSystemTime(new Date(2026, 10, 22, 12, 0, 0));
+    render(<Debtors />);
+    expect(await screen.findByText('Должны: 3, всего 360 ₾')).toBeInTheDocument();
+    expect(monthOptions()[0]).toBe('2026-11-01');
+    vi.setSystemTime(new Date(2026, 10, 15, 12, 0, 0));
   });
 });

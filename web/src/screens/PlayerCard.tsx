@@ -13,7 +13,7 @@ import { Failure, Loading } from './Message';
 import { EquipmentTab, MatchesTab, PointsTab, SessionsTab } from './PlayerCardTabs';
 import { prefetchPoints } from './PointsLedger';
 import { DEBT_START } from '../lib/debtSeason';
-import { perVisitMonth, type PayMode } from '../lib/payMode';
+import { loadPayMode, perVisitMonth, type PayMode } from '../lib/payMode';
 import { monthIso, monthName, nextMonth, Row, tariffFor, type Sub } from './MonthPayments';
 import type { PlayerForm } from './PlayerEdit';
 
@@ -69,8 +69,7 @@ export default function PlayerCard({ player, onBack, onEdit, onStatus, managed }
       const pay = await supabase.from('payments').select('amount, paid_on, pay_month').eq('player_id', player.id).gte('pay_month', DEBT_START).limit(1000);
       const sb = await supabase.from('subscriptions').select('player_id, month, discount, written_off, closed_kind, closed_reason').eq('player_id', player.id);
       const cr = await supabase.from('players').select('created_at, ends_on').eq('id', player.id).maybeSingle();
-      const pmq = await supabase.from('players').select('pay_mode, pay_mode_from').eq('id', player.id).maybeSingle(); // 0200: «Платит за визит»
-      setPayMode(pmq.error ? null : (pmq.data as PayMode | null));
+      setPayMode(await loadPayMode(player.id)); // 0200/0229: «Платит за визит» и дата возврата
       if (!cr.error && cr.data?.created_at) setCreated(monthIso(new Date(cr.data.created_at)));
       if (!cr.error) setEndsOn((cr.data as { ends_on?: string | null } | null)?.ends_on ?? null);
       const eq = await supabase.from('equipment_orders').select('number, ordered_on').eq('player_id', player.id);
@@ -133,6 +132,9 @@ export default function PlayerCard({ player, onBack, onEdit, onStatus, managed }
       )}
       {tab === 'sub' && payMode?.pay_mode === 'per_visit' && payMode.pay_mode_from && (
         <p className="muted" style={{ margin: '0 0 8px' }}>С {fmtDate(payMode.pay_mode_from)} игрок платит за визит: абонемент не начисляется. Визиты и оплата во вкладке «К оплате». Месяцы до этой даты ниже.</p>
+      )}
+      {tab === 'sub' && payMode?.pay_mode === 'subscription' && payMode.pay_mode_from && payMode.pay_mode_until && (
+        <p className="muted" style={{ margin: '0 0 8px' }}>С {fmtDate(payMode.pay_mode_from)} по {fmtDate(payMode.pay_mode_until)} (не включая) игрок платил за визит: абонемент за эти месяцы не начисляется. С {fmtDate(payMode.pay_mode_until)} снова абонемент.</p>
       )}
       {tab === 'sub' && hasSubscription(player.group_name) && (pays === null ? <Loading /> : visibleMonths(months, firstMonth([...subs.keys()], payMonths, created, DEBT_START), status !== 'active' ? lastMonth([...subs.keys()], payMonths, firstMonth([...subs.keys()], payMonths, created, DEBT_START)) : null).filter(m => !((isPausedMonth(m) || afterLeft(m)) && gotIn(m) <= 0) && !perVisitMonth(payMode, m)).map(m => {
         const tariff = player.group_id ? tariffFor(prices, player.group_id, m) : null;

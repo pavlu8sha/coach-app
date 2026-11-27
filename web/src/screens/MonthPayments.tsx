@@ -115,8 +115,11 @@ export default function MonthPayments() {
       const subGroup = new Map(((sb.data ?? []) as (Sub & { group_id: string | null })[]).filter(x => past && x.group_id).map(x => [x.player_id, x.group_id as string]));
       const inGroup = (x: Pl): Pl => ({ ...x, group_id: subGroup.get(x.id) ?? x.group_id });
       // 0200: игрок «Платит за визит» в этом месяце не в списке абонементов (оплата по визитам), если за месяц у него нет платежей; ошибка чтения колонок (нет миграции) = как раньше
-      const pmq = await supabase.from('players').select('id, pay_mode, pay_mode_from').eq('pay_mode', 'per_visit').limit(1000);
-      const perVisit = new Set(pmq.error ? [] : ((pmq.data ?? []) as (PayMode & { id: string })[]).filter(x => perVisitMonth(x, month) && (m.get(x.id) ?? 0) <= 0).map(x => x.id));
+      // 0229: после возврата на абонемент период «за визит» тоже учитывается (pay_mode_until); без миграции колонки нет — читаем только per_visit
+      const pmA = await supabase.from('players').select('id, pay_mode, pay_mode_from').eq('pay_mode', 'per_visit').limit(1000);
+      const pmB = await supabase.from('players').select('id, pay_mode, pay_mode_from, pay_mode_until').gt('pay_mode_until', '1900-01-01').limit(1000);
+      const pmRows = [...(pmA.error ? [] : (pmA.data ?? [])), ...(pmB.error ? [] : (pmB.data ?? []))] as (PayMode & { id: string })[];
+      const perVisit = new Set(pmRows.filter(x => perVisitMonth(x, month) && (m.get(x.id) ?? 0) <= 0).map(x => x.id));
       const active = ((pl.data ?? []) as Pl[]).map(inGroup).filter(x => ok.has(x.group_id) && !perVisit.has(x.id));
       const have = new Set((pl.data ?? []).map((x: Pl) => x.id));
       const gone = [...withPay].filter(id => !have.has(id));
