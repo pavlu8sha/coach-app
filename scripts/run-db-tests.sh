@@ -77,6 +77,8 @@ preflight_partial "без 0209" '0209_player_profile_attributes' 0209_player_pro
 preflight_partial "без 0214" '0214_payment_idempotency' 0214_payment_idempotency
 # 0215 (my_children, серверный список детей) самостоятельна: на базе без неё preflight не падает (to_regprocedure), строка 0215 даёт NOT_APPLIED.
 preflight_partial "без 0215" '0215_my_children' 0215_my_children
+# 0231 (идемпотентность возврата за сбор, #721) самостоятельна: на базе без неё preflight не падает, строка 0231 даёт NOT_APPLIED.
+preflight_partial "без 0231" '0231_camp_refund_idempotency' 0231_camp_refund_idempotency
 # 0216 (payment_set_method) самостоятельна: на базе без неё preflight не падает, строка 0216 даёт NOT_APPLIED.
 preflight_partial "без 0216" '0216_payment_set_method' 0216_payment_set_method
 # 0217 (my_link_requests, my_pending_consents) самостоятельна: на базе без неё preflight не падает, строка 0217 даёт NOT_APPLIED.
@@ -165,6 +167,8 @@ echo "== db/tests/concurrency_own_visit_backfill.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_own_visit_backfill.sh || fail=1
 echo "== db/tests/concurrency_camp_refund.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_camp_refund.sh || fail=1
+echo "== db/tests/concurrency_camp_refund_idem.sh"
+DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_camp_refund_idem.sh || fail=1
 echo "== db/tests/concurrency_consent_record.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_consent_record.sh || fail=1
 echo "== db/tests/concurrency_consent_claim.sh"
