@@ -5,7 +5,8 @@ import { fmtDate } from '../lib/coach';
 import { tbilisiToday } from '../lib/campAttention';
 import { RECORD_LABEL, RECORD_TONE, STATUS_LABEL, STATUS_TONE, clubEventErr, deadlineText, gel, moneyOk, num, parseMoney, seatsText, whenText, type ClubEvent, type EventStatus, type Participant } from '../lib/clubEvents';
 import { supabase } from '../lib/supabase';
-import { EmptyState, ListRow, Pill, Segmented } from '../ui/components';
+import { EmptyState, ListRow, Pill, Segmented, SkeletonRows } from '../ui/components';
+import { MoreMenu, type MoreItem } from '../ui/MoreMenu';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
@@ -18,19 +19,21 @@ type Group = { id: string; name: string };
 // Деньги, статусы и ограничения считает и проверяет база; экран показывает ответ и не доверяет собственным расчётам при записи платежа.
 // Данные открытых экранов хранятся здесь: при переходе вперёд и назад экран сразу показывает прежние данные и тихо обновляет их (без мигания «Загрузка»).
 interface Cache { rows: ClubEvent[] | null; ev: Map<string, { ev: ClubEvent; parts: Participant[] }> }
+// Кэш на уровне модуля: повторный вход в раздел (например, из «Ещё») сразу показывает прежние данные, без заглушки и прыжка вёрстки. Тесты сбрасывают его в src/test/setup.ts.
+const cache: Cache = { rows: null, ev: new Map() };
+export function resetClubEventsCache() { cache.rows = null; cache.ev.clear(); }
 
 export default function ClubEvents() {
   const nav = useNav();
-  const cache = useRef<Cache>({ rows: null, ev: new Map() }).current;
   const [ver, setVer] = useState(0);
   const bump = () => setVer(v => v + 1);
-  if (nav.top.screen === 'ce.form') return <EventForm id={nav.top.params.id ?? null} cache={cache} onBack={() => nav.back()} onDone={() => { nav.back(); bump(); }} />;
+  if (nav.top.screen === 'ce.form') return <EventForm id={nav.top.params.id ?? null} onBack={() => nav.back()} onDone={() => { nav.back(); bump(); }} />;
   const index = nav.entries.findIndex(e => e.screen === 'ce.event');
-  if (index >= 0) return <EventView key={nav.entries[index].params.id} id={nav.entries[index].params.id} index={index} ver={ver} cache={cache} onBack={() => { nav.back(); bump(); }} />;
-  return <EventList ver={ver} cache={cache} />;
+  if (index >= 0) return <EventView key={nav.entries[index].params.id} id={nav.entries[index].params.id} index={index} ver={ver} onBack={() => { nav.back(); bump(); }} />;
+  return <EventList ver={ver} />;
 }
 
-function EventList({ ver, cache }: { ver: number; cache: Cache }) {
+function EventList({ ver }: { ver: number }) {
   const nav = useNav();
   const [rows, setRows] = useState<ClubEvent[] | null>(cache.rows);
   const [error, setError] = useState<string | null>(null);
@@ -41,13 +44,15 @@ function EventList({ ver, cache }: { ver: number; cache: Cache }) {
       cache.rows = (r.data ?? []) as ClubEvent[];
       setRows(cache.rows);
     });
-  }, [ver, reload, cache]);
+  }, [ver, reload]);
   if (error) return <Failure title="Не удалось загрузить мероприятия" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   return (
     <main className="page">
-      <h1>Мероприятия</h1>
-      <button type="button" className="ks-btn" onClick={() => nav.push('ce.form')}>Новое мероприятие</button>
-      {!rows ? <Loading /> : rows.length === 0 ? <EmptyState icon="trophy" title="Мероприятий пока нет" text="Создайте мероприятие кнопкой выше." /> : rows.map(e => (
+      <div className="ks-head">
+        <h1>Мероприятия</h1>
+        <div className="ks-head-actions"><button type="button" className="ks-btn sm" aria-label="Новое мероприятие" onClick={() => nav.push('ce.form')}>+ Мероприятие</button></div>
+      </div>
+      {!rows ? <div role="status" aria-label="Загрузка"><SkeletonRows count={4} /></div> : rows.length === 0 ? <EmptyState icon="trophy" title="Мероприятий пока нет" text="Создайте мероприятие кнопкой «+» вверху." /> : rows.map(e => (
         <ListRow
           key={e.id}
           avatar="М"
@@ -67,7 +72,7 @@ function EventList({ ver, cache }: { ver: number; cache: Cache }) {
 
 interface FormState { name: string; description: string; date: string; time: string; place: string; price: string; deadline: string; capacity: string; groups: string[]; status: 'draft' | 'active'; reason: string }
 
-function EventForm({ id, cache, onBack, onDone }: { id: string | null; cache: Cache; onBack: () => void; onDone: () => void }) {
+function EventForm({ id, onBack, onDone }: { id: string | null; onBack: () => void; onDone: () => void }) {
   const [ev, setEv] = useState<ClubEvent | null>(id ? cache.ev.get(id)?.ev ?? null : null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -167,10 +172,23 @@ function EventFormBody({ ev, onBack, onDone }: { ev: ClubEvent | null; onBack: (
 
 type Tab = 'people' | 'finance';
 
-function EventView({ id, index, ver, cache, onBack }: { id: string; index: number; ver: number; cache: Cache; onBack: () => void }) {
+// Длинное описание сворачивается до двух строк; ссылка есть только у длинного текста
+function Description({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const long = text.length > 90 || text.includes('\n');
+  return (
+    <>
+      <p className={long && !open ? 'ks-ce-clamp' : undefined} style={{ whiteSpace: 'pre-line' }}>{text}</p>
+      {long && <button type="button" className="ks-link" onClick={() => setOpen(o => !o)}>{open ? 'Свернуть' : 'Показать полностью'}</button>}
+    </>
+  );
+}
+
+function EventView({ id, index, ver, onBack }: { id: string; index: number; ver: number; onBack: () => void }) {
   const nav = useNav();
   const [tab, setTab] = useNavState<Tab>('ce.tab', 'people', { entry: index, persist: { kind: 'enum', values: ['people', 'finance'] } });
   const [rec, setRec] = useState<'active' | 'cancelled'>('active');
+  const [addOpen, setAddOpen] = useState(false);
   const [ev, setEv] = useState<ClubEvent | null>(cache.ev.get(id)?.ev ?? null);
   const [parts, setParts] = useState<Participant[] | null>(cache.ev.get(id)?.parts ?? null);
   const [error, setError] = useState<string | null>(null);
@@ -186,7 +204,7 @@ function EventView({ id, index, ver, cache, onBack }: { id: string; index: numbe
       setEv(entry.ev);
       setParts(entry.parts);
     });
-  }, [id, ver, reload, cache]);
+  }, [id, ver, reload]);
   const refresh = () => setReload(n => n + 1);
 
   if (error) return <Failure title="Не удалось загрузить мероприятие" text={error} onRetry={() => { setError(null); refresh(); }} back={<BackNav onBack={onBack} managed />} />;
@@ -223,38 +241,54 @@ function EventView({ id, index, ver, cache, onBack }: { id: string; index: numbe
     onBack();
   };
 
+  const menu: MoreItem[] = [
+    ...(ev.status === 'draft' ? [{ label: 'Сделать активным', onSelect: () => void setStatus('active') }] : []),
+    ...(ev.status === 'cancelled' ? [{ label: 'Активировать снова', onSelect: () => void setStatus('active') }] : []),
+    { label: 'Редактировать', onSelect: () => nav.push('ce.form', { id: ev.id }) },
+    ...(ev.status === 'active' ? [{ label: 'Завершить мероприятие', onSelect: () => void setStatus('finished') }, { label: 'Отменить мероприятие', onSelect: () => void setStatus('cancelled') }] : []),
+    ...(canDelete ? [{ label: 'Удалить черновик', onSelect: () => void deleteDraft() }] : []),
+  ];
+  const cancelledCount = parts.filter(p => p.status === 'cancelled').length;
   const shown = parts.filter(p => p.status === rec);
   const debtors = parts.filter(p => num(p.debt) > 0);
   const fin = ev.finance;
   return (
     <main className="page">
       <BackNav onBack={onBack} managed />
-      <h1>{ev.name}</h1>
-      <p><Pill tone={STATUS_TONE[ev.status]}>{STATUS_LABEL[ev.status]}</Pill></p>
-      <p>{[whenText(ev.starts_on, ev.starts_time), ev.place].filter(Boolean).join(' · ')}</p>
-      <p className="muted">Цена: {gel(ev.base_price)}{ev.signup_deadline ? ` · запись до ${deadlineText(ev.signup_deadline)}` : ''}</p>
-      <p className="muted">{ev.club_wide ? 'Весь клуб' : (ev.group_names ?? []).join(', ')} · {seatsText(ev)}{ev.over_limit ? ' · превышение лимита' : ''}</p>
-      {ev.description && <p>{ev.description}</p>}
-      <div className="ks-btns">
-        {ev.status === 'draft' && <button type="button" className="ks-btn" onClick={() => void setStatus('active')}>Сделать активным</button>}
-        {ev.status === 'active' && <button type="button" className="ks-btn" onClick={() => void setStatus('finished')}>Завершить</button>}
-        {ev.status === 'active' && <button type="button" className="ks-btn secondary" onClick={() => void setStatus('cancelled')}>Отменить</button>}
-        {ev.status === 'cancelled' && <button type="button" className="ks-btn" onClick={() => void setStatus('active')}>Активировать снова</button>}
-        <button type="button" className="ks-btn secondary" onClick={() => nav.push('ce.form', { id: ev.id })}>Редактировать</button>
-        {canDelete && <button type="button" className="ks-btn secondary" onClick={() => void deleteDraft()}>Удалить черновик</button>}
+      <div className="ks-head">
+        <h1>{ev.name}</h1>
+        <div className="ks-head-actions"><MoreMenu label="Действия с мероприятием" items={menu} /></div>
       </div>
+      <p><Pill tone={STATUS_TONE[ev.status]}>{STATUS_LABEL[ev.status]}</Pill></p>
+      <p>{[whenText(ev.starts_on, ev.starts_time), ev.place, gel(ev.base_price), ev.signup_deadline ? `запись до ${deadlineText(ev.signup_deadline)}` : ''].filter(Boolean).join(' · ')}</p>
+      <p className="muted">{ev.club_wide ? 'Весь клуб' : (ev.group_names ?? []).join(', ')} · {seatsText(ev)}{ev.over_limit ? ' · превышение лимита' : ''}</p>
+      {ev.description && <Description text={ev.description} />}
+      {fin && (
+        <div className="ks-ce-tiles">
+          <div className="ks-tile"><b>Записано</b>{parts.filter(p => p.status === 'active').length}</div>
+          <div className="ks-tile"><b>Принято</b>{gel(fin.counted)}</div>
+          <div className="ks-tile"><b>Долг</b>{gel(fin.debt)}</div>
+        </div>
+      )}
       {actErr && <p className="error">{actErr}</p>}
       {dialog}
       <Segmented label="Раздел" value={tab} onChange={setTab} items={[{ value: 'people', label: 'Участники' }, { value: 'finance', label: 'Финансы' }]} />
       {tab === 'people' && (
         <>
-          <div className="ks-btns">
-            <button type="button" className="ks-btn" disabled={ev.status !== 'active'} onClick={() => nav.push('ce.add', { mode: 'player' })}>Добавить игрока</button>
-            <button type="button" className="ks-btn secondary" disabled={ev.status !== 'active'} onClick={() => nav.push('ce.add', { mode: 'group' })}>Добавить группу</button>
-          </div>
-          {ev.status !== 'active' && <p className="muted" style={{ fontSize: 13 }}>Записывать игроков можно только в активное мероприятие.</p>}
-          <Segmented label="Записи" value={rec} onChange={setRec} items={[{ value: 'active', label: 'Активные' }, { value: 'cancelled', label: 'Отменённые' }]} />
-          {shown.length === 0 ? <EmptyState icon="users" title={rec === 'active' ? 'Участников пока нет' : 'Отменённых записей нет'} /> : shown.map(p => (
+          {rec === 'active' && (
+            <>
+              <button type="button" className="ks-btn" disabled={ev.status !== 'active'} aria-expanded={addOpen} onClick={() => setAddOpen(o => !o)}>+ Добавить участников</button>
+              {addOpen && (
+                <div className="ks-btns">
+                  <button type="button" className="ks-btn secondary" onClick={() => nav.push('ce.add', { mode: 'player' })}>Игрока (поиск)</button>
+                  <button type="button" className="ks-btn secondary" onClick={() => nav.push('ce.add', { mode: 'group' })}>Всю группу</button>
+                </div>
+              )}
+              {ev.status !== 'active' && <p className="muted" style={{ fontSize: 13 }}>Записывать игроков можно только в активное мероприятие.</p>}
+            </>
+          )}
+          {rec === 'cancelled' && <h2>Отменённые записи</h2>}
+          {shown.length === 0 ? <EmptyState icon="users" title={rec === 'active' ? 'Участников пока нет' : 'Отменённых записей нет'} text={rec === 'active' ? 'Добавьте игроков или целую группу.' : undefined} /> : shown.map(p => (
             <ListRow
               key={p.id}
               avatar={p.full_name}
@@ -268,6 +302,8 @@ function EventView({ id, index, ver, cache, onBack }: { id: string; index: numbe
               onClick={() => nav.push('ce.person', { id: p.id })}
             />
           ))}
+          {rec === 'active' && cancelledCount > 0 && <button type="button" className="ks-btn secondary" onClick={() => setRec('cancelled')}>Отменённые записи ({cancelledCount})</button>}
+          {rec === 'cancelled' && <button type="button" className="ks-btn secondary" onClick={() => setRec('active')}>К активным записям</button>}
         </>
       )}
       {tab === 'finance' && fin && (
