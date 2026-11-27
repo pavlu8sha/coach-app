@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { coachError, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { useConfirm } from '../ui/ConfirmSheet';
+import { useClosure } from '../ui/ClosureSheet';
 import { SearchInput } from '../ui/components';
 
 // Доп. посещения (миграция 0178, раньше «Разовые посещения»): игрок другой группы пришёл на эту тренировку. Не отметка группы и не абонемент:
@@ -15,6 +16,7 @@ const errText = (m: string) =>
   m.includes('same group') ? 'Игрок из этой же группы: его отмечают в списке группы.' :
   m.includes('player not active') ? 'Игрок сейчас не занимается.' :
   m.includes('visit paid') ? 'Сначала снимите оплату.' :
+  m.includes('discount needs reason') ? 'Укажите причину (не короче 3 символов).' :
   m.includes('invalid setting visit.fee') ? 'В настройках неверная сумма разового посещения (visit.fee).' :
   m.includes('bad method') ? 'Выберите способ оплаты: наличные или перевод.' :
   m.includes('forbidden') ? 'Нет прав на это действие. Оплату снимает администратор.' :
@@ -30,6 +32,7 @@ export default function GuestVisits({ gid, date, admin = false }: { gid: string;
   const [busy, setBusy] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const { ask, dialog } = useConfirm();
+  const { askClosure, closureDialog } = useClosure();
 
   useEffect(() => {
     void (async () => {
@@ -92,6 +95,21 @@ export default function GuestVisits({ gid, date, admin = false }: { gid: string;
     if (!(await ask({ title: 'Отменить оплату?', lines: [['Игрок', g.players?.full_name ?? 'Игрок'], ['Сумма', gel(Number(g.paid_amount ?? g.amount))]], note: 'Посещение снова станет неоплаченным, в кассе появится строка с минусом.', confirmLabel: 'Отменить оплату', danger: true }))) return;
     await run(g.player_id + 'unpay', () => supabase.rpc('session_guest_set_paid', { s: sessionId, p: g.player_id, is_paid: false }));
   };
+  // Закрытие без оплаты (0221): только администратор, причина обязательна; платежа нет, paid_amount = 0
+  const closeFree = async (g: Guest) => {
+    const a = await askClosure({
+      title: 'Закрыть без оплаты',
+      lines: [['Игрок', g.players?.full_name ?? 'Игрок'], ['Сумма', gel(Number(g.amount))]],
+      reasonOnly: true,
+      confirmLabel: 'Закрыть без оплаты',
+    });
+    if (!a) return;
+    await run(g.player_id + 'free', () => supabase.rpc('session_guest_discount', { s: sessionId, p: g.player_id, due: 0, why: a.reason }), 'Посещение закрыто без оплаты.');
+  };
+  const reopen = async (g: Guest) => {
+    if (!(await ask({ title: 'Вернуть в долг?', lines: [['Игрок', g.players?.full_name ?? 'Игрок'], ['Сумма', gel(Number(g.amount))]], note: 'Посещение снова станет неоплаченным. Платежа не было, в кассе ничего не изменится.', confirmLabel: 'Вернуть в долг', danger: true }))) return;
+    await run(g.player_id + 'reopen', () => supabase.rpc('session_guest_set_paid', { s: sessionId, p: g.player_id, is_paid: false }));
+  };
   const remove = async (g: Guest) => {
     if (!(await ask({ title: 'Убрать гостя?', lines: [['Игрок', g.players?.full_name ?? 'Игрок']], note: 'Начисленные за это посещение баллы будут сняты.', confirmLabel: 'Убрать', danger: true }))) return;
     await run(g.player_id + 'rm', () => supabase.rpc('session_guest_remove', { s: sessionId, p: g.player_id }));
@@ -103,20 +121,25 @@ export default function GuestVisits({ gid, date, admin = false }: { gid: string;
     <section aria-label="Доп. посещения" style={{ marginTop: 20 }}>
       <h2>Доп. посещения</h2>
       <p className="muted">Игрок из другой группы пришёл на эту тренировку. Баллы начисляются как за обычную тренировку, оплата записывается отдельно и в долг по абонементу не входит.</p>
-      {guests === null ? <p className="muted">Загрузка…</p> : guests.map(g => (
+      {guests === null ? <p className="muted">Загрузка…</p> : guests.map(g => {
+        const free = g.paid && g.paid_amount !== null && Number(g.paid_amount) === 0;
+        return (
         <div className="ks-mark ks-mark-guest" key={g.player_id} role="group" aria-label={`Гость: ${g.players?.full_name ?? ''}`}>
           <b>{g.players?.full_name ?? 'Игрок'}</b>
-          <span className="muted">{g.players?.groups?.name ?? 'без группы'} · {gel(Number(g.amount))}</span>
-          {g.paid ? <span className="ks-ok">Оплачено{g.method ? ` (${g.method})` : ''}</span> : <span className="error">Не оплачено</span>}
+          <span className="muted">{g.players?.groups?.name ?? 'без группы'}{free ? '' : ` · ${gel(Number(g.amount))}`}</span>
+          {free ? <span className="muted">Закрыто без оплаты</span> : g.paid ? <span className="ks-ok">Оплачено{g.method ? ` (${g.method})` : ''}</span> : <span className="error">Не оплачено</span>}
           <span className="ks-actions">
             {!g.paid && METHODS.map(m => (
               <button key={m} type="button" className="ks-btn secondary sm" disabled={busy !== null} onClick={() => void pay(g, m)}>{m}</button>
             ))}
+            {!g.paid && admin && <button type="button" className="ks-btn secondary sm" disabled={busy !== null} onClick={() => void closeFree(g)}>Без оплаты</button>}
             {!g.paid && <button type="button" className="ks-btn secondary sm" disabled={busy !== null} onClick={() => void remove(g)}>Убрать</button>}
-            {g.paid && admin && <button type="button" className="ks-btn secondary sm" disabled={busy !== null} onClick={() => void unpay(g)}>Отменить оплату</button>}
+            {g.paid && admin && !free && <button type="button" className="ks-btn secondary sm" disabled={busy !== null} onClick={() => void unpay(g)}>Отменить оплату</button>}
+            {free && admin && <button type="button" className="ks-btn secondary sm" disabled={busy !== null} onClick={() => void reopen(g)}>Вернуть в долг</button>}
           </span>
         </div>
-      ))}
+        );
+      })}
       <SearchInput label="Добавить гостя" placeholder="Добавить гостя: имя игрока другой группы" value={q} onChange={setQ} />
       {found.filter(p => !have.has(p.id)).map(p => (
         <div className="ks-mark" key={p.id}>
@@ -127,6 +150,7 @@ export default function GuestVisits({ gid, date, admin = false }: { gid: string;
       ))}
       {msg && <p className={msg.ok ? 'ks-ok' : 'error'} role={msg.ok ? 'status' : 'alert'}>{msg.text}</p>}
       {dialog}
+      {closureDialog}
     </section>
   );
 }
