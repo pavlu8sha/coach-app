@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { feeText } from '../lib/matchRsvp';
 import { coachError, fmtDate, today, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { ListRow, Pill } from '../ui/components';
@@ -20,7 +21,7 @@ const API = {
 
 // Взносы события или матча (только администратор): сумма, оплата одному или нескольким со способом и датой, скидка, отмена оплаты.
 // Для матча участников взноса добавляют из состава (addable): сумма берётся из поля «Взнос с игрока».
-export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event', addable = [], coach = false }: { eventId: string; reloadKey: number; onChanged: () => void; mode?: 'event' | 'match'; coach?: boolean; addable?: { id: string; name: string }[] }) {
+export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event', addable = [], coach = false, rsvp = false }: { eventId: string; reloadKey: number; onChanged: () => void; mode?: 'event' | 'match'; coach?: boolean; rsvp?: boolean; addable?: { id: string; name: string }[] }) {
   const api = API[mode];
   const [fees, setFees] = useState<FeeRow[] | null>(null);
   const [pays, setPays] = useState<PayRow[]>([]);
@@ -39,11 +40,19 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
   const [discs, setDiscs] = useState<Record<string, DiscRow>>({});
   const [msg, setMsg] = useState<{ ok: boolean; text: string; top?: boolean } | null>(null);
   const [n, setN] = useState(0);
+  // сумма матча с подтверждением (matches.fee): undefined — не прочитана (тогда блок работает как раньше), null — не задана
+  const [matchFee, setMatchFee] = useState<number | null | undefined>(undefined);
 
   useEffect(() => {
     void (async () => {
       const [f, p] = await Promise.all([supabase.rpc(api.fees, { [api.key]: eventId }), supabase.rpc(api.pays, { [api.key]: eventId })]);
       if (f.error) return setError(errMsg(f.error));
+      // сумма матча читается до публикации взносов: иначе короткое время виден ручной ввод суммы (второй путь задания)
+      if (rsvp && mode === 'match') {
+        const mf = await supabase.from('matches').select('fee').eq('id', eventId).maybeSingle();
+        const row = mf.data as { fee?: number | string | null } | null;
+        setMatchFee(mf.error || !row ? undefined : row.fee == null ? null : Number(row.fee));
+      }
       setFees(((f.data ?? []) as FeeRow[]).map(x => ({ ...x, due: Number(x.due), paid: Number(x.paid) })));
       setPays(p.error ? [] : ((p.data ?? []) as PayRow[]).map(x => ({ ...x, amount: Number(x.amount) })));
       // причина и автор последней скидки (#422): только администратору; сбой не мешает экрану взносов
@@ -71,10 +80,20 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
   if (!fees) return null;
   const debt = fees.reduce((s, f) => s + Math.max(0, f.due - f.paid), 0);
   const toggle = (id: string) => setSel(s => { const c = new Set(s); if (c.has(id)) c.delete(id); else c.add(id); return c; });
+  const locked = rsvp && mode === 'match' && matchFee !== undefined; // сумму задаёт раздел «Состав и ответы»
+  const FEE_HINT = 'Укажите взнос в разделе «Состав и ответы» → «Изменить данные матча».';
   const missing = addable.filter(a => !fees.some(f => f.player_id === a.id));
-  const addAll = () => {
+  const addAll = async () => {
+    // у матча с подтверждением сумму берём заново: её могли сменить в «Состав и ответы», пока этот блок открыт
+    let cur = matchFee;
+    if (locked) {
+      const mf = await supabase.from('matches').select('fee').eq('id', eventId).maybeSingle();
+      const row = mf.data as { fee?: number | string | null } | null;
+      if (!mf.error && row) { cur = row.fee == null ? null : Number(row.fee); setMatchFee(cur); }
+    }
     // поле могло остаться пустым после перезагрузки экрана: берём сумму, уже назначенную другим игрокам
-    const amount = feeInput !== '' ? Number(feeInput) : fees.length ? fees[0].due : NaN;
+    if (locked && !(cur && cur > 0)) return setMsg({ ok: false, top: true, text: FEE_HINT });
+    const amount = locked ? Number(cur) : feeInput !== '' ? Number(feeInput) : fees.length ? fees[0].due : NaN;
     if (!(amount >= 0)) return setMsg({ ok: false, top: true, text: 'Укажите взнос с игрока в поле выше.' });
     void run(supabase.rpc('match_fee_add', { m: eventId, ids: missing.map(a => a.id), amt: amount }), 'Игроки добавлены во взнос.');
   };
@@ -132,16 +151,26 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
     <section>
       <h2 className="ks-sub">Взносы</h2>
       <p className="muted" style={{ marginBottom: 8 }}>Не оплачено всего: {money(debt)}</p>
-      <label className="ks-label" htmlFor="ef-fee">Взнос с игрока, ₾</label>
-      <div className="ks-line">
-        <input id="ef-fee" className="ks-input" inputMode="decimal" value={feeInput} onChange={e => setFeeInput(e.target.value.replace(/[^\d.]/g, '').slice(0, 7))} placeholder="Сумма" />
-        <button type="button" className="ks-btn secondary" style={{ width: 'auto' }} disabled={busy || feeInput === ''} onClick={saveFee}>Сохранить</button>
-      </div>
+      {locked ? (
+        <p style={{ marginBottom: 8 }}>
+          {matchFee && matchFee > 0 ? `Взнос с игрока: ${feeText(matchFee)}` : 'Взнос не задан.'}
+          <span className="muted" style={{ display: 'block', fontSize: 13 }}>{matchFee && matchFee > 0 ? 'Сумма меняется в разделе «Состав и ответы» → «Изменить данные матча».' : FEE_HINT}</span>
+          {fees.some(f => f.due !== Number(matchFee ?? 0)) && <span className="muted" style={{ display: 'block', fontSize: 13 }}>У части игроков сумма отличается от суммы матча (скидка, ручная сумма или взнос, созданный до этой правки). Менять её можно только кнопкой «Скидка» у игрока.</span>}
+        </p>
+      ) : (
+        <>
+          <label className="ks-label" htmlFor="ef-fee">Взнос с игрока, ₾</label>
+          <div className="ks-line">
+            <input id="ef-fee" className="ks-input" inputMode="decimal" value={feeInput} onChange={e => setFeeInput(e.target.value.replace(/[^\d.]/g, '').slice(0, 7))} placeholder="Сумма" />
+            <button type="button" className="ks-btn secondary" style={{ width: 'auto' }} disabled={busy || feeInput === ''} onClick={saveFee}>Сохранить</button>
+          </div>
+        </>
+      )}
       {msg?.top && <p className={msg.ok ? 'ks-ok' : 'error'}>{msg.text}</p>}
       {api.add && missing.length > 0 && (
-        <button type="button" className="ks-btn secondary" style={{ marginBottom: 8 }} disabled={busy} onClick={addAll}>Добавить игроков состава во взнос, в том числе до игры ({missing.length})</button>
+        <button type="button" className="ks-btn secondary" style={{ marginBottom: 8 }} disabled={busy} onClick={() => void addAll()}>Добавить игроков состава во взнос, в том числе до игры ({missing.length})</button>
       )}
-      {fees.length === 0 && api.add && <p className="muted">Взнос за этот матч пока никому не назначен. Укажите сумму и добавьте игроков состава.</p>}
+      {fees.length === 0 && api.add && <p className="muted">{locked ? 'Взнос за этот матч пока никому не назначен. Игроки получат его при публикации или кнопкой выше, когда сумма задана в «Состав и ответы».' : 'Взнос за этот матч пока никому не назначен. Укажите сумму и добавьте игроков состава.'}</p>}
       {fees.map(f => {
         const left = f.due - f.paid;
         return (

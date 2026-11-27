@@ -1330,6 +1330,18 @@ describe('Единый экран матча с подтверждением', (
     expect(sel('Состав и ответы')).toBe('true');
   });
 
+  it('в «Результате» у матча с подтверждением сумма взноса не вводится, а показана из матча (docs/MATCH_FEE_SINGLE_PLACE_ACCEPTANCE.md)', async () => {
+    setup({ starts_at: past, fee: 30 });
+    fake.rpc.match_fees_list = () => [{ player_id: 'p1', full_name: 'Иванов Пётр', group_name: 'U9', due: 30, paid: 0 }];
+    fake.rpc.match_payments_list = () => [];
+    fake.rpc.fee_discounts = () => [];
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    await screen.findByRole('tablist', { name: 'Разделы матча' });
+    expect(await screen.findByText(/Сумма меняется в разделе «Состав и ответы»/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Взнос с игрока, ₾')).toBeNull();
+  });
+
   it('после начала по умолчанию открывается «Результат»', async () => {
     setup({ starts_at: past });
     render(<CoachMatches groups={groups} />);
