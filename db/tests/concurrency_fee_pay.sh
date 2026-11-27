@@ -100,6 +100,8 @@ for i in 1 2 3 4; do { as; echo "select pg_sleep(0.3); select match_pay('$MI', a
 for i in 1 2 3 4; do $PSQL -q -t -A -d "$DB" -f "$T/im$i.sql" > "$T/im$i.out" 2>&1 & done; wait
 c=$(cntof match_payments "match_id = '$MI' and player_id = '$P1' and comment = 'Оплата из импорта'")
 [ "$c" = 1 ] && ok "импорт: материализация оплаты из импорта одна при четырёх параллельных вызовах" || bad "импорт: материализаций $c"
+s=$(sumof match_payments "match_id = '$MI' and player_id = '$P1'"); c=$(cntof match_payments "match_id = '$MI' and player_id = '$P1'")
+[ "$s" = 140.00 ] && [ "$c" = 5 ] && ok "импорт: итог 100 (импорт) + 4 x 10 = 140 в пяти строках, двойного учёта импорта нет" || bad "импорт: сумма $s, строк $c (ожидалось 140.00 и 5)"
 
 # 7. Разные игроки одного матча не ждут друг друга: сессия A держит блокировку игрока 1, оплата игрока 2 проходит сразу
 q <<SQL
