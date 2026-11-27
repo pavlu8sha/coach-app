@@ -42,3 +42,14 @@ export function prevWeek(iso: string): { f: string; t: string } {
   const f = addDaysIso(iso, -mondayOffset(iso) - 7);
   return { f, t: addDaysIso(f, 6) };
 }
+
+export type AttendanceTone = 'danger' | 'warning' | 'success' | 'neutral';
+
+// Светофор посещаемости: ниже низкого порога красный, от высокого зелёный, между ними жёлтый.
+// Порог неверен (не число) или высокий ниже низкого: подсветки нет (neutral).
+export function attendanceTone(pct: number | null, low: number, high: number): AttendanceTone {
+  if (pct === null || Number.isNaN(low) || Number.isNaN(high) || high < low) return 'neutral';
+  if (pct < low) return 'danger';
+  if (pct >= high) return 'success';
+  return 'warning';
+}

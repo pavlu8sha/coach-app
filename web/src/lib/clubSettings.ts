@@ -29,7 +29,8 @@ export interface SettingDef {
 // Ключи совпадают с теми, что пришли из листа «НАСТРОЙКИ» старого приложения (stats.lowPct, ind.capIndividual, ind.capGoalkeepers, equip.discNeedOwn/All, matches.champFee),
 // чтобы прежние значения подхватывались сами. Остальные названия новые.
 export const SETTINGS: SettingDef[] = [
-  { key: 'stats.lowPct', title: 'Порог низкой посещаемости, %', group: 'Посещаемость', kind: 'number', def: '50', min: 0, max: 100, hint: 'Ниже этого процента посещаемость в статистике красная.' },
+  { key: 'stats.lowPct', title: 'Порог низкой посещаемости, %', group: 'Посещаемость', kind: 'number', def: '50', min: 0, max: 100, hint: 'Ниже этого процента посещаемость в статистике красная, выше и до порога хорошей жёлтая.' },
+  { key: 'stats.highPct', title: 'Порог хорошей посещаемости, %', group: 'Посещаемость', kind: 'number', def: '80', min: 0, max: 100, hint: 'От этого процента посещаемость в статистике зелёная. Не ниже порога низкой посещаемости.' },
   { key: 'groups.order', title: 'Порядок групп в листе посещаемости и в списке сбора (через запятую)', group: 'Посещаемость', kind: 'list', def: '', emptyLabel: 'U7→U13, Ortachala, Isani, затем новые группы, weekends, индивидуальные', hint: 'Новые группы идут после Isani и не теряются. Свой список полностью заменяет этот порядок.' },
   { key: 'payments.nextMonthDay', title: 'С какого числа в «Оплатах» предлагать следующий месяц', group: 'Оплаты', kind: 'number', def: '22', min: 1, max: 31, integer: true, hint: 'С этого числа экран «Оплаты за месяц» открывается на следующем месяце.' },
   { key: 'ind.capIndividual', title: 'Мест на индивидуальном занятии', group: 'Занятия', kind: 'number', def: '6', min: 1, max: 100, integer: true, hint: 'По умолчанию 6, как в старом приложении. Пустое поле возвращает это значение.' },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { matchHighlights, prevWeek, seasonStart, thisWeek } from './seasonStats';
+import { attendanceTone, matchHighlights, prevWeek, seasonStart, thisWeek } from './seasonStats';
 
 const m = (d: string, a: number | null, b: number | null) => ({ played_on: d, goals_for: a, goals_against: b });
 
@@ -33,5 +33,16 @@ describe('seasonStart', () => {
     expect(prevWeek('2026-11-29')).toEqual({ f: '2026-11-16', t: '2026-11-22' }); // воскресенье
     expect(prevWeek('2026-12-02')).toEqual({ f: '2026-11-23', t: '2026-11-29' });
     expect(prevWeek('2027-01-04')).toEqual({ f: '2026-12-28', t: '2027-01-03' });
+  });
+
+  it('светофор посещаемости: границы порогов и неверные пороги', () => {
+    expect(attendanceTone(49.9, 50, 80)).toBe('danger');
+    expect(attendanceTone(50, 50, 80)).toBe('warning');
+    expect(attendanceTone(79.9, 50, 80)).toBe('warning');
+    expect(attendanceTone(80, 50, 80)).toBe('success');
+    expect(attendanceTone(null, 50, 80)).toBe('neutral');
+    expect(attendanceTone(70, NaN, 80)).toBe('neutral');
+    expect(attendanceTone(70, 50, 40)).toBe('neutral'); // высокий порог ниже низкого
+    expect(attendanceTone(50, 50, 50)).toBe('success'); // пороги равны: жёлтой зоны нет
   });
 });

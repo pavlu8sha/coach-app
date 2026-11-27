@@ -154,6 +154,34 @@ describe('«Статистика»', () => {
     expect(screen.getByLabelText('Лучшие бомбардиры')).toHaveTextContent('Боря');
   });
 
+  it('посещаемость: светофор по порогам 50 и 80 (границы), у групп и у игроков', async () => {
+    const mk = (g: string, att: number) => ({ group_id: g, group_name: g, player_id: g + 'p', full_name: 'Игрок ' + g, attended: att, total: 100 });
+    fake.rpc.attendance_stats = () => [mk('G49', 49), mk('G50', 50), mk('G79', 79), mk('G80', 80)];
+    const { container } = render(<Stats />);
+    await screen.findByLabelText('Сводка посещаемости');
+    const bars = [...container.querySelectorAll('details')].map(d => [d.querySelector('b')?.textContent, (d.querySelector('.ks-bar i') as HTMLElement).style.background]);
+    expect(bars).toEqual([['G49', 'var(--ks-danger)'], ['G50', 'var(--ks-warning-fill)'], ['G79', 'var(--ks-warning-fill)'], ['G80', 'var(--ks-success)']]);
+    const pill = (g: string) => (screen.getByText('Игрок ' + g).parentElement as HTMLElement).querySelector('.ks-pill')?.className;
+    expect(pill('G49')).toContain('danger');
+    expect(pill('G50')).toContain('warning');
+    expect(pill('G79')).toContain('warning');
+    expect(pill('G80')).toContain('success');
+  });
+
+  it('посещаемость: свои пороги из настроек клуба; неверные пороги отключают подсветку', async () => {
+    fake.db.clubs = [{ id: 'c1' }];
+    fake.db.club_settings = [{ club_id: 'c1', key: 'stats.lowPct', scope: '', value: '60' }, { club_id: 'c1', key: 'stats.highPct', scope: '', value: '90' }];
+    fake.rpc.attendance_stats = () => [{ group_id: 'g', group_name: 'G', player_id: 'p', full_name: 'Аня', attended: 85, total: 100 }];
+    const { container, unmount } = render(<Stats />);
+    await screen.findByLabelText('Сводка посещаемости');
+    await waitFor(() => expect((container.querySelector('.ks-bar i') as HTMLElement).style.background).toBe('var(--ks-warning-fill)')); // 85 при 60/90: жёлтый (при 50/80 было бы зелёным)
+    unmount();
+    fake.db.club_settings = [{ club_id: 'c1', key: 'stats.lowPct', scope: '', value: '70' }, { club_id: 'c1', key: 'stats.highPct', scope: '', value: '60' }];
+    const r2 = render(<Stats />);
+    expect(await screen.findByText(/Порог хорошей посещаемости недопустим/)).toBeInTheDocument();
+    await waitFor(() => expect((r2.container.querySelector('.ks-bar i') as HTMLElement).style.background).toBe('var(--ks-primary)'));
+  });
+
   it('период «Эта неделя»: с понедельника по сегодня', async () => {
     fake.rpc.attendance_stats = () => [{ group_id: 'g1', group_name: 'U9', player_id: 'p1', full_name: 'Аня', attended: 1, total: 1 }];
     render(<Stats />);
