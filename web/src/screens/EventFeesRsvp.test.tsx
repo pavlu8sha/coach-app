@@ -92,4 +92,33 @@ describe('взносы матча с подтверждением: сумма в
     expect(document.body.textContent).toContain('Взнос с игрока: 30\u00A0₾');
     expect(fake.rpcCalls('match_set_fee')).toHaveLength(0);
   });
+
+  it('сумма матча 0: «Добавить игроков» не вызывает match_fee_add', async () => {
+    seed(0);
+    await open(true, [{ id: 'p9', name: 'Новый Игрок' }]);
+    fireEvent.click(screen.getByRole('button', { name: /Добавить игроков состава во взнос/ }));
+    await waitFor(() => expect(screen.getAllByText(/Укажите взнос в разделе «Состав и ответы»/).length).toBeGreaterThan(0));
+    expect(fake.rpcCalls('match_fee_add')).toHaveLength(0);
+  });
+
+  it('сумму перечитывают перед добавлением: взнос 30→25 в «Состав» уходит как 25', async () => {
+    seed(30);
+    await open(true, [{ id: 'p9', name: 'Новый Игрок' }]);
+    fake.db.matches = [{ id: 'm1', fee: 25 }];
+    fireEvent.click(screen.getByRole('button', { name: /Добавить игроков состава во взнос/ }));
+    await waitFor(() => expect(fake.rpcCalls('match_fee_add')).toEqual([{ m: 'm1', ids: ['p9'], amt: 25 }]));
+  });
+
+  it('у игроков сумма не равна сумме матча: блок это показывает', async () => {
+    seed(null, [{ player_id: 'p1', full_name: 'Иванов Пётр', group_name: 'U9', due: 20, paid: 0 }]);
+    await open();
+    expect(screen.getByText(/У части игроков сумма отличается от суммы матча/)).toBeInTheDocument();
+  });
+
+  it('суммы совпадают: предупреждения нет; дробная сумма как в приглашении', async () => {
+    seed(12.5, [{ player_id: 'p1', full_name: 'Иванов Пётр', group_name: 'U9', due: 12.5, paid: 0 }]);
+    await open();
+    expect(screen.queryByText(/У части игроков сумма отличается/)).toBeNull();
+    expect(document.body.textContent).toContain('Взнос с игрока: 12.50\u00A0₾');
+  });
 });
