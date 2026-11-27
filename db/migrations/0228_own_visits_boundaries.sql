@@ -2,9 +2,9 @@
 -- Основа #726 сделана в 0213. Здесь только: (1) own_visits_backfill и триггер attendance_own_visit_sync создают визит лишь за занятия kind = 'training'
 -- группы клуба игрока, не являющейся служебной «Индивидуальные / вратарские»; (2) player_set_pay_mode отказывает (42501), если клуб игрока не совпадает с клубом администратора (club_event_current_club()).
 -- Тела own_visits_backfill, attendance_own_visit_sync, player_set_pay_mode взяты из 0213 (последние определения: grep -lEi "function +(public\.)?имя *\(" db/migrations/*.sql даёт 0200 и 0213), блокировки и остальная логика не менялись.
--- Атомарность обеспечена самой функцией (одна транзакция); отдельного production backfill не требуется. Откат: db/ops/rollback-0228-own-visits-boundaries.sql.
+-- search_path у трёх функций: public, pg_temp (ревью #855, P1; 0213 имел public). Атомарность обеспечена самой функцией (одна транзакция); отдельного production backfill не требуется. Откат: db/ops/rollback-0228-own-visits-boundaries.sql.
 create or replace function own_visits_backfill(p uuid) returns int
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 declare pl players; n int;
 begin
   select * into pl from players where id = p for update;
@@ -24,7 +24,7 @@ end $$;
 revoke execute on function own_visits_backfill(uuid) from public, anon, authenticated;
 
 create or replace function attendance_own_visit_sync() returns trigger
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 declare sid uuid; pid uuid; pl players; ses sessions; present boolean; ov own_visits; club uuid; gname text;
 begin
   if tg_op = 'DELETE' then sid := old.session_id; pid := old.player_id; present := false;
@@ -53,7 +53,7 @@ end $$;
 revoke execute on function attendance_own_visit_sync() from public, anon, authenticated;
 
 create or replace function player_set_pay_mode(p uuid, mode text, from_d date default null) returns void
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 declare pl players; nf date;
 begin
   if current_user_id() is null then raise exception 'not authenticated' using errcode = '42501'; end if;

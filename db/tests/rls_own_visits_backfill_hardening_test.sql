@@ -1,7 +1,7 @@
 -- pgTAP: границы дозаполнения визитов за плату (миграция 0228, Issue #726). Условия: docs/PAY_PER_VISIT_BACKFILL_HARDENING_ACCEPTANCE.md. Фикстуры вымышленные.
 begin;
 create extension if not exists pgtap;
-select plan(17);
+select plan(18);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб А'), ('00000000-0000-0000-0000-00000000c002', 'Клуб Б');
 insert into users (id, telegram_id, display_name, is_admin, club_id) values
@@ -93,6 +93,9 @@ drop trigger boom on own_visits;
 select is((select count(*) from payments)::text || '/' || (select count(*) from subscriptions)::text || '/' || (select count(*) from service_payments)::text,
           (select v from snap where k = 'payments') || '/' || (select v from snap where k = 'subs') || '/0', 'У4: payments, subscriptions, service_payments не менялись');
 select is(has_function_privilege('authenticated', 'public.own_visits_backfill(uuid)', 'execute') or has_function_privilege('anon', 'public.own_visits_backfill(uuid)', 'execute'), false, 'У4: own_visits_backfill закрыта для authenticated и anon');
+
+-- У6: SECURITY DEFINER с search_path = public, pg_temp (pg_temp последним, ревью #855)
+select is((select count(*)::int from pg_proc p where p.oid in (to_regprocedure('public.own_visits_backfill(uuid)'), to_regprocedure('public.attendance_own_visit_sync()'), to_regprocedure('public.player_set_pay_mode(uuid, text, date)')) and p.prosecdef and p.proconfig @> array['search_path=public, pg_temp']), 3, 'У6: три функции 0228 с search_path = public, pg_temp');
 
 select * from finish();
 rollback;
