@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { fake, supabase } from '../test/fakeSupabase';
-import CoachRsvp from './CoachRsvp';
+import { RsvpDetail } from './CoachRsvp';
+import { CreateFlow, idOf } from '../test/rsvpHarness';
 
 // Условия приёмки: docs/acceptance/coach-rsvp-load-errors-768-769-2026-11-20.md
 window.scrollTo = (() => {}) as typeof window.scrollTo;
@@ -20,9 +21,7 @@ function seed(o: { summary?: () => unknown; roster?: () => unknown; match?: Reco
   fake.rpc.match_rsvp_roster = o.roster ?? (() => [player('p1', 'Иванов Пётр', { response: 'yes' }), player('p2', 'Сидоров Иван')]);
 }
 const open = async (title = 'U9 · Олимп') => {
-  const view = render(<CoachRsvp groups={groups} onBack={() => {}} />);
-  fireEvent.click(await screen.findByText(title));
-  return view;
+  return render(<RsvpDetail id={idOf(title)} groups={groups} onBack={() => {}} />);
 };
 function deferred<T>() {
   let resolve!: (v: T) => void;
@@ -172,10 +171,8 @@ describe('Карточка матча тренера: ошибки загруз�
     fake.db.matches = [matchRow({ id: 'm1', opponent: 'Олимп' }), matchRow({ id: 'm2', opponent: 'Динамо', starts_at: new Date(Date.now() + 6 * 86400000).toISOString() })];
     fake.rpc.match_rsvp_summary = () => [SUMMARY];
     fake.rpc.match_rsvp_roster = (a: { m: string }) => (a.m === 'm1' ? slow.promise : [player('p2', 'Сидоров Иван')]);
-    render(<CoachRsvp groups={groups} onBack={() => {}} />);
-    fireEvent.click(await screen.findByText('U9 · Олимп'));
-    fireEvent.click(await screen.findByRole('button', { name: /Назад/ }));
-    fireEvent.click(await screen.findByText('U9 · Динамо'));
+    const view = render(<RsvpDetail id="m1" groups={groups} onBack={() => {}} />);
+    view.rerender(<RsvpDetail id="m2" groups={groups} onBack={() => {}} />);
     expect(await screen.findByText('Сидоров Иван')).toBeInTheDocument();
     slow.resolve([player('p1', 'Иванов Пётр')]);
     await new Promise(r => setTimeout(r, 20));

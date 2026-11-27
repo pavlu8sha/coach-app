@@ -2,7 +2,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import Matches from './Matches';
-import CoachRsvp from './CoachRsvp';
+import { RsvpDetail } from './CoachRsvp';
+import { CreateFlow, idOf } from '../test/rsvpHarness';
 
 // Условия приёмки: docs/MATCH_RSVP_FEE_ACCEPTANCE.md (пп. 15-21)
 window.scrollTo = (() => {}) as typeof window.scrollTo;
@@ -68,8 +69,7 @@ describe('Тренер: поле взноса в форме создания (п
     ];
     fake.rpc.match_rsvp_create_draft = () => 'new1';
     fake.rpc.match_rsvp_seed = () => 1;
-    render(<CoachRsvp groups={groups} onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Новый матч' }));
+    render(<CreateFlow groups={groups} onBack={() => {}} />);
     await screen.findByLabelText('Соперник');
     fireEvent.change(screen.getByLabelText('Дата и время (Тбилиси)'), { target: { value: '2026-11-20T11:00' } });
   };
@@ -130,8 +130,7 @@ describe('Тренер: взнос в карточке и правке матч�
     fake.db.matches = [matchRow(o)];
     fake.rpc.match_rsvp_summary = () => [{ invited: 1, yes: 0, no: 0, unanswered: 1, reminders: 0, last_reminder_at: null }];
     fake.rpc.match_rsvp_roster = () => [];
-    render(<CoachRsvp groups={groups} onBack={() => {}} />);
-    fireEvent.click(await screen.findByText('U9 · Олимп'));
+    render(<RsvpDetail id={idOf('U9 · Олимп')} groups={groups} onBack={() => {}} />);
   };
 
   it('в карточке видна сумма взноса', async () => {
