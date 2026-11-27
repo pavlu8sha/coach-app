@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { addDays, coachError, today } from '../lib/coach';
-import { matchHighlights, prevWeek, seasonStart, thisWeek, type ScoredMatch } from '../lib/seasonStats';
+import { attendanceTone, matchHighlights, prevWeek, seasonStart, thisWeek, type ScoredMatch } from '../lib/seasonStats';
 import { settingNumber, settingNumberError, useClubSettings } from '../lib/clubSettings';
 import { supabase } from '../lib/supabase';
 import { EmptyState, Pill, Segmented } from '../ui/components';
@@ -66,6 +66,8 @@ function usePeriod(scope: string) {
 }
 
 interface MRow { kind: 'team' | 'player'; team: string; name: string | null; games: number | null; wins: number | null; draws: number | null; losses: number | null; goals_for: number | null; goals_against: number | null; played: number | null; goals: number | null }
+
+const BAR_COLOR = { danger: 'var(--ks-danger)', warning: 'var(--ks-warning-fill)', success: 'var(--ks-success)', neutral: 'var(--ks-primary)' } as const;
 
 function Tile({ value, label, badge }: { value: string; label: string; badge?: ReactNode }) {
   // значок результата стоит рядом с числом, а не после подписи: иначе на узком экране он переносится на отдельную строку
@@ -212,6 +214,8 @@ function Attendance({ own }: { own: boolean }) {
   const settings = useClubSettings().values;
   const lowPct = settingNumber(settings, 'stats.lowPct');
   const lowPctError = settingNumberError(settings, 'stats.lowPct');
+  const highPct = settingNumber(settings, 'stats.highPct');
+  const highPctError = settingNumberError(settings, 'stats.highPct') ?? (highPct < lowPct ? 'Порог хорошей посещаемости не должен быть ниже порога низкой.' : null);
   const [range, setRange] = useNavState<Range>('st.att.range', 'month', { persist: { kind: 'enum', values: RANGES } });
   const [from, setFrom] = useNavState('st.att.from', monthStart(today()));
   const [to, setTo] = useNavState('st.att.to', today());
@@ -245,6 +249,9 @@ function Attendance({ own }: { own: boolean }) {
     return [...m.entries()];
   }, [rows]);
 
+  // светофор: красный ниже низкого порога, жёлтый между порогами, зелёный от высокого; неверные пороги: без подсветки
+  const toneOf = (v: number | null) => (lowPctError || highPctError ? 'neutral' : attendanceTone(v, lowPct, highPct));
+
   // сводка клуба: занятия групп, отметки «был» из возможных (игроки × занятия)
   const sumSessions = groups.reduce((x, [, l]) => x + l[0].total, 0);
   const sumAtt = (rows ?? []).reduce((x, r) => x + r.attended, 0);
@@ -257,6 +264,7 @@ function Attendance({ own }: { own: boolean }) {
     <main className="page">
       <h1>Статистика</h1>
       {lowPctError && <p className="error">Порог низкой посещаемости недопустим: {lowPctError} Подсветка отключена.</p>}
+      {!lowPctError && highPctError && <p className="error">Порог хорошей посещаемости недопустим: {highPctError} Подсветка отключена.</p>}
       <Segmented
         label="Период"
         value={range}
@@ -292,7 +300,7 @@ function Attendance({ own }: { own: boolean }) {
               <details className="ks-card" key={name}>
                 <summary className="ks-disclosure">
                   <div className="ks-line"><b>{name}</b><b>{p === null ? '—' : `${p}%`}</b></div>
-                  <div className="ks-bar"><i style={{ width: `${p ?? 0}%` }} /></div>
+                  <div className="ks-bar"><i style={{ width: `${p ?? 0}%`, background: BAR_COLOR[toneOf(p)] }} /></div>
                 </summary>
                 <p className="muted" style={{ marginBottom: 8 }}>Занятий: {total} · игроков: {list.length} · посещаемость {p === null ? '—' : `${p}%`}</p>
                 {[...list].sort((x, y) => x.attended - y.attended).map(r => {
@@ -300,7 +308,7 @@ function Attendance({ own }: { own: boolean }) {
                   return (
                     <div className="ks-line" key={r.player_id} style={{ padding: '4px 0' }}>
                       <span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>{r.full_name}</span>
-                      <Pill tone={v !== null && v < lowPct ? 'danger' : 'primary'}>{r.attended} из {r.total}{v !== null ? ` · ${v}%` : ''}</Pill>
+                      <Pill tone={toneOf(v)}>{r.attended} из {r.total}{v !== null ? ` · ${v}%` : ''}</Pill>
                     </div>
                   );
                 })}
