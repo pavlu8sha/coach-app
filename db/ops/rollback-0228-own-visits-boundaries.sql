@@ -1,6 +1,6 @@
--- Откат 0228: вернуть тела own_visits_backfill, attendance_own_visit_sync и player_set_pay_mode из 0213 (без границ по виду занятия и клубу). Строки own_visits не удаляются.
+-- Откат 0228: вернуть тела own_visits_backfill, attendance_own_visit_sync и player_set_pay_mode из 0213 (без границ по виду занятия и клубу). Строки own_visits не удаляются. search_path у трёх функций остаётся public, pg_temp (hardening 0228 не откатывается, ревью #855).
 create or replace function own_visits_backfill(p uuid) returns int
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 declare pl players; n int;
 begin
   select * into pl from players where id = p for update;
@@ -19,7 +19,7 @@ end $$;
 revoke execute on function own_visits_backfill(uuid) from public, anon, authenticated;
 
 create or replace function attendance_own_visit_sync() returns trigger
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 declare sid uuid; pid uuid; pl players; ses sessions; present boolean; ov own_visits; club uuid;
 begin
   if tg_op = 'DELETE' then sid := old.session_id; pid := old.player_id; present := false;
@@ -46,7 +46,7 @@ end $$;
 revoke execute on function attendance_own_visit_sync() from public, anon, authenticated;
 
 create or replace function player_set_pay_mode(p uuid, mode text, from_d date default null) returns void
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 declare pl players; nf date;
 begin
   if current_user_id() is null then raise exception 'not authenticated' using errcode = '42501'; end if;
