@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { addDays, coachError, today } from '../lib/coach';
-import { matchHighlights, seasonStart, type ScoredMatch } from '../lib/seasonStats';
+import { matchHighlights, prevWeek, seasonStart, thisWeek, type ScoredMatch } from '../lib/seasonStats';
 import { settingNumber, settingNumberError, useClubSettings } from '../lib/clubSettings';
 import { supabase } from '../lib/supabase';
 import { EmptyState, Pill, Segmented } from '../ui/components';
@@ -18,15 +18,9 @@ const prevMonthStart = (iso: string) => {
   return d.toLocaleDateString('en-CA');
 };
 
-type Range = 'week' | 'month' | 'prev' | 'season' | 'custom';
-const RANGES = ['week', 'month', 'prev', 'season', 'custom'];
+type Range = 'thisweek' | 'week' | 'month' | 'prev' | 'season' | 'custom';
+const RANGES = ['thisweek', 'week', 'month', 'prev', 'season', 'custom'];
 
-// Прошлая неделя: понедельник–воскресенье перед текущей неделей.
-function prevWeek(iso: string) {
-  const dow = (new Date(iso + 'T12:00:00').getDay() + 6) % 7; // понедельник = 0
-  const f = addDays(iso, -dow - 7);
-  return { f, t: addDays(f, 6) };
-}
 
 type Kind = 'att' | 'matches';
 
@@ -50,6 +44,7 @@ function usePeriod(scope: string) {
   const [from, setFrom] = useNavState(`st.${scope}.from`, monthStart(today()));
   const [to, setTo] = useNavState(`st.${scope}.to`, today());
   const period = useMemo(() => {
+    if (range === 'thisweek') return thisWeek(today());
     if (range === 'week') return prevWeek(today());
     if (range === 'month') return { f: monthStart(today()), t: today() };
     if (range === 'prev') return { f: prevMonthStart(today()), t: addDays(monthStart(today()), -1) };
@@ -58,7 +53,7 @@ function usePeriod(scope: string) {
   }, [range, from, to]);
   const picker = (onChange: () => void) => (
     <>
-      <Segmented label="Период" value={range} onChange={v => { onChange(); setRange(v); }} items={[{ value: 'week', label: 'Прошлая неделя' }, { value: 'month', label: 'Месяц' }, { value: 'prev', label: 'Прошлый' }, { value: 'season', label: 'Сезон' }, { value: 'custom', label: 'Период' }]} />
+      <Segmented label="Период" value={range} onChange={v => { onChange(); setRange(v); }} items={[{ value: 'thisweek', label: 'Эта неделя' }, { value: 'week', label: 'Прошлая неделя' }, { value: 'month', label: 'Месяц' }, { value: 'prev', label: 'Прошлый' }, { value: 'season', label: 'Сезон' }, { value: 'custom', label: 'Период' }]} />
       {range === 'custom' && (
         <div className="two" style={{ margin: '10px 0' }}>
           <input type="date" aria-label="С даты" value={from} max={to} onChange={e => { onChange(); setFrom(e.target.value); }} />
@@ -72,8 +67,13 @@ function usePeriod(scope: string) {
 
 interface MRow { kind: 'team' | 'player'; team: string; name: string | null; games: number | null; wins: number | null; draws: number | null; losses: number | null; goals_for: number | null; goals_against: number | null; played: number | null; goals: number | null }
 
-function Tile({ value, label }: { value: string; label: string }) {
-  return <div className="ks-tile" style={{ minWidth: 0, fontSize: '0.78rem', overflowWrap: 'break-word' }}><b style={{ fontSize: '1.25rem', color: 'var(--ks-text)', marginBottom: 4 }}>{value}</b>{label}</div>;
+function Tile({ value, label, badge }: { value: string; label: string; badge?: ReactNode }) {
+  // значок результата стоит рядом с числом, а не после подписи: иначе на узком экране он переносится на отдельную строку
+  return (
+    <div className="ks-tile" style={{ minWidth: 0, fontSize: '0.78rem', overflowWrap: 'break-word' }}>
+      <b style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '1.25rem', color: 'var(--ks-text)', marginBottom: 4 }}>{value}{badge}</b>{label}
+    </div>
+  );
 }
 
 type Res = 'В' | 'Н' | 'П';
@@ -134,9 +134,9 @@ function Matches({ own }: { own: boolean }) {
             <Tile value={String(sum(t => t.games))} label="игр" />
             <Tile value={`${gf}:${ga}`} label="голы" />
             <Tile value={diffAll > 0 ? `+${diffAll}` : String(diffAll)} label="разница голов" />
-            <div className="ks-tile"><b style={{ fontSize: '1.25rem', color: 'var(--ks-text)', marginBottom: 4 }}>{sum(t => t.wins)}</b>побед <ResPill r="В" /></div>
-            <div className="ks-tile"><b style={{ fontSize: '1.25rem', color: 'var(--ks-text)', marginBottom: 4 }}>{sum(t => t.draws)}</b>ничьих <ResPill r="Н" /></div>
-            <div className="ks-tile"><b style={{ fontSize: '1.25rem', color: 'var(--ks-text)', marginBottom: 4 }}>{sum(t => t.losses)}</b>поражений <ResPill r="П" /></div>
+            <Tile value={String(sum(t => t.wins))} label="побед" badge={<ResPill r="В" />} />
+            <Tile value={String(sum(t => t.draws))} label="ничьих" badge={<ResPill r="Н" />} />
+            <Tile value={String(sum(t => t.losses))} label="поражений" badge={<ResPill r="П" />} />
           </div>
           {shownGames.length > 0 && (
             <details className="ks-card">
@@ -158,7 +158,7 @@ function Matches({ own }: { own: boolean }) {
       ) : teams.map(t => (
         <section key={t.team}>
           <h3>{t.team}</h3>
-          <SeasonTiles t={t} games={games.filter(g => g.team === t.team)} />
+          <SeasonTiles t={t} games={games.filter(g => g.team === t.team)} compact={teams.length === 1} />
           <TopScorers players={rows.filter(r => r.kind === 'player' && r.team === t.team)} />
           {rows.filter(r => r.kind === 'player' && r.team === t.team).sort((a, b) => (b.goals ?? 0) - (a.goals ?? 0) || (b.played ?? 0) - (a.played ?? 0)).map(p => (
             <div className="ks-card" key={p.name ?? ''}>
@@ -188,17 +188,20 @@ function TopScorers({ players }: { players: MRow[] }) {
   );
 }
 
-function SeasonTiles({ t, games }: { t: MRow; games: ScoredMatch[] }) {
+// compact: команда одна (выбрана или единственная), её цифры уже в сводке выше, остаются только серия побед и лучший матч
+function SeasonTiles({ t, games, compact = false }: { t: MRow; games: ScoredMatch[]; compact?: boolean }) {
   const diff = (t.goals_for ?? 0) - (t.goals_against ?? 0);
   const { streak, best } = matchHighlights(games);
   const tiles: [string, string | number][] = [
     ['Матчей', t.games ?? 0], ['Победы', t.wins ?? 0], ['Ничьи', t.draws ?? 0], ['Поражения', t.losses ?? 0],
     ['Забито', t.goals_for ?? 0], ['Пропущено', t.goals_against ?? 0], ['Разница', diff > 0 ? `+${diff}` : diff],
   ];
-  if (games.length) tiles.push(['Серия побед', streak]);
+  const own: [string, string | number][] = games.length ? [['Серия побед', streak]] : [];
+  const shown = compact ? own : [...tiles, ...own];
+  if (shown.length === 0 && !best) return null; // нечего показать: пустую карточку не рисуем
   return (
     <div className="ks-card">
-      <div className="ks-tiles">{tiles.map(([k, v]) => <div className="ks-tile" key={k}><b>{k}</b>{v}</div>)}</div>
+      {shown.length > 0 && <div className="ks-tiles">{shown.map(([k, v]) => <div className="ks-tile" key={k}><b>{k}</b>{v}</div>)}</div>}
       {best && <p className="ks-muted" style={{ margin: '10px 0 0' }}>Лучший матч: {best.goals_for}:{best.goals_against}{best.opponent ? ` с ${best.opponent}` : ''}, {best.played_on.slice(8, 10)}.{best.played_on.slice(5, 7)}</p>}
     </div>
   );
@@ -217,6 +220,7 @@ function Attendance({ own }: { own: boolean }) {
   const [reload, setReload] = useState(0);
 
   const period = useMemo(() => {
+    if (range === 'thisweek') return thisWeek(today());
     if (range === 'week') return prevWeek(today());
     if (range === 'month') return { f: monthStart(today()), t: today() };
     if (range === 'prev') {
@@ -258,6 +262,7 @@ function Attendance({ own }: { own: boolean }) {
         value={range}
         onChange={v => { setRows(null); setRange(v); }}
         items={[
+          { value: 'thisweek', label: 'Эта неделя' },
           { value: 'week', label: 'Прошлая неделя' },
           { value: 'month', label: 'Месяц' },
           { value: 'prev', label: 'Прошлый' },
