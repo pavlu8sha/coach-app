@@ -226,6 +226,7 @@ export function RsvpDetail({ id, groups, onBack, note, embedded = false, onLoade
   const [reason, setReason] = useState('');
   const [edit, setEdit] = useState<{ opponent: string; venue: string; address: string; notes: string; when: string; fee: string } | null>(null);
   const [fee, setFee] = useState<number | null>(null);
+  const [tourKind, setTourKind] = useState<string | undefined>(undefined); // вид события игры: у кубка взнос задаётся в матче
   const [filter, setFilter] = useState<SummaryFilter>('all');
   const [showHistory, setShowHistory] = useState(false);
   useEffect(() => {
@@ -238,6 +239,11 @@ export function RsvpDetail({ id, groups, onBack, note, embedded = false, onLoade
         setM((r.data ?? null) as RsvpMatch | null);
         if (r.data) onLoaded?.(r.data as RsvpMatch);
         // сумма взноса читается отдельно: до применения миграции 0226 колонки нет, и это не должно ломать карточку
+        const rm = r.data as RsvpMatch | null;
+        if (rm?.tournament_id && rm.kind !== 'friendly') {
+          const ev = await supabase.rpc('event_list');
+          if (alive && !ev.error) setTourKind(((ev.data ?? []) as { id: string; kind: string }[]).find(e => e.id === rm.tournament_id)?.kind);
+        }
         const f = await supabase.from('matches').select('fee').eq('id', id).maybeSingle();
         if (alive) setFee(f.error || (f.data as { fee?: number | string | null } | null)?.fee == null ? null : Number((f.data as { fee: number | string }).fee));
       } catch (e) {
@@ -283,7 +289,7 @@ export function RsvpDetail({ id, groups, onBack, note, embedded = false, onLoade
   if (!m) return <Loading />;
   const Wrap = embedded ? 'div' : 'main';
   const st = m.lifecycle_status;
-  const feeEditable = m.kind === 'friendly' || !m.tournament_id; // у матча чемпионата и фестиваля взнос на событие
+  const feeEditable = m.kind === 'friendly' || !m.tournament_id || tourKind === 'cup'; // у матча чемпионата и фестиваля взнос на событие; у кубка задаётся в матче
   const invited = roster.filter(p => p.status === 'invited'); // исключённые остаются в базе, в списке их нет
   const shown = invited.filter(p => matchesFilter(p.response, filter));
   const started = m.starts_at ? new Date(m.starts_at).getTime() <= Date.now() : false;

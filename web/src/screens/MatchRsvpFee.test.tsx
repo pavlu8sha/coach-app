@@ -179,6 +179,26 @@ describe('Тренер: взнос в карточке и правке матч�
     expect(screen.queryByLabelText('Взнос за матч, ₾')).toBeNull();
   });
 
+  it('у матча кубка поле взноса в правке есть (единственное место суммы)', async () => {
+    fake.rpc.event_list = () => [{ id: 't1', team: 'U9', kind: 'cup', name: 'Cup', starts_on: null, players: 1, games: 0, status: 'active' }];
+    await open({ kind: 'game', tournament_id: 't1', fee: 30 });
+    fireEvent.click(await screen.findByRole('button', { name: 'Изменить данные матча' }));
+    const f = await screen.findByLabelText('Взнос за матч, ₾');
+    await waitFor(() => expect(f).toBeInTheDocument());
+    fireEvent.change(f, { target: { value: '45' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Изменить сумму' }));
+    await waitFor(() => expect(fake.rpcCalls('match_rsvp_update')).toEqual([{ m: 'm1', p: { fee: 45 } }]));
+  });
+
+  it('у матча чемпионата (event_list вернул чемпионат) поля нет', async () => {
+    fake.rpc.event_list = () => [{ id: 't1', team: 'U9', kind: 'championship', name: 'Ch', starts_on: null, players: 1, games: 0, status: 'active' }];
+    await open({ kind: 'game', tournament_id: 't1', fee: null });
+    fireEvent.click(await screen.findByRole('button', { name: 'Изменить данные матча' }));
+    await screen.findByLabelText('Соперник');
+    expect(screen.queryByLabelText('Взнос за матч, ₾')).toBeNull();
+  });
+
   it('ошибка базы показывается по-русски, без технического текста', async () => {
     fake.rpc.match_rsvp_update = () => ({ data: null, error: { message: 'bad fee' } });
     await open({ lifecycle_status: 'draft' });
