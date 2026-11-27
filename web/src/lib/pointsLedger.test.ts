@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { grandTotal, latestMonth, ledgerLabel, monthLabel, monthTotal, shiftMonth, type LedgerRow } from './pointsLedger';
+import { fake } from '../test/fakeSupabase';
+import { fetchLedgerTotals, grandTotal, latestMonth, ledgerLabel, monthLabel, monthTotal, shiftMonth, type LedgerRow } from './pointsLedger';
 
 const row = (o: Partial<LedgerRow>): LedgerRow => ({ id: 'x', event_date: '2026-12-03', points: 1, source_type: 'group_session', reason_code: 'attended', components: {}, ...o });
 
@@ -55,5 +56,35 @@ describe('месяцы и итоги', () => {
   it('последний месяц с начислениями', () => {
     expect(latestMonth(rows, '2026-12')).toBe('2027-01');
     expect(latestMonth([], '2026-12')).toBe('2026-12');
+  });
+});
+
+describe('fetchLedgerTotals: итог по журналу любой длины', () => {
+  const bulk = (n: number, player: string, status = 'active') => Array.from({ length: n }, (_, i) => ({ id: `${player}-${String(i).padStart(5, '0')}`, player_id: player, status, points: 1 }));
+  it.each([999, 1000, 1001, 2500])('%i действующих записей суммируются полностью; отменённые не входят', async n => {
+    fake.db.points_ledger = [...bulk(n, 'p1'), ...bulk(5, 'p1x', 'cancelled').map(r => ({ ...r, player_id: 'p1' })), ...bulk(3, 'p2')];
+    const r = await fetchLedgerTotals(['p1', 'p2']);
+    expect(r.error).toBeNull();
+    expect(r.totals.p1).toBe(n);
+    expect(r.totals.p2).toBe(3);
+  });
+  it('ошибка чтения возвращается строкой, а не нулевой суммой', async () => {
+    fake.db.points_ledger = bulk(3, 'p1');
+    fake.errors.points_ledger = 'сбой';
+    const r = await fetchLedgerTotals(['p1']);
+    expect(r.error).toBeTruthy();
+  });
+  it('запись, появившаяся между страницами, не задваивает итог', async () => {
+    fake.db.points_ledger = bulk(1500, 'p1').map((r, i) => ({ ...r, id: `m${String(i + 100).padStart(5, '0')}` }));
+    const a = fake.hold('points_ledger');
+    const b = fake.hold('points_ledger');
+    const run = fetchLedgerTotals(['p1']);
+    await new Promise(r => setTimeout(r, 10));
+    a.release();
+    await new Promise(r => setTimeout(r, 10));
+    fake.db.points_ledger = [...(fake.db.points_ledger as object[]), { id: 'm00001', player_id: 'p1', status: 'active', points: 1 }];
+    b.release();
+    const r = await run;
+    expect(r.totals.p1).toBe(1500); // прежние 1500 ровно по разу; новая запись прочитана или нет — зависит от id, но дубля нет
   });
 });
