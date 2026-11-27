@@ -5,7 +5,7 @@ import { seasonStart } from '../lib/seasonStats';
 import { fetchLedgerTotals } from '../lib/pointsLedger';
 import { firstRecordDate, participation, resultKind, type Part } from '../lib/parentMatches';
 import MatchResultRow, { ResultTiles } from '../ui/MatchResultRow';
-import { teamNames } from './Matches';
+import { teamNames, tourLabel, type Tour } from './Matches';
 import { groupInOrder } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { BackNav } from '../ui/nav';
@@ -17,6 +17,7 @@ import PointsLedger, { prefetchPoints } from './PointsLedger';
 // Только данные этого ребёнка: строку игрока, его матчи и посещения отдаёт сервер по правам (RLS и player_training_history).
 // Фото, номера, позиции, «Прогресса» и «Достижений» пока нет: не показываем их как работающие.
 
+type PartFilter = 'all' | 'played' | 'not';
 type Section = 'overview' | 'matches' | 'trainings' | 'points';
 
 interface Profile { first_name: string | null; last_name: string | null; primary_position: string | null; jersey_number: number | null; jersey_team: string | null; jersey_season_start: string | null }
@@ -89,18 +90,22 @@ function Trainings(props: { rows: TrainingRow[] | null; error: string | null; bu
 }
 
 /** Вкладка «Матчи» ребёнка: матчи команды с пометкой «Играл / Не играл», светофором результата и оценкой (условия К1-К4). */
-function ChildMatchesList({ list }: { list: ChildMatch[] }) {
+function ChildMatchesList({ list, tours }: { list: ChildMatch[]; tours: Map<string, string> }) {
+  const [partF, setPartF] = useNavState<PartFilter>('pc.part', 'all', { persist: { kind: 'enum', values: ['all', 'played', 'not'] } });
+  const [tourF, setTourF] = useNavState('pc.tour', ''); // название турнира на диск не пишем
   const firstOn = firstRecordDate(list.filter(x => x.part).map(x => x.m.played_on));
   // матчи раньше первой записи ребёнка (его ещё не было в команде) не показываем; будущие матчи без счёта здесь не нужны
   const today = tbilisiToday();
-  const shown = list.filter(x => firstOn !== null && x.m.played_on >= firstOn && (x.m.goals_for !== null || x.m.played_on < today || x.part?.played));
-  if (!shown.length) {
+  const visible = list.filter(x => firstOn !== null && x.m.played_on >= firstOn && (x.m.goals_for !== null || x.m.played_on < today || x.part?.played));
+  if (!visible.length) {
     return (
       <section className="ks-card" aria-label="Матчи">
         <EmptyState icon="trophy" title="Отмеченных матчей пока нет" text="Здесь матчи, где тренер отметил участие ребёнка. Все матчи команды есть во вкладке «Матчи»." />
       </section>
     );
   }
+  const tourNames = [...new Set(visible.map(x => tours.get(x.id)).filter((n): n is string => Boolean(n)))].sort();
+  const shown = visible.filter(x => (partF === 'all' || participation(x.part, x.m.played_on, firstOn) === partF) && (!tourF || tours.get(x.id) === tourF));
   const scored = shown.filter(x => x.m.goals_for !== null && x.m.goals_against !== null);
   const kinds = scored.map(x => resultKind(x.m.goals_for, x.m.goals_against));
   const cnt = (k: string) => kinds.filter(v => v === k).length;
@@ -110,8 +115,16 @@ function ChildMatchesList({ list }: { list: ChildMatch[] }) {
   const word = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'матч' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'матча' : 'матчей');
   return (
     <section aria-label="Матчи">
-      <div className="ks-card" aria-label="Итоги ребёнка">
-        <div className="ks-tiles" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+      <Segmented<PartFilter> label="Участие" value={partF} onChange={setPartF} items={[{ value: 'all', label: 'Все' }, { value: 'played', label: 'Играл' }, { value: 'not', label: 'Не играл' }]} />
+      {tourNames.length > 0 && (
+        <select aria-label="Турнир" className="ks-select" value={tourF} onChange={e => setTourF(e.target.value)}>
+          <option value="">Все турниры</option>
+          {tourNames.map(n => <option key={n} value={n}>{n}</option>)}
+        </select>
+      )}
+      {!shown.length && <p className="muted" role="status">По выбранным условиям матчей нет</p>}
+      {shown.length > 0 && <div className="ks-card" aria-label="Итоги ребёнка">
+        <div className="ks-mres-tiles">
           <div className="ks-tile"><b>матчей команды</b>{scored.length}</div>
           <div className="ks-tile"><b>играл</b>{playedN}</div>
           <div className="ks-tile"><b>голов (его)</b>{goals}</div>
@@ -125,7 +138,7 @@ function ChildMatchesList({ list }: { list: ChildMatch[] }) {
             </span>
           </div>
         )}
-      </div>
+      </div>}
       {groupInOrder(shown, x => x.m.played_on.slice(0, 7)).map(([ym, items], gi) => (
         <details className="ks-group" key={ym} open={gi === 0}>
           <summary><div className="ks-line"><b>{ym.slice(5)}.{ym.slice(0, 4)}</b><span className="muted">{items.length} {word(items.length)}</span></div></summary>
@@ -148,6 +161,7 @@ function ChildMatchesList({ list }: { list: ChildMatch[] }) {
 export default function PlayerProfile({ playerId, onBack }: { playerId: string; onBack: () => void }) {
   const [player, setPlayer] = useState<Player | null | undefined>(undefined); // undefined — загрузка, null — нет доступа
   const [matches, setMatches] = useState<MatchRow[]>([]); // матчи, где ребёнок играл
+  const [tours, setTours] = useState<Map<string, string>>(new Map()); // матч → подпись турнира (для фильтра)
   const [list, setList] = useState<ChildMatch[]>([]); // все матчи команды ребёнка для вкладки «Матчи»
   const [points, setPoints] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -210,6 +224,12 @@ export default function PlayerProfile({ playerId, onBack }: { playerId: string; 
       for (const r of own) byId.set(r.match_id, { id: r.match_id, m: r.matches!, part: { played: r.played, goals: r.goals, best: r.best, rating: r.performance_rating } });
       for (const x of ((tm && !tm.error ? tm.data : null) ?? []) as (MatchInfo & { id: string })[]) if (!byId.has(x.id)) byId.set(x.id, { id: x.id, m: x, part: undefined });
       setList([...byId.values()].sort((a, b) => (a.m.played_on < b.m.played_on ? 1 : -1)));
+      // турниры нужны только для фильтра: при ошибке фильтр турнира просто не показывается
+      const tr = await supabase.rpc('match_tournaments');
+      if (!live) return;
+      const tmap = new Map<string, string>();
+      for (const t of ((tr.error ? [] : tr.data) ?? []) as Tour[]) { const l = tourLabel(t); if (l) tmap.set(t.match_id, l); }
+      setTours(tmap);
       setMatches(rows);
       setPoints(led.totals[playerId] ?? 0);
       setPlayer(pl.data as unknown as Player);
@@ -286,7 +306,7 @@ export default function PlayerProfile({ playerId, onBack }: { playerId: string; 
         </section>
       )}
 
-      {section === 'matches' && <ChildMatchesList list={list} />}
+      {section === 'matches' && <ChildMatchesList list={list} tours={tours} />}
 
       {section === 'trainings' && (
         <Trainings

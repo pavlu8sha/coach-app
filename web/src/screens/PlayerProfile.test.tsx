@@ -193,6 +193,63 @@ describe('профиль игрока: обзор и матчи', () => {
     expect(groups[0]).toHaveTextContent('1 матч');
   });
 
+  it('К7: фильтр «Участие» сужает список, плитки и форму', async () => {
+    fake.db.players = [anya];
+    fake.db.match_players = [
+      mp('m1', 'p1', true, 2, { played_on: '2026-10-10', opponent: 'А', goals_for: 3, goals_against: 1 }),
+      mp('m3', 'p1', false, 0, { played_on: '2026-10-14', opponent: 'Б', goals_for: 0, goals_against: 2 }),
+    ];
+    await open('Матчи');
+    const list = screen.getByRole('region', { name: 'Матчи' });
+    fireEvent.click(within(list).getByRole('tab', { name: 'Не играл' }));
+    expect(within(list).queryByText('А')).toBeNull();
+    expect(within(list).getByText('Б')).toBeInTheDocument();
+    const sum = within(list).getByLabelText('Итоги ребёнка');
+    expect(within(sum).getByText('матчей команды').parentElement).toHaveTextContent('1');
+    expect(within(sum).getByText('поражений').parentElement).toHaveTextContent('1');
+    expect(within(sum).getByText('побед').parentElement).toHaveTextContent('0');
+    fireEvent.click(within(list).getByRole('tab', { name: 'Играл' }));
+    expect(within(list).getByText('А')).toBeInTheDocument();
+    expect(within(list).queryByText('Б')).toBeNull();
+    fireEvent.click(within(list).getByRole('tab', { name: 'Все' }));
+    expect(within(list).getByText('А')).toBeInTheDocument();
+    expect(within(list).getByText('Б')).toBeInTheDocument();
+  });
+
+  it('К7: фильтр «Турнир» по названию и «Товарищеские»; пустой результат словами', async () => {
+    fake.db.players = [anya];
+    fake.db.match_players = [
+      mp('m1', 'p1', true, 0, { played_on: '2026-10-10', opponent: 'А', goals_for: 3, goals_against: 1 }),
+      mp('m2', 'p1', true, 0, { played_on: '2026-10-12', opponent: 'Б', goals_for: 1, goals_against: 1 }),
+      mp('m3', 'p1', true, 0, { played_on: '2026-10-14', opponent: 'В', goals_for: 0, goals_against: 2 }),
+    ];
+    fake.rpc.match_tournaments = () => [
+      { match_id: 'm1', tournament_name: 'Чемпионат 1', tournament_kind: 'championship', match_kind: 'game' },
+      { match_id: 'm2', tournament_name: null, tournament_kind: null, match_kind: 'friendly' },
+    ];
+    await open('Матчи');
+    const list = screen.getByRole('region', { name: 'Матчи' });
+    const sel = within(list).getByLabelText('Турнир');
+    expect([...(sel as HTMLSelectElement).options].map(o => o.textContent)).toEqual(['Все турниры', 'Товарищеские', 'Чемпионат 1']);
+    fireEvent.change(sel, { target: { value: 'Чемпионат 1' } });
+    expect(within(list).getByText('А')).toBeInTheDocument();
+    expect(within(list).queryByText('Б')).toBeNull();
+    expect(within(list).queryByText('В', { selector: '.ks-row-title' })).toBeNull(); // без известного турнира: только «Все турниры»
+    fireEvent.change(sel, { target: { value: 'Товарищеские' } });
+    expect(within(list).getByText('Б')).toBeInTheDocument();
+    fireEvent.click(within(list).getByRole('tab', { name: 'Не играл' }));
+    expect(within(list).getByText('По выбранным условиям матчей нет')).toBeInTheDocument();
+  });
+
+  it('К7: без турниров или при ошибке запроса выбор турнира не показывается', async () => {
+    fake.db.players = [anya];
+    fake.db.match_players = [mp('m1', 'p1', true, 0, { played_on: '2026-10-10', opponent: 'А', goals_for: 3, goals_against: 1 })];
+    fake.rpc.match_tournaments = () => ({ data: null, error: { message: 'сбой' } });
+    await open('Матчи');
+    expect(within(screen.getByRole('region', { name: 'Матчи' })).queryByLabelText('Турнир')).toBeNull();
+    expect(screen.getByText('А')).toBeInTheDocument();
+  });
+
   it('К4, К5: без записей об участии пустое состояние, плиток нет; обзор не меняется', async () => {
     fake.db.players = [anya];
     fake.db.matches = [{ id: 'm5', team: 'U10', played_on: '2026-10-20', opponent: 'В', goals_for: 2, goals_against: 2 }];
