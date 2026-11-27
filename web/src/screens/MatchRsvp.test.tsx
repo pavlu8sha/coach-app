@@ -582,6 +582,25 @@ describe('Тренер: матчи с подтверждением', () => {
     expect(screen.getByText('В этой группе никого нет.')).toBeInTheDocument();
   });
 
+  it('блок «Приглашённые»: фильтр одной сеткой из 4 кнопок с числами, игроки одним списком без вложенных карточек, статус пилюлей', async () => {
+    fake.db.matches = [matchRow()];
+    fake.rpc.match_rsvp_summary = () => [{ invited: 2, yes: 1, no: 0, unanswered: 1, reminders: 0, last_reminder_at: null }];
+    fake.rpc.match_rsvp_roster = () => [
+      { ...rosterRows[0], response: 'yes' },
+      { ...rosterRows[0], player_id: 'p2', full_name: 'Сидоров Иван', response: null },
+    ];
+    await openMatch();
+    await screen.findByText('Иванов Пётр');
+    const filter = screen.getByRole('group', { name: 'Фильтр по ответам' });
+    expect(filter.className).toContain('ks-rsvp-filter');
+    expect(within(filter).getAllByRole('button')).toHaveLength(4);
+    expect(within(filter).getByRole('button', { name: 'Все (2)' })).toHaveAttribute('aria-pressed', 'true');
+    const list = document.querySelector('.ks-rsvp-list')!;
+    expect(list.querySelectorAll('.ks-rsvp-item')).toHaveLength(2);
+    expect(list.querySelector('.ks-card, .ks-row')).toBeNull(); // без карточки в карточке
+    expect(list.querySelectorAll('.ks-pill')).toHaveLength(2);
+  });
+
   it('история действий показывается по кнопке', async () => {
     fake.db.matches = [matchRow()];
     fake.db.match_activity = [{ id: 1, match_id: 'm1', action: 'published', created_at: future }];

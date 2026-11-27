@@ -47,7 +47,7 @@ function EventList({ ver }: { ver: number }) {
   }, [ver, reload]);
   if (error) return <Failure title="Не удалось загрузить мероприятия" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   return (
-    <main className="page">
+    <main className="page ks-still">
       <div className="ks-head">
         <h1>Мероприятия</h1>
         <div className="ks-head-actions"><button type="button" className="ks-btn sm" aria-label="Новое мероприятие" onClick={() => nav.push('ce.form')}>+ Мероприятие</button></div>
@@ -136,7 +136,7 @@ function EventFormBody({ ev, onBack, onDone }: { ev: ClubEvent | null; onBack: (
 
   const toggle = (gid: string) => setF(s => ({ ...s, groups: s.groups.includes(gid) ? s.groups.filter(x => x !== gid) : [...s.groups, gid] }));
   return (
-    <main className="page">
+    <main className="page ks-still">
       <BackNav onBack={onBack} managed />
       <h1>{ev ? 'Правка мероприятия' : 'Новое мероприятие'}</h1>
       <label className="field">Название<input value={f.name} maxLength={200} onChange={e => setF({ ...f, name: e.target.value })} /></label>
@@ -208,7 +208,7 @@ function EventView({ id, index, ver, onBack }: { id: string; index: number; ver:
   const refresh = () => setReload(n => n + 1);
 
   if (error) return <Failure title="Не удалось загрузить мероприятие" text={error} onRetry={() => { setError(null); refresh(); }} back={<BackNav onBack={onBack} managed />} />;
-  if (!ev || !parts) return <main className="page"><BackNav onBack={onBack} managed /><Loading /></main>;
+  if (!ev || !parts) return <main className="page ks-still"><BackNav onBack={onBack} managed /><Loading /></main>;
 
   if (nav.top.screen === 'ce.person') {
     const p = parts.find(x => x.id === nav.top.params.id);
@@ -253,7 +253,7 @@ function EventView({ id, index, ver, onBack }: { id: string; index: number; ver:
   const debtors = parts.filter(p => num(p.debt) > 0);
   const fin = ev.finance;
   return (
-    <main className="page">
+    <main className="page ks-still">
       <BackNav onBack={onBack} managed />
       <div className="ks-head">
         <h1>{ev.name}</h1>
@@ -377,7 +377,7 @@ function AddPeople({ ev, parts, mode, onBack, onDone }: { ev: ClubEvent; parts: 
 
   const have = new Set(parts.map(p => p.player_id));
   return (
-    <main className="page">
+    <main className="page ks-still">
       <BackNav onBack={onBack} managed />
       <h1>{mode === 'group' ? 'Добавить группу' : 'Добавить игрока'}</h1>
       <p className="muted">{ev.name}</p>
@@ -504,7 +504,7 @@ function PersonCard({ ev, p, onBack, onChanged }: { ev: ClubEvent; p: Participan
   };
 
   return (
-    <main className="page">
+    <main className="page ks-still">
       <BackNav onBack={onBack} managed />
       <h1>{p.full_name}</h1>
       <p><Pill tone={RECORD_TONE[p.status]}>{RECORD_LABEL[p.status]}</Pill> {p.not_in_group && <Pill tone="warning">Не из группы мероприятия</Pill>}</p>
