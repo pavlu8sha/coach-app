@@ -52,7 +52,7 @@ export default function RsvpSection({ rows, part, onChanged, scored = new Set(),
   const dir = part === 'upcoming' ? 1 : -1; // ближайшие сверху, прошедшие — свежие сверху
   const sorted = matches.map(id => mine.filter(r => r.match_id === id)).sort((a, b) => dir * (a[0].starts_at < b[0].starts_at ? -1 : a[0].starts_at > b[0].starts_at ? 1 : 0));
   return (
-    <section aria-label={part === 'upcoming' ? 'Подтверждение участия' : 'Прошедшие матчи с подтверждением'}>
+    <section aria-label={part === 'upcoming' ? 'Подтверждение участия' : 'Прошедшие матчи'}>
       <h2 className="ks-sub">{part === 'upcoming' ? 'Подтвердите участие' : 'Отменённые и начавшиеся'}</h2>
       {error && <p role="alert" className="muted" style={{ color: 'var(--ks-danger-strong)' }}>{error}</p>}
       {sorted.map(kids => {
