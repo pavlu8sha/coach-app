@@ -42,9 +42,14 @@ describe('«Статистика»', () => {
     ];
     render(<Stats />);
     fireEvent.click(await screen.findByRole('tab', { name: 'Матчи' }));
-    expect(await screen.findByText('Забито')).toBeInTheDocument();
-    expect(screen.getByText('Разница').parentElement).toHaveTextContent('+5');
-    expect(screen.getByText('Победы').parentElement).toHaveTextContent('2');
+    const sm = await screen.findByLabelText('Сводка матчей');
+    expect(sm).toHaveTextContent('3игр');
+    expect(sm).toHaveTextContent('7:2голы');
+    expect(sm).toHaveTextContent('+5разница голов');
+    expect(sm).toHaveTextContent('2Впобед');
+    // команда одна: её цифры уже в сводке, плитки не дублируются
+    expect(screen.queryByText('Забито')).toBeNull();
+    expect(screen.queryByText('Победы')).toBeNull();
     expect(screen.getAllByText(/^(Аня|Боря)$/).map(e => e.textContent)).toEqual(['Боря', 'Аня']);
     expect(screen.getByLabelText('Лучшие бомбардиры')).toHaveTextContent(/1\. Боря.*4 ⚽.*2\. Аня.*1 ⚽/);
     expect(fake.rpcCalls('match_stats')).toHaveLength(1);
@@ -130,21 +135,55 @@ describe('«Статистика»', () => {
     expect(sum).toHaveTextContent('5игр');
     expect(sum).toHaveTextContent('8:8голы');
     expect(sum).toHaveTextContent('0разница голов');
-    expect(sum).toHaveTextContent('2побед');
-    expect(sum).toHaveTextContent('1ничьих');
-    expect(sum).toHaveTextContent('2поражений');
+    expect(sum).toHaveTextContent('2Впобед');
+    expect(sum).toHaveTextContent('1Нничьих');
+    expect(sum).toHaveTextContent('2Ппоражений');
     const last = screen.getByText('Последние матчи').closest('details') as HTMLElement;
     const items = within(last).getAllByRole('listitem').map(e => e.textContent);
     expect(items).toHaveLength(3); // матч без счёта не показывается
     expect(items[0]).toMatch(/U11 — Басиани1:5П$/);
     expect(items[2]).toMatch(/U9 — Динамо4:1В$/);
     expect(items[1]).toMatch(/3:3Н$/);
+    expect(screen.getAllByText('Забито')).toHaveLength(2); // несколько команд: у каждой свои плитки
     fireEvent.change(screen.getByLabelText('Команда'), { target: { value: 'U9' } });
+    expect(screen.queryByText('Забито')).toBeNull(); // выбрана одна команда: плитки не дублируют сводку
     expect(screen.getByLabelText('Сводка матчей')).toHaveTextContent('3игр');
     expect(screen.getByLabelText('Сводка матчей')).toHaveTextContent('7:2голы');
     expect(within(screen.getByText('Последние матчи').closest('details') as HTMLElement).getAllByRole('listitem')).toHaveLength(2);
     expect(screen.queryByRole('heading', { name: 'U11' })).toBeNull();
     expect(screen.getByLabelText('Лучшие бомбардиры')).toHaveTextContent('Боря');
+  });
+
+  it('период «Эта неделя»: с понедельника по сегодня', async () => {
+    fake.rpc.attendance_stats = () => [{ group_id: 'g1', group_name: 'U9', player_id: 'p1', full_name: 'Аня', attended: 1, total: 1 }];
+    render(<Stats />);
+    fireEvent.click(await screen.findByRole('tab', { name: 'Эта неделя' }));
+    await waitFor(() => expect(fake.rpcCalls('attendance_stats').length).toBeGreaterThan(1));
+    const a = fake.rpcCalls('attendance_stats').at(-1);
+    expect(new Date(a.p_from + 'T12:00:00').getDay()).toBe(1);
+    expect(a.p_to).toBe(today());
+    expect(a.p_from <= a.p_to).toBe(true);
+    expect(a.p_to < addDays(a.p_from, 7)).toBe(true);
+    fireEvent.click(screen.getByRole('tab', { name: 'Матчи' }));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Эта неделя' }));
+    await waitFor(() => expect(fake.rpcCalls('match_stats').length).toBeGreaterThan(0));
+    const m = fake.rpcCalls('match_stats').at(-1);
+    expect(m.p_from).toBe(a.p_from);
+    expect(m.p_to).toBe(today());
+  });
+
+  it('матчи: одна команда без матчей со счётом и без плиток не рисует пустую карточку', async () => {
+    fake.rpc.attendance_stats = () => [];
+    fake.rpc.match_stats = () => [{ kind: 'team', team: 'U9', name: null, games: 0, wins: 0, draws: 0, losses: 0, goals_for: 0, goals_against: 0, played: null, goals: null }];
+    fake.db.matches = [];
+    const { container } = render(<Stats />);
+    fireEvent.click(await screen.findByRole('tab', { name: 'Матчи' }));
+    expect(await screen.findByLabelText('Сводка матчей')).toHaveTextContent('0игр');
+    expect(screen.getByRole('heading', { name: 'U9' })).toBeInTheDocument();
+    expect(container.querySelector('.ks-card:empty')).toBeNull();
+    expect(container.querySelectorAll('.ks-tiles')).toHaveLength(1); // только сводка
+    const h = screen.getByRole('heading', { name: 'U9' });
+    expect(h.nextElementSibling).toBeNull(); // за заголовком команды нет пустой карточки
   });
 
   it('матчи: при выбранном виде матчей список последних матчей не показывается', async () => {

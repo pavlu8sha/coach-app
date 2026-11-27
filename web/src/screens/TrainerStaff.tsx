@@ -148,18 +148,25 @@ function StaffRow({ s, period }: { s: StatRow; period: Period }) {
   const cur = loaded?.key === key ? loaded : null;
   const list = cur?.list ?? null;
   const err = cur?.err ?? null;
-  if (s.trainings === 0) return <ListRow title={s.coach} sub={[sub]} end={end} />;
+  const head = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ flex: '1 1 0', minWidth: 0, overflowWrap: 'anywhere' }}>
+        <b style={{ overflowWrap: 'anywhere' }}>{s.coach}</b>
+        <div className="ks-muted" style={{ fontSize: 13, marginTop: 2 }}>{sub}</div>
+      </div>
+      {end && <span style={{ flex: 'none' }}>{end}</span>}
+    </div>
+  );
+  if (s.trainings === 0) return <div className="ks-card">{head}</div>;
   return (
-    <details open={open}>
-      <summary className="ks-disclosure" onClick={e => { e.preventDefault(); setOpen(o => !o); }}>
-        <ListRow title={s.coach} sub={[sub]} end={end} />
-      </summary>
+    <details className="ks-card" open={open}>
+      <summary className="ks-disclosure" aria-expanded={open} onClick={e => { e.preventDefault(); setOpen(o => !o); }}>{head}</summary>
       {err ? <p className="error">{err}</p> : !list ? <Loading /> : (
-        <ul style={{ listStyle: "none", margin: "4px 0 8px", padding: "0 16px" }}>
+        <ul style={{ listStyle: 'none', margin: '10px 0 0', padding: '4px 0 0', borderTop: '1px solid var(--ks-border)' }}>
           {list.map(x => (
-            <li className="ks-line" key={x.id} style={{ padding: '4px 0' }}>
-              <span>{fmtShort(x.held_on)} · {x.group_label}</span>
-              {s.hours !== null && x.hours ? <b>{fmtHours(x.hours)}</b> : null}
+            <li key={x.id} style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '5px 0' }}>
+              <span style={{ flex: '1 1 0', minWidth: 0, overflowWrap: 'anywhere' }}>{fmtShort(x.held_on)} · {x.group_label}</span>
+              {s.hours !== null && x.hours ? <b style={{ flex: 'none', whiteSpace: 'nowrap' }}>{fmtHours(x.hours)}</b> : null}
             </li>
           ))}
         </ul>
