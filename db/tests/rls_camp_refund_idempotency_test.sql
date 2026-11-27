@@ -3,7 +3,7 @@
 -- Права проверяются на базе с привилегиями по умолчанию Supabase: функция пересоздаётся после alter default privileges.
 begin;
 create extension if not exists pgtap;
-select plan(47);
+select plan(48);
 
 alter default privileges in schema public grant select, insert, update, delete on tables to anon, authenticated, service_role;
 alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
@@ -41,6 +41,7 @@ select camp_pay((select id from ids where k = 'g' || i), 1000, 'payment', curren
 select has_column('camp_payments', 'request_id', 'в camp_payments есть request_id');
 select ok(has_function_privilege('authenticated', 'camp_refund(uuid,numeric,date,text,uuid)', 'execute'), 'authenticated выполняет camp_refund (привилегии Supabase по умолчанию)');
 select ok(not has_function_privilege('anon', 'camp_refund(uuid,numeric,date,text,uuid)', 'execute'), 'anon не выполняет camp_refund при привилегиях Supabase по умолчанию');
+select ok((select p.prosecdef and p.proconfig @> array['search_path=public, pg_temp'] from pg_proc p where p.oid = to_regprocedure('public.camp_refund(uuid,numeric,date,text,uuid)')), 'security definer с search_path = public, pg_temp');
 select is((select count(*)::int from pg_proc where proname = 'camp_refund' and pronamespace = 'public'::regnamespace), 1, 'перегрузка одна (старая 4-аргументная удалена)');
 
 -- 1. обычный возврат

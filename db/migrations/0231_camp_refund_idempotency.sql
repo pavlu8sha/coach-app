@@ -5,6 +5,7 @@
 --  * camp_refund(pid, amt, d, cmt, req default null) возвращает jsonb {id, duplicate} (раньше uuid). Прежняя четырёхаргументная функция
 --    удаляется: вызов без ключа остаётся возможным (req = null, поведение как до миграции), чтобы прежний интерфейс работал до деплоя.
 -- Правила возврата (сумма > 0, дата не в будущем, не больше оплаченного, только администратор), блокировки сбор → участник, права и RLS не меняются.
+-- search_path = public, pg_temp (принятое закрепление 0222; в 0166 было без pg_temp).
 -- Тело берётся из 0166 (единственное определение: grep -lEi "function +(public\.)?camp_refund *\(" db/migrations/*.sql).
 
 alter table camp_payments add column if not exists request_id uuid;
@@ -13,7 +14,7 @@ create unique index if not exists camp_payments_request_uq on camp_payments (rec
 drop function if exists camp_refund(uuid, numeric, date, text);
 
 create or replace function camp_refund(pid uuid, amt numeric, d date, cmt text, req uuid default null) returns jsonb
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 declare cp camp_participants; paid numeric; r uuid; ex camp_payments; c text := nullif(btrim(cmt), '');
 begin
   perform camp_assert_admin();

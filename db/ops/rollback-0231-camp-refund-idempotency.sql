@@ -1,10 +1,10 @@
--- Откат 0231 (#721): вернуть camp_refund(uuid, numeric, date, text) → uuid (тело 0166), убрать индекс и столбец request_id.
+-- Откат 0231 (#721): вернуть camp_refund(uuid, numeric, date, text) → uuid (тело 0166, но с закреплением search_path = public, pg_temp: откат не возвращает прежнюю небезопасную конфигурацию), убрать индекс и столбец request_id.
 -- Платежи и возвраты не затрагиваются. Перед откатом выложить версию интерфейса, которая не передаёт ключ req и не читает {id, duplicate}
 -- (прежний интерфейс вызывает функцию без req и результат не читает). Ключи операций будут потеряны.
 -- Триггер 0165 запрещает изменение строк, но не структуры; drop column выполняет владелец в SQL Editor.
 drop function if exists camp_refund(uuid, numeric, date, text, uuid);
 create or replace function camp_refund(pid uuid, amt numeric, d date, cmt text) returns uuid
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 declare cp camp_participants; paid numeric; r uuid;
 begin
   perform camp_assert_admin();
