@@ -231,6 +231,7 @@ function Attendance({ own }: { own: boolean }) {
       const f = prevMonthStart(today());
       return { f, t: addDays(monthStart(today()), -1) };
     }
+    if (range === 'season') return { f: seasonStart(today()), t: today() };
     return { f: from, t: to };
   }, [range, from, to]);
 
@@ -274,6 +275,7 @@ function Attendance({ own }: { own: boolean }) {
           { value: 'week', label: 'Прошлая неделя' },
           { value: 'month', label: 'Месяц' },
           { value: 'prev', label: 'Прошлый' },
+          { value: 'season', label: 'Сезон' },
           { value: 'custom', label: 'Период' },
         ]}
       />

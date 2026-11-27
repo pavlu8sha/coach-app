@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import { addDays, today } from '../lib/coach';
+import { seasonStart } from '../lib/seasonStats';
 import Stats from './Stats';
 import { resetDetachedNav } from '../nav';
 
@@ -198,6 +199,16 @@ describe('«Статистика»', () => {
     const m = fake.rpcCalls('match_stats').at(-1);
     expect(m.p_from).toBe(a.p_from);
     expect(m.p_to).toBe(today());
+  });
+
+  it('посещаемость: период «Сезон» с 1 сентября по сегодня', async () => {
+    fake.rpc.attendance_stats = () => [{ group_id: 'g1', group_name: 'U9', player_id: 'p1', full_name: 'Аня', attended: 1, total: 1 }];
+    render(<Stats />);
+    fireEvent.click(await screen.findByRole('tab', { name: 'Сезон' }));
+    await waitFor(() => expect(fake.rpcCalls('attendance_stats').length).toBeGreaterThan(1));
+    const a = fake.rpcCalls('attendance_stats').at(-1);
+    expect(a.p_from).toBe(seasonStart(today()));
+    expect(a.p_to).toBe(today());
   });
 
   it('матчи: одна команда без матчей со счётом и без плиток не рисует пустую карточку', async () => {
