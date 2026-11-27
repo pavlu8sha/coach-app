@@ -116,15 +116,54 @@ export function StaffStats({ period }: { period: Period }) {
   if (rows.length === 0) return <EmptyState icon="users" title="Нет данных" text="За выбранный период нет проведённых тренировок и игр." />;
   return (
     <>
-      {rows.map(s => (
-        <ListRow
-          key={s.coach}
-          title={s.coach}
-          sub={[`Тренировок: ${s.trainings}${s.hours === null ? '' : ` (${s.hours} ч)`} · игр как тренер: ${s.as_coach} · как оператор: ${s.as_operator}`]}
-          end={s.reg_pct === null ? undefined : <Pill tone={s.reg_pct === 100 ? 'success' : 'warning'}>{s.reg_pct}%</Pill>}
-        />
-      ))}
+      {rows.map(s => <StaffRow key={s.coach} s={s} period={period} />)}
       <p className="muted">Процент — доля игр, где выполнен регламент.</p>
     </>
+  );
+}
+
+interface Held { id: string; held_on: string; group_label: string; hours: number | null }
+const fmtHours = (h: number) => `${String(Math.round(h * 100) / 100).replace('.', ',')} ч`;
+
+// Строка тренера: сводка; если у него есть проведённые тренировки, раскрывается в список по датам (журнал читается при первом раскрытии).
+// Часы в списке показываются, только если база отдала их в сводке (администратору).
+function StaffRow({ s, period }: { s: StatRow; period: Period }) {
+  const [open, setOpen] = useState(false);
+  // загруженный список привязан к тренеру и периоду; при смене периода он считается устаревшим и читается заново
+  const key = `${s.coach}|${period.f}|${period.t}`;
+  const [loaded, setLoaded] = useState<{ key: string; list: Held[] | null; err: string | null } | null>(null);
+  const sub = `Тренировок: ${s.trainings}${s.hours === null ? '' : ` (${s.hours} ч)`} · игр как тренер: ${s.as_coach} · как оператор: ${s.as_operator}`;
+  const end = s.reg_pct === null ? undefined : <Pill tone={s.reg_pct === 100 ? 'success' : 'warning'}>{s.reg_pct}%</Pill>;
+  useEffect(() => {
+    if (!open) return;
+    let stale = false; // ответ прежнего периода не должен перезаписать новый
+    void (async () => {
+      const r = await supabase.from('training_log').select('id, held_on, group_label, hours').eq('coach', s.coach).eq('held', true).gte('held_on', period.f).lte('held_on', period.t).order('held_on').limit(500);
+      if (stale) return;
+      if (r.error) return setLoaded({ key, list: null, err: errText(r.error.message) });
+      setLoaded({ key, list: ((r.data ?? []) as Held[]).map(x => ({ ...x, hours: x.hours === null ? null : Number(x.hours) })), err: null });
+    })();
+    return () => { stale = true; };
+  }, [open, key, s.coach, period.f, period.t]);
+  const cur = loaded?.key === key ? loaded : null;
+  const list = cur?.list ?? null;
+  const err = cur?.err ?? null;
+  if (s.trainings === 0) return <ListRow title={s.coach} sub={[sub]} end={end} />;
+  return (
+    <details open={open}>
+      <summary className="ks-disclosure" onClick={e => { e.preventDefault(); setOpen(o => !o); }}>
+        <ListRow title={s.coach} sub={[sub]} end={end} />
+      </summary>
+      {err ? <p className="error">{err}</p> : !list ? <Loading /> : (
+        <ul style={{ listStyle: "none", margin: "4px 0 8px", padding: "0 16px" }}>
+          {list.map(x => (
+            <li className="ks-line" key={x.id} style={{ padding: '4px 0' }}>
+              <span>{fmtShort(x.held_on)} · {x.group_label}</span>
+              {s.hours !== null && x.hours ? <b>{fmtHours(x.hours)}</b> : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </details>
   );
 }

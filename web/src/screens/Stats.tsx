@@ -18,7 +18,15 @@ const prevMonthStart = (iso: string) => {
   return d.toLocaleDateString('en-CA');
 };
 
-type Range = 'month' | 'prev' | 'season' | 'custom';
+type Range = 'week' | 'month' | 'prev' | 'season' | 'custom';
+const RANGES = ['week', 'month', 'prev', 'season', 'custom'];
+
+// Прошлая неделя: понедельник–воскресенье перед текущей неделей.
+function prevWeek(iso: string) {
+  const dow = (new Date(iso + 'T12:00:00').getDay() + 6) % 7; // понедельник = 0
+  const f = addDays(iso, -dow - 7);
+  return { f, t: addDays(f, 6) };
+}
 
 type Kind = 'att' | 'matches';
 
@@ -38,10 +46,11 @@ export default function Stats({ own = false }: { own?: boolean }) {
 
 function usePeriod(scope: string) {
   // период каждой вкладки статистики хранится отдельно и возвращается после ухода в другой раздел
-  const [range, setRange] = useNavState<Range>(`st.${scope}.range`, 'month', { persist: { kind: 'enum', values: ['month', 'prev', 'season', 'custom'] } });
+  const [range, setRange] = useNavState<Range>(`st.${scope}.range`, 'month', { persist: { kind: 'enum', values: RANGES } });
   const [from, setFrom] = useNavState(`st.${scope}.from`, monthStart(today()));
   const [to, setTo] = useNavState(`st.${scope}.to`, today());
   const period = useMemo(() => {
+    if (range === 'week') return prevWeek(today());
     if (range === 'month') return { f: monthStart(today()), t: today() };
     if (range === 'prev') return { f: prevMonthStart(today()), t: addDays(monthStart(today()), -1) };
     if (range === 'season') return { f: seasonStart(today()), t: today() };
@@ -49,7 +58,7 @@ function usePeriod(scope: string) {
   }, [range, from, to]);
   const picker = (onChange: () => void) => (
     <>
-      <Segmented label="Период" value={range} onChange={v => { onChange(); setRange(v); }} items={[{ value: 'month', label: 'Месяц' }, { value: 'prev', label: 'Прошлый' }, { value: 'season', label: 'Сезон' }, { value: 'custom', label: 'Период' }]} />
+      <Segmented label="Период" value={range} onChange={v => { onChange(); setRange(v); }} items={[{ value: 'week', label: 'Прошлая неделя' }, { value: 'month', label: 'Месяц' }, { value: 'prev', label: 'Прошлый' }, { value: 'season', label: 'Сезон' }, { value: 'custom', label: 'Период' }]} />
       {range === 'custom' && (
         <div className="two" style={{ margin: '10px 0' }}>
           <input type="date" aria-label="С даты" value={from} max={to} onChange={e => { onChange(); setFrom(e.target.value); }} />
@@ -63,12 +72,22 @@ function usePeriod(scope: string) {
 
 interface MRow { kind: 'team' | 'player'; team: string; name: string | null; games: number | null; wins: number | null; draws: number | null; losses: number | null; goals_for: number | null; goals_against: number | null; played: number | null; goals: number | null }
 
+function Tile({ value, label }: { value: string; label: string }) {
+  return <div className="ks-tile" style={{ minWidth: 0, fontSize: '0.78rem', overflowWrap: 'break-word' }}><b style={{ fontSize: '1.25rem', color: 'var(--ks-text)', marginBottom: 4 }}>{value}</b>{label}</div>;
+}
+
+type Res = 'В' | 'Н' | 'П';
+const RES_TONE = { В: 'success', Н: 'neutral', П: 'danger' } as const;
+const resOf = (f: number, a: number): Res => (f > a ? 'В' : f < a ? 'П' : 'Н');
+function ResPill({ r }: { r: Res }) { return <Pill tone={RES_TONE[r]}>{r}</Pill>; }
+
 function Matches({ own }: { own: boolean }) {
   const { period, picker } = usePeriod('matches');
   const [rows, setRows] = useState<MRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [cat, setCat] = useState('');
+  const [team, setTeam] = useState('');
   const [games, setGames] = useState<(ScoredMatch & { team: string })[]>([]);
   useEffect(() => {
     void (async () => {
@@ -84,7 +103,14 @@ function Matches({ own }: { own: boolean }) {
     })();
   }, [period, cat, reload]);
   if (error) return <Failure title="Не удалось загрузить статистику матчей" text={error} onRetry={() => { setError(null); setRows(null); setReload(n => n + 1); }} />;
-  const teams = (rows ?? []).filter(r => r.kind === 'team');
+  const allTeams = (rows ?? []).filter(r => r.kind === 'team');
+  const teamSel = allTeams.some(t => t.team === team) ? team : ''; // выбранной команды нет в новом периоде или виде матчей: показываем все
+  const teams = allTeams.filter(t => !teamSel || t.team === teamSel);
+  const sum = (f: (t: MRow) => number | null) => teams.reduce((x, t) => x + (f(t) ?? 0), 0);
+  const gf = sum(t => t.goals_for);
+  const ga = sum(t => t.goals_against);
+  const diffAll = gf - ga;
+  const shownGames = games.filter(g => g.goals_for !== null && g.goals_against !== null && (!teamSel || g.team === teamSel)).slice(0, 10);
   return (
     <main className="page">
       <h1>Матчи</h1>
@@ -96,6 +122,37 @@ function Matches({ own }: { own: boolean }) {
         <option value="cup">Кубок</option>
         <option value="friendly">Товарищеские</option>
       </select>
+      {allTeams.length > 1 && (
+        <select className="ks-select" aria-label="Команда" value={teamSel} onChange={e => setTeam(e.target.value)}>
+          <option value="">Все команды</option>
+          {allTeams.map(t => <option key={t.team} value={t.team}>{t.team}</option>)}
+        </select>
+      )}
+      {rows && teams.length > 0 && (
+        <>
+          <div className="ks-tiles" role="group" aria-label="Сводка матчей" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', marginBottom: 8 }}>
+            <Tile value={String(sum(t => t.games))} label="игр" />
+            <Tile value={`${gf}:${ga}`} label="голы" />
+            <Tile value={diffAll > 0 ? `+${diffAll}` : String(diffAll)} label="разница голов" />
+            <div className="ks-tile"><b style={{ fontSize: '1.25rem', color: 'var(--ks-text)', marginBottom: 4 }}>{sum(t => t.wins)}</b>побед <ResPill r="В" /></div>
+            <div className="ks-tile"><b style={{ fontSize: '1.25rem', color: 'var(--ks-text)', marginBottom: 4 }}>{sum(t => t.draws)}</b>ничьих <ResPill r="Н" /></div>
+            <div className="ks-tile"><b style={{ fontSize: '1.25rem', color: 'var(--ks-text)', marginBottom: 4 }}>{sum(t => t.losses)}</b>поражений <ResPill r="П" /></div>
+          </div>
+          {shownGames.length > 0 && (
+            <details className="ks-card">
+              <summary className="ks-disclosure"><b>Последние матчи</b></summary>
+              <ul style={{ listStyle: 'none', margin: '8px 0 0', padding: 0 }}>
+                {shownGames.map((g, i) => (
+                  <li className="ks-line" key={i} style={{ padding: '4px 0' }}>
+                    <span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>{g.played_on.slice(8, 10)}.{g.played_on.slice(5, 7)} · {g.team}{g.opponent ? ` — ${g.opponent}` : ''}</span>
+                    <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}><b>{g.goals_for}:{g.goals_against}</b><ResPill r={resOf(g.goals_for as number, g.goals_against as number)} /></span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </>
+      )}
       {!rows ? <Loading /> : teams.length === 0 ? (
         <EmptyState icon="trophy" title={own ? 'Нет матчей ваших команд' : 'Нет матчей со счётом'} text={own ? 'За выбранный период нет матчей со счётом у команд ваших групп. Здесь только ваши группы; матчи других команд видны в разделе «Матчи».' : 'За выбранный период нет сыгранных матчей с внесённым счётом.'} />
       ) : teams.map(t => (
@@ -152,7 +209,7 @@ function Attendance({ own }: { own: boolean }) {
   const settings = useClubSettings().values;
   const lowPct = settingNumber(settings, 'stats.lowPct');
   const lowPctError = settingNumberError(settings, 'stats.lowPct');
-  const [range, setRange] = useNavState<Range>('st.att.range', 'month', { persist: { kind: 'enum', values: ['month', 'prev', 'season', 'custom'] } });
+  const [range, setRange] = useNavState<Range>('st.att.range', 'month', { persist: { kind: 'enum', values: RANGES } });
   const [from, setFrom] = useNavState('st.att.from', monthStart(today()));
   const [to, setTo] = useNavState('st.att.to', today());
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -160,6 +217,7 @@ function Attendance({ own }: { own: boolean }) {
   const [reload, setReload] = useState(0);
 
   const period = useMemo(() => {
+    if (range === 'week') return prevWeek(today());
     if (range === 'month') return { f: monthStart(today()), t: today() };
     if (range === 'prev') {
       const f = prevMonthStart(today());
@@ -183,6 +241,12 @@ function Attendance({ own }: { own: boolean }) {
     return [...m.entries()];
   }, [rows]);
 
+  // сводка клуба: занятия групп, отметки «был» из возможных (игроки × занятия)
+  const sumSessions = groups.reduce((x, [, l]) => x + l[0].total, 0);
+  const sumAtt = (rows ?? []).reduce((x, r) => x + r.attended, 0);
+  const sumPossible = groups.reduce((x, [, l]) => x + l.length * l[0].total, 0);
+  const sumPct = pct(sumAtt, sumPossible);
+
   if (error) return <Failure title="Не удалось загрузить статистику" text={error} onRetry={() => { setError(null); setRows(null); setReload(n => n + 1); }} />;
 
   return (
@@ -194,6 +258,7 @@ function Attendance({ own }: { own: boolean }) {
         value={range}
         onChange={v => { setRows(null); setRange(v); }}
         items={[
+          { value: 'week', label: 'Прошлая неделя' },
           { value: 'month', label: 'Месяц' },
           { value: 'prev', label: 'Прошлый' },
           { value: 'custom', label: 'Период' },
@@ -210,28 +275,34 @@ function Attendance({ own }: { own: boolean }) {
       ) : groups.length === 0 ? (
         <EmptyState icon="trophy" title={own ? 'Нет проведённых занятий в ваших группах' : 'Нет проведённых занятий'} text={own ? 'За выбранный период ни на одном занятии ваших групп не отмечены присутствующие. Здесь только ваши группы.' : 'За выбранный период ни на одном занятии не отмечены присутствующие.'} />
       ) : (
-        groups.map(([name, list]) => {
-          const total = list[0].total;
-          const att = list.reduce((s, r) => s + r.attended, 0);
-          const p = pct(att, list.length * total);
-          return (
-            <section key={name}>
-              <h3>{name}</h3>
-              <p className="muted" style={{ marginBottom: 8 }}>Занятий: {total} · игроков: {list.length} · посещаемость {p === null ? '—' : `${p}%`}</p>
-              {[...list].sort((a, b) => a.attended - b.attended).map(r => {
-                const v = pct(r.attended, r.total);
-                return (
-                  <div className="ks-card" key={r.player_id}>
-                    <div className="ks-line">
+        <>
+          <div className="ks-tiles" role="group" aria-label="Сводка посещаемости" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', marginBottom: 12 }}>
+            {[[String(sumSessions), 'групповых тренировок'], [`${sumAtt} из ${sumPossible}`, 'отметок «был»'], [sumPct === null ? '—' : `${sumPct}%`, 'посещаемость']].map(([v, k]) => <Tile key={k} value={v} label={k} />)}
+          </div>
+          {groups.map(([name, list]) => {
+            const total = list[0].total;
+            const att = list.reduce((x, r) => x + r.attended, 0);
+            const p = pct(att, list.length * total);
+            return (
+              <details className="ks-card" key={name}>
+                <summary className="ks-disclosure">
+                  <div className="ks-line"><b>{name}</b><b>{p === null ? '—' : `${p}%`}</b></div>
+                  <div className="ks-bar"><i style={{ width: `${p ?? 0}%` }} /></div>
+                </summary>
+                <p className="muted" style={{ marginBottom: 8 }}>Занятий: {total} · игроков: {list.length} · посещаемость {p === null ? '—' : `${p}%`}</p>
+                {[...list].sort((x, y) => x.attended - y.attended).map(r => {
+                  const v = pct(r.attended, r.total);
+                  return (
+                    <div className="ks-line" key={r.player_id} style={{ padding: '4px 0' }}>
                       <span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>{r.full_name}</span>
                       <Pill tone={v !== null && v < lowPct ? 'danger' : 'primary'}>{r.attended} из {r.total}{v !== null ? ` · ${v}%` : ''}</Pill>
                     </div>
-                  </div>
-                );
-              })}
-            </section>
-          );
-        })
+                  );
+                })}
+              </details>
+            );
+          })}
+        </>
       )}
     </main>
   );
