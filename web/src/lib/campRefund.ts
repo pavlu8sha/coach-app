@@ -10,6 +10,7 @@ export interface RefundInput { pid: string; amt: number; d: string | null; cmt: 
 export interface RefundResult { error: { message: string } | null; duplicate: boolean }
 
 interface Saved { sig: string; key: string; at: number }
+// Неподтверждённые ключи хранятся по паре «участник + данные»: смена данных не затирает ключ возможно уже записанной операции (A → B → A использует ключ A).
 const memory = new Map<string, Saved>();
 
 // Ключ только из криптографического генератора: без него операция не выполняется (ключ из времени мог бы совпасть у двух самостоятельных возвратов).
@@ -26,12 +27,16 @@ const newKey = (): string => {
 };
 const sigOf = (r: RefundInput) => JSON.stringify([r.pid, r.amt, r.d, r.cmt]);
 
-/** Ключ для этих данных: прежний, если данные те же и он не просрочен; иначе новый. */
+const slot = (r: RefundInput) => `${r.pid}|${sigOf(r)}`;
+
+/** Ключ для этих данных: прежний, если такие данные уже отправлялись без успеха и он не просрочен; иначе новый. */
 export function refundKey(r: RefundInput): string {
-  const sig = sigOf(r), s = memory.get(r.pid);
-  if (s && s.sig === sig && Date.now() - s.at < TTL_MS) return s.key;
-  const fresh = { sig, key: newKey(), at: Date.now() };
-  memory.set(r.pid, fresh);
+  const now = Date.now(), id = slot(r);
+  for (const [k, v] of memory) if (now - v.at >= TTL_MS) memory.delete(k);
+  const s = memory.get(id);
+  if (s) return s.key;
+  const fresh = { sig: sigOf(r), key: newKey(), at: now };
+  memory.set(id, fresh);
   return fresh.key;
 }
 
@@ -40,7 +45,7 @@ export async function refundCamp(r: RefundInput): Promise<RefundResult> {
   try { req = refundKey(r); } catch { return { error: { message: 'Не удалось создать ключ операции: возврат не выполнен, чтобы не записать его дважды. Обновите браузер.' }, duplicate: false }; }
   const res = await supabase.rpc('camp_refund', { pid: r.pid, amt: r.amt, d: r.d, cmt: r.cmt, req });
   if (res.error) return { error: res.error, duplicate: false };
-  memory.delete(r.pid);
+  memory.delete(slot(r));
   return { error: null, duplicate: Boolean((res.data as { duplicate?: boolean } | null)?.duplicate) };
 }
 
