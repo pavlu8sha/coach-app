@@ -105,7 +105,9 @@ function ChildMatchesList({ list, tours }: { list: ChildMatch[]; tours: Map<stri
     );
   }
   const tourNames = [...new Set(visible.map(x => tours.get(x.id)).filter((n): n is string => Boolean(n)))].sort();
-  const shown = visible.filter(x => (partF === 'all' || participation(x.part, x.m.played_on, firstOn) === partF) && (!tourF || tours.get(x.id) === tourF));
+  // выбранный турнир действует, только пока он есть среди доступных: иначе (ошибка запроса, турнир пропал) фильтр не применяется, чтобы список не оказался пустым без выхода
+  const tourEff = tourNames.includes(tourF) ? tourF : '';
+  const shown = visible.filter(x => (partF === 'all' || participation(x.part, x.m.played_on, firstOn) === partF) && (!tourEff || tours.get(x.id) === tourEff));
   const scored = shown.filter(x => x.m.goals_for !== null && x.m.goals_against !== null);
   const kinds = scored.map(x => resultKind(x.m.goals_for, x.m.goals_against));
   const cnt = (k: string) => kinds.filter(v => v === k).length;
@@ -117,7 +119,7 @@ function ChildMatchesList({ list, tours }: { list: ChildMatch[]; tours: Map<stri
     <section aria-label="Матчи">
       <Segmented<PartFilter> label="Участие" value={partF} onChange={setPartF} items={[{ value: 'all', label: 'Все' }, { value: 'played', label: 'Играл' }, { value: 'not', label: 'Не играл' }]} />
       {tourNames.length > 0 && (
-        <select aria-label="Турнир" className="ks-select" value={tourF} onChange={e => setTourF(e.target.value)}>
+        <select aria-label="Турнир" className="ks-select" value={tourEff} onChange={e => setTourF(e.target.value)}>
           <option value="">Все турниры</option>
           {tourNames.map(n => <option key={n} value={n}>{n}</option>)}
         </select>

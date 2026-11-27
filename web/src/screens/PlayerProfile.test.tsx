@@ -250,6 +250,23 @@ describe('профиль игрока: обзор и матчи', () => {
     expect(screen.getByText('А')).toBeInTheDocument();
   });
 
+  it('К7: выбранный турнир, которого больше нет (ошибка запроса), не скрывает все матчи', async () => {
+    fake.db.players = [anya];
+    fake.db.match_players = [mp('m1', 'p1', true, 0, { played_on: '2026-10-10', opponent: 'А', goals_for: 3, goals_against: 1 })];
+    fake.rpc.match_tournaments = () => [{ match_id: 'm1', tournament_name: 'Чемпионат 1', tournament_kind: 'championship', match_kind: 'game' }];
+    const first = render(<PlayerProfile playerId="p1" onBack={() => {}} />);
+    await screen.findByRole('heading', { name: 'Аня Петрова' });
+    fireEvent.click(screen.getByRole('tab', { name: 'Матчи' }));
+    fireEvent.change(await screen.findByLabelText('Турнир'), { target: { value: 'Чемпионат 1' } });
+    expect(screen.getByText('А')).toBeInTheDocument();
+    first.unmount();
+    fake.rpc.match_tournaments = () => ({ data: null, error: { message: 'сбой' } });
+    await open('Матчи');
+    expect(screen.queryByLabelText('Турнир')).toBeNull();
+    expect(screen.getByText('А')).toBeInTheDocument();
+    expect(screen.queryByText('По выбранным условиям матчей нет')).toBeNull();
+  });
+
   it('К4, К5: без записей об участии пустое состояние, плиток нет; обзор не меняется', async () => {
     fake.db.players = [anya];
     fake.db.matches = [{ id: 'm5', team: 'U10', played_on: '2026-10-20', opponent: 'В', goals_for: 2, goals_against: 2 }];
