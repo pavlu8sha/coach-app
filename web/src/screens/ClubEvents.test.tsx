@@ -609,3 +609,18 @@ describe('без вспышки при переходах', () => {
     expect(document.querySelector('main.page')).toHaveClass('ks-still');
   });
 });
+
+describe('форма: группы не сдвигают нижнюю часть', () => {
+  it('при повторном открытии формы группы видны сразу, без заглушки и сдвига', async () => {
+    seed();
+    render(<ClubEvents />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Новое мероприятие' }));
+    await screen.findByRole('button', { name: 'Создать' });
+    expect(await screen.findByText('U9-A')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    await screen.findByText('Турнир Осень');
+    fireEvent.click(screen.getByRole('button', { name: 'Новое мероприятие' }));
+    expect(screen.getByText('U9-A')).toBeInTheDocument(); // сразу, из кэша
+    expect(screen.queryByRole('status', { name: 'Загрузка групп' })).toBeNull();
+  });
+});
