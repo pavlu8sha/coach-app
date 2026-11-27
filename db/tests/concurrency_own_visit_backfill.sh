@@ -17,7 +17,7 @@ pl() { printf '00000000-0000-0000-0000-0000bf00d%03d' "$1"; }
 
 q <<SQL
 insert into clubs (id, name) values ('$CL', 'Конкурентность визитов');
-insert into users (id, telegram_id, display_name, is_admin) values ('$AD', 991701, 'Админ', true);
+insert into users (id, telegram_id, display_name, is_admin, club_id) values ('$AD', 991701, 'Админ', true, '$CL');
 insert into groups (id, club_id, name, location) values ('$GR', '$CL', 'U9-C', 'Чиовани');
 insert into sessions (id, group_id, starts_at, kind, source_key, class) values ('$SE', '$GR', (current_date - 3) + time '15:00', 'training', 'ATT|conc-visit', 'regular');
 insert into players (id, club_id, group_id, full_name, status) select ('00000000-0000-0000-0000-0000bf00d' || lpad(g::text, 3, '0'))::uuid, '$CL', '$GR', 'Игрок ' || g, 'active' from generate_series(1, 9) g;
