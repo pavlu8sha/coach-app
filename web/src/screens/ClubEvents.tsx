@@ -21,7 +21,9 @@ type Group = { id: string; name: string };
 interface Cache { rows: ClubEvent[] | null; ev: Map<string, { ev: ClubEvent; parts: Participant[] }> }
 // Кэш на уровне модуля: повторный вход в раздел (например, из «Ещё») сразу показывает прежние данные, без заглушки и прыжка вёрстки. Тесты сбрасывают его в src/test/setup.ts.
 const cache: Cache = { rows: null, ev: new Map() };
-export function resetClubEventsCache() { cache.rows = null; cache.ev.clear(); }
+// Группы формы тоже запоминаются: иначе список групп догружается после открытия и сдвигает вниз «Черновик / Активное» и кнопку
+let groupsCache: Group[] | null = null;
+export function resetClubEventsCache() { cache.rows = null; cache.ev.clear(); groupsCache = null; }
 
 export default function ClubEvents() {
   const nav = useNav();
@@ -93,13 +95,13 @@ function EventFormBody({ ev, onBack, onDone }: { ev: ClubEvent | null; onBack: (
     price: ev ? String(num(ev.base_price)) : '0', deadline: ev?.signup_deadline?.slice(0, 16) ?? '', capacity: ev?.capacity != null ? String(ev.capacity) : '',
     groups: ev?.group_ids ?? [], status: 'draft', reason: '',
   });
-  const [groups, setGroups] = useState<Group[]>([]);
+  const [groups, setGroups] = useState<Group[] | null>(groupsCache);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const { ask, dialog } = useConfirm();
   useDirtySignature(JSON.stringify(f));
   useEffect(() => {
-    void supabase.from('groups').select('id, name').order('name').then((r: { data: Group[] | null }) => setGroups(r.data ?? []));
+    void supabase.from('groups').select('id, name').order('name').then((r: { data: Group[] | null }) => { groupsCache = r.data ?? []; setGroups(groupsCache); });
   }, []);
 
   const price = parseMoney(f.price);
@@ -155,7 +157,8 @@ function EventFormBody({ ev, onBack, onDone }: { ev: ClubEvent | null; onBack: (
       <label className="field">Запись до<input type="datetime-local" value={f.deadline} onChange={e => setF({ ...f, deadline: e.target.value })} /></label>
       <fieldset style={{ border: 0, padding: 0, margin: '12px 0 0' }}>
         <legend className="muted" style={{ fontSize: 13 }}>Для групп (пусто — весь клуб)</legend>
-        {groups.map(g => (
+        {!groups && <div className="ks-skel" role="status" aria-label="Загрузка групп" style={{ height: 44 }} />}
+        {(groups ?? []).map(g => (
           <label key={g.id} className="ks-check">
             <input type="checkbox" checked={f.groups.includes(g.id)} onChange={() => toggle(g.id)} />
             <span>{g.name}</span>
