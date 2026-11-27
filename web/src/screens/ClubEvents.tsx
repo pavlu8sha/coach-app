@@ -47,7 +47,11 @@ function EventList({ ver }: { ver: number }) {
   }, [ver, reload]);
   if (error) return <Failure title="Не удалось загрузить мероприятия" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   return (
+<<<<<<< HEAD
     <main className="page ks-still">
+=======
+    <main className="page">
+>>>>>>> 09f1027783199f5b684f7d2d150acb10cf238c52
       <div className="ks-head">
         <h1>Мероприятия</h1>
         <div className="ks-head-actions"><button type="button" className="ks-btn sm" aria-label="Новое мероприятие" onClick={() => nav.push('ce.form')}>+ Мероприятие</button></div>

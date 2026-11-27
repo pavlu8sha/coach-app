@@ -597,6 +597,7 @@ describe('редизайн экранов (docs/CLUB_EVENTS_UI_REDESIGN_ACCEPTAN
     await waitFor(() => expect(fake.rpcCalls('club_event_set_status')).toEqual([{ p_id: 'e1', p_to: 'finished' }]));
   });
 });
+<<<<<<< HEAD
 
 describe('без вспышки при переходах', () => {
   it('экраны раздела не используют плавное появление ks-still: список, карточка и форма', async () => {
@@ -609,3 +610,5 @@ describe('без вспышки при переходах', () => {
     expect(document.querySelector('main.page')).toHaveClass('ks-still');
   });
 });
+=======
+>>>>>>> 09f1027783199f5b684f7d2d150acb10cf238c52
