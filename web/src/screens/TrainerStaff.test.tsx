@@ -74,6 +74,20 @@ describe('Штат матча и статистика тренеров', () => {
     expect(within(row).queryByText(/ ч$/)).toBeNull();
   });
 
+  it('смена периода при раскрытом тренере перечитывает список: только даты нового периода', async () => {
+    fake.db.training_log = [
+      { id: 'a', coach: 'Павел', held_on: '2026-10-05', group_label: 'U11', starts_at: '17:00', hours: 1, held: true },
+      { id: 'b', coach: 'Павел', held_on: '2026-11-05', group_label: 'U9', starts_at: '17:00', hours: 1, held: true },
+    ];
+    fake.rpc.trainer_stats = () => [{ coach: 'Павел', trainings: 1, hours: 1, as_coach: 0, as_operator: 0, parts: 0, reg_pct: null }];
+    const { rerender } = render(<StaffStats period={period} />);
+    fireEvent.click(await screen.findByText('Павел'));
+    expect(await screen.findByText('05.10 · U11')).toBeInTheDocument();
+    rerender(<StaffStats period={{ f: '2026-11-01', t: '2026-11-30' }} />);
+    expect(await screen.findByText('05.11 · U9')).toBeInTheDocument();
+    expect(screen.queryByText('05.10 · U11')).toBeNull();
+  });
+
   it('функция не установлена: понятное сообщение', async () => {
     fake.rpc.match_staff_list = () => ({ error: { message: 'Could not find the function public.match_staff_list' } });
     render(<StaffGames period={period} admin />);
