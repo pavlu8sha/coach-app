@@ -171,6 +171,11 @@ begin
   -- 0225: клуб матча (или группы нового матча) должен быть клубом пользователя; администратор с неопределимым клубом работает как раньше
   uclub := club_event_current_club();
   if uclub is distinct from club and (uclub is not null or not adm) then raise exception 'forbidden' using errcode = '42501'; end if;
+  -- 0227: строка матча блокируется до проверки статуса: запись результата сериализуется с match_rsvp_cancel/reschedule (они берут ту же блокировку)
+  if m is not null then
+    select * into mt from matches where id = m for update;
+    if mt.id is null then raise exception 'match not found'; end if;
+  end if;
   -- 0227: результат не принимается у черновика и отменённого матча с подтверждением (клуб проверен выше)
   if m is not null and mt.lifecycle_status = 'draft' then raise exception 'match is a draft' using errcode = '55000'; end if;
   if m is not null and mt.lifecycle_status = 'cancelled' then raise exception 'match is cancelled' using errcode = '55000'; end if;

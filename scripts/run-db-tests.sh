@@ -151,6 +151,8 @@ for t in db/tests/*_test.sql; do
 done
 echo "== db/tests/concurrency_match_rsvp.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_match_rsvp.sh || fail=1
+echo "== db/tests/concurrency_match_unified_pr2.sh"
+DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_match_unified_pr2.sh || fail=1
 echo "== db/tests/concurrency_booking.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_booking.sh || fail=1
 echo "== db/tests/concurrency_consent_versions.sh"
