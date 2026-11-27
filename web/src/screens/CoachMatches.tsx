@@ -57,7 +57,8 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
       const ev = await supabase.rpc('event_list');
       setEvents(ev.error ? [] : ((ev.data ?? []) as EventRow[]));
       let q = supabase.from('matches').select('id, club_id, team, played_on, opponent, goals_for, goals_against, technical, lifecycle_status, starts_at');
-      if (!showAll) q = q.in('team', groups.map(g => g.name));
+      // команда матча может быть общей для возраста («U9»), когда у тренера группы «U9-A» и «U9-B» (так создаёт матч RsvpCreate): ищем и по группе, и по её возрасту
+      if (!showAll) q = q.in('team', [...new Set(groups.flatMap(g => [g.name, matchTeam(g.name)]))]);
       const r = await q.order('played_on', { ascending: false }).limit(showAll ? 150 : 60);
       if (r.error) return setError(errMsg(r.error));
       // единый экран матча (PR 1): в общем списке матчи с подтверждением во всех состояниях, черновик и отменённый с пометкой (раньше решение владельца 2026-11-13 показывало только опубликованные)

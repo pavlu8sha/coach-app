@@ -1114,6 +1114,30 @@ describe('«Матчи»: «+ Матч» в шапке и меню «⋯»', () 
     expect(screen.getByRole('button', { name: '+ Матч' })).toBeInTheDocument();
   });
 
+  it('тренер с группами U9-A и U9-B создаёт матч общей команды U9: матч виден в списке и открывается единым экраном', async () => {
+    seed();
+    fake.db.clubs = [{ id: 'c1' }];
+    fake.rpc.event_list = () => [];
+    fake.rpc.match_rsvp_summary = () => [{ invited: 0, yes: 0, no: 0, unanswered: 0, reminders: 0, last_reminder_at: null }];
+    fake.rpc.match_rsvp_roster = () => [];
+    fake.rpc.match_rsvp_seed = () => 9; // по одному вызову на группу: U9-A и U9-B
+    fake.rpc.match_rsvp_create_draft = () => {
+      fake.db.matches.push({ id: 'ng', team: 'U9', played_on: '2099-01-01', opponent: 'Общий-соперник', goals_for: null, goals_against: null, lifecycle_status: 'draft', starts_at: future, kind: 'friendly', venue: null, address: null, notes: null, tournament_id: null });
+      return 'ng';
+    };
+    render(<CoachMatches groups={[{ id: 'ga', name: 'U9-A' }, { id: 'gb', name: 'U9-B' }] as any} />);
+    fireEvent.click(await screen.findByRole('button', { name: '+ Матч' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать матч с подтверждением' }));
+    fireEvent.change(await screen.findByLabelText('Команда'), { target: { value: 'U9' } });
+    fireEvent.change(screen.getByLabelText('Соперник'), { target: { value: 'Общий-соперник' } });
+    fireEvent.change(screen.getByLabelText('Дата и время (Тбилиси)'), { target: { value: '2099-01-01T11:00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Создать черновик' }));
+    expect(await screen.findByText('Черновик создан, в состав добавлено игроков: 18')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Состав и ответы' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Назад/ }));
+    expect(await screen.findByText(/Общий-соперник/)).toBeInTheDocument();
+  });
+
   it('меню «⋯»: у администратора только «Новое событие», пункт открывает экран и закрывает меню (PR 3)', async () => {
     seed();
     render(<CoachMatches groups={groups} admin />);
