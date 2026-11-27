@@ -7,6 +7,7 @@ import { resetPaymentKeys } from '../lib/paymentAdd';
 import { resetTgUsernameSync } from '../lib/tgUsername';
 import { resetPointsCache } from '../screens/PointsLedger';
 import { resetMyKidsCache } from '../screens/MyKids';
+import { resetClubEventsCache } from '../screens/ClubEvents';
 
 beforeEach(() => {
   fake.reset();
@@ -17,6 +18,7 @@ beforeEach(() => {
   resetTgUsernameSync();
   resetPointsCache();
   resetMyKidsCache();
+  resetClubEventsCache();
   document.documentElement.removeAttribute('data-theme');
 });
 afterEach(() => {

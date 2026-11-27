@@ -31,9 +31,12 @@ const PARTS = [
   part({ id: 'pt4', player_id: 'p4', full_name: 'Отменённый Олег', status: 'cancelled', counted: 40, debt: 60, pay_state: 'debt' }),
 ];
 const open = async (name = 'Турнир Осень') => { render(<ClubEvents />); fireEvent.click(await screen.findByText(name)); await screen.findByRole('tab', { name: 'Участники' }); };
+const menuBtn = () => screen.getByRole('button', { name: 'Действия с мероприятием' });
+const menu = (name: string) => { fireEvent.click(menuBtn()); fireEvent.click(screen.getByRole('menuitem', { name })); };
+const addVia = (name: 'Игрока (поиск)' | 'Всю группу') => { fireEvent.click(screen.getByRole('button', { name: '+ Добавить участников' })); fireEvent.click(screen.getByRole('button', { name })); };
 const openPerson = async (name: string, cancelled = false) => {
   await open();
-  if (cancelled) fireEvent.click(screen.getByRole('tab', { name: 'Отменённые' }));
+  if (cancelled) fireEvent.click(screen.getByRole('button', { name: /^Отменённые записи \(\d+\)$/ }));
   fireEvent.click(await screen.findByText(name));
 };
 
@@ -100,7 +103,7 @@ describe('форма: создание и правка', () => {
     const calls: boolean[] = [];
     fake.rpc.club_event_update = (a: { p_confirm: boolean }) => { calls.push(a.p_confirm); return a.p_confirm ? { applied: true, warnings: [] } : { applied: false, warnings: [{ code: 'date_change', affected: 3 }] }; };
     await open();
-    fireEvent.click(screen.getByRole('button', { name: 'Редактировать' }));
+    menu('Редактировать');
     fireEvent.change(await screen.findByLabelText('Дата'), { target: { value: '2026-12-27' } });
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
     const dlg = within(await screen.findByRole('dialog'));
@@ -115,7 +118,7 @@ describe('форма: создание и правка', () => {
     seed(ev({}), PARTS);
     fake.rpc.club_event_update = (a: { p_confirm: boolean }) => (a.p_confirm ? { applied: true, warnings: [] } : { applied: false, warnings: [{ code: 'capacity_below_active', active: 3, capacity: 2, over: 1 }] });
     await open();
-    fireEvent.click(screen.getByRole('button', { name: 'Редактировать' }));
+    menu('Редактировать');
     fireEvent.change(await screen.findByLabelText('Лимит мест'), { target: { value: '2' } });
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
     const dlg = within(await screen.findByRole('dialog'));
@@ -128,7 +131,7 @@ describe('форма: создание и правка', () => {
     seed(ev({}), PARTS);
     fake.rpc.club_event_update = () => ({ applied: true, warnings: [] });
     await open();
-    fireEvent.click(screen.getByRole('button', { name: 'Редактировать' }));
+    menu('Редактировать');
     fireEvent.change(await screen.findByLabelText('Цена, ₾'), { target: { value: '120' } });
     const save = screen.getByRole('button', { name: 'Сохранить' });
     expect(save).toBeDisabled();
@@ -146,10 +149,11 @@ describe('UI17: действия по статусам', () => {
   const buttons = async (status: string) => {
     seed(ev({ status }), []);
     await open();
-    return ['Сделать активным', 'Завершить', 'Отменить', 'Активировать снова', 'Редактировать'].filter(n => screen.queryByRole('button', { name: n }));
+    fireEvent.click(menuBtn());
+    return ['Сделать активным', 'Завершить мероприятие', 'Отменить мероприятие', 'Активировать снова', 'Редактировать', 'Удалить черновик'].filter(n => screen.queryByRole('menuitem', { name: n }));
   };
-  it('черновик: только «Сделать активным» и «Редактировать»', async () => expect(await buttons('draft')).toEqual(['Сделать активным', 'Редактировать']));
-  it('активное: «Завершить», «Отменить»', async () => expect(await buttons('active')).toEqual(['Завершить', 'Отменить', 'Редактировать']));
+  it('черновик: в меню «Сделать активным», «Редактировать», «Удалить черновик» (пустой)', async () => expect(await buttons('draft')).toEqual(['Сделать активным', 'Редактировать', 'Удалить черновик']));
+  it('активное: «Завершить», «Отменить»', async () => expect(await buttons('active')).toEqual(['Завершить мероприятие', 'Отменить мероприятие', 'Редактировать']));
   it('отменённое: «Активировать снова»', async () => expect(await buttons('cancelled')).toEqual(['Активировать снова', 'Редактировать']));
   it('завершённое: без смены статуса, «Редактировать» остаётся', async () => expect(await buttons('finished')).toEqual(['Редактировать']));
 
@@ -157,7 +161,7 @@ describe('UI17: действия по статусам', () => {
     seed(ev({}), []);
     fake.rpc.club_event_set_status = () => null;
     await open();
-    fireEvent.click(screen.getByRole('button', { name: 'Отменить' }));
+    menu('Отменить мероприятие');
     const dlg = within(await screen.findByRole('dialog'));
     expect(dlg.getByText('Записи и платежи сохранятся. Возвраты в приложении недоступны.')).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/Возврат автоматически|вернуть/i);
@@ -177,7 +181,7 @@ describe('участники: UI5/UI14', () => {
     expect(screen.queryByText('Отменённый Олег')).not.toBeInTheDocument();
     expect(screen.queryByText(/-\d+ ₾/)).not.toBeInTheDocument(); // отрицательного остатка нет
     expect(screen.getAllByText('Активна')).toHaveLength(3);
-    fireEvent.click(screen.getByRole('tab', { name: 'Отменённые' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Отменённые записи \(\d+\)$/ }));
     expect(screen.getByText('Отменённый Олег')).toBeInTheDocument();
     expect(screen.getByText('Отменена')).toBeInTheDocument();
     expect(screen.getByText('Долг 60 ₾')).toBeInTheDocument();
@@ -199,7 +203,7 @@ describe('добавление игрока и группы', () => {
     seed(ev({}), []);
     fake.rpc.club_event_participant_add = (a: { p_confirm: boolean }) => (a.p_confirm ? { applied: true, warnings: [{ code: 'not_in_group' }] } : { applied: false, warnings: [{ code: 'not_in_group' }] });
     await open();
-    fireEvent.click(screen.getByRole('button', { name: 'Добавить игрока' }));
+    addVia('Игрока (поиск)');
     fireEvent.change(await screen.findByLabelText('Поиск игрока'), { target: { value: 'Нов' } });
     fireEvent.click(await screen.findByText('Новиков Ян'));
     const dlg = within(await screen.findByRole('dialog'));
@@ -216,7 +220,7 @@ describe('добавление игрока и группы', () => {
       skipped: [{ player_id: 'c', full_name: 'Уже Тут', reason: 'already' }, { player_id: 'd', full_name: 'Не Занимается', reason: 'not_active' }] });
     fake.rpc.club_event_group_add = () => ({ applied: true, added: 2 });
     await open();
-    fireEvent.click(screen.getByRole('button', { name: 'Добавить группу' }));
+    addVia('Всю группу');
     fireEvent.change(await screen.findByLabelText('Группа'), { target: { value: 'g1' } });
     expect(await screen.findByText('Будет добавлено: 2')).toBeInTheDocument();
     expect(screen.getByText('Алиев Ким')).toBeInTheDocument();
@@ -230,7 +234,7 @@ describe('добавление игрока и группы', () => {
     seed(ev({}), []);
     fake.rpc.club_event_group_preview = () => ({ add_count: 9, active: 3, capacity: 10, over_limit: true, to_add: [{ player_id: 'a', full_name: 'Алиев Ким' }], skipped: [] });
     await open();
-    fireEvent.click(screen.getByRole('button', { name: 'Добавить группу' }));
+    addVia('Всю группу');
     fireEvent.change(await screen.findByLabelText('Группа'), { target: { value: 'g1' } });
     expect(await screen.findByText(/Лимит будет превышен/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Добавить 9' })).toBeDisabled();
@@ -389,7 +393,7 @@ describe('замечания ревью #742', () => {
     fake.rpc.club_event_group_preview = (a: { p_group: string }) => new Promise(res => { done[a.p_group] = res; });
     fake.rpc.club_event_group_add = () => ({ applied: true, added: 1 });
     await open();
-    fireEvent.click(screen.getByRole('button', { name: 'Добавить группу' }));
+    addVia('Всю группу');
     const sel = await screen.findByLabelText('Группа');
     fireEvent.change(sel, { target: { value: 'g1' } });
     fireEvent.change(sel, { target: { value: 'g2' } });
@@ -454,7 +458,8 @@ describe('UI20: удаление черновика (скрытие)', () => {
     fake.rpc.club_event_delete_draft = () => { fake.rpc.club_event_list = () => []; return { applied: true }; }; // как база: после скрытия в списке его нет
     render(<ClubEvents />);
     fireEvent.click(await screen.findByText('Турнир Осень'));
-    fireEvent.click(await screen.findByRole('button', { name: 'Удалить черновик' }));
+    await screen.findByRole('tab', { name: 'Участники' });
+    menu('Удалить черновик');
     const dlg = within(await screen.findByRole('dialog'));
     expect(dlg.getByText('Мероприятие исчезнет из списка. История изменений сохранится.')).toBeInTheDocument();
     fireEvent.click(dlg.getByRole('button', { name: 'Удалить' }));
@@ -466,7 +471,7 @@ describe('UI20: удаление черновика (скрытие)', () => {
   it('отказ «Отмена» ничего не вызывает', async () => {
     seed(ev({ status: 'draft' }), []);
     await open();
-    fireEvent.click(screen.getByRole('button', { name: 'Удалить черновик' }));
+    menu('Удалить черновик');
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Отмена' }));
     expect(fake.rpcCalls('club_event_delete_draft')).toHaveLength(0);
   });
@@ -474,21 +479,121 @@ describe('UI20: удаление черновика (скрытие)', () => {
   it.each([['active'], ['finished'], ['cancelled']])('у мероприятия «%s» кнопки нет', async status => {
     seed(ev({ status }), []);
     await open();
-    expect(screen.queryByRole('button', { name: 'Удалить черновик' })).toBeNull();
+    fireEvent.click(menuBtn());
+    expect(screen.queryByRole('menuitem', { name: 'Удалить черновик' })).toBeNull();
   });
 
   it('у черновика с участниками кнопки нет', async () => {
     seed(ev({ status: 'draft' }), [PARTS[0]]);
     await open();
-    expect(screen.queryByRole('button', { name: 'Удалить черновик' })).toBeNull();
+    fireEvent.click(menuBtn());
+    expect(screen.queryByRole('menuitem', { name: 'Удалить черновик' })).toBeNull();
   });
 
   it('ошибка базы показывается понятным текстом, экран остаётся', async () => {
     seed(ev({ status: 'draft' }), []);
     fake.rpc.club_event_delete_draft = () => ({ error: { message: 'event has participants' } });
     await open();
-    fireEvent.click(screen.getByRole('button', { name: 'Удалить черновик' }));
+    menu('Удалить черновик');
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Удалить' }));
     expect(await screen.findByText('У черновика есть участники: удалить его нельзя.')).toBeInTheDocument();
+  });
+});
+
+describe('редизайн экранов (docs/CLUB_EVENTS_UI_REDESIGN_ACCEPTANCE.md)', () => {
+  it('A1/A2: повторный вход в раздел сразу показывает прежние данные; заголовок и «+» видны до ответа базы', async () => {
+    seed();
+    const first = render(<ClubEvents />);
+    await screen.findByText('Турнир Осень');
+    first.unmount();
+    let release: (v: unknown) => void = () => {};
+    fake.rpc.club_event_list = () => new Promise(r => { release = r; }) as never;
+    render(<ClubEvents />);
+    expect(screen.getByText('Турнир Осень')).toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Загрузка' })).toBeNull();
+    release([ev({})]);
+  });
+  it('A2: при первой загрузке заголовок и кнопка уже есть, под ними заглушка без вложенного main', () => {
+    fake.rpc.club_event_list = () => new Promise(() => {}) as never;
+    const { container } = render(<ClubEvents />);
+    expect(screen.getByRole('heading', { name: 'Мероприятия' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Новое мероприятие' })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Загрузка' })).toBeInTheDocument();
+    expect(container.querySelectorAll('main')).toHaveLength(1);
+  });
+  it('B1/B2: кнопка создания в шапке; пустое состояние подсказывает «+»', async () => {
+    seed();
+    fake.rpc.club_event_list = () => [];
+    render(<ClubEvents />);
+    expect(await screen.findByText('Мероприятий пока нет')).toBeInTheDocument();
+    expect(document.querySelector('.ks-head .ks-head-actions')?.textContent).toContain('+ Мероприятие');
+    expect(screen.getByText(/кнопкой «\+» вверху/)).toBeInTheDocument();
+  });
+  it('C1/C3: одна строка «дата · место · цена · запись до» и три плитки', async () => {
+    seed(ev({ signup_deadline: '2026-12-18T12:00:00' }), PARTS);
+    await open();
+    expect(screen.getByText(/Стадион · 100 ₾ · запись до/)).toBeInTheDocument();
+    const tiles = document.querySelector('.ks-ce-tiles')!;
+    expect(tiles.textContent).toContain('Записано3');
+    expect(tiles.textContent).toContain('Принято290 ₾');
+    expect(tiles.textContent).toContain('Долг160 ₾');
+  });
+  it('C2: длинное описание свёрнуто и раскрывается; короткое без ссылки', async () => {
+    seed(ev({ description: 'Лазертаг для всех участников. Настольный футбол, настольный теннис, PlayStation-зона. Дед Мороз и подарки.' }), []);
+    await open();
+    expect(document.querySelector('.ks-ce-clamp')).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Показать полностью' }));
+    expect(document.querySelector('.ks-ce-clamp')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Свернуть' }));
+    expect(document.querySelector('.ks-ce-clamp')).not.toBeNull();
+  });
+  it('C2: короткое описание без ссылки', async () => {
+    seed(ev({ description: 'Коротко' }), []);
+    await open();
+    expect(screen.queryByRole('button', { name: 'Показать полностью' })).toBeNull();
+  });
+  it('C4: в карточке нет прежних рядов кнопок «Завершить/Отменить/Редактировать»', async () => {
+    seed(ev({}), []);
+    await open();
+    for (const n of ['Завершить', 'Отменить', 'Редактировать', 'Добавить игрока', 'Добавить группу']) expect(screen.queryByRole('button', { name: n })).toBeNull();
+  });
+  it('D2/D3: одна кнопка добавления открывает выбор; пустое состояние с подсказкой', async () => {
+    seed(ev({}), []);
+    await open();
+    expect(screen.getByText('Добавьте игроков или целую группу.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Игрока (поиск)' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '+ Добавить участников' }));
+    expect(screen.getByRole('button', { name: 'Игрока (поиск)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Всю группу' })).toBeInTheDocument();
+  });
+  it('D2: у неактивного мероприятия кнопка добавления неактивна', async () => {
+    seed(ev({ status: 'finished' }), []);
+    await open();
+    expect(screen.getByRole('button', { name: '+ Добавить участников' })).toBeDisabled();
+  });
+  it('D4: отменённые записи — ссылка со счётчиком и возврат; без отменённых ссылки нет', async () => {
+    seed(ev({}), PARTS);
+    await open();
+    expect(screen.queryByRole('tab', { name: 'Отменённые' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Отменённые записи (1)' }));
+    expect(screen.getByText('Отменённый Олег')).toBeInTheDocument();
+    expect(screen.queryByText('Иванов Пётр')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'К активным записям' }));
+    expect(screen.getByText('Иванов Пётр')).toBeInTheDocument();
+  });
+  it('D4: без отменённых записей ссылки нет', async () => {
+    seed(ev({}), [PARTS[0]]);
+    await open();
+    expect(screen.queryByRole('button', { name: /Отменённые записи/ })).toBeNull();
+  });
+  it('C4: завершение из меню показывает прежнее окно и шлёт club_event_set_status', async () => {
+    seed(ev({}), []);
+    fake.rpc.club_event_set_status = () => null;
+    await open();
+    menu('Завершить мероприятие');
+    const dlg = within(await screen.findByRole('dialog'));
+    expect(dlg.getByText('Записи и платежи сохранятся. Оплаты по-прежнему принимаются.')).toBeInTheDocument();
+    fireEvent.click(dlg.getByRole('button', { name: 'Завершить' }));
+    await waitFor(() => expect(fake.rpcCalls('club_event_set_status')).toEqual([{ p_id: 'e1', p_to: 'finished' }]));
   });
 });
