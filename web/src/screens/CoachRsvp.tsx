@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { compareGroups, matchTeam, playsMatches, type CoachGroup, errMsg } from '../lib/coach';
-import { FILTER_LABEL, LIFECYCLE_LABEL, activityLine, fmtWhen, matchesFilter, fromTbilisiLocal, responseText, rsvpError, toTbilisiLocal, type Lifecycle, type RsvpResponse, type SummaryFilter } from '../lib/matchRsvp';
+import { FILTER_LABEL, LIFECYCLE_LABEL, activityLine, feeAllowed, feeText, fmtWhen, parseFee, matchesFilter, fromTbilisiLocal, responseText, rsvpError, toTbilisiLocal, type Lifecycle, type RsvpResponse, type SummaryFilter } from '../lib/matchRsvp';
 import { supabase } from '../lib/supabase';
 import { Pill, ListRow } from '../ui/components';
 import { useNav } from '../nav';
@@ -110,6 +110,7 @@ function RsvpCreate({ groups, all, onBack, onCreated }: { groups: CoachGroup[]; 
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
   const [tour, setTour] = useState('');
+  const [fee, setFee] = useState('');
   const [events, setEvents] = useState<EventRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,11 +124,14 @@ function RsvpCreate({ groups, all, onBack, onCreated }: { groups: CoachGroup[]; 
   // команда события может быть и «U9», и «U9-B», поэтому сверяем и с названием группы, и с командой без буквы
   const tours = events.filter(e => !isFinished(e) && (all || groups.some(g => g.name === e.team || matchTeam(g.name) === e.team)));
   const tourEvent = kind === 'game' ? events.find(e => e.id === tour) : undefined;
+  const feeShown = feeAllowed(kind, tourEvent?.kind);
   const matchTeamName = tourEvent ? tourEvent.team : team; // игра события получает команду события, как в event_add_game
   // у команды с буквой («U13-B») состав только её группы, у команды без буквы («U13») все группы возраста
   const teamGroups = groups.filter(g => playsMatches(g.name) && (g.name === team || matchTeam(g.name) === team));
   const save = async () => {
     if (!team || !when) return setError('Выберите команду и укажите дату и время.');
+    const f = feeShown ? parseFee(fee) : { value: null };
+    if ('error' in f) return setError(f.error);
     setBusy(true);
     setError(null);
     const c = await supabase.from('clubs').select('id').limit(1);
@@ -136,6 +140,8 @@ function RsvpCreate({ groups, all, onBack, onCreated }: { groups: CoachGroup[]; 
     const r = await supabase.rpc('match_rsvp_create_draft', {
       p_club: club, p_kind: kind, p_team: matchTeamName, p_opponent: opp, p_starts_at: fromTbilisiLocal(when),
       p_venue: venue, p_address: address, p_notes: notes, p_tournament: kind === 'game' && tour ? tour : null,
+      // сумма передаётся, только если введена: так создание работает и до применения миграции 0226
+      ...(f.value != null ? { p_fee: f.value } : {}),
     });
     if (r.error) { setBusy(false); return setError(rsvpError(r.error.message)); }
     // Состав добавляется сразу (ТЗ §1): у чемпионата — список события, иначе основная группа или все группы команды.
@@ -194,6 +200,13 @@ function RsvpCreate({ groups, all, onBack, onCreated }: { groups: CoachGroup[]; 
       <input id="rs-addr" className="ks-input" value={address} onChange={e => setAddress(e.target.value)} />
       <label className="ks-label" htmlFor="rs-notes">Заметка для родителей</label>
       <input id="rs-notes" className="ks-input" value={notes} onChange={e => setNotes(e.target.value)} />
+      {feeShown && (
+        <>
+          <label className="ks-label" htmlFor="rs-fee">Взнос за матч, ₾</label>
+          <input id="rs-fee" className="ks-input" inputMode="decimal" value={fee} onChange={e => setFee(e.target.value)} placeholder="Без взноса" />
+          <p className="muted" style={{ fontSize: 13 }}>Родители увидят сумму в приглашении</p>
+        </>
+      )}
       {error && <p role="alert" className="ks-error">{error}</p>}
       <button type="button" className="ks-btn" disabled={busy} onClick={() => void save()}>Создать черновик</button>
     </main>
@@ -210,7 +223,8 @@ export function RsvpDetail({ id, groups, onBack, note, embedded = false, onLoade
   const [reload, setReload] = useState(0);
   const [newWhen, setNewWhen] = useState('');
   const [reason, setReason] = useState('');
-  const [edit, setEdit] = useState<{ opponent: string; venue: string; address: string; notes: string; when: string } | null>(null);
+  const [edit, setEdit] = useState<{ opponent: string; venue: string; address: string; notes: string; when: string; fee: string } | null>(null);
+  const [fee, setFee] = useState<number | null>(null);
   const [filter, setFilter] = useState<SummaryFilter>('all');
   const [showHistory, setShowHistory] = useState(false);
   const [q, setQ] = useState('');
@@ -245,6 +259,9 @@ export function RsvpDetail({ id, groups, onBack, note, embedded = false, onLoade
         if (r.error) return setError(errMsg(r.error));
         setM((r.data ?? null) as RsvpMatch | null);
         if (r.data) onLoaded?.(r.data as RsvpMatch);
+        // сумма взноса читается отдельно: до применения миграции 0226 колонки нет, и это не должно ломать карточку
+        const f = await supabase.from('matches').select('fee').eq('id', id).maybeSingle();
+        if (alive) setFee(f.error || (f.data as { fee?: number | string | null } | null)?.fee == null ? null : Number((f.data as { fee: number | string }).fee));
       } catch (e) {
         if (alive) setError(errMsg(e));
       }
@@ -288,6 +305,7 @@ export function RsvpDetail({ id, groups, onBack, note, embedded = false, onLoade
   if (!m) return <Loading />;
   const Wrap = embedded ? 'div' : 'main';
   const st = m.lifecycle_status;
+  const feeEditable = m.kind === 'friendly' || !m.tournament_id; // у матча чемпионата и фестиваля взнос на событие
   const invited = roster.filter(p => p.status === 'invited'); // исключённые остаются в базе, в списке их нет
   const shown = invited.filter(p => matchesFilter(p.response, filter));
   const started = m.starts_at ? new Date(m.starts_at).getTime() <= Date.now() : false;
@@ -323,17 +341,22 @@ export function RsvpDetail({ id, groups, onBack, note, embedded = false, onLoade
     if (!(await confirm({ title: 'Перенести матч?', note: 'Ответы родителей сбросятся, родители ответят заново. Если по матчу уже были отметки или счёт, они сохранятся в снимке.', confirmLabel: 'Перенести' }))) return;
     await run('match_rsvp_reschedule', { m: id, p_starts_at: fromTbilisiLocal(newWhen), p_venue: m.venue, p_address: m.address }, () => 'Матч перенесён');
   };
-  const openEdit = () => setEdit({ opponent: m.opponent ?? '', venue: m.venue ?? '', address: m.address ?? '', notes: m.notes ?? '', when: m.starts_at ? toTbilisiLocal(m.starts_at) : '' });
+  const openEdit = () => setEdit({ opponent: m.opponent ?? '', venue: m.venue ?? '', address: m.address ?? '', notes: m.notes ?? '', when: m.starts_at ? toTbilisiLocal(m.starts_at) : '', fee: fee == null ? '' : String(fee) });
   // Отправляем только изменённые поля: база пишет в журнал, что именно поменялось
   const saveEdit = async () => {
     if (!edit) return;
-    const p: Record<string, string> = {};
+    const p: Record<string, string | number | null> = {};
     if (edit.opponent.trim() !== (m.opponent ?? '')) p.opponent = edit.opponent;
     if (edit.venue.trim() !== (m.venue ?? '')) p.venue = edit.venue;
     if (edit.address.trim() !== (m.address ?? '')) p.address = edit.address;
     if (edit.notes.trim() !== (m.notes ?? '')) p.notes = edit.notes;
     if (edit.when && edit.when !== (m.starts_at ? toTbilisiLocal(m.starts_at) : '')) p.starts_at = fromTbilisiLocal(edit.when);
+    const nf = feeEditable ? parseFee(edit.fee) : { value: fee };
+    if ('error' in nf) return setMsg({ ok: false, text: nf.error });
+    const feeChanged = nf.value !== fee;
+    if (feeChanged) p.fee = nf.value;
     if (!Object.keys(p).length) return setEdit(null);
+    if (feeChanged && st === 'published' && !(await confirm({ title: 'Изменить сумму взноса?', note: 'Сумма изменится у неоплативших. У оплативших и со скидкой она останется прежней.', confirmLabel: 'Изменить сумму' }))) return;
     setBusy(true);
     setMsg(null);
     const r = await supabase.rpc('match_rsvp_update', { m: id, p });
@@ -378,6 +401,7 @@ export function RsvpDetail({ id, groups, onBack, note, embedded = false, onLoade
       {!embedded && <h1>{title(m)}</h1>}
       <p><Pill tone={TONE[st]}>{LIFECYCLE_LABEL[st]}</Pill> {m.starts_at ? fmtWhen(m.starts_at) : ''}</p>
       {[m.venue, m.address, m.notes].filter(Boolean).map(t => <p key={t} className="muted">{t}</p>)}
+      {fee != null && fee > 0 && <p>Взнос: {feeText(fee)}</p>}
       {sumL.status === 'error' && <BlockError title="Не удалось загрузить сводку ответов" text={sumL.text} onRetry={retrySum} />}
       {sum && (
         <div className="ks-card" aria-label="Сводка ответов">
@@ -423,6 +447,12 @@ export function RsvpDetail({ id, groups, onBack, note, embedded = false, onLoade
             <input id="ed-addr" className="ks-input" value={edit.address} onChange={e => setEdit({ ...edit, address: e.target.value })} />
             <label className="ks-label" htmlFor="ed-notes">Заметка для родителей</label>
             <input id="ed-notes" className="ks-input" value={edit.notes} onChange={e => setEdit({ ...edit, notes: e.target.value })} />
+            {feeEditable && (
+              <>
+                <label className="ks-label" htmlFor="ed-fee">Взнос за матч, ₾</label>
+                <input id="ed-fee" className="ks-input" inputMode="decimal" value={edit.fee} onChange={e => setEdit({ ...edit, fee: e.target.value })} placeholder="Без взноса" />
+              </>
+            )}
             <button type="button" className="ks-btn" disabled={busy} onClick={() => void saveEdit()}>Сохранить</button>
             <div style={{ height: 8 }} />
             <button type="button" className="ks-btn secondary" disabled={busy} onClick={() => setEdit(null)}>Отмена</button>
