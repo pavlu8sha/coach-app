@@ -624,3 +624,30 @@ describe('форма: группы не сдвигают нижнюю часть
     expect(screen.queryByRole('status', { name: 'Загрузка групп' })).toBeNull();
   });
 });
+
+describe('группы при создании и при добавлении участников', () => {
+  it('в форме подписано, что группы только задают аудиторию и никого не записывают', async () => {
+    seed();
+    render(<ClubEvents />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Новое мероприятие' }));
+    expect(await screen.findByText(/Никого не записывает/)).toBeInTheDocument();
+  });
+  it('«Всю группу»: группы мероприятия идут первыми в отдельном списке', async () => {
+    seed(ev({ club_wide: false, group_ids: ['g2'], group_names: ['U11'] }), []);
+    await open();
+    addVia('Всю группу');
+    const select = await screen.findByRole('combobox', { name: 'Группа' });
+    await waitFor(() => expect(within(select).getByRole('option', { name: 'U9-A' })).toBeInTheDocument());
+    const labels = Array.from(select.querySelectorAll('optgroup')).map(g => g.label);
+    expect(labels).toEqual(['Группы мероприятия', 'Остальные группы']);
+    expect(Array.from(select.querySelectorAll('optgroup')[0].querySelectorAll('option')).map(o => o.textContent)).toEqual(['U11']);
+  });
+  it('у мероприятия для всего клуба групп-списка нет: плоский перечень', async () => {
+    seed(ev({}), []);
+    await open();
+    addVia('Всю группу');
+    const select = await screen.findByRole('combobox', { name: 'Группа' });
+    await waitFor(() => expect(within(select).getByRole('option', { name: 'U9-A' })).toBeInTheDocument());
+    expect(select.querySelectorAll('optgroup')).toHaveLength(0);
+  });
+});
