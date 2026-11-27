@@ -1006,7 +1006,7 @@ describe('«Матчи» тренера и матчи с подтвержден�
   const future = new Date(Date.now() + 5 * 86400_000).toISOString();
   const rsvp = (id: string, opponent: string, lifecycle_status: string, starts_at: string) => ({ id, team: 'U9', played_on: '2026-11-07', opponent, goals_for: null, goals_against: null, lifecycle_status, starts_at });
 
-  it('опубликованный матч с подтверждением (будущий и начавшийся) виден в общем списке, черновик и отменённый нет', async () => {
+  it('матч с подтверждением (будущий, начавшийся, черновик, отменённый) виден в общем списке; черновик и отменённый с пометкой', async () => {
     fake.db.matches = [
       rsvp('d1', 'Черновик-соперник', 'draft', future),
       rsvp('f1', 'Будущий-соперник', 'published', future),
@@ -1020,7 +1020,23 @@ describe('«Матчи» тренера и матчи с подтвержден�
     expect(await screen.findByText(/Начавшийся-соперник/)).toBeInTheDocument();
     expect(screen.getByText(/Будущий-соперник/)).toBeInTheDocument(); // решение владельца 2026-11-13: опубликованный матч виден сразу
     expect(screen.getByText(/Старый-соперник/)).toBeInTheDocument();
-    for (const hidden of ['Черновик-соперник', 'Отменённый-соперник']) expect(screen.queryByText(new RegExp(hidden))).toBeNull();
+    const row = (name: RegExp) => screen.getByText(name).closest('.ks-row, li, div') as HTMLElement;
+    expect(screen.getByText(/Черновик-соперник/)).toBeInTheDocument();
+    expect(screen.getByText(/Отменённый-соперник/)).toBeInTheDocument();
+    expect(screen.getAllByText('Черновик')).toHaveLength(1);
+    expect(screen.getAllByText('Отменён')).toHaveLength(1);
+    expect(row(/Старый-соперник/)).not.toHaveTextContent('Черновик');
+  });
+
+  it('отменённый матч с сохранённым счётом показывает «Отменён», а не счёт', async () => {
+    fake.db.matches = [{ ...rsvp('c2', 'Отменённый-со-счётом', 'cancelled', past), goals_for: 3, goals_against: 1 }];
+    fake.db.players = [];
+    fake.db.match_players = [];
+    render(<CoachMatches groups={groups} />);
+    const name = await screen.findByText(/Отменённый-со-счётом/);
+    const row = name.closest('.ks-row, li, div') as HTMLElement;
+    expect(within(row).getByText('Отменён')).toBeInTheDocument();
+    expect(row).not.toHaveTextContent('3:1');
   });
 
   it('у начавшегося матча с подтверждением дата и соперник закрыты для правки', async () => {
@@ -1161,6 +1177,7 @@ describe('Состав матча с подтверждением в форме 
     fake.db.points_rule_versions = [];
     render(<CoachMatches groups={groups} />);
     fireEvent.click(await screen.findByText(/Икс/));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Результат' }));
     await screen.findByRole('heading', { name: /Состав/ });
   };
 
@@ -1192,6 +1209,7 @@ describe('Состав матча с подтверждением в форме 
     fake.db.points_rule_versions = [];
     render(<CoachMatches groups={groups} />);
     fireEvent.click(await screen.findByText(/Икс/));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Результат' }));
     expect(await screen.findByText('Сидоров Ян')).toBeInTheDocument();
     expect(screen.getByText('Иванов Пётр')).toBeInTheDocument();
     expect(screen.queryByText('Петров Лев')).toBeNull();
@@ -1239,6 +1257,7 @@ describe('Состав матча с подтверждением в форме 
     fake.db.points_rule_versions = [];
     render(<CoachMatches groups={groups} />);
     fireEvent.click(await screen.findByText(/Икс/));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Результат' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Править состав' }));
     expect(await screen.findByRole('button', { name: 'Убрать из матча: Гость Игорь' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Убрать из матча: Иванов Пётр' })).toBeNull();
@@ -1260,10 +1279,220 @@ describe('Состав матча с подтверждением в форме 
     expect(screen.getByText('Иванов Пётр')).toBeInTheDocument();
   });
 
-  it('приглашения не прочитались: форма открывается со всей группой', async () => {
+  it('приглашения не прочитались: явная ошибка с «Повторить», вся группа не показывается; после повтора состав приглашённых', async () => {
     fake.db.match_invitations = [{ match_id: 'r1', player_id: 'p1', status: 'invited' }];
     fake.errors.match_invitations = 'boom';
-    await open();
-    expect(await screen.findByText('Сидоров Ян')).toBeInTheDocument();
+    fake.db.matches = [{ id: 'r1', club_id: 'c1', team: 'U9', played_on: '2099-01-01', opponent: 'Икс', goals_for: null, goals_against: null, lifecycle_status: 'published', starts_at: future }];
+    fake.db.players = [
+      { id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'active' },
+      { id: 'p2', full_name: 'Сидоров Ян', group_id: 'g1', status: 'active' },
+    ];
+    fake.db.groups = [{ id: 'g1', name: 'U9', club_id: 'c1' }];
+    fake.db.match_players = [];
+    fake.db.points_rule_versions = [];
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Результат' }));
+    expect(await screen.findByText('Не удалось загрузить состав')).toBeInTheDocument();
+    expect(screen.queryByText('Сидоров Ян')).toBeNull();
+    delete fake.errors.match_invitations;
+    fireEvent.click(screen.getByRole('button', { name: /Повторить/ }));
+    expect(await screen.findByText('Иванов Пётр')).toBeInTheDocument();
+    expect(screen.queryByText('Сидоров Ян')).toBeNull();
+  });
+});
+
+describe('Единый экран матча с подтверждением', () => {
+  const future = new Date(Date.now() + 5 * 86400_000).toISOString();
+  const past = new Date(Date.now() - 3 * 3600_000).toISOString();
+  const setup = (over: Record<string, unknown>) => {
+    fake.db.matches = [{ id: 'r1', club_id: 'c1', team: 'U9', played_on: '2026-11-28', opponent: 'Икс', goals_for: null, goals_against: null, lifecycle_status: 'published', starts_at: future, ...over }];
+    fake.db.players = [{ id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'active' }];
+    fake.db.groups = [{ id: 'g1', name: 'U9', club_id: 'c1' }];
+    fake.db.match_players = [];
+    fake.db.match_invitations = [{ match_id: 'r1', player_id: 'p1', status: 'invited' }];
+    fake.db.points_rule_versions = [];
+    fake.rpc.match_rsvp_summary = () => [];
+    fake.rpc.match_rsvp_roster = () => [];
+  };
+  const sel = (n: string) => screen.getByRole('tab', { name: n }).getAttribute('aria-selected');
+
+  it('до начала открывается «Состав и ответы», переключение в обе стороны', async () => {
+    setup({});
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    await screen.findByRole('tablist', { name: 'Разделы матча' });
+    expect(sel('Состав и ответы')).toBe('true');
+    fireEvent.click(screen.getByRole('tab', { name: 'Результат' }));
+    expect(sel('Результат')).toBe('true');
+    await screen.findByRole('heading', { name: /Состав/ });
+    fireEvent.click(screen.getByRole('tab', { name: 'Состав и ответы' }));
+    expect(sel('Состав и ответы')).toBe('true');
+  });
+
+  it('после начала по умолчанию открывается «Результат»', async () => {
+    setup({ starts_at: past });
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    await screen.findByRole('tablist', { name: 'Разделы матча' });
+    expect(sel('Результат')).toBe('true');
+    expect(await screen.findByText('Иванов Пётр')).toBeInTheDocument();
+  });
+
+  it('несохранённые отметки не теряются при переключении разделов', async () => {
+    setup({ starts_at: past });
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    const row = (await screen.findByText('Иванов Пётр')).closest('li, div') as HTMLElement;
+    const box = within(row.parentElement as HTMLElement).getAllByRole('checkbox')[0] as HTMLInputElement;
+    const was = box.checked;
+    fireEvent.click(box);
+    fireEvent.click(screen.getByRole('tab', { name: 'Состав и ответы' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Результат' }));
+    const again = within((await screen.findByText('Иванов Пётр')).closest('li, div')!.parentElement as HTMLElement).getAllByRole('checkbox')[0] as HTMLInputElement;
+    expect(again.checked).toBe(!was);
+  });
+
+  it('черновик: в «Результате» пояснение вместо формы', async () => {
+    setup({ lifecycle_status: 'draft' });
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Результат' }));
+    expect(await screen.findByText(/Результат вносится после публикации/)).toBeInTheDocument();
+  });
+
+  it('отменённый матч: пояснение вместо формы', async () => {
+    setup({ lifecycle_status: 'cancelled' });
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Результат' }));
+    expect(await screen.findByText(/отменённый матч результата не имеет/)).toBeInTheDocument();
+  });
+
+  const rosterRows = [{ player_id: 'p1', full_name: 'Иванов Пётр', group_name: 'U9', status: 'invited', response: null, responded_by_name: null, responded_by_coach: false, responded_at: null, answer_until: null }];
+  const openTab = async (name: string) => { fireEvent.click(await screen.findByRole('tab', { name })); };
+
+  it('скрытый раздел недоступен: кнопки «Сохранить матч» нет, пока открыт «Состав и ответы»', async () => {
+    setup({});
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    await openTab('Результат');
+    await screen.findByRole('button', { name: 'Сохранить матч' });
+    expect(document.getElementById('hub-panel-roster')).toHaveAttribute('hidden');
+    await openTab('Состав и ответы');
+    expect(document.getElementById('hub-panel-result')).toHaveAttribute('hidden');
+    expect(screen.queryByRole('button', { name: 'Сохранить матч' })).toBeNull();
+  });
+
+  it('нативная кнопка Telegram «Сохранить матч» видна только в разделе «Результат»', async () => {
+    const app = { initData: 'x', themeParams: {}, MainButton: { setText: vi.fn(), show: vi.fn(), hide: vi.fn(), onClick: vi.fn(), offClick: vi.fn(), enable: vi.fn(), disable: vi.fn(), showProgress: vi.fn(), hideProgress: vi.fn(), setParams: vi.fn() } };
+    (window as unknown as { Telegram?: unknown }).Telegram = { WebApp: app };
+    try {
+      setup({});
+      render(<CoachMatches groups={groups} />);
+      fireEvent.click(await screen.findByText(/Икс/));
+      await openTab('Результат');
+      await waitFor(() => expect(app.MainButton.setText).toHaveBeenCalledWith('Сохранить матч'));
+      const showsInResult = app.MainButton.show.mock.calls.length;
+      app.MainButton.hide.mockClear();
+      await openTab('Состав и ответы');
+      await waitFor(() => expect(app.MainButton.hide).toHaveBeenCalled());
+      expect(app.MainButton.show.mock.calls.length).toBe(showsInResult);
+    } finally {
+      delete (window as unknown as { Telegram?: unknown }).Telegram;
+    }
+  });
+
+  it('статус матча из «Состава» доходит до «Результата»: отменили, и форма заменяется пояснением', async () => {
+    setup({});
+    fake.rpc.match_rsvp_roster = () => rosterRows;
+    fake.rpc.match_rsvp_remove = () => { (fake.db.matches[0] as Record<string, unknown>).lifecycle_status = 'cancelled'; return null; };
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    await openTab('Результат');
+    await screen.findByRole('button', { name: 'Сохранить матч' });
+    await openTab('Состав и ответы');
+    fireEvent.click(await screen.findByRole('button', { name: 'Убрать из состава: Иванов Пётр' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Убрать' }));
+    await waitFor(() => expect(fake.rpcCalls('match_rsvp_remove')).toHaveLength(1));
+    await openTab('Результат');
+    expect(await screen.findByText(/отменённый матч результата не имеет/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Сохранить матч' })).toBeNull();
+  });
+
+  it('смена данных в «Составе» не затирается при сохранении результата: форма перечитывается, save_match уходит со свежим соперником', async () => {
+    setup({});
+    fake.rpc.match_rsvp_roster = () => rosterRows;
+    fake.rpc.match_rsvp_remove = () => { (fake.db.matches[0] as Record<string, unknown>).opponent = 'Динамо'; return null; };
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    await openTab('Результат');
+    await screen.findByRole('button', { name: 'Сохранить матч' });
+    await openTab('Состав и ответы');
+    fireEvent.click(await screen.findByRole('button', { name: 'Убрать из состава: Иванов Пётр' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Убрать' }));
+    await waitFor(() => expect(fake.rpcCalls('match_rsvp_remove')).toHaveLength(1));
+    await openTab('Результат');
+    await waitFor(() => expect(screen.getByDisplayValue('Динамо')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить матч' }));
+    await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
+    expect(fake.rpcCalls('save_match')[0]).toMatchObject({ opp: 'Динамо' });
+  });
+
+  it('есть несохранённые отметки и «Состав» изменился: сохранение заблокировано до «Обновить форму»', async () => {
+    setup({});
+    fake.rpc.match_rsvp_roster = () => rosterRows;
+    fake.rpc.match_rsvp_remove = () => { (fake.db.matches[0] as Record<string, unknown>).opponent = 'Динамо'; return null; };
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    await openTab('Результат');
+    await screen.findByRole('button', { name: 'Сохранить матч' });
+    const box = screen.getAllByRole('checkbox').find(c => !(c as HTMLInputElement).checked && c.getAttribute('aria-label') !== 'Технический результат (матч не играли)') as HTMLElement;
+    fireEvent.click(box);
+    await openTab('Состав и ответы');
+    fireEvent.click(await screen.findByRole('button', { name: 'Убрать из состава: Иванов Пётр' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Убрать' }));
+    await waitFor(() => expect(fake.rpcCalls('match_rsvp_remove')).toHaveLength(1));
+    await openTab('Результат');
+    expect(await screen.findByText(/Сохранение отметок заблокировано/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить матч' }));
+    expect(await screen.findByText(/Данные матча изменились/)).toBeInTheDocument();
+    expect(fake.rpcCalls('save_match')).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: /Обновить форму/ }));
+    await waitFor(() => expect(screen.getByDisplayValue('Динамо')).toBeInTheDocument());
+    expect(screen.queryByText(/Сохранение отметок заблокировано/)).toBeNull();
+  });
+
+  it('бейдж «Матчи с подтверждением» считает только опубликованные будущие матчи', async () => {
+    fake.db.matches = [{ id: 'd1', team: 'U9', played_on: '2026-11-30', opponent: 'Черновик-соперник', goals_for: null, goals_against: null, lifecycle_status: 'draft', starts_at: future }];
+    fake.db.players = [];
+    fake.db.match_players = [];
+    render(<CoachMatches groups={groups} admin />);
+    await screen.findByText(/Черновик-соперник/);
+    fireEvent.click(screen.getByRole('button', { name: /^Ещё/ }));
+    expect(screen.getByRole('menuitem', { name: 'Матчи с подтверждением' })).toBeInTheDocument();
+  });
+
+  it('стрелки переключают разделы, у вкладок есть связь с панелями', async () => {
+    setup({});
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    const t1 = await screen.findByRole('tab', { name: 'Состав и ответы' });
+    expect(t1).toHaveAttribute('aria-controls', 'hub-panel-roster');
+    expect(screen.getByRole('tab', { name: 'Результат' })).toHaveAttribute('tabindex', '-1');
+    fireEvent.keyDown(t1, { key: 'ArrowRight' });
+    await waitFor(() => expect(sel('Результат')).toBe('true'));
+  });
+
+  it('матч без подтверждения: вкладок нет', async () => {
+    fake.db.matches = [{ id: 'm1', club_id: 'c1', team: 'U9', played_on: '2026-10-10', opponent: 'Олимп', goals_for: 3, goals_against: 1 }];
+    fake.db.players = [];
+    fake.db.groups = [{ id: 'g1', name: 'U9', club_id: 'c1' }];
+    fake.db.match_players = [];
+    fake.db.points_rule_versions = [];
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Олимп/));
+    await screen.findByRole('heading', { name: /Состав/ });
+    expect(screen.queryByRole('tablist')).toBeNull();
   });
 });
