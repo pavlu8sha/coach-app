@@ -1,3 +1,5 @@
+// @ts-expect-error в проекте нет типов node; vitest читает файлы напрямую
+import { readFileSync } from 'node:fs';
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import MatchResultRow from './MatchResultRow';
@@ -30,5 +32,14 @@ describe('строка результата матча (О1, О4, О5)', () => {
     const el = row({ kids: [{ status: 'not', rating: 3, best: true }] });
     expect(el).toHaveTextContent('Не играл');
     expect(el).not.toHaveTextContent('Лучший');
+  });
+});
+
+describe('плитки сводки: числа на одном уровне', () => {
+  it('плитка прижимает содержимое к верху, чтобы переносимая подпись не сдвигала число', () => {
+    const css: string = readFileSync('src/ui/kit.css', 'utf8');
+    const rule = css.split('\n').find(l => l.startsWith('.ks-mres-tiles .ks-tile {')) ?? '';
+    expect(rule).toContain('flex-direction: column-reverse');
+    expect(rule).toContain('justify-content: flex-end'); // в column-reverse это верх плитки
   });
 });
