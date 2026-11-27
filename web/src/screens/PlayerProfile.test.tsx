@@ -139,17 +139,18 @@ describe('профиль игрока: обзор и матчи', () => {
     expect(row('Локо')).toHaveClass('n');
   });
 
-  it('К2, О6: плитки «матчей команды / играл / голов» и побед, ничьих, поражений; форма В/Н/П', async () => {
+  it('К2, О6: плитки «матчей / играл / голов» и побед, ничьих, поражений; форма В/Н/П', async () => {
     fake.db.players = [anya];
     fake.db.match_players = [
       mp('m1', 'p1', true, 2, { played_on: '2026-10-10', opponent: 'А', goals_for: 3, goals_against: 1 }),
       mp('m3', 'p1', false, 0, { played_on: '2026-10-14', opponent: 'Б', goals_for: 0, goals_against: 2 }),
     ];
+    fake.db.match_players.push(mp('m6', 'p1', true, 0, { played_on: '2026-10-22', opponent: 'Без счёта' })); // сыгран, счёта нет: считается в «матчей» и «играл», не в итоги
     fake.db.matches = [{ id: 'm5', team: 'U10', played_on: '2026-10-20', opponent: 'В', goals_for: 2, goals_against: 2 }];
     await open('Матчи');
     const sum = screen.getByLabelText('Итоги ребёнка');
-    expect(within(sum).getByText('матчей команды').parentElement).toHaveTextContent('3');
-    expect(within(sum).getByText('играл').parentElement).toHaveTextContent('1');
+    expect(within(sum).getByText('матчей').parentElement).toHaveTextContent('4'); // не меньше, чем «играл»
+    expect(within(sum).getByText('играл').parentElement).toHaveTextContent('2');
     expect(within(sum).getByText('голов').parentElement).toHaveTextContent('2');
     const t = within(sum).getByRole('group', { name: 'Результаты матчей' });
     for (const k of ['побед', 'ничьих', 'поражений']) expect(within(t).getByText(k).parentElement).toHaveTextContent('1');
@@ -205,7 +206,7 @@ describe('профиль игрока: обзор и матчи', () => {
     expect(within(list).queryByText('А')).toBeNull();
     expect(within(list).getByText('Б')).toBeInTheDocument();
     const sum = within(list).getByLabelText('Итоги ребёнка');
-    expect(within(sum).getByText('матчей команды').parentElement).toHaveTextContent('1');
+    expect(within(sum).getByText('матчей').parentElement).toHaveTextContent('1');
     expect(within(sum).getByText('поражений').parentElement).toHaveTextContent('1');
     expect(within(sum).getByText('побед').parentElement).toHaveTextContent('0');
     fireEvent.click(within(list).getByRole('tab', { name: 'Играл' }));
@@ -265,6 +266,23 @@ describe('профиль игрока: обзор и матчи', () => {
     expect(screen.queryByLabelText('Турнир')).toBeNull();
     expect(screen.getByText('А')).toBeInTheDocument();
     expect(screen.queryByText('По выбранным условиям матчей нет')).toBeNull();
+  });
+
+  it('К7: верхние плитки не дублируют фильтр: «играл» только при «Все», «голов» не при «Не играл»', async () => {
+    fake.db.players = [anya];
+    fake.db.match_players = [
+      mp('m1', 'p1', true, 2, { played_on: '2026-10-10', opponent: 'А', goals_for: 3, goals_against: 1 }),
+      mp('m3', 'p1', false, 0, { played_on: '2026-10-14', opponent: 'Б', goals_for: 0, goals_against: 2 }),
+    ];
+    await open('Матчи');
+    const list = screen.getByRole('region', { name: 'Матчи' });
+    const sum = () => within(list).getByLabelText('Итоги ребёнка');
+    expect(['матчей', 'играл', 'голов'].map(t => within(sum()).queryByText(t) !== null)).toEqual([true, true, true]);
+    fireEvent.click(within(list).getByRole('tab', { name: 'Играл' }));
+    expect(['матчей', 'играл', 'голов'].map(t => within(sum()).queryByText(t) !== null)).toEqual([true, false, true]);
+    expect(within(sum()).getByText('голов').parentElement).toHaveTextContent('2');
+    fireEvent.click(within(list).getByRole('tab', { name: 'Не играл' }));
+    expect(['матчей', 'играл', 'голов'].map(t => within(sum()).queryByText(t) !== null)).toEqual([true, false, false]);
   });
 
   it('К4, К5: без записей об участии пустое состояние, плиток нет; обзор не меняется', async () => {
