@@ -2,7 +2,8 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { describe, expect, it } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import Matches from './Matches';
-import CoachRsvp from './CoachRsvp';
+import { RsvpDetail } from './CoachRsvp';
+import { CreateFlow, idOf } from '../test/rsvpHarness';
 
 window.scrollTo = (() => {}) as typeof window.scrollTo;
 const future = new Date(Date.now() + 5 * 86400000).toISOString();
@@ -287,8 +288,7 @@ describe('Тренер: матчи с подтверждением', () => {
     fake.db.clubs = [{ id: 'c1' }];
     fake.rpc.event_list = () => [];
     fake.rpc.match_rsvp_create_draft = () => 'new1';
-    render(<CoachRsvp groups={groups} onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Новый матч' }));
+    render(<CreateFlow groups={groups} onBack={() => {}} />);
     fireEvent.change(await screen.findByLabelText('Соперник'), { target: { value: 'Динамо' } });
     fireEvent.change(screen.getByLabelText('Дата и время (Тбилиси)'), { target: { value: '2026-11-20T11:00' } });
     fireEvent.click(screen.getByRole('button', { name: 'Создать черновик' }));
@@ -305,8 +305,7 @@ describe('Тренер: матчи с подтверждением', () => {
     fake.rpc.event_list = () => [];
     fake.rpc.match_rsvp_create_draft = () => 'new4';
     fake.rpc.match_rsvp_seed = () => ({ data: null, error: { message: 'forbidden' } });
-    render(<CoachRsvp groups={groups} onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Новый матч' }));
+    render(<CreateFlow groups={groups} onBack={() => {}} />);
     fireEvent.change(await screen.findByLabelText('Дата и время (Тбилиси)'), { target: { value: '2026-11-20T11:00' } });
     fireEvent.click(screen.getByRole('button', { name: 'Создать черновик' }));
     expect(await screen.findByText(/Черновик создан, но состав не добавлен: Нет доступа/)).toBeInTheDocument();
@@ -318,8 +317,7 @@ describe('Тренер: матчи с подтверждением', () => {
     fake.rpc.event_list = () => [];
     fake.rpc.match_rsvp_create_draft = () => 'new5';
     fake.rpc.match_rsvp_seed = () => 12;
-    render(<CoachRsvp groups={groups} onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Новый матч' }));
+    render(<CreateFlow groups={groups} onBack={() => {}} />);
     fireEvent.change(await screen.findByLabelText('Дата и время (Тбилиси)'), { target: { value: '2026-11-20T11:00' } });
     fireEvent.click(screen.getByRole('button', { name: 'Создать черновик' }));
     expect(await screen.findByText('Черновик создан, в состав добавлено игроков: 12')).toBeInTheDocument();
@@ -332,8 +330,7 @@ describe('Тренер: матчи с подтверждением', () => {
     fake.rpc.match_rsvp_create_draft = () => 'new2';
     fake.rpc.match_rsvp_seed = () => 3;
     const two = [{ id: 'g1', name: 'U9-A' }, { id: 'g2', name: 'U9-B' }] as any;
-    render(<CoachRsvp groups={two} onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Новый матч' }));
+    render(<CreateFlow groups={two} onBack={() => {}} />);
     const opts = [...screen.getByLabelText('Команда').querySelectorAll('option')].map(o => o.value);
     expect(opts).toEqual(['U9', 'U9-A', 'U9-B']);
     fireEvent.change(screen.getByLabelText('Команда'), { target: { value: 'U9-B' } });
@@ -350,8 +347,7 @@ describe('Тренер: матчи с подтверждением', () => {
     fake.rpc.match_rsvp_create_draft = () => 'new2';
     fake.rpc.match_rsvp_seed = () => 3;
     const two = [{ id: 'g1', name: 'U9-A' }, { id: 'g2', name: 'U9-B' }] as any;
-    render(<CoachRsvp groups={two} onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Новый матч' }));
+    render(<CreateFlow groups={two} onBack={() => {}} />);
     fireEvent.change(screen.getByLabelText('Дата и время (Тбилиси)'), { target: { value: '2026-11-20T11:00' } });
     fireEvent.click(screen.getByRole('button', { name: 'Создать черновик' }));
     await waitFor(() => expect(fake.rpcCalls('match_rsvp_seed')).toEqual([{ m: 'new2', p_group: 'g1' }, { m: 'new2', p_group: 'g2' }]));
@@ -364,8 +360,7 @@ describe('Тренер: матчи с подтверждением', () => {
     fake.rpc.event_list = () => [{ id: 'e1', team: 'U9', title: 'Кубок', kind: 'tournament', status: 'active' }];
     fake.rpc.match_rsvp_create_draft = () => 'new3';
     fake.rpc.match_rsvp_seed = () => 5;
-    render(<CoachRsvp groups={groups} onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Новый матч' }));
+    render(<CreateFlow groups={groups} onBack={() => {}} />);
     fireEvent.change(await screen.findByLabelText('Тип'), { target: { value: 'game' } });
     await waitFor(() => expect(screen.getByLabelText('Чемпионат или фестиваль').querySelectorAll('option').length).toBeGreaterThan(1));
     fireEvent.change(screen.getByLabelText('Чемпионат или фестиваль'), { target: { value: 'e1' } });
@@ -381,10 +376,9 @@ describe('Тренер: матчи с подтверждением', () => {
       fake.rpc.event_list = () => events;
       fake.rpc.match_rsvp_create_draft = () => 'newc';
       fake.rpc.match_rsvp_seed = () => 5;
-      return render(<CoachRsvp groups={g as any} onBack={() => {}} />);
+      return render(<CreateFlow groups={g as any} onBack={() => {}} />);
     };
     const pick = async (label: string) => {
-      fireEvent.click(await screen.findByRole('button', { name: 'Новый матч' }));
       fireEvent.change(await screen.findByLabelText('Тип'), { target: { value: 'game' } });
       await waitFor(() => expect(screen.getByLabelText('Чемпионат или фестиваль').querySelectorAll('option').length).toBeGreaterThan(1));
       fireEvent.change(screen.getByLabelText('Чемпионат или фестиваль'), { target: { value: label } });
@@ -412,7 +406,6 @@ describe('Тренер: матчи с подтверждением', () => {
         { id: 'e5', team: 'U13-A', kind: 'championship', name: 'Чужой', status: 'active' },
         { id: 'e6', team: 'U9', kind: 'festival', name: 'Старый', status: 'finished' },
       ], [{ id: 'g1', name: 'U9' }]);
-      fireEvent.click(await screen.findByRole('button', { name: 'Новый матч' }));
       fireEvent.change(await screen.findByLabelText('Тип'), { target: { value: 'game' } });
       await waitFor(() => expect(screen.getByLabelText('Чемпионат или фестиваль').querySelectorAll('option').length).toBe(2));
       expect(screen.getByRole('option', { name: 'Чемпионат · U9' })).toBeInTheDocument();
@@ -422,8 +415,7 @@ describe('Тренер: матчи с подтверждением', () => {
       fake.db.matches = [];
       fake.db.clubs = [{ id: 'c1' }];
       fake.rpc.event_list = () => [{ id: 'e5', team: 'U13-A', kind: 'championship', name: 'Чужой', status: 'active' }];
-      render(<CoachRsvp groups={[{ id: 'g1', name: 'U9' }] as any} all onBack={() => {}} />);
-      fireEvent.click(await screen.findByRole('button', { name: 'Новый матч' }));
+      render(<CreateFlow groups={[{ id: 'g1', name: 'U9' }] as any} all onBack={() => {}} />);
       fireEvent.change(await screen.findByLabelText('Тип'), { target: { value: 'game' } });
       await waitFor(() => expect(screen.getByLabelText('Чемпионат или фестиваль').querySelectorAll('option').length).toBe(2));
     });
@@ -436,8 +428,7 @@ describe('Тренер: матчи с подтверждением', () => {
       { player_id: 'p1', full_name: 'Иванов Пётр', group_name: 'U9', status: 'invited', response: 'yes', responded_by_name: 'Мама', responded_by_coach: false, responded_at: null, answer_until: future },
       { player_id: 'p2', full_name: 'Сидоров Иван', group_name: 'U9', status: 'invited', response: null, responded_by_name: null, responded_by_coach: false, responded_at: null, answer_until: future },
     ];
-    render(<CoachRsvp groups={groups} onBack={() => {}} />);
-    fireEvent.click(await screen.findByText('U9 · Олимп'));
+    render(<RsvpDetail id={idOf('U9 · Олимп')} groups={groups} onBack={() => {}} />);
     const sum = await screen.findByLabelText('Сводка ответов');
     expect(within(sum).getByText(/Приглашено: 2 · Будут: 1 · Не будут: 0 · Не ответили: 1/)).toBeInTheDocument();
     fireEvent.click(await screen.findByRole('button', { name: 'Сидоров Иван: Не будет' }));
@@ -449,8 +440,7 @@ describe('Тренер: матчи с подтверждением', () => {
     fake.rpc.match_rsvp_summary = () => [{ invited: 1, yes: 0, no: 0, unanswered: 1, reminders: 0, last_reminder_at: null }];
     fake.rpc.match_rsvp_roster = () => [];
     fake.rpc.match_rsvp_remind_unanswered = () => [{ queued: 1, skipped: 0 }];
-    render(<CoachRsvp groups={groups} onBack={() => {}} />);
-    fireEvent.click(await screen.findByText('U9 · Олимп'));
+    render(<RsvpDetail id={idOf('U9 · Олимп')} groups={groups} onBack={() => {}} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Напомнить не ответившим' }));
     expect(fake.rpcCalls('match_rsvp_remind_unanswered')).toHaveLength(0);
     fireEvent.click(await screen.findByRole('button', { name: 'Напомнить' }));
@@ -464,8 +454,7 @@ describe('Тренер: матчи с подтверждением', () => {
     { player_id: 'p9', full_name: 'Убранный Игрок', group_name: 'U9', status: 'removed', response: null, responded_by_name: null, responded_by_coach: false, responded_at: null, answer_until: future },
   ];
   const openMatch = async () => {
-    render(<CoachRsvp groups={groups} onBack={() => {}} />);
-    fireEvent.click(await screen.findByText('U9 · Олимп'));
+    render(<RsvpDetail id={idOf('U9 · Олимп')} groups={groups} onBack={() => {}} />);
   };
 
   it('правка данных матча отправляет только изменённые поля', async () => {
@@ -532,8 +521,7 @@ describe('Тренер: матчи с подтверждением', () => {
     fake.db.matches = [matchRow({ starts_at: started })];
     fake.rpc.match_rsvp_summary = () => [{ invited: 1, yes: 0, no: 0, unanswered: 1, reminders: 0, last_reminder_at: null }];
     fake.rpc.match_rsvp_roster = () => rosterRows;
-    render(<CoachRsvp groups={groups} admin onBack={() => {}} />);
-    fireEvent.click(await screen.findByText('U9 · Олимп'));
+    render(<RsvpDetail id={idOf('U9 · Олимп')} groups={groups} admin onBack={() => {}} />);
     expect(await screen.findByRole('button', { name: 'Отменить матч' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Перенести матч' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Напомнить не ответившим' })).toBeNull();
@@ -559,8 +547,7 @@ describe('Тренер: матчи с подтверждением', () => {
     fake.db.matches = [matchRow()];
     fake.rpc.match_rsvp_summary = () => [{ invited: 1, yes: 0, no: 0, unanswered: 1, reminders: 0, last_reminder_at: null }];
     fake.rpc.match_rsvp_roster = () => rosterRows;
-    render(<CoachRsvp groups={groups} admin onBack={() => {}} />);
-    fireEvent.click(await screen.findByText('U9 · Олимп'));
+    render(<RsvpDetail id={idOf('U9 · Олимп')} groups={groups} admin onBack={() => {}} />);
     expect(await screen.findByRole('button', { name: 'Перенести матч' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Отменить матч' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Изменить данные матча' }));
@@ -572,8 +559,7 @@ describe('Тренер: матчи с подтверждением', () => {
     fake.rpc.match_rsvp_summary = () => [{ invited: 1, yes: 0, no: 0, unanswered: 1, reminders: 0, last_reminder_at: null }];
     fake.rpc.match_rsvp_roster = () => rosterRows;
     fake.rpc.match_rsvp_cancel = () => ({ data: null, error: { message: 'only admin can cancel or reschedule' } });
-    render(<CoachRsvp groups={groups} admin onBack={() => {}} />);
-    fireEvent.click(await screen.findByText('U9 · Олимп'));
+    render(<RsvpDetail id={idOf('U9 · Олимп')} groups={groups} admin onBack={() => {}} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Отменить матч' }));
     const btns = await screen.findAllByRole('button', { name: 'Отменить матч' });
     fireEvent.click(btns[btns.length - 1]);

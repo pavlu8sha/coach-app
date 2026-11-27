@@ -15,7 +15,7 @@ interface Summary { invited: number; yes: number; no: number; unanswered: number
 interface RosterRow { player_id: string; full_name: string; group_name: string | null; status: string; response: RsvpResponse | null; responded_by_name: string | null; responded_by_coach: boolean; responded_at: string | null; answer_until: string | null }
 
 const COLS = 'id, team, opponent, starts_at, lifecycle_status, kind, venue, address, notes, tournament_id';
-type Note = { ok: boolean; text: string };
+export type Note = { ok: boolean; text: string };
 const TONE: Record<Lifecycle, 'success' | 'warning' | 'danger' | 'neutral'> = { published: 'success', draft: 'warning', cancelled: 'danger', legacy: 'neutral' };
 const title = (m: RsvpMatch) => (m.opponent ? `${m.team} · ${m.opponent}` : `${m.team} · соперник не указан`);
 
@@ -61,45 +61,11 @@ function BlockError({ title, text, onRetry, label = 'Повторить' }: { ti
 }
 
 /**
- * «Матчи с подтверждением» для тренера и администратора: список, создание черновика, состав приглашённых, публикация,
- * напоминания, отмена и перенос. Все правила (кто может, сроки, лимит напоминаний) проверяет база; здесь только вызовы.
- * Старые матчи (без подтверждения) сюда не попадают и работают как раньше.
+ * Создание матча с подтверждением (черновик + состав). После создания родитель-экран открывает единый экран матча
+ * («Состав и ответы» и «Результат», CoachMatches); отдельного списка «Матчи с подтверждением» больше нет (PR 3).
+ * Все правила (кто может, сроки, лимит напоминаний) проверяет база; здесь только вызовы.
  */
-export default function CoachRsvp({ groups, all = false, admin = false, onBack }: { groups: CoachGroup[]; all?: boolean; admin?: boolean; onBack: () => void }) {
-  const [list, setList] = useState<RsvpMatch[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [reload, setReload] = useState(0);
-  // «Новый матч» и карточка матча — записи стека; сообщение после создания держим локально (не сохраняется)
-  const nav = useNav();
-  const [createdNote, setCreatedNote] = useState<Note | undefined>(undefined);
-  useEffect(() => {
-    void (async () => {
-      const r = await supabase.from('matches').select(COLS).neq('lifecycle_status', 'legacy').order('starts_at', { ascending: false });
-      if (r.error) return setError(errMsg(r.error));
-      setList((r.data ?? []) as RsvpMatch[]);
-    })();
-  }, [reload]);
-  const back = () => { nav.back(); setCreatedNote(undefined); setReload(n => n + 1); };
-  const topId = nav.top.params.id;
-  if (nav.top.screen === 'rsvp.detail' && topId) return <RsvpDetail id={topId} groups={groups} admin={admin} onBack={back} note={createdNote} />;
-  if (nav.top.screen === 'rsvp.create') return <RsvpCreate groups={groups} all={all} onBack={back} onCreated={(id, note) => { nav.back(); setCreatedNote(note); nav.push('rsvp.detail', { id }); }} />;
-  if (error) return <Failure title="Не удалось загрузить матчи" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} managed />} />;
-  if (!list) return <Loading />;
-  return (
-    <main className="page">
-      <BackNav onBack={onBack} managed />
-      <h1>Матчи с подтверждением</h1>
-      <button type="button" className="ks-btn" onClick={() => nav.push('rsvp.create')}>Новый матч</button>
-      <div style={{ height: 12 }} />
-      {list.length === 0 && <p className="muted">Пока нет матчей с подтверждением участия.</p>}
-      {list.map(m => (
-        <ListRow key={m.id} title={title(m)} sub={[m.starts_at ? fmtWhen(m.starts_at) : '']} end={<Pill tone={TONE[m.lifecycle_status]}>{LIFECYCLE_LABEL[m.lifecycle_status]}</Pill>} onClick={() => { setCreatedNote(undefined); nav.push('rsvp.detail', { id: m.id }); }} />
-      ))}
-    </main>
-  );
-}
-
-function RsvpCreate({ groups, all, onBack, onCreated }: { groups: CoachGroup[]; all: boolean; onBack: () => void; onCreated: (id: string, note: Note) => void }) {
+export function RsvpCreate({ groups, all, onBack, onCreated }: { groups: CoachGroup[]; all: boolean; onBack: () => void; onCreated: (id: string, note: Note) => void }) {
   // команда матча: «U13» (все группы возраста) или группа «U13-A», «U13-B» (как в «Добавить матч», миграция 0193)
   const names = groups.map(g => g.name).filter(playsMatches);
   const teams = [...new Set([...names.map(matchTeam), ...names.filter(n => /-[A-Z]$/.test(n))])].sort(compareGroups);

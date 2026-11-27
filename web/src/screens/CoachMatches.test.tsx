@@ -700,7 +700,7 @@ describe('«Новое событие»', () => {
     fireEvent.click(await screen.findByRole('button', { name: '+ Матч' }));
     fireEvent.click(screen.getByRole('checkbox', { name: 'Матч уже сыгран, ввести результат' }));
     expect(screen.getByText(/Чемпионаты и фестивали создаёт администратор/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /^Ещё/ }));
+    expect(screen.queryByRole('button', { name: /^Ещё/ })).toBeNull(); // у тренера меню «⋯» нет, «Новое событие» недоступно
     expect(screen.queryByRole('menuitem', { name: 'Новое событие' })).toBeNull();
     expect(fake.rpcCalls('event_create')).toHaveLength(0);
   });
@@ -1047,7 +1047,7 @@ describe('«Матчи» тренера и матчи с подтвержден�
     fireEvent.click(await screen.findByText(/Начавшийся-соперник/));
     expect(await screen.findByLabelText('Дата')).toBeDisabled();
     expect(screen.getByPlaceholderText('Название команды')).toBeDisabled();
-    expect(screen.getByText(/меняются в разделе «Матчи с подтверждением»/)).toBeInTheDocument();
+    expect(screen.getByText(/меняются в разделе «Состав и ответы»/)).toBeInTheDocument();
   });
 });
 
@@ -1089,7 +1089,32 @@ describe('«Матчи»: «+ Матч» в шапке и меню «⋯»', () 
     expect(await screen.findByRole('heading', { name: 'Новый матч' })).toBeInTheDocument();
   });
 
-  it('меню «⋯»: администратор видит оба пункта, пункт открывает экран и закрывает меню', async () => {
+  it('после создания матча открывается единый экран «Состав и ответы» с сообщением, «Назад» ведёт в список (PR 3)', async () => {
+    seed();
+    fake.db.clubs = [{ id: 'c1' }];
+    fake.rpc.event_list = () => [];
+    fake.rpc.match_rsvp_summary = () => [{ invited: 0, yes: 0, no: 0, unanswered: 0, reminders: 0, last_reminder_at: null }];
+    fake.rpc.match_rsvp_roster = () => [];
+    fake.rpc.match_rsvp_seed = () => 7;
+    fake.rpc.match_rsvp_create_draft = () => {
+      fake.db.matches.push({ id: 'new1', team: 'U9', played_on: '2099-01-01', opponent: 'Новый-соперник', goals_for: null, goals_against: null, lifecycle_status: 'draft', starts_at: future, kind: 'friendly', venue: null, address: null, notes: null, tournament_id: null });
+      return 'new1';
+    };
+    render(<CoachMatches groups={groups} admin />);
+    fireEvent.click(await screen.findByRole('button', { name: '+ Матч' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать матч с подтверждением' }));
+    fireEvent.change(await screen.findByLabelText('Соперник'), { target: { value: 'Новый-соперник' } });
+    fireEvent.change(screen.getByLabelText('Дата и время (Тбилиси)'), { target: { value: '2099-01-01T11:00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Создать черновик' }));
+    expect(await screen.findByText('Черновик создан, в состав добавлено игроков: 7')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Состав и ответы' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Результат' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Назад/ }));
+    expect(await screen.findByText(/Новый-соперник/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '+ Матч' })).toBeInTheDocument();
+  });
+
+  it('меню «⋯»: у администратора только «Новое событие», пункт открывает экран и закрывает меню (PR 3)', async () => {
     seed();
     render(<CoachMatches groups={groups} admin />);
     const more = await screen.findByRole('button', { name: 'Ещё' });
@@ -1098,38 +1123,34 @@ describe('«Матчи»: «+ Матч» в шапке и меню «⋯»', () 
     fireEvent.click(more);
     expect(more).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('menuitem', { name: 'Новое событие' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Матчи с подтверждением' }));
+    expect(screen.queryByRole('menuitem', { name: /Матчи с подтверждением/ })).toBeNull();
+    expect(screen.getAllByRole('menuitem')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Новое событие' }));
     expect(screen.queryByRole('menu')).toBeNull();
-    expect(screen.queryByRole('button', { name: '+ Матч' })).toBeNull(); // открылся экран подтверждения
+    expect(screen.queryByRole('button', { name: '+ Матч' })).toBeNull(); // открылась форма события
   });
 
-  it('тренер видит в меню только «Матчи с подтверждением»', async () => {
+  it('у тренера меню «⋯» нет совсем: раздела «Матчи с подтверждением» больше нет (PR 3)', async () => {
     seed();
     render(<CoachMatches groups={groups} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Ещё' }));
-    expect(screen.queryByRole('menuitem', { name: 'Новое событие' })).toBeNull();
-    expect(screen.getByRole('menuitem', { name: 'Матчи с подтверждением' })).toBeInTheDocument();
+    await screen.findByRole('button', { name: '+ Матч' });
+    expect(screen.queryByRole('button', { name: /^Ещё/ })).toBeNull();
+    expect(screen.queryByText(/Матчи с подтверждением/)).toBeNull();
   });
 
-  it('счётчик: предстоящие опубликованные матчи с подтверждением из загруженных данных', async () => {
+  it('предстоящие матчи не дают бейдж на «⋯» и пункта меню: матчи видны в общем списке', async () => {
     seed();
     fake.db.matches.push(rsvp('r1'), rsvp('r2'), rsvp('r3', { starts_at: '2020-01-01T10:00:00Z' }));
-    render(<CoachMatches groups={groups} />);
-    const more = await screen.findByRole('button', { name: 'Ещё, 2' });
-    fireEvent.click(more);
-    expect(screen.getByRole('menuitem', { name: 'Матчи с подтверждением · 2' })).toBeInTheDocument();
-  });
-
-  it('без предстоящих счётчика нет', async () => {
-    seed();
-    render(<CoachMatches groups={groups} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Ещё' }));
-    expect(screen.getByRole('menuitem', { name: 'Матчи с подтверждением' })).toBeInTheDocument();
+    render(<CoachMatches groups={groups} admin />);
+    await screen.findAllByText(/Икс/);
+    expect(screen.queryByRole('button', { name: /^Ещё, \d/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Ещё' }));
+    expect(screen.queryByRole('menuitem', { name: /Матчи с подтверждением/ })).toBeNull();
   });
 
   it('Esc, клик вне и повторный клик закрывают меню; фокус возвращается на «⋯»', async () => {
     seed();
-    render(<CoachMatches groups={groups} />);
+    render(<CoachMatches groups={groups} admin />);
     const more = await screen.findByRole('button', { name: 'Ещё' });
     more.focus();
     fireEvent.click(more);
@@ -1146,7 +1167,7 @@ describe('«Матчи»: «+ Матч» в шапке и меню «⋯»', () 
 
   it('клик и касание вне меню закрывают его, фокус остаётся на нажатом элементе, а не уходит на «⋯»', async () => {
     seed();
-    render(<CoachMatches groups={groups} />);
+    render(<CoachMatches groups={groups} admin />);
     const more = await screen.findByRole('button', { name: 'Ещё' });
     const add = screen.getByRole('button', { name: '+ Матч' });
     fireEvent.click(more);
@@ -1475,14 +1496,16 @@ describe('Единый экран матча с подтверждением', (
     expect(screen.queryByText(/Сохранение отметок заблокировано/)).toBeNull();
   });
 
-  it('бейдж «Матчи с подтверждением» считает только опубликованные будущие матчи', async () => {
+  it('черновик виден в общем списке с пометкой, без пункта меню и бейджа', async () => {
     fake.db.matches = [{ id: 'd1', team: 'U9', played_on: '2026-11-30', opponent: 'Черновик-соперник', goals_for: null, goals_against: null, lifecycle_status: 'draft', starts_at: future }];
     fake.db.players = [];
     fake.db.match_players = [];
     render(<CoachMatches groups={groups} admin />);
     await screen.findByText(/Черновик-соперник/);
+    expect(screen.getByText('Черновик')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Ещё, \d/ })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /^Ещё/ }));
-    expect(screen.getByRole('menuitem', { name: 'Матчи с подтверждением' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Матчи с подтверждением/ })).toBeNull();
   });
 
   it('стрелки переключают разделы, у вкладок есть связь с панелями', async () => {
