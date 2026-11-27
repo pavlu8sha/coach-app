@@ -1484,6 +1484,47 @@ describe('Единый экран матча с подтверждением', (
     await waitFor(() => expect(sel('Результат')).toBe('true'));
   });
 
+  it('после начала в «Составе» нет поиска и «Убрать», есть пояснение и переход в «Результат»; добавление игрока идёт в «Результате»', async () => {
+    setup({ starts_at: past });
+    fake.db.players = [{ id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'active' }, { id: 'p5', full_name: 'Кузнецов Лев', group_id: 'g1', status: 'active' }];
+    fake.rpc.match_rsvp_roster = () => rosterRows;
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    await screen.findByRole('button', { name: 'Сохранить матч' });
+    await openTab('Состав и ответы');
+    expect(await screen.findByText(/Матч начался: приглашения больше не меняются/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Убрать из состава/ })).toBeNull();
+    expect(screen.queryByLabelText('Добавить игрока в состав')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Перейти к результату' }));
+    await waitFor(() => expect(sel('Результат')).toBe('true'));
+    fireEvent.change(screen.getByLabelText('Найти игрока'), { target: { value: 'Кузн' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Добавить' }));
+    expect(await screen.findByText('Кузнецов Лев')).toBeInTheDocument();
+    expect(fake.rpcCalls('match_rsvp_invite')).toHaveLength(0);
+  });
+
+  it('тренер в едином экране не видит «Отменить матч»; администратор видит', async () => {
+    setup({});
+    const { unmount } = render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    await screen.findByText(/Перенос и отмену матча выполняет администратор/);
+    expect(screen.queryByRole('button', { name: 'Отменить матч' })).toBeNull();
+    unmount();
+    render(<CoachMatches groups={groups} admin />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    expect(await screen.findByRole('button', { name: 'Отменить матч' })).toBeInTheDocument();
+  });
+
+  it('ошибка «матч отменён» при сохранении результата показывается по-русски', async () => {
+    setup({});
+    fake.rpc.save_match = () => ({ data: null, error: { message: 'match is cancelled' } });
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    await openTab('Результат');
+    fireEvent.click(await screen.findByRole('button', { name: 'Сохранить матч' }));
+    expect(await screen.findByText(/Матч отменён: результат не вносится/)).toBeInTheDocument();
+  });
+
   it('матч без подтверждения: вкладок нет', async () => {
     fake.db.matches = [{ id: 'm1', club_id: 'c1', team: 'U9', played_on: '2026-10-10', opponent: 'Олимп', goals_for: 3, goals_against: 1 }];
     fake.db.players = [];

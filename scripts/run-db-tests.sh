@@ -141,6 +141,8 @@ preflight_0225_state "save_match_team без pg_temp в search_path" "alter func
 preflight_0225_state "save_match_team доступна anon" "grant execute on function public.save_match_team(text,date,text,integer,integer,jsonb) to anon"
 # 0226 (взнос за матч с подтверждением) пересоздаёт функции матчей с подтверждением: на базе без неё колонки matches.fee нет, preflight не падает (information_schema, to_regprocedure), строка 0226 даёт NOT_APPLIED.
 preflight_partial "без 0226" '0226_match_rsvp_fee' 0226_match_rsvp_fee
+# 0227 (единый экран матча, PR 2) пересоздаёт match_rsvp_cancel/reschedule/update и save_match: на базе без неё функции есть со старыми телами, строка 0227 даёт NOT_APPLIED.
+preflight_partial "без 0227" '0227_match_unified_pr2' 0227_match_unified_pr2
 for t in db/tests/*_test.sql; do
   echo "== $t"
   out=$($PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f "$t" 2>&1) || { echo "$out"; fail=1; continue; }

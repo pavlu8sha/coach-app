@@ -6,14 +6,14 @@ DB="${DB_NAME:-kickstart_test}"
 PSQL="${PSQL:-psql}"
 q() { $PSQL -q -v ON_ERROR_STOP=1 -t -A -d "$DB" "$@"; }
 as() { printf "select set_config('role','authenticated',false), set_config('request.jwt.claims', json_build_object('sub','%s','role','authenticated')::text, false);\n" "$1"; }
-CL=00000000-0000-0000-0000-00000000c0f1; CO=00000000-0000-0000-0000-0000000000f1
+CL=00000000-0000-0000-0000-00000000c0f1; CO=00000000-0000-0000-0000-0000000000f1; AD=00000000-0000-0000-0000-0000000000f9
 P1=00000000-0000-0000-0000-0000000000f2; P2=00000000-0000-0000-0000-0000000000f3
 PL=00000000-0000-0000-0000-00000000f001; GR=00000000-0000-0000-0000-0000000000f4
 fail=0; ok() { echo "ok - $1"; }; bad() { echo "not ok - $1"; fail=1; }
 
 q <<SQL
 insert into clubs (id, name) values ('$CL', 'Конкурентность');
-insert into users (id, telegram_id, display_name, is_admin) values ('$CO', 990001, 'Тренер', false), ('$P1', 990002, 'Родитель 1', false), ('$P2', 990003, 'Родитель 2', false);
+insert into users (id, telegram_id, display_name, is_admin) values ('$CO', 990001, 'Тренер', false), ('$AD', 990004, 'Админ', true), ('$P1', 990002, 'Родитель 1', false), ('$P2', 990003, 'Родитель 2', false);
 insert into groups (id, club_id, name) values ('$GR', '$CL', 'UC');
 insert into coach_groups (user_id, group_id) values ('$CO', '$GR');
 insert into players (id, club_id, group_id, full_name) values ('$PL', '$CL', '$GR', 'Игрок Конкурентный');
@@ -37,7 +37,7 @@ state=$(q -c "select response || ':' || (responded_by = '$P1' and response = 'ye
 case "$state" in yes:true|no:true) ok "ответ и автор согласованы ($state)";; *) bad "ответ и автор согласованы ($state)";; esac
 
 # 2. Ответ родителя против переноса: перенос держит блокировку матча, ответ ждёт и после переноса записывается уже в новом состоянии
-{ as "$CO"; echo "begin; select match_rsvp_reschedule('$M', now() + interval '8 days'); select pg_sleep(2); commit;"; } | $PSQL -q -v ON_ERROR_STOP=1 -d "$DB" >/dev/null & R=$!
+{ as "$AD"; echo "begin; select match_rsvp_reschedule('$M', now() + interval '8 days'); select pg_sleep(2); commit;"; } | $PSQL -q -v ON_ERROR_STOP=1 -d "$DB" >/dev/null & R=$!
 sleep 0.7
 t0=$(date +%s.%N)
 { as "$P1"; echo "select match_rsvp_answer('$M', '$PL', 'yes');"; } | $PSQL -q -v ON_ERROR_STOP=1 -d "$DB" >/dev/null
@@ -48,7 +48,7 @@ st=$(q -c "select response || ':' || (select rescheduled_count from matches wher
 [ "$st" = "yes:1" ] && ok "итог: перенос применён, ответ записан после него ($st)" || bad "итог переноса и ответа ($st)"
 
 # 3. Ответ против отмены: отмена идёт первой, ответ после неё отклоняется, состояние не повреждено
-{ as "$CO"; echo "begin; select match_rsvp_cancel('$M', 'тест'); select pg_sleep(2); commit;"; } | $PSQL -q -v ON_ERROR_STOP=1 -d "$DB" >/dev/null & R=$!
+{ as "$AD"; echo "begin; select match_rsvp_cancel('$M', 'тест'); select pg_sleep(2); commit;"; } | $PSQL -q -v ON_ERROR_STOP=1 -d "$DB" >/dev/null & R=$!
 sleep 0.7
 if { as "$P2"; echo "select match_rsvp_answer('$M', '$PL', 'no');"; } | $PSQL -q -v ON_ERROR_STOP=1 -d "$DB" >/dev/null 2>&1; then bad "ответ после отмены отклонён"; else ok "ответ после отмены отклонён"; fi
 wait $R

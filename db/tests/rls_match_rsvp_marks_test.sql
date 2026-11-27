@@ -7,7 +7,8 @@ insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'К
 insert into users (id, telegram_id, display_name, is_admin) values
   ('00000000-0000-0000-0000-0000000000c1', 7601, 'Тренер А', false),
   ('00000000-0000-0000-0000-0000000000c2', 7602, 'Тренер Б', false),
-  ('00000000-0000-0000-0000-0000000000b1', 7603, 'Родитель', false);
+  ('00000000-0000-0000-0000-0000000000b1', 7603, 'Родитель', false),
+  ('00000000-0000-0000-0000-0000000000a1', 7604, 'Админ', true);
 insert into groups (id, club_id, name) values
   ('00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-00000000c001', 'U9'),
   ('00000000-0000-0000-0000-0000000000e9', '00000000-0000-0000-0000-00000000c002', 'U9');
@@ -62,7 +63,9 @@ select is((select count(*)::int from points_ledger where source_id = mid('m') an
 
 -- перенос матча без отметок: снимка нет
 select as_user('00000000-0000-0000-0000-0000000000c1');
+select as_user('00000000-0000-0000-0000-0000000000a1');
 select lives_ok($$select match_rsvp_reschedule(mid('n'), now() + interval '6 days')$$, 'перенос матча без отметок');
+select as_user('00000000-0000-0000-0000-0000000000c1');
 reset role;
 select is((select count(*)::int from match_mark_snapshots where match_id = mid('n')), 0, 'снимок не создаётся, если отмечать было нечего');
 
@@ -70,7 +73,9 @@ select is((select count(*)::int from match_mark_snapshots where match_id = mid('
 select as_user('00000000-0000-0000-0000-0000000000b1');
 select throws_ok($$select match_rsvp_restore_marks('00000000-0000-0000-0000-000000000000')$$, '42501', 'forbidden', 'родитель снимки не использует');
 select as_user('00000000-0000-0000-0000-0000000000c1');
+select as_user('00000000-0000-0000-0000-0000000000a1');
 select lives_ok($$select match_rsvp_reschedule(mid('m'), now() + interval '8 days')$$, 'перенос матча с отметками');
+select as_user('00000000-0000-0000-0000-0000000000c1');
 reset role;
 select is((select count(*)::int from match_mark_snapshots where match_id = mid('m')), 1, 'снимок создан');
 select is((select jsonb_array_length(players) from match_mark_snapshots where match_id = mid('m')), 3, 'в снимке все строки состава');

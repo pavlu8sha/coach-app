@@ -6,6 +6,7 @@ select plan(21);
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб А');
 insert into users (id, telegram_id, display_name, is_admin) values
   ('00000000-0000-0000-0000-0000000000c1', 7002, 'Тренер', false),
+  ('00000000-0000-0000-0000-0000000000a1', 7099, 'Админ', true),
   ('00000000-0000-0000-0000-0000000000b1', 7004, 'Родитель 1', false),
   ('00000000-0000-0000-0000-0000000000b2', 7005, 'Родитель 2', false);
 insert into groups (id, club_id, name) values ('00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-00000000c001', 'U9');
@@ -63,15 +64,17 @@ select match_rsvp_update(mid('m1'), '{"venue": "Новый стадион"}'::js
 reset role; set constraints all immediate; set constraints all deferred;
 select is((select count(*)::int from notifications), 0, 'правка без реальных изменений сообщений не создаёт');
 -- время того же дня
-select as_user('00000000-0000-0000-0000-0000000000c1');
+select as_user('00000000-0000-0000-0000-0000000000a1');
 select match_rsvp_update(mid('m1'), jsonb_build_object('starts_at', (select starts_at + interval '1 hour' from matches where id = mid('m1'))));
+select as_user('00000000-0000-0000-0000-0000000000c1');
 reset role; set constraints all immediate; set constraints all deferred;
 select ok((select bool_and(text like '%▸ Время:%') from notifications where kind = 'rsvp_update') and (select count(*) from notifications where kind = 'rsvp_update') = 2, 'смена времени: уведомление с прежним и новым временем');
 delete from notifications;
 
 -- ---------- перенос не даёт «изменения данных» ----------
-select as_user('00000000-0000-0000-0000-0000000000c1');
+select as_user('00000000-0000-0000-0000-0000000000a1');
 select match_rsvp_reschedule(mid('m1'), now() + interval '9 days', 'Третий стадион', null);
+select as_user('00000000-0000-0000-0000-0000000000c1');
 reset role; set constraints all immediate; set constraints all deferred;
 select is((select count(*)::int from notifications where kind = 'rsvp_update'), 0, 'перенос даёт только сообщение о переносе');
 select is((select count(*)::int from notifications where kind = 'rsvp_reschedule'), 2, 'сообщение о переносе каждому родителю');
@@ -105,8 +108,9 @@ select match_rsvp_update(mid('m2'), '{"venue": "Где-то"}'::jsonb);
 select match_rsvp_remove(mid('m2'), array['00000000-0000-0000-0000-00000000d001']::uuid[]);
 reset role; set constraints all immediate; set constraints all deferred;
 select is((select count(*)::int from notifications), 0, 'черновик: ни приглашений, ни изменений, ни исключений в сообщениях нет');
-select as_user('00000000-0000-0000-0000-0000000000c1');
+select as_user('00000000-0000-0000-0000-0000000000a1');
 select match_rsvp_cancel(mid('m1'), 'Дождь');
+select as_user('00000000-0000-0000-0000-0000000000c1');
 reset role; set constraints all immediate; set constraints all deferred;
 select is((select count(*)::int from notifications where kind = 'rsvp_cancel'), 2, 'отмена как прежде: по сообщению родителям');
 

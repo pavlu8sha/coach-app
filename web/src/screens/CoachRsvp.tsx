@@ -3,6 +3,7 @@ import { compareGroups, matchTeam, playsMatches, type CoachGroup, errMsg } from 
 import { FILTER_LABEL, LIFECYCLE_LABEL, activityLine, feeAllowed, feeText, fmtWhen, parseFee, matchesFilter, fromTbilisiLocal, responseText, rsvpError, toTbilisiLocal, type Lifecycle, type RsvpResponse, type SummaryFilter } from '../lib/matchRsvp';
 import { supabase } from '../lib/supabase';
 import { Pill, ListRow } from '../ui/components';
+import { PlayerSearch } from '../ui/PlayerSearch';
 import { useNav } from '../nav';
 import { BackNav } from '../ui/nav';
 import { useConfirm } from '../ui/ConfirmSheet';
@@ -64,7 +65,7 @@ function BlockError({ title, text, onRetry, label = 'Повторить' }: { ti
  * напоминания, отмена и перенос. Все правила (кто может, сроки, лимит напоминаний) проверяет база; здесь только вызовы.
  * Старые матчи (без подтверждения) сюда не попадают и работают как раньше.
  */
-export default function CoachRsvp({ groups, all = false, onBack }: { groups: CoachGroup[]; all?: boolean; onBack: () => void }) {
+export default function CoachRsvp({ groups, all = false, admin = false, onBack }: { groups: CoachGroup[]; all?: boolean; admin?: boolean; onBack: () => void }) {
   const [list, setList] = useState<RsvpMatch[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -80,7 +81,7 @@ export default function CoachRsvp({ groups, all = false, onBack }: { groups: Coa
   }, [reload]);
   const back = () => { nav.back(); setCreatedNote(undefined); setReload(n => n + 1); };
   const topId = nav.top.params.id;
-  if (nav.top.screen === 'rsvp.detail' && topId) return <RsvpDetail id={topId} groups={groups} onBack={back} note={createdNote} />;
+  if (nav.top.screen === 'rsvp.detail' && topId) return <RsvpDetail id={topId} groups={groups} admin={admin} onBack={back} note={createdNote} />;
   if (nav.top.screen === 'rsvp.create') return <RsvpCreate groups={groups} all={all} onBack={back} onCreated={(id, note) => { nav.back(); setCreatedNote(note); nav.push('rsvp.detail', { id }); }} />;
   if (error) return <Failure title="Не удалось загрузить матчи" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={<BackNav onBack={onBack} managed />} />;
   if (!list) return <Loading />;
@@ -214,7 +215,7 @@ function RsvpCreate({ groups, all, onBack, onCreated }: { groups: CoachGroup[]; 
 }
 
 // embedded: экран внутри единого экрана матча (раздел «Состав и ответы»): без своей кнопки «Назад» и заголовка; onLoaded сообщает актуальный матч
-export function RsvpDetail({ id, groups, onBack, note, embedded = false, onLoaded }: { id: string; groups: CoachGroup[]; onBack: () => void; note?: Note; embedded?: boolean; onLoaded?: (m: RsvpMatch) => void }) {
+export function RsvpDetail({ id, groups, onBack, note, embedded = false, onLoaded, admin = false, onOpenResult }: { id: string; groups: CoachGroup[]; onBack: () => void; note?: Note; embedded?: boolean; onLoaded?: (m: RsvpMatch) => void; admin?: boolean; onOpenResult?: () => void }) {
   const { ask: confirm, dialog } = useConfirm();
   const [m, setM] = useState<RsvpMatch | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -227,29 +228,6 @@ export function RsvpDetail({ id, groups, onBack, note, embedded = false, onLoade
   const [fee, setFee] = useState<number | null>(null);
   const [filter, setFilter] = useState<SummaryFilter>('all');
   const [showHistory, setShowHistory] = useState(false);
-  const [q, setQ] = useState('');
-  const query = q.trim();
-  // Поиск игроков (#769): результат или ошибка хранятся вместе с текстом запроса, показываются только для текущего
-  const [search, setSearch] = useState<{ q: string; rows: { id: string; full_name: string }[] | null; text?: string } | null>(null);
-  const [searchTry, setSearchTry] = useState(0);
-  useEffect(() => {
-    if (query.length < 2) return;
-    let alive = true;
-    const t = setTimeout(() => {
-      void (async () => {
-        try {
-          const r = await supabase.from('players').select('id, full_name').ilike('full_name', `%${query}%`).order('full_name').limit(8);
-          if (!alive) return;
-          setSearch(r.error ? { q: query, rows: null, text: errMsg(r.error) } : { q: query, rows: (r.data ?? []) as { id: string; full_name: string }[] });
-        } catch (e) {
-          if (!alive) return;
-          setSearch({ q: query, rows: null, text: errMsg(e) });
-        }
-      })();
-    }, 150); // короче 250 мс: поиск ходит в базу, а не фильтрует загруженный список, лишняя пауза заметна на телефоне
-    return () => { alive = false; clearTimeout(t); };
-  }, [query, searchTry]);
-  const searchNow = query.length >= 2 && search?.q === query ? search : null;
   useEffect(() => {
     let alive = true;
     void (async () => {
@@ -385,7 +363,6 @@ export function RsvpDetail({ id, groups, onBack, note, embedded = false, onLoade
     setReload(n => n + 1);
   };
   const addPlayer = async (pl: { id: string; full_name: string }) => {
-    setQ('');
     await run('match_rsvp_invite', { m: id, p_players: [pl.id] }, () => (st === 'published' ? `${pl.full_name} приглашён, родителям отправлено сообщение` : `${pl.full_name} добавлен в состав`));
   };
   const removePlayer = async (p: RosterRow) => {
@@ -423,7 +400,10 @@ export function RsvpDetail({ id, groups, onBack, note, embedded = false, onLoade
       {live && (
         <button type="button" className="ks-btn" disabled={busy || sumL.status !== 'ok' || (sum?.unanswered ?? 0) === 0} onClick={() => void remind()}>Напомнить не ответившим</button>
       )}
-      {st === 'published' && (
+      {st === 'published' && !admin && (
+        <p className="muted">Перенос и отмену матча выполняет администратор.</p>
+      )}
+      {st === 'published' && admin && (
         <>
           <label className="ks-label" htmlFor="rs-new">Новая дата и время (Тбилиси)</label>
           <input id="rs-new" className="ks-input" type="datetime-local" value={newWhen} onChange={e => setNewWhen(e.target.value)} placeholder={m.starts_at ? toTbilisiLocal(m.starts_at) : ''} />
@@ -439,8 +419,12 @@ export function RsvpDetail({ id, groups, onBack, note, embedded = false, onLoade
           <div className="ks-card" aria-label="Изменить матч">
             <label className="ks-label" htmlFor="ed-opp">Соперник</label>
             <input id="ed-opp" className="ks-input" value={edit.opponent} onChange={e => setEdit({ ...edit, opponent: e.target.value })} />
-            <label className="ks-label" htmlFor="ed-when">Дата и время (Тбилиси){st === 'published' ? ': только время того же дня, дату меняет перенос' : ''}</label>
-            <input id="ed-when" className="ks-input" type="datetime-local" value={edit.when} onChange={e => setEdit({ ...edit, when: e.target.value })} />
+            {(st !== 'published' || admin) && (
+              <>
+                <label className="ks-label" htmlFor="ed-when">Дата и время (Тбилиси){st === 'published' ? ': только время того же дня, дату меняет перенос' : ''}</label>
+                <input id="ed-when" className="ks-input" type="datetime-local" value={edit.when} onChange={e => setEdit({ ...edit, when: e.target.value })} />
+              </>
+            )}
             <label className="ks-label" htmlFor="ed-venue">Место</label>
             <input id="ed-venue" className="ks-input" value={edit.venue} onChange={e => setEdit({ ...edit, venue: e.target.value })} />
             <label className="ks-label" htmlFor="ed-addr">Адрес или ссылка на карту</label>
@@ -497,16 +481,15 @@ export function RsvpDetail({ id, groups, onBack, note, embedded = false, onLoade
           )}
         </div>
       ))}
+      {st === 'published' && started && (
+        <div className="ks-card" role="status">
+          <p>Матч начался: приглашения больше не меняются. Кто играл, отмечается в разделе «Результат»; игрока, которого нет в списке, добавляют там же поиском.</p>
+          {onOpenResult && <button type="button" className="ks-btn secondary" style={{ minHeight: 44 }} onClick={onOpenResult}>Перейти к результату</button>}
+        </div>
+      )}
       {(st === 'draft' || live) && (
         <div className="ks-card" aria-label="Добавить игрока">
-          <label className="ks-label" htmlFor="add-q">Добавить игрока в состав</label>
-          <input id="add-q" className="ks-input" placeholder="Фамилия или имя" value={q} onChange={e => setQ(e.target.value)} />
-          {query.length >= 2 && !searchNow && <p className="muted" role="status">Поиск…</p>}
-          {searchNow && searchNow.rows === null && <BlockError title="Не удалось выполнить поиск" text={searchNow.text ?? ""} onRetry={() => { setSearch(null); setSearchTry(n => n + 1); }} label="Повторить поиск" />}
-          {searchNow?.rows && searchNow.rows.length === 0 && <p className="muted">Никого не найдено</p>}
-          {searchNow?.rows?.filter(f => !invited.some(r => r.player_id === f.id)).map(f => (
-            <ListRow key={f.id} avatar={f.full_name} title={f.full_name} end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} disabled={busy} onClick={() => void addPlayer(f)}>Добавить</button>} />
-          ))}
+          <PlayerSearch id="add-q" label="Добавить игрока в состав" placeholder="Фамилия или имя" exclude={id => invited.some(r => r.player_id === id)} busy={busy} onPick={addPlayer} />
         </div>
       )}
 
