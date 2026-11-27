@@ -96,4 +96,81 @@ describe('«Доп. посещения»', () => {
     await waitFor(() => expect(screen.getAllByText('Смирнов Тимофей')).toHaveLength(1));
     expect(screen.queryByRole('button', { name: 'Добавить' })).not.toBeInTheDocument();
   });
+
+  // docs/GUEST_VISIT_FREE_CLOSE_ACCEPTANCE.md
+  it('П1: кнопку «Без оплаты» видит только администратор и только у неоплаченного', async () => {
+    fake.db.session_guests = [guest()];
+    const { unmount } = render(<GuestVisits gid="g1" date={today()} />);
+    await screen.findByText('Смирнов Тимофей');
+    expect(screen.queryByRole('button', { name: 'Без оплаты' })).not.toBeInTheDocument();
+    unmount();
+    render(<GuestVisits gid="g1" date={today()} admin />);
+    expect(await screen.findByRole('button', { name: 'Без оплаты' })).toBeInTheDocument();
+  });
+
+  it('П2-П3: закрытие без оплаты требует причину и вызывает session_guest_discount с due 0', async () => {
+    fake.db.session_guests = [guest()];
+    fake.rpc.session_guest_discount = () => null;
+    render(<GuestVisits gid="g1" date={today()} admin />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Без оплаты' }));
+    const dlg = await screen.findByRole('dialog');
+    const confirm = within(dlg).getByRole('button', { name: 'Закрыть без оплаты' });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(within(dlg).getByLabelText(/Причина/), { target: { value: 'тренерский обмен' } });
+    fireEvent.click(confirm);
+    await waitFor(() => expect(fake.rpcCalls('session_guest_discount')).toEqual([{ s: 'sid-1', p: 'p9', due: 0, why: 'тренерский обмен' }]));
+    expect(await screen.findByText('Посещение закрыто без оплаты.')).toBeInTheDocument();
+    expect(fake.rpcCalls('session_guest_set_paid')).toHaveLength(0);
+  });
+
+  it('П2: отмена окна ничего не вызывает', async () => {
+    fake.db.session_guests = [guest()];
+    fake.rpc.session_guest_discount = () => null;
+    render(<GuestVisits gid="g1" date={today()} admin />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Без оплаты' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /Отмена|Отменить/ }));
+    expect(fake.rpcCalls('session_guest_discount')).toHaveLength(0);
+  });
+
+  it('П4: закрытое без оплаты не показывается как «Оплачено»', async () => {
+    fake.db.session_guests = [guest({ paid: true, paid_amount: 0, method: null })];
+    render(<GuestVisits gid="g1" date={today()} />);
+    expect(await screen.findByText('Закрыто без оплаты')).toBeInTheDocument();
+    expect(screen.queryByText(/Оплачено/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/15 ₾/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Убрать' })).not.toBeInTheDocument();
+  });
+
+  it('П4: обычная оплата и старая запись без paid_amount выглядят как раньше', async () => {
+    fake.db.session_guests = [guest({ paid: true, paid_amount: 15, method: 'Перевод' }), guest({ player_id: 'p8', paid: true, paid_amount: null, method: 'Наличные', players: { full_name: 'Старая Запись', groups: { name: 'U9-A' } } })];
+    render(<GuestVisits gid="g1" date={today()} />);
+    expect(await screen.findByText('Оплачено (Перевод)')).toBeInTheDocument();
+    expect(screen.getByText('Оплачено (Наличные)')).toBeInTheDocument();
+    expect(screen.queryByText('Закрыто без оплаты')).not.toBeInTheDocument();
+  });
+
+  it('П5: у закрытого без оплаты администратор возвращает долг, тренер кнопок не видит', async () => {
+    fake.db.session_guests = [guest({ paid: true, paid_amount: 0, method: null })];
+    const { unmount } = render(<GuestVisits gid="g1" date={today()} />);
+    await screen.findByText('Закрыто без оплаты');
+    expect(screen.queryByRole('button', { name: 'Вернуть в долг' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Отменить оплату' })).not.toBeInTheDocument();
+    unmount();
+    render(<GuestVisits gid="g1" date={today()} admin />);
+    expect(screen.queryByRole('button', { name: 'Отменить оплату' })).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Вернуть в долг' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Вернуть в долг' }));
+    await waitFor(() => expect(fake.rpcCalls('session_guest_set_paid')).toEqual([{ s: 'sid-1', p: 'p9', is_paid: false }]));
+  });
+
+  it('ошибка закрытия показывается человеческим текстом', async () => {
+    fake.db.session_guests = [guest()];
+    fake.rpc.session_guest_discount = () => ({ error: { message: 'forbidden' } });
+    render(<GuestVisits gid="g1" date={today()} admin />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Без оплаты' }));
+    const dlg = await screen.findByRole('dialog');
+    fireEvent.change(within(dlg).getByLabelText(/Причина/), { target: { value: 'договорённость' } });
+    fireEvent.click(within(dlg).getByRole('button', { name: 'Закрыть без оплаты' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Нет прав/);
+  });
 });
