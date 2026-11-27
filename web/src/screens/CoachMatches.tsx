@@ -483,6 +483,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
 
   if (error) return <Failure title="Не удалось загрузить состав" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} back={embedded ? undefined : <BackNav onBack={onBack} managed />} />;
   if (!players) return <Loading />;
+  const lineupPlayers = shownIds && !showAll ? players.filter(p => shownIds.includes(p.id) || line(p.id).played) : players; // кто показан в составе
   const guests = players.filter(p => guestIds.includes(p.id));
 
   const canPickGroup = !match && !savedId;
@@ -526,15 +527,17 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
       <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>
         Баллы начисляются автоматически, когда внесён счёт, только тем, кто играл: оценка тренера от 1 до 5, лучшему игроку матча ещё +1, всего не больше 6 за матч. Голы и результат команды на баллы игрока не влияют. За технический результат баллов нет.
       </p>
-      {savedId && players.length > 0 && (
+      {/* «Править состав» только открывает «Убрать из матча» у добавленных вручную; приглашённых он не трогает, поэтому без таких игроков кнопки нет, а состав приглашённых меняется в «Состав и ответы» */}
+      {savedId && lineupPlayers.some(p => !invitedIds.includes(p.id)) && (
         <button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 36, marginBottom: 8 }} aria-pressed={editLineup} onClick={() => setEditLineup(v => !v)}>
           {editLineup ? 'Готово' : 'Править состав'}
         </button>
       )}
+      {savedId && rsvpLocked && invitedIds.length > 0 && <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>Приглашённых добавляют и убирают в разделе «Состав и ответы»; здесь отмечается, кто играл.</p>}
       {players.length === 0 ? (
         <EmptyState icon="users" title="В составе пока никого" text="Найдите игрока ниже, чтобы добавить его в состав." />
       ) : (
-        (shownIds && !showAll ? players.filter(p => shownIds.includes(p.id) || line(p.id).played) : players).map(p => (
+        lineupPlayers.map(p => (
           <div className="ks-card" key={p.id}>
             <label className="ks-check">
               <input type="checkbox" checked={line(p.id).played} onChange={e => setLine(p.id, { played: e.target.checked, goals: e.target.checked ? line(p.id).goals : 0, rating: e.target.checked ? line(p.id).rating : null })} />

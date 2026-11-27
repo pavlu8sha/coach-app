@@ -1287,6 +1287,24 @@ describe('Состав матча с подтверждением в форме 
     expect(screen.getByText('Гость Игорь')).toBeInTheDocument();
   });
 
+  it('если в составе только приглашённые, кнопки «Править состав» нет: она ничего бы не делала, вместо неё пояснение', async () => {
+    fake.db.match_invitations = [{ match_id: 'r1', player_id: 'p1', status: 'invited' }, { match_id: 'r1', player_id: 'p2', status: 'invited' }];
+    fake.db.matches = [{ id: 'r1', club_id: 'c1', team: 'U9', played_on: '2099-01-01', opponent: 'Икс', goals_for: null, goals_against: null, lifecycle_status: 'published', starts_at: future }];
+    fake.db.players = [
+      { id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'active' },
+      { id: 'p2', full_name: 'Сидоров Иван', group_id: 'g1', status: 'active' },
+    ];
+    fake.db.groups = [{ id: 'g1', name: 'U9', club_id: 'c1' }];
+    fake.db.match_players = [];
+    fake.db.points_rule_versions = [];
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Результат' }));
+    await screen.findByText('Иванов Пётр');
+    expect(screen.queryByRole('button', { name: 'Править состав' })).toBeNull();
+    expect(screen.getByText(/Приглашённых добавляют и убирают в разделе «Состав и ответы»/)).toBeInTheDocument();
+  });
+
   it('«Убрать из матча» скрыта у приглашённых и есть у добавленных вручную', async () => {
     fake.db.match_invitations = [{ match_id: 'r1', player_id: 'p1', status: 'invited' }];
     fake.db.matches = [{ id: 'r1', club_id: 'c1', team: 'U9', played_on: '2099-01-01', opponent: 'Икс', goals_for: null, goals_against: null, lifecycle_status: 'published', starts_at: future }];
