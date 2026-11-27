@@ -588,7 +588,7 @@ main.page.ks-still { animation: none; }
 .ks-rate i { width: 8px; height: 8px; border-radius: 50%; background: var(--ks-border-strong); }
 .ks-rate i.f { background: var(--ks-primary); }
 .ks-mres-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
-.ks-mres-tiles .ks-tile { display: flex; flex-direction: column-reverse; text-align: center; font-weight: 800; font-size: 1.15rem; }
+.ks-mres-tiles .ks-tile { display: flex; flex-direction: column-reverse; justify-content: flex-end; text-align: center; font-weight: 800; font-size: 1.15rem; }
 .ks-mres-tiles .ks-tile b { margin: 2px 0 0; font-size: 0.72rem; }
 .ks-mres-tiles .ks-tile.w { background: var(--ks-success-subtle); }
 .ks-mres-tiles .ks-tile.w b { color: var(--ks-success); }

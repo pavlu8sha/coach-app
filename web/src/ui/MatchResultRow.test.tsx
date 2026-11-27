@@ -32,3 +32,13 @@ describe('строка результата матча (О1, О4, О5)', () => {
     expect(el).not.toHaveTextContent('Лучший');
   });
 });
+
+describe('плитки сводки: числа на одном уровне', () => {
+  it('плитка прижимает содержимое к верху, чтобы переносимая подпись не сдвигала число', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync('src/ui/kit.css', 'utf8');
+    const rule = css.split('\n').find(l => l.startsWith('.ks-mres-tiles .ks-tile {')) ?? '';
+    expect(rule).toContain('flex-direction: column-reverse');
+    expect(rule).toContain('justify-content: flex-end'); // в column-reverse это верх плитки
+  });
+});
