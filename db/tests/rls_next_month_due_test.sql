@@ -2,7 +2,7 @@
 -- Дата подменяется третьим аргументом debt_month_limit (прямые проверки); сквозные проверки не зависят от сегодняшнего числа (N = 1 всегда включает следующий месяц; N = 31 сверяется с фактическим днём).
 begin;
 create extension if not exists pgtap;
-select plan(16);
+select plan(21);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб');
 insert into users (id, telegram_id, display_name, is_admin, club_id) values
@@ -68,6 +68,21 @@ reset role;
 
 -- Права
 select ok(not has_function_privilege('authenticated', 'public.debt_month_limit(uuid, boolean, date)', 'execute') and not has_function_privilege('anon', 'public.debt_month_limit(uuid, boolean, date)', 'execute'), 'права: debt_month_limit закрыта для ролей');
+
+-- Б5: безопасная конфигурация и подмена через pg_temp (стандарт ревью)
+select is((select count(*)::int from pg_proc p where p.oid in (to_regprocedure('public.debt_month_limit(uuid,boolean,date)'), to_regprocedure('public.debtors(date)'), to_regprocedure('public.parent_debts()'))
+  and p.prosecdef and p.proconfig @> array['search_path=public, pg_temp']), 3, 'Б5: debt_month_limit, debtors, parent_debts: security definer и search_path = public, pg_temp');
+update club_settings set value = '25' where club_id = '00000000-0000-0000-0000-00000000c001' and key = 'payments.nextMonthDay';
+create temp table club_settings (club_id uuid, key text, value text, scope text);
+insert into pg_temp.club_settings values ('00000000-0000-0000-0000-00000000c001', 'payments.nextMonthDay', '1', null);
+select is(debt_month_limit('00000000-0000-0000-0000-00000000c001', true, date '2026-11-10'), date '2026-11-01', 'Б5: подмена club_settings через pg_temp не меняет порог (25, а не 1)');
+select ok(not has_function_privilege('anon', 'public.debtors(date)', 'execute') and not has_function_privilege('anon', 'public.parent_debts()', 'execute'), 'Б5: anon не выполняет debtors и parent_debts');
+drop table pg_temp.club_settings;
+
+-- Б6: откат 0230 возвращает тела debtors и parent_debts без небезопасной конфигурации и удаляет debt_month_limit
+\i db/ops/rollback-0230-next-month-due.sql
+select ok(to_regprocedure('public.debt_month_limit(uuid,boolean,date)') is null, 'Б6: после отката debt_month_limit удалена');
+select is((select count(*)::int from pg_proc p where p.oid in (to_regprocedure('public.debtors(date)'), to_regprocedure('public.parent_debts()')) and p.prosecdef and p.proconfig @> array['search_path=public, pg_temp']), 2, 'Б6: после отката debtors и parent_debts: security definer и search_path = public, pg_temp');
 
 select * from finish();
 rollback;

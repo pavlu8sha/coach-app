@@ -1,7 +1,7 @@
 -- pgTAP: возврат на абонемент с датой, период «за визит» (миграция 0229). Условия: docs/PAY_MODE_RETURN_AND_NEXT_MONTH_ACCEPTANCE.md, часть A. Фикстуры вымышленные.
 begin;
 create extension if not exists pgtap;
-select plan(22);
+select plan(28);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб А');
 insert into users (id, telegram_id, display_name, is_admin, club_id) values
@@ -109,6 +109,25 @@ reset role;
 select ok(has_function_privilege('authenticated', 'public.player_set_pay_mode(uuid, text, date)', 'execute') and not has_function_privilege('anon', 'public.player_set_pay_mode(uuid, text, date)', 'execute'), 'Ч13: player_set_pay_mode — authenticated, не anon');
 select ok(not has_function_privilege('authenticated', 'public.player_per_visit_month(uuid, date)', 'execute') and not has_function_privilege('anon', 'public.player_per_visit_month(uuid, date)', 'execute'), 'Ч13: player_per_visit_month закрыта для ролей');
 select ok(not has_function_privilege('authenticated', 'public.player_per_visit_day(uuid, date)', 'execute') and not has_function_privilege('anon', 'public.player_per_visit_day(uuid, date)', 'execute'), 'Ч13: player_per_visit_day закрыта для ролей');
+
+-- Ч14: безопасная конфигурация (стандарт ревью, search_path = public, pg_temp, security definer) у всех изменённых функций
+select is((select count(*)::int from pg_proc p where p.oid in (to_regprocedure('public.player_per_visit_month(uuid,date)'), to_regprocedure('public.player_per_visit_day(uuid,date)'), to_regprocedure('public.own_visits_backfill(uuid)'), to_regprocedure('public.attendance_own_visit_sync()'), to_regprocedure('public.player_set_pay_mode(uuid,text,date)'), to_regprocedure('public.session_guest_add(uuid,uuid)'), to_regprocedure('public.player_visit_month(uuid,date)'))
+  and p.prosecdef and p.proconfig @> array['search_path=public, pg_temp']), 7, 'Ч14: 7 функций 0229: security definer и search_path = public, pg_temp');
+
+-- Ч15: подмена таблицы через pg_temp не меняет результат: временная players говорит, что Дима «за визит», настоящая — нет
+insert into public.players (id, club_id, group_id, full_name, status) values ('00000000-0000-0000-0000-00000000d004', '00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-0000000000e1', 'Дима', 'active');
+create temp table players (id uuid, pay_mode text, pay_mode_from date, pay_mode_until date, club_id uuid, group_id uuid, status text);
+insert into pg_temp.players values ('00000000-0000-0000-0000-00000000d004', 'per_visit', '2026-11-01', null, '00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-0000000000e1', 'active');
+select ok(not player_per_visit_month('00000000-0000-0000-0000-00000000d004', '2026-11-01'), 'Ч15: подмена players через pg_temp не влияет на player_per_visit_month');
+select ok(not player_per_visit_day('00000000-0000-0000-0000-00000000d004', '2026-11-20'), 'Ч15: подмена players через pg_temp не влияет на player_per_visit_day');
+drop table pg_temp.players;
+
+-- Ч16: откат 0229 возвращает прежние тела, но не небезопасную конфигурацию (стандарт ревью): search_path = public, pg_temp остаётся
+\i db/ops/rollback-0229-pay-mode-until.sql
+select ok(not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'players' and column_name = 'pay_mode_until'), 'Ч16: после отката колонки pay_mode_until нет');
+select is((select count(*)::int from pg_proc p where p.oid in (to_regprocedure('public.player_per_visit_month(uuid,date)'), to_regprocedure('public.own_visits_backfill(uuid)'), to_regprocedure('public.attendance_own_visit_sync()'), to_regprocedure('public.player_set_pay_mode(uuid,text,date)'), to_regprocedure('public.session_guest_add(uuid,uuid)'), to_regprocedure('public.player_visit_month(uuid,date)'))
+  and p.prosecdef and p.proconfig @> array['search_path=public, pg_temp']), 6, 'Ч16: после отката 6 функций с security definer и search_path = public, pg_temp');
+select ok(exists (select 1 from pg_constraint where conname = 'players_pay_mode_from_check') and to_regprocedure('public.player_per_visit_day(uuid,date)') is null, 'Ч16: после отката прежнее ограничение, player_per_visit_day удалена');
 
 select * from finish();
 rollback;

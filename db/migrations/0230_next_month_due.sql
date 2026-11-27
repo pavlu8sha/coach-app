@@ -7,7 +7,7 @@ begin;
 -- Последний месяц долга: текущий, а с дня nextMonthDay (в коротком месяце — не позже его последнего дня) следующий.
 -- strict: недопустимая настройка — ошибка (экран администратора); не strict (кабинет родителя) — следующий месяц не показывается.
 create or replace function debt_month_limit(c uuid, strict boolean default true, d date default null) returns date
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare today date := coalesce(d, tbilisi_day(now())); v text; n numeric; last_day int;
 begin
   select nullif(trim(value), '') into v from club_settings where club_id = c and key = 'payments.nextMonthDay';
@@ -31,7 +31,7 @@ revoke execute on function debt_month_limit(uuid, boolean, date) from public, an
 
 create or replace function debtors(m date)
 returns table (group_name text, player_id uuid, full_name text, tariff numeric, paid numeric, debt numeric, discount boolean)
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare cur date := date_trunc('month', tbilisi_day(now()))::date; mm date := date_trunc('month', m)::date; lim date;
 begin
   if not is_admin() then raise exception 'forbidden' using errcode = '42501'; end if;
@@ -59,7 +59,7 @@ CREATE OR REPLACE FUNCTION public.parent_debts()
  RETURNS TABLE(player_id uuid, month date, tariff numeric, paid numeric, debt numeric)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
- SET search_path TO 'public'
+ SET search_path TO 'public', 'pg_temp'
 AS $function$
 declare cur date := date_trunc('month', tbilisi_day(now()))::date;
 begin

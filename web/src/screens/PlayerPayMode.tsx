@@ -22,20 +22,26 @@ export default function PlayerPayMode({ playerId }: { playerId: string }) {
   const [returnDate, setReturnDate] = useState(nextMonthFirst());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const [reload, setReload] = useState(0);
   const m1 = today().slice(0, 8) + '01';
 
   useEffect(() => {
+    let alive = true; // ответ устаревшей загрузки (другой игрок, «Повторить», смена типа) состояние не перезаписывает
     void (async () => {
       // без миграции 0200 колонок нет: панель просто не показывается
-      const md = await loadPayMode(playerId);
+      let md: Mode | null;
+      try { md = await loadPayMode(playerId); } catch { if (alive) { setLoadError(true); setMode(null); } return; }
+      if (!alive) return;
+      setLoadError(false);
       if (!md) return setMode(null);
       setMode(md);
       if (md.pay_mode === 'per_visit' || (md.pay_mode_until && md.pay_mode_until > today())) {
         const s = await supabase.rpc('player_visit_month', { p: playerId, m: m1 });
-        if (!s.error && s.data) setMonth(s.data as Month);
+        if (alive && !s.error && s.data) setMonth(s.data as Month);
       } else setMonth(null);
     })();
+    return () => { alive = false; };
   }, [playerId, reload, m1]);
 
   const save = async (next: 'subscription' | 'per_visit') => {
@@ -48,6 +54,7 @@ export default function PlayerPayMode({ playerId }: { playerId: string }) {
     setReload(n => n + 1);
   };
 
+  if (loadError) return <p className="error" role="alert">Не удалось загрузить тип оплаты. <button type="button" className="ks-btn secondary" onClick={() => setReload(n => n + 1)}>Повторить</button></p>;
   if (!mode) return null;
   const per = mode.pay_mode === 'per_visit';
   const until = mode.pay_mode_until ?? null;

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { hasSubscription, sortGroups, today, errMsg } from '../lib/coach';
 import { settingNumber, settingNumberError, useClubSettings } from '../lib/clubSettings';
-import { perVisitMonth, type PayMode } from '../lib/payMode';
+import { isMissingColumn, perVisitMonth, type PayMode } from '../lib/payMode';
 import { DEBT_START } from '../lib/debtSeason';
 import { supabase } from '../lib/supabase';
 import { addPayment, paymentError, DUPLICATE_PAYMENT_NOTE } from '../lib/paymentAdd';
@@ -118,6 +118,8 @@ export default function MonthPayments() {
       // 0229: после возврата на абонемент период «за визит» тоже учитывается (pay_mode_until); без миграции колонки нет — читаем только per_visit
       const pmA = await supabase.from('players').select('id, pay_mode, pay_mode_from').eq('pay_mode', 'per_visit').limit(1000);
       const pmB = await supabase.from('players').select('id, pay_mode, pay_mode_from, pay_mode_until').gt('pay_mode_until', '1900-01-01').limit(1000);
+      if (pmA.error && !isMissingColumn(pmA.error)) return setError(errMsg(pmA.error)); // не «нет игроков за визит», а сбой чтения
+      if (pmB.error && !isMissingColumn(pmB.error)) return setError(errMsg(pmB.error));
       const pmRows = [...(pmA.error ? [] : (pmA.data ?? [])), ...(pmB.error ? [] : (pmB.data ?? []))] as (PayMode & { id: string })[];
       const perVisit = new Set(pmRows.filter(x => perVisitMonth(x, month) && (m.get(x.id) ?? 0) <= 0).map(x => x.id));
       const active = ((pl.data ?? []) as Pl[]).map(inGroup).filter(x => ok.has(x.group_id) && !perVisit.has(x.id));

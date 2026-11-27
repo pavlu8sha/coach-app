@@ -1,9 +1,8 @@
--- Откат 0230: возвращает тела debtors(m) и parent_debts() из 0200 и удаляет debt_month_limit. Применять в SQL Editor целиком.
-begin;
+-- Откат 0230: возвращает тела debtors(m) и parent_debts() из 0200 и удаляет debt_month_limit. Применять в SQL Editor целиком (одним запуском; begin/commit нет, чтобы файл можно было проверить в тесте).
 
 create or replace function debtors(m date)
 returns table (group_name text, player_id uuid, full_name text, tariff numeric, paid numeric, debt numeric, discount boolean)
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare cur date := date_trunc('month', tbilisi_day(now()))::date; mm date := date_trunc('month', m)::date;
 begin
   if not is_admin() then raise exception 'forbidden' using errcode = '42501'; end if;
@@ -30,7 +29,7 @@ CREATE OR REPLACE FUNCTION public.parent_debts()
  RETURNS TABLE(player_id uuid, month date, tariff numeric, paid numeric, debt numeric)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
- SET search_path TO 'public'
+ SET search_path TO 'public', 'pg_temp'
 AS $function$
 declare cur date := date_trunc('month', tbilisi_day(now()))::date;
 begin
@@ -67,5 +66,3 @@ begin
 end $function$;
 
 drop function if exists debt_month_limit(uuid, boolean, date);
-
-commit;

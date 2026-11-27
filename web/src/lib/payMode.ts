@@ -11,10 +11,20 @@ export const perVisitMonth = (pm: PayMode | null | undefined, m: string): boolea
   !!pm && !!pm.pay_mode_from && m >= firstOf(pm.pay_mode_from)
   && ((pm.pay_mode === 'per_visit' && !pm.pay_mode_until) || (!!pm.pay_mode_until && m < firstOf(pm.pay_mode_until)));
 
-/** Тип оплаты игрока; без миграции 0229 колонки pay_mode_until нет — читаем прежние колонки (0200); без 0200 — null. */
+/** Ошибка «колонки нет» (миграция ещё не применена): PostgREST 42703 или «does not exist / schema cache». Остальные ошибки — настоящие сбои. */
+export const isMissingColumn = (e: { code?: string; message?: string } | null | undefined): boolean =>
+  !!e && (e.code === '42703' || /does not exist|schema cache/i.test(e.message ?? ''));
+
+/**
+ * Тип оплаты игрока. Без миграции 0229 колонки pay_mode_until нет — читаем прежние колонки (0200); без 0200 — null (панели нет).
+ * Любой другой сбой запроса — исключение: вызывающий показывает ошибку, а не «игрок на абонементе» (иначе игроку «за визит» показался бы долг по абонементу).
+ */
 export async function loadPayMode(playerId: string): Promise<PayMode | null> {
   const r = await supabase.from('players').select('pay_mode, pay_mode_from, pay_mode_until').eq('id', playerId).maybeSingle();
   if (!r.error) return (r.data as PayMode | null) ?? null;
+  if (!isMissingColumn(r.error)) throw new Error(r.error.message);
   const old = await supabase.from('players').select('pay_mode, pay_mode_from').eq('id', playerId).maybeSingle();
-  return old.error ? null : ((old.data as PayMode | null) ?? null);
+  if (!old.error) return (old.data as PayMode | null) ?? null;
+  if (isMissingColumn(old.error)) return null;
+  throw new Error(old.error.message);
 }

@@ -1,7 +1,6 @@
 -- Откат 0229: возвращает тела функций из 0228 (backfill, sync, set_pay_mode), 0201 (session_guest_add), 0206 (player_visit_month), 0200 (player_per_visit_month), удаляет player_per_visit_day и pay_mode_until.
 -- ВНИМАНИЕ: сохранённые периоды возврата (subscription с pay_mode_from) теряются: pay_mode_from обнуляется, прежнее ограничение допускает дату только у per_visit. Резервная копия: таблица players_pay_period_backup_0229.
--- Применять в SQL Editor целиком.
-begin;
+-- Применять в SQL Editor целиком (одним запуском; begin/commit нет, чтобы файл можно было проверить в тесте).
 
 create table if not exists players_pay_period_backup_0229 as select id, pay_mode, pay_mode_from, pay_mode_until from players where pay_mode_until is not null;
 update players set pay_mode_from = null, pay_mode_until = null where pay_mode = 'subscription' and pay_mode_from is not null;
@@ -81,7 +80,7 @@ end $$;
 revoke execute on function player_set_pay_mode(uuid, text, date) from public, anon;
 grant execute on function player_set_pay_mode(uuid, text, date) to authenticated;
 create or replace function session_guest_add(s uuid, p uuid) returns void
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 declare ses sessions; pl players; club uuid;
 begin
   if current_user_id() is null then raise exception 'not authenticated' using errcode = '42501'; end if;
@@ -104,7 +103,7 @@ begin
     on conflict (session_id, player_id) do nothing;
 end $$;
 create or replace function player_visit_month(p uuid, m date) returns jsonb
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare mm date := date_trunc('month', m)::date; pl players; res jsonb;
 begin
   if current_user_id() is null then raise exception 'not authenticated' using errcode = '42501'; end if;
@@ -131,7 +130,7 @@ begin
   return res || jsonb_build_object('subscription_price', tariff_for(pl.club_id, pl.group_id, mm));
 end $$;
 create or replace function player_per_visit_month(pid uuid, m date) returns boolean
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, pg_temp as $$
   select exists (select 1 from players p where p.id = pid and p.pay_mode = 'per_visit' and p.pay_mode_from is not null
                    and date_trunc('month', p.pay_mode_from)::date <= date_trunc('month', m)::date)
 $$;
@@ -140,4 +139,3 @@ revoke execute on function player_per_visit_month(uuid, date) from public, anon,
 revoke execute on function player_per_visit_month(uuid, date) from public, anon, authenticated;
 drop function if exists player_per_visit_day(uuid, date);
 alter table players drop column if exists pay_mode_until;
-commit;

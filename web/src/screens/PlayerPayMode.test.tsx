@@ -51,6 +51,14 @@ describe('«Тип оплаты» в карточке игрока', () => {
     expect(screen.getByText(/Месяц этой даты целиком абонементный.*Неоплаченные визиты остаются долгом/)).toBeInTheDocument();
   });
 
+  it('ошибка чтения типа оплаты показывает сообщение и «Повторить», а не пустое место', async () => {
+    fake.errorsNext.players = 'Failed to fetch';
+    render(<PlayerPayMode playerId="p1" />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось загрузить тип оплаты');
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    expect(await screen.findByText('Абонемент')).toBeInTheDocument();
+  });
+
   // Условия приёмки: docs/PAY_PER_VISIT_VISITS_ACCEPTANCE.md, п. 8 (доп. посещения входят в число визитов)
   it('доп. посещения входят в число визитов и названы в скобках; без них строка прежняя', async () => {
     fake.db.players = [{ id: 'p1', pay_mode: 'per_visit', pay_mode_from: '2026-11-01' }];

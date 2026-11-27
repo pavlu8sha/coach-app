@@ -26,3 +26,21 @@ describe('perVisitMonth: период «за визит»', () => {
     expect(perVisitMonth(null, '2026-11-01')).toBe(false);
   });
 });
+
+// Ошибки загрузки не превращаются в «обычный абонемент» (стандарт ревью, п. 2.4)
+describe('loadPayMode: ошибки', () => {
+  it('сбой сети — исключение, нет колонки pay_mode_until — прежние колонки, нет 0200 — null', async () => {
+    const { fake } = await import('../test/fakeSupabase');
+    const { loadPayMode } = await import('./payMode');
+    fake.db.players = [{ id: 'p1', pay_mode: 'per_visit', pay_mode_from: '2026-11-01' }];
+    expect(await loadPayMode('p1')).toMatchObject({ pay_mode: 'per_visit' });
+    fake.errorsNext.players = 'Failed to fetch';
+    await expect(loadPayMode('p1')).rejects.toThrow('Failed to fetch');
+    fake.errorsNext.players = 'column players.pay_mode_until does not exist';
+    expect(await loadPayMode('p1')).toMatchObject({ pay_mode: 'per_visit' });
+    fake.errors.players = 'column players.pay_mode does not exist';
+    expect(await loadPayMode('p1')).toBeNull();
+    fake.errors.players = '';
+    delete fake.errors.players;
+  });
+});

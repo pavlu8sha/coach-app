@@ -16,7 +16,7 @@ alter table players add constraint players_pay_period_check check (
 
 -- Месяц «за визит»: с месяца pay_mode_from и до месяца возврата (не включая); без возврата пока режим per_visit
 create or replace function player_per_visit_month(pid uuid, m date) returns boolean
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, pg_temp as $$
   select exists (select 1 from players p where p.id = pid and p.pay_mode_from is not null
                    and date_trunc('month', p.pay_mode_from)::date <= date_trunc('month', m)::date
                    and ((p.pay_mode = 'per_visit' and p.pay_mode_until is null)
@@ -26,7 +26,7 @@ revoke execute on function player_per_visit_month(uuid, date) from public, anon,
 
 -- День «за визит»: день не раньше pay_mode_from и его месяц «за визит»
 create or replace function player_per_visit_day(pid uuid, d date) returns boolean
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, pg_temp as $$
   select exists (select 1 from players p where p.id = pid and p.pay_mode_from is not null and d >= p.pay_mode_from)
          and player_per_visit_month(pid, date_trunc('month', d)::date)
 $$;
@@ -119,7 +119,7 @@ revoke execute on function player_set_pay_mode(uuid, text, date) from public, an
 grant execute on function player_set_pay_mode(uuid, text, date) to authenticated;
 
 create or replace function session_guest_add(s uuid, p uuid) returns void
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 declare ses sessions; pl players; club uuid;
 begin
   if current_user_id() is null then raise exception 'not authenticated' using errcode = '42501'; end if;
@@ -143,7 +143,7 @@ begin
 end $$;
 
 create or replace function player_visit_month(p uuid, m date) returns jsonb
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare mm date := date_trunc('month', m)::date; pl players; res jsonb;
 begin
   if current_user_id() is null then raise exception 'not authenticated' using errcode = '42501'; end if;
