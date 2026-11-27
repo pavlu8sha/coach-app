@@ -43,6 +43,37 @@ describe('Штат матча и статистика тренеров', () => {
     expect(await screen.findByText('Тренировок: 5 · игр как тренер: 0 · как оператор: 0')).toBeInTheDocument();
   });
 
+  it('тренер раскрывается в список проведённых тренировок по датам; часы только у администратора', async () => {
+    fake.db.training_log = [
+      { id: 't2', coach: 'Павел', held_on: '2026-10-05', group_label: 'U11', starts_at: '17:00', hours: 1.5, held: true },
+      { id: 't1', coach: 'Павел', held_on: '2026-10-01', group_label: 'U10-A/B', starts_at: '17:00', hours: 1, held: true },
+      { id: 't3', coach: 'Павел', held_on: '2026-10-02', group_label: 'U9', starts_at: '17:00', hours: 1, held: false },
+      { id: 't4', coach: 'Павел', held_on: '2026-11-02', group_label: 'U7', starts_at: '17:00', hours: 1, held: true },
+      { id: 't5', coach: 'Цотне', held_on: '2026-10-03', group_label: 'U7', starts_at: '17:00', hours: 1, held: true },
+    ];
+    fake.rpc.trainer_stats = () => [
+      { coach: 'Павел', trainings: 2, hours: 2.5, as_coach: 0, as_operator: 0, parts: 0, reg_pct: null },
+      { coach: 'Игры', trainings: 0, hours: 0, as_coach: 1, as_operator: 0, parts: 1, reg_pct: 100 },
+    ];
+    render(<StaffStats period={period} />);
+    const row = (await screen.findByText('Павел')).closest('details') as HTMLElement;
+    fireEvent.click(within(row).getByText('Павел'));
+    expect(await within(row).findByText('01.10 · U10-A/B')).toBeInTheDocument();
+    const items = within(row).getAllByRole('listitem').map(e => e.textContent);
+    expect(items).toEqual(['01.10 · U10-A/B1 ч', '05.10 · U11' + '1,5 ч']);
+    expect(screen.getByText('Игры').closest('details')).toBeNull(); // без проведённых тренировок раскрытия нет
+  });
+
+  it('тренер: список тренировок без часов', async () => {
+    fake.db.training_log = [{ id: 't1', coach: 'Павел', held_on: '2026-10-01', group_label: 'U10-A/B', starts_at: '17:00', hours: 1, held: true }];
+    fake.rpc.trainer_stats = () => [{ coach: 'Павел', trainings: 1, hours: null, as_coach: 0, as_operator: 0, parts: 0, reg_pct: null }];
+    render(<StaffStats period={period} />);
+    const row = (await screen.findByText('Павел')).closest('details') as HTMLElement;
+    fireEvent.click(within(row).getByText('Павел'));
+    expect(await within(row).findByText('01.10 · U10-A/B')).toBeInTheDocument();
+    expect(within(row).queryByText(/ ч$/)).toBeNull();
+  });
+
   it('функция не установлена: понятное сообщение', async () => {
     fake.rpc.match_staff_list = () => ({ error: { message: 'Could not find the function public.match_staff_list' } });
     render(<StaffGames period={period} admin />);

@@ -547,3 +547,9 @@ ul.policy { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 8px
 .ks-more-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; width: max-content; min-width: 220px; max-width: min(320px, calc(100vw - 32px)); padding: 6px; border-radius: 14px; background: var(--ks-surface, #fff); border: 1px solid var(--ks-border-strong); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); }
 .ks-more-menu button { display: block; white-space: normal; width: 100%; min-height: var(--ks-tap); padding: 0 12px; border: 0; border-radius: 10px; background: none; color: var(--ks-text); font: 700 15px var(--ks-font); text-align: left; cursor: pointer; }
 .ks-more-menu button:hover, .ks-more-menu button:focus-visible { background: var(--ks-primary-subtle, rgba(127, 127, 127, 0.15)); outline: none; }
+
+/* Раскрывающаяся строка (details): без родного треугольника, шеврон справа */
+.ks-disclosure { list-style: none; position: relative; padding-right: 22px; cursor: pointer; }
+.ks-disclosure::-webkit-details-marker { display: none; }
+.ks-disclosure::after { content: ''; position: absolute; right: 4px; top: 50%; width: 8px; height: 8px; border-right: 2px solid var(--ks-text-muted); border-bottom: 2px solid var(--ks-text-muted); transform: translateY(-70%) rotate(45deg); }
+details[open] > .ks-disclosure::after { transform: translateY(-30%) rotate(-135deg); }
