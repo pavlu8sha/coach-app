@@ -3,7 +3,7 @@
 -- Права проверяются на базе с привилегиями по умолчанию Supabase: функция пересоздаётся после alter default privileges.
 begin;
 create extension if not exists pgtap;
-select plan(48);
+select plan(50);
 
 alter default privileges in schema public grant select, insert, update, delete on tables to anon, authenticated, service_role;
 alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
@@ -110,6 +110,15 @@ select throws_ok($$select camp_refund((select id from ids where k = 'g1'), 300, 
 select as_user('00000000-0000-0000-0000-0000000000a1');
 select throws_ok($$insert into camp_payments (camp_id, participant_id, player_id, amount, paid_on, kind, request_id) select camp_id, id, null, -1, current_date, 'refund', gen_random_uuid() from camp_participants limit 1$$, '42501', null, '11: прямой INSERT в camp_payments отклонён');
 select throws_ok($$update camp_payments set request_id = gen_random_uuid() where kind = 'refund'$$, '42501', null, '11: прямой UPDATE camp_payments отклонён');
+
+-- 13. подмена объектов через pg_temp: временная таблица с тем же именем не влияет на проверку «не больше оплаченного»
+select as_user('00000000-0000-0000-0000-0000000000a1');
+discard plans; -- планы plpgsql в сессии закешированы: без сброса подмена не была бы видна
+create temp table camp_payments (participant_id uuid, amount numeric, kind text);
+insert into pg_temp.camp_payments select id, 1000000, 'payment' from ids where k = 'g1';
+select throws_ok($$select camp_refund((select id from ids where k = 'g1'), 800, current_date, null, '00000000-0000-0000-0000-000000000051')$$, '22023', 'refund above paid', '13: временная таблица camp_payments не подменяет настоящую (оплачено считается по public)');
+drop table pg_temp.camp_payments;
+select is((select count(*)::int from public.camp_payments where request_id = '00000000-0000-0000-0000-000000000051'), 0, '13: подменённый вызов не записал возврат');
 
 -- 12. история неизменна (владелец таблицы: триггер 0165)
 reset role;
