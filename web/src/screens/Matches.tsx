@@ -9,9 +9,10 @@ import { EmptyState, ListRow, Pill, Segmented, type Tone } from '../ui/component
 import { type MyRsvp } from '../lib/matchRsvp';
 import Message, { Failure, Loading } from './Message';
 import RsvpSection from './MatchRsvp';
+import MatchResultRow, { ResultTiles } from '../ui/MatchResultRow';
+import { firstRecordDate, participation, type Part } from '../lib/parentMatches';
 
 interface Kid { id: string; name: string }
-interface Part { played: boolean; goals: number }
 interface Match { id: string; team: string; played_on: string; opponent: string | null; goals_for: number | null; goals_against: number | null }
 // Команда матча совпадает с группой по названию или по названию без суффикса -A/-B/-C («U10-A» → «U10»); то же правило в can_see_team (миграция 0048)
 export function teamNames(groupNames: string[]): string[] {
@@ -21,7 +22,7 @@ type Filter = 'all' | 'upcoming' | 'past';
 type ScoreCheck = 'loading' | 'success' | 'error';
 interface Tour { match_id: string; tournament_name: string | null; tournament_kind: string | null; match_kind: string | null }
 interface MyTour { id: string; team: string; kind: string; name: string | null; starts_on: string | null; games: number }
-const FORM: Record<'w' | 'd' | 'l', { letter: string; name: string; tone: Tone }> = { w: { letter: 'В', name: 'Победа', tone: 'success' }, d: { letter: 'Н', name: 'Ничья', tone: 'neutral' }, l: { letter: 'П', name: 'Поражение', tone: 'danger' } };
+const FORM: Record<'w' | 'd' | 'l', { letter: string; name: string; tone: Tone }> = { w: { letter: 'В', name: 'Победа', tone: 'success' }, d: { letter: 'Н', name: 'Ничья', tone: 'warning' }, l: { letter: 'П', name: 'Поражение', tone: 'danger' } };
 const KIND_LABEL: Record<string, string> = { championship: 'Чемпионат', festival: 'Фестиваль', cup: 'Кубок' };
 const FRIENDLY = 'friendly';
 // подпись турнира для фильтра: название, иначе тип; товарищеские — отдельным пунктом
@@ -33,10 +34,6 @@ const fmtDate = (iso: string) => iso.split('-').reverse().join('.');
 const today = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD по местному времени телефона
 
 const isResult = (m: Match) => m.goals_for !== null && m.goals_against !== null;
-const outcome = (m: Match): { tone: Tone; text: string } => {
-  const d = (m.goals_for ?? 0) - (m.goals_against ?? 0);
-  return d > 0 ? { tone: 'success', text: 'Победа' } : d < 0 ? { tone: 'danger', text: 'Поражение' } : { tone: 'neutral', text: 'Ничья' };
-};
 
 // Матчи групп, в которых играют дети текущего пользователя: ближайшие и сыгранные.
 export default function Matches() {
@@ -81,11 +78,11 @@ export default function Matches() {
       setUngrouped(ps.filter(p => !p.groups?.name).map(p => (p.full_name ?? '') as string).filter(Boolean));
       if (!names.length) return setMatches([]);
       // участие своих детей: база отдаёт родителю только записи его ребёнка (без чужих голов)
-      const mp = await supabase.from('match_players').select('match_id, player_id, played, goals').in('player_id', myKids.map(k => k.id));
+      const mp = await supabase.from('match_players').select('match_id, player_id, played, goals, best, performance_rating').in('player_id', myKids.map(k => k.id));
       if (cancelled) return;
       if (mp.error) return setError(errMsg(mp.error));
       const map = new Map<string, Part>();
-      for (const r of (mp.data ?? []) as { match_id: string; player_id: string; played: boolean; goals: number }[]) map.set(`${r.match_id}|${r.player_id}`, { played: r.played, goals: r.goals });
+      for (const r of (mp.data ?? []) as { match_id: string; player_id: string; played: boolean; goals: number; best?: boolean; performance_rating?: number | null }[]) map.set(`${r.match_id}|${r.player_id}`, { played: r.played, goals: r.goals, best: r.best, rating: r.performance_rating });
       setParts(map);
       const rs = await supabase.rpc('match_rsvp_my_matches');
       if (cancelled) return;
@@ -188,6 +185,10 @@ export default function Matches() {
       return r?.played ? [`${kids.length > 1 ? kidShort(k.name) + ': ' : ''}играл${r.goals > 0 ? `, голов: ${r.goals}` : ''}`] : [];
     });
 
+  // первая запись ребёнка в матчах: до неё «не играл» не ставим (его ещё не было в команде)
+  const firstOn = new Map(kids.map(k => [k.id, firstRecordDate(matches0.filter(m => parts.has(`${m.id}|${k.id}`)).map(m => m.played_on))]));
+  const kidRows = (m: Match) => kids.map(k => { const r = parts.get(`${m.id}|${k.id}`); return { name: kids.length > 1 ? kidShort(k.name) : undefined, status: participation(r, m.played_on, firstOn.get(k.id) ?? null), goals: r?.goals, best: r?.best, rating: r?.rating }; });
+
   return (
     <main className="page">
       <h1>Матчи</h1>
@@ -243,7 +244,8 @@ export default function Matches() {
 
       {filter !== 'upcoming' && res.games > 0 && (
         <div className="ks-card" aria-label="Итоги команды">
-          <div className="ks-line"><span>Сыграно: {res.games}</span><span className="ks-muted">Побед {res.wins} · Ничьих {res.draws} · Поражений {res.losses}</span></div>
+          <div className="ks-line"><span>Сыграно: {res.games}</span></div>
+          <ResultTiles wins={res.wins} draws={res.draws} losses={res.losses} />
           <div className="ks-line">
             <span className="ks-muted">Последние матчи</span>
             <span role="list" aria-label="Последние матчи" style={{ display: 'inline-flex', gap: 4 }}>
@@ -274,26 +276,8 @@ export default function Matches() {
             <details className="ks-group" key={ym}>
               <summary><div className="ks-line"><b>{ym.slice(5)}.{ym.slice(0, 4)}</b><span className="muted">{items.length} {matchWord(items.length)}</span></div></summary>
               {items.map(m => {
-                if (!isResult(m)) {
-                  const friendly = tours.get(m.id) === 'Товарищеские';
-                  return <ListRow key={m.id} title={m.opponent ?? (friendly ? 'Товарищеская игра' : 'Матч')} sub={[sub(m), ...lines(m)]} end={<Pill>Без счёта</Pill>} />;
-                }
-                const o = outcome(m);
-                return (
-                  <ListRow
-                    key={m.id}
-                    title={m.opponent ?? 'Матч'}
-                    sub={[sub(m), ...lines(m)]}
-                    end={
-                      <>
-                        <span className="ks-score">
-                          {m.goals_for}:{m.goals_against}
-                        </span>
-                        <Pill tone={o.tone}>{o.text}</Pill>
-                      </>
-                    }
-                  />
-                );
+                const friendly = tours.get(m.id) === 'Товарищеские';
+                return <MatchResultRow key={m.id} title={m.opponent ?? (isResult(m) ? 'Матч' : friendly ? 'Товарищеская игра' : 'Матч')} meta={sub(m)} gf={m.goals_for} ga={m.goals_against} kids={kidRows(m)} />;
               })}
             </details>
           ))}

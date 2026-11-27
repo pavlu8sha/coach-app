@@ -1,21 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useNavState } from '../nav';
 import { supabase } from '../lib/supabase';
-import { EmptyState, ListRow, Pill, Segmented, type Tone } from '../ui/components';
+import { EmptyState, ListRow, Pill, Segmented } from '../ui/components';
+import MatchResultRow from '../ui/MatchResultRow';
+import { firstRecordDate, participation, type Part } from '../lib/parentMatches';
 import { Failure, Loading } from './Message';
 import type { ChildPlayer } from './ChildHome';
 import { errMsg } from '../lib/coach';
 
 interface Match { id: string; team: string; played_on: string; opponent: string | null; goals_for: number | null; goals_against: number | null }
-interface Part { played: boolean; goals: number }
 type Filter = 'upcoming' | 'past';
 
 const fmtDate = (iso: string) => iso.split('-').reverse().join('.');
 const today = () => new Date().toLocaleDateString('en-CA');
-const outcome = (m: Match): { tone: Tone; text: string } => {
-  const d = (m.goals_for ?? 0) - (m.goals_against ?? 0);
-  return d > 0 ? { tone: 'success', text: 'Победа' } : d < 0 ? { tone: 'danger', text: 'Поражение' } : { tone: 'neutral', text: 'Ничья' };
-};
 
 // Матчи группы ребёнка: предстоящие и результаты, с его участием и голами.
 export default function ChildMatches({ player }: { player: ChildPlayer }) {
@@ -27,10 +24,10 @@ export default function ChildMatches({ player }: { player: ChildPlayer }) {
 
   useEffect(() => {
     void (async () => {
-      const mp = await supabase.from('match_players').select('match_id, played, goals').eq('player_id', player.id);
+      const mp = await supabase.from('match_players').select('match_id, played, goals, best, performance_rating').eq('player_id', player.id);
       if (mp.error) return setError(errMsg(mp.error));
       const map = new Map<string, Part>();
-      for (const r of (mp.data ?? []) as { match_id: string; played: boolean; goals: number }[]) map.set(r.match_id, { played: r.played, goals: r.goals });
+      for (const r of (mp.data ?? []) as { match_id: string; played: boolean; goals: number; best?: boolean; performance_rating?: number | null }[]) map.set(r.match_id, { played: r.played, goals: r.goals, best: r.best, rating: r.performance_rating });
       setParts(map);
       const q = supabase.from('matches').select('id, team, played_on, opponent, goals_for, goals_against').order('played_on', { ascending: false }).limit(100);
       const m = await (player.group ? q.eq('team', player.group) : q.in('id', [...map.keys()]));
@@ -45,10 +42,8 @@ export default function ChildMatches({ player }: { player: ChildPlayer }) {
   const t = today();
   const upcoming = matches.filter(m => m.played_on >= t && m.goals_for === null).reverse();
   const past = matches.filter(m => m.goals_for !== null && m.goals_against !== null);
-  const mine = (m: Match) => {
-    const r = parts.get(m.id);
-    return r?.played ? [`ты играл${r.goals > 0 ? `, голов: ${r.goals}` : ''}`] : [];
-  };
+  const firstOn = firstRecordDate(matches.filter(m => parts.has(m.id)).map(m => m.played_on));
+  const mine = (m: Match) => { const r = parts.get(m.id); return [{ status: participation(r, m.played_on, firstOn), goals: r?.goals, best: r?.best, rating: r?.rating }]; };
   return (
     <main className="page">
       <h1>Матчи</h1>
@@ -61,22 +56,7 @@ export default function ChildMatches({ player }: { player: ChildPlayer }) {
         ))}
       {filter === 'past' &&
         (past.length ? (
-          past.map(m => {
-            const o = outcome(m);
-            return (
-              <ListRow
-                key={m.id}
-                title={m.opponent ?? 'Матч'}
-                sub={[fmtDate(m.played_on), ...mine(m)]}
-                end={
-                  <>
-                    <span className="ks-score">{m.goals_for}:{m.goals_against}</span>
-                    <Pill tone={o.tone}>{o.text}</Pill>
-                  </>
-                }
-              />
-            );
-          })
+          past.map(m => <MatchResultRow key={m.id} title={m.opponent ?? 'Матч'} meta={fmtDate(m.played_on)} gf={m.goals_for} ga={m.goals_against} kids={mine(m)} />)
         ) : (
           <EmptyState icon="trophy" title="Нет результатов" text="Сыгранных матчей пока нет." />
         ))}

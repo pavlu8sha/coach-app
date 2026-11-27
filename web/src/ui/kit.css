@@ -574,3 +574,25 @@ details[open] > .ks-disclosure::after { transform: translateY(-30%) rotate(-135d
 .ks-rsvp-acts .ks-link { flex: none; color: var(--ks-text-muted); }
 /* Экраны без плавного появления: при возврате «назад» и открытии списка не должно быть вспышки */
 main.page.ks-still { animation: none; }
+
+/* Матчи у родителя: светофор результата и оценка (docs/PARENT_MATCHES_VISUAL_ACCEPTANCE.md) */
+.ks-mres { border-left: 5px solid var(--ks-border-strong); }
+.ks-mres.w { border-left-color: var(--ks-success); }
+.ks-mres.d { border-left-color: var(--ks-warning); }
+.ks-mres.l { border-left-color: var(--ks-danger); }
+.ks-mres .ks-row-end { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
+.ks-mres-kid { overflow-wrap: anywhere; }
+.ks-mres-star { color: var(--ks-warning); font-weight: 800; }
+.ks-mres-rate { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; white-space: nowrap; }
+.ks-rate { display: inline-flex; gap: 3px; align-items: center; }
+.ks-rate i { width: 8px; height: 8px; border-radius: 50%; background: var(--ks-border-strong); }
+.ks-rate i.f { background: var(--ks-primary); }
+.ks-mres-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+.ks-mres-tiles .ks-tile { display: flex; flex-direction: column-reverse; text-align: center; font-weight: 800; font-size: 1.15rem; }
+.ks-mres-tiles .ks-tile b { margin: 2px 0 0; font-size: 0.72rem; }
+.ks-mres-tiles .ks-tile.w { background: var(--ks-success-subtle); }
+.ks-mres-tiles .ks-tile.w b { color: var(--ks-success); }
+.ks-mres-tiles .ks-tile.d { background: var(--ks-warning-subtle); }
+.ks-mres-tiles .ks-tile.d b { color: var(--ks-warning); }
+.ks-mres-tiles .ks-tile.l { background: var(--ks-danger-subtle); }
+.ks-mres-tiles .ks-tile.l b { color: var(--ks-danger-strong); }

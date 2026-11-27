@@ -109,22 +109,96 @@ describe('профиль игрока: обзор и матчи', () => {
     expect(await screen.findByText('За 90 дней посещений не отмечено')).toBeInTheDocument();
   });
 
-  it('матчи: только с отметкой «играл», счёт подписан как счёт команды, голы ребёнка', async () => {
+  it('К1, К3, О2: матчи команды с пометками «Играл / Не играл», голами и счётом; новые сверху', async () => {
     fake.db.players = [anya];
     fake.db.match_players = [
       mp('m1', 'p1', true, 2, { played_on: '2026-10-10', opponent: 'Динамо', goals_for: 3, goals_against: 1 }),
       mp('m2', 'p1', true, 0, { played_on: '2026-10-12', opponent: 'Локо' }),
-      mp('m3', 'p1', false, 0, { played_on: '2026-10-14', opponent: 'Торпедо' }),
+      mp('m3', 'p1', false, 0, { played_on: '2026-10-14', opponent: 'Торпедо', goals_for: 0, goals_against: 2 }),
+      mp('m4', 'p2', true, 5, { played_on: '2026-10-10', opponent: 'Чужой' }),
+    ];
+    fake.db.matches = [
+      { id: 'm5', team: 'U10', played_on: '2026-10-20', opponent: 'Урожай', goals_for: 2, goals_against: 2 }, // записи ребёнка нет, матч позже первой записи: не играл
+      { id: 'm0', team: 'U10', played_on: '2026-09-01', opponent: 'Давний', goals_for: 1, goals_against: 0 }, // до первой записи: ребёнка в команде не было
     ];
     await open('Матчи');
     const list = screen.getByRole('region', { name: 'Матчи' });
-    expect(within(list).getByText('10.10.2026 · Счёт команды 3:1')).toBeInTheDocument();
-    expect(within(list).getByText('Голы: 2')).toBeInTheDocument();
-    expect(within(list).getByText('12.10.2026 · Счёт не внесён')).toBeInTheDocument();
-    expect(within(list).queryByText(/Торпедо/)).toBeNull();
-    expect(within(list).queryByText(/не играл/i)).toBeNull();
-    // новые сверху
-    expect(within(list).getAllByRole('listitem')[0]).toHaveTextContent('Локо');
+    expect(within(list).getAllByText(/^(Динамо|Локо|Торпедо|Урожай)$/).map(e => e.textContent)).toEqual(['Урожай', 'Торпедо', 'Локо', 'Динамо']);
+    expect(within(list).queryByText('Давний')).toBeNull();
+    expect(within(list).queryByText('Чужой')).toBeNull();
+    const row = (t: string) => within(list).getByText(t).closest('.ks-mres') as HTMLElement;
+    expect(row('Динамо')).toHaveTextContent('10.10.2026 · U10');
+    expect(row('Динамо')).toHaveTextContent('Играл · голы: 2');
+    expect(row('Динамо')).toHaveTextContent('3:1');
+    expect(row('Динамо')).toHaveClass('w');
+    expect(row('Торпедо')).toHaveTextContent('Не играл');
+    expect(row('Торпедо')).toHaveClass('l');
+    expect(row('Урожай')).toHaveTextContent('Не играл');
+    expect(row('Урожай')).toHaveClass('d');
+    expect(row('Локо')).toHaveTextContent('Без счёта');
+    expect(row('Локо')).toHaveClass('n');
+  });
+
+  it('К2, О6: плитки «матчей команды / играл / голов» и побед, ничьих, поражений; форма В/Н/П', async () => {
+    fake.db.players = [anya];
+    fake.db.match_players = [
+      mp('m1', 'p1', true, 2, { played_on: '2026-10-10', opponent: 'А', goals_for: 3, goals_against: 1 }),
+      mp('m3', 'p1', false, 0, { played_on: '2026-10-14', opponent: 'Б', goals_for: 0, goals_against: 2 }),
+    ];
+    fake.db.matches = [{ id: 'm5', team: 'U10', played_on: '2026-10-20', opponent: 'В', goals_for: 2, goals_against: 2 }];
+    await open('Матчи');
+    const sum = screen.getByLabelText('Итоги ребёнка');
+    expect(within(sum).getByText('матчей команды').parentElement).toHaveTextContent('3');
+    expect(within(sum).getByText('играл').parentElement).toHaveTextContent('1');
+    expect(within(sum).getByText('голов (его)').parentElement).toHaveTextContent('2');
+    const t = within(sum).getByRole('group', { name: 'Результаты матчей' });
+    for (const k of ['побед', 'ничьих', 'поражений']) expect(within(t).getByText(k).parentElement).toHaveTextContent('1');
+    expect(within(sum).getAllByRole('listitem').map(e => e.getAttribute('aria-label'))).toEqual(['Ничья', 'Поражение', 'Победа']);
+  });
+
+  it('О4, О5: оценка, баллы и «★ Лучший» у сыгравшего; без оценки и у «Не играл» ничего нет', async () => {
+    fake.db.players = [anya];
+    const withRating = (id: string, played: boolean, rating: number | null, best: boolean, m: Record<string, unknown>) => ({ ...mp(id, 'p1', played, 0, m), best, performance_rating: rating });
+    fake.db.match_players = [
+      withRating('m1', true, 3, false, { played_on: '2026-12-05', opponent: 'Три', goals_for: 0, goals_against: 5 }),
+      withRating('m2', true, 5, true, { played_on: '2026-12-04', opponent: 'Пять', goals_for: 1, goals_against: 5 }),
+      withRating('m3', true, null, false, { played_on: '2026-12-03', opponent: 'Нет', goals_for: 1, goals_against: 0 }),
+      withRating('m4', false, null, false, { played_on: '2026-12-02', opponent: 'Скамейка', goals_for: 1, goals_against: 0 }),
+    ];
+    await open('Матчи');
+    const list = screen.getByRole('region', { name: 'Матчи' });
+    const row = (t: string) => within(list).getByText(t).closest('.ks-mres') as HTMLElement;
+    expect(within(row('Три')).getByRole('img', { name: 'Оценка 3 из 5' })).toBeInTheDocument();
+    expect(row('Три')).toHaveTextContent('+3 б.');
+    expect(row('Три')).not.toHaveTextContent('Лучший');
+    expect(within(row('Пять')).getByRole('img', { name: 'Оценка 5 из 5' })).toBeInTheDocument();
+    expect(row('Пять')).toHaveTextContent('★ Лучший');
+    expect(row('Пять')).toHaveTextContent('+6 б.');
+    expect(within(row('Нет')).queryByRole('img', { name: /Оценка/ })).toBeNull();
+    expect(row('Нет')).not.toHaveTextContent('б.');
+    expect(within(row('Скамейка')).queryByRole('img', { name: /Оценка/ })).toBeNull();
+    expect(row('Скамейка')).not.toHaveTextContent('Лучший');
+  });
+
+  it('К1: матчи месяцами, свежий месяц открыт, прошлые свёрнуты', async () => {
+    fake.db.players = [anya];
+    fake.db.match_players = [
+      mp('m1', 'p1', true, 0, { played_on: '2026-10-10', opponent: 'А', goals_for: 3, goals_against: 1 }),
+      mp('m2', 'p1', true, 0, { played_on: '2026-11-10', opponent: 'Б', goals_for: 1, goals_against: 1 }),
+    ];
+    await open('Матчи');
+    const groups = screen.getByRole('region', { name: 'Матчи' }).querySelectorAll('details');
+    expect([...groups].map(g => g.hasAttribute('open'))).toEqual([true, false]);
+    expect(groups[0]).toHaveTextContent('11.2026');
+    expect(groups[0]).toHaveTextContent('1 матч');
+  });
+
+  it('К4, К5: без записей об участии пустое состояние, плиток нет; обзор не меняется', async () => {
+    fake.db.players = [anya];
+    fake.db.matches = [{ id: 'm5', team: 'U10', played_on: '2026-10-20', opponent: 'В', goals_for: 2, goals_against: 2 }];
+    await open('Матчи');
+    expect(screen.getByText('Отмеченных матчей пока нет')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Итоги ребёнка')).toBeNull();
   });
 
   it('матчей нет: пустое состояние с подсказкой', async () => {
