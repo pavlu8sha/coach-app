@@ -1242,3 +1242,57 @@ describe('«Внесено за день»: сбой источников (#691)
     expect(screen.getByRole('heading', { name: /Внесено 05.10.2026.*7/ })).toBeInTheDocument();
   });
 });
+
+describe('«К оплате»: сбой данных расчёта абонемента (#701)', () => {
+  const TEXT = 'Не удалось загрузить данные, необходимые для расчёта задолженности. Сумма долга временно недоступна.';
+  function seedSub() {
+    seed();
+    fake.db.individual_bookings = [];
+    fake.db.extra_bookings = [];
+    fake.db.camp_participants = [];
+    fake.db.player_status_log = [];
+  }
+
+  it('успешный пустой журнал статусов: обычный расчёт, предупреждения нет', async () => {
+    seedSub();
+    await openPlayer();
+    expect(await screen.findByText(/Внесено 50 ₾ из 165 ₾/)).toBeInTheDocument();
+    expect(screen.queryByText(TEXT)).not.toBeInTheDocument();
+    expect(screen.queryByText(/не рассчитано/i)).not.toBeInTheDocument();
+  });
+
+  it('сбой player_status_log: «Не рассчитано» вместо суммы абонемента, экипировка доступна', async () => {
+    seedSub();
+    fake.errors.player_status_log = 'boom';
+    await openPlayer();
+    expect(await screen.findByText(TEXT)).toBeInTheDocument();
+    expect(screen.getByText(/к оплате: не рассчитано/)).toBeInTheDocument();
+    expect(screen.queryByText(/Внесено 50 ₾ из 165 ₾/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/к оплате: \d/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Долгов нет')).not.toBeInTheDocument();
+    expect(screen.queryByText(/boom/)).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Экипировка' })).toBeInTheDocument();
+  });
+
+  it('«Повторить загрузку»: после успеха расчёт восстановлен, платежей не создано', async () => {
+    seedSub();
+    fake.errors.player_status_log = 'boom';
+    await openPlayer();
+    await screen.findByText(TEXT);
+    const before = fake.db.payments.length;
+    delete fake.errors.player_status_log;
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить загрузку' }));
+    expect(await screen.findByText(/Внесено 50 ₾ из 165 ₾/)).toBeInTheDocument();
+    expect(screen.queryByText(TEXT)).not.toBeInTheDocument();
+    expect(fake.db.payments.length).toBe(before);
+  });
+
+  it('ушедший игрок: сбой players.ends_on не считается «даты ухода нет»', async () => {
+    seedSub();
+    fake.db.players = [{ id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'inactive', groups: { name: 'U9-A' } }];
+    fake.errorsNext.players = 'boom';
+    await openPlayer();
+    expect(await screen.findByText(TEXT)).toBeInTheDocument();
+    expect(screen.getByText(/к оплате: не рассчитано/)).toBeInTheDocument();
+  });
+});

@@ -31,7 +31,7 @@ const EVENT_KIND: Record<string, string> = { championship: 'Чемпионат',
 const errText = (m: string) => (m.includes('paid above total') ? 'Оплата больше суммы заказа.' : m.includes('bad amount') ? 'Сумма указана неверно.' : coachError(m));
 
 /** Всё, что игрок должен: абонемент по месяцам, заказы экипировки, занятия, сборы, взносы матчей и событий. Платёж по строке идёт в нужный раздел. */
-async function loadDues(p: Pl): Promise<{ dues: Due[]; missing: string[] }> {
+async function loadDues(p: Pl): Promise<{ dues: Due[]; missing: string[]; uncalc: boolean }> {
   const out: Due[] = [];
   const noSub = !hasSubscription(p.groups?.name);
   const [prices, pays, subs, orders, ind, extra, camps] = await Promise.all([
@@ -48,19 +48,22 @@ async function loadDues(p: Pl): Promise<{ dues: Due[]; missing: string[] }> {
 
   // месяцы, прожитые целиком на паузе, долгом не считаются (плату за паузу не берём), даже если игрок уже вернулся
   const lg = await supabase.from('player_status_log').select('status, on_date, created_at').eq('player_id', p.id).limit(200);
+  // сбой чтения журнала или даты ухода не равен «пауз и ухода нет»: абонементный долг тогда не рассчитывается (#701)
+  let uncalc = !!lg.error;
   const logRows = lg.error ? [] : ((lg.data ?? []) as StatusLogPoint[]);
   const isPausedMonth = pausedMonthTest(logRows);
   // ушедшему месяцы после месяца ухода долгом не считаются (дата ухода: журнал, а без него players.ends_on)
   let endsOn: string | null = null;
   if (p.status === 'inactive') {
     const en = await supabase.from('players').select('ends_on').eq('id', p.id).maybeSingle();
+    if (en.error) uncalc = true;
     endsOn = en.error ? null : ((en.data as { ends_on?: string | null } | null)?.ends_on ?? null);
   }
   const afterLeft = afterLeftMonthTest(p.status, logRows, endsOn);
   // игрок «Платит за визит» (0200): абонемент с месяца начала не предлагается, его визиты ниже (раздел «Оплата за визит»); сбой чтения колонок (нет миграции) = обычный абонемент
   const pmq = await supabase.from('players').select('pay_mode, pay_mode_from').eq('id', p.id).maybeSingle();
   const payMode = pmq.error ? null : (pmq.data as PayMode | null);
-  if (!noSub) {
+  if (!noSub && !uncalc) {
     const pr = ((prices.data ?? []) as { group_id: string | null; amount: number; valid_from: string; valid_to: string | null }[]).map(x => ({ ...x, amount: Number(x.amount) }));
     const paidBy = new Map<string, number>();
     ((pays.data ?? []) as { amount: number; paid_on: string; pay_month?: string | null }[]).forEach(x => { const m = x.pay_month ?? monthIso(new Date(x.paid_on + 'T12:00:00')); paidBy.set(m, (paidBy.get(m) ?? 0) + Number(x.amount)); });
@@ -155,7 +158,7 @@ async function loadDues(p: Pl): Promise<{ dues: Due[]; missing: string[] }> {
       out.push({ key: 'ov' + g.session_id, kind: 'own_visit', section: SECTIONS[8], title: `Оплата за визит${day ? ` ${fmtDate(day)}` : ''}${g.sessions?.groups ? ` · ${g.sessions.groups.name}` : ''}`, due: Number(g.amount), paid: 0, pay: (amount, method, date) => supabase.rpc('own_visit_set_paid', { s: g.session_id, p: p.id, is_paid: true, mth: method, amt: r2(amount), d: date }) });
     });
   }
-  return { dues: out, missing };
+  return { dues: out, missing, uncalc: uncalc && !noSub };
 }
 
 // время записи платежа по Тбилиси, ЧЧ:ММ
@@ -415,6 +418,7 @@ export default function CashDesk() {
 
 export function PlayerDues({ player, onBack, embedded = false, sharedMethod, jumps = false }: { player: Pl; onBack?: () => void; embedded?: boolean; sharedMethod?: string; jumps?: boolean }) {
   const [dues, setDues] = useState<Due[] | null>(null);
+  const [uncalc, setUncalc] = useState(false); // данные для расчёта абонементного долга не загрузились: сумма не показывается (#701)
   const [missing, setMissing] = useState<string[]>([]); // разделы, чьи данные не загрузились: список долгов неполный (#692)
   const [error, setError] = useState<string | null>(null);
   const [openKey, setOpenKey] = useState<string | null>(null);
@@ -426,7 +430,7 @@ export function PlayerDues({ player, onBack, embedded = false, sharedMethod, jum
   // ответ устаревшей загрузки (сменили игрока, нажали «Повторить», записали платёж) не применяется
   useEffect(() => {
     let alive = true;
-    void loadDues(player).then(d => { if (!alive) return; setDues(d.dues); setMissing(d.missing); setRefreshing(false); }).catch(e => { if (!alive) return; setError(errMsg(e)); setRefreshing(false); });
+    void loadDues(player).then(d => { if (!alive) return; setDues(d.dues); setMissing(d.missing); setUncalc(d.uncalc); setRefreshing(false); }).catch(e => { if (!alive) return; setError(errMsg(e)); setRefreshing(false); });
     return () => { alive = false; };
   }, [player, reload]);
 
@@ -447,7 +451,14 @@ export function PlayerDues({ player, onBack, embedded = false, sharedMethod, jum
           </div>
         </>
       )}
-      <p className="muted">{embedded ? '' : `${player.groups?.name ?? 'без группы'}`}{dues ? `${embedded ? '' : ' · '}к оплате: ${gel(sum)}${missing.length ? ' (неполно)' : ''}` : ''}</p>
+      <p className="muted">{embedded ? '' : `${player.groups?.name ?? 'без группы'}`}{dues ? `${embedded ? '' : ' · '}к оплате: ${uncalc ? 'не рассчитано' : gel(sum)}${missing.length ? ' (неполно)' : ''}` : ''}</p>
+      {dues && uncalc && (
+        <div className="ks-card" role="alert" style={{ marginBottom: 12 }}>
+          <b>Абонемент: не рассчитано</b>
+          <p className="muted" style={{ margin: '4px 0 8px' }}>Не удалось загрузить данные, необходимые для расчёта задолженности. Сумма долга временно недоступна.</p>
+          <button type="button" className="ks-btn secondary" disabled={refreshing} onClick={() => { setRefreshing(true); setReload(n => n + 1); }}>{refreshing ? 'Загружаю…' : 'Повторить загрузку'}</button>
+        </div>
+      )}
       {dues && missing.length > 0 && (
         <div className="ks-card" role="alert" style={{ marginBottom: 12 }}>
           <b>Список долгов неполный</b>
@@ -457,8 +468,8 @@ export function PlayerDues({ player, onBack, embedded = false, sharedMethod, jum
         </div>
       )}
       {msg && <p className="ks-ok">{msg}</p>}
-      {dues && missing.length === 0 && dues.length > 0 && !dues.some(d => !d.advance) && <p className="muted">Долгов нет. Ниже можно принять оплату вперёд.</p>}
-      {!dues ? <Loading /> : dues.length === 0 ? (missing.length > 0 ? null : (
+      {dues && missing.length === 0 && !uncalc && dues.length > 0 && !dues.some(d => !d.advance) && <p className="muted">Долгов нет. Ниже можно принять оплату вперёд.</p>}
+      {!dues ? <Loading /> : dues.length === 0 ? (missing.length > 0 || uncalc ? null : (
         <EmptyState icon="users" title="Долгов нет" text="По абонементу, экипировке, занятиям, сборам и взносам матчей и событий всё оплачено." />
       )) : (
         SECTIONS.filter(s => dues.some(d => d.section === s)).map(s => (
