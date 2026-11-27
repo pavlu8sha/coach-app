@@ -156,7 +156,8 @@ function EventFormBody({ ev, onBack, onDone }: { ev: ClubEvent | null; onBack: (
       {priceChanged && <label className="field">Причина изменения цены (обязательно)<input value={f.reason} maxLength={200} onChange={e => setF({ ...f, reason: e.target.value })} /></label>}
       <label className="field">Запись до<input type="datetime-local" value={f.deadline} onChange={e => setF({ ...f, deadline: e.target.value })} /></label>
       <fieldset style={{ border: 0, padding: 0, margin: '12px 0 0' }}>
-        <legend className="muted" style={{ fontSize: 13 }}>Для групп (пусто — весь клуб)</legend>
+        <legend className="muted" style={{ fontSize: 13 }}>Для каких групп (пусто — весь клуб)</legend>
+        <p className="muted" style={{ fontSize: 13, margin: '0 0 6px' }}>Только для кого мероприятие. Никого не записывает: игроков добавляют в самом мероприятии.</p>
         {!groups && <div className="ks-skel" role="status" aria-label="Загрузка групп" style={{ height: 44 }} />}
         {(groups ?? []).map(g => (
           <label key={g.id} className="ks-check">
@@ -378,6 +379,9 @@ function AddPeople({ ev, parts, mode, onBack, onDone }: { ev: ClubEvent; parts: 
     onDone();
   };
 
+  const own = new Set(ev.group_ids ?? []);
+  const ownGroups = groups.filter(g => own.has(g.id));
+  const otherGroups = groups.filter(g => !own.has(g.id));
   const have = new Set(parts.map(p => p.player_id));
   return (
     <main className="page ks-still">
@@ -396,7 +400,8 @@ function AddPeople({ ev, parts, mode, onBack, onDone }: { ev: ClubEvent; parts: 
           <label className="field">Группа
             <select value={gid} onChange={e => void choose(e.target.value)}>
               <option value="">— выберите —</option>
-              {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+              {ownGroups.length > 0 && <optgroup label="Группы мероприятия">{ownGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</optgroup>}
+              {ownGroups.length > 0 ? <optgroup label="Остальные группы">{otherGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</optgroup> : otherGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
             </select>
           </label>
           {pre && pre.group === gid && (
