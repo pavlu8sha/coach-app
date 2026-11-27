@@ -46,12 +46,13 @@ export default function EventFees({ eventId, reloadKey, onChanged, mode = 'event
     void (async () => {
       const [f, p] = await Promise.all([supabase.rpc(api.fees, { [api.key]: eventId }), supabase.rpc(api.pays, { [api.key]: eventId })]);
       if (f.error) return setError(errMsg(f.error));
-      setFees(((f.data ?? []) as FeeRow[]).map(x => ({ ...x, due: Number(x.due), paid: Number(x.paid) })));
+      // сумма матча читается до публикации взносов: иначе короткое время виден ручной ввод суммы (второй путь задания)
       if (rsvp && mode === 'match') {
         const mf = await supabase.from('matches').select('fee').eq('id', eventId).maybeSingle();
         const row = mf.data as { fee?: number | string | null } | null;
         setMatchFee(mf.error || !row ? undefined : row.fee == null ? null : Number(row.fee));
       }
+      setFees(((f.data ?? []) as FeeRow[]).map(x => ({ ...x, due: Number(x.due), paid: Number(x.paid) })));
       setPays(p.error ? [] : ((p.data ?? []) as PayRow[]).map(x => ({ ...x, amount: Number(x.amount) })));
       // причина и автор последней скидки (#422): только администратору; сбой не мешает экрану взносов
       if (!coach) {

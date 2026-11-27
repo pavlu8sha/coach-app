@@ -77,4 +77,19 @@ describe('взносы матча с подтверждением: сумма в
     expect(screen.getByRole('button', { name: 'Сохранить' })).toBeInTheDocument();
     expect(screen.queryByText(/Взнос не задан/)).toBeNull();
   });
+
+  it('пока сумма матча читается, ручной ввод недоступен и match_set_fee не вызывается', async () => {
+    seed(30);
+    const held = fake.hold('matches');
+    render(<EventFees eventId="m1" mode="match" rsvp reloadKey={0} onChanged={() => {}} />);
+    await waitFor(() => expect(fake.holds.matches).toHaveLength(0)); // запрос суммы взят на удержание и ещё не завершён
+    expect(screen.queryByLabelText('Взнос с игрока, ₾')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Сохранить' })).toBeNull();
+    held.release();
+    await screen.findByText('Иванов Пётр');
+    expect(screen.queryByLabelText('Взнос с игрока, ₾')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Сохранить' })).toBeNull();
+    expect(document.body.textContent).toContain('Взнос с игрока: 30\u00A0₾');
+    expect(fake.rpcCalls('match_set_fee')).toHaveLength(0);
+  });
 });
