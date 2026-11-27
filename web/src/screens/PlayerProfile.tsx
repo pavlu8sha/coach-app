@@ -3,6 +3,10 @@ import { useNavState } from '../nav';
 import { fmtDate, playerTeam, plural, errMsg } from '../lib/coach';
 import { seasonStart } from '../lib/seasonStats';
 import { fetchLedgerTotals } from '../lib/pointsLedger';
+import { firstRecordDate, participation, resultKind, type Part } from '../lib/parentMatches';
+import MatchResultRow, { ResultTiles } from '../ui/MatchResultRow';
+import { teamNames } from './Matches';
+import { groupInOrder } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { BackNav } from '../ui/nav';
 import { Avatar, EmptyState, Pill, Segmented, type Tone } from '../ui/components';
@@ -17,7 +21,10 @@ type Section = 'overview' | 'matches' | 'trainings' | 'points';
 
 interface Profile { first_name: string | null; last_name: string | null; primary_position: string | null; jersey_number: number | null; jersey_team: string | null; jersey_season_start: string | null }
 interface Player { id: string; full_name: string; birth_date: string | null; groups: { name: string } | null; player_profiles: Profile | null }
-interface MatchRow { match_id: string; goals: number; matches: { played_on: string; team: string; opponent: string | null; goals_for: number | null; goals_against: number | null } | null }
+interface MatchInfo { played_on: string; team: string; opponent: string | null; goals_for: number | null; goals_against: number | null }
+interface MatchRow { match_id: string; played: boolean; goals: number; best?: boolean; performance_rating?: number | null; matches: MatchInfo | null }
+/** Строка списка матчей ребёнка: матч и его участие (если запись есть) */
+interface ChildMatch { id: string; m: MatchInfo; part: Part | undefined }
 export interface TrainingRow { day: string; starts_at: string | null; kind: 'group' | 'guest' | 'individual' | 'goalkeeper' | 'extra'; title: string; group_name: string | null; status: 'present' | 'absent' | 'excused' | 'unmarked' }
 
 const WINDOW = 90; // дней в одной порции ленты
@@ -81,9 +88,67 @@ function Trainings(props: { rows: TrainingRow[] | null; error: string | null; bu
   );
 }
 
+/** Вкладка «Матчи» ребёнка: матчи команды с пометкой «Играл / Не играл», светофором результата и оценкой (условия К1-К4). */
+function ChildMatchesList({ list }: { list: ChildMatch[] }) {
+  const firstOn = firstRecordDate(list.filter(x => x.part).map(x => x.m.played_on));
+  // матчи раньше первой записи ребёнка (его ещё не было в команде) не показываем; будущие матчи без счёта здесь не нужны
+  const today = tbilisiToday();
+  const shown = list.filter(x => firstOn !== null && x.m.played_on >= firstOn && (x.m.goals_for !== null || x.m.played_on < today || x.part?.played));
+  if (!shown.length) {
+    return (
+      <section className="ks-card" aria-label="Матчи">
+        <EmptyState icon="trophy" title="Отмеченных матчей пока нет" text="Здесь матчи, где тренер отметил участие ребёнка. Все матчи команды есть во вкладке «Матчи»." />
+      </section>
+    );
+  }
+  const scored = shown.filter(x => x.m.goals_for !== null && x.m.goals_against !== null);
+  const kinds = scored.map(x => resultKind(x.m.goals_for, x.m.goals_against));
+  const cnt = (k: string) => kinds.filter(v => v === k).length;
+  const playedN = shown.filter(x => x.part?.played).length;
+  const goals = shown.reduce((s, x) => s + (x.part?.played ? x.part.goals : 0), 0);
+  const form = kinds.slice(0, 5) as ('w' | 'd' | 'l')[];
+  const word = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'матч' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'матча' : 'матчей');
+  return (
+    <section aria-label="Матчи">
+      <div className="ks-card" aria-label="Итоги ребёнка">
+        <div className="ks-tiles" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+          <div className="ks-tile"><b>матчей команды</b>{scored.length}</div>
+          <div className="ks-tile"><b>играл</b>{playedN}</div>
+          <div className="ks-tile"><b>голов (его)</b>{goals}</div>
+        </div>
+        <ResultTiles wins={cnt('w')} draws={cnt('d')} losses={cnt('l')} />
+        {form.length > 0 && (
+          <div className="ks-line" style={{ marginTop: 10 }}>
+            <span className="ks-muted">Последние матчи</span>
+            <span role="list" aria-label="Последние матчи" style={{ display: 'inline-flex', gap: 4 }}>
+              {form.map((k, i) => <span role="listitem" key={i} aria-label={{ w: 'Победа', d: 'Ничья', l: 'Поражение' }[k]}><Pill tone={{ w: 'success', d: 'warning', l: 'danger' }[k] as Tone}>{{ w: 'В', d: 'Н', l: 'П' }[k]}</Pill></span>)}
+            </span>
+          </div>
+        )}
+      </div>
+      {groupInOrder(shown, x => x.m.played_on.slice(0, 7)).map(([ym, items], gi) => (
+        <details className="ks-group" key={ym} open={gi === 0}>
+          <summary><div className="ks-line"><b>{ym.slice(5)}.{ym.slice(0, 4)}</b><span className="muted">{items.length} {word(items.length)}</span></div></summary>
+          {items.map(x => (
+            <MatchResultRow
+              key={x.id}
+              title={x.m.opponent ?? (x.m.team ? `Матч ${x.m.team}` : 'Матч')}
+              meta={[fmtDate(x.m.played_on), x.m.team].join(' · ')}
+              gf={x.m.goals_for}
+              ga={x.m.goals_against}
+              kids={[{ status: participation(x.part, x.m.played_on, firstOn), goals: x.part?.goals, best: x.part?.best, rating: x.part?.rating }]}
+            />
+          ))}
+        </details>
+      ))}
+    </section>
+  );
+}
+
 export default function PlayerProfile({ playerId, onBack }: { playerId: string; onBack: () => void }) {
   const [player, setPlayer] = useState<Player | null | undefined>(undefined); // undefined — загрузка, null — нет доступа
-  const [matches, setMatches] = useState<MatchRow[]>([]);
+  const [matches, setMatches] = useState<MatchRow[]>([]); // матчи, где ребёнок играл
+  const [list, setList] = useState<ChildMatch[]>([]); // все матчи команды ребёнка для вкладки «Матчи»
   const [points, setPoints] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -128,14 +193,23 @@ export default function PlayerProfile({ playerId, onBack }: { playerId: string; 
       if (pl.error) return setError(errMsg(pl.error));
       if (!pl.data) return setPlayer(null);
       const [mp, led] = await Promise.all([
-        supabase.from('match_players').select('match_id, goals, matches(played_on, team, opponent, goals_for, goals_against)').eq('player_id', playerId).eq('played', true),
+        supabase.from('match_players').select('match_id, played, goals, best, performance_rating, matches(played_on, team, opponent, goals_for, goals_against)').eq('player_id', playerId),
         fetchLedgerTotals([playerId]),
       ]);
       if (!live) return;
       if (mp.error) return setError(errMsg(mp.error));
       if (led.error) return setError(led.error);
-      const rows = ((mp.data ?? []) as unknown as MatchRow[]).filter(r => r.matches);
+      const own = ((mp.data ?? []) as unknown as MatchRow[]).filter(r => r.matches);
+      const rows = own.filter(r => r.played);
       rows.sort((a, b) => (a.matches!.played_on < b.matches!.played_on ? 1 : -1));
+      // матчи команды ребёнка: чтобы показать и те, где он не играл; ошибка этого запроса не ломает профиль (остаются матчи с записью)
+      const gname = (pl.data as unknown as Player).groups?.name;
+      const tm = gname ? await supabase.from('matches').select('id, team, played_on, opponent, goals_for, goals_against').in('team', teamNames([gname])).order('played_on', { ascending: false }).limit(100) : null;
+      if (!live) return;
+      const byId = new Map<string, ChildMatch>();
+      for (const r of own) byId.set(r.match_id, { id: r.match_id, m: r.matches!, part: { played: r.played, goals: r.goals, best: r.best, rating: r.performance_rating } });
+      for (const x of ((tm && !tm.error ? tm.data : null) ?? []) as (MatchInfo & { id: string })[]) if (!byId.has(x.id)) byId.set(x.id, { id: x.id, m: x, part: undefined });
+      setList([...byId.values()].sort((a, b) => (a.m.played_on < b.m.played_on ? 1 : -1)));
       setMatches(rows);
       setPoints(led.totals[playerId] ?? 0);
       setPlayer(pl.data as unknown as Player);
@@ -212,30 +286,7 @@ export default function PlayerProfile({ playerId, onBack }: { playerId: string; 
         </section>
       )}
 
-      {section === 'matches' && (
-        <section className="ks-card" aria-label="Матчи">
-          {matches.length === 0 ? (
-            <EmptyState icon="trophy" title="Отмеченных матчей пока нет" text="Здесь матчи, где тренер отметил участие ребёнка. Все матчи команды есть во вкладке «Матчи»." />
-          ) : (
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-              {matches.map(m => {
-                const x = m.matches!;
-                const score = x.goals_for !== null && x.goals_against !== null ? `Счёт команды ${x.goals_for}:${x.goals_against}` : 'Счёт не внесён';
-                return (
-                  <li key={m.match_id} className="ks-slot">
-                    <span className="ks-slot-main">
-                      {x.team}
-                      {x.opponent ? ` — ${x.opponent}` : ''}
-                      <span className="ks-muted">{[fmtDate(x.played_on), score].join(' · ')}</span>
-                    </span>
-                    <span>{m.goals > 0 ? `Голы: ${m.goals}` : 'Играл'}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-      )}
+      {section === 'matches' && <ChildMatchesList list={list} />}
 
       {section === 'trainings' && (
         <Trainings

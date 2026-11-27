@@ -26,7 +26,10 @@ describe('«Матчи» родителя: итоги и турнир', () => {
     render(<Matches />);
     const card = await screen.findByLabelText('Итоги команды');
     expect(within(card).getByText('Сыграно: 3')).toBeInTheDocument();
-    expect(within(card).getByText(/Побед 2 · Ничьих 0 · Поражений 1/)).toBeInTheDocument();
+    const tiles = within(card).getByRole('group', { name: 'Результаты матчей' });
+    expect(within(tiles).getByText('побед').parentElement).toHaveTextContent('2');
+    expect(within(tiles).getByText('ничьих').parentElement).toHaveTextContent('0');
+    expect(within(tiles).getByText('поражений').parentElement).toHaveTextContent('1');
     expect(within(card).getByText('Мячи: 7:3')).toBeInTheDocument();
     expect(within(card).getByText(/Лучший матч: Локомотив/)).toBeInTheDocument();
     expect(within(card).getAllByRole('listitem').map(e => e.getAttribute('aria-label'))).toEqual(['Победа', 'Поражение', 'Победа']);
@@ -162,5 +165,57 @@ describe('«Матчи» родителя: ребёнок без группы (#
     await screen.findByLabelText('Итоги команды');
     expect(screen.queryByText('Группа ещё не назначена', { exact: false })).toBeNull();
     expect(screen.queryByRole('status')).toBeNull();
+  });
+});
+
+describe('«Матчи» родителя: светофор, участие и оценка своего ребёнка (PARENT_MATCHES_VISUAL_ACCEPTANCE)', () => {
+  const rowOf = (t: string) => screen.getByText(t, { selector: '.ks-row-title' }).closest('.ks-mres') as HTMLElement;
+
+  it('В2, О1: строки результатов со светофором и В/Н/П', async () => {
+    seed();
+    render(<Matches />);
+    await screen.findByLabelText('Итоги команды');
+    fireEvent.click(screen.getByText('10.2026'));
+    expect(rowOf('Олимп')).toHaveClass('w');
+    expect(rowOf('Динамо')).toHaveClass('l');
+    expect(within(rowOf('Динамо')).getByText('Поражение')).toHaveClass('danger');
+  });
+
+  it('В2, О2-О5: «играл» с голами, оценкой и звездой; «не играл» по записи и после первой записи; до неё пометки нет', async () => {
+    seed();
+    fake.db.match_players = [
+      { match_id: 'm1', player_id: 'p1', played: true, goals: 1, best: true, performance_rating: 5 },
+      { match_id: 'm2', player_id: 'p1', played: false, goals: 0, best: false, performance_rating: null },
+    ];
+    render(<Matches />);
+    await screen.findByLabelText('Итоги команды');
+    fireEvent.click(screen.getByText('10.2026'));
+    expect(rowOf('Олимп')).toHaveTextContent('Играл · голы: 1');
+    expect(rowOf('Олимп')).toHaveTextContent('★ Лучший');
+    expect(within(rowOf('Олимп')).getByRole('img', { name: 'Оценка 5 из 5' })).toBeInTheDocument();
+    expect(rowOf('Олимп')).toHaveTextContent('+6 б.');
+    expect(rowOf('Динамо')).toHaveTextContent('Не играл');
+    expect(rowOf('Локомотив')).toHaveTextContent('Не играл'); // m3 позже первой записи (m1)
+  });
+
+  it('В3: матч раньше первой записи ребёнка без пометки; без записей пометок нет совсем', async () => {
+    seed();
+    (fake.db.matches as any[]).push({ id: 'm0', team: 'U9', played_on: '2026-09-01', opponent: 'Давний', goals_for: 1, goals_against: 0 });
+    fake.db.match_players = [{ match_id: 'm2', player_id: 'p1', played: true, goals: 0, best: false, performance_rating: null }];
+    render(<Matches />);
+    await screen.findByLabelText('Итоги команды');
+    fireEvent.click(screen.getByText('09.2026'));
+    expect(rowOf('Давний')).not.toHaveTextContent(/Играл|Не играл/);
+    expect(rowOf('Давний')).toHaveClass('w');
+  });
+
+  it('П1: строка участия другого ребёнка не попадает на экран', async () => {
+    seed();
+    fake.db.match_players = [{ match_id: 'm1', player_id: 'pX', played: true, goals: 9, best: true, performance_rating: 5 }];
+    render(<Matches />);
+    await screen.findByLabelText('Итоги команды');
+    fireEvent.click(screen.getByText('10.2026'));
+    expect(rowOf('Олимп')).not.toHaveTextContent(/Играл|голы|Лучший/);
+    expect(screen.queryByRole('img', { name: /Оценка/ })).toBeNull();
   });
 });
