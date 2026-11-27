@@ -38,6 +38,8 @@ export const plural = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'балл
 export function coachError(m: string): string {
   const map: [string, string][] = [
     ['forbidden', 'Нет прав на это действие для выбранной группы.'],
+    ['match is a draft', 'Матч ещё не опубликован: результат вносится после публикации.'],
+    ['match is cancelled', 'Матч отменён: результат не вносится.'],
     ['no training scheduled', 'В этот день нет занятия по расписанию группы.'],
     ['date in the future', 'Нельзя отметить занятие, которое ещё не прошло.'],
     ['result for future match', 'Счёт нельзя внести для матча, который ещё не прошёл.'],

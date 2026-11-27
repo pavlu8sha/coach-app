@@ -223,16 +223,22 @@ select is((select count(*)::int from match_reminder_log where match_id = mid('m'
 
 -- ---------- изменения опубликованного матча ----------
 select as_user('00000000-0000-0000-0000-0000000000c1');
+select as_user('00000000-0000-0000-0000-0000000000a1');
 select lives_ok($$select match_rsvp_update(mid('m'), (select jsonb_build_object('starts_at', starts_at + interval '1 hour', 'venue', 'Новый стадион') from matches where id = mid('m')))$$, 'изменение времени в тот же день');
+select as_user('00000000-0000-0000-0000-0000000000c1');
 select is((select count(*)::int from match_invitations where match_id = mid('m') and response is not null), 2, 'ответы при смене времени сохранены');
 select is((select count(*)::int from match_invitations i, matches m2 where m2.id = i.match_id and i.match_id = mid('m') and i.status = 'invited' and i.answer_until = m2.rsvp_deadline_at), 5, 'окно ответа пересчитано по новому дедлайну');
 select is((select (payload->'after'->>'venue') from match_activity where match_id = mid('m') and action = 'details_changed'), 'Новый стадион', 'изменение места записано в журнал');
+select as_user('00000000-0000-0000-0000-0000000000a1');
 select throws_ok($$select match_rsvp_update(mid('m'), (select jsonb_build_object('starts_at', starts_at + interval '1 day') from matches where id = mid('m')))$$, '55000', 'date change requires reschedule', 'смена даты — только переносом');
+select as_user('00000000-0000-0000-0000-0000000000c1');
 select throws_ok($$select match_rsvp_update(mid('m'), '{"kind": "friendly"}'::jsonb)$$, '55000', 'field is fixed after publish', 'тип и команда после публикации не меняются');
 select as_user('00000000-0000-0000-0000-0000000000b1');
 select throws_ok($$select match_rsvp_reschedule(mid('m'), now() + interval '9 days')$$, '42501', 'forbidden', 'родитель не переносит матч');
 select as_user('00000000-0000-0000-0000-0000000000c1');
+select as_user('00000000-0000-0000-0000-0000000000a1');
 select throws_ok($$select match_rsvp_reschedule(mid('m'), now() - interval '1 hour')$$, '22023', 'start in the past', 'перенос в прошлое отклоняется');
+select as_user('00000000-0000-0000-0000-0000000000c1');
 select throws_ok($$select match_rsvp_cancel(mid('tmp'))$$, '42501', 'forbidden', 'удалённый черновик не найти (отмена невозможна)');
 
 -- ---------- единый лимит: автонапоминание первым, ручное вторым; дубли cron ----------
@@ -256,7 +262,9 @@ create temp table digest1 as select legacy_digest() as d, fees_points_digest() a
 
 -- ---------- перенос основного матча ----------
 select as_user('00000000-0000-0000-0000-0000000000c1');
+select as_user('00000000-0000-0000-0000-0000000000a1');
 select lives_ok($$select match_rsvp_reschedule(mid('m'), (date_trunc('day', now() at time zone 'Asia/Tbilisi') + interval '9 days 12 hours') at time zone 'Asia/Tbilisi', null, 'ул. Новая 5')$$, 'перенос на другую дату');
+select as_user('00000000-0000-0000-0000-0000000000c1');
 select is((select count(*)::int from match_invitations where match_id = mid('m') and status = 'invited' and response is not null), 0, 'все ответы сброшены на «Не ответил»');
 select is((select count(*)::int from match_invitations where match_id = mid('m') and status = 'invited'), 5, 'список приглашённых сохранён');
 select is((select count(*)::int from matches where opponent = 'Торпедо'), 1, 'перенос не создаёт дубликат матча');
@@ -308,7 +316,9 @@ select as_user('00000000-0000-0000-0000-0000000000b1');
 select is((select count(*)::int from match_rsvp_my_matches() where match_id = mid('m6') and can_answer), 0, 'начавшийся матч в списке родителя без возможности ответить');
 -- перенос возможен и после начала
 select as_user('00000000-0000-0000-0000-0000000000c1');
+select as_user('00000000-0000-0000-0000-0000000000a1');
 select lives_ok($$select match_rsvp_reschedule(mid('m6'), now() + interval '3 days')$$, 'перенос возможен после начала матча');
+select as_user('00000000-0000-0000-0000-0000000000c1');
 select ok((select (payload->>'fact_marks_present')::boolean and (payload->>'was_started')::boolean from match_activity where match_id = mid('m6') and action = 'rescheduled'), 'в журнале: матч уже начался, фактические отметки были');
 reset role;
 select is(fees_points_digest(), (select fp from digest1), 'взносы за матч и старые баллы после переноса не изменились');
@@ -318,11 +328,17 @@ create temp table digest2 as select legacy_digest() as d;
 
 -- ---------- отмена ----------
 select as_user('00000000-0000-0000-0000-0000000000c1');
+select as_user('00000000-0000-0000-0000-0000000000a1');
 select lives_ok($$select match_rsvp_cancel(mid('m'), 'Дождь')$$, 'отмена опубликованного матча');
+select as_user('00000000-0000-0000-0000-0000000000c1');
 select is((select lifecycle_status from matches where id = mid('m')), 'cancelled', 'матч отменён');
+select as_user('00000000-0000-0000-0000-0000000000a1');
 select throws_ok($$select match_rsvp_cancel(mid('m'))$$, '55000', 'match is already cancelled', 'повторная отмена отклоняется');
+select as_user('00000000-0000-0000-0000-0000000000c1');
 select throws_ok($$select match_rsvp_update(mid('m'), '{"notes": "x"}'::jsonb)$$, '55000', 'match is cancelled', 'отменённый матч не правится');
+select as_user('00000000-0000-0000-0000-0000000000a1');
 select throws_ok($$select match_rsvp_reschedule(mid('m'), now() + interval '20 days')$$, '55000', 'only published match can be rescheduled', 'отменённый матч не переносится');
+select as_user('00000000-0000-0000-0000-0000000000c1');
 select throws_ok($$select match_rsvp_coach_set(mid('m'), '00000000-0000-0000-0000-00000000d001', 'yes')$$, '55000', 'match is not published', 'после отмены ответы тренером не ставятся');
 select as_user('00000000-0000-0000-0000-0000000000b1');
 select throws_ok($$select match_rsvp_answer(mid('m'), '00000000-0000-0000-0000-00000000d001', 'yes')$$, '55000', 'match is cancelled', 'после отмены родитель не отвечает');

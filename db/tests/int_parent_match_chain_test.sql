@@ -84,8 +84,9 @@ select is((select string_agg(full_name || ':' || coalesce(response, '-') || ':' 
 -- ===== 4. Перенос: пересечение переезжает, ответы сброшены, уведомлены только приглашённые семьи =====
 reset role;
 delete from notifications;
-select as_user('00000000-0000-0000-0000-0000000000c1');
+select as_user('00000000-0000-0000-0000-0000000000a1');
 select match_rsvp_reschedule((select id from ids where k = 'm'), (day5() + time '18:00') at time zone 'Asia/Tbilisi', null, null);
+select as_user('00000000-0000-0000-0000-0000000000c1');
 select as_user('00000000-0000-0000-0000-0000000000b1');
 select is(conflicts('i12', '00000000-0000-0000-0000-00000000d001') || '|' || conflicts('i18', '00000000-0000-0000-0000-00000000d001'), '|match',
   'после переноса пересечение ушло с 12:00 и появилось в 18:00');
@@ -98,8 +99,9 @@ select ok(not exists (select 1 from notifications where kind = 'rsvp_reschedule'
 
 -- ===== 5. Отмена: пересечений нет, ответить нельзя, тренер и родитель видят отмену =====
 delete from notifications;
-select as_user('00000000-0000-0000-0000-0000000000c1');
+select as_user('00000000-0000-0000-0000-0000000000a1');
 select match_rsvp_cancel((select id from ids where k = 'm'), 'Дождь');
+select as_user('00000000-0000-0000-0000-0000000000c1');
 select as_user('00000000-0000-0000-0000-0000000000b1');
 select is(conflicts('i18', '00000000-0000-0000-0000-00000000d001'), '', 'отменённый матч не мешает записи на тренировку');
 select is((select lifecycle_status || '/' || can_answer::text from match_rsvp_my_matches() where player_id = '00000000-0000-0000-0000-00000000d001'), 'cancelled/false',

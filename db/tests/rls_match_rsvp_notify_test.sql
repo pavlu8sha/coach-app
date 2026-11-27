@@ -6,6 +6,7 @@ select plan(42);
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб А');
 insert into users (id, telegram_id, display_name, is_admin) values
   ('00000000-0000-0000-0000-0000000000c1', 7002, 'Тренер', false),
+  ('00000000-0000-0000-0000-0000000000a1', 7099, 'Админ', true),
   ('00000000-0000-0000-0000-0000000000b1', 7004, 'Родитель 1', false),
   ('00000000-0000-0000-0000-0000000000b2', 7005, 'Родитель 2', false),
   ('00000000-0000-0000-0000-0000000000b3', 7006, 'Родитель 3', false);
@@ -119,15 +120,17 @@ select is((select count(*)::int from match_reminder_log where match_id = mid('m2
 
 -- ---------- перенос и отмена ----------
 delete from notifications;
-select as_user('00000000-0000-0000-0000-0000000000c1');
+select as_user('00000000-0000-0000-0000-0000000000a1');
 select match_rsvp_reschedule(mid('m1'), now() + interval '7 days', 'Новый стадион', null);
+select as_user('00000000-0000-0000-0000-0000000000c1');
 reset role; set constraints all immediate; set constraints all deferred;
 select is((select count(*)::int from notifications where kind = 'rsvp_reschedule'), 3, 'перенос: сообщения всем родителям');
 select ok((select bool_and(buttons is not null) from notifications where kind = 'rsvp_reschedule'), 'в сообщении о переносе есть кнопки');
 select ok((select text like '%Прежние ответы сброшены%' from notifications where kind = 'rsvp_reschedule' limit 1), 'сказано, что ответы сброшены');
 delete from notifications;
-select as_user('00000000-0000-0000-0000-0000000000c1');
+select as_user('00000000-0000-0000-0000-0000000000a1');
 select match_rsvp_cancel(mid('m1'), 'Дождь');
+select as_user('00000000-0000-0000-0000-0000000000c1');
 reset role; set constraints all immediate; set constraints all deferred;
 select is((select count(*)::int from notifications where kind = 'rsvp_cancel'), 3, 'отмена: сообщения всем родителям');
 select ok((select bool_and(buttons is null) from notifications where kind = 'rsvp_cancel'), 'в сообщении об отмене кнопок ответа нет');

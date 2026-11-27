@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { coachError, compareGroups, fmtDate, matchTeam, playsMatches, today, type CoachGroup, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { useDirtySignature, useNav, useNavState } from '../nav';
-import { EmptyState, ListRow, Pill, NameDatalist, searchFocusProps } from '../ui/components';
+import { EmptyState, ListRow, Pill } from '../ui/components';
+import { PlayerSearch } from '../ui/PlayerSearch';
 import { Stepper } from '../ui/coach';
 import { BackNav, useMainButton } from '../ui/nav';
 import EventFees from './EventFees';
@@ -68,7 +69,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   const screen = nav.top.screen;
   const topId = nav.top.params.id;
   const back = () => { nav.back(); setReload(n => n + 1); };
-  if (screen.startsWith('rsvp')) return <CoachRsvp groups={groups} all={showAll} onBack={() => nav.back()} />;
+  if (screen.startsWith('rsvp')) return <CoachRsvp groups={groups} all={showAll} admin={admin} onBack={() => nav.back()} />;
   const openEvent = events.find(e => e.id === topId);
   // форму нового события открывает только администратор (миграция 0195); тренер ведёт состав и игры уже созданных событий
   if (screen === 'event' && (openEvent || (!topId && admin))) {
@@ -89,7 +90,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   if (screen === 'form' && formMatch && isRsvp(formMatch)) {
     const t = tours.get(formMatch.id);
     const friendly = !t?.tournament_id || t?.match_kind === 'friendly' || t?.tournament_kind === 'cup';
-    return <MatchHub match={formMatch} groups={groups} onBack={back} renderResult={(row, active, ctl) => <MatchForm groups={groups} match={row} admin={admin} rosterOf={friendly ? null : t?.tournament_id ?? null} feeMode={friendly} embedded active={active} onDirty={ctl.onDirty} blocked={ctl.blocked} onBack={back} onSaved={() => setReload(n => n + 1)} />} />;
+    return <MatchHub match={formMatch} groups={groups} admin={admin} onBack={back} renderResult={(row, active, ctl) => <MatchForm groups={groups} match={row} admin={admin} rosterOf={friendly ? null : t?.tournament_id ?? null} feeMode={friendly} embedded active={active} onDirty={ctl.onDirty} blocked={ctl.blocked} onBack={back} onSaved={() => setReload(n => n + 1)} />} />;
   }
   if (screen === 'form' && (formMatch || !topId)) return <MatchForm groups={groups} match={formMatch} admin={admin} rosterOf={formMatch && !(!tours.get(formMatch.id)?.tournament_id || tours.get(formMatch.id)?.match_kind === 'friendly' || tours.get(formMatch.id)?.tournament_kind === 'cup') ? tours.get(formMatch.id)?.tournament_id ?? null : null} feeMode={!formMatch || !tours.get(formMatch.id)?.tournament_id || tours.get(formMatch.id)?.match_kind === 'friendly' || tours.get(formMatch.id)?.tournament_kind === 'cup'} presetTeam={addTeam} onBack={back} onSaved={() => setReload(n => n + 1)} />;
   if (!matches) return <Loading title="Матчи" />;
@@ -252,8 +253,6 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
   // технический результат (матч фактически не играли): баллов нет; признак ставится отдельной функцией после сохранения матча
   const [technical, setTechnical] = useState(match?.technical ?? false);
   const [savedTech, setSavedTech] = useState(match?.technical ?? false);
-  const [q, setQ] = useState('');
-  const [found, setFound] = useState<Player[]>([]);
   // после первого сохранения в составе остаются только сыгравшие; остальных можно показать кнопкой, чтобы добавить забытого
   const [shownIds, setShownIds] = useState<string[] | null>(null);
   const [invitedIds, setInvitedIds] = useState<string[]>([]); // приглашённые матча с подтверждением: остаются в составе и после сохранения
@@ -366,17 +365,6 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     })();
     return () => { off = true; };
   }, [matchClub, clubGroupId]);
-
-  // Найти любого игрока клуба и добавить в состав (тренеры и администратор)
-  useEffect(() => {
-    if (q.trim().length < 2) return setFound([]);
-    const t = setTimeout(() => {
-      void supabase.from('players').select('id, full_name').ilike('full_name', `%${q.trim()}%`).order('full_name').limit(8).then(r => {
-        if (!r.error) setFound((r.data ?? []) as Player[]);
-      });
-    }, 250);
-    return () => clearTimeout(t);
-  }, [q]);
 
   const line = (id: string): Line => lines[id] ?? { played: false, goals: 0, rating: null };
   // гости чемпионата определяет база (заявки всех команд этого чемпионата); после каждого сохранения список читается заново
@@ -578,11 +566,9 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
       )}
       <>
       <h2 className="ks-sub">Добавить в состав</h2>
-      <input className="ks-input" value={q} onChange={e => setQ(e.target.value)} placeholder="Фамилия или имя игрока (от 2 букв)" aria-label="Найти игрока" list="ks-found-names" autoComplete="off" {...searchFocusProps} /><NameDatalist id="ks-found-names" names={found.map(f => f.full_name)} />
-      <div style={{ marginTop: 8, marginBottom: 16, display: 'grid', gap: 8 }}>
-      {found.filter(f => !players.some(p => p.id === f.id)).map(f => (
-        <ListRow key={f.id} avatar={f.full_name} title={f.full_name} end={<button type="button" className="ks-btn secondary" style={{ width: 'auto', minHeight: 40 }} onClick={() => { setPlayers(list => [...(list ?? []), f].sort((a, b) => a.full_name.localeCompare(b.full_name))); setShownIds(ids => (ids ? [...ids, f.id] : ids)); setQ(''); setFound([]); }}>Добавить</button>} />
-      ))}
+      <div style={{ marginBottom: 16 }}>
+        <PlayerSearch id="ks-add-player" ariaLabel="Найти игрока" placeholder="Фамилия или имя игрока (от 2 букв)" datalist exclude={id => players.some(p => p.id === id)}
+          onPick={f => { setPlayers(list => [...(list ?? []), f].sort((a, b) => a.full_name.localeCompare(b.full_name))); setShownIds(ids => (ids ? [...ids, f.id] : ids)); }} />
       </div>
       </>
       {msg && <p className={msg.ok ? 'ks-ok' : 'error'}>{msg.text}</p>}
@@ -621,7 +607,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
 type HubTab = 'roster' | 'result';
 type HubCtl = { onDirty: (dirty: boolean) => void; blocked: string | null };
 const HUB_COLS = 'id, club_id, team, played_on, opponent, goals_for, goals_against, technical, lifecycle_status, starts_at';
-function MatchHub({ match, groups, onBack, renderResult }: { match: Match; groups: CoachGroup[]; onBack: () => void; renderResult: (row: Match, active: boolean, ctl: HubCtl) => React.ReactNode }) {
+function MatchHub({ match, groups, admin, onBack, renderResult }: { match: Match; groups: CoachGroup[]; admin: boolean; onBack: () => void; renderResult: (row: Match, active: boolean, ctl: HubCtl) => React.ReactNode }) {
   const [live, setLive] = useState<{ lifecycle_status?: string; starts_at?: string | null; opponent?: string | null; team?: string }>({ lifecycle_status: match.lifecycle_status, starts_at: match.starts_at, opponent: match.opponent, team: match.team });
   const [tab, setTab] = useState<HubTab>(() => (match.starts_at && new Date(match.starts_at).getTime() <= Date.now() ? 'result' : 'roster'));
   const [opened, setOpened] = useState(() => tab === 'result');
@@ -660,7 +646,7 @@ function MatchHub({ match, groups, onBack, renderResult }: { match: Match; group
         ))}
       </div>
       <div role="tabpanel" id="hub-panel-roster" aria-labelledby="hub-tab-roster" hidden={tab !== 'roster'}>
-        <RsvpDetail id={match.id} groups={groups} onBack={onBack} embedded onLoaded={(m: RsvpMatch) => { setLive({ lifecycle_status: m.lifecycle_status, starts_at: m.starts_at, opponent: m.opponent, team: m.team }); void refreshRow(); }} />
+        <RsvpDetail id={match.id} groups={groups} admin={admin} onBack={onBack} embedded onOpenResult={() => choose('result')} onLoaded={(m: RsvpMatch) => { setLive({ lifecycle_status: m.lifecycle_status, starts_at: m.starts_at, opponent: m.opponent, team: m.team }); void refreshRow(); }} />
       </div>
       {opened && (
         <div role="tabpanel" id="hub-panel-result" aria-labelledby="hub-tab-result" hidden={tab !== 'result'}>

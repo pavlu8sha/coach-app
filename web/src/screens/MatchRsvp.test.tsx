@@ -532,13 +532,52 @@ describe('Тренер: матчи с подтверждением', () => {
     fake.db.matches = [matchRow({ starts_at: started })];
     fake.rpc.match_rsvp_summary = () => [{ invited: 1, yes: 0, no: 0, unanswered: 1, reminders: 0, last_reminder_at: null }];
     fake.rpc.match_rsvp_roster = () => rosterRows;
-    render(<CoachRsvp groups={groups} onBack={() => {}} />);
+    render(<CoachRsvp groups={groups} admin onBack={() => {}} />);
     fireEvent.click(await screen.findByText('U9 · Олимп'));
     expect(await screen.findByRole('button', { name: 'Отменить матч' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Перенести матч' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Напомнить не ответившим' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Изменить данные матча' })).toBeNull();
     expect(screen.queryByRole('button', { name: /Убрать из состава/ })).toBeNull();
+  });
+
+  it('тренер не видит «Перенести матч» и «Отменить матч», время опубликованного матча в правке закрыто (0227)', async () => {
+    fake.db.matches = [matchRow()];
+    fake.rpc.match_rsvp_summary = () => [{ invited: 1, yes: 0, no: 0, unanswered: 1, reminders: 0, last_reminder_at: null }];
+    fake.rpc.match_rsvp_roster = () => rosterRows;
+    await openMatch();
+    expect(await screen.findByText('Иванов Пётр')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Перенести матч' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Отменить матч' })).toBeNull();
+    expect(screen.getByText(/Перенос и отмену матча выполняет администратор/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Изменить данные матча' }));
+    await screen.findByLabelText('Соперник');
+    expect(screen.queryByLabelText(/Дата и время/)).toBeNull();
+  });
+
+  it('администратор видит «Перенести матч» и «Отменить матч» и время в правке', async () => {
+    fake.db.matches = [matchRow()];
+    fake.rpc.match_rsvp_summary = () => [{ invited: 1, yes: 0, no: 0, unanswered: 1, reminders: 0, last_reminder_at: null }];
+    fake.rpc.match_rsvp_roster = () => rosterRows;
+    render(<CoachRsvp groups={groups} admin onBack={() => {}} />);
+    fireEvent.click(await screen.findByText('U9 · Олимп'));
+    expect(await screen.findByRole('button', { name: 'Перенести матч' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Отменить матч' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Изменить данные матча' }));
+    expect(await screen.findByLabelText(/Дата и время/)).toBeInTheDocument();
+  });
+
+  it('ошибка сервера «только администратор» показывается по-русски', async () => {
+    fake.db.matches = [matchRow()];
+    fake.rpc.match_rsvp_summary = () => [{ invited: 1, yes: 0, no: 0, unanswered: 1, reminders: 0, last_reminder_at: null }];
+    fake.rpc.match_rsvp_roster = () => rosterRows;
+    fake.rpc.match_rsvp_cancel = () => ({ data: null, error: { message: 'only admin can cancel or reschedule' } });
+    render(<CoachRsvp groups={groups} admin onBack={() => {}} />);
+    fireEvent.click(await screen.findByText('U9 · Олимп'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Отменить матч' }));
+    const btns = await screen.findAllByRole('button', { name: 'Отменить матч' });
+    fireEvent.click(btns[btns.length - 1]);
+    expect(await screen.findByText('Отменять и переносить матч может только администратор')).toBeInTheDocument();
   });
 
   it('фильтр сводки показывает только выбранную группу', async () => {

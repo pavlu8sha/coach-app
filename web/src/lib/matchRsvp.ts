@@ -55,6 +55,7 @@ const ERRORS: [string, string][] = [
   ['bad fee', 'Сумма взноса не может быть отрицательной'],
   ['fee not allowed', 'У матча чемпионата или фестиваля взноса нет: он на событие'],
   ['answers are closed', 'Приём ответов закрыт'],
+  ['only admin can cancel or reschedule', 'Отменять и переносить матч может только администратор'],
   ['match is cancelled', 'Матч отменён'],
   ['match already started', 'Матч уже начался'],
   ['no invited players', 'Добавьте в состав хотя бы одного игрока'],
