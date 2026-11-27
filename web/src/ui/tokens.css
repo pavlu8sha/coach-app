@@ -20,6 +20,7 @@
   --ks-success-subtle: #dff2e7;
   --ks-warning: #8a5a00;
   --ks-warning-subtle: #fbefcf;
+  --ks-warning-fill: #e2a012; /* залитая полоса: светлее текстового --ks-warning */
   --ks-danger: #c0392b;
   --ks-danger-subtle: #f8e1dd;
   --ks-danger-strong: #9e2b1f;
@@ -51,6 +52,7 @@
     --ks-success-subtle: #16382a;
     --ks-warning: #e8c26a;
     --ks-warning-subtle: #3a2f12;
+  --ks-warning-fill: #e8c26a;
     --ks-danger: #f0866f;
     --ks-danger-subtle: #3c1f1b;
     --ks-danger-strong: #f0866f;
@@ -74,6 +76,7 @@
   --ks-success-subtle: #16382a;
   --ks-warning: #e8c26a;
   --ks-warning-subtle: #3a2f12;
+  --ks-warning-fill: #e8c26a;
   --ks-danger: #f0866f;
   --ks-danger-subtle: #3c1f1b;
   --ks-danger-strong: #f0866f;
