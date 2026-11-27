@@ -126,10 +126,11 @@ function ChildMatchesList({ list, tours }: { list: ChildMatch[]; tours: Map<stri
       )}
       {!shown.length && <p className="muted" role="status">По выбранным условиям матчей нет</p>}
       {shown.length > 0 && <div className="ks-card" aria-label="Итоги ребёнка">
-        <div className="ks-mres-tiles">
-          <div className="ks-tile"><b>матчей команды</b>{scored.length}</div>
-          <div className="ks-tile"><b>играл</b>{playedN}</div>
-          <div className="ks-tile"><b>голов</b>{goals}</div>
+        {/* верхние плитки зависят от фильтра: «играл» только при «Все» (иначе он равен «матчей»), «голов» только если ребёнок играл */}
+        <div className="ks-mres-tiles" style={{ gridTemplateColumns: `repeat(${1 + (partF === 'all' ? 1 : 0) + (partF !== 'not' ? 1 : 0)}, minmax(0, 1fr))` }}>
+          <div className="ks-tile"><b>матчей</b>{shown.length}</div>
+          {partF === 'all' && <div className="ks-tile"><b>играл</b>{playedN}</div>}
+          {partF !== 'not' && <div className="ks-tile"><b>голов</b>{goals}</div>}
         </div>
         <ResultTiles wins={cnt('w')} draws={cnt('d')} losses={cnt('l')} />
         {form.length > 0 && (
