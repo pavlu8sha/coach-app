@@ -415,6 +415,54 @@ describe('Админ: возврат и замена (условие 48)', () =>
     const a = fake.rpcCalls('camp_refund')[0];
     expect(a).toMatchObject({ pid: 'cp2', amt: 150, cmt: 'По условиям отмены' });
     expect(a.d).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(a.req).toMatch(/^[0-9a-f-]{36}$/);
+  });
+  const doRefund = async (amount: string) => {
+    fireEvent.change(await screen.findByLabelText('Сумма возврата, ₾'), { target: { value: amount } });
+    fireEvent.click(screen.getByRole('button', { name: 'Оформить возврат' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Вернуть деньги' }));
+  };
+  it('возврат #721: после ошибки связи повтор тех же данных уходит с тем же ключом, другие данные получают новый', async () => {
+    seed();
+    let n = 0;
+    fake.rpc.camp_refund = () => (++n === 1 ? { error: { message: 'Failed to fetch' } } : { id: 'r1', duplicate: false });
+    await openPart('Сидоров Ян');
+    await doRefund('150');
+    await waitFor(() => expect(fake.rpcCalls('camp_refund')).toHaveLength(1));
+    await doRefund('150');
+    await waitFor(() => expect(fake.rpcCalls('camp_refund')).toHaveLength(2));
+    const [first, second] = fake.rpcCalls('camp_refund');
+    expect(second.req).toBe(first.req);
+    await waitFor(() => expect(screen.getByLabelText('Сумма возврата, ₾')).toHaveValue(''));
+    await doRefund('100');
+    await waitFor(() => expect(fake.rpcCalls('camp_refund')).toHaveLength(3));
+    expect(fake.rpcCalls('camp_refund')[2].req).not.toBe(first.req);
+  });
+  it('возврат #721: успешный возврат сбрасывает ключ, следующий самостоятельный возврат с теми же данными получает новый', async () => {
+    seed();
+    fake.rpc.camp_refund = () => ({ id: 'r1', duplicate: false });
+    await openPart('Сидоров Ян');
+    await doRefund('50');
+    await waitFor(() => expect(fake.rpcCalls('camp_refund')).toHaveLength(1));
+    await waitFor(() => expect(screen.getByLabelText('Сумма возврата, ₾')).toHaveValue(''));
+    await doRefund('50');
+    await waitFor(() => expect(fake.rpcCalls('camp_refund')).toHaveLength(2));
+    const [a, b] = fake.rpcCalls('camp_refund');
+    expect(b.req).not.toBe(a.req);
+  });
+  it('возврат #721: duplicate = true показывается как «уже записан», не как ошибка', async () => {
+    seed();
+    fake.rpc.camp_refund = () => ({ id: 'r1', duplicate: true });
+    await openPart('Сидоров Ян');
+    await doRefund('150');
+    expect(await screen.findByText('Этот возврат уже был записан ранее, второй не создан.')).toBeInTheDocument();
+  });
+  it('возврат #721: ключ, использованный с другими данными, показывается понятным текстом', async () => {
+    seed();
+    fake.rpc.camp_refund = () => ({ error: { message: 'request id reused' } });
+    await openPart('Сидоров Ян');
+    await doRefund('150');
+    expect(await screen.findByText(/Возврат с такими данными уже записан с другими параметрами/)).toBeInTheDocument();
   });
   it('возврат выше внесённого и неверная сумма: кнопка недоступна или показывается ответ базы', async () => {
     seed();
