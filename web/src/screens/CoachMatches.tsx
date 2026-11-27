@@ -154,7 +154,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
           {!played ? (
             <>
               <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>Родители получат приглашение и ответят, придёт ли игрок. Команду, чемпионат и группу выберете в следующем окне.</p>
-              <button type="button" className="ks-btn" onClick={() => { setAddStep(null); nav.push('rsvp.create'); }}>Создать матч с подтверждением</button>
+              <button type="button" className="ks-btn" onClick={() => { setAddStep(null); nav.push('rsvp.create'); }}>Создать матч</button>
             </>
           ) : (
             <>
