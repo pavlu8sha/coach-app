@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { coachError, compareGroups, fmtDate, matchTeam, playsMatches, today, type CoachGroup, errMsg } from '../lib/coach';
 import { supabase } from '../lib/supabase';
 import { useDirtySignature, useNav, useNavState } from '../nav';
@@ -50,8 +50,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
       if (!showAll) q = q.in('team', groups.map(g => g.name));
       const r = await q.order('played_on', { ascending: false }).limit(showAll ? 150 : 60);
       if (r.error) return setError(errMsg(r.error));
-      // матч с подтверждением виден в общем списке сразу после публикации (решение владельца 2026-11-13), черновики и отменённые остаются только на своём экране
-      // единый экран матча (PR 1): в общем списке матчи с подтверждением во всех состояниях, черновик и отменённый с пометкой
+      // единый экран матча (PR 1): в общем списке матчи с подтверждением во всех состояниях, черновик и отменённый с пометкой (раньше решение владельца 2026-11-13 показывало только опубликованные)
       const list = (r.data ?? []) as Match[];
       setMatches(list);
       // сколько сыграло в каждом матче; порциями, чтобы не упереться в лимит строк; без доступа список остаётся прежним
@@ -90,7 +89,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   if (screen === 'form' && formMatch && isRsvp(formMatch)) {
     const t = tours.get(formMatch.id);
     const friendly = !t?.tournament_id || t?.match_kind === 'friendly' || t?.tournament_kind === 'cup';
-    return <MatchHub match={formMatch} groups={groups} onBack={back} renderResult={active => <MatchForm groups={groups} match={formMatch} admin={admin} rosterOf={friendly ? null : t?.tournament_id ?? null} feeMode={friendly} embedded active={active} onBack={back} onSaved={() => setReload(n => n + 1)} />} />;
+    return <MatchHub match={formMatch} groups={groups} onBack={back} renderResult={(row, active, ctl) => <MatchForm groups={groups} match={row} admin={admin} rosterOf={friendly ? null : t?.tournament_id ?? null} feeMode={friendly} embedded active={active} onDirty={ctl.onDirty} blocked={ctl.blocked} onBack={back} onSaved={() => setReload(n => n + 1)} />} />;
   }
   if (screen === 'form' && (formMatch || !topId)) return <MatchForm groups={groups} match={formMatch} admin={admin} rosterOf={formMatch && !(!tours.get(formMatch.id)?.tournament_id || tours.get(formMatch.id)?.match_kind === 'friendly' || tours.get(formMatch.id)?.tournament_kind === 'cup') ? tours.get(formMatch.id)?.tournament_id ?? null : null} feeMode={!formMatch || !tours.get(formMatch.id)?.tournament_id || tours.get(formMatch.id)?.match_kind === 'friendly' || tours.get(formMatch.id)?.tournament_kind === 'cup'} presetTeam={addTeam} onBack={back} onSaved={() => setReload(n => n + 1)} />;
   if (!matches) return <Loading title="Матчи" />;
@@ -124,7 +123,7 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
   const addTeams = [...new Set((showAll ? [...groups.map(g => g.name), ...matches.map(m => m.team), ...events.map(e => e.team)] : groups.map(g => g.name)).filter(playsMatches).map(matchTeam))].sort(compareGroups);
   if (other.length) sections.push({ key: 'other', title: byTour.size ? 'Товарищеские и кубки' : 'Матчи', items: other });
   // предстоящие опубликованные матчи с подтверждением: из уже загруженного списка, без нового запроса
-  const upcomingRsvp = matches.filter(m => isRsvp(m) && m.starts_at && new Date(m.starts_at).getTime() > Date.now()).length;
+  const upcomingRsvp = matches.filter(m => m.lifecycle_status === 'published' && m.starts_at && new Date(m.starts_at).getTime() > Date.now()).length;
   return (
     <main className="page">
       <div className="ks-head">
@@ -212,8 +211,9 @@ export default function CoachMatches({ groups, admin = false, allTeams = false }
 // Баллы игрока за матч по правилу владельца (2026-11-26): оценка тренера 1-5 и +1 лучшему игроку, не больше 6; технический результат баллов не даёт
 const matchPoints = (rating: number | null, best: boolean) => (rating === null ? 0 : Math.min(rating + (best ? 1 : 0), 6));
 // feeMode: у товарищеских и кубковых матчей взнос свой (на матч); у чемпионатов и фестивалей он на событие
-// embedded: форма внутри единого экрана матча (без своей кнопки «Назад» и заголовка); active: раздел «Результат» открыт, только тогда видна кнопка «Сохранить матч»
-function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack, onSaved, embedded = false, active = true }: { groups: CoachGroup[]; match: Match | null; admin: boolean; feeMode: boolean; rosterOf: string | null; presetTeam?: string; onBack: () => void; onSaved?: () => void; embedded?: boolean; active?: boolean }) {
+// embedded: форма внутри единого экрана матча (без своей кнопки «Назад» и заголовка); active: раздел «Результат» открыт, только тогда видна кнопка «Сохранить матч»;
+// onDirty сообщает о несохранённых правках; blocked: причина, по которой сохранять нельзя (данные матча изменились в другом разделе)
+function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack, onSaved, embedded = false, active = true, onDirty, blocked }: { groups: CoachGroup[]; match: Match | null; admin: boolean; feeMode: boolean; rosterOf: string | null; presetTeam?: string; onBack: () => void; onSaved?: () => void; embedded?: boolean; active?: boolean; onDirty?: (dirty: boolean) => void; blocked?: string | null }) {
   const { ask, dialog: confirmDialog } = useConfirm();
   const matchGroups = groups.filter(g => playsMatches(g.name));
   const matched = match ? (groups.find(g => g.name === match.team) ?? groups.find(g => matchTeam(g.name) === match.team))?.id : undefined;
@@ -259,7 +259,16 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
   const [invitedIds, setInvitedIds] = useState<string[]>([]); // приглашённые матча с подтверждением: остаются в составе и после сохранения
   const [showAll, setShowAll] = useState(false);
   // правки считаются от загруженного состояния; после сохранения на месте принимаются за исходные
-  const markClean = useDirtySignature(JSON.stringify([gid, date, opp, gf, ga, lines, bestId, technical]), players !== null);
+  const sig = JSON.stringify([gid, date, opp, gf, ga, lines, bestId, technical]);
+  const markCleanGuard = useDirtySignature(sig, players !== null);
+  // то же «исходное состояние», что у useDirtySignature, чтобы сообщать о правках единому экрану
+  const baseSig = useRef<string | null>(null);
+  const sigNow = useRef(sig);
+  sigNow.current = sig;
+  if (players !== null && baseSig.current === null) baseSig.current = sig;
+  const isDirty = baseSig.current !== null && sig !== baseSig.current;
+  useEffect(() => { onDirty?.(isDirty); }, [isDirty]); // eslint-disable-line react-hooks/exhaustive-deps
+  const markClean = () => { baseSig.current = sigNow.current; markCleanGuard(); };
   const [editLineup, setEditLineup] = useState(false); // кнопки «Убрать из матча» показываем только в режиме правки состава
 
   useEffect(() => {
@@ -403,6 +412,7 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
     return null;
   };
   const save = async () => {
+    if (blocked) return setMsg({ ok: false, text: blocked });
     const p = problem();
     if (p) return setMsg({ ok: false, text: p });
     // команда без группы: администратор создаёт товарищеский матч по названию команды (миграция 0106)
@@ -604,34 +614,73 @@ function MatchForm({ groups, match, admin, feeMode, rosterOf, presetTeam, onBack
 }
 
 // Единый экран матча с подтверждением (PR 1 «Один матч — один экран»): разделы «Состав и ответы» (RsvpDetail) и «Результат» (MatchForm).
-// Раздел по умолчанию определяет момент начала матча (starts_at, абсолютное время); выбранные разделы остаются в памяти, чтобы несохранённые правки не терялись.
+// Раздел по умолчанию определяет момент начала матча (starts_at, абсолютное время); оба раздела остаются в памяти, чтобы несохранённые правки не терялись.
+// «Состав и ответы» всегда загружается (скрытым, если открыт «Результат»): он даёт актуальный статус матча, а форма результата строится по свежей строке матча.
+// Когда в «Составе» что-то изменилось (соперник, перенос, приглашённые), форма результата перечитывается; если в ней есть несохранённые отметки,
+// сохранение блокируется до явного «Обновить форму», иначе форма отправила бы устаревшие дату, соперника и состав.
 type HubTab = 'roster' | 'result';
-function MatchHub({ match, groups, onBack, renderResult }: { match: Match; groups: CoachGroup[]; onBack: () => void; renderResult: (active: boolean) => React.ReactNode }) {
-  const [live, setLive] = useState<{ lifecycle_status?: string; starts_at?: string | null }>({ lifecycle_status: match.lifecycle_status, starts_at: match.starts_at });
+type HubCtl = { onDirty: (dirty: boolean) => void; blocked: string | null };
+const HUB_COLS = 'id, club_id, team, played_on, opponent, goals_for, goals_against, technical, lifecycle_status, starts_at';
+function MatchHub({ match, groups, onBack, renderResult }: { match: Match; groups: CoachGroup[]; onBack: () => void; renderResult: (row: Match, active: boolean, ctl: HubCtl) => React.ReactNode }) {
+  const [live, setLive] = useState<{ lifecycle_status?: string; starts_at?: string | null; opponent?: string | null; team?: string }>({ lifecycle_status: match.lifecycle_status, starts_at: match.starts_at, opponent: match.opponent, team: match.team });
   const [tab, setTab] = useState<HubTab>(() => (match.starts_at && new Date(match.starts_at).getTime() <= Date.now() ? 'result' : 'roster'));
-  const [opened, setOpened] = useState<Record<HubTab, boolean>>(() => ({ roster: tab === 'roster', result: tab === 'result' }));
-  const choose = (t: HubTab) => { setTab(t); setOpened(o => ({ ...o, [t]: true })); };
+  const [opened, setOpened] = useState(() => tab === 'result');
+  const [row, setRow] = useState<{ rev: number; match: Match } | null>(null); // свежая строка матча и номер её чтения
+  const [form, setForm] = useState<{ rev: number; match: Match } | null>(null); // строка, с которой собрана форма результата
+  const [dirty, setDirty] = useState(false);
+  const [rowError, setRowError] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
+  const rev = useRef(0);
+  const choose = (t: HubTab) => { setTab(t); if (t === 'result') setOpened(true); };
+  const refreshRow = async () => {
+    const my = ++rev.current;
+    const r = await supabase.from('matches').select(HUB_COLS).eq('id', match.id).maybeSingle();
+    if (my !== rev.current) return; // пришёл более новый ответ
+    if (r.error) return setRowError(errMsg(r.error));
+    if (!r.data) return setRowError('Матч не найден');
+    setRowError(null);
+    setRow({ rev: my, match: r.data as Match });
+  };
+  useEffect(() => { if (retry > 0) void refreshRow(); }, [retry]); // eslint-disable-line react-hooks/exhaustive-deps
+  // форма собирается по первой прочитанной строке и обновляется на лету, пока в ней нет несохранённых отметок
+  useEffect(() => {
+    if (row && (!form || (!dirty && row.rev !== form.rev))) setForm(row);
+  }, [row, form, dirty]);
+  const stale = Boolean(row && form && row.rev !== form.rev);
   const status = live.lifecycle_status;
   const tabs: [HubTab, string][] = [['roster', 'Состав и ответы'], ['result', 'Результат']];
   return (
     <main className="page">
       <BackNav onBack={onBack} managed />
-      <h1>{match.opponent ? `${match.team} · ${match.opponent}` : `${match.team} · соперник не указан`}</h1>
+      <h1>{live.opponent !== undefined && live.team ? (live.opponent ? `${live.team} · ${live.opponent}` : `${live.team} · соперник не указан`) : (match.opponent ? `${match.team} · ${match.opponent}` : `${match.team} · соперник не указан`)}</h1>
       <div role="tablist" aria-label="Разделы матча" style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
         {tabs.map(([k, label]) => (
-          <button key={k} type="button" role="tab" aria-selected={tab === k} className={`ks-btn ${tab === k ? '' : 'secondary'}`} style={{ flex: 1, minHeight: 44 }} onClick={() => choose(k)}>{label}</button>
+          <button key={k} type="button" role="tab" id={`hub-tab-${k}`} aria-controls={`hub-panel-${k}`} aria-selected={tab === k} tabIndex={tab === k ? 0 : -1} className={`ks-btn ${tab === k ? '' : 'secondary'}`} style={{ flex: 1, minHeight: 44 }} onClick={() => choose(k)}
+            onKeyDown={e => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); const n: HubTab = k === 'roster' ? 'result' : 'roster'; choose(n); document.getElementById(`hub-tab-${n}`)?.focus(); } }}>{label}</button>
         ))}
       </div>
-      {opened.roster && (
-        <div role="tabpanel" aria-label="Состав и ответы" hidden={tab !== 'roster'}>
-          <RsvpDetail id={match.id} groups={groups} onBack={onBack} embedded onLoaded={(m: RsvpMatch) => setLive({ lifecycle_status: m.lifecycle_status, starts_at: m.starts_at })} />
-        </div>
-      )}
-      {opened.result && (
-        <div role="tabpanel" aria-label="Результат" hidden={tab !== 'result'}>
+      <div role="tabpanel" id="hub-panel-roster" aria-labelledby="hub-tab-roster" hidden={tab !== 'roster'}>
+        <RsvpDetail id={match.id} groups={groups} onBack={onBack} embedded onLoaded={(m: RsvpMatch) => { setLive({ lifecycle_status: m.lifecycle_status, starts_at: m.starts_at, opponent: m.opponent, team: m.team }); void refreshRow(); }} />
+      </div>
+      {opened && (
+        <div role="tabpanel" id="hub-panel-result" aria-labelledby="hub-tab-result" hidden={tab !== 'result'}>
           {status === 'draft' || status === 'cancelled'
             ? <p className="muted">Результат вносится после публикации и начала матча{status === 'cancelled' ? '; отменённый матч результата не имеет' : ''}.</p>
-            : renderResult(tab === 'result')}
+            : rowError
+              ? <Failure title="Не удалось загрузить матч" text={rowError} onRetry={() => setRetry(n => n + 1)} />
+              : !form
+                ? <Loading />
+                : (
+                  <>
+                    {stale && (
+                      <div className="card" role="status" style={{ marginBottom: 12 }}>
+                        <p>В разделе «Состав и ответы» данные матча изменились. Сохранение отметок заблокировано, чтобы не затереть изменения.</p>
+                        <button type="button" className="ks-btn secondary" style={{ minHeight: 44 }} onClick={() => { setDirty(false); if (row) setForm(row); }}>Обновить форму (несохранённые отметки сбросятся)</button>
+                      </div>
+                    )}
+                    <div key={form.rev}>{renderResult(form.match, tab === 'result', { onDirty: setDirty, blocked: stale ? 'Данные матча изменились в разделе «Состав и ответы». Обновите форму.' : null })}</div>
+                  </>
+                )}
         </div>
       )}
     </main>

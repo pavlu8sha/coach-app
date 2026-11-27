@@ -1369,6 +1369,121 @@ describe('Единый экран матча с подтверждением', (
     expect(await screen.findByText(/отменённый матч результата не имеет/)).toBeInTheDocument();
   });
 
+  const rosterRows = [{ player_id: 'p1', full_name: 'Иванов Пётр', group_name: 'U9', status: 'invited', response: null, responded_by_name: null, responded_by_coach: false, responded_at: null, answer_until: null }];
+  const openTab = async (name: string) => { fireEvent.click(await screen.findByRole('tab', { name })); };
+
+  it('скрытый раздел недоступен: кнопки «Сохранить матч» нет, пока открыт «Состав и ответы»', async () => {
+    setup({});
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    await openTab('Результат');
+    await screen.findByRole('button', { name: 'Сохранить матч' });
+    expect(document.getElementById('hub-panel-roster')).toHaveAttribute('hidden');
+    await openTab('Состав и ответы');
+    expect(document.getElementById('hub-panel-result')).toHaveAttribute('hidden');
+    expect(screen.queryByRole('button', { name: 'Сохранить матч' })).toBeNull();
+  });
+
+  it('нативная кнопка Telegram «Сохранить матч» видна только в разделе «Результат»', async () => {
+    const app = { initData: 'x', themeParams: {}, MainButton: { setText: vi.fn(), show: vi.fn(), hide: vi.fn(), onClick: vi.fn(), offClick: vi.fn(), enable: vi.fn(), disable: vi.fn(), showProgress: vi.fn(), hideProgress: vi.fn(), setParams: vi.fn() } };
+    (window as unknown as { Telegram?: unknown }).Telegram = { WebApp: app };
+    try {
+      setup({});
+      render(<CoachMatches groups={groups} />);
+      fireEvent.click(await screen.findByText(/Икс/));
+      await openTab('Результат');
+      await waitFor(() => expect(app.MainButton.setText).toHaveBeenCalledWith('Сохранить матч'));
+      const showsInResult = app.MainButton.show.mock.calls.length;
+      app.MainButton.hide.mockClear();
+      await openTab('Состав и ответы');
+      await waitFor(() => expect(app.MainButton.hide).toHaveBeenCalled());
+      expect(app.MainButton.show.mock.calls.length).toBe(showsInResult);
+    } finally {
+      delete (window as unknown as { Telegram?: unknown }).Telegram;
+    }
+  });
+
+  it('статус матча из «Состава» доходит до «Результата»: отменили, и форма заменяется пояснением', async () => {
+    setup({});
+    fake.rpc.match_rsvp_roster = () => rosterRows;
+    fake.rpc.match_rsvp_remove = () => { (fake.db.matches[0] as Record<string, unknown>).lifecycle_status = 'cancelled'; return null; };
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    await openTab('Результат');
+    await screen.findByRole('button', { name: 'Сохранить матч' });
+    await openTab('Состав и ответы');
+    fireEvent.click(await screen.findByRole('button', { name: 'Убрать из состава: Иванов Пётр' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Убрать' }));
+    await waitFor(() => expect(fake.rpcCalls('match_rsvp_remove')).toHaveLength(1));
+    await openTab('Результат');
+    expect(await screen.findByText(/отменённый матч результата не имеет/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Сохранить матч' })).toBeNull();
+  });
+
+  it('смена данных в «Составе» не затирается при сохранении результата: форма перечитывается, save_match уходит со свежим соперником', async () => {
+    setup({});
+    fake.rpc.match_rsvp_roster = () => rosterRows;
+    fake.rpc.match_rsvp_remove = () => { (fake.db.matches[0] as Record<string, unknown>).opponent = 'Динамо'; return null; };
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    await openTab('Результат');
+    await screen.findByRole('button', { name: 'Сохранить матч' });
+    await openTab('Состав и ответы');
+    fireEvent.click(await screen.findByRole('button', { name: 'Убрать из состава: Иванов Пётр' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Убрать' }));
+    await waitFor(() => expect(fake.rpcCalls('match_rsvp_remove')).toHaveLength(1));
+    await openTab('Результат');
+    await waitFor(() => expect(screen.getByDisplayValue('Динамо')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить матч' }));
+    await waitFor(() => expect(fake.rpcCalls('save_match')).toHaveLength(1));
+    expect(fake.rpcCalls('save_match')[0]).toMatchObject({ opp: 'Динамо' });
+  });
+
+  it('есть несохранённые отметки и «Состав» изменился: сохранение заблокировано до «Обновить форму»', async () => {
+    setup({});
+    fake.rpc.match_rsvp_roster = () => rosterRows;
+    fake.rpc.match_rsvp_remove = () => { (fake.db.matches[0] as Record<string, unknown>).opponent = 'Динамо'; return null; };
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    await openTab('Результат');
+    await screen.findByRole('button', { name: 'Сохранить матч' });
+    const box = screen.getAllByRole('checkbox').find(c => !(c as HTMLInputElement).checked && c.getAttribute('aria-label') !== 'Технический результат (матч не играли)') as HTMLElement;
+    fireEvent.click(box);
+    await openTab('Состав и ответы');
+    fireEvent.click(await screen.findByRole('button', { name: 'Убрать из состава: Иванов Пётр' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Убрать' }));
+    await waitFor(() => expect(fake.rpcCalls('match_rsvp_remove')).toHaveLength(1));
+    await openTab('Результат');
+    expect(await screen.findByText(/Сохранение отметок заблокировано/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить матч' }));
+    expect(await screen.findByText(/Данные матча изменились/)).toBeInTheDocument();
+    expect(fake.rpcCalls('save_match')).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: /Обновить форму/ }));
+    await waitFor(() => expect(screen.getByDisplayValue('Динамо')).toBeInTheDocument());
+    expect(screen.queryByText(/Сохранение отметок заблокировано/)).toBeNull();
+  });
+
+  it('бейдж «Матчи с подтверждением» считает только опубликованные будущие матчи', async () => {
+    fake.db.matches = [{ id: 'd1', team: 'U9', played_on: '2026-11-30', opponent: 'Черновик-соперник', goals_for: null, goals_against: null, lifecycle_status: 'draft', starts_at: future }];
+    fake.db.players = [];
+    fake.db.match_players = [];
+    render(<CoachMatches groups={groups} admin />);
+    await screen.findByText(/Черновик-соперник/);
+    fireEvent.click(screen.getByRole('button', { name: /^Ещё/ }));
+    expect(screen.getByRole('menuitem', { name: 'Матчи с подтверждением' })).toBeInTheDocument();
+  });
+
+  it('стрелки переключают разделы, у вкладок есть связь с панелями', async () => {
+    setup({});
+    render(<CoachMatches groups={groups} />);
+    fireEvent.click(await screen.findByText(/Икс/));
+    const t1 = await screen.findByRole('tab', { name: 'Состав и ответы' });
+    expect(t1).toHaveAttribute('aria-controls', 'hub-panel-roster');
+    expect(screen.getByRole('tab', { name: 'Результат' })).toHaveAttribute('tabindex', '-1');
+    fireEvent.keyDown(t1, { key: 'ArrowRight' });
+    await waitFor(() => expect(sel('Результат')).toBe('true'));
+  });
+
   it('матч без подтверждения: вкладок нет', async () => {
     fake.db.matches = [{ id: 'm1', club_id: 'c1', team: 'U9', played_on: '2026-10-10', opponent: 'Олимп', goals_for: 3, goals_against: 1 }];
     fake.db.players = [];
