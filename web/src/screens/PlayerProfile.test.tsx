@@ -150,7 +150,7 @@ describe('профиль игрока: обзор и матчи', () => {
     const sum = screen.getByLabelText('Итоги ребёнка');
     expect(within(sum).getByText('матчей команды').parentElement).toHaveTextContent('3');
     expect(within(sum).getByText('играл').parentElement).toHaveTextContent('1');
-    expect(within(sum).getByText('голов (его)').parentElement).toHaveTextContent('2');
+    expect(within(sum).getByText('голов').parentElement).toHaveTextContent('2');
     const t = within(sum).getByRole('group', { name: 'Результаты матчей' });
     for (const k of ['побед', 'ничьих', 'поражений']) expect(within(t).getByText(k).parentElement).toHaveTextContent('1');
     expect(within(sum).getAllByRole('listitem').map(e => e.getAttribute('aria-label'))).toEqual(['Ничья', 'Поражение', 'Победа']);

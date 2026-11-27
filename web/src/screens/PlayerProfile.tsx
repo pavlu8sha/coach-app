@@ -127,7 +127,7 @@ function ChildMatchesList({ list, tours }: { list: ChildMatch[]; tours: Map<stri
         <div className="ks-mres-tiles">
           <div className="ks-tile"><b>матчей команды</b>{scored.length}</div>
           <div className="ks-tile"><b>играл</b>{playedN}</div>
-          <div className="ks-tile"><b>голов (его)</b>{goals}</div>
+          <div className="ks-tile"><b>голов</b>{goals}</div>
         </div>
         <ResultTiles wins={cnt('w')} draws={cnt('d')} losses={cnt('l')} />
         {form.length > 0 && (
