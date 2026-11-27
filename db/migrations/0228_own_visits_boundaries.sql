@@ -34,9 +34,9 @@ begin
   if not found or pl.pay_mode <> 'per_visit' or pl.pay_mode_from is null then return null; end if;
   select * into ses from sessions where id = sid;
   if not found or tbilisi_day(ses.starts_at) < pl.pay_mode_from then return null; end if;
-  if ses.kind <> 'training' then return null; end if;
   select g.club_id, lower(g.name) into club, gname from groups g where g.id = ses.group_id;
-  if club is distinct from pl.club_id or gname = 'индивидуальные / вратарские' then return null; end if;
+  -- граница только на создание визита; неоплаченный визит за такое занятие (если остался с 0200/0213) при снятии отметки удаляется как раньше
+  if present and (ses.kind <> 'training' or club is distinct from pl.club_id or gname = 'индивидуальные / вратарские') then return null; end if;
   if present then
     if not exists (select 1 from own_visits where session_id = sid and player_id = pid) then
       insert into own_visits (session_id, player_id, amount) values (sid, pid, own_visit_fee(club)) on conflict do nothing;

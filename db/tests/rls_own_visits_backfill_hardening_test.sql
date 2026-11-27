@@ -1,7 +1,7 @@
 -- pgTAP: границы дозаполнения визитов за плату (миграция 0228, Issue #726). Условия: docs/PAY_PER_VISIT_BACKFILL_HARDENING_ACCEPTANCE.md. Фикстуры вымышленные.
 begin;
 create extension if not exists pgtap;
-select plan(14);
+select plan(17);
 
 insert into clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Клуб А'), ('00000000-0000-0000-0000-00000000c002', 'Клуб Б');
 insert into users (id, telegram_id, display_name, is_admin, club_id) values
@@ -57,6 +57,16 @@ insert into attendance (session_id, player_id, status) values
   ('00000000-0000-0000-0000-0000000005a7', '00000000-0000-0000-0000-00000000d001', 'present');
 select is((select string_agg(tbilisi_day(s.starts_at)::text, ',' order by s.starts_at) from own_visits v join sessions s on s.id = v.session_id where v.player_id = '00000000-0000-0000-0000-00000000d001'),
           '2026-11-02,2026-11-08', 'У1: триггер тоже создаёт визит только за обычную тренировку');
+
+-- У5: старый неоплаченный визит за занятие не-training (остаток 0200/0213) снимается вместе с отметкой «Был»; оплаченный не снимается
+insert into own_visits (session_id, player_id, amount) values ('00000000-0000-0000-0000-0000000005a6', '00000000-0000-0000-0000-00000000d001', 20);
+update attendance set status = 'absent' where session_id = '00000000-0000-0000-0000-0000000005a6' and player_id = '00000000-0000-0000-0000-00000000d001';
+select is((select count(*) from own_visits where session_id = '00000000-0000-0000-0000-0000000005a6')::int, 0, 'У5: неоплаченный визит за не-training удалён при «Не был»');
+update attendance set status = 'present' where session_id = '00000000-0000-0000-0000-0000000005a6' and player_id = '00000000-0000-0000-0000-00000000d001';
+select is((select count(*) from own_visits where session_id = '00000000-0000-0000-0000-0000000005a6')::int, 0, 'У5: новая отметка «Был» за не-training визит не создаёт');
+insert into own_visits (session_id, player_id, amount, paid, paid_amount, method) values ('00000000-0000-0000-0000-0000000005a6', '00000000-0000-0000-0000-00000000d001', 20, true, 20, 'Наличные');
+select throws_ok($$update attendance set status = 'absent' where session_id = '00000000-0000-0000-0000-0000000005a6' and player_id = '00000000-0000-0000-0000-00000000d001'$$, '22023', 'visit paid', 'У5: оплаченный визит снять отметкой нельзя');
+delete from own_visits where session_id = '00000000-0000-0000-0000-0000000005a6';
 
 -- У3: администратор клуба А не может перевести игрока клуба Б
 select as_user('00000000-0000-0000-0000-0000000000a1');
