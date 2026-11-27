@@ -597,3 +597,15 @@ describe('редизайн экранов (docs/CLUB_EVENTS_UI_REDESIGN_ACCEPTAN
     await waitFor(() => expect(fake.rpcCalls('club_event_set_status')).toEqual([{ p_id: 'e1', p_to: 'finished' }]));
   });
 });
+
+describe('без вспышки при переходах', () => {
+  it('экраны раздела не используют плавное появление ks-still: список, карточка и форма', async () => {
+    seed();
+    render(<ClubEvents />);
+    await screen.findByText('Турнир Осень');
+    expect(document.querySelector('main.page')).toHaveClass('ks-still');
+    fireEvent.click(screen.getByText('Турнир Осень'));
+    await screen.findByRole('tab', { name: 'Участники' });
+    expect(document.querySelector('main.page')).toHaveClass('ks-still');
+  });
+});

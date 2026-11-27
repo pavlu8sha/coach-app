@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { compareGroups, matchTeam, playsMatches, type CoachGroup, errMsg } from '../lib/coach';
 import { FILTER_LABEL, LIFECYCLE_LABEL, activityLine, feeAllowed, feeText, fmtWhen, parseFee, matchesFilter, fromTbilisiLocal, responseText, rsvpError, toTbilisiLocal, type Lifecycle, type RsvpResponse, type SummaryFilter } from '../lib/matchRsvp';
 import { supabase } from '../lib/supabase';
-import { Pill, ListRow } from '../ui/components';
+import { Avatar, Pill } from '../ui/components';
 import { PlayerSearch } from '../ui/PlayerSearch';
 import { useNav } from '../nav';
 import { BackNav } from '../ui/nav';
@@ -430,29 +430,43 @@ export function RsvpDetail({ id, groups, onBack, note, embedded = false, onLoade
       {rosterL.status === 'error' && <BlockError title="Не удалось загрузить состав" text={rosterL.text} onRetry={retryRoster} />}
       {rosterL.status === 'ok' && invited.length === 0 && <p className="muted">Состав пока пуст.</p>}
       {invited.length > 0 && (
-        <div role="group" aria-label="Фильтр по ответам" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-          {(Object.keys(FILTER_LABEL) as SummaryFilter[]).map(f => (
-            <button key={f} type="button" className={`ks-btn ${filter === f ? '' : 'secondary'}`} style={{ width: 'auto', minHeight: 36 }} aria-pressed={filter === f}
-              onClick={() => setFilter(f)}>{FILTER_LABEL[f]} ({invited.filter(p => matchesFilter(p.response, f)).length})</button>
-          ))}
+        <div role="group" aria-label="Фильтр по ответам" className="ks-rsvp-filter">
+          {(Object.keys(FILTER_LABEL) as SummaryFilter[]).map(f => {
+            const n = invited.filter(p => matchesFilter(p.response, f)).length;
+            return (
+              <button key={f} type="button" aria-pressed={filter === f} aria-label={`${FILTER_LABEL[f]} (${n})`} onClick={() => setFilter(f)}>
+                <b aria-hidden="true">{n}</b>
+                <span aria-hidden="true">{FILTER_LABEL[f]}</span>
+              </button>
+            );
+          })}
         </div>
       )}
       {invited.length > 0 && shown.length === 0 && <p className="muted">В этой группе никого нет.</p>}
-      {shown.map(p => (
-        <div key={p.player_id} className="ks-card">
-          <ListRow title={p.full_name} avatar={p.full_name} sub={[p.group_name ?? '', responseText(p.response) + (p.responded_by_coach ? ' (отметил тренер)' : p.responded_by_name ? ` (${p.responded_by_name})` : '')]} />
-          {(st === 'draft' || live) && (
-            <button type="button" className="ks-btn secondary" style={{ minHeight: 36, marginBottom: 8 }} disabled={busy} aria-label={`Убрать из состава: ${p.full_name}`} onClick={() => void removePlayer(p)}>Убрать из состава</button>
-          )}
-          {live && (
-            <div style={{ display: 'flex', gap: 8 }}>
-              {(['yes', 'no'] as RsvpResponse[]).map(v => (
-                <button key={v} type="button" className={`ks-btn ${p.response === v ? '' : 'secondary'}`} style={{ minHeight: 40 }} disabled={busy} aria-pressed={p.response === v} aria-label={`${p.full_name}: ${responseText(v)}`} onClick={() => void setFor(p, v)}>{responseText(v)}</button>
-              ))}
+      {shown.length > 0 && (
+        <div className="ks-card ks-rsvp-list">
+          {shown.map(p => (
+            <div key={p.player_id} className="ks-rsvp-item">
+              <div className="ks-rsvp-top">
+                <Avatar name={p.full_name} />
+                <span className="ks-row-main">
+                  <span className="ks-row-title">{p.full_name}</span>
+                  <span className="ks-row-sub">{[p.group_name, p.responded_by_coach ? 'отметил тренер' : p.responded_by_name].filter(Boolean).join(' · ')}</span>
+                </span>
+                <Pill tone={p.response === 'yes' ? 'success' : p.response === 'no' ? 'danger' : 'neutral'}>{responseText(p.response)}</Pill>
+              </div>
+              {(st === 'draft' || live) && (
+                <div className="ks-rsvp-acts">
+                  {live && (['yes', 'no'] as RsvpResponse[]).map(v => (
+                    <button key={v} type="button" className={`ks-btn ${p.response === v ? '' : 'secondary'}`} disabled={busy} aria-pressed={p.response === v} aria-label={`${p.full_name}: ${responseText(v)}`} onClick={() => void setFor(p, v)}>{responseText(v)}</button>
+                  ))}
+                  <button type="button" className="ks-link" disabled={busy} aria-label={`Убрать из состава: ${p.full_name}`} onClick={() => void removePlayer(p)}>Убрать</button>
+                </div>
+              )}
             </div>
-          )}
+          ))}
         </div>
-      ))}
+      )}
       {st === 'published' && started && (
         <div className="ks-card" role="status">
           <p>Матч начался: приглашения больше не меняются. Кто играл, отмечается в разделе «Результат»; игрока, которого нет в списке, добавляют там же поиском.</p>
