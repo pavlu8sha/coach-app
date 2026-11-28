@@ -1,4 +1,5 @@
 -- pgTAP: единый экран матча, PR 2 (0227): тренер не отменяет и не переносит матч, не меняет время опубликованного; save_match не принимает результат у черновика и отменённого.
+-- Время матча задаётся от начала дня по Тбилиси (12:00 + сдвиг внутри суток), чтобы результат не зависел от часа запуска (#867, #868).
 -- Условия: docs/MATCH_UNIFIED_SCREEN_PR2_ACCEPTANCE.md. Фикстуры вымышленные. Права проверяются при умолчаниях Supabase.
 begin;
 create extension if not exists pgtap;
@@ -42,10 +43,10 @@ select ok((select bool_and(p.prosecdef and p.proconfig @> array['search_path=pub
 
 -- 2. публикуем матч тренером (создание и состав остаются за тренером)
 select as_user('00000000-0000-0000-0000-0000000000c1');
-select lives_ok($$insert into ids select 'p', match_rsvp_create_draft('00000000-0000-0000-0000-00000000c001', 'friendly', 'U12', 'Динамо', now() + interval '5 days', 'Стадион', 'Адрес', null)$$, 'тренер создаёт черновик');
+select lives_ok($$insert into ids select 'p', match_rsvp_create_draft('00000000-0000-0000-0000-00000000c001', 'friendly', 'U12', 'Динамо', ((date_trunc('day', now() at time zone 'Asia/Tbilisi') + interval '5 days 12 hours') at time zone 'Asia/Tbilisi'), 'Стадион', 'Адрес', null)$$, 'тренер создаёт черновик');
 select lives_ok($$select match_rsvp_invite(mid('p'), array['00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-00000000d002']::uuid[])$$, 'тренер приглашает игроков');
 -- черновик: тренер правит время, как раньше
-select lives_ok($$select match_rsvp_update(mid('p'), jsonb_build_object('starts_at', now() + interval '5 days 1 hour'))$$, 'у черновика тренер меняет время');
+select lives_ok($$select match_rsvp_update(mid('p'), jsonb_build_object('starts_at', ((date_trunc('day', now() at time zone 'Asia/Tbilisi') + interval '5 days 13 hours') at time zone 'Asia/Tbilisi')))$$, 'у черновика тренер меняет время');
 select lives_ok($$select match_rsvp_publish(mid('p'))$$, 'тренер публикует матч');
 
 -- 3. результат черновика не принимается; опубликованный (до начала) принимается
@@ -56,7 +57,7 @@ select lives_ok($$select save_match(mid('p'), '00000000-0000-0000-0000-000000000
 
 -- 4. тренер: правка полей разрешена, смена времени опубликованного нет
 select lives_ok($$select match_rsvp_update(mid('p'), '{"opponent": "Торпедо", "notes": "Форма синяя"}'::jsonb)$$, 'тренер правит соперника и заметки опубликованного матча');
-select throws_ok($$select match_rsvp_update(mid('p'), jsonb_build_object('starts_at', now() + interval '5 days 2 hours'))$$, '42501', 'only admin can cancel or reschedule', 'тренер не меняет время опубликованного матча');
+select throws_ok($$select match_rsvp_update(mid('p'), jsonb_build_object('starts_at', ((date_trunc('day', now() at time zone 'Asia/Tbilisi') + interval '5 days 14 hours') at time zone 'Asia/Tbilisi')))$$, '42501', 'only admin can cancel or reschedule', 'тренер не меняет время опубликованного матча');
 select lives_ok($$select match_rsvp_update(mid('p'), jsonb_build_object('starts_at', (select starts_at from matches where id = mid('p'))))$$, 'то же время (без изменения) не считается переносом');
 select throws_ok($$select match_rsvp_reschedule(mid('p'), now() + interval '7 days')$$, '42501', 'only admin can cancel or reschedule', 'тренер не переносит матч');
 select throws_ok($$select match_rsvp_cancel(mid('p'), 'Дождь')$$, '42501', 'only admin can cancel or reschedule', 'тренер не отменяет матч');
@@ -75,7 +76,7 @@ select throws_ok($$select match_rsvp_reschedule(mid('p'), now() + interval '7 da
 
 -- 7. администратор: прежнее поведение
 select as_user('00000000-0000-0000-0000-0000000000a1');
-select lives_ok($$select match_rsvp_update(mid('p'), jsonb_build_object('starts_at', now() + interval '5 days 3 hours'))$$, 'администратор меняет время в пределах дня');
+select lives_ok($$select match_rsvp_update(mid('p'), jsonb_build_object('starts_at', ((date_trunc('day', now() at time zone 'Asia/Tbilisi') + interval '5 days 15 hours') at time zone 'Asia/Tbilisi')))$$, 'администратор меняет время в пределах дня');
 select lives_ok($$select match_rsvp_reschedule(mid('p'), now() + interval '8 days')$$, 'администратор переносит матч');
 select is((select rescheduled_count from matches where id = mid('p')), 1, 'перенос записан');
 select lives_ok($$select match_rsvp_cancel(mid('p'), 'Дождь')$$, 'администратор отменяет матч');
