@@ -244,11 +244,12 @@ export function Row({ player, title, month, tariff, got, sub, paidUp, uncalc = f
         <Pill tone={uncalc ? 'neutral' : paidUp ? 'success' : 'danger'} dot>{sub?.written_off || sub?.discount ? `${CLOSURE_LABELS[sub.closed_kind ?? (sub.written_off ? 'forgiven' : 'discount')]}${got > 0 ? ` · внесено ${gel(got)}` : ''}` : `${gel(got)}${tariff !== null && !uncalc ? ` из ${gel(tariff)}` : ''}`}</Pill>
       </div>
       {(sub?.discount || sub?.written_off) && sub.closed_reason && sub.closed_reason !== LEGACY_REASON && <p className="ks-muted" style={{ fontSize: 13, margin: '4px 0 0' }}>Причина: {sub.closed_reason}</p>}
-      <button type="button" className={paidUp && !open ? 'ks-btn secondary sm' : 'ks-btn secondary'} style={{ marginTop: 8 }} onClick={onOpen}>{open ? 'Свернуть' : 'Внести платёж'}</button>
-      {!paidUp && (
+      {uncalc && <p className="ks-muted" style={{ fontSize: 13, margin: '8px 0 0' }}>Режим оплаты не загружен: платёж и закрытие месяца недоступны, пока не выполнена повторная загрузка.</p>}
+      {!uncalc && <button type="button" className={paidUp && !open ? 'ks-btn secondary sm' : 'ks-btn secondary'} style={{ marginTop: 8 }} onClick={onOpen}>{open ? 'Свернуть' : 'Внести платёж'}</button>}
+      {!paidUp && !uncalc && (
         <button type="button" className="ks-btn secondary" style={{ marginTop: 8 }} disabled={busy} onClick={() => void discount()}>Закрыть без оплаты</button>
       )}
-      {open && (
+      {open && !uncalc && (
         <div style={{ marginTop: 8 }}>
           <label className="field">Сумма, ₾ (минус — исправление)<input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /></label>
           <div className="two">

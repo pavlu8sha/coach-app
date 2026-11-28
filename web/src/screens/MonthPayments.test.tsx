@@ -260,6 +260,21 @@ describe('«Оплаты за месяц»: сбой чтения режима �
     expect(within(tile('Внесено')).getByText(/150/)).toBeInTheDocument();
     f.restore();
   });
+  it('при сбое строки видны, но абонементный платёж и «Закрыть без оплаты» недоступны; после повтора возвращаются', async () => {
+    seed();
+    const f = failNth('players', 2);
+    render(<MonthPayments />);
+    await screen.findByText(TEXT);
+    fireEvent.click(await screen.findByText('Иванов Пётр').then(el => el.closest('details')!.querySelector('summary')!));
+    expect(screen.getByText('Иванов Пётр')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Внести платёж' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Закрыть без оплаты' })).toBeNull();
+    f.restore();
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить загрузку' }));
+    await waitFor(() => expect(screen.queryByText(TEXT)).not.toBeInTheDocument());
+    expect(screen.getAllByRole('button', { name: 'Внести платёж' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: 'Закрыть без оплаты' }).length).toBeGreaterThan(0);
+  });
   it('«Повторить загрузку»: после успеха расчёт восстановлен, платежей не создано', async () => {
     seed();
     fake.db.players = [{ id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'active', pay_mode: 'per_visit', pay_mode_from: monthIso() }, ...((fake.db.players as any[]).slice(1))];
