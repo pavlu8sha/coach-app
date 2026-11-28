@@ -172,3 +172,80 @@ describe('привязка ребёнка', () => {
     });
   });
 });
+
+// Условия приёмки: docs/acceptance/link-sync-761-2026-11-28.md (условия 6-8)
+describe('после request_link: результат отправки и обновления списка (#761)', () => {
+  const choose = async () => {
+    fake.rpc.search_players_for_link = () => found;
+    search('Петров');
+    fireEvent.click(await screen.findByRole('button', { name: /Алексей Петров/ }));
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: /Отправить запрос/ }));
+  };
+  const NOTE = /Запрос отправлен, но список статусов пока не обновился/;
+
+  it('6: отправка удалась, обновление списка нет: сообщение без ошибки отправки, в статус не переходим', async () => {
+    fake.rpc.request_link = () => 'r1';
+    let opened = 0;
+    render(<Link onOpenStatus={() => opened++} />);
+    await waitFor(() => expect(fake.rpcCalls('my_link_requests')).toHaveLength(1)); // первичная загрузка прошла
+    fake.errors.link_requests = 'boom'; // дальше сбой чтения
+    await choose();
+    expect(await screen.findByText(NOTE)).toBeInTheDocument();
+    expect(fake.rpcCalls('request_link')).toHaveLength(1);
+    expect(screen.queryByRole('alert')).toBeNull(); // не «ошибка отправки»
+    expect(document.querySelector('.error')).toBeNull();
+    expect(document.body.textContent).not.toMatch(/boom/);
+    expect(opened).toBe(0);
+    expect(screen.queryByRole('button', { name: /Алексей Петров/ })).toBeNull(); // найденный ребёнок убран: запрос ушёл
+  });
+
+  it('7: «Обновить статусы» после успеха снимает сообщение и открывает статус', async () => {
+    fake.rpc.request_link = () => 'r1';
+    let opened = 0;
+    render(<Link onOpenStatus={() => opened++} />);
+    await waitFor(() => expect(fake.rpcCalls('my_link_requests')).toHaveLength(1));
+    fake.errors.link_requests = 'boom';
+    await choose();
+    await screen.findByText(NOTE);
+    delete fake.errors.link_requests;
+    fake.db.link_requests = [{ id: 'r1', user_id: 'u', status: 'pending', players: { full_name: 'Алексей Петров' } }];
+    fireEvent.click(screen.getByRole('button', { name: 'Обновить статусы' }));
+    await waitFor(() => expect(opened).toBe(1));
+    expect(screen.queryByText(NOTE)).toBeNull();
+    expect(fake.rpcCalls('request_link')).toHaveLength(1); // повторной отправки нет
+  });
+
+  it('7: повторное обновление тоже не удалось: сообщение остаётся, статус не открывается', async () => {
+    fake.rpc.request_link = () => 'r1';
+    let opened = 0;
+    render(<Link onOpenStatus={() => opened++} />);
+    await waitFor(() => expect(fake.rpcCalls('my_link_requests')).toHaveLength(1));
+    fake.rejects.link_requests = 'Failed to fetch';
+    await choose();
+    await screen.findByText(NOTE);
+    fireEvent.click(screen.getByRole('button', { name: 'Обновить статусы' }));
+    await waitFor(() => expect(fake.rpcCalls('my_link_requests').length).toBeGreaterThan(2));
+    expect(screen.getByText(NOTE)).toBeInTheDocument();
+    expect(opened).toBe(0);
+    expect(fake.rpcCalls('request_link')).toHaveLength(1);
+  });
+
+  it('8: request_link отклонён: ошибка отправки, сообщения «Запрос отправлен» нет', async () => {
+    fake.rpc.request_link = () => ({ error: { message: 'too many pending requests' } });
+    render(<Link onOpenStatus={() => {}} />);
+    await choose();
+    expect(await screen.findByText(/Слишком много неподтверждённых/)).toBeInTheDocument();
+    expect(screen.queryByText(NOTE)).toBeNull();
+  });
+
+  it('успех целиком: список обновился, статус открыт, сообщения нет', async () => {
+    fake.rpc.request_link = () => { fake.db.link_requests = [{ id: 'r1', user_id: 'u', status: 'pending', players: { full_name: 'Алексей Петров' } }]; return 'r1'; };
+    let opened = 0;
+    render(<Link onOpenStatus={() => opened++} />);
+    await choose();
+    await waitFor(() => expect(opened).toBe(1));
+    expect(screen.queryByText(NOTE)).toBeNull();
+  });
+});
+

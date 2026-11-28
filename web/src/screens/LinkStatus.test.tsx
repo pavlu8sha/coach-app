@@ -106,3 +106,87 @@ describe('«Статус привязки»', () => {
     });
   });
 });
+
+// Условия приёмки: docs/acceptance/link-sync-761-2026-11-28.md (условия 12-16)
+describe('«Статус привязки»: текст соответствует доступу (#761)', () => {
+  const OK = 'Ребёнок привязан и виден на вкладке «Ребёнок».';
+  const NOT_SEEN = /Запрос подтверждён, но ребёнок пока не отображается/;
+  const seedApproved = () => { fake.db.link_requests = [{ id: 'r3', user_id: 'u', status: 'approved', player_id: 'p3', players: { full_name: 'Иван Петров' } }]; };
+  const kidP3 = { player_id: 'p3', full_name: 'Иван Петров', group_id: null, group_name: null };
+
+  it('12: ребёнок есть в my_children (по player_id): «виден на вкладке»', async () => {
+    seedApproved();
+    fake.rpc.my_children = () => [kidP3];
+    render(<LinkStatus onBack={() => {}} />);
+    expect(await screen.findByText(OK)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Проверить снова' })).toBeNull();
+  });
+
+  it('12: у запроса нет player_id: сверка по имени', async () => {
+    fake.db.link_requests = [{ id: 'r3', user_id: 'u', status: 'approved', players: { full_name: 'Иван Петров' } }];
+    fake.rpc.my_children = () => [kidP3];
+    render(<LinkStatus onBack={() => {}} />);
+    expect(await screen.findByText(OK)).toBeInTheDocument();
+  });
+
+  it('14: подтверждён, но ребёнка нет: не утверждает «виден», есть «Проверить снова», и он перечитывает данные', async () => {
+    seedApproved();
+    let visible = false;
+    fake.rpc.my_children = () => (visible ? [kidP3] : []);
+    render(<LinkStatus onBack={() => {}} />);
+    expect(await screen.findByText(NOT_SEEN)).toBeInTheDocument();
+    expect(screen.queryByText(OK)).toBeNull();
+    visible = true;
+    fireEvent.click(screen.getByRole('button', { name: 'Проверить снова' }));
+    expect(await screen.findByText(OK)).toBeInTheDocument();
+    expect(screen.queryByText(NOT_SEEN)).toBeNull();
+  });
+
+  it('другой ребёнок в my_children не подтверждает доступ к этому', async () => {
+    seedApproved();
+    fake.rpc.my_children = () => [{ player_id: 'p9', full_name: 'Мария Иванова', group_id: null, group_name: null }];
+    render(<LinkStatus onBack={() => {}} />);
+    expect(await screen.findByText(NOT_SEEN)).toBeInTheDocument();
+  });
+
+  it('13: ребёнок ждёт принятия согласия: так и сказано', async () => {
+    seedApproved();
+    fake.rpc.my_children = () => [];
+    fake.rpc.my_pending_consents = () => [{ player_id: 'p3', full_name: 'Иван Петров', group_name: null, version_id: 'v1', version: '1' }];
+    render(<LinkStatus onBack={() => {}} />);
+    expect(await screen.findByText(/Осталось принять согласие/)).toBeInTheDocument();
+    expect(screen.queryByText(OK)).toBeNull();
+  });
+
+  it('15: сбой проверки доступа: статусы показаны, у подтверждённого нейтральный текст и «Проверить снова»', async () => {
+    seedApproved();
+    fake.rpc.my_children = () => ({ error: { message: 'boom' } });
+    render(<LinkStatus onBack={() => {}} />);
+    expect(await screen.findByText('Подтверждено')).toBeInTheDocument();
+    expect(await screen.findByText(/Не удалось проверить, виден ли ребёнок/)).toBeInTheDocument();
+    expect(screen.queryByText(OK)).toBeNull();
+    expect(document.body.textContent).not.toMatch(/boom/);
+    fake.rpc.my_children = () => [kidP3];
+    fireEvent.click(screen.getByRole('button', { name: 'Проверить снова' }));
+    expect(await screen.findByText(OK)).toBeInTheDocument();
+  });
+
+  it('15: сбой проверки согласий тоже не прячет статусы', async () => {
+    seedApproved();
+    fake.rpc.my_children = () => [];
+    fake.rpc.my_pending_consents = () => ({ error: { message: 'boom' } });
+    render(<LinkStatus onBack={() => {}} />);
+    expect(await screen.findByText('Подтверждено')).toBeInTheDocument();
+    expect(await screen.findByText(/Не удалось проверить, виден ли ребёнок/)).toBeInTheDocument();
+  });
+
+  it('16: тексты ожидающего и отклонённого запросов не меняются, лишних кнопок нет', async () => {
+    seed();
+    fake.rpc.my_children = () => [];
+    render(<LinkStatus onBack={() => {}} />);
+    expect(await screen.findByText(/Администратор клуба проверит запрос/)).toBeInTheDocument();
+    expect(screen.getByText('Можно попробовать снова или спросить администратора клуба.')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Проверить снова' })).toHaveLength(1); // только у подтверждённого
+  });
+});
+

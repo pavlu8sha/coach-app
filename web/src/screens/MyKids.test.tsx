@@ -257,3 +257,22 @@ describe('«Мои дети»: запоминание между открыти�
     }
   });
 });
+
+// #761, условия 1-2: доступ решает сервер (my_children), старое поле клиент не читает
+describe('«Мои дети»: критерий доступа (#761)', () => {
+  beforeEach(() => { fake.reset(); });
+  it('заполненный старый consent_revoked_at не скрывает ребёнка, которого отдаёт сервер', async () => {
+    fake.db.player_guardians = [{ ...kid('p1', 'Иван Петров'), consent_revoked_at: '2026-10-01T00:00:00Z' }];
+    fake.rpc.child_linked = () => false;
+    render(<MyKids onBack={() => {}} />);
+    expect(await screen.findByText('Иван Петров')).toBeInTheDocument();
+  });
+  it('ребёнок, которого сервер не отдаёт, не показывается, даже если старое поле пустое', async () => {
+    fake.db.player_guardians = [kid('p1', 'Иван Петров')];
+    fake.rpc.my_children = () => [];
+    render(<MyKids onBack={() => {}} />);
+    await waitFor(() => expect(fake.rpcCalls('my_children').length).toBeGreaterThan(0));
+    expect(screen.queryByText('Иван Петров')).toBeNull();
+  });
+});
+

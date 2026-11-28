@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useNav, useSubEntry } from '../nav';
 import { BackNav } from '../ui/nav';
 import { ADMIN_CHAT } from '../lib/clubInfo';
@@ -39,8 +39,11 @@ const AdminLink = ({ children }: { children: string }) => (
 
 // Родитель вошёл, но ребёнок не привязан: один понятный путь вместо пустых блоков.
 // Новые данные не запрашиваются: запросы родителя уже загружены главной.
-export default function LinkOnboarding({ reqs, onApproved, onOpenStatus, onGuest }: { reqs: Req[]; onApproved: () => void; onOpenStatus: () => void; onGuest?: () => void }) {
+export default function LinkOnboarding({ reqs, onApproved, onOpenStatus, onGuest, onRetry, checking = false, checks = 0 }: { reqs: Req[]; onApproved: () => void; onOpenStatus: () => void; onGuest?: () => void; onRetry?: () => void; checking?: boolean; checks?: number }) {
   const policyOpen = useLinkPolicyOpen();
+  // «Проверить снова» (#761): после нажатия и завершения очередной проверки (счётчик checks вырос) сообщаем, что ребёнок пока не виден
+  const [clickedAt, setClickedAt] = useState<number | null>(null);
+  const tried = clickedAt !== null && checks > clickedAt && !checking;
   const nav = useNav();
   const searching = Boolean(useSubEntry('hm.link')); // поиск ребёнка — запись стека: «Назад» возвращает к шагам (#732)
   const openSearch = () => nav.push('hm.link');
@@ -74,8 +77,16 @@ export default function LinkOnboarding({ reqs, onApproved, onOpenStatus, onGuest
     return (
       <main className="page">
         <Head tone="danger" title="Ребёнок пока не отображается" icon={I_ALERT}>
-          Запрос подтверждён, но доступ к профилю не виден. Закройте приложение и откройте снова. Если не помогло, <AdminLink>напишите администратору клуба</AdminLink>: он восстановит доступ.
+          Запрос подтверждён, но профиль ребёнка пока не загрузился.{onRetry ? ' Нажмите «Проверить снова».' : ''} Если не помогло, <AdminLink>напишите администратору клуба</AdminLink>: он проверит доступ.
         </Head>
+        {onRetry && (
+          <>
+            {tried && !checking && <p className="ks-card note" role="status">Проверили: ребёнок пока не отображается.</p>}
+            <button type="button" className="ks-btn" disabled={checking} onClick={() => { setClickedAt(checks); onRetry(); }}>
+              {checking ? 'Проверяю…' : 'Проверить снова'}
+            </button>
+          </>
+        )}
         {statusRow}
         <button type="button" className="ks-btn secondary" style={{ marginTop: 12 }} onClick={openSearch}>
           Найти другого ребёнка

@@ -47,6 +47,9 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
   const [reqs, setReqs] = useState<Req[]>([]);
   const [pendingConsents, setPendingConsents] = useState<PendingConsent[]>([]); // подтверждено, но не принято согласие (0217)
   const [error, setError] = useState<string | null>(null);
+  const [reqsError, setReqsError] = useState(false); // запросы не загрузились, а дети да: дети остаются, рядом предупреждение с повтором (#761)
+  const [syncing, setSyncing] = useState(false); // идёт перечитывание после «Проверить снова»
+  const [checks, setChecks] = useState(0); // сколько загрузок завершено (для «Проверили: пока не отображается»)
   const [reload, setReload] = useState(0);
   const [showLink, setShowLink] = useState(false);
   const nav = useNav();
@@ -95,35 +98,51 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
   }, [hasKids, nav]);
 
   useEffect(() => {
+    let cancelled = false; // ответ устаревшей загрузки (повтор, уход с экрана) не применяется
     void (async () => {
-      // Администратору RLS отдаёт все связи, поэтому берём только свои: «Мой ребёнок» — это дети текущего пользователя
-      const me = (await supabase.auth.getUser()).data.user?.id;
-      if (!me) return setError('Нет сессии');
-      const links = await loadMyChildren(); // доступ решает сервер (my_children, 0215), как RLS
-      if (links.error) return setError(errMsg(links.error));
-      const kids = (links.kids ?? []).map(k => ({ id: k.player_id, name: k.full_name ?? '', group: k.group_name })).filter(k => k.id);
-      const ids = kids.map(k => k.id);
-      // Голы и матчи видны только своему ребёнку: чужие карточки родитель не получает (RLS), других детей здесь нет
-      const mp = ids.length
-        ? await supabase.from('match_players').select('player_id, played, goals').in('player_id', ids)
-        : { data: [], error: null };
-      if (mp.error) return setError(errMsg(mp.error));
-      const parts = (mp.data ?? []) as { player_id: string; played: boolean; goals: number }[];
-      // Запросы нужны для строки «ждёт подтверждения» и онбординга; сбой загрузки показывается ошибкой с повтором (замечание ревью #789)
-      const rq = await loadMyLinkRequests(me); // имя ребёнка из my_link_requests() (0217)
-      if (rq.error) return setError(errMsg(rq.error)); // сбой не выдаём за «запросов нет»: ошибка с повтором
-      setReqs((rq.reqs ?? []) as Req[]);
-      // «подтверждён, но не виден»: и когда детей нет, и когда второй ребёнок ждёт согласия. Сбой проверки не выдаём за «согласий нет»: ошибка с повтором
-      const pc = await loadPendingConsents();
-      if (pc.error) return setError(errMsg(pc.error));
-      setPendingConsents(pc.items);
-      setChildren(
-        kids.map(k => {
-          const played = parts.filter(p => p.player_id === k.id);
-          return { ...k, played: played.filter(p => p.played).length, goals: played.reduce((s, p) => s + (p.goals ?? 0), 0) };
-        }),
-      );
+      setSyncing(true);
+      try {
+        // Администратору RLS отдаёт все связи, поэтому берём только свои: «Мой ребёнок» — это дети текущего пользователя
+        const me = (await supabase.auth.getUser()).data.user?.id;
+        if (cancelled) return;
+        if (!me) return setError('Нет сессии');
+        // Запросы читаются раньше связей: если одобрение пришло между чтениями, связи уже новые, а запросы устаревшие, что безопаснее обратного (#761)
+        const rq = await loadMyLinkRequests(me); // имя ребёнка из my_link_requests() (0217)
+        if (cancelled) return;
+        let links = await loadMyChildren(); // доступ решает сервер (my_children, 0215), как RLS
+        // «одобрен, а связей нет»: один контролируемый повтор чтения связей, дальше — кнопка «Проверить снова»
+        if (!cancelled && !links.error && !links.kids?.length && rq.reqs?.some(r => r.status === 'approved')) links = await loadMyChildren();
+        if (cancelled) return;
+        if (links.error) return setError(errMsg(links.error));
+        const kids = (links.kids ?? []).map(k => ({ id: k.player_id, name: k.full_name ?? '', group: k.group_name })).filter(k => k.id);
+        // сбой запросов без детей не выдаём за онбординг «запросов нет»: ошибка с повтором; с детьми — предупреждение рядом с ними
+        if (rq.error && !kids.length) return setError(errMsg(rq.error));
+        const ids = kids.map(k => k.id);
+        // Голы и матчи видны только своему ребёнку: чужие карточки родитель не получает (RLS), других детей здесь нет
+        const mp = ids.length
+          ? await supabase.from('match_players').select('player_id, played, goals').in('player_id', ids)
+          : { data: [], error: null };
+        if (cancelled) return;
+        if (mp.error) return setError(errMsg(mp.error));
+        const parts = (mp.data ?? []) as { player_id: string; played: boolean; goals: number }[];
+        // «подтверждён, но не виден»: и когда детей нет, и когда второй ребёнок ждёт согласия. Сбой проверки не выдаём за «согласий нет»: ошибка с повтором
+        const pc = await loadPendingConsents();
+        if (cancelled) return;
+        if (pc.error) return setError(errMsg(pc.error));
+        setReqs((rq.error ? [] : rq.reqs ?? []) as Req[]);
+        setReqsError(Boolean(rq.error));
+        setPendingConsents(pc.items);
+        setChildren(
+          kids.map(k => {
+            const played = parts.filter(p => p.player_id === k.id);
+            return { ...k, played: played.filter(p => p.played).length, goals: played.reduce((s, p) => s + (p.goals ?? 0), 0) };
+          }),
+        );
+      } finally {
+        if (!cancelled) { setSyncing(false); setChecks(n => n + 1); }
+      }
     })();
+    return () => { cancelled = true; };
   }, [reload]);
 
   if (error) return <Failure title="Не удалось загрузить данные" text={error} onRetry={retry} />;
@@ -159,7 +178,7 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
       );
     }
     if (pendingConsents.length && !showLink) return <ConsentAccept items={pendingConsents} onDone={refresh} />;
-    return <LinkOnboarding reqs={reqs} onApproved={refresh} onOpenStatus={openStatus} onGuest={onGuest} />;
+    return <LinkOnboarding reqs={reqs} onApproved={refresh} onOpenStatus={openStatus} onGuest={onGuest} onRetry={refresh} checking={syncing} checks={checks} />;
   }
   return (
     <main className="page">
@@ -177,6 +196,13 @@ export default function Home({ isAdmin = false, onGuest }: { isAdmin?: boolean; 
         </>
       ) : (
         <>
+          {reqsError && (
+            <div className="ks-card" role="alert" style={{ marginBottom: 12 }}>
+              <b>Не удалось загрузить запросы на привязку</b>
+              <p className="muted" style={{ margin: '4px 0 8px' }}>Дети показаны, а статусы запросов пока недоступны.</p>
+              <button type="button" className="ks-btn secondary" disabled={syncing} onClick={refresh}>{syncing ? 'Загружаю…' : 'Повторить загрузку'}</button>
+            </div>
+          )}
           {statusRow}
           <button className="ks-btn secondary" onClick={() => nav.push('hm.link')}>
             + Добавить ещё одного ребёнка

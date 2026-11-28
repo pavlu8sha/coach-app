@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 
 // Запросы родителя на привязку и согласия, ожидающие принятия: серверные функции чтения (миграция 0217).
 // Пока миграция не применена, экраны работают как раньше: прямой выбор запросов (имя ребёнка до подтверждения не виден) и без экрана согласия.
-export interface LinkReq { id: string; status: 'pending' | 'approved' | 'rejected'; players: { full_name: string } | null }
+export interface LinkReq { id: string; status: 'pending' | 'approved' | 'rejected'; player_id?: string | null; players: { full_name: string } | null }
 export interface PendingConsent { player_id: string; full_name: string; group_name: string | null; version_id: string; version: string }
 
 // «Функции в базе нет» (миграция 0217 ещё не применена): только PGRST202 либо точное сообщение об отсутствии именно этой функции.
@@ -19,7 +19,7 @@ export async function loadMyLinkRequests(me: string): Promise<{ reqs: LinkReq[] 
   try {
     const r = await supabase.rpc('my_link_requests');
     if (!r.error && Array.isArray(r.data)) {
-      return { reqs: (r.data as { id: string; status: LinkReq['status']; full_name: string | null }[]).map(x => ({ id: x.id, status: x.status, players: x.full_name ? { full_name: x.full_name } : null })), error: null };
+      return { reqs: (r.data as { id: string; status: LinkReq['status']; player_id?: string | null; full_name: string | null }[]).map(x => ({ id: x.id, status: x.status, player_id: x.player_id ?? null, players: x.full_name ? { full_name: x.full_name } : null })), error: null };
     }
     // прямой выбор только при подтверждённом отсутствии функции: сбой RPC (сеть, права, SQL) им не маскируется
     if (r.error && !missing(r.error, 'my_link_requests')) return { reqs: null, error: r.error };
@@ -29,7 +29,7 @@ export async function loadMyLinkRequests(me: string): Promise<{ reqs: LinkReq[] 
   }
   try {
     // только свои запросы: администратору RLS отдаёт чужие, они показываются во вкладке «Запросы»
-    const r = await supabase.from('link_requests').select('id, status, players(full_name)').eq('user_id', me).order('created_at', { ascending: false });
+    const r = await supabase.from('link_requests').select('id, status, player_id, players(full_name)').eq('user_id', me).order('created_at', { ascending: false });
     if (r.error) return { reqs: null, error: r.error };
     return { reqs: (r.data ?? []) as unknown as LinkReq[], error: null };
   } catch (e) {

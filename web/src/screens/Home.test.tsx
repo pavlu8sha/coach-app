@@ -212,3 +212,97 @@ describe('главная родителя: вход в профиль игрок
     expect(screen.getByRole('button', { name: 'Профиль игрока: Алексей Петров' })).toBeInTheDocument();
   });
 });
+
+// Условия приёмки: docs/acceptance/link-sync-761-2026-11-28.md
+describe('главная родителя: синхронизация привязки (#761)', () => {
+  const approved = () => [{ id: 'r1', user_id: 'u', status: 'approved', player_id: 'p1', players: { full_name: 'Алексей Петров' } }];
+
+  it('условие 1: заполненный старый consent_revoked_at не скрывает ребёнка, которого отдаёт сервер', async () => {
+    fake.db.player_guardians = [{ ...kid('p1', 'Алексей Петров', 'U10-A'), consent_revoked_at: '2026-10-01T00:00:00Z' }];
+    render(<Home />);
+    expect(await screen.findByText('Алексей Петров')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Подключите профиль ребёнка' })).toBeNull();
+  });
+
+  it('условие 2: ребёнок, которого сервер не отдаёт, не показывается, даже если старое поле пустое', async () => {
+    fake.db.player_guardians = [kid('p1', 'Алексей Петров', 'U10-A')];
+    fake.rpc.my_children = () => [];
+    render(<Home />);
+    expect(await screen.findByRole('heading', { name: 'Подключите профиль ребёнка' })).toBeInTheDocument();
+    expect(screen.queryByText('Алексей Петров')).toBeNull();
+  });
+
+  it('условие 3: сбой запросов при загруженных детях: дети на месте, предупреждение и «Повторить загрузку»', async () => {
+    fake.db.player_guardians = [kid('p1', 'Алексей Петров', 'U10-A')];
+    fake.db.link_requests = [{ id: 'r1', user_id: 'u', status: 'pending', players: { full_name: 'Мария Иванова' } }];
+    fake.errors.link_requests = 'boom';
+    render(<Home />);
+    expect(await screen.findByText('Алексей Петров')).toBeInTheDocument();
+    const warn = await screen.findByRole('alert');
+    expect(warn).toHaveTextContent('Не удалось загрузить запросы на привязку');
+    expect(document.body.textContent).not.toMatch(/boom/);
+    expect(screen.queryByRole('button', { name: /Запросы на привязку/ })).toBeNull();
+    expect(screen.queryByText('Не удалось загрузить данные')).toBeNull();
+    // условие 5: повтор после успеха снимает предупреждение и показывает запросы
+    delete fake.errors.link_requests;
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить загрузку' }));
+    expect(await screen.findByText(/Запросы на привязку/)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByText('Алексей Петров')).toBeInTheDocument();
+  });
+
+  it('условие 3: отклонённый запрос (сеть) при детях ведёт себя так же', async () => {
+    fake.db.player_guardians = [kid('p1', 'Алексей Петров', 'U10-A')];
+    fake.rejects.link_requests = 'Failed to fetch';
+    render(<Home />);
+    expect(await screen.findByText('Алексей Петров')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Повторить загрузку' })).toBeInTheDocument();
+  });
+
+  it('условие 4: сбой запросов без детей: ошибка с повтором, не онбординг', async () => {
+    fake.errors.link_requests = 'boom';
+    render(<Home />);
+    expect(await screen.findByText('Не удалось загрузить данные')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Подключите профиль ребёнка' })).toBeNull();
+    delete fake.errors.link_requests;
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    expect(await screen.findByRole('heading', { name: 'Подключите профиль ребёнка' })).toBeInTheDocument();
+  });
+
+  it('условие 9: гонка (связи прочитаны до одобрения, запросы после): один повтор чтения связей, ребёнок появляется сам', async () => {
+    fake.db.link_requests = approved();
+    let calls = 0;
+    fake.rpc.my_children = () => (++calls === 1 ? [] : [{ player_id: 'p1', full_name: 'Алексей Петров', group_id: null, group_name: 'U10-A' }]);
+    render(<Home />);
+    expect(await screen.findByRole('heading', { name: 'Мой ребёнок' })).toBeInTheDocument();
+    expect(screen.getByText('Алексей Петров')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Ребёнок пока не отображается' })).toBeNull();
+    expect(calls).toBe(2);
+  });
+
+  it('условие 9: запросы читаются раньше связей', async () => {
+    fake.db.link_requests = approved();
+    fake.db.player_guardians = [kid('p1', 'Алексей Петров', 'U10-A')];
+    render(<Home />);
+    await screen.findByText('Алексей Петров');
+    const order = fake.calls.filter(c => c.kind === 'rpc' && (c.name === 'my_link_requests' || c.name === 'my_children')).map(c => c.name);
+    expect(order[0]).toBe('my_link_requests');
+    expect(order).not.toContain('auth.signOut');
+    expect(order.filter(n => n === 'my_children')).toHaveLength(1); // ребёнок найден с первого раза: повтор не нужен
+  });
+
+  it('условие 10 и 11: ребёнка всё ещё нет: «Проверить снова», затем ребёнок появляется без перезапуска', async () => {
+    fake.db.link_requests = approved();
+    let visible = false;
+    fake.rpc.my_children = () => (visible ? [{ player_id: 'p1', full_name: 'Алексей Петров', group_id: null, group_name: null }] : []);
+    render(<Home />);
+    expect(await screen.findByRole('heading', { name: 'Ребёнок пока не отображается' })).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/Закройте приложение/);
+    fireEvent.click(screen.getByRole('button', { name: 'Проверить снова' }));
+    expect(await screen.findByText('Проверили: ребёнок пока не отображается.')).toBeInTheDocument();
+    visible = true;
+    fireEvent.click(screen.getByRole('button', { name: 'Проверить снова' }));
+    expect(await screen.findByRole('heading', { name: 'Мой ребёнок' })).toBeInTheDocument();
+    expect(screen.getByText('Алексей Петров')).toBeInTheDocument();
+  });
+});

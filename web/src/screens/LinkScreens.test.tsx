@@ -152,12 +152,13 @@ describe('С16: второй ребёнок ждёт согласия при у�
 });
 
 describe('С17: ошибка загрузки запросов на привязку не скрывается на главной', () => {
-  it('RPC 42501/500: ошибка загрузки с повтором, даже когда ребёнок уже виден; технического текста нет', async () => {
+  it('RPC 42501/500: когда ребёнок уже виден, он остаётся, а ошибка запросов показана с повтором (#761); технического текста нет', async () => {
     fake.db.player_guardians = [kid('p1', 'Алексей Петров')];
     fake.rpc.my_link_requests = () => ({ error: { message: 'permission denied for function my_link_requests', code: '42501' } });
     render(<Home />);
-    expect(await screen.findByText('Не удалось загрузить данные')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Повторить/ })).toBeInTheDocument();
+    expect(await screen.findByText('Алексей Петров')).toBeInTheDocument();
+    expect(await screen.findByText('Не удалось загрузить запросы на привязку')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Повторить загрузку' })).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/permission denied|42501/);
   });
 
