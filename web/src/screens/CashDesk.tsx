@@ -10,7 +10,9 @@ import { BackNav } from '../ui/nav';
 import { Failure, Loading } from './Message';
 import { afterLeftMonthTest, pausedMonthTest, type StatusLogPoint } from '../lib/playerStatus';
 import { DEBT_START } from '../lib/debtSeason';
-import { perVisitMonth, type PayMode } from '../lib/payMode';
+import { loadPayMode, perVisitMonth } from '../lib/payMode';
+import { useClubSettings } from '../lib/clubSettings';
+import { nextMonthDueFor } from '../lib/nextMonth';
 import { gel, monthIso, monthName, nextMonth, tariffFor } from './MonthPayments';
 import { useNavState } from '../nav';
 
@@ -31,7 +33,7 @@ const EVENT_KIND: Record<string, string> = { championship: 'Чемпионат',
 const errText = (m: string) => (m.includes('paid above total') ? 'Оплата больше суммы заказа.' : m.includes('bad amount') ? 'Сумма указана неверно.' : coachError(m));
 
 /** Всё, что игрок должен: абонемент по месяцам, заказы экипировки, занятия, сборы, взносы матчей и событий. Платёж по строке идёт в нужный раздел. */
-async function loadDues(p: Pl): Promise<{ dues: Due[]; missing: string[] }> {
+async function loadDues(p: Pl, nextDue = false): Promise<{ dues: Due[]; missing: string[] }> {
   const out: Due[] = [];
   const noSub = !hasSubscription(p.groups?.name);
   const [prices, pays, subs, orders, ind, extra, camps] = await Promise.all([
@@ -58,8 +60,7 @@ async function loadDues(p: Pl): Promise<{ dues: Due[]; missing: string[] }> {
   }
   const afterLeft = afterLeftMonthTest(p.status, logRows, endsOn);
   // игрок «Платит за визит» (0200): абонемент с месяца начала не предлагается, его визиты ниже (раздел «Оплата за визит»); сбой чтения колонок (нет миграции) = обычный абонемент
-  const pmq = await supabase.from('players').select('pay_mode, pay_mode_from').eq('id', p.id).maybeSingle();
-  const payMode = pmq.error ? null : (pmq.data as PayMode | null);
+  const payMode = await loadPayMode(p.id);
   if (!noSub) {
     const pr = ((prices.data ?? []) as { group_id: string | null; amount: number; valid_from: string; valid_to: string | null }[]).map(x => ({ ...x, amount: Number(x.amount) }));
     const paidBy = new Map<string, number>();
@@ -79,7 +80,7 @@ async function loadDues(p: Pl): Promise<{ dues: Due[]; missing: string[] }> {
       if (s?.discount) continue; // скидка закрывает месяц и без платежа (0093)
       if (got >= tariff) continue;
       out.push({
-        key: 'sub' + m, kind: 'sub', section: SECTIONS[0], title: m > cur ? `${monthName(m)} (вперёд)` : monthName(m), sub: s?.discount ? 'скидка по договорённости: оплатите любую сумму' : m > cur ? 'оплата вперёд: дата — день, когда внесли деньги' : undefined, due: tariff, paid: got, month: m, advance: m > cur,
+        key: 'sub' + m, kind: 'sub', section: SECTIONS[0], title: m > cur && !nextDue ? `${monthName(m)} (вперёд)` : monthName(m), sub: s?.discount ? 'скидка по договорённости: оплатите любую сумму' : m > cur && !nextDue ? 'оплата вперёд: дата — день, когда внесли деньги' : undefined, due: tariff, paid: got, month: m, advance: m > cur && !nextDue, // с N-го числа (0230) следующий месяц — обычный долг
         pay: (amount, method, date) => addPayment({ player_id: p.id, amount: r2(amount), paid_on: date, for_month: m, method }, { keep: true }),
         settle: () => clearPaymentKey(p.id), // ключ платежа живёт, пока не закончена вся операция (платёж + скидка)
         discount: () => supabase.from('subscriptions').upsert({ player_id: p.id, month: m, discount: true, closed_kind: 'discount', closed_reason: 'скидка при приёме оплаты в кассе' }, { onConflict: 'player_id,month' }),
@@ -414,6 +415,7 @@ export default function CashDesk() {
 }
 
 export function PlayerDues({ player, onBack, embedded = false, sharedMethod, jumps = false }: { player: Pl; onBack?: () => void; embedded?: boolean; sharedMethod?: string; jumps?: boolean }) {
+  const nextDue = nextMonthDueFor(useClubSettings().values); // с N-го числа (по умолчанию 22) следующий месяц — долг, не «вперёд» (0230)
   const [dues, setDues] = useState<Due[] | null>(null);
   const [missing, setMissing] = useState<string[]>([]); // разделы, чьи данные не загрузились: список долгов неполный (#692)
   const [error, setError] = useState<string | null>(null);
@@ -426,9 +428,9 @@ export function PlayerDues({ player, onBack, embedded = false, sharedMethod, jum
   // ответ устаревшей загрузки (сменили игрока, нажали «Повторить», записали платёж) не применяется
   useEffect(() => {
     let alive = true;
-    void loadDues(player).then(d => { if (!alive) return; setDues(d.dues); setMissing(d.missing); setRefreshing(false); }).catch(e => { if (!alive) return; setError(errMsg(e)); setRefreshing(false); });
+    void loadDues(player, nextDue).then(d => { if (!alive) return; setDues(d.dues); setMissing(d.missing); setRefreshing(false); }).catch(e => { if (!alive) return; setError(errMsg(e)); setRefreshing(false); });
     return () => { alive = false; };
-  }, [player, reload]);
+  }, [player, reload, nextDue]);
 
   if (error) return <Failure title="Не удалось загрузить долги игрока" text={coachError(error)} embedded={embedded} onRetry={() => { setError(null); setDues(null); setReload(n => n + 1); }} />;
   const sum = (dues ?? []).filter(d => !d.advance).reduce((s, d) => s + (d.due - d.paid), 0);

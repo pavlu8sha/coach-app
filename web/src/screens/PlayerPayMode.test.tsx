@@ -27,8 +27,56 @@ describe('«Тип оплаты» в карточке игрока', () => {
     expect(await screen.findByText(/визитов 6, начислено 120 ₾, оплачено 100 ₾\. Абонемент в этом месяце: 165 ₾\./)).toBeInTheDocument();
     expect(screen.queryByText(/выгод|переплат|экономи/i)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Изменить тип оплаты' }));
+    fireEvent.change(screen.getByLabelText('Вернуть абонемент с'), { target: { value: '2026-12-01' } });
     fireEvent.click(screen.getByRole('button', { name: 'Вернуть абонемент' }));
-    await waitFor(() => expect(fake.rpcCalls('player_set_pay_mode')).toEqual([{ p: 'p1', mode: 'subscription', from_d: null }]));
+    await waitFor(() => expect(fake.rpcCalls('player_set_pay_mode')).toEqual([{ p: 'p1', mode: 'subscription', from_d: '2026-12-01' }]));
+  });
+
+  // Условия приёмки: docs/PAY_MODE_RETURN_AND_NEXT_MONTH_ACCEPTANCE.md, часть A, п. 2, 6, 7 (возврат с датой)
+  it('после возврата с датой показаны период «за визит» и дата возврата; назначенный возврат ещё считается «за визит»', async () => {
+    fake.db.players = [{ id: 'p1', pay_mode: 'subscription', pay_mode_from: '2026-09-01', pay_mode_until: '2026-10-01' }];
+    const { unmount } = render(<PlayerPayMode playerId="p1" />);
+    expect(await screen.findByText(/с 01\.10\.2026 \(до этого за визит с 01\.09\.2026\)/)).toBeInTheDocument();
+    unmount();
+    fake.db.players = [{ id: 'p1', pay_mode: 'subscription', pay_mode_from: '2026-11-01', pay_mode_until: '2999-01-01' }];
+    render(<PlayerPayMode playerId="p1" />);
+    expect(await screen.findByText('Платит за визит')).toBeInTheDocument();
+    expect(screen.getByText(/абонемент с 01\.01\.2999/)).toBeInTheDocument();
+  });
+
+  it('возврат предупреждает: неоплаченные визиты остаются долгом, месяц возврата целиком абонементный', async () => {
+    fake.db.players = [{ id: 'p1', pay_mode: 'per_visit', pay_mode_from: '2026-11-01' }];
+    render(<PlayerPayMode playerId="p1" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Изменить тип оплаты' }));
+    expect(screen.getByText(/Месяц этой даты целиком абонементный.*Неоплаченные визиты остаются долгом/)).toBeInTheDocument();
+  });
+
+  // Замечание ревью PR #871 (P2): открытие формы не должно терять уже назначенную дату возврата
+  it('у игрока с назначенным возвратом форма показывает эту дату, повторное сохранение её не меняет', async () => {
+    fake.db.players = [{ id: 'p1', pay_mode: 'subscription', pay_mode_from: '2026-11-01', pay_mode_until: '2999-12-15' }];
+    const calls: unknown[] = [];
+    fake.rpc.player_set_pay_mode = (a: unknown) => { calls.push(a); return null; };
+    render(<PlayerPayMode playerId="p1" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Изменить тип оплаты' }));
+    expect((screen.getByLabelText('Вернуть абонемент с') as HTMLInputElement).value).toBe('2999-12-15');
+    fireEvent.click(screen.getByRole('button', { name: 'Вернуть абонемент' }));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0]).toMatchObject({ p: 'p1', mode: 'subscription', from_d: '2999-12-15' });
+  });
+
+  it('у игрока «за визит» без назначенного возврата дата по умолчанию — первое число следующего месяца', async () => {
+    fake.db.players = [{ id: 'p1', pay_mode: 'per_visit', pay_mode_from: '2026-11-01' }];
+    render(<PlayerPayMode playerId="p1" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Изменить тип оплаты' }));
+    expect((screen.getByLabelText('Вернуть абонемент с') as HTMLInputElement).value).toMatch(/^\d{4}-\d{2}-01$/);
+  });
+
+  it('ошибка чтения типа оплаты показывает сообщение и «Повторить», а не пустое место', async () => {
+    fake.errorsNext.players = 'Failed to fetch';
+    render(<PlayerPayMode playerId="p1" />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось загрузить тип оплаты');
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    expect(await screen.findByText('Абонемент')).toBeInTheDocument();
   });
 
   // Условия приёмки: docs/PAY_PER_VISIT_VISITS_ACCEPTANCE.md, п. 8 (доп. посещения входят в число визитов)

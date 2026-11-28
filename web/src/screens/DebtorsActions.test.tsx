@@ -3,6 +3,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fake } from '../test/fakeSupabase';
 import Debtors from './Debtors';
 
+// дата фиксирована: с 22-го в списке «Должников» первым стоит следующий месяц (0230), тесты считают текущий
+vi.useFakeTimers({ toFake: ['Date'] });
+vi.setSystemTime(new Date(2026, 10, 15, 12, 0, 0));
 const monthIso = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
