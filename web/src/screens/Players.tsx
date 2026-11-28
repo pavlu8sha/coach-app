@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { errMsg, fmtDate, groupByGroupName, hasSubscription, sortGroups, today } from '../lib/coach';
+import { useClubSettings } from '../lib/clubSettings';
+import { nextMonthDueFor } from '../lib/nextMonth';
+import { isMissingColumn, perVisitMonth, type PayMode } from '../lib/payMode';
 import { statusLabel, statusTone, type PlayerStatus } from '../lib/playerStatus';
 import { supabase } from '../lib/supabase';
 import { useNav, useNavState } from '../nav';
@@ -11,21 +14,19 @@ import PlayerCard, { type CardPlayer } from './PlayerCard';
 import PlayerEdit, { type PlayerForm } from './PlayerEdit';
 
 interface ProfileRow { first_name: string | null; last_name: string | null; primary_position: string | null; jersey_number: number | null; jersey_team: string | null; jersey_season_start: string | null }
-interface Row { id: string; full_name: string; group_id: string | null; birth_date: string | null; status: PlayerStatus; external_id: string | null; player_profiles: ProfileRow | ProfileRow[] | null }
+interface Row extends Partial<PayMode> { id: string; full_name: string; group_id: string | null; birth_date: string | null; status: PlayerStatus; external_id: string | null; player_profiles: ProfileRow | ProfileRow[] | null }
 interface GroupRow { id: string; name: string; club_id: string }
 interface Price { group_id: string | null; amount: number; valid_from: string; valid_to: string | null }
 interface Sub { player_id: string; discount: boolean; written_off: boolean }
 type StatusFilter = 'active' | 'paused' | 'inactive' | 'all';
 
-const monthStart = () => today().slice(0, 7) + '-01';
-const nextMonthStart = () => {
-  const [y, m] = monthStart().split('-').map(Number);
-  return new Date(y, m, 1).toLocaleDateString('en-CA');
+const calendarMonth = () => today().slice(0, 7) + '-01';
+/** Месяц статуса: календарный; с N-го числа (payments.nextMonthDay, по умолчанию 22) следующий, он уже считается долгом, а не оплатой «вперёд» (0230). */
+const statusMonth = (nextDue: boolean) => {
+  const [y, m] = calendarMonth().split('-').map(Number);
+  return nextDue ? new Date(y, m, 1).toLocaleDateString('en-CA') : calendarMonth();
 };
-const monthLabel = () => {
-  const s = new Date(monthStart() + 'T12:00:00').toLocaleDateString('ru', { month: 'numeric', year: '2-digit' });
-  return s;
-};
+const monthLabel = (month: string) => new Date(month + 'T12:00:00').toLocaleDateString('ru', { month: 'numeric', year: '2-digit' });
 
 /** Статус оплаты абонемента за месяц: как в «Оплатах за месяц» (списано и скидка считаются оплаченным). */
 function payState(got: number, tariff: number | null, sub?: Sub): { tone: Tone; label: string } {
@@ -53,12 +54,20 @@ export default function Players() {
   const [onlyUnpaid, setOnlyUnpaid] = useNavState('onlyUnpaid', false, { entry: 0, persist: { kind: 'bool' } });
   const [years, setYears] = useNavState<string[]>('years', [], { entry: 0, persist: { kind: 'list', item: { kind: 'slug' }, max: 40 } });
   const [sheet, setSheet] = useState(false);
+  const settings = useClubSettings();
+  const month = statusMonth(nextMonthDueFor(settings.values));
 
   useEffect(() => {
+    if (!settings.loaded) return; // месяц зависит от настройки клуба
     void (async () => {
-      const month = monthStart();
       const g = await supabase.from('groups').select('id, name, club_id').order('name');
-      const p = await supabase.from('players').select('id, full_name, group_id, birth_date, status, external_id, player_profiles(first_name, last_name, primary_position, jersey_number, jersey_team, jersey_season_start)').order('full_name').limit(1000);
+      // тип оплаты (0200, 0229): без миграции колонок нет — читаем прежние; настоящий сбой — ошибка экрана
+      const profile = 'player_profiles(first_name, last_name, primary_position, jersey_number, jersey_team, jersey_season_start)';
+      const base = 'id, full_name, group_id, birth_date, status, external_id';
+      const selectPlayers = (cols: string) => supabase.from('players').select(`${base}, ${cols}${profile}`).order('full_name').limit(1000) as unknown as PromiseLike<{ data: Row[] | null; error: { code?: string; message: string } | null }>;
+      let p = await selectPlayers('pay_mode, pay_mode_from, pay_mode_until, ');
+      if (p.error && isMissingColumn(p.error)) p = await selectPlayers('pay_mode, pay_mode_from, ');
+      if (p.error && isMissingColumn(p.error)) p = await selectPlayers('');
       const pr = await supabase.from('prices').select('group_id, amount, valid_from, valid_to').eq('kind', 'subscription');
       const pay = await supabase.from('payments').select('player_id, amount').eq('pay_month', month).limit(1000);
       const sb = await supabase.from('subscriptions').select('player_id, discount, written_off').eq('month', month).limit(1000);
@@ -72,7 +81,7 @@ export default function Players() {
       setPaid(m);
       setSubs(new Map(((sb.data ?? []) as Sub[]).map(x => [x.player_id, x])));
     })();
-  }, [reload]);
+  }, [reload, settings.loaded, month]);
 
   const gid = groups.some(g => g.id === gidPick) ? gidPick : ''; // после перезагрузки группы может уже не быть
   const groupName = useMemo(() => new Map(groups.map(g => [g.id, g.name])), [groups]);
@@ -81,7 +90,9 @@ export default function Players() {
 
   // игроки индивидуальных и вратарских платят за занятия, абонемента у них нет
   const noSub = (p: Row) => !hasSubscription(groupName.get(p.group_id ?? ''));
-  const state = (p: Row) => noSub(p) ? { tone: 'neutral' as Tone, label: 'Без абонемента' } : payState(paid.get(p.id) ?? 0, p.group_id ? tariffFor(prices, p.group_id, monthStart()) : null, subs.get(p.id));
+  const state = (p: Row) => noSub(p) ? { tone: 'neutral' as Tone, label: 'Без абонемента' }
+    : perVisitMonth({ pay_mode: p.pay_mode ?? null, pay_mode_from: p.pay_mode_from ?? null, pay_mode_until: p.pay_mode_until ?? null }, month) ? { tone: 'neutral' as Tone, label: 'За визит' }
+    : payState(paid.get(p.id) ?? 0, p.group_id ? tariffFor(prices, p.group_id, month) : null, subs.get(p.id));
   const list = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return (players ?? []).filter(p => {
@@ -93,7 +104,7 @@ export default function Players() {
       if (onlyUnpaid && p.status !== 'active') return false;
       return true;
     });
-  }, [players, q, gid, status, years, onlyUnpaid, paid, subs, prices, groupName]);
+  }, [players, q, gid, status, years, onlyUnpaid, paid, subs, prices, groupName, month]);
 
   if (error) return <Failure title="Не удалось загрузить игроков" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   if (!players) return <Loading title="Игроки" />;
@@ -170,7 +181,7 @@ export default function Players() {
         </FilterSheet>
       )}
       <h2 className="ks-list-head"><span>Игроки</span><span>{list.length}</span></h2>
-      <p className="muted" style={{ marginBottom: 8 }}>Статус оплаты за {monthLabel()}</p>
+      <p className="muted" style={{ marginBottom: 8 }}>Статус оплаты за {monthLabel(month)}</p>
       {list.length === 0 ? (
         <EmptyState icon="users" title="Никого не нашли" text="Измените поиск или фильтры." />
       ) : (

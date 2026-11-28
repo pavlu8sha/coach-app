@@ -93,18 +93,20 @@ export default function MonthPayments() {
   }, []);
 
   useEffect(() => {
-    if (!groups.length) return;
+    if (!groups.length || !settings.loaded) return; // месяц по умолчанию зависит от настройки клуба: не грузим за месяц, который сразу сменится
+    let alive = true; // ответ за прежний месяц не должен попасть под заголовок нового
     setPlayers(null);
     void (async () => {
       const pl = await supabase.from('players').select('id, full_name, group_id').eq('status', 'active').order('full_name').limit(1000);
       const pay = await supabase.from('payments').select('player_id, amount').eq('pay_month', month).limit(5000);
       const sb = await supabase.from('subscriptions').select('player_id, discount, written_off, group_id, closed_kind, closed_reason').eq('month', month).limit(5000);
-      if (pl.error) return setError(errMsg(pl.error));
-      if (pay.error) return setError(errMsg(pay.error));
-      if (sb.error) return setError(errMsg(sb.error));
+      if (pl.error) return alive ? setError(errMsg(pl.error)) : undefined;
+      if (pay.error) return alive ? setError(errMsg(pay.error)) : undefined;
+      if (sb.error) return alive ? setError(errMsg(sb.error)) : undefined;
       const ok = new Set(groups.map(x => x.id));
       const m = new Map<string, number>();
       ((pay.data ?? []) as { player_id: string; amount: number }[]).forEach(x => m.set(x.player_id, (m.get(x.player_id) ?? 0) + Number(x.amount)));
+      if (!alive) return;
       setPaid(m);
       setSubs(new Map(((sb.data ?? []) as Sub[]).map(x => [x.player_id, x])));
       const withSub = new Set(((sb.data ?? []) as Sub[]).map(x => x.player_id));
@@ -118,8 +120,8 @@ export default function MonthPayments() {
       // 0229: после возврата на абонемент период «за визит» тоже учитывается (pay_mode_until); без миграции колонки нет — читаем только per_visit
       const pmA = await supabase.from('players').select('id, pay_mode, pay_mode_from').eq('pay_mode', 'per_visit').limit(1000);
       const pmB = await supabase.from('players').select('id, pay_mode, pay_mode_from, pay_mode_until').gt('pay_mode_until', '1900-01-01').limit(1000);
-      if (pmA.error && !isMissingColumn(pmA.error)) return setError(errMsg(pmA.error)); // не «нет игроков за визит», а сбой чтения
-      if (pmB.error && !isMissingColumn(pmB.error)) return setError(errMsg(pmB.error));
+      if (pmA.error && !isMissingColumn(pmA.error)) return alive ? setError(errMsg(pmA.error)) : undefined; // не «нет игроков за визит», а сбой чтения
+      if (pmB.error && !isMissingColumn(pmB.error)) return alive ? setError(errMsg(pmB.error)) : undefined;
       const pmRows = [...(pmA.error ? [] : (pmA.data ?? [])), ...(pmB.error ? [] : (pmB.data ?? []))] as (PayMode & { id: string })[];
       const perVisit = new Set(pmRows.filter(x => perVisitMonth(x, month) && (m.get(x.id) ?? 0) <= 0).map(x => x.id));
       const active = ((pl.data ?? []) as Pl[]).map(inGroup).filter(x => ok.has(x.group_id) && !perVisit.has(x.id));
@@ -128,12 +130,14 @@ export default function MonthPayments() {
       let extra: Pl[] = [];
       if (gone.length) {
         const ex = await supabase.from('players').select('id, full_name, group_id').in('id', gone).limit(1000);
-        if (ex.error) return setError(errMsg(ex.error));
+        if (ex.error) return alive ? setError(errMsg(ex.error)) : undefined;
         extra = ((ex.data ?? []) as Pl[]).map(inGroup).filter(x => ok.has(x.group_id));
       }
+      if (!alive) return;
       setPlayers(inMonth([...active, ...extra].sort((a, b) => a.full_name.localeCompare(b.full_name)), month, monthIso(new Date()), withSub, withPay));
     })();
-  }, [groups, month, reload]);
+    return () => { alive = false; };
+  }, [groups, month, reload, settings.loaded]);
 
   if (error) return <Failure title="Не удалось загрузить оплаты" text={error} onRetry={() => { setError(null); setReload(n => n + 1); }} />;
   const tariffOf = (p: Pl) => tariffFor(prices, p.group_id, month);
