@@ -145,6 +145,8 @@ preflight_0225_state "save_match_team доступна anon" "grant execute on f
 preflight_partial "без 0226" '0226_match_rsvp_fee' 0226_match_rsvp_fee
 # 0227 (единый экран матча, PR 2) пересоздаёт match_rsvp_cancel/reschedule/update и save_match: на базе без неё функции есть со старыми телами, строка 0227 даёт NOT_APPLIED.
 preflight_partial "без 0227" '0227_match_unified_pr2' 0227_match_unified_pr2
+# 0232 (сериализация оплат event_pay / match_pay, #722): на базе без неё функции есть со старым телом без блокировки.
+preflight_partial "без 0232" '0232_fee_pay_serialization' 0232_fee_pay_serialization
 for t in db/tests/*_test.sql; do
   echo "== $t"
   out=$($PSQL -q -v ON_ERROR_STOP=1 -d "$DB" -f "$t" 2>&1) || { echo "$out"; fail=1; continue; }
@@ -192,6 +194,8 @@ echo "== db/tests/concurrency_club_event_seats.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_club_event_seats.sh || fail=1
 echo "== db/tests/concurrency_club_event_pay.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_club_event_pay.sh || fail=1
+echo "== db/tests/concurrency_fee_pay.sh"
+DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_fee_pay.sh || fail=1
 echo "== db/tests/concurrency_payment_add.sh"
 DB_NAME="$DB" PSQL="$PSQL" db/tests/concurrency_payment_add.sh || fail=1
 echo "== db/tests/concurrency_player_save.sh"
