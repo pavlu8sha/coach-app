@@ -4,6 +4,9 @@ import { fake } from '../test/fakeSupabase';
 import { today } from '../lib/coach';
 import Players from './Players';
 
+// дата фиксирована: статус считается за месяц с учётом 22-го числа (docs/PLAYERS_PAY_STATUS_ACCEPTANCE.md)
+vi.useFakeTimers({ toFake: ['Date'] });
+vi.setSystemTime(new Date(2026, 10, 15, 12, 0, 0));
 const month = today().slice(0, 7) + '-01';
 function seed() {
   fake.db.groups = [{ id: 'g1', name: 'U10-B', club_id: 'c1' }, { id: 'g2', name: 'U7-A', club_id: 'c1' }];
@@ -199,5 +202,87 @@ describe('«Игроки»', () => {
       fireEvent.keyDown(window, { key: 'Escape' });
       expect(document.activeElement).toBe(opener);
     });
+  });
+});
+
+// Условия приёмки: docs/PLAYERS_PAY_STATUS_ACCEPTANCE.md
+describe('«Игроки»: месяц статуса с 22-го и «За визит»', () => {
+  beforeEach(() => { vi.spyOn(window, 'scrollTo').mockImplementation(() => {}); vi.setSystemTime(new Date(2026, 10, 15, 12, 0, 0)); });
+  const at = (d: number) => vi.setSystemTime(new Date(2026, 10, d, 12, 0, 0));
+
+  it('до 22-го статус за ноябрь, с 22-го за декабрь (платёж за декабрь считается)', async () => {
+    seed();
+    at(21);
+    const { unmount } = render(<Players />);
+    await screen.findByText('Amodeo Nolan');
+    expect(screen.getByText('Статус оплаты за 11.26')).toBeInTheDocument();
+    expect(screen.getByText('Оплачено')).toBeInTheDocument();
+    unmount();
+    at(22);
+    render(<Players />);
+    await screen.findByText('Amodeo Nolan');
+    expect(screen.getByText('Статус оплаты за 12.26')).toBeInTheDocument();
+    expect(screen.queryByText('Оплачено')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Не платил')).toHaveLength(2);
+  });
+
+  it('платёж за декабрь с 22-го даёт «Оплачено»', async () => {
+    seed();
+    fake.db.payments = [{ player_id: 'p1', amount: 165, paid_on: '2026-11-25', for_month: '2026-12-01' }];
+    at(22);
+    render(<Players />);
+    await screen.findByText('Amodeo Nolan');
+    expect(screen.getByText('Оплачено')).toBeInTheDocument();
+  });
+
+  it('порог из настройки клуба: при 25 на 22-е месяц ещё ноябрь', async () => {
+    seed();
+    fake.db.club_settings = [{ club_id: 'c1', key: 'payments.nextMonthDay', scope: null, value: '25' }];
+    fake.db.clubs = [{ id: 'c1' }];
+    at(22);
+    render(<Players />);
+    await screen.findByText('Amodeo Nolan');
+    expect(screen.getByText('Статус оплаты за 11.26')).toBeInTheDocument();
+  });
+
+  it('игрок «за визит» в месяце периода: «За визит», не «Не платил», и не в «Не оплатили»', async () => {
+    seed();
+    fake.db.players[1] = { ...fake.db.players[1], pay_mode: 'per_visit', pay_mode_from: '2026-11-01', pay_mode_until: null };
+    render(<Players />);
+    await screen.findByText('Andreev Boris');
+    expect(screen.getByText('За визит')).toBeInTheDocument();
+    expect(screen.queryByText('Не платил')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Не оплатили/ }));
+    expect(screen.queryByText('Andreev Boris')).not.toBeInTheDocument();
+  });
+
+  it('вернулся на абонемент с 01.12: ноябрь «За визит», с 22-го декабрь обычный статус', async () => {
+    seed();
+    fake.db.players[1] = { ...fake.db.players[1], pay_mode: 'subscription', pay_mode_from: '2026-11-01', pay_mode_until: '2026-12-01' };
+    const { unmount } = render(<Players />);
+    await screen.findByText('Andreev Boris');
+    expect(screen.getByText('За визит')).toBeInTheDocument();
+    unmount();
+    at(22);
+    render(<Players />);
+    await screen.findByText('Andreev Boris');
+    expect(screen.queryByText('За визит')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Не платил')).toHaveLength(2);
+  });
+
+  it('до миграции 0229 (нет колонки pay_mode_until) экран работает по прежним правилам', async () => {
+    seed();
+    fake.errorsNext.players = 'column players.pay_mode_until does not exist';
+    render(<Players />);
+    await screen.findByText('Amodeo Nolan');
+    expect(screen.getByText('Не платил')).toBeInTheDocument();
+  });
+
+  it('настоящий сбой чтения игроков показывает ошибку, а не «Не платил»', async () => {
+    seed();
+    fake.errors.players = 'connection lost';
+    render(<Players />);
+    expect(await screen.findByText('Не удалось загрузить игроков')).toBeInTheDocument();
+    expect(screen.queryByText('Не платил')).not.toBeInTheDocument();
   });
 });
