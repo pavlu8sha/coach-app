@@ -43,26 +43,33 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [agreed, setAgreed] = useState(false);
+  const [staleSent, setStaleSent] = useState(false); // запрос отправлен, а список статусов обновить не удалось (#761)
   const nav = useNav();
   const policy = Boolean(useSubEntry('policy')); // политика — запись стека: список и согласие остаются
   const [selected, setSelected] = useState<string | null>(null);
   const notified = useRef(false); // «подтверждено» сообщаем родителю экрана один раз, иначе обновление зацикливается
   const c = CONSENT[preferredLang()];
 
-  const loadReqs = useCallback(async () => {
+  // true: список запросов обновлён. report=false: после отправки сбой не выдаётся за ошибку самой отправки (#761), его показывает вызывающий
+  const loadReqs = useCallback(async (report = true): Promise<boolean> => {
     try {
       const me = (await supabase.auth.getUser()).data.user?.id;
-      if (!me) return;
+      if (!me) return false;
       const r = await loadMyLinkRequests(me); // имя ребёнка из my_link_requests() (0217), до подтверждения его нет в players
-      if (r.error) return setError(linkError(r.error));
+      if (r.error) {
+        if (report) setError(linkError(r.error));
+        return false;
+      }
       const rows = (r.reqs ?? []) as Req[];
       setReqs(rows);
       if (!notified.current && rows.some(x => x.status === 'approved')) {
         notified.current = true;
         onApproved?.();
       }
+      return true;
     } catch (e) {
-      setError(linkError(e)); // отказ загрузки не остаётся необработанным
+      if (report) setError(linkError(e)); // отказ загрузки не остаётся необработанным
+      return false;
     }
   }, [onApproved]);
 
@@ -90,16 +97,30 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
 
   const request = async (id: string) => {
     setError(null);
+    setStaleSent(false);
     setBusy(true);
     try {
       const r = await supabase.rpc('request_link', { p: id, consent: CONSENT_VERSION });
       if (r.error) return setError(linkError(r.error));
       setFound(f => (f ?? []).filter(x => x.player_id !== id));
       setSelected(null);
-      await loadReqs();
+      if (!(await loadReqs(false))) return setStaleSent(true); // запрос ушёл, список не обновился: не открываем устаревший статус и не пугаем ошибкой отправки
+      setStaleSent(false);
       onOpenStatus?.(); // показать статус только что отправленного запроса
     } catch (e) {
       setError(linkError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const refreshAfterSend = async () => {
+    setBusy(true);
+    try {
+      if (await loadReqs(false)) {
+        setStaleSent(false);
+        onOpenStatus?.();
+      }
     } finally {
       setBusy(false);
     }
@@ -129,6 +150,14 @@ export default function Link({ onApproved, onOpenStatus }: { onApproved?: () => 
       </form>
       <p id="link-hint" className="muted note">{short && q.trim().length > 0 ? `Введите ещё ${MIN - q.trim().length} ${MIN - q.trim().length === 1 ? 'букву' : 'буквы'}: поиск начинается от ${MIN} букв.` : `Поиск начинается от ${MIN} букв.`}</p>
       {error && <p className="error" role="alert">{error}</p>}
+      {staleSent && (
+        <div className="note" role="status">
+          <p>Запрос отправлен, но список статусов пока не обновился. Повторно отправлять не нужно.</p>
+          <button type="button" className="ks-btn secondary sm" disabled={busy} onClick={() => void refreshAfterSend()}>
+            Обновить статусы
+          </button>
+        </div>
+      )}
       {error && found === null && !short && (
         <button type="button" className="ks-btn secondary sm" disabled={busy} onClick={() => void search()}>
           Повторить поиск
