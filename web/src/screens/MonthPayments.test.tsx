@@ -192,6 +192,28 @@ describe('«Оплаты за месяц»: когда предлагать сл
     await waitFor(() => expect((screen.getByRole('combobox', { name: 'Месяц' }) as HTMLSelectElement).value).toBe('2026-11-01'));
   });
 
+  // Условия приёмки: docs/PLAYERS_PAY_STATUS_ACCEPTANCE.md, п. 7. Запись 28.11.2026: при открытии с 22-го экран сначала грузил старый месяц, потом новый,
+  // и запоздавший ответ за старый месяц оказывался под заголовком нового.
+  it('с 22-го данные грузятся один раз за итоговый месяц: запоздавший ответ за прежний не подменяет его', async () => {
+    vi.setSystemTime(new Date(2026, 9, 22, 12, 0, 0));
+    seed();
+    fake.db.payments = [
+      { player_id: 'p1', amount: 100, paid_on: '2026-10-05' },
+      { player_id: 'p1', amount: 165, paid_on: '2026-10-25', for_month: '2026-11-01' },
+    ];
+    fake.db.club_settings = [];
+    fake.db.clubs = [{ id: 'c1' }];
+    const held = fake.hold('payments'); // первый запрос платежей ждёт
+    render(<MonthPayments />);
+    await waitFor(() => expect((screen.getByRole('combobox', { name: 'Месяц' }) as HTMLSelectElement).value).toBe('2026-11-01'));
+    await new Promise(r => setTimeout(r, 30));
+    held.release();
+    expect(await screen.findByText('165 ₾ из 165 ₾')).toBeInTheDocument();
+    await new Promise(r => setTimeout(r, 30));
+    expect(screen.queryByText('100 ₾ из 165 ₾')).toBeNull();
+    expect(screen.getByText('165 ₾ из 165 ₾')).toBeInTheDocument();
+  });
+
   it('число берётся из настроек клуба', async () => {
     vi.setSystemTime(new Date(2026, 9, 22, 12, 0, 0));
     fake.db.club_settings = [{ club_id: 'c1', key: 'payments.nextMonthDay', scope: '', value: '25' }];
