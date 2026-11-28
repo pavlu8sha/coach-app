@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEBT_START } from '../lib/debtSeason';
 import { fake } from '../test/fakeSupabase';
+import { failNth } from '../test/failNth';
 import MonthPayments, { inMonth, tariffFor } from './MonthPayments';
 
 // Дата зафиксирована: с 22-го числа экран открывается на следующем месяце, и тесты не должны зависеть от дня запуска.
@@ -240,5 +241,53 @@ describe('«Оплаты за месяц»: игрок «Платит за ви�
     expect(await screen.findByText('Сидоров Ян')).toBeInTheDocument();
     expect(screen.queryByText('Иванов Пётр')).toBeNull(); // за визит, платежей за месяц нет
     expect(screen.getByText('Со Скидкой')).toBeInTheDocument(); // за визит, но за месяц есть платёж: деньги не прячем
+  });
+});
+
+// #701: сбой чтения pay_mode не равен «игроков за визит нет»
+describe('«Оплаты за месяц»: сбой чтения режима оплаты (#701)', () => {
+  const TEXT = 'Не удалось загрузить данные, необходимые для расчёта задолженности. Сумма долга временно недоступна.';
+  const tile = (name: string) => screen.getByText(name).closest('.ks-tile') as HTMLElement;
+  it('сбой: суммы долга «Не рассчитано», внесённые деньги и список остаются, экран не заменён ошибкой', async () => {
+    seed();
+    const f = failNth('players', 2); // 1-й запрос — список игроков, 2-й — игроки «за визит»
+    render(<MonthPayments />);
+    expect(await screen.findByText(TEXT)).toBeInTheDocument();
+    expect(screen.queryByText('Не удалось загрузить оплаты')).not.toBeInTheDocument();
+    expect(within(tile('Ожидается по тарифам')).getByText('Не рассчитано')).toBeInTheDocument();
+    expect(within(tile('Должников')).getByText('Не рассчитано')).toBeInTheDocument();
+    expect(within(tile('Оплатили')).getByText('Не рассчитано')).toBeInTheDocument();
+    expect(within(tile('Внесено')).getByText(/150/)).toBeInTheDocument();
+    f.restore();
+  });
+  it('при сбое строки видны, но абонементный платёж и «Закрыть без оплаты» недоступны; после повтора возвращаются', async () => {
+    seed();
+    const f = failNth('players', 2);
+    render(<MonthPayments />);
+    await screen.findByText(TEXT);
+    fireEvent.click(await screen.findByText('Иванов Пётр').then(el => el.closest('details')!.querySelector('summary')!));
+    expect(screen.getByText('Иванов Пётр')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Внести платёж' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Закрыть без оплаты' })).toBeNull();
+    f.restore();
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить загрузку' }));
+    await waitFor(() => expect(screen.queryByText(TEXT)).not.toBeInTheDocument());
+    expect(screen.getAllByRole('button', { name: 'Внести платёж' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: 'Закрыть без оплаты' }).length).toBeGreaterThan(0);
+  });
+  it('«Повторить загрузку»: после успеха расчёт восстановлен, платежей не создано', async () => {
+    seed();
+    fake.db.players = [{ id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'active', pay_mode: 'per_visit', pay_mode_from: monthIso() }, ...((fake.db.players as any[]).slice(1))];
+    fake.db.payments = [];
+    const f = failNth('players', 2);
+    render(<MonthPayments />);
+    await screen.findByText(TEXT);
+    f.restore();
+    const before = fake.db.payments.length;
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить загрузку' }));
+    await waitFor(() => expect(screen.queryByText(TEXT)).not.toBeInTheDocument());
+    expect(screen.queryByText('Иванов Пётр')).toBeNull(); // «за визит», платежей нет: не в списке абонементов
+    expect(screen.getByText('Сидоров Ян')).toBeInTheDocument();
+    expect(fake.db.payments.length).toBe(before);
   });
 });

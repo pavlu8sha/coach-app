@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { today } from '../lib/coach';
 import { DEBT_START } from '../lib/debtSeason';
 import { fake, supabase } from '../test/fakeSupabase';
+import { failNth } from '../test/failNth';
 import CashDesk, { PlayerDues } from './CashDesk';
 import { monthIso, nextMonth } from './MonthPayments';
 
@@ -1272,5 +1273,99 @@ describe('«Внесено за день»: сбой источников (#691)
     await new Promise(r => setTimeout(r, 30));
     expect(screen.queryByText('Старый ответ')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Внесено 05.10.2026.*7/ })).toBeInTheDocument();
+  });
+});
+
+describe('«К оплате»: сбой данных расчёта абонемента (#701)', () => {
+  const TEXT = 'Не удалось загрузить данные, необходимые для расчёта задолженности. Сумма долга временно недоступна.';
+  function seedSub() {
+    seed();
+    fake.db.individual_bookings = [];
+    fake.db.extra_bookings = [];
+    fake.db.camp_participants = [];
+    fake.db.player_status_log = [];
+  }
+
+  it('успешный пустой журнал статусов: обычный расчёт, предупреждения нет', async () => {
+    seedSub();
+    await openPlayer();
+    expect(await screen.findByText(/Внесено 50 ₾ из 165 ₾/)).toBeInTheDocument();
+    expect(screen.queryByText(TEXT)).not.toBeInTheDocument();
+    expect(screen.queryByText(/не рассчитано/i)).not.toBeInTheDocument();
+  });
+
+  it('сбой player_status_log: «Не рассчитано» вместо суммы абонемента, экипировка доступна', async () => {
+    seedSub();
+    fake.errors.player_status_log = 'boom';
+    await openPlayer();
+    expect(await screen.findByText(TEXT)).toBeInTheDocument();
+    expect(screen.getByText(/к оплате: не рассчитано/)).toBeInTheDocument();
+    expect(screen.queryByText(/Внесено 50 ₾ из 165 ₾/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/к оплате: \d/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Долгов нет')).not.toBeInTheDocument();
+    expect(screen.queryByText(/boom/)).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Экипировка' })).toBeInTheDocument();
+  });
+
+  it('«Повторить загрузку»: после успеха расчёт восстановлен, платежей не создано', async () => {
+    seedSub();
+    fake.errors.player_status_log = 'boom';
+    await openPlayer();
+    await screen.findByText(TEXT);
+    const before = fake.db.payments.length;
+    delete fake.errors.player_status_log;
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить загрузку' }));
+    expect(await screen.findByText(/Внесено 50 ₾ из 165 ₾/)).toBeInTheDocument();
+    expect(screen.queryByText(TEXT)).not.toBeInTheDocument();
+    expect(fake.db.payments.length).toBe(before);
+  });
+
+  it('ушедший игрок: сбой players.ends_on не считается «даты ухода нет»', async () => {
+    seedSub();
+    fake.db.players = [{ id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', status: 'inactive', groups: { name: 'U9-A' } }];
+    fake.errorsNext.players = 'boom';
+    await openPlayer();
+    expect(await screen.findByText(TEXT)).toBeInTheDocument();
+    expect(screen.getByText(/к оплате: не рассчитано/)).toBeInTheDocument();
+  });
+});
+
+describe('«К оплате»: сбой чтения режима оплаты pay_mode (#701)', () => {
+  const TEXT = 'Не удалось загрузить данные, необходимые для расчёта задолженности. Сумма долга временно недоступна.';
+  function seedMode() {
+    seed();
+    fake.db.individual_bookings = [];
+    fake.db.extra_bookings = [];
+    fake.db.camp_participants = [];
+    fake.db.player_status_log = [];
+    fake.db.payments = [];
+    fake.db.subscriptions = [{ player_id: 'p1', month: DEBT_START, group_id: null, discount: false, written_off: false }];
+    fake.db.players = [{ id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', groups: { name: 'U9-A' }, pay_mode: 'per_visit', pay_mode_from: '2026-10-05' }];
+  }
+
+  it('сбой pay_mode: не «обычный абонемент», а «Не рассчитано»; экипировка доступна, экран не заменён ошибкой', async () => {
+    seedMode();
+    const f = failNth('players', 1);
+    await openPlayer();
+    expect(await screen.findByText(TEXT)).toBeInTheDocument();
+    expect(screen.getByText(/к оплате: не рассчитано/)).toBeInTheDocument();
+    expect(screen.queryByText(/Сентябрь 2026/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Не удалось загрузить долги игрока')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Экипировка' })).toBeInTheDocument();
+    f.restore();
+  });
+
+  it('«Повторить загрузку» после сбоя pay_mode: игрок «за визит» без ложного долга, платежей не создано', async () => {
+    seedMode();
+    const f = failNth('players', 1);
+    await openPlayer();
+    await screen.findByText(TEXT);
+    f.restore();
+    const before = fake.db.payments.length;
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить загрузку' }));
+    await waitFor(() => expect(screen.queryByText(TEXT)).not.toBeInTheDocument());
+    expect(screen.queryByText(/Октябрь 2026/)).toBeNull();
+    expect(screen.getByText(/Сентябрь 2026/)).toBeInTheDocument();
+    expect(fake.db.payments.length).toBe(before);
   });
 });
