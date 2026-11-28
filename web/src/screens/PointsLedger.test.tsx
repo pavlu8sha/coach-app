@@ -219,4 +219,113 @@ describe('баллы по новым правилам', () => {
     // у игроков без начислений в журнале карточки нет, но память для них тоже держится в пределах 50: самый старый вытеснен
     expect(r0.container.querySelector('[aria-busy="true"]')).not.toBeNull();
   });
+
+  // --- #763: четыре состояния и устойчивость к сбоям ---
+  it('исключение при запросе (сбой сети) показывает ошибку с повтором, а не «Баллов пока нет»', async () => {
+    seed();
+    fake.rejects.points_ledger = 'Failed to fetch';
+    render(<PointsLedger playerId="p1" showEmpty />);
+    expect(await screen.findByText('Не удалось загрузить баллы')).toBeInTheDocument();
+    expect(screen.queryByText('Баллов пока нет')).toBeNull();
+    delete fake.rejects.points_ledger;
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    expect(await screen.findByText('Декабрь 2026')).toBeInTheDocument();
+  });
+
+  it('ошибка доступа (RLS) показывается как ошибка, не как пустой журнал', async () => {
+    seed();
+    fake.errors.points_ledger = 'permission denied for table points_ledger';
+    render(<PointsLedger playerId="p1" showEmpty />);
+    expect(await screen.findByText('Не удалось загрузить баллы')).toBeInTheDocument();
+    expect(screen.queryByText('Баллов пока нет')).toBeNull();
+  });
+
+  it('успешный пустой ответ — это «Баллов пока нет», не ошибка', async () => {
+    seed();
+    fake.db.points_ledger = [];
+    render(<PointsLedger playerId="p1" showEmpty />);
+    expect(await screen.findByText('Баллов пока нет')).toBeInTheDocument();
+    expect(screen.queryByText('Не удалось загрузить баллы')).toBeNull();
+  });
+
+  it('ошибка серии (points_series_info) не маскирует журнал и не даёт пустого экрана', async () => {
+    seed();
+    fake.rpc.points_group_benchmark = () => ({ groups: [] });
+    fake.rpc.points_series_info = () => ({ error: { message: 'boom' } });
+    render(<PointsLedger playerId="p1" showEmpty />);
+    expect(await screen.findByText('Декабрь 2026')).toBeInTheDocument();
+    expect(screen.getByText(/Всего накоплено: 9/)).toBeInTheDocument();
+    expect(screen.queryByText('Не удалось загрузить баллы')).toBeNull();
+    expect(screen.queryByText('Баллов пока нет')).toBeNull();
+    expect(screen.queryByText('Серия посещений')).toBeNull();
+  });
+
+  it('смена ребёнка во время загрузки: ответ предыдущего не показывается', async () => {
+    seed();
+    fake.rpc.points_group_benchmark = () => ({ groups: [] });
+    fake.db.points_ledger = [...(fake.db.points_ledger as object[]), { id: 'f', player_id: 'p2', status: 'active', event_date: '2026-12-02', points: 4, source_type: 'extra', reason_code: 'attended', components: {} }];
+    const slow = fake.hold('points_ledger'); // первый запрос (p1) ждёт
+    const view = render(<PointsLedger playerId="p1" showEmpty />);
+    await waitFor(() => expect(fake.holds.points_ledger).toHaveLength(0));
+    view.rerender(<PointsLedger playerId="p2" showEmpty />);
+    expect(await screen.findByText(/Всего накоплено: 13/)).toBeInTheDocument(); // p2: 9 + 4
+    slow.release(); // запоздавший ответ p1
+    await new Promise(r => setTimeout(r, 30));
+    expect(screen.queryByText(/Всего накоплено: 9\b/)).toBeNull();
+    expect(screen.getByText(/Всего накоплено: 13/)).toBeInTheDocument();
+  });
+
+  // --- #764: история любой длины, стабильная пагинация, один итог ---
+  const bulk = (n: number, player = 'p1') => Array.from({ length: n }, (_, i) => ({ id: `y${String(i).padStart(5, '0')}`, player_id: player, status: 'active', event_date: '2026-12-03', points: 1, source_type: 'group_session', reason_code: 'attended', components: { class: 'regular' } }));
+
+  it.each([999, 1000, 1001, 2001])('история из %i записей читается целиком: итог совпадает, дублей нет', async n => {
+    fake.rpc.points_group_benchmark = () => ({ groups: [] });
+    fake.rpc.points_series_info = () => null;
+    fake.db.points_ledger = bulk(n);
+    const v = await loadLedger('p1', true);
+    expect(v.rows).toHaveLength(n);
+    expect(new Set(v.rows.map(r => r.id)).size).toBe(n);
+    render(<PointsLedger playerId="p1" />);
+    expect(await screen.findByText(new RegExp(`Всего накоплено: ${n} `))).toBeInTheDocument();
+  });
+
+  it('старые месяцы за пределами первых 1000 строк доступны', async () => {
+    fake.rpc.points_group_benchmark = () => ({ groups: [] });
+    fake.rpc.points_series_info = () => null;
+    fake.db.points_ledger = [...bulk(1200), { id: 'old', player_id: 'p1', status: 'active', event_date: '2026-01-15', points: 7, source_type: 'manual', reason_code: 'manual', components: { note: 'Старое' } }];
+    render(<PointsLedger playerId="p1" />);
+    await screen.findByText(/Всего накоплено: 1207 /);
+    for (let i = 0; i < 11; i++) fireEvent.click(screen.getByRole('button', { name: 'Предыдущий месяц' }));
+    expect(await screen.findByText('Январь 2026')).toBeInTheDocument();
+    expect(screen.getByText(/От тренера: Старое/)).toBeInTheDocument();
+  });
+
+  it('запись добавлена между страницами: ни дублей, ни пропусков уже существовавших строк', async () => {
+    fake.rpc.points_series_info = () => null;
+    fake.db.points_ledger = bulk(1500).map((r, i) => ({ ...r, id: `m${String(i + 100).padStart(5, '0')}` }));
+    const first = fake.hold('points_ledger');
+    const second = fake.hold('points_ledger');
+    const run = loadLedger('p1', true);
+    await waitFor(() => expect(fake.holds.points_ledger).toHaveLength(1));
+    first.release();
+    await waitFor(() => expect(fake.holds.points_ledger).toHaveLength(0));
+    // пока читается следующая страница, появляется новая запись (и по дате, и по id она «раньше» уже прочитанных)
+    fake.db.points_ledger = [...(fake.db.points_ledger as object[]), { id: 'm00001', player_id: 'p1', status: 'active', event_date: '2026-12-09', points: 1, source_type: 'manual', reason_code: 'manual', components: { note: 'Новая' } }];
+    second.release();
+    const v = await run;
+    const ids = v.rows.map(r => r.id);
+    expect(new Set(ids).size).toBe(ids.length); // дублей нет
+    for (let i = 0; i < 1500; i++) expect(ids).toContain(`m${String(i + 100).padStart(5, '0')}`); // ничего из прежнего не потеряно
+  });
+
+  it('сортировка: новые сверху, при одинаковой дате по id (стабильно)', async () => {
+    fake.rpc.points_series_info = () => null;
+    fake.db.points_ledger = [
+      { id: 'b', player_id: 'p1', status: 'active', event_date: '2026-12-03', points: 1, source_type: 'manual', reason_code: 'manual', components: {} },
+      { id: 'a', player_id: 'p1', status: 'active', event_date: '2026-12-03', points: 1, source_type: 'manual', reason_code: 'manual', components: {} },
+      { id: 'c', player_id: 'p1', status: 'active', event_date: '2026-12-09', points: 1, source_type: 'manual', reason_code: 'manual', components: {} },
+    ];
+    const v = await loadLedger('p1', true);
+    expect(v.rows.map(r => r.id)).toEqual(['c', 'b', 'a']);
+  });
 });

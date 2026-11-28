@@ -53,15 +53,21 @@ function remember(playerId: string, v: Loaded) {
 }
 
 async function fetchLedger(playerId: string): Promise<Loaded> {
+  // Страницы читаются по ключу (id больше последнего прочитанного), а не по смещению: запись, добавленная или закрытая между страницами,
+  // не сдвигает границу и не даёт дубля или пропуска. Порядок показа (новые сверху, при одной дате по id) задаётся уже здесь, на клиенте.
   const list: LedgerRow[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const r = await supabase.from('points_ledger').select('id, event_date, points, source_type, reason_code, components, status').eq('player_id', playerId).eq('status', 'active')
-      .order('event_date', { ascending: false }).order('id', { ascending: false }).range(from, from + PAGE - 1);
+  let after: string | null = null;
+  for (;;) {
+    let q = supabase.from('points_ledger').select('id, event_date, points, source_type, reason_code, components, status').eq('player_id', playerId).eq('status', 'active');
+    if (after) q = q.gt('id', after);
+    const r = await q.order('id', { ascending: true }).limit(PAGE);
     if (r.error) throw r.error;
     const page = (r.data ?? []) as LedgerRow[];
     list.push(...page);
     if (page.length < PAGE) break;
+    after = page[page.length - 1].id;
   }
+  list.sort((a, b) => (a.event_date === b.event_date ? (a.id < b.id ? 1 : -1) : a.event_date < b.event_date ? 1 : -1));
   let series: SeriesInfo | null = null;
   if (list.length > 0) {
     const s = await supabase.rpc('points_series_info', { p: playerId });
