@@ -4,6 +4,7 @@ import { useDirtyGuard, useDirtySignature } from '../nav';
 import { coachError, fmtDate, groupByGroupName, today } from '../lib/coach';
 import { campAttention, netPaid } from '../lib/campAttention';
 import { supabase } from '../lib/supabase';
+import { DUPLICATE_REFUND_NOTE, REUSED_REFUND_NOTE, refundCamp } from '../lib/campRefund';
 import { EmptyState, ListRow, Pill, SearchInput, Segmented, SwitchRow } from '../ui/components';
 import { useConfirm } from '../ui/ConfirmSheet';
 import { BackNav } from '../ui/nav';
@@ -27,6 +28,7 @@ const errText = (m: string) =>
   m.includes('camp full') ? 'На сборе нет свободных мест.' : m.includes('capacity below registered') ? 'Лимит не может быть меньше числа подтверждённых участников.' : m.includes('already registered') ? 'Уже записан на этот сбор.' : m.includes('not a guest') ? 'Имя и контакт правятся только у гостя.' : m.includes('already cancelled') ? 'Этот платёж уже отменён.' : m.includes('not cancellable') ? 'Этот платёж отменить нельзя.' : m.includes('paid below zero') ? 'Отмена увела бы оплату ниже нуля.' :
   m.includes('bad dates') ? 'Дата конца раньше даты начала.' : m.includes('bad amount') ? 'Сумма указана неверно.' : m.includes('amount below paid') ? 'Сумма участника не может быть меньше уже оплаченного.' : m.includes('name required') ? 'Введите название.' : m.includes('tariff not found') ? 'Выберите действующий тариф.' :
   m.includes('not registered') ? 'Запись не активна: платёж не принимается.' : m.includes('duplicate payment') ? 'Такой платёж только что внесён.' : m.includes('cancelled by parent') ? 'Участник отменил запись. Откройте список заново.' :
+  m.includes('request id reused') ? REUSED_REFUND_NOTE :
   m.includes('Could not find the function') || m.includes('camp_') ? 'Модуль ещё не установлен в базе (миграция 0037).' : campErr(m);
 const nameOf = (p: Pick<Part, 'players' | 'guest_name'>) => p.players?.full_name ?? p.guest_name ?? 'Участник';
 const groupOf = (p: Pick<Part, 'players' | 'player_id'>) => (p.player_id ? p.players?.groups?.name ?? 'Без группы' : 'Гости');
@@ -363,7 +365,7 @@ function PartView({ part, camp, tariffs, others, onBack }: { part: Part; camp: C
       danger: true,
     });
     if (!ok) return;
-    const saved = await run('refund', () => supabase.rpc('camp_refund', { pid: p.id, amt: num(refundAmount), d: refundDate, cmt: refundNote.trim() || null }), 'Возврат записан.');
+    const saved = await run('refund', () => refundCamp({ pid: p.id, amt: num(refundAmount), d: refundDate, cmt: refundNote.trim() || null }), 'Возврат записан.');
     if (saved) { setRefundAmount(''); setRefundNote(''); }
   };
   const replace = async () => {
@@ -394,13 +396,14 @@ function PartView({ part, camp, tariffs, others, onBack }: { part: Part; camp: C
     const r = await supabase.from('camp_participants').select('id, player_id, guest_name, guest_contact, tariff_id, amount, tshirt_size, comment, status, players(full_name, groups(name)), camp_tariffs(name), camp_payments(id, amount, paid_on, kind, method, comment, legacy_ref)').eq('id', part.id).maybeSingle();
     if (!r.error && r.data) setP({ ...(r.data as unknown as Part), amount: Number((r.data as { amount: number }).amount) });
   };
-  const run = async (key: string, f: () => PromiseLike<{ error: { message: string } | null }>, ok?: string) => {
+  const run = async (key: string, f: () => PromiseLike<{ error: { message: string } | null; duplicate?: boolean }>, ok?: string) => {
     setBusy(key);
     setMsg(null);
     const r = await f();
     setBusy(null);
     if (r.error) { setMsg({ ok: false, text: errText(r.error.message) }); return false; }
-    if (ok) setMsg({ ok: true, text: ok });
+    if (r.duplicate) setMsg({ ok: true, text: DUPLICATE_REFUND_NOTE });
+    else if (ok) setMsg({ ok: true, text: ok });
     await refresh();
     return true;
   };
