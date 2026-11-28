@@ -9,6 +9,8 @@ import { useConfirm } from '../ui/ConfirmSheet';
 import { closureFlags, useClosure, type ClosureKind } from '../ui/ClosureSheet';
 import { Failure, Loading } from './Message';
 import { useNavState } from '../nav';
+import { useClubSettings } from '../lib/clubSettings';
+import { nextMonthDueFor } from '../lib/nextMonth';
 
 interface Row { group_name: string; player_id: string; full_name: string; tariff: number; paid: number; debt: number }
 interface Disc { id: string; player_id: string; players: { full_name: string } | null }
@@ -22,16 +24,19 @@ const monthName = (iso: string) => {
   const s = new Date(y, m - 1, 1).toLocaleDateString('ru', { month: 'long', year: 'numeric' });
   return s.charAt(0).toUpperCase() + s.slice(1);
 };
-const monthsList = () => {
+// С N-го числа (по умолчанию с 22-го) в списке и следующий месяц: он считается долгом, а не оплатой «вперёд» (0230)
+const monthsList = (withNext = false) => {
   const out: string[] = [];
   const now = new Date();
-  for (let d = new Date(now.getFullYear(), now.getMonth(), 1); monthIso(d) >= DEBT_START; d.setMonth(d.getMonth() - 1)) out.push(monthIso(d));
+  for (let d = new Date(now.getFullYear(), now.getMonth() + (withNext ? 1 : 0), 1); monthIso(d) >= DEBT_START; d.setMonth(d.getMonth() - 1)) out.push(monthIso(d));
   return out;
 };
 
 // Для администратора: должники по абонементу за месяц, скидки и включение показа долга родителям (docs/DEBT_RULES.md).
 export default function Debtors() {
-  const months = useMemo(monthsList, []);
+  const settings = useClubSettings();
+  const withNext = nextMonthDueFor(settings.values);
+  const months = useMemo(() => monthsList(withNext), [withNext]);
   const [month, setMonth] = useNavState('db.month', months[0] ?? DEBT_START);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [discs, setDiscs] = useState<Disc[]>([]);

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { hasSubscription, sortGroups, today, errMsg } from '../lib/coach';
 import { settingNumber, settingNumberError, useClubSettings } from '../lib/clubSettings';
-import { perVisitMonth, type PayMode } from '../lib/payMode';
+import { isMissingColumn, perVisitMonth, type PayMode } from '../lib/payMode';
 import { DEBT_START } from '../lib/debtSeason';
 import { supabase } from '../lib/supabase';
 import { addPayment, paymentError, DUPLICATE_PAYMENT_NOTE } from '../lib/paymentAdd';
@@ -74,6 +74,7 @@ export default function MonthPayments() {
   const [paid, setPaid] = useState<Map<string, number>>(new Map());
   const [subs, setSubs] = useState<Map<string, Sub>>(new Map());
   const [error, setError] = useState<string | null>(null);
+  const [noMode, setNoMode] = useState(false); // режим оплаты («за визит») не загрузился: суммы долга не рассчитываются (#701)
   const [reload, setReload] = useState(0);
   const [note, setNote] = useState<string | null>(null);
   const [openId, setOpenId] = useNavState<string | null>('mp.open', null);
@@ -115,8 +116,14 @@ export default function MonthPayments() {
       const subGroup = new Map(((sb.data ?? []) as (Sub & { group_id: string | null })[]).filter(x => past && x.group_id).map(x => [x.player_id, x.group_id as string]));
       const inGroup = (x: Pl): Pl => ({ ...x, group_id: subGroup.get(x.id) ?? x.group_id });
       // 0200: игрок «Платит за визит» в этом месяце не в списке абонементов (оплата по визитам), если за месяц у него нет платежей; ошибка чтения колонок (нет миграции) = как раньше
-      const pmq = await supabase.from('players').select('id, pay_mode, pay_mode_from').eq('pay_mode', 'per_visit').limit(1000);
-      const perVisit = new Set(pmq.error ? [] : ((pmq.data ?? []) as (PayMode & { id: string })[]).filter(x => perVisitMonth(x, month) && (m.get(x.id) ?? 0) <= 0).map(x => x.id));
+      // 0229: после возврата на абонемент период «за визит» тоже учитывается (pay_mode_until); без миграции колонки нет — читаем только per_visit
+      const pmA = await supabase.from('players').select('id, pay_mode, pay_mode_from').eq('pay_mode', 'per_visit').limit(1000);
+      const pmB = await supabase.from('players').select('id, pay_mode, pay_mode_from, pay_mode_until').gt('pay_mode_until', '1900-01-01').limit(1000);
+      // сбой чтения не равен «игроков за визит нет»: список остаётся, суммы долга не показываются (#701)
+      const modeFailed = (!!pmA.error && !isMissingColumn(pmA.error)) || (!!pmB.error && !isMissingColumn(pmB.error));
+      setNoMode(modeFailed);
+      const pmRows = [...(pmA.error ? [] : (pmA.data ?? [])), ...(pmB.error ? [] : (pmB.data ?? []))] as (PayMode & { id: string })[];
+      const perVisit = new Set(pmRows.filter(x => perVisitMonth(x, month) && (m.get(x.id) ?? 0) <= 0).map(x => x.id));
       const active = ((pl.data ?? []) as Pl[]).map(inGroup).filter(x => ok.has(x.group_id) && !perVisit.has(x.id));
       const have = new Set((pl.data ?? []).map((x: Pl) => x.id));
       const gone = [...withPay].filter(id => !have.has(id));
@@ -139,6 +146,7 @@ export default function MonthPayments() {
     return !!s?.written_off || !!s?.discount || (t !== null && gotOf(p) >= t);
   };
   const all = players ?? [];
+  const onlyDebtNow = onlyDebt && !noMode; // при недостоверном расчёте фильтр по долгу не применяется
   const total = all.reduce((s, p) => s + gotOf(p), 0);
   const expected = all.reduce((s, p) => s + (tariffOf(p) ?? 0), 0);
   const nPaid = all.filter(done).length;
@@ -158,15 +166,22 @@ export default function MonthPayments() {
       {note && <p className="ks-muted" role="status">{note}</p>}
       {!players ? <Loading /> : (
         <>
+          {noMode && (
+            <div className="ks-card" role="alert" style={{ marginBottom: 12 }}>
+              <b>Не рассчитано</b>
+              <p className="muted" style={{ margin: '4px 0 8px' }}>Не удалось загрузить данные, необходимые для расчёта задолженности. Сумма долга временно недоступна.</p>
+              <button type="button" className="ks-btn secondary" onClick={() => { setPlayers(null); setReload(n => n + 1); }}>Повторить загрузку</button>
+            </div>
+          )}
           <div className="ks-tiles" style={{ margin: '12px 0' }}>
             <div className="ks-tile"><b>Внесено</b>{gel(total)}</div>
-            <div className="ks-tile"><b>Ожидается по тарифам</b>{gel(expected)}</div>
-            <div className="ks-tile"><b>Оплатили</b>{nPaid} из {all.length}</div>
-            <div className="ks-tile"><b>Должников</b>{all.length - nPaid}</div>
+            <div className="ks-tile"><b>Ожидается по тарифам</b>{noMode ? 'Не рассчитано' : gel(expected)}</div>
+            <div className="ks-tile"><b>Оплатили</b>{noMode ? 'Не рассчитано' : `${nPaid} из ${all.length}`}</div>
+            <div className="ks-tile"><b>Должников</b>{noMode ? 'Не рассчитано' : all.length - nPaid}</div>
           </div>
           {groups.map(g => {
             const gp = all.filter(x => x.group_id === g.id);
-            const shown = gp.filter(x => (!onlyDebt || !done(x)) && (!needle || x.full_name.toLowerCase().includes(needle)));
+            const shown = gp.filter(x => (!onlyDebtNow || !done(x)) && (!needle || x.full_name.toLowerCase().includes(needle)));
             if (!shown.length) return null;
             const gDone = gp.filter(done).length;
             const gTotal = gp.reduce((s, x) => s + gotOf(x), 0);
@@ -174,17 +189,17 @@ export default function MonthPayments() {
             return (
               <details className="ks-group" key={g.id} open={onlyDebt || !!needle}>
                 <summary>
-                  <div className="ks-line"><b>{g.name}</b><span className="muted">{gDone} из {gp.length}</span></div>
+                  <div className="ks-line"><b>{g.name}</b><span className="muted">{noMode ? `${gp.length} игр.` : `${gDone} из ${gp.length}`}</span></div>
                   <div className="ks-bar" aria-hidden="true"><i style={{ width: `${gp.length ? Math.round((gDone * 100) / gp.length) : 0}%` }} /></div>
-                  <p className="muted" style={{ fontSize: 13 }}>внесено {gel(gTotal)} из {gel(gExp)}</p>
+                  <p className="muted" style={{ fontSize: 13 }}>{noMode ? `внесено ${gel(gTotal)}` : `внесено ${gel(gTotal)} из ${gel(gExp)}`}</p>
                 </summary>
                 {shown.map(p => (
-                  <Row key={`${p.id}|${gotOf(p)}|${month}`} player={p} month={month} tariff={tariffOf(p)} got={gotOf(p)} sub={subs.get(p.id)} paidUp={done(p)} open={openId === p.id} onOpen={() => setOpenId(openId === p.id ? null : p.id)} onSaved={n => { setNote(n ?? null); setOpenId(null); setReload(x => x + 1); }} />
+                  <Row key={`${p.id}|${gotOf(p)}|${month}`} player={p} month={month} tariff={tariffOf(p)} got={gotOf(p)} sub={subs.get(p.id)} paidUp={done(p)} uncalc={noMode} open={openId === p.id} onOpen={() => setOpenId(openId === p.id ? null : p.id)} onSaved={n => { setNote(n ?? null); setOpenId(null); setReload(x => x + 1); }} />
                 ))}
               </details>
             );
           })}
-          {all.length > 0 && !all.some(x => (!onlyDebt || !done(x)) && (!needle || x.full_name.toLowerCase().includes(needle))) && (
+          {all.length > 0 && !all.some(x => (!onlyDebtNow || !done(x)) && (!needle || x.full_name.toLowerCase().includes(needle))) && (
             <EmptyState icon="users" title="Ничего не найдено" text="Измените запрос или сбросьте фильтр." />
           )}
         </>
@@ -193,7 +208,7 @@ export default function MonthPayments() {
   );
 }
 
-export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOpen, onSaved }: { player: Player; title?: string; month: string; tariff: number | null; got: number; sub?: Sub; paidUp: boolean; open: boolean; onOpen: () => void; onSaved: (note?: string) => void }) {
+export function Row({ player, title, month, tariff, got, sub, paidUp, uncalc = false, open, onOpen, onSaved }: { player: Player; title?: string; month: string; tariff: number | null; got: number; sub?: Sub; paidUp: boolean; uncalc?: boolean; open: boolean; onOpen: () => void; onSaved: (note?: string) => void }) {
   const [amount, setAmount] = useState(String(Math.max((tariff ?? 0) - got, 0) || ''));
   const [date, setDate] = useState(today());
   const [method, setMethod] = useState('');
@@ -226,7 +241,7 @@ export function Row({ player, title, month, tariff, got, sub, paidUp, open, onOp
     <div className="ks-card">
       <div className="ks-line pin-end">
         <b style={{ overflowWrap: 'anywhere' }}>{title ?? player.full_name}</b>
-        <Pill tone={paidUp ? 'success' : 'danger'} dot>{sub?.written_off || sub?.discount ? `${CLOSURE_LABELS[sub.closed_kind ?? (sub.written_off ? 'forgiven' : 'discount')]}${got > 0 ? ` · внесено ${gel(got)}` : ''}` : `${gel(got)}${tariff !== null ? ` из ${gel(tariff)}` : ''}`}</Pill>
+        <Pill tone={uncalc ? 'neutral' : paidUp ? 'success' : 'danger'} dot>{sub?.written_off || sub?.discount ? `${CLOSURE_LABELS[sub.closed_kind ?? (sub.written_off ? 'forgiven' : 'discount')]}${got > 0 ? ` · внесено ${gel(got)}` : ''}` : `${gel(got)}${tariff !== null && !uncalc ? ` из ${gel(tariff)}` : ''}`}</Pill>
       </div>
       {(sub?.discount || sub?.written_off) && sub.closed_reason && sub.closed_reason !== LEGACY_REASON && <p className="ks-muted" style={{ fontSize: 13, margin: '4px 0 0' }}>Причина: {sub.closed_reason}</p>}
       <button type="button" className={paidUp && !open ? 'ks-btn secondary sm' : 'ks-btn secondary'} style={{ marginTop: 8 }} onClick={onOpen}>{open ? 'Свернуть' : 'Внести платёж'}</button>

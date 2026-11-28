@@ -110,7 +110,7 @@ select is((select count(*) filter (where player_id not in (select pid from mine)
 select is((select count(*) filter (where player_id not in (select pid from mine))::int || '/' || count(*)::int from match_rsvp_my_matches()), '0/2', 'match_rsvp_my_matches: оба своих матча, чужих нет');
 select is((select count(*) filter (where player_id not in (select pid from mine))::int from parent_dues()), 0, 'parent_dues: только свои дети');
 select is((select string_agg(kind || ':' || debt::int, ',' order by kind) from parent_dues()), 'camp:200', 'parent_dues: долг по сбору своего ребёнка (будущая индивидуальная ещё не долг)');
-select is((select count(*) filter (where player_id not in (select pid from mine))::int || '/' || count(*)::int from parent_debts()), '0/2', 'parent_debts: абонементы только своих детей');
+select is((select count(*) filter (where player_id not in (select pid from mine))::int || '/' || count(*)::int from parent_debts() where month <= date_trunc('month', (now() at time zone 'Asia/Tbilisi')::date)::date), '0/2', 'parent_debts: абонементы только своих детей (месяцы до текущего включительно; следующий с 22-го — 0230)');
 select is((select string_agg(x->>'name', ',') from booking_board() b, jsonb_array_elements(b.mine) x), 'Аня', 'booking_board: в «моих записях» только свой ребёнок, хотя Боря записан туда же');
 select throws_ok($$select * from parent_calendar('00000000-0000-0000-0000-00000000d003', (now() at time zone 'Asia/Tbilisi')::date - 10, (now() at time zone 'Asia/Tbilisi')::date)$$,
   '42501', 'forbidden', 'parent_calendar чужого ребёнка: отказ');

@@ -64,13 +64,13 @@ insert into club_settings (club_id, key, value) values ('00000000-0000-0000-0000
 select as_user('00000000-0000-0000-0000-0000000000b1');
 select is((select debt from parent_debts() where player_id = '00000000-0000-0000-0000-00000000d001' and month = date_trunc('month', (now() at time zone 'Asia/Tbilisi')::date)::date), 65::numeric, 'текущий месяц: 165 - 100 = 65');
 select is((select debt from parent_debts() where player_id = '00000000-0000-0000-0000-00000000d001' and month = '2026-09-01'), 105::numeric, 'прошлый месяц со строкой абонемента: 165 - 60 = 105');
-select is((select debt from parent_debts() where player_id = '00000000-0000-0000-0000-00000000d002'), 0::numeric, 'скидка и что-то внесено: долга нет');
-select is((select tariff from parent_debts() where player_id = '00000000-0000-0000-0000-00000000d003'), 130::numeric, 'у группы weekends цена 130');
-select is((select debt from parent_debts() where player_id = '00000000-0000-0000-0000-00000000d003'), 130::numeric, 'не платил в weekends: долг 130');
+select is((select debt from parent_debts() where player_id = '00000000-0000-0000-0000-00000000d002' and month = date_trunc('month', (now() at time zone 'Asia/Tbilisi')::date)::date), 0::numeric, 'скидка и что-то внесено: долга нет');
+select is((select tariff from parent_debts() where player_id = '00000000-0000-0000-0000-00000000d003' and month = date_trunc('month', (now() at time zone 'Asia/Tbilisi')::date)::date), 130::numeric, 'у группы weekends цена 130');
+select is((select debt from parent_debts() where player_id = '00000000-0000-0000-0000-00000000d003' and month = date_trunc('month', (now() at time zone 'Asia/Tbilisi')::date)::date), 130::numeric, 'не платил в weekends: долг 130');
 select is((select count(*)::int from parent_debts() where player_id = '00000000-0000-0000-0000-00000000d003' and month = '2026-09-01'), 0, 'прошлый месяц без строки абонемента долга не даёт (новый игрок)');
 select is((select count(*)::int from parent_debts() where player_id = '00000000-0000-0000-0000-00000000d006'), 0, 'чужого ребёнка родитель не видит');
 select as_user('00000000-0000-0000-0000-0000000000b2');
-select is((select count(*)::int from parent_debts()), 1, 'другой родитель видит только своего ребёнка');
+select is((select count(*)::int from parent_debts() where month = date_trunc('month', (now() at time zone 'Asia/Tbilisi')::date)::date), 1, 'другой родитель видит только своего ребёнка (за текущий месяц)');
 select as_user('00000000-0000-0000-0000-0000000000c1');
 select is((select count(*)::int from parent_debts()), 0, 'тренер без своих детей долгов не видит');
 
@@ -84,7 +84,7 @@ select is((select count(*)::int from debtors(date_trunc('month', (now() at time 
 select is((select debt from debtors('2026-09-15') where full_name = 'Платит частично'), 105::numeric, 'прошлый месяц: только игроки со строкой абонемента, долг 105');
 select is((select count(*)::int from debtors('2026-09-01')), 1, 'в прошлом месяце должен один (остальные без строки абонемента)');
 select throws_ok($$select * from debtors('2026-08-01')$$, null, 'month out of range', 'месяц раньше начала сезона нельзя');
-select throws_ok($$select * from debtors((date_trunc('month', (now() at time zone 'Asia/Tbilisi')::date) + interval '1 month')::date)$$, null, 'month out of range', 'будущий месяц нельзя');
+select throws_ok($$select * from debtors((date_trunc('month', (now() at time zone 'Asia/Tbilisi')::date) + interval '2 month')::date)$$, null, 'month out of range', 'месяц через один после следующего нельзя (следующий с 22-го — 0230)');
 
 select * from finish();
 rollback;

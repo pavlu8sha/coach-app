@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { today } from '../lib/coach';
 import { DEBT_START } from '../lib/debtSeason';
 import { fake, supabase } from '../test/fakeSupabase';
+import { failNth } from '../test/failNth';
 import CashDesk, { PlayerDues } from './CashDesk';
 import { monthIso, nextMonth } from './MonthPayments';
 
@@ -355,6 +356,25 @@ describe('«Приём оплат»', () => {
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Записать' }));
     await waitFor(() => expect(fake.paymentAdds()).toHaveLength(1));
     expect(fake.paymentAdds()[0]).toMatchObject({ player_id: 'p1', amount: 165, paid_on: today(), for_month: next, method: 'Перевод' });
+  });
+
+  // Условия приёмки: docs/PAY_MODE_RETURN_AND_NEXT_MONTH_ACCEPTANCE.md, часть B, п. 5 (с 22-го следующий месяц — долг, не «вперёд»)
+  it('с 22-го неоплаченный следующий месяц — обычный долг: без «вперёд», входит в сумму', async () => {
+    seed();
+    fake.db.equipment_orders = [];
+    fake.db.individual_bookings = [];
+    fake.db.extra_bookings = [];
+    fake.db.camp_participants = [];
+    fake.db.payments = [{ id: 'x1', player_id: 'p1', amount: 165, paid_on: M, method: 'Наличные', players: { full_name: 'Иванов Пётр' } }];
+    vi.setSystemTime(new Date(2026, 9, 22, 12, 0, 0));
+    await openPlayer();
+    try {
+      expect(await screen.findByText(/к оплате: 165 ₾/)).toBeInTheDocument();
+      expect(screen.queryByText(/\(вперёд\)/)).toBeNull();
+      expect(screen.getByText(/Ноябрь 2026/)).toBeInTheDocument();
+    } finally {
+      vi.setSystemTime(new Date(2026, 9, 15, 12, 0, 0));
+    }
   });
 
   it('«Внесено» за выбранную дату: платежи абонемента и сборов, итог по дню', async () => {
@@ -1033,6 +1053,19 @@ describe('«Приём оплат»: игрок «Платит за визит»
     expect(screen.queryByRole('button', { name: /Закрыть без оплаты|Оплатить со скидкой/ })).toBeNull();
     expect(screen.getByText(/Сентябрь 2026/)).toBeInTheDocument(); // месяц до начала: как раньше
   });
+
+  // Условия приёмки: docs/PAY_MODE_RETURN_AND_NEXT_MONTH_ACCEPTANCE.md, часть A, п. 3 и 5 (период «за визит» после возврата на абонемент)
+  it('после возврата на абонемент месяцы периода «за визит» не предлагаются, визиты остаются', async () => {
+    seed();
+    fake.db.payments = [];
+    fake.db.subscriptions = [{ player_id: 'p1', month: DEBT_START, group_id: null, discount: false, written_off: false }];
+    fake.db.players = [{ id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', groups: { name: 'U9-A' }, pay_mode: 'subscription', pay_mode_from: '2026-10-05', pay_mode_until: '2026-11-01' }];
+    fake.db.own_visits = [{ session_id: 's7', player_id: 'p1', paid: false, amount: 20, sessions: { starts_at: '2026-10-14T12:00:00+04:00', groups: { name: 'U9-A' } } }];
+    await openPlayer();
+    expect(await screen.findByText(/Оплата за визит 14.10.2026/)).toBeInTheDocument();
+    expect(screen.queryByText(/Октябрь 2026/)).toBeNull();
+    expect(screen.getByText(/Сентябрь 2026/)).toBeInTheDocument();
+  });
 });
 
 describe('«Приём оплат»: быстрые даты и отмена через «⋯»', () => {
@@ -1294,5 +1327,45 @@ describe('«К оплате»: сбой данных расчёта абонем
     await openPlayer();
     expect(await screen.findByText(TEXT)).toBeInTheDocument();
     expect(screen.getByText(/к оплате: не рассчитано/)).toBeInTheDocument();
+  });
+});
+
+describe('«К оплате»: сбой чтения режима оплаты pay_mode (#701)', () => {
+  const TEXT = 'Не удалось загрузить данные, необходимые для расчёта задолженности. Сумма долга временно недоступна.';
+  function seedMode() {
+    seed();
+    fake.db.individual_bookings = [];
+    fake.db.extra_bookings = [];
+    fake.db.camp_participants = [];
+    fake.db.player_status_log = [];
+    fake.db.payments = [];
+    fake.db.subscriptions = [{ player_id: 'p1', month: DEBT_START, group_id: null, discount: false, written_off: false }];
+    fake.db.players = [{ id: 'p1', full_name: 'Иванов Пётр', group_id: 'g1', groups: { name: 'U9-A' }, pay_mode: 'per_visit', pay_mode_from: '2026-10-05' }];
+  }
+
+  it('сбой pay_mode: не «обычный абонемент», а «Не рассчитано»; экипировка доступна, экран не заменён ошибкой', async () => {
+    seedMode();
+    const f = failNth('players', 1);
+    await openPlayer();
+    expect(await screen.findByText(TEXT)).toBeInTheDocument();
+    expect(screen.getByText(/к оплате: не рассчитано/)).toBeInTheDocument();
+    expect(screen.queryByText(/Сентябрь 2026/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Не удалось загрузить долги игрока')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Экипировка' })).toBeInTheDocument();
+    f.restore();
+  });
+
+  it('«Повторить загрузку» после сбоя pay_mode: игрок «за визит» без ложного долга, платежей не создано', async () => {
+    seedMode();
+    const f = failNth('players', 1);
+    await openPlayer();
+    await screen.findByText(TEXT);
+    f.restore();
+    const before = fake.db.payments.length;
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить загрузку' }));
+    await waitFor(() => expect(screen.queryByText(TEXT)).not.toBeInTheDocument());
+    expect(screen.queryByText(/Октябрь 2026/)).toBeNull();
+    expect(screen.getByText(/Сентябрь 2026/)).toBeInTheDocument();
+    expect(fake.db.payments.length).toBe(before);
   });
 });
