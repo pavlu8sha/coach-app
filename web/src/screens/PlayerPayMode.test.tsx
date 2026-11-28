@@ -51,6 +51,26 @@ describe('«Тип оплаты» в карточке игрока', () => {
     expect(screen.getByText(/Месяц этой даты целиком абонементный.*Неоплаченные визиты остаются долгом/)).toBeInTheDocument();
   });
 
+  // Замечание ревью PR #871 (P2): открытие формы не должно терять уже назначенную дату возврата
+  it('у игрока с назначенным возвратом форма показывает эту дату, повторное сохранение её не меняет', async () => {
+    fake.db.players = [{ id: 'p1', pay_mode: 'subscription', pay_mode_from: '2026-11-01', pay_mode_until: '2999-12-15' }];
+    const calls: unknown[] = [];
+    fake.rpc.player_set_pay_mode = (a: unknown) => { calls.push(a); return null; };
+    render(<PlayerPayMode playerId="p1" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Изменить тип оплаты' }));
+    expect((screen.getByLabelText('Вернуть абонемент с') as HTMLInputElement).value).toBe('2999-12-15');
+    fireEvent.click(screen.getByRole('button', { name: 'Вернуть абонемент' }));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0]).toMatchObject({ p: 'p1', mode: 'subscription', from_d: '2999-12-15' });
+  });
+
+  it('у игрока «за визит» без назначенного возврата дата по умолчанию — первое число следующего месяца', async () => {
+    fake.db.players = [{ id: 'p1', pay_mode: 'per_visit', pay_mode_from: '2026-11-01' }];
+    render(<PlayerPayMode playerId="p1" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Изменить тип оплаты' }));
+    expect((screen.getByLabelText('Вернуть абонемент с') as HTMLInputElement).value).toMatch(/^\d{4}-\d{2}-01$/);
+  });
+
   it('ошибка чтения типа оплаты показывает сообщение и «Повторить», а не пустое место', async () => {
     fake.errorsNext.players = 'Failed to fetch';
     render(<PlayerPayMode playerId="p1" />);

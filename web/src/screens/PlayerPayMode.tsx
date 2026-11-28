@@ -76,7 +76,7 @@ export default function PlayerPayMode({ playerId }: { playerId: string }) {
         </p>
       )}
       {!editing && (
-        <button type="button" className="ks-btn secondary" onClick={() => { setEditing(true); setDate(mode.pay_mode_from ?? today()); setReturnDate(nextMonthFirst()); setError(null); }}>
+        <button type="button" className="ks-btn secondary" onClick={() => { setEditing(true); setDate(mode.pay_mode_from ?? today()); setReturnDate(scheduled && until ? until : nextMonthFirst()); setError(null); }}>
           {perNow ? 'Изменить тип оплаты' : 'Сменить на «Платит за визит»'}
         </button>
       )}
