@@ -186,4 +186,22 @@ describe('рейтинг по группе', () => {
     expect(await screen.findAllByText('Место 1 по баллам')).toHaveLength(3);
     expect(screen.getByText('Место 4 по баллам')).toBeInTheDocument();
   });
+
+  // #764: чтение журнала по ключу, без лимита 1000 и без дублей
+  const bulk = (n: number, pid: string) => Array.from({ length: n }, (_, i) => ({ id: `${pid}-${String(i).padStart(5, '0')}`, player_id: pid, points: 1, event_date: '2026-11-04', source_type: 'manual', reason_code: 'manual', components: {}, status: 'active', created_at: '2026-11-04T10:00:00Z' }));
+
+  it.each([999, 1000, 1001, 2001])('в списке итог игрока из %i начислений полный', async n => {
+    seed();
+    fake.db.points_ledger = bulk(n, 'p1');
+    render(<Group groups={groups} />);
+    expect(await screen.findByText(String(n))).toBeInTheDocument();
+  });
+
+  it.each([1000, 1001, 2001])('в карточке «Всего» и число начислений полные при %i записях', async n => {
+    seed();
+    fake.db.points_ledger = bulk(n, 'p1');
+    render(<Group groups={groups} />);
+    fireEvent.click(await screen.findByText('Иванов Пётр'));
+    expect(await screen.findByText(new RegExp(`Всего: ${n} .*начислений: ${n}`))).toBeInTheDocument();
+  });
 });

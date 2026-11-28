@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { coachError, fmtDate, plural, type CoachGroup, errMsg } from '../lib/coach';
+import { fetchLedgerTotals } from '../lib/pointsLedger';
 import { supabase } from '../lib/supabase';
 import { tgApp } from '../lib/telegram';
 import { useNav, useNavState } from '../nav';
@@ -37,16 +38,9 @@ export default function Group({ groups, notify = false }: { groups: CoachGroup[]
       const list = (p.data ?? []) as Player[];
       setPlayers(list);
       // Рейтинг по баллам: если баллы не загрузились, список остаётся по алфавиту
-      const sums: Record<string, number> = {};
-      const ids = list.map(x => x.id);
-      for (let i = 0; i < ids.length; i += 100) {
-        for (let from = 0; ; from += 1000) {
-          const e = await supabase.from('points_ledger').select('player_id, points').eq('status', 'active').in('player_id', ids.slice(i, i + 100)).order('id').range(from, from + 999);
-          if (e.error) return setRanked(true);
-          for (const r of (e.data ?? []) as { player_id: string; points: number }[]) sums[r.player_id] = (sums[r.player_id] ?? 0) + r.points;
-          if ((e.data ?? []).length < 1000) break;
-        }
-      }
+      const led = await fetchLedgerTotals(list.map(x => x.id)); // чтение по ключу, общий порядок с карточкой игрока
+      if (led.error) return setRanked(true);
+      const sums = led.totals;
       setTotals(sums);
       setRanked(true);
     })();
@@ -124,11 +118,16 @@ function PlayerCard({ gid, player, onBack }: { gid: string; player: Player; onBa
     void (async () => {
       let total = 0;
       let count = 0;
-      for (let from = 0; ; from += 1000) {
-        const e = await supabase.from('points_ledger').select('id, points').eq('player_id', player.id).eq('status', 'active').order('id').range(from, from + 999);
+      let after: string | null = null; // по ключу (id), а не по смещению: запись между страницами не даёт дубля
+      for (;;) {
+        let q = supabase.from('points_ledger').select('id, points').eq('player_id', player.id).eq('status', 'active');
+        if (after) q = q.gt('id', after);
+        const e = await q.order('id', { ascending: true }).limit(1000);
         if (e.error) return setError(errMsg(e.error));
-        for (const r of (e.data ?? []) as { points: number }[]) { total += r.points; count += 1; }
-        if ((e.data ?? []).length < 1000) break;
+        const page = (e.data ?? []) as { id: string; points: number }[];
+        for (const r of page) { total += r.points; count += 1; }
+        if (page.length < 1000) break;
+        after = page[page.length - 1].id;
       }
       setLedger({ total, count });
     })();
