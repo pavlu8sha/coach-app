@@ -4,6 +4,7 @@ import { afterEach, beforeEach, vi } from 'vitest';
 import { fake } from './fakeSupabase';
 import { dirtyGuard, resetDetachedNav } from '../nav';
 import { resetPaymentKeys } from '../lib/paymentAdd';
+import { resetRefundKeys } from '../lib/campRefund';
 import { resetTgUsernameSync } from '../lib/tgUsername';
 import { resetPointsCache } from '../screens/PointsLedger';
 import { resetMyKidsCache } from '../screens/MyKids';
@@ -15,6 +16,7 @@ beforeEach(() => {
   dirtyGuard.reset();
   localStorage.clear();
   resetPaymentKeys();
+  resetRefundKeys();
   resetTgUsernameSync();
   resetPointsCache();
   resetMyKidsCache();
